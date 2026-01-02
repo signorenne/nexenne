@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# Fast gate on every commit: staged C++ files must be clang-format clean.
+# The heavier build + test gate runs on push (see pre-push). Enable both with:
+#
+#   git config core.hooksPath .githooks
+#
+# Skip once with: NEXENNE_SKIP_HOOK=1 git commit ...
+set -euo pipefail
+
+if [ "${NEXENNE_SKIP_HOOK:-0}" = "1" ]; then
+    echo "pre-commit: skipped (NEXENNE_SKIP_HOOK=1)"
+    exit 0
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+
+mapfile -t staged < <(git diff --cached --name-only --diff-filter=ACM -- '*.hpp' '*.cpp')
+if [ "${#staged[@]}" -eq 0 ]; then
+    exit 0
+fi
+
+if ! command -v clang-format >/dev/null 2>&1; then
+    echo "pre-commit: clang-format not found, skipping format check"
+    exit 0
+fi
+
+unformatted=()
+for f in "${staged[@]}"; do
+    [ -f "$f" ] || continue
+    if ! clang-format "$f" | diff -q - "$f" >/dev/null 2>&1; then
+        unformatted+=("$f")
+    fi
+done
+if [ "${#unformatted[@]}" -gt 0 ]; then
+    echo "pre-commit: these files need formatting (run: clang-format -i <file>):"
+    printf '  %s\n' "${unformatted[@]}"
+    exit 1
+fi
+echo "pre-commit: format OK"

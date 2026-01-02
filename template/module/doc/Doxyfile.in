@@ -1,0 +1,75 @@
+# Doxyfile template for nexenne::__MODULE__. CMake's configure_file() fills the
+# @PLACEHOLDERS@ at configure time. Javadoc-flavored: the first sentence is the
+# brief, comments carry no HTML, and every public symbol must be documented.
+
+PROJECT_NAME           = "nexenne::@NEXENNE_MODULE_NAME@"
+PROJECT_NUMBER         = "@PROJECT_VERSION@"
+PROJECT_BRIEF          = "API documentation for the nexenne::@NEXENNE_MODULE_NAME@ module"
+OUTPUT_DIRECTORY       = "@CMAKE_CURRENT_BINARY_DIR@"
+OUTPUT_LANGUAGE        = English
+TAB_SIZE               = 4
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+WARN_AS_ERROR          = FAIL_ON_WARNINGS
+
+# Javadoc-flavored comment processing.
+JAVADOC_AUTOBRIEF      = YES
+JAVADOC_BANNER         = YES
+QT_AUTOBRIEF           = NO
+MULTILINE_CPP_IS_BRIEF = NO
+INHERIT_DOCS           = YES
+DISTRIBUTE_GROUP_DOC   = YES
+ALWAYS_DETAILED_SEC    = YES
+REPEAT_BRIEF           = NO
+AUTOLINK_SUPPORT       = YES
+MARKDOWN_SUPPORT       = YES
+BUILTIN_STL_SUPPORT    = YES
+
+ALIASES                = "complexity=@par Complexity:^^" \
+                         "thread_safety=@par Thread safety:^^"
+
+# Input: the module's public headers only.
+INPUT                  = "@CMAKE_CURRENT_SOURCE_DIR@/../include"
+FILE_PATTERNS          = *.hpp *.h
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */tests/* */build/*
+STRIP_FROM_PATH        = "@CMAKE_CURRENT_SOURCE_DIR@/../include"
+
+# Only documented public items appear; undocumented ones are reported.
+EXTRACT_ALL            = NO
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = NO
+EXTRACT_LOCAL_CLASSES  = NO
+HIDE_UNDOC_MEMBERS     = YES
+HIDE_UNDOC_CLASSES     = YES
+HIDE_SCOPE_NAMES       = NO
+SHOW_INCLUDE_FILES     = YES
+
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+REFERENCES_LINK_SOURCE = YES
+STRIP_CODE_COMMENTS    = NO
+
+# Strip C++23 attributes so they do not pollute signatures.
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+PREDEFINED             = "[[nodiscard]]=" \
+                         "[[likely]]=" \
+                         "[[unlikely]]=" \
+                         "[[maybe_unused]]="
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_FILE_EXTENSION    = .html
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+HTML_COLORSTYLE        = LIGHT
+HTML_DYNAMIC_MENUS     = YES
+
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+GENERATE_MAN           = NO
