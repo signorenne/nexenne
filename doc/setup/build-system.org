@@ -1,0 +1,40 @@
+#+TITLE: Build system
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+CMake =>= 3.23, C++23, Ninja. The root [[file:../../CMakeLists.txt][CMakeLists.txt]] sets the standard and
+output dirs, defines the options below, includes the [[file:cmake-helpers.org][helpers]], discovers
+[[file:modules.org][modules]] in dependency order, then builds the =nexenne::all= umbrella and the
+install rules.
+
+* Options
+
+Each defaults to ON when nexenne is the top-level project, OFF when embedded.
+
+| option                       | effect                                 |
+|------------------------------+----------------------------------------|
+| =NEXENNE_BUILD_TESTS=        | build doctest suites + =nexenne_tests= |
+| =NEXENNE_BUILD_EXAMPLES=     | build =examples/=                      |
+| =NEXENNE_BUILD_BENCHMARKS=   | build =benchmarks/=                    |
+| =NEXENNE_BUILD_DOCS=         | generate Doxygen API docs              |
+| =NEXENNE_INSTALL=            | generate install + package rules       |
+| =NEXENNE_WARNINGS_AS_ERRORS= | promote warnings to errors             |
+
+Per-module toggle: =NEXENNE_MODULE_<NAME>=OFF= drops one module from the build.
+
+* Presets
+
+From [[file:../../CMakePresets.json][CMakePresets.json]] (=cmake --preset <name>=):
+
+| preset    | build type     | notes                   |
+|-----------+----------------+-------------------------|
+| =dev=     | Debug          | tests + examples on     |
+| =release= | RelWithDebInfo | tests/examples off      |
+| =asan=    | Debug          | Address + UB sanitizers |
+| =ci=      | Debug          | warnings as errors      |
+
+Build preset =tests= builds the =nexenne_tests= target (see [[file:testing.org][Testing]]).
+
+* See also
+
+[[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]], [[file:install.org][Install and consume]].

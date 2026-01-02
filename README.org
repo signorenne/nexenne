@@ -1,0 +1,106 @@
+#+TITLE: nexenne
+#+SUBTITLE: modular C++23 library collection
+#+AUTHOR: signorenne
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+* What it is
+
+A monorepo of small, focused C++23 libraries. Each is a /module/ exposed as
+the CMake target =nexenne::<name>= and the namespace =nexenne::<name>=. Take
+the whole thing and link =nexenne::all=, or take a single module with
+=find_package(nexenne-math)=. Modules are header-only by default and declare
+their dependencies in one short file, so each module's =CMakeLists.txt= stays
+a few lines.
+
+* Status
+
+Bootstrapping. The repository currently holds the infrastructure (build
+system, lint configs, module template, docs) and no modules yet. Modules are
+ported in one at a time, each reviewed and hardened as it lands, starting with
+=utility=. A fresh checkout configures and builds with zero modules present.
+
+* Requirements
+
+- CMake =>= 3.23, a C++23 compiler (tested on GCC 15.2; Clang 18+, MSVC 19.40+
+  expected), Ninja recommended.
+- =doctest= and (optionally) Doxygen are fetched via =FetchContent= if not
+  installed, so the project is self-contained.
+
+* Build
+
+#+BEGIN_SRC sh
+cmake --preset dev                                  # Debug, tests + examples on
+cmake --build --preset dev
+cmake --build --preset dev --target nexenne_tests   # run every doctest suite
+#+END_SRC
+
+Tests are doctest binaries. The =nexenne_tests= target runs them all; a
+failing suite fails the build. Run one module's suite directly (with doctest
+filters) at =build/dev/bin/nexenne_<name>_tests=.
+
+| preset    | purpose                       |
+|-----------+-------------------------------|
+| =dev=     | Debug, all modules, tests on  |
+| =release= | RelWithDebInfo, tests off     |
+| =asan=    | Debug + Address/UB sanitizers |
+| =ci=      | =dev= + warnings as errors    |
+
+* Layout
+
+#+BEGIN_SRC text
+nexenne/
+├── CMakeLists.txt        root: discovers modules, orders by dependency
+├── CMakePresets.json     dev / release / asan / ci
+├── cmake/                build helpers (module, warnings, testing, doxygen)
+├── include/nexenne/      umbrella header
+├── modules/<name>/       one folder per module, same layout each
+├── template/             module skeleton + new-module.sh + MODULE_GUIDE.org
+├── STYLE_GUIDE.org       C++ style (enforced by clang tooling)
+└── CONTRIBUTING.org      workflow + commit convention
+#+END_SRC
+
+* Use it in your project
+
+#+BEGIN_SRC cmake
+find_package(nexenne REQUIRED)                       # whole library
+target_link_libraries(app PRIVATE nexenne::all)
+
+find_package(nexenne REQUIRED COMPONENTS math)       # a subset
+find_package(nexenne-math REQUIRED)                  # one module
+target_link_libraries(app PRIVATE nexenne::math)
+#+END_SRC
+
+Also works via =add_subdirectory(third_party/nexenne)= or =FetchContent=.
+
+* Add a module
+
+#+BEGIN_SRC sh
+./template/new-module.sh my_module
+#+END_SRC
+
+The root discovers it on the next configure. Dependencies on other modules go
+one-per-line in =modules/my_module/module.deps=. Full rules and the PR
+checklist are in [[file:template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]].
+
+* Docs
+
+Doxygen (fetched if missing). =nexenne_<name>_docs= per module,
+=nexenne_docs= for all:
+
+#+BEGIN_SRC sh
+cmake -B build/docs -DNEXENNE_BUILD_DOCS=ON
+cmake --build build/docs --target nexenne_docs
+#+END_SRC
+
+* Style, in one breath
+
+C++23, snake_case everywhere (PascalCase template params), trailing return
+types, braced init only, const by default, ranges over raw loops, Javadoc
+Doxygen on every public symbol. Full rules in [[file:STYLE_GUIDE.org][STYLE_GUIDE.org]];
+commit convention in [[file:CONTRIBUTING.org][CONTRIBUTING.org]].
+
+* License
+
+MIT, see [[file:LICENSE][LICENSE]]. Licence and authorship live there and in git,
+not in per-file headers.

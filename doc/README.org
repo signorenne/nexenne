@@ -1,0 +1,32 @@
+#+TITLE: nexenne knowledge base
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+How the project works and how to use it: a few lines per topic, each linking to
+the real files. Start here, follow the links. Setup and tooling docs live under
+[[file:setup/][setup/]].
+
+* Setup and infrastructure
+
+- [[file:setup/build-system.org][Build system]] : root CMake, options, presets.
+- [[file:setup/modules.org][Modules]] : layout, =module.deps=, discovery, kinds, standalone builds.
+- [[file:setup/cmake-helpers.org][CMake helpers]] : what each file under =cmake/= does.
+- [[file:setup/install.org][Install and consume]] : =find_package= / =add_subdirectory= / =FetchContent=.
+- [[file:setup/testing.org][Testing]] : doctest and the =nexenne_tests= target.
+- [[file:setup/hooks.org][Git hooks]] : the pre-commit and pre-push gates.
+- [[file:setup/ci.org][CI]] : the GitHub Actions jobs.
+- [[file:setup/api-docs.org][API docs]] : Doxygen, and what the docs build enforces.
+- [[file:setup/conventions.org][Conventions]] : code style, naming, file headers, commits.
+- [[file:setup/tools.org][Tools and tech]] : every external tool used, what for, where to learn more.
+
+* Top-level files
+
+| file                      | what it is                               |
+|---------------------------+------------------------------------------|
+| [[file:../CMakeLists.txt][CMakeLists.txt]]            | root build: discovers and orders modules |
+| [[file:../CMakePresets.json][CMakePresets.json]]         | dev / release / asan / ci presets        |
+| [[file:../README.org][README.org]]                | project overview and quick start         |
+| [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]]           | the C++ style, enforced by clang tooling |
+| [[file:../CONTRIBUTING.org][CONTRIBUTING.org]]          | workflow, hooks, CI, commit convention   |
+| [[file:../LICENSE][LICENSE]]                   | MIT                                      |
+| [[file:../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]] | how to add a module + PR checklist       |

@@ -1,0 +1,46 @@
+#+TITLE: Modules
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+A module is a library =nexenne::<name>= in namespace =nexenne::<name>=,
+header-only by default. Scaffold one with =./template/new-module.sh <name>=;
+the root [[file:../../CMakeLists.txt][build]] discovers it on the next configure. Full guide and PR
+checklist: [[file:../../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]].
+
+* Layout
+
+#+BEGIN_SRC text
+modules/<name>/
+|-- CMakeLists.txt          the nexenne_add_module(...) call
+|-- module.deps             dependency module names (only if it has deps)
+|-- include/nexenne/<name>/ public headers (<name>.hpp is the umbrella)
+|-- src/                    only for compiled modules
+|-- tests/                  doctest suites
+`-- doc/                    Doxyfile.in for the module's API docs
+#+END_SRC
+
+* Dependencies, one source of truth
+
+Inter-module deps live only in =module.deps= (one name per line). The root
+reads it to order builds, [[file:cmake-helpers.org][=nexenne_add_module=]] reads it to link
+=nexenne::<dep>=, and a standalone build reads it to pull siblings in. There is
+no =DEPENDS= argument. External (non-nexenne) libraries go in =LINK_PUBLIC= /
+=LINK_PRIVATE= on the call.
+
+* Kinds
+
+=KIND= on =nexenne_add_module=: =INTERFACE= (default, header-only), =STATIC=,
+=SHARED= (auto-generates an export header), =OBJECT=.
+
+* Standalone
+
+Any module builds on its own; =nexenne_standalone_bootstrap()= sets up the
+helpers and pulls =module.deps= siblings (or =find_package= when not present):
+
+#+BEGIN_SRC sh
+cmake -S modules/<name> -B build/<name> && cmake --build build/<name>
+#+END_SRC
+
+* See also
+
+[[file:cmake-helpers.org][CMake helpers]], [[file:testing.org][Testing]], [[file:install.org][Install and consume]], [[file:conventions.org][Conventions]].

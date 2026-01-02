@@ -1,0 +1,37 @@
+#+TITLE: Install and consume
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+nexenne installs as standard CMake packages: an umbrella =nexenne= and one
+=nexenne-<name>= per module. Each module is also usable straight from the
+source tree.
+
+* Install
+
+#+BEGIN_SRC sh
+cmake -B build -DCMAKE_INSTALL_PREFIX=/where/you/want
+cmake --build build && cmake --install build
+#+END_SRC
+
+* Consume
+
+#+BEGIN_SRC cmake
+find_package(nexenne REQUIRED)                  # whole library
+target_link_libraries(app PRIVATE nexenne::all)
+
+find_package(nexenne REQUIRED COMPONENTS math)  # a subset
+find_package(nexenne-math REQUIRED)             # one module
+target_link_libraries(app PRIVATE nexenne::math)
+#+END_SRC
+
+Also works embedded: =add_subdirectory(third_party/nexenne)= or =FetchContent=
+(link the =nexenne::<name>= targets directly).
+
+* Packaging check
+
+[[file:../../scripts/install_smoke.sh][scripts/install_smoke.sh]] exercises the whole path end to end (install + a
+consumer that =find_package=s a module). The [[file:ci.org][CI]] =install= job runs it.
+
+* See also
+
+[[file:build-system.org][Build system]], [[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]].

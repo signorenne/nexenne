@@ -1,0 +1,24 @@
+#+TITLE: Git hooks
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Two local gates live in [[file:../../.githooks/][.githooks/]]. Enable them once per clone:
+
+#+BEGIN_SRC sh
+git config core.hooksPath .githooks
+#+END_SRC
+
+- [[file:../../.githooks/pre-commit][pre-commit]] (on commit) : staged =.hpp= / =.cpp= are clang-format
+  clean; fast.
+- [[file:../../.githooks/pre-push][pre-push]] (on push) : =ci= preset configure, build, and
+  =nexenne_tests=.
+
+Format runs on every commit so it stays cheap; the full build + test runs once
+on push. Skip either in an emergency by prefixing the git command with
+=NEXENNE_SKIP_HOOK=1=.
+
+The same checks run in [[file:ci.org][CI]], so a skipped hook is caught on the server.
+
+* See also
+
+[[file:testing.org][Testing]], [[file:ci.org][CI]], [[file:conventions.org][Conventions]].

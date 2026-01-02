@@ -1,0 +1,79 @@
+#+TITLE: Contributing to nexenne
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Workflow
+
+1. Enable the pre-commit hook once per clone: =git config core.hooksPath .githooks=.
+2. Branch off =main=; never commit straight to it.
+3. New module: =./template/new-module.sh <name>=, then follow [[file:template/MODULE_GUIDE.org][MODULE_GUIDE.org]].
+4. Write to [[file:STYLE_GUIDE.org][STYLE_GUIDE.org]]; let =.clang-format= / =.clang-tidy= enforce it.
+5. The =ci= preset must be green before a PR:
+   =cmake --preset ci && cmake --build --preset ci --target nexenne_tests=.
+
+* Local gates (git hooks)
+
+Enable once per clone: =git config core.hooksPath .githooks=. Then:
+
+- *pre-commit* (fast): staged =.hpp= / =.cpp= files must be clang-format clean.
+- *pre-push* (full): =cmake --preset ci=, the build, and =nexenne_tests= must pass.
+
+Bypass either once by prefixing the git command with =NEXENNE_SKIP_HOOK=1=.
+
+* Continuous integration
+
+GitHub Actions (=.github/workflows/ci.yml=) runs on every push and PR to =main=.
+A PR merges only when every job is green:
+
+| job           | checks                                            |
+|---------------+---------------------------------------------------|
+| =format=      | clang-format is clean                             |
+| =build-test=  | GCC build + doctest suites, warnings as errors    |
+| =build-clang= | Clang build (portability)                         |
+| =asan=        | doctest suites under Address + UB sanitizers      |
+| =tidy=        | clang-tidy is clean                               |
+| =docs=        | Doxygen builds with no documentation errors       |
+| =install=     | install, then a consumer find_package()s a module |
+
+* Commit messages
+
+Subject line is =type(scope): description=:
+
+- =type= is the kind of change (table below).
+- =scope= is required, never omitted: a module name (=utility=, =math=) or an
+  area (=cmake=, =docs=, =ci=, =template=, =headers=, =hooks=). Use =repo= for a
+  genuinely repo-wide change.
+- =description= is short, lower-case, imperative, no trailing period.
+
+Keep the subject simple and on one line: no body, no wall of text.
+
+| type     | for                                     |
+|----------+-----------------------------------------|
+| feat     | new feature or public API               |
+| fix      | bug fix                                 |
+| perf     | performance, no behavior change         |
+| refactor | restructuring, no feature or fix        |
+| test     | tests only                              |
+| docs     | documentation only                      |
+| build    | build system, CMake, presets, deps      |
+| chore    | tooling and housekeeping                |
+| ci       | CI configuration                        |
+| style    | formatting / naming, no semantic change |
+
+#+BEGIN_SRC text
+feat(utility): add strong_type wrapper
+fix(container): correct slot_map iterator invalidation on erase
+build(cmake): read module deps from module.deps
+#+END_SRC
+
+Do *not* add a =Co-Authored-By= or any assistant/AI trailer. One logical
+change per commit; one topic per PR.
+
+* AI code assistants
+
+Allowed, with full developer accountability for every line submitted. See
+[[file:AI_DISCLAIMER.org][AI_DISCLAIMER.org]].
+
+* Docs format
+
+All prose docs are Org mode (=.org=), never Markdown. Do not add =.md= files.

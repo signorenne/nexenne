@@ -1,0 +1,44 @@
+#+TITLE: Conventions
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+The full, enforced rules are in [[file:../../STYLE_GUIDE.org][STYLE_GUIDE.org]] (=.clang-format= +
+=.clang-tidy=) and [[file:../../CONTRIBUTING.org][CONTRIBUTING.org]]. The essentials:
+
+* Code
+
+- C++23, snake_case everywhere; template parameters are PascalCase (=Real=, =N=).
+- Trailing return types, braced init only, =const= by default, ranges over loops.
+- =std::string_view= / =std::span= for non-owning args.
+- Comments: plain or Doxygen only. No banner comments, no em-dash, no backticks,
+  no HTML.
+
+* File header
+
+#+BEGIN_SRC cpp
+#pragma once
+
+/**
+ * @file
+ * @brief One-line description.
+ */
+#+END_SRC
+
+No SPDX line and no author list per file: the licence is in [[file:../../LICENSE][LICENSE]],
+authorship is in git.
+
+* Doxygen blocks
+
+Fixed tag order, every file: =@brief=, detail, =@tparam= / =@param=, =@return=,
+=@pre= / =@post= / =@throws=, then =@note= / =@warning= / =@see= / =@complexity=
+/ =@par Example=. =@pre= / =@post= are mandatory. Canonical block in
+[[file:../../STYLE_GUIDE.org][STYLE_GUIDE.org]].
+
+* Commits
+
+=type(scope): description=, e.g. =feat(utility): add strong_type=. No AI/co-author
+trailer. Types and rules: [[file:../../CONTRIBUTING.org][CONTRIBUTING.org]].
+
+* See also
+
+[[file:api-docs.org][API docs]], [[file:hooks.org][Git hooks]].
