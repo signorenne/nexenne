@@ -1,0 +1,95 @@
+#+TITLE: nexenne module guide
+#+SUBTITLE: add a module, land a clean PR
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+Every module is a library =nexenne::<name>= in namespace =nexenne::<name>=,
+header-only by default. The root build discovers modules automatically; you
+never edit a central registry.
+
+* Add one
+
+#+BEGIN_SRC sh
+./template/new-module.sh my_module     # scaffolds modules/my_module/
+cmake --preset dev
+cmake --build --preset dev --target nexenne_tests
+#+END_SRC
+
+The script copies =template/module/=, substitutes the name, and prints the
+next steps. Then write your API under =include/nexenne/my_module/= and tests
+under =tests/=.
+
+* Layout
+
+#+BEGIN_SRC text
+modules/<name>/
+├── CMakeLists.txt              the nexenne_add_module(...) call
+├── module.deps                 dependency module names (only if it has deps)
+├── include/nexenne/<name>/
+│   ├── <name>.hpp              umbrella header, includes every leaf
+│   └── <leaf>.hpp              your API
+├── src/                        only for compiled (non-header-only) modules
+├── tests/                      test_<topic>.cpp + a one-line CMakeLists
+└── doc/                        Doxyfile.in + a one-line CMakeLists
+#+END_SRC
+
+* Dependencies
+
+List dependency module names in =modules/<name>/module.deps=, one per line.
+That single file is the source of truth: the root build uses it to order
+modules, =nexenne_add_module= uses it to link =nexenne::<dep>=, and a
+standalone build uses it to pull siblings in. There is no =DEPENDS= argument.
+
+External libraries (not nexenne modules) go in the call instead:
+=LINK_PUBLIC= when exposed transitively, =LINK_PRIVATE= when implementation
+only (compiled modules only).
+
+* Module kinds
+
+=nexenne_add_module(<name> KIND <kind> ...)= picks how it compiles:
+
+| kind      | when                       | needs             |
+|-----------+----------------------------+-------------------|
+| INTERFACE | header-only (default)      | HEADERS           |
+| STATIC    | static archive             | HEADERS + SOURCES |
+| SHARED    | shared lib, stable ABI     | HEADERS + SOURCES |
+| OBJECT    | special composition        | HEADERS + SOURCES |
+
+Default to INTERFACE. =SHARED= generates
+=include/nexenne/<name>/<name>_export.hpp=; mark public symbols with
+=NEXENNE_<NAME>_EXPORT= (visibility is hidden by default).
+
+* Standalone build
+
+Any module builds on its own; deps in =module.deps= are pulled from sibling
+directories, or from =find_package= when not checked out alongside:
+
+#+BEGIN_SRC sh
+cmake -S modules/<name> -B build/<name> && cmake --build build/<name>
+#+END_SRC
+
+* Docs
+
+C++ style is [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]], enforced by =.clang-format= / =.clang-tidy=.
+Every public symbol gets a Javadoc-flavored Doxygen block. The tag order is
+fixed and identical in every file (=@brief=, detail, =@tparam= / =@param=,
+=@return=, =@pre= / =@post= / =@throws=, then =@note= / =@warning= / =@see= /
+=@complexity= / =@par Example=); =@pre= / =@post= are always present. See the
+canonical block in [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]].
+
+Build docs with =cmake -B build/docs -DNEXENNE_BUILD_DOCS=ON= then target
+=nexenne_<name>_docs= (or =nexenne_docs= for all).
+
+* PR checklist
+
+- [ ] Name is lowercase snake_case; scaffolded from the template.
+- [ ] Every public header listed in =nexenne_add_module(... HEADERS ...)=.
+- [ ] Dependencies declared in =module.deps= (not includes-only).
+- [ ] Tests under =tests/= exercise the public API; new behavior, new tests.
+- [ ] Doxygen on every public symbol, =@pre= / =@post= included.
+- [ ] =nexenne_tests= target passes under the =dev= and =ci= presets.
+- [ ] =clang-format -i= leaves no diff; =run-clang-tidy= reports nothing new.
+- [ ] No banner comments, em-dashes, or backticks in code.
+- [ ] Commit subjects follow =type(scope): description= (see [[file:../CONTRIBUTING.org][CONTRIBUTING.org]]).
+
+To remove a module: =rm -rf modules/<name>/=. Nothing else to edit.

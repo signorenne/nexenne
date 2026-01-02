@@ -1,0 +1,38 @@
+#+TITLE: API documentation
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Public API docs are Doxygen, generated from the headers. Doxygen is found on
+the system or fetched and built if missing (opt out with
+=-DNEXENNE_FETCH_DOXYGEN_IF_MISSING=OFF=).
+
+* Build
+
+#+BEGIN_SRC sh
+cmake -B build/docs -DNEXENNE_BUILD_DOCS=ON
+cmake --build build/docs --target nexenne_docs            # all modules
+cmake --build build/docs --target nexenne_<name>_docs     # one module
+#+END_SRC
+
+HTML lands under =build/docs/modules/<name>/doc/html/=. The per-module Doxyfile
+is generated from [[file:../../template/module/doc/Doxyfile.in][template/module/doc/Doxyfile.in]].
+
+* What the docs build enforces
+
+=WARN_AS_ERROR = FAIL_ON_WARNINGS=, so the build fails on Doxygen
+documentation /errors/: a =@param= that does not match the signature, a
+=@return= on a =void= function, a broken reference. The [[file:ci.org][CI]] =docs= job runs
+this.
+
+It does /not/ enforce completeness: Doxygen silently skips an undocumented
+free function. "Every public symbol has a Doxygen block" is therefore a
+review-checklist item, not an automated gate.
+
+* The block
+
+Comment format and the fixed tag order are in [[file:../../STYLE_GUIDE.org][STYLE_GUIDE.org]]; see also
+[[file:conventions.org][Conventions]].
+
+* See also
+
+[[file:ci.org][CI]], [[file:cmake-helpers.org][CMake helpers]], [[file:conventions.org][Conventions]].
