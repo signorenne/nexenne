@@ -21,6 +21,7 @@ nexenne_add_module(utility
         include/nexenne/utility/non_null.hpp
         include/nexenne/utility/overloaded.hpp
         include/nexenne/utility/scope_guard.hpp
+        include/nexenne/utility/type_list.hpp
 )
 
 if(NEXENNE_BUILD_TESTS)
