@@ -1,5 +1,6 @@
 nexenne_add_module_tests(utility
     SOURCES
+        test_defer.cpp
         test_narrow_cast.cpp
         test_overloaded.cpp
 )
