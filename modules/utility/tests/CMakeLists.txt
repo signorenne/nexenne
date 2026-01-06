@@ -1,5 +1,6 @@
 nexenne_add_module_tests(utility
     SOURCES
+        test_bit.cpp
         test_defer.cpp
         test_hash.cpp
         test_meta.cpp
