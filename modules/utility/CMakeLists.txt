@@ -18,6 +18,7 @@ nexenne_add_module(utility
         include/nexenne/utility/utility.hpp
         include/nexenne/utility/align.hpp
         include/nexenne/utility/bit.hpp
+        include/nexenne/utility/constexpr_map.hpp
         include/nexenne/utility/defer.hpp
         include/nexenne/utility/hash.hpp
         include/nexenne/utility/meta.hpp
