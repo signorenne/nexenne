@@ -4,6 +4,7 @@ nexenne_add_module_tests(utility
         test_bit.cpp
         test_constexpr_map.cpp
         test_defer.cpp
+        test_enum_to_string.cpp
         test_flags.cpp
         test_hash.cpp
         test_meta.cpp
