@@ -13,5 +13,6 @@ nexenne_add_module_tests(utility
         test_overloaded.cpp
         test_scope_guard.cpp
         test_static_string.cpp
+        test_strong_typedef.cpp
         test_type_list.cpp
 )
