@@ -18,6 +18,7 @@
 #include <nexenne/utility/overloaded.hpp>
 #include <nexenne/utility/scope_guard.hpp>
 #include <nexenne/utility/static_string.hpp>
+#include <nexenne/utility/strong_typedef.hpp>
 #include <nexenne/utility/type_list.hpp>
 
 namespace nexenne::utility {}
