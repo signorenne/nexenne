@@ -14,6 +14,7 @@
 #include <nexenne/utility/function_ref.hpp>
 #include <nexenne/utility/hash.hpp>
 #include <nexenne/utility/in_place_function.hpp>
+#include <nexenne/utility/lazy.hpp>
 #include <nexenne/utility/meta.hpp>
 #include <nexenne/utility/narrow_cast.hpp>
 #include <nexenne/utility/non_null.hpp>
