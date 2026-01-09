@@ -6,6 +6,7 @@ nexenne_add_module_tests(utility
         test_defer.cpp
         test_enum_to_string.cpp
         test_flags.cpp
+        test_function_ref.cpp
         test_hash.cpp
         test_meta.cpp
         test_narrow_cast.cpp

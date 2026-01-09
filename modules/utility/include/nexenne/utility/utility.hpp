@@ -11,6 +11,7 @@
 #include <nexenne/utility/defer.hpp>
 #include <nexenne/utility/enum_to_string.hpp>
 #include <nexenne/utility/flags.hpp>
+#include <nexenne/utility/function_ref.hpp>
 #include <nexenne/utility/hash.hpp>
 #include <nexenne/utility/meta.hpp>
 #include <nexenne/utility/narrow_cast.hpp>
