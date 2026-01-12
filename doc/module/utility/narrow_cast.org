@@ -1,0 +1,28 @@
+#+TITLE: narrow_cast
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::narrow_cast= is a narrowing conversion that, in debug builds,
+asserts the value is preserved and the sign does not flip; under =NDEBUG= it
+compiles to exactly the underlying =static_cast=.
+
+* The idea
+
+A bare =static_cast= to a smaller type silently truncates, and the resulting
+bugs are hard to trace. =narrow_cast= casts, then asserts that casting the
+result back to the source type reproduces the original; it also rejects sign
+flips, since a round trip alone would accept =narrow_cast<unsigned>(-1)=. The
+tradeoff is that the safety net is debug-only: it documents intent and catches
+mistakes in testing at zero release-build cost, but it does not throw or clamp in
+production.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto const wide{std::int32_t{300}};
+auto const narrow{nexenne::utility::narrow_cast<std::int16_t>(wide)};
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/narrow_cast.cpp][examples/utility/narrow_cast.cpp]]

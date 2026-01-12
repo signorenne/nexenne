@@ -1,0 +1,30 @@
+#+TITLE: non_null
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::non_null= is a thin pointer wrapper that documents and, in
+debug, enforces that a pointer is never null, surfacing contract violations at
+the API boundary instead of deep in a call chain.
+
+* The idea
+
+A function taking a raw pointer cannot say "this must not be null", so callers
+guess and callees add defensive checks. =non_null= encodes the contract in the
+type: constructing or assigning from =nullptr= is a compile error, a runtime null
+asserts in debug at the construction site, and it implicitly converts back to the
+underlying pointer so it drops into existing APIs. It works with raw and smart
+pointers (=get= returns by reference to avoid refcount churn). The tradeoff is
+that the runtime guarantee is debug-only; in release it is a zero-overhead
+wrapper that trusts the contract.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto draw(nexenne::utility::non_null<widget*> target) -> void {
+  target->paint();  // no null check: the contract guarantees it
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/non_null.cpp][examples/utility/non_null.cpp]]

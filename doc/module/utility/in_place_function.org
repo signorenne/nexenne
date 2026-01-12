@@ -1,0 +1,37 @@
+#+TITLE: in_place_function
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::in_place_function= stores any callable (lambda, function
+pointer, functor) inside a fixed amount of inline storage, with no heap
+allocation. It is the heap-free replacement for =std::function= on embedded
+targets and in hot paths.
+
+* The idea
+
+A callable that does not fit within =Capacity= bytes is rejected by the
+converting constructor's =requires= clause at compile time, with no silent heap
+fallback. The type is move-only: a moved-from instance is empty, =explicit
+operator bool= tests for non-empty, and calling an empty instance asserts in
+debug. Unlike =nexenne::utility::function_ref=, it /owns/ the callable, so it is
+the right choice when the callable must be stored and invoked later.
+
+* Usage
+
+#+BEGIN_SRC cpp
+using discount = nexenne::utility::in_place_function<int(int), 32>;
+
+int const member_off{15};
+auto rule{discount{[member_off](int price) { return price - member_off; }}};
+
+bool const ready{static_cast<bool>(rule)};  // true
+int const net{rule(100)};                   // 85
+
+// Move-only: ownership transfers, leaving the source empty.
+auto moved{std::move(rule)};
+int const again{moved(80)};  // 65
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/in_place_function.cpp][examples/utility/in_place_function.cpp]]

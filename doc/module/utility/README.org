@@ -1,0 +1,50 @@
+#+TITLE: nexenne::utility
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Small, focused, header-only C++23 utilities. Each is documented below with its
+purpose, the idea behind it, and idiomatic usage; every entry links to a
+runnable example under [[file:../../../examples/utility/][examples/utility/]] that
+you can build (=NEXENNE_BUILD_EXAMPLES=ON=) and run to see it work.
+
+Include a single header (=nexenne/utility/<name>.hpp=) or the umbrella
+=nexenne/utility/utility.hpp=. Everything lives in =nexenne::utility=.
+
+* Callables
+
+- [[file:overloaded.org][overloaded]] : build a visitor from a set of lambdas (for =std::visit=).
+- [[file:function_ref.org][function_ref]] : non-owning, type-erased callable view (a parameter type).
+- [[file:in_place_function.org][in_place_function]] : owning, heap-free, fixed-capacity callable.
+
+* Scope and resource management
+
+- [[file:defer.org][defer]] : run an action at scope exit.
+- [[file:scope_guard.org][scope_guard]] : like =defer=, but dismissable (commit/rollback).
+- [[file:unique_resource.org][unique_resource]] : generic RAII for any handle and its releaser.
+- [[file:lazy.org][lazy]] : thread-safe compute-once-on-first-access value.
+
+* Numeric, bit, and hashing
+
+- [[file:narrow_cast.org][narrow_cast]] : checked narrowing conversion (asserts in debug).
+- [[file:bit.org][bit]] : bit manipulation beyond =<bit>= (reverse, masks, fields).
+- [[file:align.org][align]] : power-of-two alignment for sizes and addresses.
+- [[file:hash.org][hash]] : Boost-style =hash_combine= primitives.
+
+* Distinct types
+
+- [[file:strong_typedef.org][strong_typedef]] : opt-in strong type wrapping a value.
+- [[file:non_null.org][non_null]] : pointer wrapper that enforces a non-null contract.
+- [[file:flags.org][flags]] : type-safe bitmask over a scoped enum.
+- [[file:static_string.org][static_string]] : compile-time string usable as a template parameter.
+- [[file:constexpr_map.org][constexpr_map]] : compile-time sorted lookup table.
+
+* Compile-time metaprogramming
+
+- [[file:type_list.org][type_list]] : a list of types with the usual metafunctions.
+- [[file:meta.org][meta]] : =type_name=, =function_traits=, =always_false_v=.
+
+* Reflection, errors, diagnostics
+
+- [[file:enum_to_string.org][enum_to_string]] : compile-time enum reflection.
+- [[file:expected_utils.org][expected_utils]] : ergonomic helpers for =std::expected=.
+- [[file:source_location_format.org][source_location_format]] : format a source location into a buffer.

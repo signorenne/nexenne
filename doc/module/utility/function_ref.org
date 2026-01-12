@@ -1,0 +1,45 @@
+#+TITLE: function_ref
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::function_ref= is a non-owning, type-erased view over a
+callable with a given signature: like =std::function= but it refers to the
+callable instead of owning it, so it never allocates and copies as two
+pointers.
+
+* The idea
+
+Reach for it to accept "any callable" as a parameter without templating the
+whole function, avoiding one instantiation per call site. The crucial contract
+is lifetime: =function_ref= stores only the callable's address, so the
+referenced callable must outlive the view. Bind a named local or pass a
+temporary directly as a call argument; never store a =function_ref= to a
+temporary in a variable that outlives the full expression. To /store/ a callable
+for later invocation, use =nexenne::utility::in_place_function= instead.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto count_if(
+  std::span<int const> data, nexenne::utility::function_ref<bool(int)> pred
+) -> std::size_t {
+  std::size_t n{0};
+  for (auto const x : data) {
+    if (pred(x)) {
+      ++n;
+    }
+  }
+  return n;
+}
+
+// A named lambda outlives the view bound inside count_if.
+auto const big{[](int x) { return x > 10; }};
+auto const over_ten{count_if(values, big)};
+
+// A temporary is fine too: it lives for the whole call expression.
+auto const even{count_if(values, [](int x) { return x % 2 == 0; })};
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/function_ref.cpp][examples/utility/function_ref.cpp]]

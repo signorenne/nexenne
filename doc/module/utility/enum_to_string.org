@@ -1,0 +1,39 @@
+#+TITLE: enum_to_string
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::enum_to_string= and its companions provide forward (value to
+name) and inverse (name to value) enum reflection with no hand-written tables,
+working at compile time where possible.
+
+* The idea
+
+Names are recovered by parsing =__PRETTY_FUNCTION__=, so the facility requires GCC
+or Clang; other compilers see no named enumerators. The runtime and census entry
+points scan a bounded window of underlying values, defaulting to =[0, 256)=; widen
+or shift it with the =Range= and =Min= template parameters for enums whose
+enumerators fall outside that window (including signed ones). Scoped enums used
+with the census helpers should have a fixed underlying type and enumerators within
+the scanned range. Holes and aliases are simply skipped.
+
+* Usage
+
+#+BEGIN_SRC cpp
+enum class color : std::uint8_t { red = 0, green = 1, blue = 2 };
+
+namespace nu = nexenne::utility;
+
+static_assert(nu::enum_name<color::green>() == "green");   // compile-time
+static_assert(nu::enum_count<color>() == 3);
+
+auto const name{nu::enum_to_string(color::blue)};          // runtime value -> name
+auto const all{nu::enum_values<color>()};                  // std::array<color, 3>
+auto const back{nu::enum_cast<color>("red")};              // std::optional<color>
+#+END_SRC
+
+=enum_to_string=, =enum_count=, =enum_values=, and =enum_cast= each accept optional
+=Range= and =Min= parameters to retune the scanned window.
+
+Runnable: [[file:../../../examples/utility/enum_to_string.cpp][examples/utility/enum_to_string.cpp]]

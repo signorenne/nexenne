@@ -3,8 +3,14 @@
 #+STARTUP: showall
 
 How the project works and how to use it: a few lines per topic, each linking to
-the real files. Start here, follow the links. Setup and tooling docs live under
-[[file:setup/][setup/]].
+the real files. Start here, follow the links. Per-module usage guides live under
+[[file:module/][module/]]; setup and tooling docs live under [[file:setup/][setup/]].
+
+* Modules
+
+- [[file:module/utility/README.org][utility]] : small, focused helpers (callables, RAII, bit/numeric, strong
+  types, metaprogramming, reflection). One guide and one runnable example per
+  class.
 
 * Setup and infrastructure
 
