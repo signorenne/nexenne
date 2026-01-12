@@ -1,0 +1,1 @@
+nexenne_add_module_docs(container)
