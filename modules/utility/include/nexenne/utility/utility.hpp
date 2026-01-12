@@ -10,6 +10,7 @@
 #include <nexenne/utility/constexpr_map.hpp>
 #include <nexenne/utility/defer.hpp>
 #include <nexenne/utility/enum_to_string.hpp>
+#include <nexenne/utility/expected_utils.hpp>
 #include <nexenne/utility/flags.hpp>
 #include <nexenne/utility/function_ref.hpp>
 #include <nexenne/utility/hash.hpp>
