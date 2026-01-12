@@ -1,0 +1,37 @@
+#+TITLE: lazy
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::lazy= defers an expensive computation until the value is
+actually needed, then caches it. The factory runs at most once and later
+accesses return the cached value.
+
+* The idea
+
+It is thread-safe: the factory is synchronised with =std::call_once=, so under
+concurrent first access it still runs exactly once. Because the synchronisation
+primitive (=std::once_flag=) is neither movable nor resettable, =lazy= is
+itself non-movable and offers no =reset()=, so a factory that has already
+succeeded cannot be re-run. If the factory throws, nothing is cached and
+the next access retries. Construct it in place with class template argument
+deduction; do not try to move or reset it.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto config{nexenne::utility::lazy{[] { return load_config(); }}};
+
+bool const before{config.has_value()};  // false: factory not yet run
+
+std::string const& cfg{*config};        // factory fires here, once
+bool const after{config.has_value()};   // true
+
+std::size_t const len{config->size()};  // cached: no re-run
+#+END_SRC
+
+Access via =operator*=, =get()= or =operator->=; query readiness with
+=has_value()=.
+
+Runnable: [[file:../../../examples/utility/lazy.cpp][examples/utility/lazy.cpp]]

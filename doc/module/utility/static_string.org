@@ -1,0 +1,41 @@
+#+TITLE: static_string
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::static_string= is a compile-time fixed-length string that is
+structural, so unlike =std::string_view= or =std::string= it can be passed as a
+non-type template parameter (NTTP).
+
+* The idea
+
+C++20 allows NTTPs of structural type, and a class storing its characters in a
+public =std::array= qualifies, whereas =std::string_view= does not. So
+=template <static_string Name>= becomes legal and a string literal can tag a type.
+The buffer size =N= includes the null terminator, while =size()= reports the body
+length =N - 1=. It supports compile-time =operator+= concatenation and ships with
+=std::hash= and =std::formatter= specialisations, so it doubles as a map key and a
+=std::format= argument. Strings of different length are distinct types.
+
+* Usage
+
+#+BEGIN_SRC cpp
+template <nexenne::utility::static_string Name>
+struct tagged {
+  static constexpr auto name() noexcept { return Name.view(); }
+};
+
+static_assert(tagged<"hello">::name() == "hello");
+
+constexpr auto greet{nexenne::utility::static_string{"hi "}
+                     + nexenne::utility::static_string{"there"}};
+static_assert(greet.view() == "hi there");   // static_string<8>
+static_assert(greet.size() == 7);
+#+END_SRC
+
+Access the contents with =view()=, =c_str()=, =operator[]=, or iteration; the
+=std::formatter= specialisation accepts the full string format spec, e.g.
+=std::format("{:>8}", greet)=.
+
+Runnable: [[file:../../../examples/utility/static_string.cpp][examples/utility/static_string.cpp]]

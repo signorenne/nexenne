@@ -1,0 +1,29 @@
+#+TITLE: defer
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::defer= is an RAII scope-exit guard that stores a no-argument
+callable and invokes it exactly once on destruction, so cleanup runs no matter
+how the scope is left.
+
+* The idea
+
+Cleanup that must always happen, paired with C-style APIs that lack RAII, is
+error-prone when written by hand at every return path. =defer= binds the cleanup
+to the scope: the callable runs unconditionally at scope exit, including on early
+returns and exceptions. Unlike =nexenne::utility::scope_guard= there is no
+=dismiss=, which keeps it minimal; the cost is that the guard is non-copyable,
+non-movable, and =[[nodiscard]]= so a discarded temporary (which would fire
+immediately) warns.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto* const handle{acquire()};
+auto const guard{nexenne::utility::defer{[&] { release(handle); }}};
+// release(handle) runs at scope exit, even on an early return.
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/defer.cpp][examples/utility/defer.cpp]]

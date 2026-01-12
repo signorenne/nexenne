@@ -1,0 +1,40 @@
+#+TITLE: hash
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::hash= centralises the hash-combining primitives
+(=hash_combine=, =hash_combine_each=, =hash_args=, =hash_range=) so every module
+builds composite =std::hash= values from one consistent recipe.
+
+* The idea
+
+Writing a =std::hash= for an aggregate means folding its fields together, and
+doing that inconsistently across modules invites subtle collisions; this header
+offers the Boost-popularised FNV-style mixer once. The mixing constant and
+shifts are chosen at compile time for the width of =std::size_t=, so a 32-bit
+target is tuned correctly rather than truncating a 64-bit constant. The mixing
+is order-sensitive, so =[1, 2]= and =[2, 1]= hash differently; these are runtime
+functions because =std::hash= is not =constexpr=.
+
+* Usage
+
+#+BEGIN_SRC cpp
+struct cell { std::int32_t x, y, z; };
+
+template <>
+struct std::hash<cell> {
+  auto operator()(cell const& c) const noexcept -> std::size_t {
+    return nexenne::utility::hash_args(c.x, c.y, c.z);
+  }
+};
+
+auto const h{nexenne::utility::hash_range(std::array{1, 2, 3})};
+#+END_SRC
+
+Use =hash_args= for a fixed set of components, =hash_range= for any input range,
+or =hash_combine= / =hash_combine_each= to fold values into an existing seed.
+Component types must satisfy the =hashable= concept.
+
+Runnable: [[file:../../../examples/utility/hash.cpp][examples/utility/hash.cpp]]

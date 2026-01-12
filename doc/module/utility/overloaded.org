@@ -1,0 +1,34 @@
+#+TITLE: overloaded
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::overloaded= merges several callables into a single overload
+set, so one object can dispatch a =std::variant= by alternative without a
+handwritten visitor struct.
+
+* The idea
+
+A =std::visit= over a variant needs a callable that handles every alternative.
+Writing a struct with one =operator()= per type is verbose, so =overloaded=
+inherits from a pack of lambdas and pulls each =operator()= into the merged type
+with =using Ts::operator()...=. It is a stateless aggregate with a deduction
+guide, so there is zero runtime overhead; the one tradeoff is that the overload
+set must be unambiguous for every intended argument type, or the visit fails to
+compile.
+
+* Usage
+
+#+BEGIN_SRC cpp
+using event = std::variant<click, key_press>;
+std::visit(
+  nexenne::utility::overloaded{
+    [](click const& c)     { handle_click(c); },
+    [](key_press const& k) { handle_key(k); },
+  },
+  e
+);
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/overloaded.cpp][examples/utility/overloaded.cpp]]

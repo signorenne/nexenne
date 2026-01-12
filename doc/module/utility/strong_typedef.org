@@ -1,0 +1,44 @@
+#+TITLE: strong_typedef
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::strong_typedef= wraps a value of type =T= and brands it with
+a unique =Tag=, so logically distinct quantities that share a primitive
+representation (meters vs. seconds, a device id vs. a counter) cannot be mixed
+by accident.
+
+* The idea
+
+Unlike a bare =typedef=, every capability is opt-in: a fresh wrapper supports
+only construction, value access, hashing and formatting. Arithmetic, comparison
+and bitwise operators are enabled individually (or in groups) through the
+=ability= bitmask, so an identifier never silently gains the ability to be
+multiplied. The flag set is a compile-time constant, so unsupported operators
+are removed from overload resolution rather than failing at the call site, and
+the wrapper stays trivially copyable when =T= is.
+
+* Usage
+
+Ready-made profiles keep the common cases short: =quantity= (arithmetic plus
+comparison), =identifier= (comparison and hashing only), =counter= and
+=bitfield=.
+
+#+BEGIN_SRC cpp
+using namespace nexenne::utility;
+
+using meters = quantity<struct meters_tag, double>;
+using device_id = identifier<struct device_id_tag, std::uint16_t>;
+
+auto const total{meters{150.0} + meters{50.0}};  // ok: same tag
+auto const doubled{meters{150.0} * 2.0};         // ok: scalar scale
+auto const ratio{meters{10.0} / meters{2.0}};    // dimensionless double
+
+auto const a{device_id{0x10}};
+auto const b{device_id{0x20}};
+bool const same{a == b};  // ok: comparable
+// a + b;                 // ERROR: identifiers have no arithmetic
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/strong_typedef.cpp][examples/utility/strong_typedef.cpp]]

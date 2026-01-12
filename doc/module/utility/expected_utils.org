@@ -1,0 +1,37 @@
+#+TITLE: expected_utils
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=expected_utils= adds the small ergonomic helpers that real code wants over
+=std::expected= but the standard left out: =into_optional=, =try_or=,
+=flatten= and =first_error=, all in =nexenne::utility=.
+
+* The idea
+
+C++23's =std::expected= already ships the monadic chain primitives (=and_then=,
+=or_else=, =transform=, =value_or=, ...). These free functions fill the gaps:
+=into_optional= drops the error channel to a =std::optional=, =try_or= calls a
+fallback with the error (unlike =value_or=, which takes a plain value),
+=flatten= collapses a nested =expected<expected<T, E>, E>=, and =first_error=
+folds a pack of =expected<void, E>= results to the first failure. Everything is
+header-only and =noexcept= where the callables are.
+
+* Usage
+
+#+BEGIN_SRC cpp
+using namespace nexenne::utility;
+
+// Drop the error: expected<int, E> -> optional<int>.
+std::optional<int> const ok{into_optional(parse_port(8080))};
+std::optional<int> const bad{into_optional(parse_port(99999))};
+
+// Fallback computed from the error, only on the failure path.
+auto const port{try_or(parse_port(70000), [](std::string const& e) {
+  log_warning(e);
+  return 8080;
+})};
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/expected_utils.cpp][examples/utility/expected_utils.cpp]]
