@@ -2,6 +2,7 @@
 # self-contained program demonstrating a single nexenne::container class.
 set(_container_examples
     error
+    static_vector
 )
 
 foreach(_example IN LISTS _container_examples)

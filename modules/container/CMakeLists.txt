@@ -17,6 +17,7 @@ nexenne_add_module(container
     HEADERS
         include/nexenne/container/container.hpp
         include/nexenne/container/error.hpp
+        include/nexenne/container/static_vector.hpp
 )
 
 if(NEXENNE_BUILD_TESTS)
