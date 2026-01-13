@@ -1,0 +1,25 @@
+#+TITLE: setup and infrastructure
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+How the project is built, tested, documented, and shipped. One topic per file;
+follow a link for the detail.
+
+* Build and modules
+
+- [[file:build-system.org][Build system]] : root CMake, options, presets.
+- [[file:modules.org][Modules]] : layout, =module.deps=, discovery, kinds, standalone builds.
+- [[file:cmake-helpers.org][CMake helpers]] : what each file under =cmake/= does.
+- [[file:install.org][Install and consume]] : =find_package= / =add_subdirectory= / =FetchContent=.
+
+* Quality gates
+
+- [[file:testing.org][Testing]] : doctest and the =nexenne_tests= target.
+- [[file:hooks.org][Git hooks]] : the pre-commit and pre-push gates.
+- [[file:ci.org][CI]] : the GitHub Actions jobs.
+- [[file:api-docs.org][API docs]] : Doxygen, and what the docs build enforces.
+
+* Conventions and tooling
+
+- [[file:conventions.org][Conventions]] : code style, naming, file headers, commits.
+- [[file:tools.org][Tools and tech]] : every external tool used, what for, where to learn more.
