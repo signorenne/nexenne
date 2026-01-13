@@ -1,0 +1,159 @@
+#+TITLE: static_vector
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::static_vector<T, N>= is a sequence container with the
+interface of =std::vector= but a capacity fixed at compile time to =N=. All
+storage lives inline in the object, so it never touches the heap; an operation
+that would exceed =N= fails with =container_error::full= instead of growing.
+Construction, mutation, and element access are =constexpr=, so it also works at
+compile time.
+
+* The idea
+
+On a hot path that can prove an upper bound on element count, heap allocation is
+pure overhead: a pointer chase to reach the elements (often a cache miss) plus
+allocator traffic on every growth. =static_vector= trades the unbounded growth
+of =std::vector= for a fixed bound and, in return, puts the elements *inside* the
+object, contiguous and local.
+
+* How it works
+
+** Memory layout
+
+The whole container is a single flat object: an inline array of =N= slots plus
+one =size_t= counting how many are live. Each slot is a tiny union, =none= (one
+trivial byte) or a live =T=, so building the array constructs no =T= and the
+slot occupies exactly =sizeof(T)=. There is no data pointer and no capacity
+field (capacity is the constant =N=), and no heap block at all.
+
+#+BEGIN_EXAMPLE
+static_vector<int, 4>, one flat object with no heap:
+
+  +------------------------------+
+  | m_slots: 4 slots,            |   <- inline; each slot is a union
+  |          sizeof(int) each    |      (none | int), so sizeof(slot)==sizeof(int)
+  +------------------------------+
+  | m_size = 2                   |
+  +------------------------------+
+
+std::vector<int>, a 24-byte control block plus a heap block:
+
+  +------+------+------+
+  | data | size | cap  |
+  +--|---+------+------+
+     |
+     v   heap allocation: separate cache line, separate lifetime
+  +------+------+------+------+
+  |  10  |  20  | .... | .... |
+  +------+------+------+------+
+#+END_EXAMPLE
+
+A slot stays empty (its =none= member active) until an element is constructed
+into it. =m_size= is the boundary between the live prefix and the empty tail:
+
+#+BEGIN_EXAMPLE
+after push_back(10); push_back(20):
+
+  m_slots: 4 contiguous slots, sizeof(int) each
+  +--------+--------+--------+--------+
+  |   10   |   20   |  ~~~~  |  ~~~~  |   ~~~~ = empty slot, no int constructed
+  +--------+--------+--------+--------+
+    [0]      [1]      [2]      [3]
+    \---- live, m_size = 2 ---/
+                      \--- N - m_size = 2 free ---/
+#+END_EXAMPLE
+
+** Element lifetime
+
+Element lifetimes are managed by hand on the slots:
+
+- =push_back(v)= / =emplace_back(args...)=: when =m_size == N=, return
+  =container_error::full=; otherwise =std::construct_at(&m_slots[m_size].value,
+  ...)= constructs the element, then =++m_size=. =O(1)=.
+- =pop_back()=: when empty, return =container_error::empty=; otherwise
+  =--m_size= then =std::destroy_at(&m_slots[m_size].value)=. =O(1)=.
+- The destructor and =clear()= walk =[0, m_size)= destroying each element.
+
+Nothing shifts on a push or pop, so both are constant time. Copy and move walk
+the live prefix element by element; a move leaves the source empty. =swap=
+exchanges the shared prefix in place and migrates the longer tail, needing no
+temporary.
+
+** Compile-time use
+
+Storing elements in a union (rather than a byte buffer reached through
+=reinterpret_cast=, which constant evaluation forbids) makes every element
+operation usable at compile time:
+
+#+BEGIN_SRC cpp
+constexpr auto first_three{[] {
+  static_vector<int, 8> v;
+  v.push_back(1);
+  v.push_back(2);
+  v.push_back(3);
+  return v;
+}()};
+static_assert(first_three.size() == 3 && first_three[2] == 3);
+#+END_SRC
+
+The contiguous views (=data()=, =span()=, the iterators) are the run-time face:
+they hand out a =T*= over the slots, which is a run-time-only operation. At
+compile time, iterate by index with =operator[]= and =size()=.
+
+** Access and failure
+
+Per the module policy, mutators that can fail return =result<void>=. Reads come
+in two flavours: =operator[]= is unchecked (an out-of-range index is undefined
+behaviour, stated as a =@pre=), while =at=, =front=, and =back= are checked and
+return a pointer that is =nullptr= on a miss or empty container, never an
+exception.
+
+* Choosing a vector
+
+The module has three vectors alongside =std::vector=; all hold a growable
+sequence and differ in where the storage lives and what growth costs.
+
+| vector        | heap      | element addresses  | constexpr |
+|---------------+-----------+--------------------+-----------|
+| std::vector   | always    | move on grow       | transient |
+| static_vector | never     | stable (fixed cap) | value     |
+| small_vector  | past N    | move on grow       | no        |
+| stable_vector | per chunk | always stable      | no        |
+
+In the =constexpr= column, =value= means a persisted compile-time value (no
+heap); =transient= means usable only inside a =constexpr= function, where the
+allocation is freed before the evaluation ends; =no= means not usable in
+constant evaluation.
+
+- =std::vector= is the default: one contiguous heap block that grows by
+  reallocating, which moves every element and invalidates outstanding pointers
+  and iterators. Use it unless one of the constraints below applies.
+- =static_vector<T, N>= when you can prove a hard upper bound and want zero
+  allocation, even at compile time; a push past =N= returns
+  =container_error::full=.
+- =small_vector<T, N>= when the size is usually small but must not be capped:
+  inline and allocation-free in the common case, one heap block once it grows.
+- =stable_vector<T, ChunkSize>= when you hold raw pointers or references to
+  elements across pushes: addresses never move, traded against non-contiguous,
+  chunk-hopping access.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::static_vector<int, 4> v;
+
+if (auto const r{v.push_back(1)}; !r.has_value()) {
+  handle(r.error());  // container_error::full at capacity
+}
+v.emplace_back(2);
+
+for (int const x : v) {        // iterate the live prefix
+  use(x);
+}
+auto const total{std::ranges::fold_left(v.span(), 0, std::plus{})};
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/static_vector.cpp][examples/container/static_vector.cpp]]
