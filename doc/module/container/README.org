@@ -1,0 +1,19 @@
+#+TITLE: nexenne::container
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Header-only C++23 containers, fixed-capacity and dynamic, value- and
+node-based, each picked à la carte and built on
+[[file:../utility/README.org][nexenne::utility]]. Each entry below links to a
+guide and a runnable example under
+[[file:../../../examples/container/][examples/container/]].
+
+*Error policy.* Non-allocating operations are =noexcept=. An operation that can
+fail at a documented boundary (pop from empty, push when full, missing key)
+returns =result<T>= (=std::expected<T, container_error>=), never an exception.
+An operation whose only failure is allocation is =noexcept= and terminates on
+=std::bad_alloc=; pre-allocate with =reserve= when recovery is needed.
+
+* Foundation
+
+- [[file:error.org][error]] : =container_error=, the =result<T>= alias, and =to_string=.
