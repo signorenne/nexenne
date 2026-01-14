@@ -6,6 +6,7 @@
  */
 
 #include <nexenne/container/error.hpp>
+#include <nexenne/container/ring_buffer.hpp>
 #include <nexenne/container/small_vector.hpp>
 #include <nexenne/container/static_vector.hpp>
 

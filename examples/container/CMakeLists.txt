@@ -2,6 +2,7 @@
 # self-contained program demonstrating a single nexenne::container class.
 set(_container_examples
     error
+    ring_buffer
     small_vector
     static_vector
 )
