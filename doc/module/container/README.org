@@ -21,3 +21,4 @@ An operation whose only failure is allocation is =noexcept= and terminates on
 * Value containers
 
 - [[file:static_vector.org][static_vector]] : fixed-capacity inline vector, no heap.
+- [[file:small_vector.org][small_vector]] : inline for the first N, heap fallback beyond.
