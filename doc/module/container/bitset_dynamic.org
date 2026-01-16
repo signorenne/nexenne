@@ -1,0 +1,76 @@
+#+TITLE: bitset_dynamic
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::bitset_dynamic= is a bitset whose size is chosen at run
+time, packed into 64-bit words. It is the option between =std::bitset<N>= (size
+fixed at compile time) and =std::vector<bool>= (no bitwise operators, no
+popcount, no scan-for-set), with word-level intrinsics for all of those.
+
+* The idea
+
+A set of integer indices in a known range is often best stored as one bit per
+index: dense, cache-friendly, and a fraction of the memory of a hash set.
+=std::bitset= needs the width at compile time; =std::vector<bool>= has the
+right storage but a crippled interface (no =&=, =|=, =count=, or scan). This
+container keeps the packed storage and adds the operations that make bitsets
+useful: bitwise combination, population count, and a forward scan for the next
+set bit, each one or two machine instructions per word.
+
+* How it works
+
+** Memory layout
+
+Storage is a =std::vector<std::uint64_t>=: one 64-bit word per 64 bits, plus a
+separate logical bit count. Bit =i= lives in word =i >> 6= at bit position
+=i & 63= (a shift and a mask, because 64 is a power of two). The tail of the
+last word, beyond the logical size, is kept zero after every mutation so that
+=count=, =any=, and =all= need no per-call masking.
+
+#+BEGIN_EXAMPLE
+bitset_dynamic of 70 bits = ceil(70 / 64) = 2 words:
+
+  word 0: bits 0..63                 word 1: bits 64..69, then the tail
+  +----------------------------+     +----------------------------+
+  | b63 ... b2 b1 b0           |     | 0 0 ... 0  b69 ... b65 b64 |
+  +----------------------------+     +----------------------------+
+                                       \------- tail kept 0 ------/
+  bit i  ->  word i >> 6, position i & 63
+#+END_EXAMPLE
+
+** Word-level operations
+
+Because the bits are packed, whole-set operations run per word rather than per
+bit. =count= sums =std::popcount= over the words; =&=, =|=, and =^= combine word
+by word; =find_first_set= and the set-bit iterator use =std::countr_zero= to
+jump straight to the next one bit, clearing it with =w &= w - 1= to move on. So
+a sparse bitset is scanned in proportion to the number of set bits, not its
+length.
+
+** Access and iteration
+
+=operator[]= reads a bit unchecked; =test=, =set=, =reset=, and =flip= are
+bounds-checked and return =result= (=container_error::out_of_range= past the
+end). =set_bits()= is a sparse-aware forward range over the indices of the set
+bits (and =begin()=/=end()= alias it), so a range-based =for= visits the live
+indices, not every bit. =words()= exposes the raw storage as a =std::span=.
+Everything is =constexpr=, so a bitset can be built and queried at compile time.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::bitset_dynamic alive(entity_count);
+
+alive.set(id);                       // bounds-checked, returns result<void>
+if (alive[other_id]) { ... }         // unchecked read
+
+for (std::size_t const id : alive.set_bits()) {  // only the set bits
+  process(id);
+}
+auto const live{alive.count()};      // popcount per word
+auto const next{alive.find_first_set(cursor)};   // scan-for-set
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/bitset_dynamic.cpp][examples/container/bitset_dynamic.cpp]]
