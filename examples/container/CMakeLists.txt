@@ -1,6 +1,7 @@
 # One executable per example, named nexenne_example_container_<name>. Each is a
 # self-contained program demonstrating a single nexenne::container class.
 set(_container_examples
+    bitset_dynamic
     error
     ring_buffer
     small_vector
