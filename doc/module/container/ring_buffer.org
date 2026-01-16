@@ -1,0 +1,93 @@
+#+TITLE: ring_buffer
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::ring_buffer<T, N>= is a fixed-capacity circular FIFO queue
+with inline storage. It never allocates, and it makes the overflow decision
+explicit: a push into a full buffer either fails (=push=) or evicts the oldest
+element (=push_overwrite=). The capacity =N= must be at least one.
+
+* The idea
+
+Producer/consumer queues and rolling windows want a bounded buffer that recycles
+its storage instead of growing. A ring buffer lays =N= slots in a circle and
+tracks a =[head, tail)= window over them: pushing advances =tail=, popping
+advances =head=, and both wrap around the end. No element ever moves while it
+sits in the buffer, so push and pop are =O(1)= with no allocation, and the same
+=N= slots serve an unbounded stream of values.
+
+* How it works
+
+** Memory layout
+
+Storage is an inline array of =N= slots (each a union of a trivial byte or a
+live =T=, so building the array constructs no =T=). Three indices track the
+window: =head= (the oldest element), =tail= (where the next push lands), and
+=size=. Capacity is the constant =N=; there is no pointer and no heap.
+
+#+BEGIN_EXAMPLE
+ring_buffer<int, 4> after push 10, 20, 30, then one pop:
+
+  slot:      0      1      2      3
+          +------+------+------+------+
+          | ~~~~ |  20  |  30  | ~~~~ |   ~~~~ = empty slot
+          +------+------+------+------+
+                    ^             ^
+                  head=1        tail=3        size = 2
+
+  logical FIFO order, read from head: 20, 30
+#+END_EXAMPLE
+
+** Wrap-around
+
+=tail= and =head= step forward by one and wrap back to slot 0 at the end. The
+wrap never uses a modulo: when =N= is a power of two it is a single mask
+(=i & (N - 1)=), and otherwise a compare (=i >= N ? i - N : i=, valid because
+every index is in =[0, 2N)=). Either way the hot push and pop paths stay off the
+division unit. That is how the buffer reuses freed slots without shifting
+anything:
+
+#+BEGIN_EXAMPLE
+push 40, then push 50 into the buffer above:
+
+  +------+------+------+------+
+  |  50  |  20  |  30  |  40  |     tail wrapped 4 -> 0 to place 50
+  +------+------+------+------+
+     ^      ^
+   tail   head                      now full: size = 4, head == tail
+#+END_EXAMPLE
+
+When the buffer is full =head == tail=: the next =push= reports
+=container_error::full=, while =push_overwrite= destroys the element at that slot
+(the oldest), constructs the new one in its place, and advances both indices, so
+the window slides forward and the size stays =N=.
+
+** Access and iteration
+
+Logical indices count from the front, so =operator[](0)= and =front()= are the
+oldest element and =back()= the newest, each mapping through =(head + i) % N=.
+=operator[]= is unchecked; =at=, =front=, and =back= are checked and return a
+=nullptr= pointer on a miss. The forward iterator walks =size= elements from
+=head= in FIFO order, wrapping as it goes, so a range-based =for= visits oldest
+to newest. Construction, the pushes, pops, and access are all =constexpr=.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::ring_buffer<int, 64> events;
+
+if (auto const r{events.push(code)}; !r.has_value()) {
+  drop_or_block();           // container_error::full: backlog is full
+}
+
+nexenne::container::ring_buffer<int, 3> recent;
+recent.push_overwrite(sample);  // always keeps only the most recent 3
+
+while (auto const value{events.pop()}) {
+  handle(*value);            // FIFO: oldest first
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/ring_buffer.cpp][examples/container/ring_buffer.cpp]]
