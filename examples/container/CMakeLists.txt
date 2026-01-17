@@ -5,6 +5,7 @@ set(_container_examples
     error
     linear_arena
     ring_buffer
+    scratch_pad
     small_vector
     stable_vector
     static_vector
