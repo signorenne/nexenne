@@ -4,6 +4,7 @@ nexenne_add_module_tests(container
         test_error.cpp
         test_linear_arena.cpp
         test_ring_buffer.cpp
+        test_scratch_pad.cpp
         test_small_vector.cpp
         test_stable_vector.cpp
         test_static_vector.cpp
