@@ -1,0 +1,74 @@
+#+TITLE: scratch_pad
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::scratch_pad<Arena>= is an RAII checkpoint over a bump
+allocator such as [[file:linear_arena.org][linear_arena]]. It records the arena's =bytes_used()= when it is
+constructed and rewinds the arena back to that point in its destructor, so every
+allocation made while it is alive is released together when it leaves scope.
+
+* The idea
+
+A bump allocator releases memory by moving its cursor back, but deciding *where*
+back to is the caller's job, and doing it by hand is easy to get wrong on an
+early return or an exception. =scratch_pad= ties that rewind to a scope: take a
+checkpoint on the way in, restore it on the way out, automatically. It turns
+"temporary allocations within this block" into a structured, exception-safe
+pattern, and it nests, so inner scratch pads release before outer ones.
+
+* How it works
+
+** The checkpoint
+
+The scratch_pad stores a reference to the arena and the offset it saw at
+construction. Its destructor calls =rewind_to= with that saved offset.
+
+#+BEGIN_EXAMPLE
+arena bump offset over a scratch_pad's lifetime:
+
+  construct scratch_pad      allocate through it       ~scratch_pad
+  +------------------+       +------------------+       +------------------+
+  | live |  free ... |       | live | tmp | fr  |       | live |  free ... |
+  +------------------+       +------------------+       +------------------+
+         ^                          ^                          ^
+   saved = bytes_used()        offset grows             rewind_to(saved)
+#+END_EXAMPLE
+
+Because the arena releases in =O(1)= (just a cursor assignment) and runs no
+destructors, the rewind is cheap, but it is also raw: a non-trivially
+destructible object built in scratch storage must be =std::destroy_at='d before
+the scratch_pad rewinds over it.
+
+** The facade
+
+=allocate(size, alignment)=, =allocate<T>(count)=, and =emplace<T>(args...)=
+forward straight to the arena and return its =result=, so callers can allocate
+through the scratch_pad rather than reaching for the arena. Any arena exposing
+=size_type=, =bytes_used()=, and =rewind_to()= satisfies the
+=checkpointable_arena= concept and works here; =arena()= exposes the wrapped
+arena directly.
+
+** Scope-bound, not copyable
+
+A scratch_pad is non-copyable and non-movable and marked =[[nodiscard]]=:
+copying it would rewind the same arena twice, and a discarded temporary would
+rewind immediately, doing nothing useful. Construct it as a named local that
+lives exactly as long as the block whose allocations it should release.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::linear_arena<4096> arena;
+// ... long-lived allocations on the arena ...
+
+{
+  nexenne::container::scratch_pad scratch{arena};   // checkpoint
+  auto const tmp{scratch.allocate<node>(count)};
+  // ... use tmp ...
+}                                                   // tmp released here
+// the long-lived allocations are still intact
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/scratch_pad.cpp][examples/container/scratch_pad.cpp]]

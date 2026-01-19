@@ -29,3 +29,4 @@ An operation whose only failure is allocation is =noexcept= and terminates on
 * Arenas
 
 - [[file:linear_arena.org][linear_arena]] : inline-buffer bump allocator, O(1) reset.
+- [[file:scratch_pad.org][scratch_pad]] : RAII checkpoint over an arena, rewinds on scope exit.
