@@ -100,6 +100,7 @@ private:
 
   auto ensure_capacity(size_type const desired) noexcept -> void {
     auto const needed{(desired + ChunkSize - 1) / ChunkSize};
+    m_chunks.reserve(needed);  // size the pointer vector once, not per chunk
     while (m_chunks.size() < needed) {
       m_chunks.push_back(std::make_unique<chunk>());
     }

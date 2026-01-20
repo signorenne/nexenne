@@ -328,6 +328,14 @@ public:
     if (this == &other) {
       return;
     }
+    if (!inlined() && !other.inlined()) {
+      // Both on the heap: an O(1) swap of the pointers, no element moves.
+      using std::swap;
+      swap(m_data, other.m_data);
+      swap(m_size, other.m_size);
+      swap(m_capacity, other.m_capacity);
+      return;
+    }
     auto temp{std::move(*this)};
     *this = std::move(other);
     other = std::move(temp);
@@ -456,6 +464,9 @@ public:
   template <std::input_iterator It>
   auto assign(It first, It const last) noexcept -> void {
     clear();
+    if constexpr (std::forward_iterator<It>) {
+      reserve(static_cast<size_type>(std::distance(first, last)));  // one allocation
+    }
     for (; first != last; ++first) {
       push_back(*first);
     }
