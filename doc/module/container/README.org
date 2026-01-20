@@ -27,6 +27,10 @@ An operation whose only failure is allocation is =noexcept= and terminates on
 - [[file:bitset_dynamic.org][bitset_dynamic]] : runtime-sized bitset, word-packed with popcount and scan.
 - [[file:bag.org][bag]] : unordered multiset, O(1) swap-pop erase, allows duplicates.
 
+* Sequences
+
+- [[file:deque.org][deque]] : growable double-ended queue, contiguous power-of-two ring.
+
 * Arenas
 
 - [[file:linear_arena.org][linear_arena]] : inline-buffer bump allocator, O(1) reset.
