@@ -1,0 +1,74 @@
+#+TITLE: bag
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::bag<T>= is an unordered, contiguous multiset: a collection
+where order is genuinely irrelevant and the operations that matter are add,
+remove, and iterate. Removal is =O(1)= because it swaps the last element into the
+gap and pops, rather than shifting to preserve order. Duplicates are allowed.
+
+* The idea
+
+A surprising amount of code keeps a "set of things currently active": live
+entities this frame, pending jobs, dirty nodes. The order of that set carries no
+meaning, and uniqueness often does not either, yet the usual tools fight you:
+=std::vector::erase= shifts every following element to keep order you do not
+care about, and =std::multiset= needs a comparator and scatters its nodes across
+the heap. =bag= keeps the contiguous storage of a vector but trades order for an
+=O(1)= erase, which is the right deal when order is not part of the contract.
+
+* How it works
+
+** Storage
+
+A =bag= is just a =std::vector<T>= with a different contract, so it inherits
+contiguous storage, cache-friendly iteration, and =data()= / =span()= for
+=std::ranges= interop, and follows the rule of zero (its copy, move, and
+destructor are the vector's).
+
+** Swap-pop erase
+
+The one real mechanism is swap-pop: to remove the element at index =i=, move the
+last element into slot =i= and pop the back. That is =O(1)= and the reason order
+is not preserved.
+
+#+BEGIN_EXAMPLE
+erase_at(1) on [ A B C D ]:
+
+  [ A | B | C | D ]     move last (D) into slot 1, then pop the back
+        ^           ^
+        i=1         last
+  [ A | D | C ]         B is gone; D took its place; size shrank by one
+#+END_EXAMPLE
+
+=erase_at(i)= is bounds-checked and returns =result<void>=
+(=container_error::out_of_range= past the end). =erase_first(value)= finds the
+first match and swap-pops it, returning whether it removed anything.
+=erase_all(value)= walks from the back so every swap-pop stays =O(1)=, giving
+=O(size)= overall, and returns how many it removed.
+
+** What is deliberately absent
+
+There is no mid-range =insert= (order is meaningless), and no =operator=== or
+=operator<=>=: because erase reshuffles, a sequence comparison would reflect
+operation history rather than logical contents. A caller that needs multiset
+equality should compare sorted or hashed copies. =contains= is also omitted
+because =std::ranges::contains= already works on the bag through its iterators.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::bag<entity_id> active;
+
+active.insert(id);                 // O(1), order not preserved
+active.erase_first(dead_id);       // O(1) swap-pop, returns bool
+active.erase_all(stale_id);        // remove every match, returns the count
+
+for (auto const id : active) {     // contiguous, cache-friendly
+  update(id);
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/bag.cpp][examples/container/bag.cpp]]
