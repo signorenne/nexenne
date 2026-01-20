@@ -3,6 +3,7 @@
 set(_container_examples
     bag
     bitset_dynamic
+    deque
     error
     linear_arena
     ring_buffer
