@@ -156,4 +156,18 @@ TEST_CASE("nexenne::container::bag insert picks copy vs move (no extra move)") {
   CHECK(moves == 1);
 }
 
+TEST_CASE("nexenne::container::bag erase the actual last element (swap_pop no-move branch)") {
+  bag_t single{42};
+  CHECK(single.erase_at(0).has_value());  // index == last: pop without a self-move
+  CHECK(single.empty());
+
+  bag_t tail{1, 2, 3};
+  CHECK(tail.erase_at(2).has_value());  // remove the real last element
+  CHECK(tail.size() == 2);
+
+  bag_t same{7, 7, 7};
+  CHECK(same.erase_all(7) == 3);  // every iteration removes the current last
+  CHECK(same.empty());
+}
+
 }  // namespace

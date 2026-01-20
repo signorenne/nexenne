@@ -206,4 +206,34 @@ TEST_CASE("nexenne::container::ring_buffer push picks copy vs move (no extra mov
   CHECK(moves == 1);
 }
 
+TEST_CASE("nexenne::container::ring_buffer back after wrap, assignment, move-only overwrite") {
+  rb r;
+  CHECK(r.push(1).has_value());
+  CHECK(r.push(2).has_value());
+  CHECK(r.push(3).has_value());
+  CHECK(r.pop().has_value());    // head advances
+  CHECK(r.push(4).has_value());  // tail wrapped to 0; newest is 4
+  CHECK(*r.back() == 4);         // back() via wrap(m_tail + N - 1)
+
+  rb a;
+  CHECK(a.push(10).has_value());
+  CHECK(a.push(20).has_value());
+  rb b;
+  CHECK(b.push(99).has_value());
+  b = a;  // copy-assign replaces b's contents
+  CHECK(b.size() == 2);
+  CHECK(b[0] == 10);
+  rb c;
+  c = std::move(a);  // move-assign
+  CHECK(c.size() == 2);
+  CHECK(c[1] == 20);
+
+  cn::ring_buffer<std::unique_ptr<int>, 2> m;
+  m.push_overwrite(std::make_unique<int>(1));
+  m.push_overwrite(std::make_unique<int>(2));
+  m.push_overwrite(std::make_unique<int>(3));  // evicts the oldest by move
+  CHECK(m.size() == 2);
+  CHECK(*m[1] == 3);
+}
+
 }  // namespace
