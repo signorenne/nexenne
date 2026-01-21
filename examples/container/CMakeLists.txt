@@ -8,6 +8,7 @@ set(_container_examples
     gap_buffer
     heap
     linear_arena
+    object_pool
     ring_buffer
     scratch_pad
     small_vector
