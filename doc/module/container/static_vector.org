@@ -111,6 +111,61 @@ behaviour, stated as a =@pre=), while =at=, =front=, and =back= are checked and
 return a pointer that is =nullptr= on a miss or empty container, never an
 exception.
 
+* Complexity
+
+| operation                       | cost           |
+|---------------------------------+----------------|
+| push_back / emplace_back        | O(1)           |
+| pop_back                        | O(1)           |
+| operator[], at, front, back     | O(1)           |
+| clear                           | O(size)        |
+| copy / move construct or assign | O(size)        |
+| swap                            | O(size)        |
+| iterate begin .. end            | O(n)           |
+| operator== / operator<=>        | O(n)           |
+
+Nothing shifts on a push or pop, so both are exact =O(1)= (not amortised: there
+is no growth path). A move is =O(size)=, not =O(1)=: there is no heap block to
+steal, so the live prefix migrates element by element and the source is left
+empty.
+
+Memory overhead is the unused tail: the object always occupies =N * sizeof(T)=
+plus one =size_t=, whatever the live count, since every slot is reserved inline.
+There is no per-element bookkeeping and no heap block.
+
+* When to use it
+
+Reach for =static_vector= when you can prove a hard upper bound on the element
+count and want zero allocation: hot-path scratch buffers, contact manifolds,
+command builders, and freestanding contexts where =new= is unavailable. It is
+also the only vector here usable as a persisted compile-time value. It is the
+wrong choice when the bound is soft or unknown (a push past =N= returns
+=container_error::full=, it never grows) or when =N= is large and usually
+near-empty, since the full =N * sizeof(T)= is always resident.
+
+Prefer a sibling when:
+
+- the size is usually small but must not be hard-capped: [[file:small_vector.org][small_vector]], inline in the
+  common case and one heap block past =N=.
+- you hold pointers or references to elements across pushes: [[file:stable_vector.org][stable_vector]] keeps
+  every address stable; here a =swap=, move, or assignment relocates elements.
+- you need a bounded FIFO that recycles its slots: [[file:ring_buffer.org][ring_buffer]].
+
+Reference, pointer, and iterator rules:
+
+- =push_back= / =emplace_back= construct into the next free slot and never touch
+  the live prefix, so they preserve every reference and iterator to existing
+  elements (=end()= shifts by one).
+- =pop_back= and =clear= destroy slots: references and iterators to the destroyed
+  elements dangle, but the surviving live prefix keeps its addresses (storage
+  never moves).
+- =swap=, move, copy, and assignment relocate elements element by element, so
+  they invalidate all references, pointers, and iterators into the affected
+  vectors.
+- the storage array is fixed inline and never reallocates, so a reference to a
+  still-live element stays valid across any number of pushes; only destruction
+  or relocation invalidates it.
+
 * Choosing a vector
 
 The module has three vectors alongside =std::vector=; all hold a growable

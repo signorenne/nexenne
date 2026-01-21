@@ -58,6 +58,84 @@ bits (and =begin()=/=end()= alias it), so a range-based =for= visits the live
 indices, not every bit. =words()= exposes the raw storage as a =std::span=.
 Everything is =constexpr=, so a bitset can be built and queried at compile time.
 
+There is no proxy reference: a bit read returns a plain =bool= by value, and a
+bit is written through =set= / =reset= / =flip= (or the whole-set =set_all= /
+=reset_all= / =flip_all=), never through an lvalue =bitset[i] = b=. This is the
+deliberate departure from =std::vector<bool>=, whose proxy reference is the
+source of its interface problems.
+
+** Width-mismatched combination
+
+The in-place =&==, =|==, and =^== combine word by word over the *shorter* of the
+two widths. =&== additionally zeroes the words past the right operand, so AND with
+a narrower bitset clears the high bits; =|== and =^== leave the high words of a
+wider left operand untouched. Every mutation re-runs =clear_tail_bits=, so the
+tail invariant (bits past =size()= are zero) holds and =count=, =any=, and =all=
+need no per-call masking. =operator==-style equality compares =size()= and the
+raw words, so two bitsets of different widths are never equal even if their set
+bits agree.
+
+* Complexity
+
+| operation                       | cost              |
+|---------------------------------+-------------------|
+| operator[] / test / set / reset | O(1)              |
+| flip (single bit)               | O(1)              |
+| push_back                       | amortised O(1)    |
+| count                           | O(word_size)      |
+| any / none                      | O(word_size)      |
+| all                             | O(word_size)      |
+| set_all / reset_all / flip_all  | O(word_size)      |
+| bitwise AND / OR / XOR (set ops)| O(word_size)      |
+| find_first_set                  | O(word_size)      |
+| iterate set_bits()              | O(set bits + words)|
+| operator== / operator<=>        | O(word_size)      |
+| resize / reserve                | O(word_size)      |
+| swap / move                     | O(1)              |
+
+The packing is what makes the whole-set operations cheap: they run per 64-bit
+word, not per bit, so a bitset of =n= bits costs about =n / 64= word operations.
+=count= sums =std::popcount=; =find_first_set= and the =set_bits()= iterator use
+=std::countr_zero= to jump straight to the next one bit, so a sparse scan is
+proportional to the number of set bits, not the length.
+
+Memory overhead is roughly one bit per logical bit: =ceil(size() / 64)= words of
+=std::uint64_t= on the heap, plus a =size_t= bit count and the =std::vector=
+control block. That is a fraction of a =std::unordered_set<size_t>= for a dense
+index set.
+
+* When to use it
+
+Reach for =bitset_dynamic= for a dense set of integer indices in a known range
+whose width is fixed only at run time: archetype/component masks, per-frame
+active or dirty flags over a dynamic list, visited sets in graph traversal, any
+"set of small integers" where one bit per index beats a hash set on both memory
+and speed. It is the option between two standard types:
+
+- prefer =std::bitset<N>= when the width is a compile-time constant: it needs no
+  heap and is the simpler tool.
+- prefer =std::vector<bool>= essentially never for set-like work: it has the
+  packed storage but no =&=, =|=, =count=, or scan-for-set, which is exactly the
+  gap this container fills.
+
+It is the wrong choice for a sparse set over a huge range (a hash set or a
+=std::set= of the few live indices then wins on memory) or when you need keyed,
+non-integer membership.
+
+Validity and stability rules:
+
+- bit reads and writes return or take values, so there are no element references
+  to invalidate; only the views and iterators have lifetime concerns.
+- =words()= and =set_bits()= (and the =set_bit_iterator= and =begin()=/=end()=)
+  borrow the backing storage: any operation that resizes it, =resize=, =reserve=,
+  =push_back= that grows, =shrink_to_fit=, =clear=, move, or =swap=, can
+  reallocate the word vector and invalidates outstanding spans and iterators.
+- =set=, =reset=, =flip=, the whole-set mutators, and the bitwise combinations do
+  not resize, so a =words()= span obtained before them stays valid, but its
+  contents change.
+- thread safety is the standard-library convention: concurrent reads are fine,
+  any concurrent mutation is not.
+
 * Usage
 
 #+BEGIN_SRC cpp

@@ -18,6 +18,50 @@ succeeded cannot be re-run. If the factory throws, nothing is cached and
 the next access retries. Construct it in place with class template argument
 deduction; do not try to move or reset it.
 
+* How it works
+
+A =lazy= stores the factory callable, an empty =std::optional<value_type>=, a
+=std::once_flag=, and an atomic =ready= flag (=value_type= is deduced as the
+factory's result type). Every accessor, =get=, =operator*=, and =operator->=,
+routes through one private =materialise= step that calls =std::call_once=: the
+first caller runs the factory, emplaces its result into the optional, and
+publishes the =ready= flag with release ordering; every later caller skips
+straight to the cached value. The cache, factory, and flags are =mutable=, so a
+=const lazy= still materialises on first access and a const accessor hands back a
+=value_type const&=.
+
+=has_value()= reads the atomic =ready= flag with acquire ordering, so it is safe to
+poll from another thread while a first access is in flight and only reports =true=
+once the cached value is fully visible. It does *not* trigger the factory: it
+observes, the dereferencing accessors compute.
+
+Construct with CTAD, =lazy{factory}=, which the deduction guide resolves to
+=lazy<Factory>=. The factory is stored by value (templated, so a captureless or
+capturing lambda inlines with no =std::function= indirection) rather than type
+erased.
+
+* When to use it
+
+Reach for =lazy= for a value that is expensive to build and might not be needed:
+a parsed config, a compiled regex, a connection, a big lookup table. It pays the
+cost on first touch, memoises the result, and is safe to share across threads.
+
+The gotchas:
+
+- It is *non-movable* and *non-copyable*, and there is deliberately no =reset()=.
+  Once the factory has succeeded the value is fixed for the object's lifetime, so
+  =lazy= cannot live in a container that relocates its elements, nor be reseated;
+  hold it behind a stable address (a member, a =unique_ptr=) if you need to move
+  the owner.
+- The factory runs *at most once on success*. If you need a value that can be
+  invalidated and recomputed, =lazy= is the wrong tool.
+- On a throwing factory nothing is cached and the *next* access retries, so a
+  factory with side effects may run its prefix more than once across failed
+  attempts; keep the factory's failure path clean.
+- Every accessor (including the const ones and =operator->=) can run the factory
+  on first call, so the first dereference of even a =const lazy= is where the work
+  and any exception actually happen.
+
 * Usage
 
 #+BEGIN_SRC cpp

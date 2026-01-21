@@ -77,6 +77,65 @@ reports =container_error::empty=. =operator[]= is unchecked; =at=, =front=, and
 =back= are checked and return a =nullptr= pointer on a miss. =data()=, =span()=,
 and the iterators expose the contiguous live range.
 
+* Complexity
+
+| operation                       | cost            |
+|---------------------------------+-----------------|
+| push_back / emplace_back        | amortised O(1)  |
+| pop_back                        | O(1)            |
+| operator[], at, front, back     | O(1)            |
+| reserve / grow                  | O(size)         |
+| shrink_to_fit                   | O(size)         |
+| clear                           | O(size)         |
+| copy construct or assign        | O(size)         |
+| move (source on the heap)       | O(1)            |
+| move (source inline)            | O(size)         |
+| swap (both on the heap)         | O(1)            |
+| swap (either side inline)       | O(size)         |
+| iterate begin .. end            | O(n)            |
+| operator== / operator<=>        | O(n)            |
+
+A push is amortised =O(1)=: capacity doubles on each growth, so the moves spread
+out. A move or =swap= is =O(1)= only when the relevant side is on the heap (the
+pointer, size, and capacity are stolen); when a side is inline there is nothing
+to steal, so the elements move one by one.
+
+Memory overhead is the inline buffer: the object always carries =N * sizeof(T)=
+bytes plus three =size_t= scalars (=m_data=, =m_size=, =m_capacity=), even after
+it has grown to the heap and stopped using the inline slots.
+
+* When to use it
+
+Reach for =small_vector= when the size is usually small but must not be capped:
+search results, parser child lists, command queues, members that are typically a
+handful of elements but occasionally unbounded. The common small case is
+allocation-free and cache-local; the rare large case still works by falling back
+to one heap block, exactly like =std::vector=. Prefer plain =std::vector= when
+the size is almost always large (the inline buffer is then dead weight on every
+object), and prefer a sibling when:
+
+- a hard upper bound is known and zero allocation is required (even at compile
+  time): [[file:static_vector.org][static_vector]], which fails a push past =N= rather than reaching the heap.
+- you hold pointers or references to elements across pushes: [[file:stable_vector.org][stable_vector]] keeps
+  every address stable; here any growth (including the inline-to-heap migration)
+  relocates the elements.
+- you need a bounded FIFO that recycles its slots: [[file:ring_buffer.org][ring_buffer]].
+
+Reference, pointer, and iterator rules:
+
+- a =push_back= / =emplace_back= that stays within =capacity()= preserves every
+  reference and iterator (=end()= shifts); a push that grows reallocates and
+  invalidates all of them.
+- =reserve= and =shrink_to_fit= reallocate when they change storage, including
+  the migration between inline and heap, and so invalidate everything; a no-op
+  =reserve= (already large enough) leaves them valid.
+- because the elements live inline until the first growth, even =m_data= and the
+  inline addresses change the first time the vector spills to the heap (and
+  again if =shrink_to_fit= migrates back), so never cache a =T*= across a size
+  change.
+- =pop_back= and =clear= invalidate references and iterators to the removed
+  elements but not to the survivors; storage does not move.
+
 * Choosing a vector
 
 The module has three vectors alongside =std::vector=; all hold a growable

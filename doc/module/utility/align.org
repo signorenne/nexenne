@@ -18,6 +18,36 @@ asserted in debug. The integral overloads are =constexpr=; the pointer overloads
 are not, because they round-trip through =std::uintptr_t= with =reinterpret_cast=,
 which a constant expression forbids.
 
+* How it works
+
+For a power-of-two =alignment=, =alignment - 1= is a mask of the low bits below
+the boundary (8 gives the mask =0b111=). =align_down= clears those bits with
+=value & ~(alignment - 1)=; =align_up= first nudges the value past the next
+boundary with =value + (alignment - 1)= then clears the low bits the same way;
+=is_aligned= just checks =value & (alignment - 1)= is zero. The pointer overloads
+cast the address to =std::uintptr_t=, run the integral version, and cast back, so
+they accept =T = void= and any pointee type. Each operation is a couple of
+machine instructions, =O(1)=.
+
+* When to use it
+
+Reach for these when you are placing objects or sizing blocks on a hardware or
+performance boundary: aligning an allocation cursor, padding a struct size up to
+a cache line, checking a DMA buffer sits on its required boundary. For the
+*alignment of a type* prefer =alignof= and =std::align= from the standard
+library; these helpers are for raw sizes, offsets, and addresses where you
+already know the boundary.
+
+Gotchas. The alignment must be a non-zero power of two: anything else makes the
+mask wrong and only asserts in debug, so it is silent undefined behaviour in
+release. =align_up= can overflow if =value + (alignment - 1)= exceeds the type's
+range (a value near the top of =std::size_t=), wrapping to a small result. The
+integral overloads need unsigned, same-typed arguments, so write the alignment as
+a typed literal (=std::size_t{16}=) to avoid a deduction mismatch; the pointer
+overloads take the alignment as a plain =std::size_t=. The pointer overloads are
+not =constexpr= (the =reinterpret_cast= forbids it), so they cannot run in a
+constant expression.
+
 * Usage
 
 #+BEGIN_SRC cpp

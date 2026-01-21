@@ -2,17 +2,26 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-Every module is header-only C++23, dependency-light, and picked individually. A
-module names its dependencies in =module.deps=, and the build discovers and
-orders them automatically. Follow a module to its own index, which lists a guide
-and a runnable example for each class it provides.
+Every module is header-only C++23, dependency-light, and picked individually,
+exposed as =nexenne::<name>= (both the CMake target and the namespace). A module
+names its dependencies in =module.deps=, and the build discovers and orders them
+automatically, so the set below grows as modules are ported. A module may only
+depend on modules below it in the layering, which keeps the bottom of the stack
+free-standing and the whole set acyclic.
+
+Follow a module to its own index, which lists, per class it provides, a guide
+(purpose, the idea, idiomatic usage) and a runnable example.
 
 * Modules
 
-- [[file:utility/README.org][utility]] (no dependencies) : callables, RAII, bit and numeric helpers,
-  strong types, metaprogramming, and reflection.
-- [[file:container/README.org][container]] (needs =utility=) : fixed-capacity and dynamic containers
-  such as vectors, maps, sets, queues, trees, and graphs.
+- [[file:utility/README.org][utility]] (no dependencies) : the foundation layer, a grab-bag of 21 small,
+  independent helpers: callables and visitors, scope-exit and RAII, bit and
+  numeric and hashing helpers, strong distinct types, compile-time
+  metaprogramming, and reflection. Everything else builds on it.
+- [[file:container/README.org][container]] (needs =utility=) : header-only containers, fixed-capacity and
+  dynamic, value and node-based: vectors (=static_vector=, =small_vector=,
+  =stable_vector=), a ring buffer and deque, a bitset, a bag, a gap buffer, a
+  heap, and bump arenas, all under one documented error policy.
 
 * Dependency layering
 

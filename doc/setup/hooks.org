@@ -2,23 +2,43 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-Two local gates live in [[file:../../.githooks/][.githooks/]]. Enable them once per clone:
+Two local gates live in [[file:../../.githooks/][.githooks/]] (versioned in the
+repo, not in =.git/hooks/=). Enable them once per clone by pointing git at the
+directory:
 
 #+BEGIN_SRC sh
 git config core.hooksPath .githooks
 #+END_SRC
 
-- [[file:../../.githooks/pre-commit][pre-commit]] (on commit) : staged =.hpp= / =.cpp= are clang-format
-  clean; fast.
-- [[file:../../.githooks/pre-push][pre-push]] (on push) : =ci= preset configure, build, and
-  =nexenne_tests=.
+* The hooks
 
-Format runs on every commit so it stays cheap; the full build + test runs once
-on push. Skip either in an emergency by prefixing the git command with
-=NEXENNE_SKIP_HOOK=1=.
+- [[file:../../.githooks/pre-commit][pre-commit]] (on commit) : the staged
+  =.hpp= / =.cpp= files (added, copied, or modified) must be clang-format clean.
+  It compares =clang-format <file>= against the file and lists any that differ,
+  telling you to run =clang-format -i <file>=. Fast, so it runs on every commit.
+  If =clang-format= is not on =PATH= the check is skipped (it does not fail).
+- [[file:../../.githooks/pre-push][pre-push]] (on push) : the full gate. Runs
+  =cmake --preset ci=, =cmake --build --preset ci=, and
+  =cmake --build --preset ci --target nexenne_tests=, so the push is blocked
+  unless the project configures, builds with warnings as errors, and every
+  doctest suite passes.
 
-The same checks run in [[file:ci.org][CI]], so a skipped hook is caught on the server.
+Format runs on every commit to stay cheap; the heavier build + test runs once,
+on push.
+
+* Skipping
+
+Bypass either hook for a single git command by prefixing it with
+=NEXENNE_SKIP_HOOK=1=:
+
+#+BEGIN_SRC sh
+NEXENNE_SKIP_HOOK=1 git commit -m "wip"
+NEXENNE_SKIP_HOOK=1 git push
+#+END_SRC
+
+The same checks run in [[file:ci.org][CI]] (=format=, =build-test=), so a skipped
+hook is still caught on the server.
 
 * See also
 
-[[file:testing.org][Testing]], [[file:ci.org][CI]], [[file:conventions.org][Conventions]].
+[[file:testing.org][Testing]], [[file:ci.org][CI]], [[file:conventions.org][Conventions]], [[file:tools.org][Tools and tech]].

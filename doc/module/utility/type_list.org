@@ -16,6 +16,53 @@ operations (=tl_size=, =tl_at=, =tl_contains=, =tl_index_of=, =tl_push_back=,
 evaluate during compilation, each exposing a =_v= value or =_t= type alias. This
 turns ad-hoc variadic-template recursion into reusable, named building blocks.
 
+* How it works
+
+=type_list<Ts...>= is an empty =struct= with no members: the pack lives entirely
+in the type, so the list is a pure compile-time value that occupies no storage and
+runs no code. Each metafunction is a class template specialised on
+=type_list<Ts...>= so it can see the pack, and it follows the two conventional
+shapes: the *predicate/query* ones (=tl_size=, =tl_contains=, =tl_index_of=)
+derive from a =std::integral_constant= or =std::bool_constant= and expose a
+=::value=, surfaced as a =_v= variable template; the *transform* ones (=tl_at=,
+=tl_push_back=, =tl_push_front=, =tl_concat=, =tl_transform=, =tl_filter=,
+=tl_unique=) expose a nested =::type=, surfaced as a =_t= alias. Internally they
+work by pack tricks rather than hand-rolled recursion where possible:
+=tl_contains= is a fold =(std::is_same_v<T, Ts> || ...)=, =tl_concat= and the
+push operations just respell the pack, while =tl_at=, =tl_filter=, and =tl_unique=
+recurse head-by-tail through a =detail= helper that carries an accumulator list.
+=tl_transform= and =tl_filter= take a class template (a unary trait exposing
+=::type=, or a predicate exposing =::value=) and apply it across the pack. Misuse
+is caught at compile time: an out-of-range =tl_at= and an absent =tl_index_of=
+each fire a =static_assert= with a named message.
+
+* When to use it
+
+Reach for =type_list= when you have a fixed *set of types* to manipulate at
+compile time: the alternatives of a tagged union or message protocol, a registry
+of handlers, the element types of a tuple-like structure. =tl_index_of_v= is the
+workhorse, it assigns each registered type a stable zero-based index you can use
+as a wire tag, a variant index, or a slot number, and =tl_contains_v= gates
+compile-time dispatch. =tl_concat_t=, =tl_push_back_t=, =tl_transform_t=,
+=tl_filter_t=, and =tl_unique_t= build derived lists (for example deduplicating a
+concatenation, or mapping each type to its handler) without re-deriving the
+recursion each time.
+
+Alternatives: if you only need to *store* values of those types, a =std::tuple= or
+=std::variant= already carries the pack and offers =std::get= / =std::variant_alternative=;
+=type_list= is for reasoning about the types themselves, with no objects involved.
+For a single ad-hoc fold a bare pack expansion is simpler; the value here is the
+named, reusable vocabulary.
+
+GOTCHAS. Everything is compile-time and type-level: there are no runtime values
+and you index with types and constants, not variables. =tl_index_of= returns the
+*first* occurrence, so on a list with duplicates indices are not unique, run
+=tl_unique_t= first if you need a bijection between types and indices. The
+out-of-range =tl_at= and absent =tl_index_of= are hard errors (=static_assert=),
+not SFINAE-friendly fallbacks, so guard with =tl_contains_v= when an absent type
+is a legitimate case. =tl_transform='s =F= must expose a nested =::type= for every
+element and =tl_filter='s =Pred= a =::value=, a plain alias template will not do.
+
 * Usage
 
 #+BEGIN_SRC cpp

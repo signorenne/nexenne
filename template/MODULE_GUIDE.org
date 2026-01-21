@@ -23,14 +23,14 @@ under =tests/=.
 
 #+BEGIN_SRC text
 modules/<name>/
-├── CMakeLists.txt              the nexenne_add_module(...) call
-├── module.deps                 dependency module names (only if it has deps)
-├── include/nexenne/<name>/
-│   ├── <name>.hpp              umbrella header, includes every leaf
-│   └── <leaf>.hpp              your API
-├── src/                        only for compiled (non-header-only) modules
-├── tests/                      test_<topic>.cpp + a one-line CMakeLists
-└── doc/                        Doxyfile.in + a one-line CMakeLists
+|-- CMakeLists.txt              the nexenne_add_module(...) call
+|-- module.deps                 dependency module names (only if it has deps)
+|-- include/nexenne/<name>/
+|   |-- <name>.hpp              umbrella header, includes every leaf
+|   `-- <leaf>.hpp              your API
+|-- src/                        only for compiled (non-header-only) modules
+|-- tests/                      test_<topic>.cpp + a one-line CMakeLists
+`-- doc/                        Doxyfile.in + a one-line CMakeLists
 #+END_SRC
 
 * Dependencies

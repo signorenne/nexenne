@@ -2,15 +2,25 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-The root of the documentation tree. Each entry below is itself an index: follow
-it down to the next level, ending at a per-topic article. Start here.
+nexenne is a monorepo of small, focused, header-only C++23 libraries. Each is a
+/module/, exposed as the CMake target =nexenne::<name>= and the namespace
+=nexenne::<name>=, picked individually or all at once via =nexenne::all=.
+
+This is the root of the documentation tree. It is layered: this page points at
+indexes, each index points at the next level, and the leaves are per-topic
+articles (one class guide, or one infrastructure topic). Reading top-down: go to
+/Modules/ to learn what the library offers and how to use a given class, or to
+/Setup and infrastructure/ to learn how the project is built, tested, and
+consumed. Start here.
 
 * Indexes
 
-- [[file:module/README.org][Modules]] : every nexenne module, its purpose and dependencies; each links on
-  to a per-class guide and a runnable example.
-- [[file:setup/README.org][Setup and infrastructure]] : build system, modules, tooling, testing, CI,
-  install, and conventions.
+- [[file:module/README.org][Modules]] : every nexenne module, its purpose and where it sits in the
+  dependency layering; each module links on to a per-class guide and a runnable
+  example. Start here to find and learn a container or utility.
+- [[file:setup/README.org][Setup and infrastructure]] : the build system, module mechanics, tooling,
+  testing, CI, install, and conventions. Start here to build, extend, or
+  consume the project.
 
 * Top-level files
 

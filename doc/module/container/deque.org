@@ -61,6 +61,53 @@ nothing to remove. =push_*= and =emplace_*= are =noexcept= and terminate only on
 allocation failure. The deque is copyable when =T= is, via a deep copy that
 re-packs from the front, and always movable in =O(1)= by stealing the buffer.
 
+* Complexity
+
+| operation                       | cost           |
+|---------------------------------+----------------|
+| push_back / push_front          | O(1) amortised |
+| emplace_back / emplace_front    | O(1) amortised |
+| pop_back / pop_front            | O(1)           |
+| operator[], front, back         | O(1)           |
+| grow (buffer full)              | O(n) amortised |
+| copy construct (deep, re-packs) | O(n)           |
+| move construct / swap           | O(1)           |
+
+Memory overhead is the spare ring capacity: =cap= is always a power of two and
+at least double the size after a growth, so up to half the buffer can be unused
+slots. A growth allocates a buffer twice the size (eight on the first), moves
+every element into it, and frees the old one.
+
+* When to use it
+
+Reach for =deque= when you add and remove at *both* ends and want contiguous,
+=O(1)= random access: work queues, sliding windows, ring-style buffers that may
+need to outgrow their initial size. The single power-of-two block gives faster
+random access than =std::deque='s segmented map (one =&= mask, no per-access
+indirection), and unlike a fixed ring buffer it grows instead of rejecting a
+push.
+
+Prefer a sibling when:
+
+- order does not matter and you only add, remove, and iterate, use
+  [[file:bag.org][bag]] for its =O(1)= swap-pop erase and simpler storage.
+- you want the highest-priority element next rather than the oldest or newest,
+  use [[file:heap.org][heap]].
+- you need stable element addresses across growth; =std::deque= keeps them, this
+  deque does not.
+
+Invalidation and stability:
+
+- A push or emplace that grows the buffer reallocates and invalidates *all*
+  references, pointers, and =front= / =back= results. Construct with an
+  =initial_cap= or call =reserve= up front to keep them stable across a known
+  number of pushes.
+- Without a growth, references stay valid across pushes and pops at the
+  ends (no element is relocated, slots are addressed in place).
+- =pop_front= / =pop_back= invalidate only the popped end's reference; the
+  others remain valid.
+- =operator[]= is unchecked, =front= / =back= return =nullptr= when empty.
+
 * Usage
 
 #+BEGIN_SRC cpp

@@ -57,6 +57,53 @@ operation history rather than logical contents. A caller that needs multiset
 equality should compare sorted or hashed copies. =contains= is also omitted
 because =std::ranges::contains= already works on the bag through its iterators.
 
+* Complexity
+
+| operation                  | cost            |
+|----------------------------+-----------------|
+| insert / emplace           | O(1) amortised  |
+| erase_at (swap-pop)        | O(1)            |
+| erase_first(value)         | O(size)         |
+| erase_all(value)           | O(size)         |
+| operator[], data, span     | O(1)            |
+| iterate begin .. end       | O(n)            |
+| clear / swap               | O(1) / O(1)     |
+
+=erase_first= and =erase_all= are =O(size)= because they scan for the match; the
+removal itself is still =O(1)= swap-pop. Memory overhead is just the backing
+=std::vector=: contiguous storage with the usual geometric spare capacity (use
+=reserve= to size it and =shrink_to_fit= to reclaim it).
+
+* When to use it
+
+Reach for =bag= when the collection is a set of currently-active things whose
+order carries no meaning, entities live this frame, pending jobs, dirty nodes,
+and the hot path is add, remove, and iterate. The swap-pop erase is the win: it
+is =O(1)= where a =std::vector::erase= would shift every following element to
+preserve an order you do not need.
+
+Prefer a sibling when:
+
+- order matters at either end, a work queue or sliding window, use
+  [[file:deque.org][deque]], whose pushes and pops keep front-to-back order.
+- you need the highest-priority element out next, not any element, use
+  [[file:heap.org][heap]].
+- you genuinely need ordered or stable-positioned storage; reach for a plain
+  =std::vector= and pay its =O(n)= ordered erase.
+
+Invalidation and stability:
+
+- Erase does *not* preserve order: =erase_at=, =erase_first=, and =erase_all=
+  move the former last element into the freed slot, so indices other than the
+  removed one can shift, never hold an index across an erase.
+- A push or emplace that grows the backing vector reallocates and invalidates
+  *all* references, pointers, and iterators (and the =data()= / =span()=
+  result). =reserve= up front to keep them stable across a known number of
+  inserts.
+- =clear= keeps capacity (existing capacity-based pointers stay valid as
+  storage, the elements are gone); =shrink_to_fit= may reallocate and
+  invalidate everything.
+
 * Usage
 
 #+BEGIN_SRC cpp

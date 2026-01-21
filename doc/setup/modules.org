@@ -2,10 +2,13 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-A module is a library =nexenne::<name>= in namespace =nexenne::<name>=,
-header-only by default. Scaffold one with =./template/new-module.sh <name>=;
-the root [[file:../../CMakeLists.txt][build]] discovers it on the next configure. Full guide and PR
-checklist: [[file:../../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]].
+A module is a library =nexenne::<name>= whose API lives in namespace
+=nexenne::<name>=, header-only by default. The two shipped modules are
+=nexenne::utility= and =nexenne::container= (container depends on utility).
+Scaffold a new one with =./template/new-module.sh <name>=; the root
+[[file:../../CMakeLists.txt][build]] discovers it on the next configure with no
+edits to the root. Full author guide and PR checklist:
+[[file:../../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]].
 
 * Layout
 
@@ -13,34 +16,80 @@ checklist: [[file:../../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]].
 modules/<name>/
 |-- CMakeLists.txt          the nexenne_add_module(...) call
 |-- module.deps             dependency module names (only if it has deps)
-|-- include/nexenne/<name>/ public headers (<name>.hpp is the umbrella)
-|-- src/                    only for compiled modules
-|-- tests/                  doctest suites
-`-- doc/                    Doxyfile.in for the module's API docs
+|-- include/nexenne/<name>/ public headers (<name>.hpp is the umbrella header)
+|-- src/                    sources, only for a compiled KIND
+|-- tests/                  doctest suites (test_<topic>.cpp)
+`-- doc/                    Doxyfile.in (optional) plus the docs CMakeLists
 #+END_SRC
+
+The module's =CMakeLists.txt= has two parts: a standalone-build guard that calls
+=nexenne_standalone_bootstrap()= when the module is the top of the build, then
+the =nexenne_add_module(<name> HEADERS ...)= call. Tests and docs are pulled in
+with guarded subdirectories:
+
+#+BEGIN_SRC cmake
+nexenne_add_module(<name>
+    HEADERS
+        include/nexenne/<name>/<name>.hpp
+        include/nexenne/<name>/example.hpp
+)
+
+if(NEXENNE_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+if(NEXENNE_BUILD_DOCS)
+    add_subdirectory(doc)
+endif()
+#+END_SRC
+
+* Discovery and ordering
+
+The root calls =nexenne_discover_modules= over =modules/=: every subdirectory
+that has a =CMakeLists.txt= becomes a module, and the list is topologically
+sorted so dependencies are added before their dependents (a cycle is a fatal
+error). For each discovered module the root defines a
+=NEXENNE_MODULE_<NAME>= option (default ON) and, when enabled, runs
+=add_subdirectory=. After all modules, =nexenne::all= links every enabled one.
 
 * Dependencies, one source of truth
 
-Inter-module deps live only in =module.deps= (one name per line). The root
-reads it to order builds, [[file:cmake-helpers.org][=nexenne_add_module=]] reads it to link
+Inter-module deps live only in =module.deps=, one module name per line (=#=
+comments and blank lines ignored). The root reads it to order the build,
+[[file:cmake-helpers.org][=nexenne_add_module=]] reads it to link
 =nexenne::<dep>=, and a standalone build reads it to pull siblings in. There is
-no =DEPENDS= argument. External (non-nexenne) libraries go in =LINK_PUBLIC= /
-=LINK_PRIVATE= on the call.
+no =DEPENDS= argument. External (non-nexenne) libraries go in =LINK_PUBLIC= or
+=LINK_PRIVATE= on the =nexenne_add_module= call. Example: container's
+=module.deps= contains the single line =utility=.
 
 * Kinds
 
-=KIND= on =nexenne_add_module=: =INTERFACE= (default, header-only), =STATIC=,
-=SHARED= (auto-generates an export header), =OBJECT=.
+=KIND= on =nexenne_add_module= selects the library type:
+
+| KIND      | meaning                                                       |
+|-----------+---------------------------------------------------------------|
+| INTERFACE | header-only (default); cannot take SOURCES or LINK_PRIVATE     |
+| STATIC    | compiled static archive; requires SOURCES                     |
+| SHARED    | compiled shared lib; requires SOURCES; auto-generates an export header |
+| OBJECT    | object library; requires SOURCES                              |
+
+A SHARED module gets =include/nexenne/<name>/<name>_export.hpp= generated with
+the macro =NEXENNE_<NAME>_EXPORT=, plus hidden visibility and SOVERSION.
 
 * Standalone
 
-Any module builds on its own; =nexenne_standalone_bootstrap()= sets up the
-helpers and pulls =module.deps= siblings (or =find_package= when not present):
+Any module builds on its own. The guard at the top of its =CMakeLists.txt= calls
+=nexenne_standalone_bootstrap()=, which sets up the helpers and pulls
+=module.deps= siblings from the source tree (or =find_package(nexenne-<dep>)=
+when the sibling is not checked out next to it):
 
 #+BEGIN_SRC sh
-cmake -S modules/<name> -B build/<name> && cmake --build build/<name>
+cmake -S modules/<name> -B build/<name>
+cmake --build build/<name>
+cmake --build build/<name> --target nexenne_<name>_tests   # tests, on by default standalone
 #+END_SRC
+
+In a standalone build =NEXENNE_BUILD_TESTS= and =NEXENNE_INSTALL= default to ON.
 
 * See also
 
-[[file:cmake-helpers.org][CMake helpers]], [[file:testing.org][Testing]], [[file:install.org][Install and consume]], [[file:conventions.org][Conventions]].
+[[file:cmake-helpers.org][CMake helpers]], [[file:build-system.org][Build system]], [[file:testing.org][Testing]], [[file:install.org][Install and consume]], [[file:conventions.org][Conventions]].

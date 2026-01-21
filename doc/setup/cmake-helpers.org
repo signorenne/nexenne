@@ -2,28 +2,91 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-Everything under [[file:../../cmake/][cmake/]]. The root and each module include these; you rarely
-call into them directly beyond =nexenne_add_module=.
+The reusable CMake logic lives under [[file:../../cmake/][cmake/]], added to
+=CMAKE_MODULE_PATH= by the root so any =include(nexenne_*)= resolves. The root
+build and each module's standalone bootstrap pull these in; the only function a
+module author calls by hand is =nexenne_add_module= (plus the test, example, and
+doc helpers).
 
-- [[file:../../cmake/nexenne_modules.cmake][nexenne_modules.cmake]] : =nexenne_read_module_deps=,
-  =nexenne_discover_modules= (glob plus topological sort), and
-  =nexenne_standalone_bootstrap=.
-- [[file:../../cmake/nexenne_module.cmake][nexenne_module.cmake]] : =nexenne_add_module=,
-  =nexenne_add_module_tests=, =nexenne_add_module_example=, and the install rules.
-- [[file:../../cmake/nexenne_warnings.cmake][nexenne_warnings.cmake]] : the =nexenne::warnings= interface target
-  (GCC, Clang, and MSVC flags).
+* Files
+
+- [[file:../../cmake/nexenne_modules.cmake][nexenne_modules.cmake]] : module discovery, dependency reading, and standalone bootstrap.
+- [[file:../../cmake/nexenne_module.cmake][nexenne_module.cmake]] : the module declaration helpers and their install rules.
+- [[file:../../cmake/nexenne_warnings.cmake][nexenne_warnings.cmake]] : the =nexenne::warnings= interface target.
 - [[file:../../cmake/nexenne_testing.cmake][nexenne_testing.cmake]] : finds or fetches doctest.
-- [[file:../../cmake/nexenne_doxygen.cmake][nexenne_doxygen.cmake]] : finds or fetches Doxygen, and
-  =nexenne_add_module_docs=.
-- [[file:../../cmake/templates/][templates/]] : =*-config.cmake.in= for =find_package=.
+- [[file:../../cmake/nexenne_doxygen.cmake][nexenne_doxygen.cmake]] : finds or fetches Doxygen and defines =nexenne_add_module_docs=.
+- [[file:../../cmake/templates/][templates/]] : =nexenne-config.cmake.in= and =module-config.cmake.in=, the =find_package= configs.
 
 * nexenne_add_module
 
-The one helper a module author writes. Reads =module.deps= for linking,
-declares the target + alias, registers headers via =FILE_SET=, and (when
-=NEXENNE_INSTALL=) emits the export and package config. Signature and kinds:
-[[file:modules.org][Modules]].
+Declares the library =nexenne_<name>= with alias =nexenne::<name>=. Inter-module
+dependencies come from =modules/<name>/module.deps=, not from an argument.
+
+#+BEGIN_SRC cmake
+nexenne_add_module(<name>
+    [KIND <INTERFACE|STATIC|SHARED|OBJECT>]   # default INTERFACE (header-only)
+    [VERSION <ver>]                           # default PROJECT_VERSION
+    [HEADERS <file>...]                       # public headers (FILE_SET)
+    [SOURCES <file>...]                       # required unless KIND is INTERFACE
+    [LINK_PUBLIC  <lib>...]                   # external libs, transitively exposed
+    [LINK_PRIVATE <lib>...]                   # external libs, impl-only
+)
+#+END_SRC
+
+It validates the arguments (INTERFACE cannot take SOURCES or LINK_PRIVATE; a
+compiled KIND requires SOURCES), creates the target and =EXPORT_NAME=, requests
+=cxx_std_23=, registers =HEADERS= as a =FILE_SET= rooted at
+=include/=, links each =module.deps= entry as =nexenne::<dep>= (failing with a
+clear error if a dependency target is not defined yet), and links the external
+libs. For =KIND SHARED= it also runs =generate_export_header= to produce
+=nexenne/<name>/<name>_export.hpp= with the macro =NEXENNE_<NAME>_EXPORT=, sets
+hidden visibility, and stamps =VERSION= / =SOVERSION=. Finally it appends the
+module to the global =NEXENNE_MODULES= property and, when =NEXENNE_INSTALL= is
+on, calls =nexenne_install_module=.
+
+* Other module helpers (nexenne_module.cmake)
+
+- =nexenne_install_module(name fileset version deps headers)= : the install
+  half of =nexenne_add_module=. Installs the target, exports
+  =nexenne-<name>-targets.cmake= under namespace =nexenne::=, and writes the
+  per-module =nexenne-<name>-config.cmake= (with =find_dependency= lines for each
+  dep) and version file. Called automatically; not invoked directly.
+- =nexenne_add_module_tests(<name> SOURCES <file>...)= : builds
+  =nexenne_<name>_tests=, a doctest executable linked against the module,
+  =doctest::doctest_with_main=, =nexenne::warnings=, and an internal
+  =nexenne_doctest_quirks= target (which adds =-Wno-c2y-extensions= where
+  supported so doctest's =__COUNTER__= use does not trip =-Wpedantic=). Wires a
+  =run_nexenne_<name>_tests= command into the aggregate =nexenne_tests=. A no-op
+  when =NEXENNE_BUILD_TESTS= is off. See [[file:testing.org][Testing]].
+- =nexenne_add_module_example(<name> TARGET <exe> SOURCES <file>...)= : builds
+  one example executable linked against =nexenne::<name>= and =nexenne::warnings=.
+  A no-op when =NEXENNE_BUILD_EXAMPLES= is off.
+
+* Discovery and bootstrap (nexenne_modules.cmake)
+
+- =nexenne_read_module_deps(<module_dir> <out_var>)= : reads
+  =<module_dir>/module.deps= into a list (one name per line, =#= comments and
+  blank lines ignored). Empty when the file is absent.
+- =nexenne_discover_modules(<modules_dir> <out_var>)= : globs every subdirectory
+  of =modules/= that has a =CMakeLists.txt= and returns them in dependency order
+  (deps before dependents) via a topological sort. Fails on a cycle. The root
+  uses this to set the =add_subdirectory= order.
+- =nexenne_standalone_bootstrap()= : a macro a module's CMakeLists calls when it
+  is the top of the build (guarded by =CMAKE_SOURCE_DIR STREQUAL
+  CMAKE_CURRENT_SOURCE_DIR=). Sets the standard, defines the local options,
+  includes the warning/testing/doxygen helpers, and pulls sibling dependencies
+  via =_nexenne_bootstrap_dep= (which adds the sibling source if checked out, or
+  falls back to =find_package(nexenne-<dep>)=). See [[file:modules.org][Modules]].
+
+* nexenne::warnings (nexenne_warnings.cmake)
+
+An INTERFACE target =nexenne_warnings= (alias =nexenne::warnings=) carrying the
+project's warning flags: GCC and Clang get =-Wall -Wextra -Wpedantic -Wshadow
+-Wconversion -Wsign-conversion -Wold-style-cast= and more (GCC adds a few of its
+own); MSVC gets =/W4 /permissive-=. With =NEXENNE_WARNINGS_AS_ERRORS=ON= it adds
+=-Werror= (or =/WX=). It is build-only, never installed or exported: tests and
+examples opt in, the header-only libraries do not.
 
 * See also
 
-[[file:build-system.org][Build system]], [[file:modules.org][Modules]], [[file:install.org][Install and consume]].
+[[file:build-system.org][Build system]], [[file:modules.org][Modules]], [[file:testing.org][Testing]], [[file:api-docs.org][API docs]], [[file:install.org][Install and consume]].
