@@ -1,0 +1,76 @@
+#+TITLE: heap
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::heap<T, Compare>= is a binary heap (a priority queue) built
+on a contiguous =std::vector= and the standard heap algorithms. The default
+=Compare= of =std::less<T>= gives a max-heap (largest on top); pass
+=std::greater<T>= for a min-heap. Push and pop are =O(log n)=, and reading the
+top is =O(1)=.
+
+* The idea
+
+A priority queue needs the most important element fast and cheap maintenance as
+elements come and go. A binary heap gives exactly that with no pointers: it is
+an array where each parent outranks its children, so the top is always at index
+0 and a push or pop only has to sift one element along a single root-to-leaf
+path. Building on =std::vector= keeps the storage contiguous and lets the
+standard =push_heap= / =pop_heap= / =make_heap= do the sifting, so there is no
+hand-written loop to get wrong.
+
+* How it works
+
+** Array layout
+
+The heap is just a vector read as a complete binary tree: the children of index
+=i= are at =2i+1= and =2i+2=. The invariant is that every parent outranks its
+children under =Compare=, which puts the winner at index 0.
+
+#+BEGIN_EXAMPLE
+max-heap {5, 4, 3, 1, 1} in the vector:
+
+  index:  0   1   2   3   4              5            <- top, index 0
+        +---+---+---+---+---+           / \
+        | 5 | 4 | 3 | 1 | 1 |          4   3
+        +---+---+---+---+---+         / \
+                                     1   1
+  children of i are at 2i+1, 2i+2;  every parent >= its children
+#+END_EXAMPLE
+
+** Operations
+
+=push= and =emplace= append to the vector and =std::push_heap= sifts the new
+element up its path, =O(log n)=. =pop= moves the top to the back with
+=std::pop_heap= and pops it, also =O(log n)=, and returns it as =result<T>= (or
+=container_error::empty= when there is nothing to pop). Constructing from a list
+or range runs one =std::make_heap=, which is =O(n)=, strictly cheaper than =n=
+separate pushes. =rebuild= re-heapifies the whole range in =O(n)= after a bulk
+change.
+
+** What is exposed, and what is not
+
+=top()= returns a pointer to the winner, or =nullptr= when empty. =data()= and
+=span()= expose the storage read-only, but in *heap order*, not sorted order, so
+they are for feeding range algorithms, not for reading priorities in sequence.
+There is deliberately no =begin= / =end= and no =operator==/<=>=: heap-layout
+order is neither priority nor sorted order and depends on insertion history, so
+iterating or comparing in it misleads. To consume in priority order, pop; to see
+sorted order, copy from =span()= and sort the copy.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::heap<event, std::greater<event>> schedule;  // min-heap
+
+schedule.push(e);                       // O(log n)
+schedule.emplace(time, payload);        // construct in place
+
+while (!schedule.empty()) {
+  auto const next{schedule.pop()};      // result<event>; earliest first
+  dispatch(*next);
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/heap.cpp][examples/container/heap.cpp]]
