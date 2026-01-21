@@ -1,0 +1,99 @@
+#+TITLE: object_pool
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::object_pool<T, N>= is a fixed-capacity pool of =N=
+pre-allocated, aligned slots for =T=. It hands out a free slot and reclaims one
+in =O(1)=, with no heap and no allocator after construction. A free list recycles
+the most-recently-freed slot first, keeping it hot in cache.
+
+* The idea
+
+When you spawn and retire many short-lived objects of one type, calling =new= and
+=delete= per object pays the general allocator's cost over and over, and a bump
+arena like [[file:linear_arena.org][linear_arena]] cannot free a single object, only the whole region at
+once. A pool sits between them: reserve the storage once, then hand individual
+slots out and take them back in constant time. The bookkeeping is a stack of
+free-slot pointers, so acquisition and release are a single push or pop.
+
+* How it works
+
+** Slots and the free list
+
+The pool owns =N= raw, =T=-aligned slots inline and a free list (a
+[[file:static_vector.org][static_vector]] of pointers to the free slots). Acquiring pops a pointer; releasing
+pushes it back. The free list is LIFO, so the next acquisition reuses the slot
+just freed, which is still warm in cache.
+
+#+BEGIN_EXAMPLE
+object_pool<T, 4>: four slots plus a stack of free-slot pointers
+
+  slots:  [ s0 ][ s1 ][ s2 ][ s3 ]      raw aligned storage
+  free:   [ &s3, &s2, &s1, &s0 ]        back is the next one out
+
+  acquire() pops &s0, hands out s0      free: [ &s3, &s2, &s1 ]
+  release(p) pushes the slot back       the slot rejoins the free list
+#+END_EXAMPLE
+
+** Two API tiers
+
+The raw tier hands out and reclaims storage and leaves the object lifetime to the
+caller: =acquire()= returns raw =T*= (or =container_error::full=), and =release(p)=
+returns the slot, running no destructor, so destroy the object yourself first.
+The object tier does both halves: =emplace(args...)= acquires a slot and
+constructs in place, and =destroy(p)= destroys the object and releases its slot.
+=release= and =destroy= validate the pointer, returning =container_error::not_found=
+for a null pointer and =container_error::out_of_range= for a pointer that is not
+one of this pool's slots. =high_water_mark()= records the peak live count for
+empirical sizing.
+
+* Complexity
+
+| operation                           | cost |
+|-------------------------------------+------|
+| acquire / release                   | O(1) |
+| emplace / destroy                   | O(1) |
+| size / empty / full                 | O(1) |
+| high_water_mark                     | O(1) |
+
+Memory is =N= slots of =sizeof(T)= (each =alignof(T)=-aligned) plus the free
+list of =N= pointers, all inline, allocated once at construction and never
+again.
+
+* When to use it
+
+Reach for =object_pool= when many objects of one type are spawned and retired
+individually and you want =O(1)= recycling with no per-object allocation:
+particle systems, fixed rosters of reusable buffers or connections, per-frame
+transient scratch objects, and embedded contexts where =new= is forbidden.
+Because it constructs and destroys in place and never relocates, it also holds
+*immovable* types (a mutex, an atomic) that a vector-backed container cannot.
+
+Prefer a sibling when:
+
+- you do not need to free objects individually, only all at once: a bump
+  [[file:linear_arena.org][linear_arena]] has cheaper bookkeeping (a single offset, no free list).
+- you need a growable count rather than a fixed =N=, or contiguous iteration over
+  the live objects: a vector-based container fits better.
+
+Two things to keep in mind. =release= and the raw tier do *not* run destructors,
+so an object left in a released or reused slot has its destructor skipped unless
+you =std::destroy_at= it first (use =destroy= for the object tier to avoid this).
+And the pool hands out interior pointers and is therefore non-copyable and
+non-movable: a handle from =acquire= or =emplace= stays valid until you release
+it, and the pool itself must outlive every handle.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::object_pool<connection, 64> pool;
+
+auto const c{pool.emplace(host, port)};   // acquire a slot and construct
+if (!c.has_value()) { handle(c.error()); } // container_error::full when exhausted
+use(*c);
+static_cast<void>(pool.destroy(*c));       // destroy and recycle, O(1)
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/object_pool.cpp][examples/container/object_pool.cpp]]
