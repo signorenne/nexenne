@@ -19,6 +19,52 @@ temporary directly as a call argument; never store a =function_ref= to a
 temporary in a variable that outlives the full expression. To /store/ a callable
 for later invocation, use =nexenne::utility::in_place_function= instead.
 
+* How it works
+
+A =function_ref<R(Args...)>= is two pointers: the address of the referenced
+callable (as =void const*=) and a thunk, a function pointer that knows the
+callable's concrete type and forwards the call to it. The converting constructor
+captures the callable's address and synthesises the thunk; nothing is copied and
+nothing is allocated, which is why passing a =function_ref= by value is as cheap
+as passing two pointers. A free function pointer binds through a dedicated
+constructor that stores the function pointer itself rather than its address, so a
+=function_ref= to a plain function carries no dangling risk.
+
+A default-constructed view is empty: =explicit operator bool= reports =false= and
+the view must not be called (the stored thunk is null, so calling it is undefined
+behaviour). The converting constructor is constrained to reject other
+=function_ref= arguments (so it never wraps itself) and any callable not invocable
+as =R(Args...)=.
+
+The bound callable is held by reference, so a =function_ref= taken from a non-const
+lambda can still invoke a mutating =operator()=; the view does not itself
+propagate const to the referent.
+
+* When to use it
+
+Reach for =function_ref= as a parameter type when a function wants to accept any
+callable but should not be a template, for example a visitor, a predicate, or a
+callback that fires before the call returns. It keeps the function in a single
+translation unit and out of every caller's header.
+
+The one rule that bites people is lifetime. =function_ref= is *non-owning*: it
+holds only the callable's address, so the referenced callable must outlive the
+view. Passing a temporary lambda directly as a call argument is safe (the
+temporary lives for the whole call expression), but binding a =function_ref= to a
+temporary and *storing* it dangles the moment the full expression ends:
+
+#+BEGIN_EXAMPLE
+  function_ref<bool(int)> p{[](int x) { return x > 0; }};  // BUG: lambda is gone
+  p(3);                                                    // dangling call
+#+END_EXAMPLE
+
+If you need to *store* a callable and invoke it later (a member, a queued task, a
+deferred handler), reach for [[file:in_place_function.org][in_place_function]]
+instead: it owns the callable in inline storage. =function_ref= is the read-only,
+borrow-it-now counterpart; =in_place_function= is the owning one. Prefer
+=function_ref= over =std::function= for the parameter-passing case, since it never
+allocates and never copies the callable.
+
 * Usage
 
 #+BEGIN_SRC cpp

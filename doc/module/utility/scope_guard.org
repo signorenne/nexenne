@@ -18,6 +18,51 @@ inline without indirection; =dismiss= and =engage= toggle an active flag, and
 the tradeoff here is the extra =bool= of state in exchange for cancellable
 cleanup. It is non-copyable, non-movable, and =[[nodiscard]]=.
 
+* How it works
+
+The guard stores the callable by value (=function_type m_fn=, where =Fn= is
+deduced from the constructor argument) plus a =bool m_active= that starts
+=true=. The destructor runs the callable only while the guard is active:
+
+#+BEGIN_EXAMPLE
+~scope_guard() { if (m_active) m_fn(); }
+#+END_EXAMPLE
+
+=dismiss()= sets the flag to =false= so the destructor skips the callable;
+=engage()= sets it back to =true= to re-arm a previously dismissed guard;
+=is_active()= reads the flag. Because cleanup is keyed off a plain flag and not
+ownership of a handle, you can dismiss and re-engage as many times as you like
+before scope exit. The deduction guide =scope_guard(Fn) -> scope_guard<Fn>= lets
+you write =scope_guard{[...]{...}}= without naming the lambda type. The type is
+=[[nodiscard]]= so a discarded temporary (which would run cleanup immediately, at
+the end of the full expression) is a compile-time warning.
+
+* When to use it
+
+Reach for =scope_guard= when a cleanup should run on every exit path *unless* the
+operation succeeds: the commit-or-rollback pattern. Acquire, install a guard that
+undoes the acquisition, do the fallible work, then =dismiss= once success is
+certain so the undo does not fire. The cancellable flag is the whole point; if
+the cleanup always runs, prefer [[file:defer.org][defer]], which is the same idea
+without the flag.
+
+Contrast the three siblings. =scope_guard= runs an *action* on scope exit and can
+be cancelled (=dismiss=) or re-armed (=engage=). [[file:defer.org][defer]] also
+runs an action on scope exit but unconditionally, with no flag.
+[[file:unique_resource.org][unique_resource]] is different in kind: it *owns a
+handle* and runs a deleter on that handle, is move-only so ownership transfers,
+and surrenders the handle with =release= rather than toggling a flag. Use
+=unique_resource= when there is a value to hand off or transfer, =scope_guard= or
+=defer= when there is only an action to run.
+
+GOTCHAS. The guard is non-copyable and non-movable, so it cannot be returned from
+a factory or stored in a container; for a movable, transferable cleanup own a
+handle with =unique_resource= instead. If the callable throws while the
+destructor runs during stack unwinding, the program terminates (the usual
+destructor-throws rule), so keep the cleanup =noexcept= in practice. The action
+fires at the end of the enclosing scope, not at any earlier statement, so a guard
+declared in an =if= block runs when that block ends.
+
 * Usage
 
 #+BEGIN_SRC cpp

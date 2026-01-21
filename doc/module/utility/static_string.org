@@ -18,6 +18,63 @@ length =N - 1=. It supports compile-time =operator+= concatenation and ships wit
 =std::hash= and =std::formatter= specialisations, so it doubles as a map key and a
 =std::format= argument. Strings of different length are distinct types.
 
+* How it works
+
+The only data member is a public =std::array<char, N> data=, which is what makes
+the type *structural* and so usable as an NTTP. The literal constructor
+=static_string(char const (&str)[N])= copies all =N= bytes (the terminator
+included) with =std::copy_n=, and the deduction guide fixes =N= from the literal
+length, so =static_string{"abc"}= is a =static_string<4>=. The accessors read
+straight from =data=: =view()= spans the first =N - 1= bytes (no terminator),
+=c_str()= returns the null-terminated pointer, =size()= is =N - 1=, =begin()=/=end()=
+iterate the body, and =operator[]= indexes the raw buffer (an out-of-range index
+asserts in debug, reads out of bounds in release). =operator+= is the interesting
+one: concatenating an =N= with an =M= produces a =static_string<N + M - 1>= (both
+bodies plus one terminator), built at compile time. =operator===/=operator<=>= are
+defaulted and compare the buffers, so two static strings are comparable only when
+they are the *same length*, that is, the same type. The =std::hash= and
+=std::formatter= specialisations both delegate to the =std::string_view= versions
+over =view()=, which is why it keys an unordered map and accepts the full string
+format spec.
+
+* Complexity
+
+| operation                     | cost                          |
+|-------------------------------+-------------------------------|
+| construct from literal        | O(N), compile time            |
+| size / empty / view / c_str   | O(1)                          |
+| operator[] / begin / end      | O(1)                          |
+| operator+ (concatenate)       | O(N + M), compile time        |
+| operator== / operator<=>      | O(N)                          |
+| std::hash                     | O(N) (hashes the body)        |
+
+The capacity is fixed by the type: a =static_string<N>= always carries exactly
+=N= bytes of storage whether or not the body fills it.
+
+* When to use it
+
+Reach for =static_string= when you need string text as a *template argument* or
+other compile-time constant: tagging a type with a name (=template <static_string
+Name>=), building a compile-time lookup table keyed by name, or assembling
+identifiers with =operator+= during constant evaluation. Because it is structural,
+two instantiations with the same characters name the same type, which is what lets
+it parametrise a class.
+
+Alternatives: for an ordinary runtime string prefer =std::string=; for a non-owning
+window over existing characters prefer =std::string_view=; for a growable
+fixed-capacity buffer used at runtime reach for a small-string type rather than
+this. =static_string= is specifically the compile-time, fixed-capacity, structural
+case.
+
+GOTCHAS. The capacity is baked into the type, so =static_string<4>= and
+=static_string<5>= are *different types*: you cannot reassign one to the other,
+store mixed lengths in one container, or compare across lengths (the defaulted
+comparisons only apply between equal =N=). =size()= reports =N - 1= because =N=
+counts the null terminator, an off-by-one trap if you read =N= directly. There is
+no bounds-checked element access: =operator[]= only asserts in debug and reads out
+of bounds in release. Concatenation grows the type: =a + b= is a
+=static_string<N + M - 1>=, so a chain of =+= produces a new type at each step.
+
 * Usage
 
 #+BEGIN_SRC cpp

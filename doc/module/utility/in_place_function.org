@@ -18,6 +18,52 @@ operator bool= tests for non-empty, and calling an empty instance asserts in
 debug. Unlike =nexenne::utility::function_ref=, it /owns/ the callable, so it is
 the right choice when the callable must be stored and invoked later.
 
+* How it works
+
+The signature and a byte budget are template parameters:
+=in_place_function<R(Args...), Capacity>= (the default =Capacity= is 64). The
+object holds an inline =Capacity=-byte buffer aligned to =std::max_align_t= and a
+pointer to a small vtable. The converting constructor decay-copies the callable
+into the buffer and points the vtable at a per-type instance carrying three
+function pointers: =invoke= (forwards the call), =destroy= (runs the callable's
+destructor), and =move= (relocates the callable into another buffer). The static
+=capacity= member exposes the budget.
+
+The =requires= clause admits the callable only when
+=sizeof(std::decay_t<F>) <= Capacity= and its alignment is at most
+=alignof(std::max_align_t)=; otherwise the construction is a compile error, never
+a heap fallback. A default-constructed (or =nullptr=-constructed) instance is
+empty: its vtable pointer is null, =explicit operator bool= reports =false=, and
+calling it asserts in debug (undefined behaviour under =NDEBUG=). =reset= destroys
+the stored callable and returns to the empty state.
+
+Move construction and move assignment use the vtable's =move= to relocate the
+callable, then null out the source, so a moved-from instance is empty; copying is
+deleted. =operator()= comes in a non-const and a const overload (the const one
+mirrors =std::function=, invoking through the buffer even though the wrapper is
+const), so a =const in_place_function= can still call a mutating stored callable.
+
+* When to use it
+
+Reach for =in_place_function= when you must *store* a type-erased callable and
+invoke it later: a callback member, a command in a queue, a deferred handler, an
+event sink. It is the heap-free stand-in for =std::function= on embedded targets
+and in hot paths, where an allocation per assignment is unacceptable.
+
+The gotchas come from the fixed budget. The capacity is a *compile-time* ceiling
+on =sizeof= of the decayed callable, so a lambda that captures too much (by value)
+will not compile against a small =Capacity=; raise =Capacity= or capture less (for
+instance by reference or by =shared_ptr=, minding the lifetimes). Capacity counts
+bytes of the callable, not its arguments, and over-aligned callables are rejected
+too. Remember it is *move-only*: assigning or returning transfers ownership and
+leaves the source empty, and calling that emptied source asserts.
+
+If instead you only need to *borrow* a callable for the duration of a single call
+(a predicate or visitor passed as a parameter), use the non-owning, never-failing
+[[file:function_ref.org][function_ref]]: it stores no callable and has no size
+budget, but must not outlive the callable it refers to. =in_place_function= owns;
+=function_ref= borrows.
+
 * Usage
 
 #+BEGIN_SRC cpp

@@ -2,34 +2,60 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-Tests use [[https://github.com/doctest/doctest][doctest]] (fetched automatically if not installed). There is no CTest:
-=nexenne_add_module_tests= builds a binary per module and wires it into the
-aggregate =nexenne_tests= target.
+Tests use [[https://github.com/doctest/doctest][doctest]]. The
+[[file:../../cmake/nexenne_testing.cmake][nexenne_testing.cmake]] helper tries
+=find_package(doctest CONFIG)= first and falls back to =FetchContent= of the tag
+in =NEXENNE_DOCTEST_GIT_TAG= (default =v2.4.11=) if no install is found, so a
+fresh clone needs nothing extra. There is no CTest integration:
+=nexenne_add_module_tests= builds one doctest binary per module and attaches it
+to the aggregate =nexenne_tests= target.
 
 * Run
 
 #+BEGIN_SRC sh
 cmake --preset dev
-cmake --build --preset dev --target nexenne_tests   # build + run every suite
+cmake --build --preset dev --target nexenne_tests   # build and run every suite
 #+END_SRC
 
-Building =nexenne_tests= runs each module's binary directly; a failing suite
-returns nonzero and fails the build. Run one module's suite (with doctest
-filters such as =--test-case=) at =build/dev/bin/nexenne_<name>_tests=.
+Equivalently =cmake --build --preset tests=, which is the =tests= build preset
+wired to the same target. Building =nexenne_tests= runs each module's binary
+directly (via per-module =run_nexenne_<name>_tests= custom commands); a failing
+suite returns nonzero and fails the build.
+
+Run one module's suite straight from the binary, with doctest flags such as
+=--test-case=, =--success=, or =--list-test-cases=:
+
+#+BEGIN_SRC sh
+./build/dev/bin/nexenne_container_tests --test-case="*ring_buffer*"
+#+END_SRC
 
 * Add tests
 
-In =modules/<name>/tests/=, write =test_<topic>.cpp= and list it:
+In =modules/<name>/tests/=, write =test_<topic>.cpp= and list it in that
+directory's =CMakeLists.txt=:
 
 #+BEGIN_SRC cmake
-nexenne_add_module_tests(<name> SOURCES test_<topic>.cpp)
+nexenne_add_module_tests(<name>
+    SOURCES
+        test_<topic>.cpp
+)
 #+END_SRC
+
+Each test binary links =nexenne::<name>=, =doctest::doctest_with_main= (so no
+=main= is needed), and =nexenne::warnings=, so test code is built with the same
+warnings as the library. Include doctest with =#include <doctest/doctest.h>=.
 
 * Sanitizers
 
-The =asan= preset builds with Address + UB sanitizers; CI runs the suites
-under it. Locally: =cmake --preset asan && cmake --build --preset asan --target nexenne_tests=.
+The =asan= preset inherits =dev= and adds
+=-fsanitize=address,undefined -fno-omit-frame-pointer=. CI runs the suites under
+it (the =asan= job). Locally:
+
+#+BEGIN_SRC sh
+cmake --preset asan
+cmake --build --preset asan --target nexenne_tests
+#+END_SRC
 
 * See also
 
-[[file:cmake-helpers.org][CMake helpers]], [[file:hooks.org][Git hooks]], [[file:ci.org][CI]].
+[[file:cmake-helpers.org][CMake helpers]], [[file:build-system.org][Build system]], [[file:hooks.org][Git hooks]], [[file:ci.org][CI]].

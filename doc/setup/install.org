@@ -2,36 +2,66 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-nexenne installs as standard CMake packages: an umbrella =nexenne= and one
-=nexenne-<name>= per module. Each module is also usable straight from the
-source tree.
+When =NEXENNE_INSTALL= is on (the default for a top-level build), nexenne
+installs as standard CMake packages: an umbrella =nexenne= and one
+=nexenne-<name>= per module. Each module is also usable straight from the source
+tree via =add_subdirectory= or =FetchContent=.
 
 * Install
 
 #+BEGIN_SRC sh
 cmake -B build -DCMAKE_INSTALL_PREFIX=/where/you/want
-cmake --build build && cmake --install build
+cmake --build build
+cmake --install build
 #+END_SRC
 
-* Consume
+This installs, under the prefix: public headers to =include/=, any compiled
+libraries to =lib/= (=bin/= for runtime DLLs), the umbrella package config to
+=lib/cmake/nexenne/= (=nexenne-config.cmake=, =nexenne-config-version.cmake=,
+=nexenne-targets.cmake=), and one per-module package to
+=lib/cmake/nexenne-<name>/=. The version files use =SameMajorVersion=
+compatibility.
+
+* Consume an installed package
 
 #+BEGIN_SRC cmake
-find_package(nexenne REQUIRED)                  # whole library
+find_package(nexenne REQUIRED)                       # whole library
 target_link_libraries(app PRIVATE nexenne::all)
 
-find_package(nexenne REQUIRED COMPONENTS math)  # a subset
-find_package(nexenne-math REQUIRED)             # one module
-target_link_libraries(app PRIVATE nexenne::math)
+find_package(nexenne REQUIRED COMPONENTS container)  # a subset of modules
+find_package(nexenne-container REQUIRED)             # one module directly
+target_link_libraries(app PRIVATE nexenne::container)
 #+END_SRC
 
-Also works embedded: =add_subdirectory(third_party/nexenne)= or =FetchContent=
-(link the =nexenne::<name>= targets directly).
+=find_package(nexenne COMPONENTS <name>)= validates each component against the
+shipped module list and pulls each in via the per-module package; an unknown
+component is a hard failure. A per-module package =find_dependency=-pulls its own
+dependencies (for example =nexenne-container= pulls =nexenne-utility=), so
+linking one module brings its deps automatically. Point CMake at a non-default
+prefix with =-DCMAKE_PREFIX_PATH=/where/you/want=.
+
+* Consume from source
+
+Embedded use does not require an install:
+
+#+BEGIN_SRC cmake
+add_subdirectory(third_party/nexenne)        # or FetchContent_MakeAvailable(nexenne)
+target_link_libraries(app PRIVATE nexenne::container)
+#+END_SRC
+
+Embedded, the =NEXENNE_*= build options default to OFF (nexenne is not
+=PROJECT_IS_TOP_LEVEL=), so tests, examples, and install rules stay out of the
+consumer's build.
 
 * Packaging check
 
-[[file:../../scripts/install_smoke.sh][scripts/install_smoke.sh]] exercises the whole path end to end (install + a
-consumer that =find_package=s a module). The [[file:ci.org][CI]] =install= job runs it.
+[[file:../../scripts/install_smoke.sh][scripts/install_smoke.sh]] exercises the
+whole path end to end: it scaffolds a throwaway module, installs to a temp
+prefix, and builds a consumer that pulls the module both as
+=find_package(nexenne-<mod>)= and =find_package(nexenne COMPONENTS <mod>)=, then
+cleans up. The [[file:ci.org][CI]] =install= job runs it; run it locally with
+=bash scripts/install_smoke.sh=.
 
 * See also
 
-[[file:build-system.org][Build system]], [[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]].
+[[file:build-system.org][Build system]], [[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]], [[file:ci.org][CI]].

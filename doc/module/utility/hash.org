@@ -18,6 +18,60 @@ target is tuned correctly rather than truncating a 64-bit constant. The mixing
 is order-sensitive, so =[1, 2]= and =[2, 1]= hash differently; these are runtime
 functions because =std::hash= is not =constexpr=.
 
+* How it works
+
+=hash_combine(seed, value)= hashes =value= with =std::hash= and folds the result
+into =seed= with the width-tuned magic constant and shifts; it updates =seed= in
+place. The width is picked at compile time from =sizeof(std::size_t)=: an 8-byte
+target uses the 64-bit golden-ratio constant and one shift pair, a 4-byte target
+the 32-bit constant and another; any other width is a =static_assert=.
+
+The other three primitives build on =hash_combine=:
+
+- =hash_combine_each(seed, args...)= folds the pack into an existing =seed= left to
+  right (an empty pack leaves =seed= unchanged).
+- =hash_args(args...)= starts from a zero seed, folds the pack in, and returns the
+  result, the usual building block for a =std::hash= specialisation of an
+  aggregate.
+- =hash_range(range)= starts from a zero seed and folds every element in iteration
+  order (an empty range hashes to zero).
+
+Every component type must satisfy the =hashable= concept, that is, have a
+=std::hash= specialisation whose result converts to =std::size_t=.
+
+* Complexity
+
+| operation                  | cost                        |
+|----------------------------+-----------------------------|
+| hash_combine               | O(1) plus the std::hash call |
+| hash_combine_each          | O(k) for k arguments        |
+| hash_args                  | O(k) for k arguments        |
+| hash_range                 | O(M) for M elements         |
+
+The =std::hash= call per component dominates for variable-length keys (a
+=std::string= hash is itself linear in the string), so the bounds above count
+component hashes, not bytes.
+
+* When to use it
+
+Reach for =hash_args= when writing a =std::hash= specialisation for an aggregate
+or composite key, and =hash_range= when the key is a sequence. Use =hash_combine= /
+=hash_combine_each= when you already hold a seed and want to fold more into it.
+This keeps every module on the same recipe, which matters when hashes cross module
+boundaries.
+
+The gotchas:
+
+- The mix is *order-sensitive* by design, so for an unordered set of components
+  (where =[1, 2]= and =[2, 1]= should hash alike) you must canonicalise the order
+  first; do not feed an unordered container's iteration order directly.
+- The result is *not* a stable, portable digest: it is tuned per =std::size_t=
+  width and depends on the platform's =std::hash=, so a value hashed on a 64-bit
+  host will not match the same value on a 32-bit target. Use it for in-memory hash
+  tables, not for persistence, wire formats, or cross-host consistency.
+- It is a hash combiner, not a cryptographic hash; never use it where collision
+  resistance against an adversary matters.
+
 * Usage
 
 #+BEGIN_SRC cpp

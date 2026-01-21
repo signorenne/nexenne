@@ -17,6 +17,39 @@ The standard library exposes =file_name()=, =line()=, =column()= and
 =std::array<char, N>= via =snprintf=, and return a view truncated to fit when
 the buffer is too small. The buffer must outlive the returned view.
 
+* How it works
+
+Both helpers take the location and a reference to a caller-owned
+=std::array<char, N>= (=N >= 1= is required). The path from =loc.file_name()= is
+first reduced to its basename by =detail::basename_of=, which finds the last
+=/= or =\\= and keeps what follows, so a long compiler-supplied path collapses to
+just the file name. The text is then written with =std::snprintf=:
+=format_short= writes ="basename:line"=, =format_long= appends =" in function"=
+from =loc.function_name()=. =snprintf= returns the length it *would* have
+written, so =detail::view_of_snprintf= turns that into a =std::string_view= over
+the buffer: a non-positive return becomes an empty view, and a return at or past
+=N= means the output was clipped to =N - 1= usable characters. No heap is
+touched, nothing throws (both are =noexcept=), and the result is just a view into
+your array.
+
+* When to use it
+
+Reach for these in a logging or assertion macro, or anywhere you want a compact
+=file:line= tag without dragging in =std::format= or a heap allocation: hot paths,
+embedded targets, and signal-safe-ish contexts. =format_short= is the everyday
+choice for a prefix like =[file.cpp:42]=; =format_long= adds the enclosing
+function when you want a fuller trace line. Capture the location as a defaulted
+=std::source_location::current()= parameter at the logging boundary so it records
+the *caller's* position, not the logger's.
+
+GOTCHAS. The returned =string_view= points into your =buf=, so the buffer must
+outlive every use of the view: a view returned from a function over a local array
+dangles. Size the buffer for your longest expected tag, =format_long= in
+particular can be long because =function_name()= is the full signature on many
+compilers, and an undersized buffer silently truncates (it does not error). The
+exact spelling of the file path and function name is implementation-defined, so
+treat the output as a human-readable tag, not a stable key.
+
 * Usage
 
 #+BEGIN_SRC cpp
