@@ -52,7 +52,8 @@ region freed all at once.
 
 - [[file:heap.org][heap]] : binary heap over a vector, max-heap by default, configurable order.
 
-* Arenas
+* Arenas and pools
 
 - [[file:linear_arena.org][linear_arena]] : inline-buffer bump allocator, O(1) reset.
 - [[file:scratch_pad.org][scratch_pad]] : RAII checkpoint over an arena, rewinds on scope exit.
+- [[file:object_pool.org][object_pool]] : fixed-capacity typed pool, O(1) acquire and release.
