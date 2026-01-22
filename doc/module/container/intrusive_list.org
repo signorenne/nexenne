@@ -1,0 +1,108 @@
+#+TITLE: intrusive_list
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::intrusive_list<T>= is a doubly-linked list whose links live
+inside the elements themselves: =T= derives from =intrusive_list_hook<T>= and
+carries its own =prev= / =next=. The list owns nothing, so insert, erase, and
+splice allocate nothing, and erasing a known element is =O(1)= with no search.
+
+* The idea
+
+A =std::list= allocates a node per element and, to erase by value, has to find
+the node first. When the element is something you already hold a pointer to, both
+costs are avoidable: store the links inside the element and the list is just
+pointer surgery, with no allocator and no lookup. The trade is ownership and
+exclusivity: the caller owns each element's lifetime, and since an element
+carries exactly one link pair it can be in at most one list at a time.
+
+* How it works
+
+** Hook, sentinel, and circular links
+
+Each element embeds a hook (one =prev= and one =next=) by deriving from
+=intrusive_list_hook<T>= (CRTP, so the iterator recovers =T= from the hook with a
+zero-cost downcast). The list itself holds one sentinel hook and is circular
+around it, so =begin()= / =end()= need no null check and a boundary insert is the
+same code as a middle insert.
+
+#+BEGIN_EXAMPLE
+intrusive_list<body>: the links live inside each body, around a sentinel
+
+  +----------+    +--------+    +--------+    +--------+
+  | sentinel |<-->| body A |<-->| body B |<-->| body C |
+  +----------+    +--------+    +--------+    +--------+
+       ^                                          |
+       +------------------------------------------+
+       circular: sentinel.next = A, sentinel.prev = C
+#+END_EXAMPLE
+
+** Linking and unlinking
+
+=push_back= / =push_front= / =insert= splice an element in by rewriting four
+pointers; =erase(element)= unlinks it in =O(1)= straight from a reference, with no
+search, and =erase(iterator)= returns the following position. =pop_front= /
+=pop_back= unlink an end element and hand back a pointer to it (=nullptr= when
+empty), and =front= / =back= return the same nullable pointers. None of these
+destroy anything: the element survives, now unlinked.
+
+** Ownership and lifetime
+
+The list never allocates, copies, or destroys an element. =clear= and the
+destructor just detach every element (each becomes =is_linked() == false=); the
+caller still owns them. An element must therefore outlive its membership, and you
+must unlink it before its storage goes away.
+
+* Complexity
+
+| operation                                  | cost |
+|--------------------------------------------+------|
+| push_back / push_front / insert            | O(1) |
+| erase by element or by iterator            | O(1) |
+| pop_front / pop_back                       | O(1) |
+| front / back / size / empty                | O(1) |
+| move construct / move assign / swap        | O(1) |
+| clear / destructor                         | O(n) |
+| operator== / operator<=>                   | O(n) |
+
+There is no per-element memory overhead beyond the two link pointers embedded in
+each element and a single sentinel hook in the list object.
+
+* When to use it
+
+Reach for =intrusive_list= when you already hold the elements and want
+allocation-free, =O(1)= membership that you mutate by element pointer: active
+sets where an object cycles between lists each frame (physics islands,
+animations, pending commands), LRU chains where an element moves itself to the
+head, and ECS bookkeeping without a parallel map. Versus =std::list= it removes
+the per-node allocation and the erase-by-value search, at the cost of caller
+ownership and one list per element.
+
+Things to keep in mind:
+
+- *Ownership is yours.* The list destroys nothing; an element must outlive its
+  membership, and you must unlink it before freeing its storage.
+- *One list at a time.* The hook holds a single link pair, so linking an element
+  into a second list while it is in another corrupts both. Use a separate hook
+  type per list role if an element must be in several at once.
+- *Moving an element detaches it.* The list stores the element's address, so a
+  moved-to element is left unlinked and a moved-from element that was still
+  linked dangles the list at the old address. Detach before moving.
+- *Stable otherwise.* Elements never relocate, so references and iterators stay
+  valid across other elements' inserts and erases; only the iterator to an erased
+  element is invalidated.
+
+* Usage
+
+#+BEGIN_SRC cpp
+struct body : nexenne::container::intrusive_list_hook<body> { /* ... */ };
+
+nexenne::container::intrusive_list<body> active;
+active.push_back(a_body);            // O(1), no allocation
+active.erase(a_body);                // O(1), no search
+for (auto& b : active) { step(b); }  // bidirectional iteration
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/intrusive_list.cpp][examples/container/intrusive_list.cpp]]
