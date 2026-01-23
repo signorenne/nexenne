@@ -5,6 +5,7 @@ set(_container_examples
     bitset_dynamic
     deque
     error
+    flat_set
     gap_buffer
     heap
     intrusive_list
