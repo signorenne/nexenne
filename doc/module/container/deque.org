@@ -41,16 +41,45 @@ after push_back(1), push_back(2), push_front(0):   cap = 8
 #+END_EXAMPLE
 
 A back push writes =slot_of(size)= and bumps the size; a front push moves the
-head back one slot (with wrap) and writes there. Both pops destroy the end
-element and step the size or head inward.
+head back one slot (with wrap, =(head + cap - 1) & (cap - 1)=) and writes there.
+Both pops destroy the end element and step the size or head inward. Because head
+and size are independent, the front can sit anywhere in the buffer and the live
+elements can straddle the wrap point, as element =0= does in the diagram above
+(it lives in slot 7 while elements 1 and 2 live in slots 0 and 1). Nothing is
+ever moved on a push or pop that fits: the slot is addressed in place, which is
+what keeps references stable until a growth.
 
 ** Growth
 
-When a push finds the buffer full, the deque allocates a buffer twice the size
-(eight on the first growth), moves the elements into it in logical order so the
-new head is 0, frees the old buffer, and continues. Growth is the only =O(n)=
-event and is amortised away over the pushes between growths. Storage comes from
-the over-aligned =::operator new=, so an over-aligned =T= is placed correctly.
+A push checks =size >= cap= first; when the buffer is full it calls =grow=, which
+rounds the requested capacity up to a power of two (so the mask trick keeps
+working), then re-packs. Walk a back push into a full =cap = 4= ring whose head
+has wrapped:
+
+#+BEGIN_EXAMPLE
+full ring, cap = 4, head = 2, size = 4        new buffer, cap = 8
+
+  index:  0    1    2    3                     index:  0   1   2   3  4..7
+        +----+----+----+----+                        +---+---+---+---+----
+        | C  | D  | A  | B  |                        | A | B | C | D |  .
+        +----+----+----+----+                        +---+---+---+---+----
+                  ^ head = 2                          ^ head = 0
+
+  logical order A B C D (slots 2,3,0,1)        copied in logical order,
+                                               so slot i now holds element i
+#+END_EXAMPLE
+
+=grow= allocates a buffer of =new_cap= slots, then loops =i= from 0 to =size=
+and moves =m_data[slot_of(i)]= into =new_data[i]= (=construct_at= then
+=destroy_at= the source), so the wrapped run is unrolled into a flat run with the
+front landing at index 0. It frees the old buffer, sets =head = 0=, and the
+original push then proceeds into the now-contiguous tail. =grow= is a no-op when
+the buffer already fits (=new_cap <= cap=), which is what lets =reserve= and the
+sizing constructor share it. Growth is the only =O(n)= event and is amortised
+away over the pushes between growths (capacity at least doubles each time:
+=grown_capacity= is eight on the first growth, then =cap * 2=). Storage comes
+from the over-aligned =::operator new=, so an over-aligned =T= is placed
+correctly, and the matching aligned =::operator delete= frees it.
 
 ** Values returned, errors, and copies
 
@@ -81,20 +110,27 @@ every element into it, and frees the old one.
 * When to use it
 
 Reach for =deque= when you add and remove at *both* ends and want contiguous,
-=O(1)= random access: work queues, sliding windows, ring-style buffers that may
-need to outgrow their initial size. The single power-of-two block gives faster
+=O(1)= random access: work queues, sliding windows that grow and shrink at the
+ends, breadth-first frontiers, double-ended caches, or a ring-style buffer that
+may need to outgrow its initial size. The single power-of-two block gives faster
 random access than =std::deque='s segmented map (one =&= mask, no per-access
-indirection), and unlike a fixed ring buffer it grows instead of rejecting a
-push.
+indirection) and one allocation instead of a map of segment blocks.
 
-Prefer a sibling when:
+Choosing between the obvious candidates:
 
-- order does not matter and you only add, remove, and iterate, use
-  [[file:bag.org][bag]] for its =O(1)= swap-pop erase and simpler storage.
-- you want the highest-priority element next rather than the oldest or newest,
-  use [[file:heap.org][heap]].
-- you need stable element addresses across growth; =std::deque= keeps them, this
-  deque does not.
+- versus =std::deque=: reach for this one when random access and cache locality
+  dominate and you can tolerate growth invalidating references; reach for
+  =std::deque= when you need *stable* element addresses across pushes (it never
+  relocates an element) or =O(1)= insert anywhere, not just at the ends.
+- versus [[file:ring_buffer.org][ring_buffer]]: reach for =ring_buffer= when the
+  capacity is genuinely fixed (a bounded log, a fixed-lag window) and you want
+  the simplest possible storage with no reallocation; reach for =deque= when the
+  bound is soft and a push must grow rather than overwrite or be rejected.
+- versus [[file:bag.org][bag]]: reach for =bag= when order does not matter and
+  you only add, remove, and iterate; its =O(1)= swap-pop erase is cheaper than
+  maintaining end order.
+- versus [[file:heap.org][heap]]: reach for =heap= when you want the
+  highest-priority element next rather than the oldest or newest.
 
 Invalidation and stability:
 

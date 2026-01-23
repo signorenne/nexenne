@@ -22,32 +22,84 @@ free-slot pointers, so acquisition and release are a single push or pop.
 
 ** Slots and the free list
 
-The pool owns =N= raw, =T=-aligned slots inline and a free list (a
-[[file:static_vector.org][static_vector]] of pointers to the free slots). Acquiring pops a pointer; releasing
-pushes it back. The free list is LIFO, so the next acquisition reuses the slot
-just freed, which is still warm in cache.
+The pool owns two arrays inline: =N= raw, =T=-aligned slots (each a
+=sizeof(T)=-sized byte buffer with =alignof(T)= alignment, so a =T= can be
+constructed there) and a free list, a [[file:static_vector.org][static_vector]] of slot pointers. The free
+list is the only moving part: it is a stack holding a pointer to every slot that
+is not currently handed out. =size()= is simply =N= minus the free list's size,
+so the pool itself stores no separate live count.
+
+The constructor seeds the free list in reverse (slot =N-1= first, slot 0 last) so
+the very first =acquire= pops slot 0 and the slots are handed out in ascending
+order while the pool fills cold.
 
 #+BEGIN_EXAMPLE
 object_pool<T, 4>: four slots plus a stack of free-slot pointers
 
-  slots:  [ s0 ][ s1 ][ s2 ][ s3 ]      raw aligned storage
+  slots:  [ s0 ][ s1 ][ s2 ][ s3 ]      raw aligned storage, fixed addresses
   free:   [ &s3, &s2, &s1, &s0 ]        back is the next one out
 
   acquire() pops &s0, hands out s0      free: [ &s3, &s2, &s1 ]
   release(p) pushes the slot back       the slot rejoins the free list
 #+END_EXAMPLE
 
-** Two API tiers
+** Walking an acquire and a release
 
-The raw tier hands out and reclaims storage and leaves the object lifetime to the
-caller: =acquire()= returns raw =T*= (or =container_error::full=), and =release(p)=
-returns the slot, running no destructor, so destroy the object yourself first.
-The object tier does both halves: =emplace(args...)= acquires a slot and
-constructs in place, and =destroy(p)= destroys the object and releases its slot.
-=release= and =destroy= validate the pointer, returning =container_error::not_found=
-for a null pointer and =container_error::out_of_range= for a pointer that is not
-one of this pool's slots. =high_water_mark()= records the peak live count for
-empirical sizing.
+An =acquire()= is a single pop. If the free list is empty the pool is exhausted
+and it returns =container_error::full=; otherwise it reads the back pointer,
+=pop_back='s it off, bumps the high-water mark if the new live count exceeds it,
+and returns =slot.ptr()=, a =T*= into raw, uninitialised storage.
+
+A =release(p)= is a single push. The pool turns =p= back into a slot pointer
+(the slot's storage sits at offset 0, so a =T*= into a slot *is* the slot's
+address) and =push_back='s it onto the free list. It runs no destructor.
+
+Because both ends operate on the back of the free list, recycling is LIFO: the
+slot you just released is the next one acquired, so it is still hot in cache and
+its TLB entry is still warm. The slot addresses never change for the life of the
+pool, so a handle is a stable pointer.
+
+#+BEGIN_EXAMPLE
+acquire then release of the same slot: LIFO keeps it hot
+
+  free: [ &s3, &s2, &s1 ]   p = acquire()  ->  s0 leaves (back was &s0 popped earlier)
+  ...use p...
+  free: [ &s3, &s2, &s1 ]   release(p)     ->  push &s0
+  free: [ &s3, &s2, &s1, &s0 ]
+  q = acquire()             ->  pops &s0 again: q == p, same warm slot
+#+END_EXAMPLE
+
+** Two API tiers: who runs the constructor and destructor
+
+The two tiers differ only in who manages =T='s lifetime.
+
+- *Raw tier:* =acquire()= returns raw =T*= (or =container_error::full=) and
+  constructs *nothing*: you =std::construct_at= the =T= yourself. =release(p)=
+  reclaims the slot and runs *no* destructor: you =std::destroy_at= first. Use
+  this when you want to place an object only sometimes, or manage the lifetime by
+  hand.
+- *Object tier:* =emplace(args...)= calls =acquire()= then =std::construct_at=
+  with your forwarded arguments in one step (constrained to
+  =std::constructible_from<T, Args...>=); =destroy(p)= calls =std::destroy_at=
+  then pushes the slot back. The pool runs both the constructor and the
+  destructor for you.
+
+The pool only ever constructs and destroys =T= *in place* and never moves or
+copies it, so an immovable or non-copyable =T= (a mutex, an atomic, a type with
+deleted move) works exactly like any other.
+
+Both =release= and =destroy= validate =p=: =container_error::not_found= for a
+null pointer, =container_error::out_of_range= for a pointer that does not fall
+within this pool's slot array (a range check against the slots' address span).
+They do not, and cannot cheaply, detect a double release of a still-in-range
+slot.
+
+** High-water mark
+
+=high_water_mark()= records the largest =size()= seen since construction or the
+last =clear_high_water_mark()=. =acquire= updates it on the way up; =release=
+never lowers it. Run a representative workload, read the mark, and size =N= to it
+instead of guessing.
 
 * Complexity
 
@@ -71,19 +123,38 @@ transient scratch objects, and embedded contexts where =new= is forbidden.
 Because it constructs and destroys in place and never relocates, it also holds
 *immovable* types (a mutex, an atomic) that a vector-backed container cannot.
 
-Prefer a sibling when:
+The deciding question is *how you free*:
 
-- you do not need to free objects individually, only all at once: a bump
-  [[file:linear_arena.org][linear_arena]] has cheaper bookkeeping (a single offset, no free list).
-- you need a growable count rather than a fixed =N=, or contiguous iteration over
-  the live objects: a vector-based container fits better.
+- Free objects *one at a time*, in any order, and reuse their storage: that is
+  exactly =object_pool=. The free list pays one pointer per slot for the
+  privilege.
+- Free *all at once* and never individually: a bump [[file:linear_arena.org][linear_arena]] is leaner. Its
+  bookkeeping is a single offset (no free list, no per-slot pointer), it packs
+  mixed types and sizes back to back, but it can only rewind the whole region, it
+  cannot reclaim one object.
+- Need an *unbounded* or growable count, or a general-purpose lifetime: plain
+  =new= / =delete= or =std::unique_ptr=. =object_pool= is a fixed =N= and reports
+  =container_error::full= when exhausted; it never grows.
 
-Two things to keep in mind. =release= and the raw tier do *not* run destructors,
-so an object left in a released or reused slot has its destructor skipped unless
-you =std::destroy_at= it first (use =destroy= for the object tier to avoid this).
-And the pool hands out interior pointers and is therefore non-copyable and
-non-movable: a handle from =acquire= or =emplace= stays valid until you release
-it, and the pool itself must outlive every handle.
+Gotchas:
+
+- *release does not destroy.* =release= and the raw =acquire= tier skip the
+  destructor entirely. An object left in a released or reused slot has its
+  destructor *silently skipped* (a leaked socket, an unlocked-forever mutex)
+  unless you =std::destroy_at= it first. Use the object tier (=destroy=) and this
+  cannot happen.
+- *No double-free or use-after-release guard.* Releasing the same in-range slot
+  twice pushes it onto the free list twice, so a later =acquire= can hand the
+  same slot to two callers. Reading or writing through a pointer after releasing
+  it is a use-after-free against whoever acquired it next. The pointer validation
+  only catches null and out-of-range, not these.
+- *Non-copyable and non-movable.* The pool hands out interior pointers, so all
+  copy and move operations are deleted. A handle from =acquire= or =emplace=
+  stays valid until you release it, and the pool itself must outlive every
+  handle.
+- *Exhaustion is a value, not an exception.* Every operation is =noexcept=;
+  =acquire= and =emplace= return =container_error::full= when no slot is free.
+  Check =has_value()=.
 
 * Usage
 
