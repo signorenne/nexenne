@@ -15,4 +15,5 @@ nexenne_add_module_tests(container
         test_sparse_set.cpp
         test_stable_vector.cpp
         test_static_vector.cpp
+        test_union_find.cpp
 )
