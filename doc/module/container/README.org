@@ -52,6 +52,10 @@ region freed all at once.
 
 - [[file:intrusive_list.org][intrusive_list]] : doubly-linked list with the links embedded in the element, O(1) erase.
 
+* Sets and relations
+
+- [[file:sparse_set.org][sparse_set]] : integer-key set, O(1) insert/erase/contains, dense iteration.
+
 * Priority queues
 
 - [[file:heap.org][heap]] : binary heap over a vector, max-heap by default, configurable order.
