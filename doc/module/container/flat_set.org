@@ -1,0 +1,167 @@
+#+TITLE: flat_set
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::flat_set<T, Compare>= is an ordered set, the =std::set=
+shape, but stored as a single sorted =std::vector= instead of a tree of nodes.
+Lookups are an =O(log N)= binary search, iteration is a flat in-order walk, and
+the storage is contiguous with no per-element node allocation. The price is
+=O(N)= insert and erase, because the array shifts to stay sorted and packed.
+
+* The idea
+
+A =std::set= answers ordered queries in =O(log N)=, but each element is a
+separately allocated red-black-tree node, so a lookup chases pointers across the
+heap and blows the cache, and every node carries three pointers and a colour bit
+of overhead. If you keep the same elements sorted in one flat array, the same
+=O(log N)= binary search runs over contiguous memory that the prefetcher loves,
+and the only overhead is the vector. For a set that fits in cache and is read far
+more than it is mutated, that cache win usually dominates the asymptotically
+worse =O(N)= insert.
+
+* How it works
+
+** Layout, the sorted invariant, and the comparator
+
+The entire set is one =std::vector<T>= held in ascending =Compare= order, next to
+the comparator. Everything below exists to preserve one invariant: the vector is
+*always sorted and holds no duplicates*. The comparator is stored with
+=[[no_unique_address]]=, so a stateless ordering like =std::less<int>= (an empty
+type) contributes zero bytes and the set is exactly the size of its vector, while
+a stateful comparator pays only for its own state.
+
+#+BEGIN_EXAMPLE
+flat_set<int>{1, 3, 5, 8}:
+
+  index:   0   1   2   3
+         +---+---+---+---+
+         | 1 | 3 | 5 | 8 |     ascending, no gaps, no duplicates
+         +---+---+---+---+
+#+END_EXAMPLE
+
+** Lookup is a binary search
+
+Every query routes through =std::lower_bound=, which finds the first element that
+is *not ordered before* =key= (the first =>= key=) in =O(log N)= comparisons. It
+keeps a candidate window =[lo, hi)=, probes the middle, and throws away the half
+that provably cannot hold the answer:
+
+#+BEGIN_EXAMPLE
+lower_bound(6) on [1, 3, 5, 8, 9]:
+
+  lo=0 hi=5   [ 1  3  5  8  9 ]   mid=2 -> 5 < 6, answer is right of mid: lo=3
+  lo=3 hi=5   [          8  9 ]   mid=3 -> 8 >= 6, answer is mid or left: hi=3
+  lo=3 hi=3   window empty -> index 3 (the 8) is the first element >= 6
+#+END_EXAMPLE
+
+** Membership: lower_bound plus a one-sided check
+
+=find(key)= takes the =lower_bound= position and confirms an exact match with a
+single extra comparison. =lower_bound= already guarantees =*pos= is not ordered
+before =key= (so =*pos >= key=). The element equals =key= exactly when =key= is
+*also* not ordered before =*pos=, which the code tests as =!cmp(key, *pos)=. When
+both "=*pos= not before =key=" and "=key= not before =*pos=" hold, neither is less
+than the other, so under a strict weak order they are equal. If that check fails,
+=*pos= is strictly greater and =key= is absent, so =find= returns =end()=.
+=contains= and =count= are =find= reused; =upper_bound= is the mirror that lands
+just past any equal element.
+
+** Insert: locate the slot, shift the tail
+
+=insert(value)= =lower_bound='s the slot where =value= belongs and applies the
+same equality check: if an equal element is already there it returns
+=(iterator, false)= and changes nothing, which is how duplicates are dropped.
+Otherwise it calls =vector::insert= at that slot. To open the gap the vector moves
+every element from the slot onward one place right (one move per element, or a
+single =memmove= when =T= is trivially copyable), then places =value= in the freed
+slot. That shift is the =O(N)= cost, and the reason a stream of random inserts is
+expensive while a bulk build then reads is cheap. The =const T&= and =T&&=
+overloads differ only in copying versus moving =value= in; =emplace= must
+construct the =T= first (the slot is found by comparing the value, so it cannot be
+built in place) and then forwards it to =insert=.
+
+#+BEGIN_EXAMPLE
+insert(4) into {1, 3, 5, 8}:
+
+  lower_bound(4) -> index 2 (first element >= 4)
+  before:  [ 1 | 3 | 5 | 8 |   ]
+                     \   \__ move right
+                      \_____ move right
+  after:   [ 1 | 3 | 4 | 5 | 8 ]    5 and 8 shifted one slot: O(N)
+#+END_EXAMPLE
+
+** Erase: remove and close the gap
+
+=erase(key)= =find='s the element and, if present, =vector::erase='s it: every
+element after the hole moves one place left to close it (=O(N)= again) and it
+returns =1=; an absent key returns =0= and touches nothing. =erase(iterator)=
+removes the element at a known position and returns the iterator to the element
+that slid into its place.
+
+** Immutability and comparison
+
+Because the elements must stay sorted, none is mutable in place: a stray write
+could put a value out of order and silently corrupt every later binary search. So
+=flat_set= exposes only a const iterator (=iterator= is a =const_iterator=); to
+change an element, erase the old value and insert the new one. Two sets are
+compared by their vectors directly, which is exactly right since equal sets have
+identical sorted contents: =operator=== is vector equality and =operator<=>= is
+their lexicographical three-way comparison.
+
+* Complexity
+
+| operation                          | cost     |
+|------------------------------------+----------|
+| find / contains / count            | O(log N) |
+| lower_bound / upper_bound          | O(log N) |
+| insert / emplace / erase           | O(N)     |
+| iterate begin .. end               | O(N)     |
+| operator== / operator<=>           | O(N)     |
+| begin / end / size / empty / swap  | O(1)     |
+
+Memory is one =std::vector<T>= (contiguous, geometric spare capacity) plus the
+comparator, which is free when stateless. There is no per-element node or pointer
+overhead.
+
+* When to use it
+
+Reach for =flat_set= when the set is small to medium, fits comfortably in cache,
+and is *queried or iterated far more than it is mutated*, or is built once and
+then read: lookup tables, sorted id or tag sets, config keys, anything where you
+want ordered iteration and range queries without the heap traffic of a tree.
+
+Prefer a sibling when:
+
+- you do *not* need ordering and want =O(1)= average lookup: a hashed set
+  (=flat_hash_set=) avoids the binary search and the =O(N)= shift.
+- the set is large and mutated in a hot loop: the =O(N)= insert and erase shift
+  dominate, and a node-based =std::set= (stable =O(log N)= mutation) or a hash set
+  wins.
+- you need stable element addresses across insert and erase: every mutation can
+  reallocate or shift the vector, so a node-based container is the choice.
+
+Things to keep in mind:
+
+- *Mutation is O(N).* Each insert and erase shifts the tail. Building from a
+  sorted bulk and then reading is cheap; a steady stream of random inserts is not.
+- *Iterators and references are fragile.* Any insert, erase, =reserve=, or
+  =shrink_to_fit= can reallocate or shift the vector and invalidates outstanding
+  iterators, pointers, and references.
+- *Elements are read-only.* The iterator is a const iterator so you cannot break
+  the sort; to "change" an element, erase then insert.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::flat_set<int> ids;
+
+auto const [it, inserted]{ids.insert(42)};   // O(N), dedups
+if (ids.contains(42)) { ... }                // O(log N)
+for (auto const id : ids) { use(id); }       // in sorted order
+
+auto const lo{ids.lower_bound(10)};          // range query: first id >= 10
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/flat_set.cpp][examples/container/flat_set.cpp]]
