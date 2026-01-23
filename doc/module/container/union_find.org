@@ -1,0 +1,109 @@
+#+TITLE: union_find
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::union_find<Index>= is a disjoint-set ("union-find")
+structure: it maintains a partition of the integer nodes =[0, n)= into disjoint
+sets and answers "are these two in the same set" and "merge these two sets" in
+near-constant amortised time. =Index= defaults to =std::uint32_t=, with
+=union_find_u16= / =u32= / =u64= aliases.
+
+* The idea
+
+Tracking which things are grouped together, and merging groups as you learn of
+new connections, is the recurring shape of connected-component problems. Rerunning
+a graph traversal after every new edge is wasteful. A disjoint-set forest instead
+represents each set as a tree whose root names the set, so "same set" is "same
+root" and "merge" is "point one root at the other". Two cheap heuristics, union by
+size and path compression, keep those trees almost flat, which is what drives the
+cost down to effectively constant.
+
+* How it works
+
+** Forest of parent links
+
+Each node stores a parent; a root points at itself. =find(i)= walks parents to
+the root, and per-root sizes (kept in a second array) drive the merge choice.
+
+#+BEGIN_EXAMPLE
+union_find{5} after unite(0, 1) then unite(1, 2):  sets {0,1,2}, {3}, {4}
+
+  parent:  [ 1, 1, 1, 3, 4 ]      each node points at its parent
+  node:       0  1  2  3  4       a root points at itself
+
+  as a forest:
+        1            3      4
+       / \
+      0   2
+#+END_EXAMPLE
+
+** find with path compression
+
+=find(i)= returns the root and flattens the path on the way: path halving points
+every other node at its grandparent, so the tree gets shorter with use and later
+finds are faster. Because of that rewrite, =find= *mutates* even though it reads
+like a query. =root_of(i)= is the =const= alternative that computes the root
+without flattening, for constant contexts or when you must not mutate. Both
+=find= and the query helpers bounds-check the index and return
+=container_error::out_of_range= for an invalid one.
+
+** unite by size
+
+=unite(a, b)= finds both roots and, if they differ, hangs the smaller set's root
+under the larger one (a tie favours the second argument), then adds the sizes.
+Attaching the smaller tree keeps heights logarithmic before compression even
+gets involved. =connected(a, b)= is =find(a) == find(b)=, and =size_of(i)=
+reports the size of =i='s set.
+
+* Complexity
+
+| operation                              | cost                   |
+|----------------------------------------+------------------------|
+| find / unite / connected / size_of     | amortised O(alpha(n))  |
+| make_set                               | amortised O(1)         |
+| root_of (no compression)               | O(h), chain length h   |
+| reset                                  | O(n)                   |
+| clear / swap / parents / set_sizes     | O(1)                   |
+| same_partition                         | O(n * alpha(n))        |
+
+=alpha(n)= is the inverse Ackermann function, below 5 for any =n= that fits in
+memory, so the per-operation cost is effectively constant. Memory is two vectors
+of =n= entries (parent links and per-root sizes).
+
+* When to use it
+
+Reach for =union_find= when you incrementally learn that things are connected and
+need fast grouping queries: connected-component and island detection (the solver
+islands of a physics step), Kruskal-style minimum spanning trees, and
+equivalence-class tracking while building a graph. It beats re-traversing a graph
+after every edge, and unlike a general graph it needs no adjacency storage, just
+two integer arrays.
+
+Things to keep in mind:
+
+- *It only merges.* Sets join and never split; there is no "disconnect". To start
+  over, =reset= or =clear=. Model removals by rebuilding.
+- *find mutates.* Path compression rewrites parent links, so =find= and the query
+  helpers are non-const; use =root_of= when you need a =const= query.
+- *Indices are integers in =[0, size())=.* Invalid indices return
+  =container_error::out_of_range= rather than reading out of bounds.
+- *Comparison is explicit.* There is no =operator==='; =same_partition= compares
+  two partitions in =O(n)= regardless of compression history, and is named so that
+  cost never hides behind a generic comparison. The =parents()= / =set_sizes()=
+  spans are invalidated by any mutating call.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::union_find_u32 uf{node_count};
+
+for (auto const [a, b] : edges) {
+  static_cast<void>(uf.unite(a, b));   // O(alpha(n))
+}
+auto const components{uf.count()};     // number of disjoint sets
+if (*uf.connected(x, y)) { ... }       // result<bool>, O(alpha(n))
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/union_find.cpp][examples/container/union_find.cpp]]
