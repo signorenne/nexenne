@@ -1,0 +1,150 @@
+#+TITLE: flat_map
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::flat_map<Key, Value, Compare>= is an ordered map, the
+=std::map= shape, but stored as a single =std::vector= of key-value pairs kept
+sorted by key. Lookups are an =O(log N)= binary search over the keys, iteration
+is a flat in-order walk, and the storage is contiguous with no per-entry node
+allocation. Insert and erase are =O(N)= because the array shifts to stay sorted.
+It is the [[file:flat_set.org][flat_set]] design with a value attached to each key.
+
+* The idea
+
+=std::map= answers ordered key queries in =O(log N)=, but every entry is a
+heap-allocated tree node, so a lookup chases pointers and misses cache, and each
+node carries pointer and colour overhead. Keep the same entries in one flat array
+sorted by key and the same =O(log N)= binary search runs over contiguous memory.
+For a read-mostly map that fits in cache, the locality wins over the asymptotically
+worse =O(N)= insert.
+
+* How it works
+
+** Layout and the heterogeneous comparison
+
+The map is one =std::vector<std::pair<Key, Value>>= sorted by the pair's =.first=
+(the key), next to the comparator (stored with =[[no_unique_address]]=, so a
+stateless =std::less= adds nothing). The invariant is: the vector is always sorted
+by key with no duplicate keys.
+
+#+BEGIN_EXAMPLE
+flat_map<int, string>{{1,"a"}, {3,"c"}, {5,"e"}}:
+
+  index:    0          1          2
+         +--------+ +--------+ +--------+
+         | 1:"a"  | | 3:"c"  | | 5:"e"  |    sorted by .first
+         +--------+ +--------+ +--------+
+#+END_EXAMPLE
+
+The catch is that the array holds pairs but the searches are by key. So
+=lower_bound(key)= calls =std::lower_bound= with a heterogeneous comparator,
+=cmp(slot.first, key)=, that projects each pair down to its key before comparing.
+That single projection is what lets one sorted-pair array serve key lookups in
+=O(log N)=.
+
+** Lookup and membership
+
+=lower_bound(key)= binary-searches for the first entry whose key is not ordered
+before =key=. =find(key)= takes that position and confirms an exact key match with
+one more comparison: =lower_bound= guarantees =pos->first >= key=, and the entry
+matches exactly when =key= is also not less than it (=!cmp(key, pos->first)=), so
+neither key is less than the other and they are equal. =contains= and =count= are
+=find= reused. =at(key)= is the checked value accessor: it =find='s the entry and
+returns a *pointer* to its value, or =nullptr= when the key is absent, so unlike
+=std::map::at= it never throws.
+
+** Writing: the four ways in
+
+All four insert paths first =lower_bound= the key, then differ in what they do at
+that slot:
+
+- =insert(pair)= drops a new entry in, or returns =(iterator, false)= if the key
+  is present (the existing value is kept). =emplace= builds the pair first, then
+  hands it to =insert=.
+- =insert_or_assign(key, value)= overwrites =pos->second= if the key is present,
+  otherwise inserts; it returns whether it inserted.
+- =try_emplace(key, args...)= inserts a value built from =args= only if the key is
+  absent, and crucially constructs the value *only on insertion*, so an existing
+  entry is untouched and the arguments are not consumed.
+- =operator[](key)= returns a mutable reference to the value, inserting a
+  default-constructed one if the key is absent (so =m[k] += 1= works).
+
+A genuine insert calls =vector::insert= at the slot, shifting every later entry one
+place right (=O(N)=) to open the gap. An overwrite or an =operator[]= hit is just
+=O(log N)=.
+
+#+BEGIN_EXAMPLE
+m[4] = "d" on {1:"a", 3:"c", 5:"e"}:
+
+  lower_bound(4) -> index 2 (first key >= 4)
+  before:  [ 1:"a" | 3:"c" | 5:"e" |       ]
+                            \__ shift right
+  after:   [ 1:"a" | 3:"c" | 4:"d" | 5:"e" ]   O(N): one entry moved
+#+END_EXAMPLE
+
+** Erase and what is mutable
+
+=erase(key)= =find='s the entry and =vector::erase='s it, shifting the tail left
+(=O(N)=) and returning =1=, or =0= when absent; =erase(iterator)= removes a known
+entry and returns the next. The value of an entry *may* be changed in place
+through an iterator or =operator[]= (it has no effect on ordering), so the iterator
+is mutable, but the key must not be: rewriting =pos->first= breaks the sort and
+silently corrupts later binary searches. =operator=== and =operator<=>= compare
+the key-sorted pair vectors directly.
+
+* Complexity
+
+| operation                              | cost                  |
+|----------------------------------------+-----------------------|
+| find / contains / count / at           | O(log N)              |
+| lower_bound / upper_bound              | O(log N)              |
+| operator[] / insert_or_assign          | O(log N) hit, O(N) new |
+| insert / emplace / try_emplace / erase | O(N)                  |
+| iterate begin .. end                   | O(N)                  |
+| operator== / operator<=>               | O(N)                  |
+
+Memory is one =std::vector= of =sizeof(std::pair<Key, Value>)= entries plus the
+comparator. There is no per-entry node or pointer overhead.
+
+* When to use it
+
+Reach for =flat_map= for small-to-medium ordered maps that are read far more than
+mutated, or built once then queried: lookup tables, sorted id-to-record maps,
+config, anything wanting ordered iteration and key-range queries without the heap
+traffic of a tree.
+
+Prefer a sibling when:
+
+- ordering does not matter and you want =O(1)= average lookup: a hashed map
+  (=flat_hash_map=, =dense_map=) skips the binary search and the =O(N)= shift.
+- the map is large and mutated in a hot loop: the =O(N)= insert and erase shift
+  dominate, and a node-based =std::map= (stable =O(log N)= mutation) wins.
+- you need stable entry addresses across insert and erase: every mutation can
+  reallocate or shift the vector.
+
+Things to keep in mind:
+
+- *Do not mutate a key.* The value is mutable in place; the key is not. Changing a
+  key through an iterator breaks the sort. To re-key an entry, erase it and insert
+  the new key.
+- *Mutation is O(N) and invalidates iterators.* Each insert and erase shifts the
+  tail; any insert, erase, =reserve=, or =shrink_to_fit= invalidates outstanding
+  iterators, pointers, and references (including an =at= pointer).
+- *=operator[]= inserts.* Reading a missing key with =operator[]= creates a
+  default-valued entry; use =at= or =find= for a pure read.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::flat_map<std::string, int> counts;
+
+counts[word] += 1;                       // default-insert then update
+if (auto const* n{counts.at(word)}) { use(*n); }   // checked read, nullptr if absent
+counts.insert_or_assign(key, value);     // overwrite or insert
+
+for (auto const& [k, v] : counts) { ... }  // entries in key order
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/flat_map.cpp][examples/container/flat_map.cpp]]

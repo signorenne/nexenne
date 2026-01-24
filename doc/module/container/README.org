@@ -55,6 +55,7 @@ region freed all at once.
 * Ordered associative
 
 - [[file:flat_set.org][flat_set]] : sorted-vector ordered set, O(log N) lookup, contiguous storage.
+- [[file:flat_map.org][flat_map]] : sorted-vector ordered map, O(log N) lookup, contiguous storage.
 
 * Sets and relations
 
