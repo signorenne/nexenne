@@ -17,6 +17,7 @@ set(_container_examples
     small_vector
     sparse_set
     stable_vector
+    static_flat_map
     static_vector
     union_find
 )
