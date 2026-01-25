@@ -32,6 +32,7 @@ nexenne_add_module(container
         include/nexenne/container/small_vector.hpp
         include/nexenne/container/sparse_set.hpp
         include/nexenne/container/stable_vector.hpp
+        include/nexenne/container/static_flat_map.hpp
         include/nexenne/container/static_vector.hpp
         include/nexenne/container/union_find.hpp
 )
