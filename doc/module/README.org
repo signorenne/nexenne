@@ -14,7 +14,7 @@ Follow a module to its own index, which lists, per class it provides, a guide
 
 * Modules
 
-- [[file:utility/README.org][utility]] (no dependencies) : the foundation layer, a grab-bag of 21 small,
+- [[file:utility/README.org][utility]] (no dependencies) : the foundation layer, a grab-bag of 20 small,
   independent helpers: callables and visitors, scope-exit and RAII, bit and
   numeric and hashing helpers, strong distinct types, compile-time
   metaprogramming, and reflection. Everything else builds on it.
