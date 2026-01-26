@@ -5,6 +5,7 @@ set(_container_examples
     bitset_dynamic
     deque
     error
+    flat_hash_map
     flat_map
     flat_set
     gap_buffer
