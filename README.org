@@ -15,14 +15,14 @@ a few lines.
 
 * Status
 
-Active development. =utility= is complete and reviewed (21 components);
+Active development. =utility= is complete and reviewed (20 components);
 =container= is in progress, ported one container at a time and reviewed and
 hardened as each lands. Modules are added one at a time, and a fresh checkout
 configures and builds whatever modules are present.
 
 * Modules
 
-- [[file:doc/module/utility/README.org][utility]] : complete. 21 small, independent helpers: =function_ref= and
+- [[file:doc/module/utility/README.org][utility]] : complete. 20 small, independent helpers: =function_ref= and
   =in_place_function=, =expected_utils=, =strong_typedef=, =static_string=,
   =scope_guard= and =unique_resource=, =bit= and =align=, =meta= and
   =type_list=, and more.

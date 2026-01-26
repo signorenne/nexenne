@@ -2,7 +2,7 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-The foundation module: 21 small, focused, header-only C++23 utilities with no
+The foundation module: 20 small, focused, header-only C++23 utilities with no
 dependencies, the layer everything else in nexenne is built on. Each fills a gap
 the standard library leaves open, and each is independent, so take only the ones
 you need. They are grouped below into six themes; every entry links to its guide
@@ -39,7 +39,6 @@ Include a single header (=nexenne/utility/<name>.hpp=) or the umbrella
 - [[file:non_null.org][non_null]] : pointer wrapper that enforces a non-null contract.
 - [[file:flags.org][flags]] : type-safe bitmask over a scoped enum.
 - [[file:static_string.org][static_string]] : compile-time string usable as a template parameter.
-- [[file:constexpr_map.org][constexpr_map]] : compile-time sorted lookup table.
 
 * Compile-time metaprogramming
 
