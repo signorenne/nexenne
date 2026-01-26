@@ -58,6 +58,10 @@ region freed all at once.
 - [[file:flat_map.org][flat_map]] : sorted-vector ordered map, O(log N) lookup, contiguous storage.
 - [[file:static_flat_map.org][static_flat_map]] : fixed-capacity inline ordered map, no heap, no growth.
 
+* Hashed associative
+
+- [[file:flat_hash_map.org][flat_hash_map]] : open-addressing hash map, linear probing, contiguous storage.
+
 * Sets and relations
 
 - [[file:sparse_set.org][sparse_set]] : integer-key set, O(1) insert/erase/contains, dense iteration.

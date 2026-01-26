@@ -1,0 +1,148 @@
+#+TITLE: flat_hash_map
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::flat_hash_map<Key, Value, Hash, KeyEq>= is an unordered map
+that stores its entries in one contiguous array of slots and resolves collisions
+by *open addressing with linear probing*, rather than the node-per-entry chaining
+of =std::unordered_map=. Lookups, inserts, and erases are amortised =O(1)=, the
+storage is a single allocation, and a lookup is typically one cache miss instead
+of three. The trade is that a rehash invalidates references, and iteration order
+is unspecified.
+
+* The idea
+
+=std::unordered_map= puts every entry in its own heap node hung off a bucket's
+linked list, so a lookup hashes to a bucket, dereferences the chain head, then
+walks nodes, three pointer chases that each risk a cache miss. Open addressing
+keeps all entries in one flat array: the hash picks a starting slot, and on a
+collision you simply look at the next slot, and the next, until you find the key
+or an empty slot. Everything you touch is contiguous, so the prefetcher keeps up
+and a lookup is usually a single cache line. The price is that growing the table
+moves every entry (a rehash), so pointers into it do not survive growth.
+
+* How it works
+
+** Slots, states, and the cached hash
+
+The table is a =std::vector= of slots. Each slot holds a *state* (empty,
+occupied, or tombstone), the *cached hash* of its key, and an optional key-value
+pair. Caching the hash lets a probe reject a non-matching slot with an integer
+compare before ever calling the (possibly expensive) key equality. The slot count
+is always a power of two, so the home bucket of a hash is a bitmask, =hash &
+(capacity - 1)=, not a modulo.
+
+#+BEGIN_EXAMPLE
+flat_hash_map<string,int>, capacity 8, holding "ant" (home bucket 2):
+
+  index:   0       1       2        3        4      5      6      7
+         +-------+-------+--------+--------+------+------+------+------+
+  state  | empty | empty | occ    | empty  | ...  | ...  | ...  | ...  |
+         | hash  |       | "ant"  |        |      |      |      |      |
+         +-------+-------+--------+--------+------+------+------+------+
+                          ^ bucket(hash("ant")) = hash & 7
+#+END_EXAMPLE
+
+** Lookup: probe until the key or an empty slot
+
+=find(key)= hashes the key, starts at its home bucket, and walks forward one slot
+at a time. At each slot it stops with a hit when the slot is occupied, the cached
+hash matches, and the keys are equal; it *skips* a tombstone and keeps going; and
+it stops with a miss the moment it reaches an *empty* slot, because the key, had
+it been inserted, would have landed at or before that gap. =contains=, =count=,
+and =at= are all this same probe.
+
+#+BEGIN_EXAMPLE
+find "bee" whose home bucket 2 is taken by "ant":
+
+  bucket 2: occupied by "ant", hash/key mismatch  -> probe forward
+  bucket 3: occupied by "bee", hash + key match   -> hit
+  (an empty slot anywhere along the way would mean "bee" is absent)
+#+END_EXAMPLE
+
+** Insert: place at the first empty slot, reusing a tombstone
+
+An insert probes the same way but remembers the first *tombstone* it passes. On
+reaching an empty slot it places the entry in that remembered tombstone if there
+was one (recycling the dead slot), otherwise in the empty slot. If it meets an
+equal key first it stops: =insert= leaves the existing value untouched and returns
+=false=, while =insert_or_assign= overwrites it. =emplace= constructs the value
+then inserts it, and =operator[]= inserts a default and returns a reference so
+=m[k]= works.
+
+** Erase leaves a tombstone
+
+Erase cannot just empty a slot: doing so would put a false "stop here" gap in the
+middle of a probe chain and hide entries that probed past it. Instead it marks the
+slot a *tombstone*, which a lookup skips but an insert can reuse. The count of
+tombstones is tracked because they, too, lengthen probe chains.
+
+** Growth and rehash
+
+Storage is lazy: the first insert allocates 16 slots, and the table doubles
+whenever the occupied-plus-tombstone count reaches *7/8* of the slots. Counting
+tombstones in that limit is essential: a table full of tombstones with no empty
+slot would make a lookup probe forever, so the 7/8 rule guarantees a terminating
+empty slot always exists. A rehash allocates the new array, then re-inserts every
+*occupied* entry (dropping all tombstones, reusing each entry's cached hash so no
+key is re-hashed). Because every entry moves, a rehash invalidates all iterators,
+pointers, and references.
+
+* Complexity
+
+| operation                                    | cost                  |
+|----------------------------------------------+-----------------------|
+| find / contains / count / at / operator[]    | amortised O(1)        |
+| insert / insert_or_assign / emplace / erase  | amortised O(1)        |
+| rehash (on a growth)                         | O(capacity)           |
+| iterate begin .. end                         | O(capacity)           |
+| operator==                                   | O(n) average          |
+| clear                                        | O(capacity)           |
+
+The "amortised" hides the rare rehash, and the constants assume a good hash
+(linear probing degrades toward =O(n)= under heavy clustering from a poor one).
+Per-slot memory is the cached hash, the state byte, and the optional pair, so it
+trades some space for the integer-compare fast reject; iteration is over the whole
+slot array, so a sparsely filled table iterates slower than its size suggests.
+
+* When to use it
+
+Reach for =flat_hash_map= as the default general-purpose map for hashable keys in
+hot paths: name-to-id registries, dispatch tables, caches, deduplication, anything
+where you want =std::unordered_map='s interface but its cache behaviour hurts. It
+wins most when the map is looked up far more than it is grown.
+
+Prefer a sibling when:
+
+- the keys are *dense integers*: =dense_map= stores values in a parallel packed
+  vector and iterates denser still.
+- you need *ordered* iteration or key-range queries: [[file:flat_map.org][flat_map]] keeps entries
+  sorted (at =O(N)= insert).
+- you need *stable references* across inserts: every rehash here moves entries, so
+  a node-based map keeps addresses.
+
+Things to keep in mind:
+
+- *A rehash invalidates everything.* Any insert (or =operator[]=, =emplace=) that
+  grows the table invalidates all iterators, pointers, and =find= / =at= results.
+  =reserve= up front to keep them stable across a known number of inserts.
+- *=insert= does not overwrite; =insert_or_assign= does.* =insert= and =emplace=
+  leave an existing key's value alone and return =false=; use =insert_or_assign=
+  (or =operator[]=) to replace it.
+- *Iteration order is unspecified* and walks the whole slot array, so do not rely
+  on order, and expect iteration cost proportional to capacity, not size.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::flat_hash_map<std::string, int> ids;
+
+ids.insert(name, next_id);                 // O(1), keeps an existing name
+ids.insert_or_assign(name, new_id);        // O(1), overwrites
+if (auto const* id{ids.find(name)}) { use(*id); }   // O(1), nullptr on a miss
+auto& slot{ids[name]};                     // insert-or-access by reference
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/flat_hash_map.cpp][examples/container/flat_hash_map.cpp]]
