@@ -5,7 +5,6 @@ find_package(Threads REQUIRED)  # lazy uses std::call_once
 set(_utility_examples
     align
     bit
-    constexpr_map
     defer
     enum_to_string
     expected_utils
