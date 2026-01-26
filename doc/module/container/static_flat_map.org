@@ -1,0 +1,145 @@
+#+TITLE: static_flat_map
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::static_flat_map<Key, Value, Capacity, Compare>= is the
+fixed-capacity, inline version of [[file:flat_map.org][flat_map]]: the same key-sorted ordered map
+with =O(log N)= lookup and =O(N)= insert and erase, but the backing
+=std::vector= is replaced by a =std::array= of =Capacity= slots. There is no heap
+allocation and no growth, which suits embedded and hot-path code where the
+maximum size is known up front.
+
+* The idea
+
+=flat_map= already trades a node-based tree for one contiguous array. Take the
+final step and fix the array size at compile time: the storage moves inline,
+into the object itself, so the map can live on the stack or inside another
+object with zero allocation. The cost of that determinism is a hard ceiling:
+inserting past =Capacity= cannot grow, so it is a reported failure rather than a
+reallocation.
+
+* How it works
+
+** Inline array with an active prefix
+
+The map holds a =std::array<std::pair<Key, Value>, Capacity>= and a separate
+=size=. Only the first =size= slots are live and kept sorted by key; the rest are
+default-constructed filler (which is why =Key= and =Value= must be default
+constructible). =begin()= is the array start and =end()= is =begin() + size=, so
+iteration and the binary search run over just the active prefix.
+
+#+BEGIN_EXAMPLE
+static_flat_map<int, int, 5> holding {1:10, 3:30, 5:50}:  Capacity = 5
+
+  index:    0       1       2       3       4
+         +-------+-------+-------+-------+-------+
+         | 1:10  | 3:30  | 5:50  |  .    |  .    |
+         +-------+-------+-------+-------+-------+
+          \____ active, sorted ____/   \__ default filler __/
+          size = 3
+#+END_EXAMPLE
+
+** Lookup is the flat_map binary search
+
+Lookup is identical to [[file:flat_map.org][flat_map]]: =lower_bound(key)= binary-searches the active
+prefix with a heterogeneous comparator =cmp(slot.first, key)=, and =find= confirms
+the match with =!cmp(key, pos->first)=. =at(key)= returns a pointer to the value or
+=nullptr= when absent, never throwing.
+
+** Insert: shift in place, or report full
+
+An insert first =lower_bound='s the slot. A duplicate key returns
+=(iterator, false)= and changes nothing. Otherwise, if =size == Capacity= there is
+no room, so it returns =container_error::full= and leaves the map untouched. When
+there is room it opens a gap by moving the active tail one slot right (a move per
+element, =O(N)=), drops the entry in, and bumps =size=. The duplicate check runs
+*before* the full check, so re-assigning an existing key in a full map still works.
+
+#+BEGIN_EXAMPLE
+insert({4, 40}) into {1:10, 3:30, 5:50}, Capacity 5:
+
+  lower_bound(4) -> index 2,  size 3 < 5 so there is room
+  before:  [ 1:10 | 3:30 | 5:50 |  .   |  .  ]
+                          \__ move right
+  after:   [ 1:10 | 3:30 | 4:40 | 5:50 |  .  ]   size = 4
+
+insert of a new key when size == Capacity -> container_error::full, unchanged
+#+END_EXAMPLE
+
+=insert=, =insert_or_assign=, =try_emplace=, and =emplace= all return
+=result<std::pair<iterator, bool>>=: the =result= reports =full=, and the inner
+=bool= says new versus existing, so the two outcomes never blur together.
+
+** Erase, clear, and what is mutable
+
+=erase(key)= shifts the active tail one slot left to close the hole (=O(N)=) and
+returns =1=, or =0= when absent; =erase(iterator)= does the same for a known
+position. =clear()= just sets =size= to zero in =O(1)=: the slots are not reset,
+so a resource-holding =Value= is released only when its slot is reused or the map
+is destroyed. As in =flat_map=, the value of an entry may be changed in place but
+the key must not be, and there is deliberately *no* =operator[]=: on a full map it
+could not honour its insert-or-access contract, so use =try_emplace= or
+=insert_or_assign= (which report =full=) and =at=.
+
+* Complexity
+
+| operation                              | cost                  |
+|----------------------------------------+-----------------------|
+| find / contains / count / at           | O(log N)              |
+| lower_bound / upper_bound              | O(log N)              |
+| insert / try_emplace / insert_or_assign | O(N) new, O(log N) hit |
+| erase                                  | O(N)                  |
+| clear                                  | O(1)                  |
+| swap                                   | O(Capacity)           |
+| iterate / operator== / operator<=>     | O(N)                  |
+
+Memory is exactly =Capacity= inline pairs plus a size and the comparator: a fixed
+=sizeof= with no indirection and no allocation, ever.
+
+* When to use it
+
+Reach for =static_flat_map= when an ordered map must live without the heap and its
+maximum size is known: embedded and real-time code, per-frame fixed tables, small
+config or dispatch maps, anything inside a hot loop or a no-allocation context. It
+is the inline, bounded counterpart to [[file:flat_map.org][flat_map]].
+
+Prefer a sibling when:
+
+- the size is unbounded or unknown: [[file:flat_map.org][flat_map]] grows its vector instead of
+  reporting =full=.
+- ordering does not matter and you want =O(1)= average lookup: a hashed map.
+
+Things to keep in mind:
+
+- *It can fill up.* Inserting a new key into a full map returns
+  =container_error::full=; check the =result=. Re-assigning an existing key always
+  succeeds.
+- *No =operator[]=.* A bounded map cannot promise to insert, so use =try_emplace=
+  or =insert_or_assign= to add and =at= (nullable pointer) to read.
+- *Do not mutate a key, and watch lazy clear.* Changing a key breaks the sort;
+  =clear= does not run destructors, so a resource =Value= lingers until reuse or
+  destruction. Every insert and erase is =O(N)= and invalidates iterators.
+
+Because the whole interface is =constexpr=, a =constexpr= instance built from its
+initializer-list constructor is a compile-time constant lookup table, queried
+with =at= inside a constant expression. It is the mutable, capacity-bounded
+relative of the utility module's [[file:../utility/constexpr_map.org][constexpr_map]]: reach for =constexpr_map= for an
+immutable, exactly-sized table built from an array of pairs, and for
+=static_flat_map= when the same table must also be mutable at runtime.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::static_flat_map<int, command, 16> table;  // inline, no heap
+
+if (!table.try_emplace(opcode, handler).has_value()) { /* table full */ }
+if (auto const* h{table.at(opcode)}) { (*h)(); }   // checked read
+
+// a compile-time constant table, queried in a constant expression:
+constexpr nexenne::container::static_flat_map<int, char const*, 2> names{{1, "one"}, {2, "two"}};
+static_assert(*names.at(1) == std::string_view{"one"});
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/static_flat_map.cpp][examples/container/static_flat_map.cpp]]
