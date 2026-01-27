@@ -10,6 +10,7 @@
 #include <nexenne/container/deque.hpp>
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/flat_hash_map.hpp>
+#include <nexenne/container/flat_hash_set.hpp>
 #include <nexenne/container/flat_map.hpp>
 #include <nexenne/container/flat_set.hpp>
 #include <nexenne/container/gap_buffer.hpp>

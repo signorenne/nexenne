@@ -5,6 +5,7 @@ nexenne_add_module_tests(container
         test_deque.cpp
         test_error.cpp
         test_flat_hash_map.cpp
+        test_flat_hash_set.cpp
         test_flat_map.cpp
         test_flat_set.cpp
         test_gap_buffer.cpp
