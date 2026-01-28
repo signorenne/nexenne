@@ -214,6 +214,10 @@ public:
    */
   template <typename T>
   [[nodiscard]] auto allocate(size_type const count = 1) noexcept -> result<T*> {
+    static_assert(
+      alignof(T) <= alignof(std::max_align_t),
+      "T's alignment exceeds the arena buffer's guaranteed alignment"
+    );
     auto const block{allocate(sizeof(T) * count, alignof(T))};
     if (!block.has_value()) {
       return std::unexpected{block.error()};
