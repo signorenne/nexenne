@@ -518,8 +518,16 @@ public:
   template <typename... Args>
     requires std::constructible_from<T, Args...>
   auto emplace_back(Args&&... args) noexcept -> T& {
-    grow_for_one();
-    std::construct_at(m_data + m_size, std::forward<Args>(args)...);
+    if (m_size == m_capacity) {
+      // Cold grow path: materialize the value before grow_to frees the old
+      // block, so an argument aliasing an existing element (push_back(v[i]))
+      // stays valid across the reallocation.
+      T value{std::forward<Args>(args)...};
+      grow_to(m_capacity == 0 ? size_type{1} : m_capacity * 2);
+      std::construct_at(m_data + m_size, std::move(value));
+    } else {
+      std::construct_at(m_data + m_size, std::forward<Args>(args)...);
+    }
     ++m_size;
     return m_data[m_size - 1];
   }
