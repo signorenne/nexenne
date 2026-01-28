@@ -7,6 +7,7 @@
 
 #include <concepts>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -20,6 +21,16 @@ using rb = cn::ring_buffer<int, 3>;
 static_assert(rb::capacity() == 3);
 static_assert(std::forward_iterator<rb::iterator>);
 static_assert(std::forward_iterator<rb::const_iterator>);
+
+TEST_CASE("nexenne::container::ring_buffer push_overwrite of the evicted element when full") {
+  cn::ring_buffer<std::string, 2> r;
+  std::string const oldest{"oldest string, long enough to live on the heap rather than SSO"};
+  static_cast<void>(r.push(oldest));
+  static_cast<void>(r.push("newer string, also heap allocated to avoid the small-string buffer"));
+  std::string const expected{*r.front()};  // the element about to be evicted
+  r.push_overwrite(*r.front());            // aliases the evicted slot
+  CHECK(*r.back() == expected);
+}
 
 // Drive a ring_buffer entirely at compile time: push to full, pop, wrap.
 static_assert([] {
