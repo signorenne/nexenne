@@ -9,6 +9,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <utility>
 
 #include <nexenne/container/small_vector.hpp>
@@ -19,6 +20,19 @@ namespace cn = nexenne::container;
 using sv = cn::small_vector<int, 4>;
 
 static_assert(sv::inline_capacity() == 4);
+
+TEST_CASE("nexenne::container::small_vector push_back of an existing element survives regrow") {
+  cn::small_vector<std::string, 1> v;
+  std::string const seed{"a string long enough to force a heap allocation, well past SSO"};
+  v.push_back(seed);
+  for (int i{0}; i < 8; ++i) {
+    v.push_back(v[0]);  // aliases element 0; later iterations trigger heap->heap regrow
+  }
+  CHECK(v.size() == 9);
+  for (auto const& s : v) {
+    CHECK(s == seed);
+  }
+}
 
 TEST_CASE("nexenne::container::small_vector stays inline up to N, then heap") {
   sv v;
