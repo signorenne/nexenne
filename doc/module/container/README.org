@@ -66,6 +66,7 @@ region freed all at once.
 * Sets and relations
 
 - [[file:sparse_set.org][sparse_set]] : integer-key set, O(1) insert/erase/contains, dense iteration.
+- [[file:dense_map.org][dense_map]] : integer-key map over a sparse_set, values packed for a dense walk.
 - [[file:union_find.org][union_find]] : disjoint-set partition, near-constant union and find.
 
 * Priority queues
