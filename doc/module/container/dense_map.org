@@ -1,0 +1,158 @@
+#+TITLE: dense_map
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::dense_map<Key, Value>= is a map from an *unsigned integer
+key* to a value, built so that the values live packed in one contiguous array
+and iterate as a single dense sweep. Insert, erase, lookup, and membership are
+all =O(1)= (no hashing, no tree), and iterating the values touches one cache
+line after another with nothing in between. It is the data structure an
+entity-component system reaches for: integer entity ids in, components out, a
+tight loop over the components.
+
+* The idea
+
+When the keys are small integers, hashing is wasted work. A [[file:sparse_set.org][sparse_set]] already
+answers membership and gives every live key a *dense index* in =O(1)= using two
+arrays and no hash. =dense_map= takes that machinery and bolts a parallel
+=std::vector<Value>= onto it: the key at dense index =i= owns the value at
+index =i=. Membership, key iteration, and the dense index come from the sparse
+set; the values ride alongside in their own packed vector. You get a map whose
+values iterate as fast as a raw array, which a hash map cannot, because a hash
+map scatters its entries across buckets.
+
+* How it works
+
+** Two structures kept in lockstep
+
+A =dense_map= holds a =sparse_set<Key>= and a =std::vector<Value>=. The sparse
+set maintains the dense key array (=keys()=); the value vector holds the values
+in the *same order*. The single invariant is: =keys()[i]= and =values()[i]=
+are the same entry, for every =i= in =[0, size())=. Every mutation preserves it.
+
+#+BEGIN_EXAMPLE
+sparse_set                         dense_map adds
+  sparse[]: key -> dense index       values[]: parallel value array
+  dense[] : the live keys
+
+  dense index:    0      1      2
+  keys()      : [ 10  ][ 2   ][ 7   ]
+  values()    : [ v10 ][ v2  ][ v7  ]   <- index i: keys()[i] owns values()[i]
+                  ^ contiguous, iterate straight through
+#+END_EXAMPLE
+
+** Lookup: a sparse-set indirection, then a vector index
+
+=index_of(k)= asks the sparse set for =k='s dense index in =O(1)= (a bounds
+check plus the =dense[sparse[k]] == k= validity test). With that index, =at(k)=
+returns =&values()[i]= and =find(k)= returns an iterator at position =i=.
+=contains= and =count= are the sparse set's membership test directly. No probing,
+no comparisons walked: one indirection and one array read.
+
+** Insert: append to both, or overwrite the value
+
+=insert(k, v)= and friends keep the two arrays the same length. On a *new* key
+the key is appended to the sparse set (taking the next dense index) and the value
+is pushed onto the value vector, so both grow by one at the same index.
+=insert= leaves an existing key's value untouched and returns =false=;
+=insert_or_assign= overwrites it in place; =emplace= constructs the value
+directly in the vector slot. The key is never hashed.
+
+#+BEGIN_EXAMPLE
+insert(5, v5) into the map above (5 is new):
+
+  keys()  : [ 10 ][ 2 ][ 7 ][ 5  ]      both arrays gain index 3,
+  values(): [v10 ][v2 ][v7 ][ v5 ]      so they stay parallel
+#+END_EXAMPLE
+
+** Erase: swap-pop both arrays together
+
+This is the subtle part. To erase in =O(1)=, the sparse set moves its *last*
+dense key into the erased slot and pops the tail. =dense_map= must do the exact
+same swap on the value vector, or the two arrays would fall out of lockstep. So
+=erase(k)= moves =values()[last]= into =values()[index_of(k)]=, pops the value
+tail, and only then calls =sparse_set::erase= to do the matching move on the key
+array. The two swaps mirror each other, the invariant holds, and the cost is one
+move plus two pops. The price is that *dense order changes*: the formerly-last
+entry now sits at the erased index, so any index you cached is stale. Hold the
+key and re-look-up across an erase; do not hold the index.
+
+#+BEGIN_EXAMPLE
+erase key 10 (dense index 0); last entry is key 7 at index 2:
+
+  before  keys()  : [ 10 ][ 2 ][ 7 ]      values(): [v10][v2][v7]
+                       ^erase                          ^erase
+  step 1  move last value into the hole, pop the tail:
+          values(): [ v7 ][ v2 ]
+  step 2  sparse_set::erase mirrors it on the keys:
+          keys()  : [ 7  ][ 2  ]          values(): [ v7 ][ v2 ]
+                      ^ key 7 moved to index 0, still owns v7
+#+END_EXAMPLE
+
+** Iteration and the void specialisation
+
+Iterating yields =std::pair<Key, Value&>= by walking the dense index from =0= to
+=size()=, reading =keys()[i]= and =values()[i]= at each step, so a range-for
+sees both key and a mutable value reference. For systems that only want the
+values, =values()= hands back a =std::span= to loop over directly with zero
+per-element overhead. When =Value= is =void=, =dense_map<Key, void>= drops the
+value vector entirely and becomes a thin wrapper over =sparse_set=: a tag set for
+"this entity has this marker component" with no payload.
+
+* Complexity
+
+| operation                                    | cost           |
+|----------------------------------------------+----------------|
+| insert / insert_or_assign / emplace          | amortised O(1) |
+| erase (swap-pop)                             | O(1)           |
+| at / find / contains / count / index_of      | O(1)           |
+| iterate begin .. end / values()              | O(size)        |
+| clear                                        | O(size)        |
+
+Memory is the sparse set's two integer arrays (a sparse page array sized to the
+largest key, plus a dense key array sized to the entry count) plus the parallel
+value vector. The sparse array trades memory for speed: it is sized to the key
+range, not the entry count, so a few entries with very large keys cost a large
+sparse array.
+
+* When to use it
+
+Reach for =dense_map= when the keys are *small dense unsigned integers* (entity
+ids, slot indices, handles) and you iterate the values often: ECS component
+stores, per-id attribute tables, anything where a tight dense loop over the
+values is the hot path.
+
+Prefer a sibling when:
+
+- the keys are *not integers* or are sparse over a huge range: [[file:flat_hash_map.org][flat_hash_map]]
+  hashes arbitrary keys and does not pay for a key-sized sparse array.
+- you need *ordered* iteration or key-range queries: [[file:flat_map.org][flat_map]] keeps entries
+  sorted.
+- you only need *membership*, no values: use [[file:sparse_set.org][sparse_set]] directly (or
+  =dense_map<Key, void>=).
+
+Things to keep in mind:
+
+- *Erase reorders the dense arrays.* A swap-pop moves the last entry into the
+  erased slot, so cached indices and the =keys()= / =values()= span contents
+  shift. Hold the key and re-look-up; do not hold a dense index across an erase.
+- *Inserts can reallocate.* Growing the value vector invalidates outstanding
+  =at= pointers, iterators, and spans; =reserve= up front to keep them stable.
+- *The sparse array is sized to the largest key.* A sparse set of keys with one
+  huge value allocates a large sparse array, so keep the key space reasonably
+  tight.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::dense_map<std::uint32_t, velocity> vel;
+
+vel.insert(id, {1.0F, 0.0F});            // O(1), keeps an existing id's value
+vel.insert_or_assign(id, {2.0F, 0.0F});  // O(1), overwrites
+if (auto* v{vel.at(id)}) { use(*v); }    // O(1), nullptr on a miss
+for (auto const& v : vel.values()) { step(v); }   // dense, contiguous sweep
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/dense_map.cpp][examples/container/dense_map.cpp]]
