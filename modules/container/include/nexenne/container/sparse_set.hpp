@@ -80,8 +80,8 @@ public:
    * @brief Reserves sparse capacity for \p key_count keys and dense capacity for
    *        \p dense_count entries.
    *
-   * @param key_count Largest key value to index without resizing the sparse
-   *                  array.
+   * @param key_count Size of the key space to allocate sparse slots for; keys
+   *                  \c 0 to \c key_count-1 are indexable without resizing.
    * @param dense_count Number of live keys to reserve dense storage for.
    *
    * @pre None.

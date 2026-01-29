@@ -46,6 +46,12 @@ namespace nexenne::container {
  *
  * @pre None.
  * @post A freshly constructed pool has all \p N slots free.
+ *
+ * @warning The pool does not destroy objects still live at its own destruction:
+ *          because the raw \c acquire tier leaves construction to the caller, the
+ *          pool cannot know which slots hold a live \p T. Destroy (or \c destroy)
+ *          every outstanding object before the pool goes out of scope, or accept
+ *          leaking it, exactly as with \c linear_arena.
  */
 template <typename T, std::size_t N>
   requires(N > 0)
