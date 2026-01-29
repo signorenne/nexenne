@@ -3,6 +3,7 @@
 set(_container_examples
     bag
     bitset_dynamic
+    dense_map
     deque
     error
     flat_hash_map
