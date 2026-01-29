@@ -16,6 +16,7 @@ nexenne_add_module_tests(container
         test_object_pool.cpp
         test_ring_buffer.cpp
         test_scratch_pad.cpp
+        test_slot_map.cpp
         test_small_vector.cpp
         test_sparse_set.cpp
         test_stable_vector.cpp

@@ -32,6 +32,7 @@ nexenne_add_module(container
         include/nexenne/container/object_pool.hpp
         include/nexenne/container/ring_buffer.hpp
         include/nexenne/container/scratch_pad.hpp
+        include/nexenne/container/slot_map.hpp
         include/nexenne/container/small_vector.hpp
         include/nexenne/container/sparse_set.hpp
         include/nexenne/container/stable_vector.hpp
