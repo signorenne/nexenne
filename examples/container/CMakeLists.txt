@@ -2,6 +2,7 @@
 # self-contained program demonstrating a single nexenne::container class.
 set(_container_examples
     bag
+    bimap
     bitset_dynamic
     dense_map
     deque
