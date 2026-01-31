@@ -1,0 +1,136 @@
+#+TITLE: bimap
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::bimap<Left, Right>= is a bidirectional map: a set of
+=(left, right)= pairs in which each left value is unique and each right value is
+unique, so you can look up the right from the left or the left from the right,
+both in amortised =O(1)=. It is the structure for a two-way registry, an
+id-to-name table you also need to query name-to-id, where a plain map would force
+a linear scan for the reverse direction.
+
+* The idea
+
+A single =flat_hash_map<Left, Right>= answers "what right is bound to this left?"
+in =O(1)=, but "what left is bound to this right?" means scanning every entry.
+=bimap= just keeps *two* hash maps, one indexed each way, and updates both on
+every mutation so they always agree. Lookups are then a single hash probe in
+whichever direction you ask. The price is memory: each pair is stored twice (once
+per direction), roughly double a one-sided map. The discipline is that both maps
+must stay perfectly in sync, which is the whole subtlety of the implementation.
+
+* How it works
+
+** Two maps, one invariant
+
+The bimap holds =m_l_to_r= (a =flat_hash_map<Left, Right>=) and =m_r_to_l= (a
+=flat_hash_map<Right, Left>=). The invariant: =m_l_to_r[a] == b= if and only if
+=m_r_to_l[b] == a=. Every operation either preserves that exactly or changes
+nothing. =size=, =empty=, iteration, and =operator=== read =m_l_to_r= alone,
+because the invariant means one side fully determines the bimap.
+
+#+BEGIN_EXAMPLE
+pairs (1,"one") and (2,"two"):
+
+  m_l_to_r            m_r_to_l
+  1 -> "one"          "one" -> 1
+  2 -> "two"          "two" -> 2
+        ^ the same two pairs, indexed both ways
+#+END_EXAMPLE
+
+** insert: all-or-nothing, to protect uniqueness
+
+=insert(left, right)= first checks whether *either* side is already bound. If so
+it returns =false= and changes nothing: binding only one side would leave the two
+maps disagreeing and violate two-sided uniqueness. Only when both sides are free
+does it write into both maps. So a clash is rejected whole, never half-applied.
+
+#+BEGIN_EXAMPLE
+insert(1, "uno") when 1 is already bound to "one":
+
+  contains_left(1) is true  -> return false, nothing written
+  (binding "uno"->1 alone would leave 1->"one" and 1->... inconsistent)
+#+END_EXAMPLE
+
+** replace: evict, then bind both ways
+
+=replace(left, right)= forces the binding. It first removes any existing entry on
+the left side (and its reverse), then any existing entry on the right side (and
+its forward), counting how many it displaced (0, 1, or 2), and only then writes
+the new pair into both maps. The writes use *insert-or-assign*, not insert,
+because a same-side key that survived the eviction step must be overwritten, not
+left alone, or the two maps would drift apart.
+
+#+BEGIN_EXAMPLE
+replace(1, "two") with both 1->"one" and 2->"two" present (a merge):
+
+  step 1  1 is bound to "one": erase m_r_to_l["one"]   (displaced = 1)
+  step 2  "two" is bound to 2: erase m_l_to_r[2]        (displaced = 2)
+  step 3  write 1<->"two" into both maps (overwriting the surviving 1 key)
+
+  result  m_l_to_r: 1 -> "two"      m_r_to_l: "two" -> 1
+          (2 and "one" are both gone; the two old pairs merged into one)
+#+END_EXAMPLE
+
+** erase from either side clears both
+
+=erase_left(left)= looks up the bound right, erases that right from =m_r_to_l=,
+then erases =left= from =m_l_to_r=, so the pair vanishes from both maps as a
+unit. =erase_right= is the mirror. A miss on the lookup is a no-op returning
+=false=.
+
+* Complexity
+
+| operation                              | cost           |
+|----------------------------------------+----------------|
+| insert / replace                       | amortised O(1) |
+| erase_left / erase_right               | amortised O(1) |
+| find_by_left / find_by_right           | amortised O(1) |
+| contains_left / contains_right         | amortised O(1) |
+| iterate begin .. end                   | O(capacity)    |
+| operator==                             | O(n) average   |
+
+Memory is two hash maps, so roughly twice a one-sided map: each pair's left and
+right are each stored once per direction. That is the deliberate trade for an
+=O(1)= reverse lookup instead of an =O(n)= scan.
+
+* When to use it
+
+Reach for =bimap= when you genuinely query *both* directions and both sides are
+unique: id/name registries, asset id/path tables, enum/string tables, any
+one-to-one correspondence you traverse either way.
+
+Prefer a sibling when:
+
+- you only ever look up *one* direction: a single [[file:flat_hash_map.org][flat_hash_map]] is half the
+  memory.
+- a side is *not unique* (one left maps to many rights): a bimap cannot represent
+  that; use a map to a container, or a different structure.
+- the keys are *dense integers* on one side: [[file:dense_map.org][dense_map]] or [[file:slot_map.org][slot_map]] may fit that
+  side better.
+
+Things to keep in mind:
+
+- *insert is all-or-nothing.* It refuses (returns =false=, changes nothing) if
+  either side is already bound; use =replace= to force a rebind and learn how
+  many entries it displaced.
+- *A rehash invalidates everything*, inherited from [[file:flat_hash_map.org][flat_hash_map]]: any insert
+  or replace that grows a side invalidates iterators and =find= pointers;
+  =reserve= up front to keep them stable.
+- *find returns a pointer into one side's map*; treat it as borrowed and do not
+  hold it across a mutation.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::bimap<int, std::string> names;
+
+names.insert(id, name);                          // O(1), fails if either side bound
+auto const displaced{names.replace(id, name)};   // O(1), force-rebind, evicts clashes
+if (auto const* n{names.find_by_left(id)}) { use(*n); }    // O(1) forward
+if (auto const* i{names.find_by_right(name)}) { use(*i); } // O(1) reverse
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/bimap.cpp][examples/container/bimap.cpp]]
