@@ -69,6 +69,7 @@ region freed all at once.
 - [[file:dense_map.org][dense_map]] : integer-key map over a sparse_set, values packed for a dense walk.
 - [[file:slot_map.org][slot_map]] : handle-keyed store, stable generation-tagged keys, O(1) lookup.
 - [[file:union_find.org][union_find]] : disjoint-set partition, near-constant union and find.
+- [[file:bimap.org][bimap]] : bidirectional map, unique on both sides, O(1) lookup either way.
 
 * Priority queues
 
