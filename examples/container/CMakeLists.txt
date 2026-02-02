@@ -15,6 +15,7 @@ set(_container_examples
     heap
     intrusive_list
     linear_arena
+    lru_cache
     object_pool
     ring_buffer
     scratch_pad
