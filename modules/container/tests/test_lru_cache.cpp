@@ -1,0 +1,128 @@
+/**
+ * @file
+ * @brief Tests for nexenne::container::lru_cache.
+ */
+
+#include <doctest/doctest.h>
+
+#include <memory>
+#include <string>
+#include <utility>
+
+#include <nexenne/container/lru_cache.hpp>
+
+namespace {
+
+namespace cn = nexenne::container;
+using cache_t = cn::lru_cache<int, int>;
+
+TEST_CASE("nexenne::container::lru_cache put then get returns the value, promotes to MRU") {
+  cache_t c{2};
+  c.put(1, 10);
+  c.put(2, 20);
+  CHECK(c.size() == 2);
+  CHECK(c.full());
+  REQUIRE(c.get(1) != nullptr);
+  CHECK(*c.get(1) == 10);
+  CHECK(c.get(99) == nullptr);  // miss
+}
+
+TEST_CASE("nexenne::container::lru_cache evicts the least recently used on a full put") {
+  cache_t c{2};
+  c.put(1, 10);
+  c.put(2, 20);            // recency MRU..LRU: 2, 1
+  CHECK(*c.get(1) == 10);  // promote 1: now 1, 2
+  c.put(3, 30);            // full: evict LRU (2)
+  CHECK_FALSE(c.contains(2));
+  CHECK(c.contains(1));
+  CHECK(c.contains(3));
+  CHECK(c.size() == 2);
+}
+
+TEST_CASE("nexenne::container::lru_cache put on an existing key updates value and promotes") {
+  cache_t c{2};
+  c.put(1, 10);
+  c.put(2, 20);  // MRU..LRU: 2, 1
+  c.put(1, 11);  // update 1, promote it: 1, 2
+  CHECK(*c.peek(1) == 11);
+  c.put(3, 30);  // evict LRU (2), not 1
+  CHECK(c.contains(1));
+  CHECK_FALSE(c.contains(2));
+}
+
+TEST_CASE("nexenne::container::lru_cache peek does not promote") {
+  cache_t c{2};
+  c.put(1, 10);
+  c.put(2, 20);  // MRU..LRU: 2, 1
+  REQUIRE(c.peek(1) != nullptr);
+  CHECK(*c.peek(1) == 10);  // peek leaves recency untouched: still 2, 1
+  c.put(3, 30);             // evict LRU (1)
+  CHECK_FALSE(c.contains(1));
+  CHECK(c.contains(2));
+  CHECK(c.peek(99) == nullptr);
+}
+
+TEST_CASE("nexenne::container::lru_cache mru_key and lru_key track the ends") {
+  cache_t c{3};
+  CHECK(c.mru_key() == nullptr);  // empty
+  CHECK(c.lru_key() == nullptr);
+  c.put(1, 1);
+  c.put(2, 2);
+  c.put(3, 3);  // MRU..LRU: 3, 2, 1
+  CHECK(*c.mru_key() == 3);
+  CHECK(*c.lru_key() == 1);
+  CHECK(*c.get(1) == 1);  // promote 1: 1, 3, 2
+  CHECK(*c.mru_key() == 1);
+  CHECK(*c.lru_key() == 2);
+}
+
+TEST_CASE("nexenne::container::lru_cache erase removes and recycles the slot") {
+  cache_t c{2};
+  c.put(1, 10);
+  c.put(2, 20);
+  CHECK(c.erase(1));
+  CHECK_FALSE(c.contains(1));
+  CHECK(c.size() == 1);
+  CHECK_FALSE(c.erase(1));  // already gone
+  c.put(3, 30);             // reuses the freed slot, no eviction needed
+  CHECK(c.contains(2));
+  CHECK(c.contains(3));
+  CHECK(c.size() == 2);
+}
+
+TEST_CASE("nexenne::container::lru_cache clear empties but keeps capacity") {
+  cache_t c{2};
+  c.put(1, 10);
+  c.put(2, 20);
+  c.clear();
+  CHECK(c.empty());
+  CHECK(c.capacity() == 2);
+  CHECK_FALSE(c.contains(1));
+  c.put(5, 50);  // usable after clear
+  CHECK(*c.get(5) == 50);
+}
+
+TEST_CASE("nexenne::container::lru_cache holds a move-only value") {
+  cn::lru_cache<int, std::unique_ptr<int>> c{2};
+  c.put(1, std::make_unique<int>(10));
+  c.put(2, std::make_unique<int>(20));
+  REQUIRE(c.get(1) != nullptr);
+  CHECK(**c.get(1) == 10);
+  c.put(3, std::make_unique<int>(30));  // evicts LRU (2), moves the new value in
+  CHECK_FALSE(c.contains(2));
+  CHECK(c.contains(1));
+  CHECK(**c.get(3) == 30);
+}
+
+TEST_CASE("nexenne::container::lru_cache works with string keys") {
+  cn::lru_cache<std::string, int> c{2};
+  c.put("a", 1);
+  c.put("b", 2);
+  CHECK(*c.get("a") == 1);  // promote a
+  c.put("c", 3);            // evict b
+  CHECK(c.contains("a"));
+  CHECK_FALSE(c.contains("b"));
+  CHECK(c.contains("c"));
+}
+
+}  // namespace
