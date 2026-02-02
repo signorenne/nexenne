@@ -1,0 +1,157 @@
+#+TITLE: binary_tree
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::binary_tree<T, Compare>= is an ordered set of unique values
+held in a classic, *unbalanced* binary search tree. Insert, lookup, and erase are
+=O(log n)= on random input and degrade to =O(n)= on already-sorted input;
+in-order iteration yields every element in ascending order. Its niche is a
+simple, transparent BST whose explicit node graph is the point, for teaching,
+moderate ordered sets on non-adversarial input, and as a building block for tree
+visitors. When worst-case bounds matter, reach for a balanced tree instead.
+
+* The idea
+
+A binary search tree keeps the ordering invariant "everything in a node's left
+subtree compares less, everything in its right subtree compares greater." That
+single rule makes lookup a descent: at each node go left or right by one
+comparison, so a balanced tree finds a key in =O(log n)=. This implementation
+keeps the structure deliberately plain, no rebalancing, so the node layout is
+easy to reason about, and pays for that simplicity with an =O(n)= worst case on
+sorted input that grows a degenerate "linked list" tree.
+
+* How it works
+
+** Node layout: owned children, raw parent
+
+Each node holds its value, two =std::unique_ptr= children, and a *raw* pointer
+back to its parent. Owning children through =unique_ptr= means destruction
+cascades automatically and a move steals the whole graph in =O(1)=, while the raw
+parent pointer (non-owning, so no cycle) lets the iterator climb to a successor
+without an auxiliary stack.
+
+#+BEGIN_EXAMPLE
+insert order 5, 2, 8, 1, 3:
+
+            5
+          /   \
+        2       8        each node: value + unique_ptr left/right + node* parent
+       / \
+      1   3
+#+END_EXAMPLE
+
+** Insert and lookup: descend by comparison
+
+=locate= walks from the root: if the key compares less than the current node go
+left, if greater go right, if neither (equivalent) it is a hit. =insert= follows
+the same descent tracking the parent and the owning child slot, and when it falls
+off the tree (an empty slot) it links a fresh node there with its parent pointer
+set. Equivalence is by the comparator alone (=!cmp(a,b) && !cmp(b,a)=), so a
+duplicate insert finds the existing node mid-descent and returns =false=.
+
+** In-order iteration without a stack
+
+The iterator yields elements ascending by walking *successors*. The successor of
+a node is: the leftmost node of its right subtree if it has one; otherwise the
+first ancestor from which you ascend via a left link (climb through parents while
+you are the right child, then step up once more). The raw parent pointers make
+this an amortised =O(1)= step with no external stack, so the iterator is a plain
+=std::forward_iterator=.
+
+#+BEGIN_EXAMPLE
+successor of 5 (has a right subtree): leftmost of {8,...} = 8
+successor of 3 (no right child): climb 3 -> 2 (3 is 2's right child),
+   then 2 -> 5 (2 is 5's left child), step up: successor is 5
+#+END_EXAMPLE
+
+** Erase: three cases, the third splices the successor
+
+Removing a node =z= has three shapes:
+
+- *No left child*: replace =z= with its right subtree (possibly null).
+- *No right child*: replace =z= with its left subtree.
+- *Two children*: =z= cannot simply leave, so its in-order successor =y= (the
+  leftmost node of =z='s right subtree, which by construction has no left child)
+  takes =z='s place. =y= inherits =z='s left subtree, and either keeps its own
+  right subtree (when =y= is =z='s immediate right child) or, when =y= is buried
+  deeper, =y='s right subtree first fills =y='s old slot and then =y= inherits
+  =z='s whole right subtree. Parent back-pointers are repaired throughout so the
+  tree stays a valid BST.
+
+#+BEGIN_EXAMPLE
+erase 50 (two children); successor is 55, buried as leftmost of the right subtree:
+
+      50                         55
+     /  \                       /  \
+   30    70      ===>         30    70
+        /  \                       /  \
+      60    80                   60    80
+      /                          /
+    55                         (55 moved up; 60 keeps its place, 55's old
+                                slot was empty so nothing backfills here)
+#+END_EXAMPLE
+
+** Copy clones, move steals
+
+A copy deep-clones the source recursively (each node duplicated with fresh parent
+links), so two trees never share nodes. A move transfers the root =unique_ptr= and
+the size in =O(1)=, leaving the source empty. The destructor is defaulted: letting
+the root =unique_ptr= go cascades the whole subtree.
+
+* Complexity
+
+| operation                          | cost                       |
+|------------------------------------+----------------------------|
+| insert / emplace / erase / find    | O(h): O(log n) avg, O(n) worst |
+| contains                           | O(h)                       |
+| iterate begin .. end               | O(n)                       |
+| copy (deep clone)                  | O(n)                       |
+| move / swap / clear                | O(1) / O(1) / O(n)         |
+| operator== / operator<=>           | O(n)                       |
+
+Here =h= is the current height: =O(log n)= for balanced-ish input, =O(n)= for
+sorted input that builds a degenerate chain. Each node is a separate heap
+allocation holding the value and three pointers, so the structure trades the
+cache locality of a flat container for stable node addresses and an explicit
+graph.
+
+* When to use it
+
+Reach for =binary_tree= when you want an *ordered* unique set with a transparent
+node structure and your input is not adversarial: teaching and visualisation,
+moderate ordered sets, a base for custom tree traversals.
+
+Prefer a sibling when:
+
+- you want *guaranteed* O(log n): this tree does not self-balance; sorted input
+  degrades it to a list. A balanced tree (not in this library yet) or a
+  [[file:flat_set.org][flat_set]] (sorted vector, O(log n) lookup) avoids that.
+- you want *cache-friendly* ordered storage: [[file:flat_set.org][flat_set]] and [[file:flat_map.org][flat_map]] keep elements
+  contiguous (at O(n) insert) and iterate far faster.
+- you only need *membership*, unordered: [[file:flat_hash_set.org][flat_hash_set]] is O(1).
+
+Things to keep in mind:
+
+- *It is unbalanced.* Inserting already-sorted data builds an O(n)-deep chain;
+  lookups and even destruction then recurse that deep. Shuffle adversarial input
+  or pick a different structure.
+- *Do not mutate an element's ordering key in place* through an iterator: it would
+  violate the search invariant and corrupt later lookups. Erase and re-insert
+  instead.
+- *Erase invalidates iterators to the removed node*; other iterators stay valid
+  because nodes keep their addresses.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::binary_tree<int> set;
+
+set.insert(5);                       // O(h), false if an equivalent exists
+if (set.contains(5)) { /* ... */ }   // O(h)
+for (int const v : set) { use(v); }  // ascending in-order walk
+set.erase(5);                        // O(h)
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/binary_tree.cpp][examples/container/binary_tree.cpp]]
