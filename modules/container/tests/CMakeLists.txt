@@ -14,6 +14,7 @@ nexenne_add_module_tests(container
         test_heap.cpp
         test_intrusive_list.cpp
         test_linear_arena.cpp
+        test_lru_cache.cpp
         test_object_pool.cpp
         test_ring_buffer.cpp
         test_scratch_pad.cpp
