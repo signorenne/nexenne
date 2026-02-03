@@ -12,6 +12,7 @@ nexenne_add_module_tests(container
         test_flat_map.cpp
         test_flat_set.cpp
         test_gap_buffer.cpp
+        test_graph.cpp
         test_heap.cpp
         test_intrusive_list.cpp
         test_linear_arena.cpp
