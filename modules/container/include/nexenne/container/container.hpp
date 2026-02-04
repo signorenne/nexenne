@@ -31,6 +31,7 @@
 #include <nexenne/container/stable_vector.hpp>
 #include <nexenne/container/static_flat_map.hpp>
 #include <nexenne/container/static_vector.hpp>
+#include <nexenne/container/trie.hpp>
 #include <nexenne/container/union_find.hpp>
 
 namespace nexenne::container {}

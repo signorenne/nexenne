@@ -26,5 +26,6 @@ nexenne_add_module_tests(container
         test_stable_vector.cpp
         test_static_flat_map.cpp
         test_static_vector.cpp
+        test_trie.cpp
         test_union_find.cpp
 )

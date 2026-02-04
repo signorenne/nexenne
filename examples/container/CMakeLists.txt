@@ -27,6 +27,7 @@ set(_container_examples
     stable_vector
     static_flat_map
     static_vector
+    trie
     union_find
 )
 
