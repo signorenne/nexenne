@@ -20,12 +20,15 @@ set(_container_examples
     intrusive_list
     linear_arena
     lru_cache
+    mpmc_queue
+    mpsc_queue
     object_pool
     ring_buffer
     scratch_pad
     slot_map
     small_vector
     sparse_set
+    spsc_queue
     stable_vector
     static_flat_map
     static_vector
