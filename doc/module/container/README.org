@@ -79,6 +79,7 @@ region freed all at once.
 * Priority queues
 
 - [[file:heap.org][heap]] : binary heap over a vector, max-heap by default, configurable order.
+- [[file:indexed_priority_queue.org][indexed_priority_queue]] : heap with O(log n) update and erase by stable handle.
 
 * Arenas and pools
 
