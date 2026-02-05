@@ -15,6 +15,7 @@ nexenne_add_module_tests(container
         test_gap_buffer.cpp
         test_graph.cpp
         test_heap.cpp
+        test_indexed_priority_queue.cpp
         test_intrusive_list.cpp
         test_linear_arena.cpp
         test_lru_cache.cpp
