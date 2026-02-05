@@ -31,6 +31,7 @@ nexenne_add_module(container
         include/nexenne/container/gap_buffer.hpp
         include/nexenne/container/graph.hpp
         include/nexenne/container/heap.hpp
+        include/nexenne/container/indexed_priority_queue.hpp
         include/nexenne/container/intrusive_list.hpp
         include/nexenne/container/linear_arena.hpp
         include/nexenne/container/lru_cache.hpp
