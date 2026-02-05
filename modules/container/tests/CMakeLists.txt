@@ -19,12 +19,15 @@ nexenne_add_module_tests(container
         test_intrusive_list.cpp
         test_linear_arena.cpp
         test_lru_cache.cpp
+        test_mpmc_queue.cpp
+        test_mpsc_queue.cpp
         test_object_pool.cpp
         test_ring_buffer.cpp
         test_scratch_pad.cpp
         test_slot_map.cpp
         test_small_vector.cpp
         test_sparse_set.cpp
+        test_spsc_queue.cpp
         test_stable_vector.cpp
         test_static_flat_map.cpp
         test_static_vector.cpp
