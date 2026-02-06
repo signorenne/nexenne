@@ -28,6 +28,7 @@ nexenne_add_module(container
         include/nexenne/container/flat_hash_set.hpp
         include/nexenne/container/flat_map.hpp
         include/nexenne/container/flat_set.hpp
+        include/nexenne/container/format.hpp
         include/nexenne/container/gap_buffer.hpp
         include/nexenne/container/graph.hpp
         include/nexenne/container/hash.hpp
