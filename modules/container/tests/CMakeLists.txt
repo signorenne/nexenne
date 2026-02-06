@@ -14,6 +14,7 @@ nexenne_add_module_tests(container
         test_flat_set.cpp
         test_gap_buffer.cpp
         test_graph.cpp
+        test_hash.cpp
         test_heap.cpp
         test_indexed_priority_queue.cpp
         test_intrusive_list.cpp
