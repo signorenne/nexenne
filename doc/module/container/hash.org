@@ -1,0 +1,65 @@
+#+TITLE: hash
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=hash.hpp= is an aggregator header that defines =std::hash= specializations for
+the value-typed nexenne containers, so they can be used as keys in
+=std::unordered_map= and =std::unordered_set= (and anywhere =std::hash= is
+expected) without each caller writing a hash. Including the header is all that is
+required; the specializations live at global scope, as the standard demands.
+
+* What it provides
+
+A =std::hash= specialization for each container that has a well-defined
+=operator== over a *canonical* iteration order, so that equal values always hash
+equal (the only correctness requirement a hash must meet):
+
+| container        | hash basis                                              |
+|------------------+---------------------------------------------------------|
+| =bitset_dynamic= | the bit count plus every packed word                    |
+| =static_vector=  | the size plus each element, in order                    |
+| =small_vector=   | the size plus each element, in order                    |
+| =stable_vector=  | the size plus each element, in order                    |
+| =ring_buffer=    | the size plus each element, front to back (FIFO)        |
+| =binary_tree=    | the size plus each element, in-order (sorted, canonical)|
+| =trie=           | the size plus a commutative (XOR) fold over its entries |
+
+Every specialization combines the element count first, then the elements, using
+=nexenne::utility::hash_combine= (a Boost-style mixer) so the recipe stays in one
+place. The =trie= uses an order-insensitive XOR fold so the hash matches its
+structural =operator==.
+
+* What it deliberately omits
+
+=bag=, =heap=, and =indexed_priority_queue= are *not* hashable. Their iteration
+order depends on operation history (insertion sequence, heap shape), so no
+deterministic hash could agree with a logical equality, and these types do not
+provide a logical =operator== either. The hashed associative containers
+(=flat_hash_map= and friends) are likewise not hashed: hashing a hash table as a
+value is rarely wanted and has no canonical order.
+
+* Requirements and gotchas
+
+- The element type must itself be hashable: =std::hash<T>= must exist for a
+  container of =T= to be hashable. The specialization is only instantiated when
+  used, so a container of a non-hashable type is fine as long as you never hash
+  it.
+- Equal containers hash equal, which is the contract; unequal containers *may*
+  collide, as with any hash.
+- The hash is for use as a map/set key, not for persistence: the values are not
+  stable across builds or library versions.
+
+* Usage
+
+#+BEGIN_SRC cpp
+#include <nexenne/container/hash.hpp>
+#include <unordered_map>
+
+std::unordered_map<nexenne::container::static_vector<int, 4>, result> memo;
+memo[key] = compute(key);          // the container is a hashable key
+if (memo.contains(other_key)) { /* ... */ }
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/hash.cpp][examples/container/hash.cpp]]
