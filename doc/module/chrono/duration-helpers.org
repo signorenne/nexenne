@@ -1,0 +1,96 @@
+#+TITLE: duration helpers
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Three small, clock-free helpers that sit beside =std::chrono::duration=:
+=duration_parts= breaks a duration into human-readable d/h/m/s/ms components and
+renders them; =to_count_sat= converts a duration to a fixed-width integer count
+without wrapping; and the =frequency= helpers convert between a hertz value and
+its period. All are =constexpr= where the inputs allow.
+
+* duration_parts: readable breakdowns
+
+** The idea
+
+=std::format= can print a =duration= as a number plus a unit suffix, but it
+cannot say "1d:01h:01m:01s". =extract_parts= decomposes a duration into a signed
+=duration_parts= struct (sign, days, hours, minutes, seconds, millis), and
+=format= renders those parts through a small token language.
+
+** How it works
+
+=extract_parts(ms)= takes the magnitude (computed without UB even for
+=INT64_MIN=), divides it down through the day / hour / minute / second / ms
+boundaries, and records the overall sign separately so the components stay
+non-negative. The generic overload casts any duration to milliseconds first,
+*saturating* if the input is too coarse and large to fit (so =hours::max()= does
+not overflow). With =round_to_seconds=, the value is rounded to the nearest
+second, ties away from zero.
+
+=format(d, fmt)= substitutes tokens, deliberately unlike =std::format='s ={}=
+specifiers so the two do not collide: ={d}= ={h}= ={m}= ={s}= are
+zero-padded width 2, ={ms}= is width 3, and ={s+}= / ={s-}= are the sign.
+When the format omits ={ms}= the value rounds to whole seconds. With
+=suppress_zero= (the default) leading zero components are dropped and the
+survivors are joined with =':'=.
+
+#+BEGIN_EXAMPLE
+format(milliseconds{90'061'500})  ->  "01d:01h:01m:01s:500ms"
+format(seconds{65})               ->  "01m:05s"      (days/hours dropped)
+#+END_EXAMPLE
+
+A =std::formatter<duration_parts>= is provided too, so =std::format("{}", parts)=
+works; a leading =!= in the spec disables suppress-zero to show every component.
+
+* to_count_sat: saturating duration to integer
+
+Embedded APIs take a count in a specific width (=vTaskDelay= wants a =uint32_t= of
+ticks, =esp_timer= wants an =int64_t= of microseconds). Casting a wider duration
+naively can wrap. =to_count_sat<Int, ToDur>(d)= casts =d= to =ToDur= then clamps
+the count to =Int='s range instead of wrapping. A floating-point source is routed
+through a =long double= so a NaN becomes 0 and an infinity clamps to the nearest
+bound, never an undefined integer cast. =to_us_u32= and =to_ms_u32= are
+convenience wrappers for the two common embedded fields.
+
+#+BEGIN_EXAMPLE
+to_count_sat<uint32_t, microseconds>(seconds{5000})  ->  UINT32_MAX   (saturates)
+to_count_sat<uint32_t, milliseconds>(-seconds{5})    ->  0            (clamped)
+#+END_EXAMPLE
+
+* frequency: Hz and period
+
+=hertz<Hz>= wraps a compile-time frequency as an NTTP-friendly type;
+=period_from<hertz<1000>>()= gives the exact period =duration<int64_t,
+ratio<1,1000>>{1}= (1 ms), with no floating-point round-off. =hertz_from(period)=
+inverts a period to an integer hertz value (truncating sub-1-Hz to zero). The
+runtime pair =period_ns_from= / =period_us_from= / =hz_from_ns= do the same for
+values known only at run time, returning =max()= or =0= on a zero input.
+
+* When to use them
+
+- =duration_parts= / =format= for logs, HUDs, and any place a duration must read
+  as time rather than a raw count.
+- =to_count_sat= at the boundary to a C API that takes a fixed-width tick or
+  microsecond count.
+- =frequency= helpers to turn a configured sample rate or scan rate into a timer
+  period at compile time.
+
+Things to keep in mind:
+
+- =format= allocates small strings (it is a human-readable formatter, not a hot
+  path); the breakdown =extract_parts= is allocation-free and =constexpr=.
+- =hertz_from= truncates: a period slower than 1 Hz reports 0.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace ch = nexenne::chrono;
+
+std::print("{}\n", ch::format(elapsed));                 // "01m:05s"
+auto const us{ch::to_us_u32(timeout)};                   // saturating uint32 us
+constexpr auto period{ch::period_from<ch::hertz<1000>>()};  // 1 ms, compile time
+#+END_SRC
+
+Runnable: [[file:../../../examples/chrono/duration_format.cpp][examples/chrono/duration_format.cpp]]

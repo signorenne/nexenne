@@ -1,0 +1,80 @@
+#+TITLE: frame timer
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=frame_timer<Clock, WindowSize>= measures the time between successive ticks (the
+per-frame delta) and reports a moving-average frames-per-second over the last
+=WindowSize= frames. It is the timer a game loop or render loop calls once per
+frame to get =dt= for integration and a smoothed FPS for display.
+
+* The idea
+
+The instantaneous FPS (=1 / dt=) jitters frame to frame and reads poorly on a
+HUD. Averaging over a recent window smooths it. Doing that average naively means
+summing the window every query; a ring buffer with a running sum makes both the
+update and the FPS read O(1).
+
+* How it works
+
+=tick()= reads =now()=, computes =dt = now - last= (zero on the very first tick,
+which only seeds the baseline), and returns it. It stores =dt= in a ring buffer
+of =WindowSize= slots and maintains a running =sum=: when the window is already
+full it subtracts the slot it is about to overwrite before adding the new delta,
+otherwise it just adds and grows the filled count. =fps()= is then
+=filled / sum= in seconds, with no loop over the window.
+
+#+BEGIN_EXAMPLE
+window (size 4), after five 16ms ticks (first tick seeds, no dt):
+
+  slots: [16][16][16][16]   sum = 64ms   filled = 4
+  fps = filled / sum = 4 / 0.064 s = 62.5
+#+END_EXAMPLE
+
+=frame_count()= is the cumulative tick count, =last_tick()= the most recent
+instant, =started()= whether a first tick has happened, and =reset()= clears
+everything.
+
+* Complexity
+
+| operation     | cost   |
+|---------------+--------|
+| tick          | O(1)   |
+| fps           | O(1)   |
+| reset         | O(window) |
+
+Memory is the fixed window of =WindowSize= durations plus a few counters; it never
+allocates.
+
+* When to use it
+
+Reach for =frame_timer= in any fixed-or-variable timestep loop that wants a stable
+=dt= per iteration and a smoothed rate to show or log: game loops, render loops,
+simulation steps, sensor sampling loops.
+
+Prefer a sibling when:
+
+- you want *start/stop/lap* timing rather than a per-tick rate: [[file:stopwatch.org][stopwatch]].
+- you want to *fire on a fixed period* rather than measure the achieved rate:
+  [[file:polling-timers.org][interval]].
+
+Things to keep in mind:
+
+- The first =tick()= returns zero delta (it only sets the baseline); =fps()= is
+  zero until the second tick has a real delta.
+- A larger =WindowSize= smooths more but lags more; pick it for how twitchy a
+  reading you want.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::chrono::frame_timer<> ft;        // default 60-frame window
+while (running) {
+    auto const dt{ft.tick()};
+    update(dt);
+    hud.set_fps(ft.fps());
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/chrono/frame_timer.cpp][examples/chrono/frame_timer.cpp]]
