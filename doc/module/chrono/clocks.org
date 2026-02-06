@@ -1,0 +1,96 @@
+#+TITLE: clocks
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+The clock layer is what makes the rest of =nexenne::chrono= portable. It defines
+what a "clock" is (a small set of concepts), an adapter (=tick_clock=) that turns
+any raw tick source into a Chrono-compatible clock, and a hand-advanced
+=manual_clock= that makes timing code testable without sleeping. Write a timer
+against a clock template parameter and it runs unchanged on a desktop, an MCU, or
+a fake clock in a test.
+
+* The idea
+
+=std::chrono= already standardises what a clock looks like: nested =rep=,
+=period=, =duration=, =time_point= types and a static =now()=. The problem is that
+on an MCU there is no =std::chrono::steady_clock= worth using, and in a test you
+do not want real wall time to pass. The fix is twofold: state the clock
+requirement as a *concept* so any conforming type works, and provide two ready
+clocks, one that wraps a hardware counter and one that a test drives by hand.
+
+* How it works
+
+** The concepts
+
+=clock_like<C>= requires the four nested types and =C::now()= returning the
+=time_point=. =steady_clock_like<C>= refines it with a compile-time
+=C::is_steady == true=, the promise that the clock never runs backward.
+=chrono_duration<T>= matches exactly a =std::chrono::duration= specialisation.
+=tick_backend<B>= is the contract =tick_clock= consumes: a signed-integral =rep=,
+a positive =std::ratio= =period= (seconds per tick), a compile-time =is_steady=,
+and a static =noexcept= =ticks()=.
+
+** tick_clock: a backend becomes a clock
+
+A backend supplies only the raw counter; =tick_clock<Backend>= wraps it as a full
+clock. =now()= reads =Backend::ticks()= and wraps it in a =time_point=;
+=from_ticks= / =to_ticks= convert between raw counts and time points. The epoch
+("since boot", "since reset") and wrap-around handling are the backend's job,
+pick a wide enough =rep=.
+
+#+BEGIN_EXAMPLE
+struct esp_micro_backend {
+    using rep = std::int64_t;            // microsecond counter
+    using period = std::micro;           // 1 tick = 1 microsecond
+    static constexpr bool is_steady = true;
+    static auto ticks() noexcept -> rep { return esp_timer_get_time(); }
+};
+using clock = nexenne::chrono::tick_clock<esp_micro_backend>;
+// every other chrono type now works with `clock`
+#+END_EXAMPLE
+
+** manual_clock: time that moves only on command
+
+=basic_manual_clock<Tag>= holds the current time in static state keyed by =Tag=.
+=now()= returns it; =advance(d)= adds to it; =set(tp)= jumps to an absolute time;
+=reset()= returns to the epoch. Because the state is keyed by the =Tag= type, two
+distinct tags give two independent clocks in one translation unit, so unrelated
+tests do not bleed into each other. It satisfies =steady_clock_like=, so it drops
+in wherever a clock is expected.
+
+#+BEGIN_EXAMPLE
+using clk = nexenne::chrono::basic_manual_clock<struct my_test_tag>;
+clk::reset();
+stopwatch<clk> sw;  sw.start();
+clk::advance(std::chrono::milliseconds{100});   // 100 ms "passes" instantly
+assert(sw.elapsed<std::chrono::milliseconds>() == std::chrono::milliseconds{100});
+#+END_EXAMPLE
+
+* When to use which
+
+- Desktop or server: the default =std::chrono::steady_clock=; you rarely name a
+  clock at all.
+- Embedded: define a =tick_backend= over your hardware counter or RTOS tick and
+  instantiate =tick_clock= once, then reuse it for every timer.
+- Tests: =manual_clock= (via a per-test tag) so elapsed time is exact and the
+  suite never sleeps.
+
+Things to keep in mind:
+
+- =manual_clock= is *not thread-safe* and advancing it backward violates the
+  =is_steady= contract; use the backward path only in tests that specifically
+  exercise it.
+- =tick_clock= does not extend a narrow counter; if the backend counter can wrap
+  during your program's lifetime, widen it in =ticks()=.
+
+* Usage
+
+#+BEGIN_SRC cpp
+// portable timer code: works with any steady clock
+template <nexenne::chrono::steady_clock_like Clock = std::chrono::steady_clock>
+auto measure() { nexenne::chrono::stopwatch<Clock> sw; sw.start(); /* ... */ }
+#+END_SRC
+
+Runnable: see [[file:stopwatch.org][stopwatch]] and the other guides, whose examples drive a =manual_clock=.
