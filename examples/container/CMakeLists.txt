@@ -13,6 +13,7 @@ set(_container_examples
     flat_hash_set
     flat_map
     flat_set
+    format
     gap_buffer
     graph
     hash

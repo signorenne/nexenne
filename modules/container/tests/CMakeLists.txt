@@ -12,6 +12,7 @@ nexenne_add_module_tests(container
         test_flat_hash_set.cpp
         test_flat_map.cpp
         test_flat_set.cpp
+        test_format.cpp
         test_gap_buffer.cpp
         test_graph.cpp
         test_hash.cpp
