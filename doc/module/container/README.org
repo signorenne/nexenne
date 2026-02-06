@@ -76,6 +76,12 @@ region freed all at once.
 - [[file:union_find.org][union_find]] : disjoint-set partition, near-constant union and find.
 - [[file:bimap.org][bimap]] : bidirectional map, unique on both sides, O(1) lookup either way.
 
+* Concurrent queues
+
+- [[file:spsc_queue.org][spsc_queue]] : lock-free single-producer single-consumer bounded ring.
+- [[file:mpsc_queue.org][mpsc_queue]] : lock-free multi-producer single-consumer bounded ring.
+- [[file:mpmc_queue.org][mpmc_queue]] : lock-free multi-producer multi-consumer bounded ring (Vyukov).
+
 * Priority queues
 
 - [[file:heap.org][heap]] : binary heap over a vector, max-heap by default, configurable order.

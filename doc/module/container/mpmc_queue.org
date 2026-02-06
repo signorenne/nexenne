@@ -1,0 +1,127 @@
+#+TITLE: mpmc_queue
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::mpmc_queue<T, N>= is the canonical Vyukov bounded
+multi-producer multi-consumer lock-free queue: *any number of producers and any
+number of consumers* operate concurrently with no locks. Each operation is one
+compare-exchange in the common case. It is the general-purpose concurrent work
+queue, the thing to reach for in place of a mutex plus deque plus condition
+variable when that combination shows up in a profile.
+
+* The idea
+
+The multi-consumer case adds the mirror of the multi-producer problem: two
+consumers must not both dequeue the same slot. Vyukov's insight unifies both
+sides under one mechanism, the per-slot *sequence number*. A producer claims a
+ticket on the enqueue counter and may write a slot only when its sequence matches;
+a consumer claims a ticket on the dequeue counter and may read a slot only when
+its sequence is one ahead. The sequence number alone tells each thread whether a
+slot is theirs, so producers and consumers never inspect each other's counters.
+
+* How it works
+
+** Layout: two counters, slots with sequences
+
+Two atomic counters, =m_enqueue_pos= and =m_dequeue_pos=, live on separate cache
+lines. The ring is =N= slots (=N= a power of two), each an atomic =sequence= plus
+raw storage for a =T=. Sequences seed to their slot index. The states a slot
+cycles through are: =sequence == pos= (ready for a producer at ticket =pos=),
+=pos + 1= (ready for a consumer), =pos + N= (reopened for the producer one lap
+later).
+
+#+BEGIN_EXAMPLE
+N = 4.  enqueue_pos and dequeue_pos both start at 0:
+
+  slot    0        1        2        3
+        seq=0    seq=1    seq=2    seq=3
+        [    ]   [    ]   [    ]   [    ]
+
+  producer ticket p: writable when slot[p&3].seq == p
+  consumer ticket c: readable when slot[c&3].seq == c+1
+#+END_EXAMPLE
+
+** push: claim an enqueue ticket, write, publish
+
+A producer loads =enqueue_pos= and reads =slot[pos & mask].seq=. If
+=seq - pos == 0= the slot is free for this ticket: CAS =enqueue_pos= to =pos + 1=;
+on success construct the value and *release*-store =seq = pos + 1=. If the
+difference is negative the queue is full; if positive another producer raced
+ahead, so refresh and retry.
+
+** pop: claim a dequeue ticket, take, reopen
+
+A consumer loads =dequeue_pos= and reads =slot[pos & mask].seq=. If
+=seq - (pos + 1) == 0= the slot holds a published value: CAS =dequeue_pos= to
+=pos + 1=; on success move the value out, destroy it, and *release*-store
+=seq = pos + N=, reopening the slot for the producer that will wrap into it. A
+negative difference means empty; a positive one means another consumer raced
+ahead, so retry.
+
+#+BEGIN_EXAMPLE
+slot 0 lifecycle across one lap (N = 4):
+
+  seq=0   producer at ticket 0 claims, writes
+  seq=1   published; consumer at ticket 0 claims, takes
+  seq=4   reopened; producer at ticket 4 (next lap) may claim
+#+END_EXAMPLE
+
+** Why both ends CAS, and the orderings
+
+Both producers and consumers contend among themselves for tickets, so each side
+needs a compare-exchange on its counter; that is the one difference from
+[[file:mpsc_queue.org][mpsc_queue]] (single consumer, no consumer CAS) and [[file:spsc_queue.org][spsc_queue]] (no CAS at all).
+Data and slot-ownership both travel through the per-slot =sequence=: the writer
+publishes with a release store, the reader observes with an acquire load, so the
+constructed value is visible before any thread is told the slot is theirs. The
+counter CASes can be relaxed because the sequence handshake carries the data.
+
+* Complexity
+
+| operation                          | cost                          |
+|------------------------------------+-------------------------------|
+| push / emplace / pop / try_pop     | O(1) plus CAS retries under contention |
+| size_approx / empty / full approx  | O(1)                          |
+
+Memory is =N= slots, each an atomic sequence plus a =T='s storage, on top of two
+cache-line-aligned counters; capacity is exactly =N=. The protocol is lock-free
+and per-slot effectively wait-free (one CAS unless a competing thread wins the
+race for the same ticket).
+
+* When to use it
+
+Reach for =mpmc_queue= for general concurrent work queues fed and drained by many
+threads: thread-pool task queues, event buses, packet routing, anywhere a
+mutex-guarded queue is the bottleneck.
+
+Prefer a sibling when:
+
+- the topology is *one to one*: [[file:spsc_queue.org][spsc_queue]] avoids two CASes per operation.
+- it is *many to one*: [[file:mpsc_queue.org][mpsc_queue]] keeps the cheaper single-consumer path.
+- you need an *unbounded* queue: this is bounded by design; unbounded MPMC needs a
+  different (Michael-Scott) algorithm.
+
+Things to keep in mind:
+
+- *Bounded and fail-fast*: a push into a full queue returns =full=, a pop from an
+  empty one returns =empty=; add spin or yield in caller code for blocking.
+- *=N= must be a power of two* (enforced) for the mask wrap.
+- *Teardown must be single-threaded*: the destructor drains remaining elements
+  assuming no producer or consumer is still running.
+- *=size_approx= is a snapshot* under concurrency and may be stale immediately.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::mpmc_queue<job, 1024> q;
+
+// any number of producer threads:
+while (!q.push(make_job()).has_value()) { /* full: back off */ }
+
+// any number of consumer threads:
+while (auto j{q.try_pop()}) { run(*j); }
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/mpmc_queue.cpp][examples/container/mpmc_queue.cpp]]

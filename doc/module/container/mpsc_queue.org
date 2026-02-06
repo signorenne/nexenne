@@ -1,0 +1,134 @@
+#+TITLE: mpsc_queue
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::mpsc_queue<T, N>= is a lock-free bounded FIFO for *many
+producer threads and exactly one consumer*. Producers never block each other or
+the consumer: each reserves a slot with a single compare-exchange and publishes
+its value with a release store. It is the queue for fan-in workloads, many worker
+threads or IO threads feeding one collector, where a mutex would serialise every
+producer.
+
+* The idea
+
+With more than one producer, you can no longer just bump a tail index: two
+producers might grab the same slot. The fix is a *reservation*: producers
+atomically claim the next ticket on a shared tail counter, and each slot carries a
+*sequence number* that says whose turn it is. A producer may only write a slot
+whose sequence equals its ticket; after writing it bumps the sequence so the
+consumer knows the slot is ready. This is Vyukov's bounded-queue protocol,
+trimmed here to a single consumer (which needs no CAS on its side).
+
+* How it works
+
+** Layout: slots with sequence numbers
+
+Each slot holds an atomic =seq= plus raw storage for one =T=. =seq= is seeded to
+the slot's index. The shared =m_tail= (producers) and the consumer-only =m_head=
+sit on separate cache lines. =N= must be a power of two, so a ticket maps to a
+slot with a mask. The sequence number is the whole trick: it encodes which "lap"
+of the ring a slot is on, so producer and consumer never need to compare head
+against tail directly.
+
+#+BEGIN_EXAMPLE
+N = 4.  Each slot's seq seeded to its index:
+
+  slot   0       1       2       3
+       seq=0   seq=1   seq=2   seq=3      tail=0 (next ticket), head=0
+       [   ]   [   ]   [   ]   [   ]
+
+  seq == ticket  -> a producer may claim and write this slot
+  seq == ticket+1 -> the consumer may read it
+#+END_EXAMPLE
+
+** push: reserve a ticket, write, publish the sequence
+
+A producer loads tail and looks at =slot[tail & mask].seq=. The difference
+=seq - tail= decides everything: if *zero*, the slot is free for this ticket, so
+the producer CASes tail forward (claiming the ticket) and, on success, constructs
+the value and *release*-stores =seq = tail + 1=. If *negative*, the slot is still
+occupied a lap behind, the queue is full. If *positive*, another producer is
+mid-claim, so refresh tail and retry.
+
+#+BEGIN_EXAMPLE
+two producers race for ticket 0 (both see slot0.seq==0, diff==0):
+
+  P1 CAS tail 0->1 succeeds   P2 CAS fails, tail now 1, retries at ticket 1
+  P1 constructs at slot 0
+  P1 seq.store(1, release)    <-- slot 0 now readable by the consumer
+  P2 claims ticket 1 at slot 1, and so on
+#+END_EXAMPLE
+
+** pop: read the sequence at the head, take, free the slot
+
+The lone consumer reads =slot[head & mask].seq=. If =seq - (head + 1)= is
+negative the slot is not yet published, the queue is empty. Otherwise it moves the
+value out, destroys it, and *release*-stores =seq = head + N=, which reopens the
+slot for the producer that wraps into it one full lap later, then advances head
+(relaxed, since it is the only writer of head).
+
+#+BEGIN_EXAMPLE
+consumer at head=0 reads slot0.seq==1:  diff = 1 - (0+1) = 0  -> ready
+  take value, destroy
+  slot0.seq.store(0 + N, release)   <-- free for the producer at ticket N
+  head = 1
+#+END_EXAMPLE
+
+** Why a CAS on the producer but not the consumer
+
+Producers contend for tickets, so reserving the tail needs an atomic
+read-modify-write (the CAS). The single consumer owns head outright, so it just
+loads, takes, and stores, no CAS. Data crosses threads through each slot's =seq=
+(release on the write side, acquire on the read side); the tail CAS itself can be
+relaxed because the =seq= handshake, not the counter, carries the data.
+
+* Complexity
+
+| operation                          | cost                          |
+|------------------------------------+-------------------------------|
+| push / emplace                     | O(1) plus CAS retries under contention |
+| pop / try_pop                      | O(1)                          |
+| size_approx / empty_approx         | O(1)                          |
+
+Memory is =N= slots, each an atomic sequence plus one =T='s storage, on top of two
+cache-line-aligned counters. Capacity is exactly =N= (the sequence numbers
+distinguish full from empty, so no sentinel slot is wasted). Under heavy producer
+contention the CAS can retry, but it is still far cheaper than a contended mutex.
+
+* When to use it
+
+Reach for =mpsc_queue= for fan-in: many worker threads posting results or log
+records to one collector, several network IO threads feeding one game thread,
+multi-source telemetry to a single reporter.
+
+Prefer a sibling when:
+
+- there is *one producer*: [[file:spsc_queue.org][spsc_queue]] drops the CAS entirely and is cheaper.
+- there are *many consumers*: [[file:mpmc_queue.org][mpmc_queue]] adds the matching CAS on the consumer
+  side.
+- you are *single-threaded*: [[file:ring_buffer.org][ring_buffer]] is the lock-free machinery removed.
+
+Things to keep in mind:
+
+- *Exactly one consumer.* Calling =pop= from two threads is a data race; the type
+  cannot detect it. Many producers are fine.
+- *=N= must be a power of two* (enforced by a constraint) so the ticket-to-slot
+  map is a mask.
+- *Full and empty fail fast*; spin, yield, or back off in caller code if you want
+  blocking behaviour.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::mpsc_queue<task, 1024> q;
+
+// any number of producer threads:
+while (!q.push(make_task()).has_value()) { /* full: back off */ }
+
+// the single consumer thread:
+while (auto t{q.try_pop()}) { run(*t); }
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/mpsc_queue.cpp][examples/container/mpsc_queue.cpp]]
