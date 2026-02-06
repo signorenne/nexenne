@@ -37,6 +37,7 @@ region freed all at once.
 * Integration
 
 - [[file:hash.org][hash]] : =std::hash= specializations so value containers work as hashed keys.
+- [[file:format.org][format]] : =to_string=, =operator<<=, and =std::formatter= for debug printing.
 
 * Value containers
 

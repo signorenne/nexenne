@@ -1,0 +1,64 @@
+#+TITLE: format
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=format.hpp= is an aggregator header that makes the nexenne containers printable
+for diagnostics. Including it gives each supported container three layers of
+output: a =to_string(x)= free function, a =std::ostream= inserter
+(=operator<<=), and a =std::formatter= specialization so =std::format("{}", x)=
+and =std::print= work. The output is meant for humans and logs, *not*
+serialisation: the format is not stable across library versions.
+
+* What it provides
+
+For each printable container, the same three entry points, all routed through one
+=to_string=:
+
+- =to_string(x)= builds the string.
+- =operator<<(os, x)= streams =to_string(x)=.
+- =std::formatter<X>= forwards to =to_string(x)= for =std::format= / =std::print=.
+
+The element type must itself be formattable (have a =std::formatter=), since the
+helpers format each element with =std::format("{}", e)=.
+
+* Output shapes
+
+The bracket style signals the container's character:
+
+| shape                | containers                                                |
+|----------------------+-----------------------------------------------------------|
+| =name[a, b, c]=      | sequences: static_vector, small_vector, stable_vector, ring_buffer, gap_buffer, bag, slot_map, intrusive_list, heap |
+| =name{a, b, c}=      | sets: sparse_set, flat_hash_set, binary_tree              |
+| =name{k: v, ...}=    | maps: flat_hash_map, dense_map                            |
+| bespoke              | bitset_dynamic (=0b= bits, MSB-first), bimap (=l <-> r=), graph (=v:[neighbours]=), trie (quoted keys), union_find (grouped sets), indexed_priority_queue (=handle->value=) |
+
+Map and multi-line shapes whose iteration order is unspecified (the hashed
+containers) print in whatever order the container iterates, so two equal maps may
+print their entries in different orders.
+
+* Requirements and gotchas
+
+- *Diagnostics, not serialisation.* The exact text is for reading and is free to
+  change between versions; do not parse it back.
+- *Element must be formattable.* A container of a type without a =std::formatter=
+  is not printable; the specialization is only instantiated when used.
+- *Order reflects iteration.* For the hashed containers the entry order is
+  unspecified, so the printed order is too.
+- *bitset_dynamic prints MSB-first* (the conventional binary-literal direction),
+  so bit 0 is the rightmost character.
+
+* Usage
+
+#+BEGIN_SRC cpp
+#include <nexenne/container/format.hpp>
+#include <print>
+
+nexenne::container::static_vector<int, 8> v{/* ... */};
+std::println("{}", v);                 // static_vector[1, 2, 3]
+std::cout << v << '\n';                // same text via the stream inserter
+auto s{nexenne::container::to_string(v)};   // or build the string directly
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/format.cpp][examples/container/format.cpp]]
