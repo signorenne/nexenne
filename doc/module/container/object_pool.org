@@ -89,10 +89,13 @@ copies it, so an immovable or non-copyable =T= (a mutex, an atomic, a type with
 deleted move) works exactly like any other.
 
 Both =release= and =destroy= validate =p=: =container_error::not_found= for a
-null pointer, =container_error::out_of_range= for a pointer that does not fall
-within this pool's slot array (a range check against the slots' address span).
-They do not, and cannot cheaply, detect a double release of a still-in-range
-slot.
+null pointer, =container_error::out_of_range= for a pointer that is not a
+currently-acquired slot. The pool keeps a per-slot =bool= acquired flag (set on
+=acquire=, cleared on =release=/=destroy=), so the validation rejects three cases:
+a pointer outside the slots' address span, an interior or misaligned pointer that
+is not a slot base, and a slot that is not currently handed out (never acquired,
+or already released). A double release therefore returns =out_of_range= instead
+of corrupting the free list.
 
 ** High-water mark
 
@@ -111,8 +114,8 @@ instead of guessing.
 | high_water_mark                     | O(1) |
 
 Memory is =N= slots of =sizeof(T)= (each =alignof(T)=-aligned) plus the free
-list of =N= pointers, all inline, allocated once at construction and never
-again.
+list of =N= pointers and an =N=-element array of per-slot acquired flags, all
+inline, allocated once at construction and never again.
 
 * When to use it
 
@@ -143,11 +146,13 @@ Gotchas:
   destructor *silently skipped* (a leaked socket, an unlocked-forever mutex)
   unless you =std::destroy_at= it first. Use the object tier (=destroy=) and this
   cannot happen.
-- *No double-free or use-after-release guard.* Releasing the same in-range slot
-  twice pushes it onto the free list twice, so a later =acquire= can hand the
-  same slot to two callers. Reading or writing through a pointer after releasing
-  it is a use-after-free against whoever acquired it next. The pointer validation
-  only catches null and out-of-range, not these.
+- *Double release is rejected, but use-after-release is not.* Releasing the same
+  slot twice returns =container_error::out_of_range= (the per-slot acquired flag
+  is already clear), so the free list cannot be corrupted into handing one slot
+  to two callers. What the pool still cannot catch is a stale pointer you keep
+  reading or writing *after* a valid release: once the slot is reacquired by
+  someone else, that is a use-after-free against them. Release a handle exactly
+  once and stop using it.
 - *Non-copyable and non-movable.* The pool hands out interior pointers, so all
   copy and move operations are deleted. A handle from =acquire= or =emplace=
   stays valid until you release it, and the pool itself must outlive every
