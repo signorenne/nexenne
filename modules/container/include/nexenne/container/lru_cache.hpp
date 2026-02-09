@@ -36,8 +36,12 @@ namespace nexenne::container {
 /**
  * @brief Fixed-capacity cache with least-recently-used eviction.
  *
- * @tparam Key Hashable key type.
- * @tparam Value Mapped value type; must be move-constructible.
+ * @tparam Key Key type; must be default-constructible and movable. The node
+ *             pool is pre-sized at construction (so keys are value-initialised)
+ *             and \c put places a key by move-assignment.
+ * @tparam Value Mapped value type; must be default-constructible and movable,
+ *               for the same reason (the pool is pre-sized and \c put
+ *               move-assigns the value into a reused node).
  * @tparam Hash Hash functor; \c std::hash<Key> by default.
  * @tparam KeyEq Equality predicate; \c std::equal_to<Key> by default.
  *
@@ -46,9 +50,11 @@ namespace nexenne::container {
  */
 template <
   typename Key,
-  std::move_constructible Value,
+  typename Value,
   typename Hash = std::hash<Key>,
   typename KeyEq = std::equal_to<Key>>
+  requires std::default_initializable<Key> && std::movable<Key> && std::default_initializable<Value>
+           && std::movable<Value>
 class lru_cache {
 public:
   using key_type = Key;
