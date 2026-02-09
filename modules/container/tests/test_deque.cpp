@@ -208,4 +208,25 @@ TEST_CASE("nexenne::container::deque push_back picks copy vs move (no extra move
   CHECK(moves == 1);
 }
 
+TEST_CASE("nexenne::container::deque self-referential push at capacity stays valid") {
+  // A push that grows must materialize its argument before freeing the old
+  // buffer; otherwise an argument aliasing an existing element dangles (asan
+  // would trap, and the value would be garbage).
+  cn::deque<int> back_d;
+  for (int i = 0; i < 8; ++i) {
+    back_d.push_back(i);
+  }
+  REQUIRE(back_d.size() == back_d.capacity());  // full: next push_back reallocates
+  back_d.push_back(back_d[0]);                  // argument aliases element 0
+  CHECK(*back_d.back() == 0);
+
+  cn::deque<int> front_d;
+  for (int i = 0; i < 8; ++i) {
+    front_d.push_back(i);
+  }
+  REQUIRE(front_d.size() == front_d.capacity());    // full: next push_front reallocates
+  front_d.push_front(front_d[front_d.size() - 1]);  // argument aliases the last element
+  CHECK(*front_d.front() == 7);
+}
+
 }  // namespace
