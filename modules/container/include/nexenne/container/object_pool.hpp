@@ -77,16 +77,28 @@ private:
 
   std::array<slot, N> m_slots{};
   static_vector<slot*, N> m_free{};
+  std::array<bool, N> m_acquired{};
   size_type m_high_water{0};
 
-  // A slot has its storage at offset 0, so a T* into a slot is the slot's
-  // address; recover the slot and range-check it against this pool.
-  [[nodiscard]] auto slot_of(T* const ptr) noexcept -> slot* {
-    return reinterpret_cast<slot*>(ptr);
-  }
-
-  [[nodiscard]] auto contains_slot(slot const* const target) const noexcept -> bool {
-    return target >= m_slots.data() && target < m_slots.data() + N;
+  // Maps a pointer handed out by acquire/emplace back to its slot index, or
+  // returns N when ptr is not a currently-acquired slot of this pool: a foreign
+  // pointer, an interior/misaligned pointer, or one already released. Byte
+  // arithmetic avoids forming an out-of-bounds slot* for a stray pointer.
+  [[nodiscard]] auto acquired_index(T const* const ptr) const noexcept -> size_type {
+    auto const* const base{reinterpret_cast<std::byte const*>(m_slots.data())};
+    auto const* const p{reinterpret_cast<std::byte const*>(ptr)};
+    if (p < base || p >= base + N * sizeof(slot)) {
+      return N;  // outside this pool's storage
+    }
+    auto const offset{static_cast<size_type>(p - base)};
+    if (offset % sizeof(slot) != 0) {
+      return N;  // interior or misaligned pointer, not a slot base
+    }
+    auto const index{offset / sizeof(slot)};
+    if (!m_acquired[index]) {
+      return N;  // never acquired, or already released
+    }
+    return index;
   }
 
 public:
@@ -216,6 +228,7 @@ public:
     }
     auto* const target{*m_free.back()};
     static_cast<void>(m_free.pop_back());
+    m_acquired[static_cast<size_type>(target - m_slots.data())] = true;
     auto const live{N - m_free.size()};
     if (live > m_high_water) {
       m_high_water = live;
@@ -229,8 +242,9 @@ public:
    * @param ptr A pointer previously returned by \c acquire or \c emplace.
    *
    * @return Nothing on success, \c container_error::not_found when \p ptr is
-   *         null, or \c container_error::out_of_range when \p ptr is not one of
-   *         this pool's slots.
+   *         null, or \c container_error::out_of_range when \p ptr is not a
+   *         currently-acquired slot of this pool (foreign, interior, or already
+   *         released).
    *
    * @pre Any object constructed in the slot has already been destroyed.
    * @post On success the slot is free and \c size() shrank by one; on failure
@@ -242,11 +256,12 @@ public:
     if (ptr == nullptr) {
       return std::unexpected{container_error::not_found};
     }
-    auto* const target{slot_of(ptr)};
-    if (!contains_slot(target)) {
+    auto const index{acquired_index(ptr)};
+    if (index == N) {
       return std::unexpected{container_error::out_of_range};
     }
-    static_cast<void>(m_free.push_back(target));
+    m_acquired[index] = false;
+    static_cast<void>(m_free.push_back(&m_slots[index]));
     return {};
   }
 
@@ -282,8 +297,9 @@ public:
    *            constructed in an \c acquire slot.
    *
    * @return Nothing on success, \c container_error::not_found when \p ptr is
-   *         null, or \c container_error::out_of_range when \p ptr is not one of
-   *         this pool's slots.
+   *         null, or \c container_error::out_of_range when \p ptr is not a
+   *         currently-acquired slot of this pool (foreign, interior, or already
+   *         released).
    *
    * @pre \p ptr refers to a live object owned by this pool.
    * @post On success the object is destroyed, the slot is free, and \c size()
@@ -295,12 +311,13 @@ public:
     if (ptr == nullptr) {
       return std::unexpected{container_error::not_found};
     }
-    auto* const target{slot_of(ptr)};
-    if (!contains_slot(target)) {
+    auto const index{acquired_index(ptr)};
+    if (index == N) {
       return std::unexpected{container_error::out_of_range};
     }
+    m_acquired[index] = false;
     std::destroy_at(ptr);
-    static_cast<void>(m_free.push_back(target));
+    static_cast<void>(m_free.push_back(&m_slots[index]));
     return {};
   }
 };

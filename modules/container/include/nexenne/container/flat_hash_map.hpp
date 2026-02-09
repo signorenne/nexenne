@@ -19,6 +19,12 @@
  * 7/8 of the slots. Reach for it as a general hashable-key map in hot paths; use
  * \c dense_map when the keys are dense integers. Every operation is \c noexcept;
  * allocation failure terminates. \p Value must be move-constructible.
+ *
+ * The value of an entry may be changed in place through an iterator, but the key
+ * must not be: a slot caches its key's hash and probe position, so rewriting a
+ * key through an iterator leaves it unfindable and breaks later probes and
+ * erases. Treat the key reached through an iterator as read-only (the same
+ * caller contract as \c flat_map's ordering key).
  */
 
 #include <bit>

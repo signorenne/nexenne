@@ -27,6 +27,7 @@
 #include <compare>
 #include <concepts>
 #include <cstddef>
+#include <exception>
 #include <expected>
 #include <initializer_list>
 #include <iterator>
@@ -89,6 +90,12 @@ private:
     if (new_capacity <= m_capacity) {
       return;
     }
+    if (new_capacity > max_size()) {
+      // new_capacity * sizeof(T) would overflow the byte count and yield an
+      // undersized allocation; the request is unsatisfiable, so fail loudly
+      // rather than silently corrupt the heap. Allocation failure is fatal.
+      std::terminate();
+    }
     auto* const fresh{
       static_cast<T*>(::operator new(new_capacity * sizeof(T), std::align_val_t{alignof(T)}))
     };
@@ -101,10 +108,14 @@ private:
     m_capacity = new_capacity;
   }
 
-  auto grow_for_one() noexcept -> void {
-    if (m_size == m_capacity) {
-      grow_to(m_capacity == 0 ? size_type{1} : m_capacity * 2);
+  // The next capacity for a one-past-full growth: double, but clamp to
+  // max_size() so the doubling cannot itself overflow size_type (which would
+  // wrap to a value <= m_capacity and turn the grow into a silent no-op).
+  [[nodiscard]] auto next_capacity() const noexcept -> size_type {
+    if (m_capacity == 0) {
+      return size_type{1};
     }
+    return m_capacity > max_size() / 2 ? max_size() : m_capacity * 2;
   }
 
   // Takes ownership of other's elements into a freshly-reset *this (m_data is
@@ -523,7 +534,7 @@ public:
       // block, so an argument aliasing an existing element (push_back(v[i]))
       // stays valid across the reallocation.
       T value{std::forward<Args>(args)...};
-      grow_to(m_capacity == 0 ? size_type{1} : m_capacity * 2);
+      grow_to(next_capacity());
       std::construct_at(m_data + m_size, std::move(value));
     } else {
       std::construct_at(m_data + m_size, std::forward<Args>(args)...);

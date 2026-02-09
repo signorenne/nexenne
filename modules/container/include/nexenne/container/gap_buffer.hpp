@@ -66,6 +66,64 @@ public:
 
   static constexpr size_type initial_gap{16};
 
+  /// @brief Copies another buffer, including its gap layout.
+  constexpr gap_buffer(gap_buffer const&) = default;
+
+  /**
+   * @brief Copy-assigns another buffer, including its gap layout.
+   *
+   * @param other Buffer to copy.
+   *
+   * @return A reference to this buffer.
+   *
+   * @pre None.
+   * @post This buffer holds a copy of \p other.
+   */
+  constexpr auto operator=(gap_buffer const& other) -> gap_buffer& = default;
+
+  /**
+   * @brief Moves another buffer, leaving the source a valid empty buffer.
+   *
+   * The defaulted move would steal \p other's vector (emptying it) while copying
+   * its gap indices, leaving \p other with a gap past its now-empty storage and
+   * a \c size() that underflows. This resets the moved-from indices so the source
+   * stays a usable empty buffer.
+   *
+   * @param other Buffer to move from; left empty.
+   *
+   * @pre None.
+   * @post \p other is empty with no gap.
+   */
+  constexpr gap_buffer(gap_buffer&& other) noexcept
+      : m_buffer{std::move(other.m_buffer)}
+      , m_gap_begin{other.m_gap_begin}
+      , m_gap_end{other.m_gap_end} {
+    other.m_gap_begin = 0;
+    other.m_gap_end = 0;
+  }
+
+  /**
+   * @brief Move-assigns another buffer, leaving the source a valid empty buffer.
+   *
+   * @param other Buffer to move from; left empty unless it is \c *this.
+   *
+   * @return A reference to this buffer.
+   *
+   * @pre None.
+   * @post \p other is empty with no gap (unless self-assigned).
+   */
+  constexpr auto operator=(gap_buffer&& other) noexcept -> gap_buffer& {
+    if (this == &other) {
+      return *this;
+    }
+    m_buffer = std::move(other.m_buffer);
+    m_gap_begin = other.m_gap_begin;
+    m_gap_end = other.m_gap_end;
+    other.m_gap_begin = 0;
+    other.m_gap_end = 0;
+    return *this;
+  }
+
 private:
   std::vector<T> m_buffer;
   size_type m_gap_begin{0};  // index of the first gap slot
@@ -317,8 +375,13 @@ public:
    */
   constexpr auto shrink_to_fit() noexcept -> void {
     auto const post_count{m_buffer.size() - m_gap_end};
-    for (size_type i{0}; i < post_count; ++i) {
-      m_buffer[m_gap_begin + i] = std::move(m_buffer[m_gap_end + i]);
+    // Skip when the gap is already closed (m_gap_begin == m_gap_end): the post
+    // elements are already packed and the move would self-assign, corrupting a
+    // non-trivial T.
+    if (m_gap_begin != m_gap_end) {
+      for (size_type i{0}; i < post_count; ++i) {
+        m_buffer[m_gap_begin + i] = std::move(m_buffer[m_gap_end + i]);
+      }
     }
     m_buffer.resize(m_gap_begin + post_count);
     m_buffer.shrink_to_fit();
@@ -387,10 +450,18 @@ public:
     while (m_gap_begin > pos) {  // shift the gap left
       --m_gap_begin;
       --m_gap_end;
-      m_buffer[m_gap_end] = std::move(m_buffer[m_gap_begin]);
+      // With an empty gap m_gap_begin == m_gap_end, so this would self-move
+      // (a = std::move(a)), which empties a std::string and the like. Moving the
+      // cursor across a zero-width gap only reclassifies the boundary element,
+      // no relocation needed.
+      if (m_gap_end != m_gap_begin) {
+        m_buffer[m_gap_end] = std::move(m_buffer[m_gap_begin]);
+      }
     }
-    while (m_gap_begin < pos) {  // shift the gap right
-      m_buffer[m_gap_begin] = std::move(m_buffer[m_gap_end]);
+    while (m_gap_begin < pos) {        // shift the gap right
+      if (m_gap_begin != m_gap_end) {  // skip a self-move when the gap is empty
+        m_buffer[m_gap_begin] = std::move(m_buffer[m_gap_end]);
+      }
       ++m_gap_begin;
       ++m_gap_end;
     }

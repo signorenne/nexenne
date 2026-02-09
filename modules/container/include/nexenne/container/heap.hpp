@@ -44,14 +44,15 @@ namespace nexenne::container {
 /**
  * @brief Binary heap over a std::vector with a configurable ordering.
  *
- * @tparam T Element type; must be move-constructible.
+ * @tparam T Element type; must be movable (the heap algorithms move-assign
+ *           elements while sifting).
  * @tparam Compare Strict weak ordering; \c std::less<T> (the default) yields a
  *                 max-heap, \c std::greater<T> a min-heap.
  *
  * @pre None.
  * @post A default-constructed heap is empty.
  */
-template <std::move_constructible T, typename Compare = std::less<T>>
+template <std::movable T, typename Compare = std::less<T>>
   requires std::strict_weak_order<Compare const&, T const&, T const&>
 class heap {
 public:
