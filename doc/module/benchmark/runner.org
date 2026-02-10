@@ -1,0 +1,131 @@
+#+TITLE: nexenne::benchmark - the runner
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=run("name", fn)= times a no-argument callable and returns a =result= carrying
+per-sample statistics. =run_with_setup("name", setup, fn)= does the same but
+runs (untimed) =setup= before each timed call, for benchmarks that need fresh
+state per iteration. =compare(baseline, candidate)= reports how much faster one
+result is than another.
+
+* The idea
+
+A correct micro-benchmark has to beat three sources of error at once: timer
+resolution (a single =clock::now()= pair cannot resolve a few-nanosecond
+routine), scheduling noise (one run can be interrupted by the OS, another not),
+and the optimiser (an unused result is deleted, see [[file:anti-dce.org][anti-DCE]]). The runner
+beats the first by calling =fn= many times per clock reading, beats the second
+by taking several independent samples and reporting their spread, and leaves the
+third to you via =do_not_optimize=.
+
+* How it works
+
+** Calibration picks the iteration count
+
+The runner does not ask you how many times to call =fn=; it measures. One
+calibration call is timed:
+
+#+BEGIN_EXAMPLE
+  t0 = clock::now();  fn();  t1 = clock::now();
+  single_ns = t1 - t0;             // rough cost of one call
+  iters = target_duration / single_ns;   // calls that fit the budget
+#+END_EXAMPLE
+
+So a 10 ns routine against the default 100 ms budget runs about 10 million times
+per sample; a 1 ms routine runs about 100 times. Each sample batch then aims to
+take =target_duration=, regardless of how fast =fn= is. Two edge cases are
+handled: if the single call is too fast to register (=single_ns == 0=), the
+runner falls back to 1024 iterations and lets the real timing refine the picture;
+and =min_iterations= sets a hard floor so a batch always runs at least that many
+calls. The iteration count is finally clamped to at least one, so even a
+zero =min_iterations= against a tiny budget cannot produce a divide-by-zero in
+the per-batch mean.
+
+** Sample batches produce the statistics
+
+With =iters= fixed, the runner takes =sample_count= independent batches (default
+10). Each batch wraps the whole inner loop in a single clock pair, so timer
+resolution is amortised across all =iters= calls:
+
+#+BEGIN_EXAMPLE
+  for s in 0 .. sample_count:
+      start = clock::now()
+      repeat iters times: fn()
+      end = clock::now()
+      sample_mean[s] = (end - start) / iters    // ns per call, this batch
+#+END_EXAMPLE
+
+The =result= holds the vector of per-batch means (=samples()=) and computes mean,
+median (sorted copy, untouched data), Bessel-corrected =stddev= (the =n-1=
+unbiased estimator), =min=, =max=, and the coefficient of variation
+=cv = stddev / mean=. The =cv= is the honest noise gauge: below roughly 5% the
+measurement is reliable; above roughly 10% background noise dominates and you
+should distrust the number. An optional warmup batch runs first and is discarded,
+so cache and CPU-frequency warm-up does not skew the first real sample.
+
+** run_with_setup times only fn
+
+When each iteration needs fresh state (the classic "insert into an *empty*
+container"), plain =run= with a captured container would let it grow across
+iterations and skew later calls. =run_with_setup= instead times =fn= alone:
+
+#+BEGIN_EXAMPLE
+  repeat iters times:
+      setup()                 // not timed (e.g. m.clear())
+      t0 = clock::now(); fn(); t1 = clock::now()
+      accumulate (t1 - t0)
+#+END_EXAMPLE
+
+The trade-off is one clock pair per iteration (tens of ns of overhead), so this
+form suits microsecond-and-up routines. Calibration measures =fn= alone for the
+reported timing but caps =iters= by the combined =setup + fn= wall cost, so an
+expensive =setup= cannot make a run unbounded.
+
+** compare reports a direction
+
+=compare(baseline, candidate)= stores pointers to two results (it copies
+nothing, so both must outlive it) and exposes =ratio()= (candidate / baseline)
+and =speedup()= (baseline / candidate). Its =to_string= prints both summaries
+and a final line normalised to read at least =1.00x=, naming the direction
+("faster" / "slower") explicitly so it cannot be misread.
+
+* Complexity
+
+| operation         | cost                                              |
+|-------------------+---------------------------------------------------|
+| run               | sample_count x iters calls to fn, plus calibration |
+| run_with_setup    | adds one setup call and one clock pair per iter   |
+| result statistics | O(n) per stat, O(n log n) for the median, n = samples |
+| compare           | O(1), reads two means                             |
+
+* When to use it
+
+Reach for =run= for any pure, repeatable routine; add =do_not_optimize= on an
+output or the measurement is fiction. Reach for =run_with_setup= when each call
+must start from fresh state and the routine is microseconds or longer. Tune
+=config=: raise =sample_count= or =target_duration= when the =cv= is high, lower
+them for faster turnaround. Read =cv= before trusting any single number, prefer
+=median= over =mean= when outliers are present, and use =min= as the
+least-disturbed estimate of the true cost. For memory-bandwidth-shaped work,
+=items_per_second= / =bytes_per_second= convert ns/iter into throughput.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace bm = nexenne::benchmark;
+
+auto const sorted{bm::run("sort 1k", [&] noexcept {
+    auto v{data};                 // copy: each call sorts fresh input
+    std::ranges::sort(v);
+    bm::do_not_optimize(v);       // without this the sort may vanish
+})};
+sorted.print();                   // label, median, mean +/- stddev, cv, range
+
+auto const a{bm::run("variant a", fn_a)};
+auto const b{bm::run("variant b", fn_b)};
+bm::compare(a, b).print();        // both summaries + "candidate is N.NNx faster"
+#+END_SRC
+
+Runnable: [[file:../../../examples/benchmark/compare_sorts.cpp][examples/benchmark/compare_sorts.cpp]].

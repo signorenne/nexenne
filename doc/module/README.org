@@ -31,12 +31,20 @@ Follow a module to its own index, which lists, per class it provides, a guide
   distributions (normal, exponential, gamma, Poisson, discrete), and sampling
   (shuffle, reservoir, weighted choice). Deterministic across platforms, unlike
   =std::random='s implementation-defined distributions.
+- [[file:benchmark/README.org][benchmark]] (needs =chrono=) : a micro-benchmark runner that auto-tunes the
+  iteration count, takes multiple samples, and reports mean, median, stddev, and
+  a noise gauge (=run=, =run_with_setup=, =compare=), plus the =do_not_optimize=
+  and =clobber_memory= anti-dead-code primitives every honest benchmark needs. It
+  reuses =chrono='s auto-scaling duration formatter for its ns/us/ms/s timings.
 
 * Dependency layering
 
 A module may only use the modules below it; the build refuses a cycle.
 
 #+BEGIN_EXAMPLE
+  benchmark     micro-benchmark runner
+     |
+     v
   container     vectors, maps, sets, queues, trees, graphs
   chrono        clock-templated timing primitives
      |
