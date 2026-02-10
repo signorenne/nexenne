@@ -81,6 +81,19 @@ TEST_CASE("nexenne::chrono::extract_parts rounds milliseconds::max() without ove
   CHECK_FALSE(s.empty());
 }
 
+TEST_CASE("nexenne::chrono::format_scaled auto-scales to a single SI unit") {
+  using ns_d = std::chrono::duration<double, std::nano>;
+  CHECK(ch::format_scaled(ns_d{0.0}) == "0.00 ns");
+  CHECK(ch::format_scaled(ns_d{999.0}) == "999.00 ns");
+  CHECK(ch::format_scaled(ns_d{4170.0}) == "4.17 us");  // sub-ms resolution
+  CHECK(ch::format_scaled(ns_d{1000.0}) == "1.00 us");  // exact boundary
+  CHECK(ch::format_scaled(std::chrono::milliseconds{5}) == "5.00 ms");
+  CHECK(ch::format_scaled(std::chrono::seconds{2}) == "2.00 s");
+  CHECK(ch::format_scaled(ns_d{-4170.0}) == "-4.17 us");  // sign preserved
+  CHECK(ch::format_scaled(ns_d{4170.0}, 1) == "4.2 us");  // precision honoured
+  CHECK(ch::format_scaled(ns_d{-0.0}) == "0.00 ns");      // negative zero normalised
+}
+
 TEST_CASE("nexenne::chrono duration_parts std::formatter") {
   auto const p{ch::extract_parts(65s)};
   CHECK(std::format("{}", p) == "01m:05s");
