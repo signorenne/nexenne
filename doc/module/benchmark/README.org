@@ -1,0 +1,36 @@
+#+TITLE: nexenne::benchmark
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+A small, focused micro-benchmark runner with no dependencies. You hand it a
+callable, it auto-tunes how many times to call it, runs several independent
+sample batches, and reports mean, median, stddev, min, max, and a coefficient of
+variation so you can tell signal from noise. It also ships the two anti-dead-code
+primitives every honest micro-benchmark needs, without which the compiler is
+free to delete the code you are trying to measure and report a meaningless zero.
+
+It does one thing well and deliberately stays small: no registration macros, no
+fixtures, no threading, no statistical p-values, no memory profiling. Use lambda
+captures for state and external tools (perf, valgrind) for everything else.
+
+* Running a benchmark
+
+- [[file:runner.org][the runner]] : =run= and =run_with_setup=, the =config= knobs, and the =result=
+  and =comparison= objects. Covers how calibration picks the iteration count, how
+  the sample batches produce the statistics, and how =compare= reports a speedup.
+
+* Keeping the compiler honest
+
+- [[file:anti-dce.org][anti-DCE primitives]] : =do_not_optimize= and =clobber_memory=, the standard
+  inline-asm idioms that stop the optimiser from folding away the work under
+  test. The single most important thing to get right in a micro-benchmark.
+
+* Why it exists
+
+Timing a short routine correctly is deceptively hard: a single clock reading is
+swamped by timer resolution, one run is swamped by scheduling noise, and an
+unused result is swamped by the optimiser deleting it. This module handles all
+three: it amortises timer resolution by running many iterations per reading,
+amortises noise by taking many samples and reporting their spread, and gives you
+=do_not_optimize= to defeat dead-code elimination. The numbers are only as good
+as the anti-DCE discipline, so read that guide first if you read only one.

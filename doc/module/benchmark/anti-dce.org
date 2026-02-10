@@ -1,0 +1,116 @@
+#+TITLE: nexenne::benchmark - anti-DCE primitives
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=do_not_optimize(value)= forces the compiler to treat =value= as observed at
+that point, so the computation that produced it cannot be deleted.
+=clobber_memory()= is a compiler barrier that forces pending stores to be
+considered visible, so writes into a buffer are not merged away. They are the
+single most important tool for an honest micro-benchmark.
+
+* The idea
+
+The C++ as-if rule lets a compiler do anything that does not change observable
+behaviour. A benchmark loop that computes a result and never uses it has *no*
+observable behaviour, so the optimiser is entirely within its rights to delete
+the whole loop and leave you timing nothing. The classic trap:
+
+#+BEGIN_EXAMPLE
+  for (int i = 0; i < n; ++i) {
+      auto x = expensive(i);   // result unused -> the call can be deleted
+  }
+  // measured time: ~0 ns. The benchmark is a lie.
+#+END_EXAMPLE
+
+=do_not_optimize= breaks the as-if reasoning by introducing a fake observation
+the compiler must honour, without emitting any real instruction.
+
+* How it works
+
+** do_not_optimize(value) on GCC and Clang
+
+The primitive is an empty inline-asm statement that *claims* to read =value=:
+
+#+BEGIN_EXAMPLE
+  asm volatile("" : : "r,m"(value) : "memory");
+#+END_EXAMPLE
+
+Reading the pieces:
+- The instruction string is empty: zero machine instructions are emitted.
+- =volatile= forbids the compiler from deleting the asm or hoisting it out of
+  the loop.
+- The input constraint ="r,m"(value)= tells the compiler "this asm consumes
+  =value=, placed in a register or in memory". To satisfy that, =value= must be
+  fully computed and held live at this exact point, which is precisely what we
+  want: the computation behind it can no longer be dead.
+- The ="memory"= clobber says the asm may have touched arbitrary memory, so the
+  compiler may not reorder surrounding memory accesses across it.
+
+The mutable overload =do_not_optimize(T& value)= uses a read-write constraint
+(="+r,m"= on Clang, ="+m,r"= on GCC, the two compilers prefer the operands
+listed in opposite order) so the compiler treats =value= as both read *and*
+written, the right model for a routine that mutates in place. Non-const lvalues
+pick this overload; everything else binds the const-reference read-only form.
+
+** clobber_memory() on GCC and Clang
+
+#+BEGIN_EXAMPLE
+  asm volatile("" : : : "memory");
+#+END_EXAMPLE
+
+Same empty volatile asm with only the ="memory"= clobber and no operand. It is a
+pure compiler barrier: pending stores must be assumed visible and memory
+accesses may not move across it. Use it after writing into a buffer whose
+contents are never read back, so the stores are not store-merged into oblivion.
+
+** Other compilers
+
+On MSVC the value is bound to a =volatile= reference (a read the compiler may not
+elide) followed by =_ReadWriteBarrier()=, an intrinsic compiler barrier;
+slightly worse codegen than the inline-asm form but enough to defeat DCE. On an
+unrecognised compiler only the volatile read remains, with a no-op barrier and a
+documented warning that numbers may be unreliable, so prefer a supported
+toolchain. All three forms are force-inlined (=[[gnu::always_inline]]= /
+=__forceinline=): a primitive that became a real function call would dwarf the
+cost it is meant to protect.
+
+* When to use it
+
+Put a =do_not_optimize= on at least one output of every benchmark body; if the
+routine returns nothing observable, protect an intermediate. Use
+=clobber_memory= when the work is a series of stores whose result is never read
+(a memset-shaped loop, filling a scratch buffer). Both are zero-instruction
+markers, so they do not perturb the measurement, they only stop the optimiser
+from perturbing it for you. Forgetting them is the most common reason a
+micro-benchmark reports an impossibly fast time.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace bm = nexenne::benchmark;
+
+auto const r{bm::run("hash 64 bytes", [&] noexcept {
+    auto const h{hash(buffer)};
+    bm::do_not_optimize(h);        // keep the hash (and so the hashing) alive
+})};
+
+bm::run("fill scratch", [&] noexcept {
+    std::ranges::fill(scratch, std::byte{0});
+    bm::clobber_memory();          // the stores are never read; keep them anyway
+});
+#+END_SRC
+
+Runnable: [[file:../../../examples/benchmark/compare_sorts.cpp][examples/benchmark/compare_sorts.cpp]].
+
+* Further reading
+
+- Chandler Carruth, "Tuning C++: Benchmarks, and CPUs, and Compilers! Oh My!",
+  CppCon 2015, the talk that popularised these two idioms.
+  https://www.youtube.com/watch?v=nXaxk27zwlk
+- Google Benchmark, =benchmark::DoNotOptimize= / =benchmark::ClobberMemory=, the
+  same constructs in the de facto standard library.
+  https://github.com/google/benchmark
+- GCC manual, Extended Asm (operand constraints and the "memory" clobber).
+  https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html
