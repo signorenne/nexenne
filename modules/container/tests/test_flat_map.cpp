@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <nexenne/container/flat_map.hpp>
@@ -135,5 +136,30 @@ TEST_CASE("nexenne::container::flat_map honours a custom comparator") {
   }
   CHECK(keys == std::vector{3, 2, 1});  // descending keys
 }
+
+TEST_CASE("nexenne::container::flat_map heterogeneous lookup with a transparent comparator") {
+  cn::flat_map<std::string, int, std::less<>> m{{"alpha", 1}, {"beta", 2}, {"gamma", 3}};
+  // string_view lookups resolve without constructing a temporary std::string.
+  REQUIRE(m.find(std::string_view{"beta"}) != m.end());
+  CHECK(m.find(std::string_view{"beta"})->second == 2);
+  CHECK(m.find(std::string_view{"missing"}) == m.end());
+  CHECK(m.contains(std::string_view{"gamma"}));
+  CHECK_FALSE(m.contains(std::string_view{"delta"}));
+  CHECK(m.count(std::string_view{"alpha"}) == 1);
+  REQUIRE(m.at(std::string_view{"alpha"}) != nullptr);
+  CHECK(*m.at(std::string_view{"alpha"}) == 1);
+  CHECK(m.at(std::string_view{"nope"}) == nullptr);
+  auto const& cm{m};
+  REQUIRE(cm.find(std::string_view{"beta"}) != cm.end());
+  CHECK(cm.find(std::string_view{"beta"})->second == 2);
+}
+
+// A transparent comparator enables the heterogeneous overload; the default
+// (non-transparent) std::less<Key> does not. Detect via named concepts so the
+// negative case is a clean substitution failure, not a hard error.
+template <typename M>
+concept sv_findable = requires(M& m) { m.find(std::string_view{"x"}); };
+static_assert(sv_findable<cn::flat_map<std::string, int, std::less<>>>);
+static_assert(!sv_findable<cn::flat_map<std::string, int>>);
 
 }  // namespace
