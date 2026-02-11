@@ -55,6 +55,12 @@ neither key is less than the other and they are equal. =contains= and =count= ar
 returns a *pointer* to its value, or =nullptr= when the key is absent, so unlike
 =std::map::at= it never throws.
 
+When the comparator is transparent (exposes =is_transparent=, as =std::less<>=
+does), =lower_bound=, =find=, =contains=, =count=, and =at= also accept a
+key-comparable lookup type, so a =flat_map<std::string, V, std::less<>>= can be
+queried with a =std::string_view= without constructing a temporary key. The
+default =std::less<Key>= comparator keeps lookups homogeneous.
+
 ** Writing: the four ways in
 
 All four insert paths first =lower_bound= the key, then differ in what they do at
