@@ -36,22 +36,27 @@ Follow a module to its own index, which lists, per class it provides, a guide
   a noise gauge (=run=, =run_with_setup=, =compare=), plus the =do_not_optimize=
   and =clobber_memory= anti-dead-code primitives every honest benchmark needs. It
   reuses =chrono='s auto-scaling duration formatter for its ns/us/ms/s timings.
+- [[file:serialization/README.org][serialization]] (needs =container=) : encoders and decoders under one
+  =std::expected= error policy, never throwing and bounds-checking every byte: a
+  JSON DOM, parser, and writers; a schema-driven binary =writer= / =reader=; the
+  CBOR and MessagePack codecs; COBS framing; and a versioned envelope.
 
 * Dependency layering
 
 A module may only use the modules below it; the build refuses a cycle.
 
 #+BEGIN_EXAMPLE
-  benchmark     micro-benchmark runner
+  benchmark      micro-benchmark runner
+  serialization  JSON / CBOR / MessagePack / binary / COBS codecs
      |
      v
-  container     vectors, maps, sets, queues, trees, graphs
-  chrono        clock-templated timing primitives
+  container      vectors, maps, sets, queues, trees, graphs
+  chrono         clock-templated timing primitives
      |
      v
-  utility       the foundation, no dependencies
+  utility        the foundation, no dependencies
 
-  random        seedable RNG (independent, no dependencies)
+  random         seedable RNG (independent, no dependencies)
 #+END_EXAMPLE
 
 More modules join as they are ported, each declaring its place in the layering
