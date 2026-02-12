@@ -1,0 +1,100 @@
+#+TITLE: nexenne::serialization - CBOR and MessagePack
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+A =writer= / =reader= pair for each of the two standard self-describing binary
+formats: CBOR (RFC 8949) and MessagePack. Each value carries a small type tag, so
+a payload describes its own shape and a different system can decode it without a
+shared schema.
+
+* The idea
+
+Between the extremes of JSON (readable, verbose) and the [[file:binary.org][schema-driven binary]]
+format (compact, schema-coupled) sits the self-describing binary middle ground:
+each value is a one-byte (or few-byte) header naming its type and size, then the
+data. You pay a tag per value but gain interoperability, because CBOR and
+MessagePack are widely implemented, so the consumer can be a different language
+or system.
+
+* How it works
+
+** The shape: a type byte plus an argument
+
+Both formats encode a value as an initial byte whose high bits select a major
+type (integer, byte string, text string, array, map, float, ...) and whose low
+bits either hold a small length/value inline or announce how many following
+bytes carry it. CBOR's additional-info field is =0..23= inline, then =24/25/26/27=
+for a 1/2/4/8-byte argument; MessagePack has parallel fix/8/16/32 families. The
+reader decodes the header, then reads exactly the announced bytes.
+
+#+BEGIN_EXAMPLE
+  CBOR:  major(3 bits) | additional-info(5 bits) [ argument bytes ] [ payload ]
+         0x18 0x2A           = unsigned int, 1-byte argument 42
+         0x63 'f' 'o' 'o'    = text string, length 3 (inline), "foo"
+
+  MessagePack:  format byte [ length bytes ] [ payload ]
+         0x2A               = positive fixint 42
+         0xA3 'f' 'o' 'o'   = fixstr length 3, "foo"
+#+END_EXAMPLE
+
+** Decoding treats the input as hostile
+
+The dangerous field is the length/count: a text string, byte string, array, or
+map header can claim more items or bytes than the buffer holds. Every such length
+is checked against the bytes remaining before anything is read, so a header like
+CBOR =0x5B FF FF FF FF FF FF FF FF= (a byte string of 2^64-1) returns
+=buffer_underrun= instead of over-reading. The bound is a subtraction
+(=remaining = size - pos=), never an addition (=pos + len=), so it cannot itself
+overflow. CBOR's reserved additional-info values =28..30= and the unsupported
+indefinite-length form are rejected. Half-precision floats are widened to double,
+including the subnormal range. Both readers are flat token streams: container
+headers return only a count, so the library never recurses on nested input and
+cannot be made to overflow the stack; walking the children (and bounding their
+depth) is the caller's choice.
+
+** Integer and float edges
+
+A negative integer that does not fit =int64= is rejected rather than wrapped; an
+unsigned value above =int64= max is reported as documented. Floats round-trip
+through =bit_cast=, so NaN, infinity, and negative zero survive.
+
+* Complexity
+
+| operation         | cost                                  |
+|-------------------+---------------------------------------|
+| encode/decode value | O(size of the value)                |
+| length-prefixed read | O(payload), bounds-checked first    |
+
+Memory overhead: 1 byte of tag for small values, plus 1/2/4/8 length bytes for
+larger strings and containers, versus the data.
+
+* When to use it
+
+Reach for CBOR or MessagePack when the consumer is a separate system or language
+that already speaks the format, when the payload must be self-describing (no
+shared schema), or for IoT/RPC wire formats. CBOR is the IETF standard
+(constrained-device friendly, RFC 8949); MessagePack is ubiquitous in
+application stacks. Prefer the [[file:binary.org][schema-driven binary]] format when both ends are
+yours and every byte counts, or [[file:json.org][JSON]] when a human reads it. Gotcha: the
+readers hand you a typed token stream and a container count, they do not build a
+tree or bound nesting for you, so cap recursion yourself when decoding untrusted
+input.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace ser = nexenne::serialization;
+
+auto buf{std::array<std::byte, 64>{}};
+auto w{ser::cbor::writer{buf}};
+static_cast<void>(w.write_uint(42));
+static_cast<void>(w.write_string("foo"));
+
+auto r{ser::cbor::reader{w.written()}};
+auto const kind{r.peek_type()};   // cbor::type::unsigned_int
+auto const n{r.read_uint()};      // 42
+#+END_SRC
+
+Runnable: [[file:../../../examples/serialization/round_trip.cpp][examples/serialization/round_trip.cpp]].

@@ -1,0 +1,89 @@
+#+TITLE: nexenne::serialization - COBS framing and versioned envelopes
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Two small wrappers for the transport layer. =cobs= encodes an arbitrary payload
+into a frame that contains no =0x00= byte, so a single zero can delimit packets
+on a byte stream. =versioned= prefixes a payload with a magic-and-version header
+so a reader can recognise the format and reject or migrate an unknown version.
+
+* The idea
+
+A binary payload can contain any byte, including the one you would like to use as
+a packet delimiter. COBS (Consistent Overhead Byte Stuffing) removes every zero
+from the payload at a guaranteed-tiny cost, so =0x00= becomes a free, unambiguous
+frame boundary on a UART or socket. Separately, any persisted or transmitted
+format eventually changes; a one-time version header lets the reader tell v1 from
+v2 instead of silently mis-decoding.
+
+* How it works
+
+** COBS
+
+The encoder walks the payload in runs between zero bytes. Each run is emitted as
+a one-byte *code* equal to the run length plus one, followed by the run's
+non-zero bytes; the code replaces what would have been the leading zero. A run of
+=0xFF= (254 non-zero bytes) is the boundary case: the code saturates at =0xFF=
+and a fresh block starts with no separating zero. Decoding reverses it: read a
+code, copy that many minus one bytes, then (unless the code was =0xFF=) emit one
+zero. The overhead is at most one byte per 254, so a frame is never more than
+=n + n/254 + 1= bytes.
+
+#+BEGIN_EXAMPLE
+  payload:  11 22 00 33
+  encode:   03 11 22 02 33        (code 03 = run of 2, then 02 = run of 1)
+                       ^ the 00 became the next block's code
+  a single 0x00 appended by the caller now delimits the frame unambiguously
+#+END_EXAMPLE
+
+Decoding is the place a malformed frame bites: a code byte that points past the
+end of the buffer must error, not over-read. The decoder checks the remaining
+length before copying each block, and rejects an embedded zero or a zero code
+byte with =invalid_input=, so a corrupt frame yields an error rather than a
+buffer over-run. The encoder bounds-checks its destination and reports
+=buffer_full= when the worst-case size will not fit.
+
+** Versioned envelope
+
+=versioned= writes a fixed 8-byte header (a magic marker and a version number,
+same on every platform) ahead of the payload. On read it checks the buffer is at
+least the header size, validates the magic, and surfaces the version so the
+caller can dispatch: accept a known version, migrate an older one, or reject a
+future one. A short or wrong-magic buffer returns an error rather than reading
+past it.
+
+* Complexity
+
+| operation       | cost                                            |
+|-----------------+-------------------------------------------------|
+| COBS encode/decode | O(n) in the payload, single pass             |
+| versioned wrap/read | O(1) header plus the payload move            |
+
+Overhead: COBS adds at most =n/254 + 1= bytes; the versioned header is a flat 8
+bytes.
+
+* When to use it
+
+Use =cobs= whenever a binary payload travels over a byte stream that needs
+framing: serial links, raw sockets, anything where you want =0x00= to mean
+"packet boundary". Wrap a payload in =versioned= when it is persisted or sent and
+the format may evolve, so a reader can tell versions apart. Both compose with the
+[[file:binary.org][binary]] and [[file:codecs.org][CBOR/MessagePack]] encoders: encode the value, then frame and/or
+version the resulting bytes. Gotcha: COBS only removes zeros, it is not
+compression and not encryption; it costs a near-zero overhead purely to make a
+delimiter possible.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace ser = nexenne::serialization;
+
+std::array<std::byte, 4> const payload{
+    std::byte{0x11}, std::byte{0x22}, std::byte{0x00}, std::byte{0x33}};
+auto frame{std::array<std::byte, ser::cobs::cobs_max_encoded_size(4)>{}};
+auto const n{ser::cobs::encode(payload, frame)};   // zero-free frame, append 0x00 to delimit
+#+END_SRC
+
+Runnable: [[file:../../../examples/serialization/round_trip.cpp][examples/serialization/round_trip.cpp]].

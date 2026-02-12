@@ -1,0 +1,94 @@
+#+TITLE: nexenne::serialization - schema-driven binary
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+A =writer= and =reader= pair that move fixed scalars, strings, and arrays in and
+out of a caller-provided byte buffer with no type tags and no framing. The layout
+is exactly the values, in the order both sides agree on, so the payload is as
+small as the data itself.
+
+* The idea
+
+Self-describing formats (JSON, CBOR) spend bytes saying what each value is. When
+the producer and consumer are the same codebase, or share a schema, that
+description is redundant: both walk the same sequence of =write_*= and =read_*=
+calls in the same order. The result is the most compact encoding available here,
+and on a little-endian target most writes reduce to a single =memcpy=.
+
+* How it works
+
+** Layout and endianness
+
+Integers and floats are written little-endian regardless of host, so a payload
+round-trips across machines; on the common embedded targets (Cortex-M, ESP32,
+RP2040, RISC-V) the host is already little-endian and the write is one =memcpy=,
+with a byte-swap path only on big-endian hosts. A =float= / =double= is moved by
+=std::bit_cast= to its unsigned bit pattern, so NaN, infinity, and negative zero
+round-trip exactly. Signed integers use zig-zag so small magnitudes of either
+sign stay small.
+
+** Strings as LEB128-prefixed bytes
+
+A string is an unsigned LEB128 varint length followed by the bytes. LEB128 stores
+7 bits per byte with a continuation flag, so a length under 128 costs a single
+prefix byte. On read, the length is bounds-checked against the remaining buffer
+*before* the bytes are consumed, so a lying or truncated length prefix returns
+=buffer_underrun= rather than over-reading; a configurable =max_string_size=
+caps it further. A varint is rejected past 10 bytes (over-long for 64 bits), and
+a non-canonical tenth byte that would overflow is rejected too.
+
+#+BEGIN_EXAMPLE
+  write_string("hi")  ->  02 'h' 'i'        (length 2 as one LEB128 byte)
+  write(uint32 300)   ->  2C 01 00 00       (little-endian)
+
+  read side walks the same schema; a length prefix > bytes-left -> buffer_underrun
+#+END_EXAMPLE
+
+** Bounds are everything
+
+Every =write_*= checks =fits(n)= and every =read_*= checks the bytes remaining
+before touching memory, returning =buffer_full= / =buffer_underrun= on the edge.
+Array writes and reads compare *counts against capacity*
+(=count > remaining / sizeof(T)=) rather than multiplying =count * sizeof(T)=
+first, because that product could overflow =size_t= and wrap to a small value
+that slips past a naive check and then over-runs the buffer.
+
+* Complexity
+
+| operation        | cost                                          |
+|------------------+-----------------------------------------------|
+| write/read scalar | O(1), one memcpy on a little-endian host      |
+| write/read string | O(length)                                     |
+| write/read array  | O(bytes), one memcpy on a little-endian host  |
+
+Memory overhead: a string costs 1 to 10 bytes of length prefix; scalars and
+arrays cost nothing beyond the data.
+
+* When to use it
+
+Reach for this when both ends are yours (or share a schema) and you want the
+smallest, fastest encoding: inter-process payloads, save files, flash records,
+packets over a known link. Reach for [[file:codecs.org][CBOR or MessagePack]] instead when the
+consumer is a different system that needs the payload to describe itself, or for
+[[file:json.org][JSON]] when a human reads it. Gotchas: there is no framing (combine with
+[[file:framing.org][COBS]] for a stream) and no versioning (combine with =versioned=); both sides must
+walk the schema in the identical order, or the reader mis-interprets the bytes.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace ser = nexenne::serialization;
+
+auto buf{std::array<std::byte, 64>{}};
+auto w{ser::binary::writer{buf}};
+static_cast<void>(w.write(std::uint32_t{42}));
+static_cast<void>(w.write(std::string_view{"hi"}));
+
+auto r{ser::binary::reader{w.written()}};
+auto const n{r.read<std::uint32_t>()};   // 42
+auto const s{r.read_string()};           // "hi"
+#+END_SRC
+
+Runnable: [[file:../../../examples/serialization/round_trip.cpp][examples/serialization/round_trip.cpp]].
