@@ -51,6 +51,7 @@
 #include <cmath>
 #include <concepts>
 #include <cstddef>
+#include <expected>
 #include <format>
 #include <iostream>
 #include <limits>
@@ -64,61 +65,11 @@
 #include <nexenne/benchmark/do_not_optimize.hpp>
 #include <nexenne/chrono/duration_parts.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
+#include <nexenne/serialization/json/writer.hpp>
 
 namespace nexenne::benchmark {
 
 namespace detail {
-
-/**
- * @brief Escapes a string for embedding inside a JSON string literal.
- *
- * Escapes the characters JSON forbids unescaped (the quote, the backslash, and
- * the control characters below 0x20), so a benchmark name containing a quote,
- * backslash, or newline still yields valid JSON.
- *
- * @param s Text to escape.
- *
- * @return \p s with JSON-significant characters escaped.
- *
- * @pre None.
- * @post None.
- */
-[[nodiscard]] inline auto json_escape(std::string_view const s) -> std::string {
-  auto out{std::string{}};
-  out.reserve(s.size() + 2);
-  for (auto const c : s) {
-    switch (c) {
-      case '"':
-        out += "\\\"";
-        break;
-      case '\\':
-        out += "\\\\";
-        break;
-      case '\b':
-        out += "\\b";
-        break;
-      case '\f':
-        out += "\\f";
-        break;
-      case '\n':
-        out += "\\n";
-        break;
-      case '\r':
-        out += "\\r";
-        break;
-      case '\t':
-        out += "\\t";
-        break;
-      default:
-        if (static_cast<unsigned char>(c) < 0x20) {
-          out += std::format("\\u{:04x}", static_cast<unsigned>(static_cast<unsigned char>(c)));
-        } else {
-          out += c;
-        }
-    }
-  }
-  return out;
-}
 
 /**
  * @brief Converts a (budget / per-call) ratio to a usable iteration count.
@@ -522,9 +473,11 @@ public:
    * min, and max in nanoseconds, the coefficient of variation, and the full
    * array of per-sample means. No trailing newline is added.
    *
-   * @note This hand-rolls a small, fixed JSON shape. Once the \c serialization
-   *       module is ported, switch this to emit through it for correct,
-   *       reusable JSON encoding rather than a bespoke format string.
+   * @note The object is built with the \c serialization module's streaming JSON
+   *       writer, which escapes string contents and renders the numbers, so this
+   *       reuses one audited encoder rather than a bespoke format string. The
+   *       writer is heap-free and pulls in no container, so it stays usable on an
+   *       embedded target.
    *
    * @param os Destination stream.
    *
@@ -532,30 +485,88 @@ public:
    * @post The result is unchanged and one JSON object has been written to
    *       \p os.
    *
+   * @throws std::bad_alloc if allocating the output buffer fails.
    * @throws std::ios_base::failure if \p os is configured to throw on a write
    *         failure.
    */
   auto to_json(std::ostream& os) const -> void {
-    os << std::format(
-      R"({{"name":"{}","mean_ns":{:.3f},"median_ns":{:.3f},"stddev_ns":{:.3f},"min_ns":{:.3f},"max_ns":{:.3f},"cv":{:.4f},"samples":[)",
-      detail::json_escape(m_name),
-      mean(),
-      median(),
-      stddev(),
-      min(),
-      max(),
-      cv()
-    );
-    for (auto i{std::size_t{0}}; i < m_sample_means_ns.size(); ++i) {
-      if (i != 0) {
-        os << ',';
+    // Emit into a buffer that grows on overflow, then hand the bytes to the
+    // stream. The writer reports buffer_full instead of overrunning, so a single
+    // doubling retry covers any name length or sample count.
+    auto buf{std::string(256 + (m_sample_means_ns.size() * 24), '\0')};
+    while (true) {
+      auto w{serialization::json::writer{std::span<char>{buf.data(), buf.size()}}};
+      if (auto const r{emit_json(w)}; r) {
+        os.write(buf.data(), static_cast<std::streamsize>(w.bytes_written()));
+        return;
+      } else if (r.error() != serialization::error::buffer_full) {
+        return;  // not a sizing problem, nothing further can be emitted
       }
-      os << std::format("{:.3f}", m_sample_means_ns[i]);
+      buf.resize(buf.size() * 2);
     }
-    os << "]}";
   }
 
 private:
+  /**
+   * @brief Writes the result's JSON object into a streaming writer.
+   *
+   * Emits the keys in a fixed, readable order (name, the five timing fields, the
+   * coefficient of variation, then the per-sample array) so the output is stable
+   * across runs. Stops at the first writer error, which \c to_json uses to grow
+   * its buffer and retry.
+   *
+   * @param w Writer bound to the destination buffer.
+   *
+   * @return Nothing on success, or the writer's first error (typically
+   *         \c buffer_full when the buffer is too small).
+   *
+   * @pre \p w is freshly constructed (nothing written yet).
+   * @post On success \p w holds one complete JSON object.
+   *
+   * @complexity O(N) in the number of samples.
+   */
+  [[nodiscard]] auto emit_json(serialization::json::writer<>& w
+  ) const -> std::expected<void, serialization::error> {
+    if (auto const r{w.begin_object()}; !r) {
+      return r;
+    }
+    auto const field{[&w](std::string_view const k, double const v) {
+      return w.key(k).and_then([&w, v] { return w.value(v); });
+    }};
+    if (auto const r{w.key("name").and_then([&w, this] { return w.value(std::string_view{m_name}); }
+        )};
+        !r) {
+      return r;
+    }
+    if (auto const r{field("mean_ns", mean())}; !r) {
+      return r;
+    }
+    if (auto const r{field("median_ns", median())}; !r) {
+      return r;
+    }
+    if (auto const r{field("stddev_ns", stddev())}; !r) {
+      return r;
+    }
+    if (auto const r{field("min_ns", min())}; !r) {
+      return r;
+    }
+    if (auto const r{field("max_ns", max())}; !r) {
+      return r;
+    }
+    if (auto const r{field("cv", cv())}; !r) {
+      return r;
+    }
+    if (auto const r{w.key("samples").and_then([&w] { return w.begin_array(); })}; !r) {
+      return r;
+    }
+    for (auto const sample : m_sample_means_ns) {
+      if (auto const r{w.value(sample)}; !r) {
+        return r;
+      }
+    }
+    return w.end_array().and_then([&w] { return w.end_object(); });
+  }
+
   [[nodiscard]] static auto format_time(double const ns) -> std::string {
     // Reuse chrono's auto-scaling SI formatter (ns / us / ms / s), which keeps
     // the sub-millisecond resolution micro-timing needs.
