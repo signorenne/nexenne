@@ -20,7 +20,7 @@
  * \c reserve_laps(n) up front if you know the lap count.
  * \c lap() and \c reserve_laps() may throw \c std::bad_alloc on
  * OOM; every other method is \c noexcept. For an OOM-free variant
- * use \c fixed_stopwatch.
+ * use \c static_stopwatch.
  *
  * @tparam Clock Steady clock to read \c now() from.
  */
@@ -47,7 +47,7 @@ namespace nexenne::chrono {
  * Accumulates elapsed time across running intervals like a physical
  * stopwatch and records per-segment lap durations in a growable buffer.
  * Lap storage may throw \c std::bad_alloc on growth; every other method is
- * \c noexcept. For an allocation-free variant use \c fixed_stopwatch.
+ * \c noexcept. For an allocation-free variant use \c static_stopwatch.
  *
  * @tparam Clock Steady clock to read \c now() from.
  *
