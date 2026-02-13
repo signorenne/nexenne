@@ -32,3 +32,10 @@ and safe here.
   =scoped_connection= returned by =connect=, the receiver-side =slot= that
   auto-disconnects every subscription a subscriber makes when it dies, and the
   RAII =emit_blocker= that suppresses emission for a scope.
+
+* The heap-free variant
+
+- [[file:static.org][static_signal]] : the allocation-free, fixed-capacity sibling of =signal=, the
+  =static_vector= to =signal='s =small_vector=. All state inline, zero heap, an
+  =emit= that never allocates, in exchange for a bounded slot count and token
+  connections that must not outlive the signal.
