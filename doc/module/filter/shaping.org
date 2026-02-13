@@ -1,0 +1,306 @@
+#+TITLE: shaping
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+These filters do not try to estimate a true value hidden under noise. They are
+not averagers. What they shape is *how* and *when* a signal is permitted to
+change: cap the rate of change, reject contact bounce and chatter, add a
+deadband around a threshold, or suppress pulses too short to be real. The point
+is protection. A slew limit keeps a step command from slamming an actuator; a
+debouncer keeps one button press from registering as ten; a Schmitt trigger
+keeps a comparator from buzzing on and off at the boundary; a glitch filter
+keeps an EMI spike on a digital line from reaching the state machine behind it.
+The output is a *cleaner, better-behaved* version of the input, not a
+statistically smoothed one.
+
+* The idea
+
+The smoothing filters elsewhere in this module (=ema=, =sma=, and friends) work
+by arithmetic: they blend the new sample with past samples. The shaping filters
+work by a *state machine and one or two thresholds* instead. Each holds a small
+amount of state (a current output, a candidate, a counter or a timestamp) and
+decides whether the incoming sample is allowed to move that state, and by how
+much.
+
+Two contrasts are worth fixing in mind up front.
+
+First, *count-based versus time-based confirmation*. =debounce= counts samples:
+a new level must repeat for =Threshold= consecutive samples before it is
+accepted, so the settling time depends on your sampling rate. =timed_debounce=
+counts elapsed time instead: a new level must persist for at least a =period=,
+measured against a timestamp you supply, so settling is independent of how often
+you poll. Use the count version when you sample at a fixed, known cadence; use
+the timed version when your polling is irregular or you want to specify settling
+in milliseconds directly.
+
+Second, the role of a *deadband*. A single-threshold comparator toggles every
+time a noisy signal crosses its one boundary, which produces rapid chatter when
+the signal hovers right at that level. =hysteresis= splits the one threshold
+into two, =low= and =high=, with a gap between them in which the output simply
+*holds*. The signal must travel all the way across that gap to flip the output
+again, so noise smaller than the gap can never cause a toggle.
+
+* How it works
+
+** slew: clamp the per-sample change
+
+=slew<T>= (with =T= a floating-point type, default =double=) limits how far the
+output may move between two consecutive =push= calls. Construct it with the
+maximum step, =slew{max_rate}=. Each =push(target)= returns the new output:
+
+#+BEGIN_EXAMPLE
+y[n] = clamp(target, y[n-1] - max_rate, y[n-1] + max_rate)
+#+END_EXAMPLE
+
+so a large jump in the target is approached in equal steps of =max_rate= per
+sample rather than all at once. The key parameter, =max_rate=, is in *output
+units per sample*, so its real-world meaning depends on your sample interval (a
+=max_rate= of 5 at 100 Hz is 500 units per second). A negative rate is clamped
+to zero, which freezes the output.
+
+The *first* =push= after construction or =reset()= jumps straight to its target;
+there is nothing to ramp from yet. After that, the limit applies. =reset()=
+clears to the unprimed state (=value()= reads zero and the next =push= jumps
+again); =reset(initial)= seeds a primed value, so the next =push= is already
+rate-limited from =initial=. Read =max_rate()= and change it live with
+=max_rate(v)=.
+
+#+BEGIN_EXAMPLE
+target -------+
+              |          .--- target steps up by 40
+        40 ---|----------*
+              |        ./       max_rate = 10 per sample
+        30 ---|      ./   output ramps: 0, then +10 each step
+        20 ---|    ./
+        10 ---|  ./
+         0 ---*-/----------------------------> sample n
+           (first push primes to 0)
+#+END_EXAMPLE
+
+** debounce: N consecutive equal samples
+
+=debounce<T, Threshold>= confirms a change by counting. =T= is any
+equality-comparable type but is usually =bool=; =Threshold= (default 3) is the
+number of *consecutive identical* samples a new value must produce before it
+replaces the stable output. Each =push(sample)= returns the current stable
+value.
+
+The machine tracks a candidate and a streak. When a sample equals the running
+candidate, the streak grows; once it reaches =Threshold=, that candidate becomes
+the stable output. Any sample that differs from the candidate restarts the
+streak at one with the new sample as candidate, so a lone glitch never advances
+the count. The first =push= after an unprimed construction or =reset()= is
+accepted immediately as the stable value (you have no prior state to defend).
+
+=reset()= returns to unprimed (next =push= accepted at once);
+=reset(initial)= installs =initial= as an already-confirmed stable value, with
+the streak counter pre-loaded to =Threshold=.
+
+#+BEGIN_EXAMPLE
+Threshold = 3, a bouncing press (0 = released, 1 = pressed)
+
+raw      : 0 0 1 0 1 1 1 1 0 1 1 1 1
+streak   : - - 1 1 1 2 3 - 1 1 2 3 -
+stable   : 0 0 0 0 0 0 1 1 1 1 1 1 1
+                       ^
+                       accepted only after 3 in a row
+the early 1-0-1 bounce never reaches the count of 3
+#+END_EXAMPLE
+
+** timed_debounce: settle on elapsed time
+
+=timed_debounce<Duration>= is the *different-shaped* sibling. It debounces a
+=bool= line against time rather than sample count, and its main entry point is
+not =push= but:
+
+#+BEGIN_EXAMPLE
+auto changed = db.update(now, raw);   // -> std::optional<bool>
+#+END_EXAMPLE
+
+=update= takes the current timestamp =now= (a =Duration= from any monotonic
+clock you have on hand) and the raw level, and returns an *optional*. It yields
+a value *only on a confirmed change of the stable output*; on every other call
+(still bouncing, no change, or a candidate that has only just started) it
+returns =std::nullopt=. That makes the common loop a single =if=: act when the
+optional is engaged, do nothing otherwise.
+
+The logic: the first sample is accepted as stable at once and returned. After
+that, a level matching the current stable value cancels any pending candidate
+and returns nullopt. A *differing* level starts a candidate, stamping
+=candidate_since = now=; it is promoted to stable, and returned, only once
+=now - candidate_since >= period=. A =period= of zero collapses the filter into
+a pass-through that promotes every change immediately. The =now= you pass must
+be monotonically non-decreasing for the elapsed-time comparison to mean
+anything.
+
+Inspect state with =stable_value()= and =has_stable()= (false until the first
+sample). Read or set the settling time with =period()= / =period(v)= (a negative
+period is clamped to zero). =reset()= returns to the "no observation yet"
+condition, so the next =update= seeds the stable value again, useful after a
+source is reopened and the cached level no longer reflects reality.
+
+#+BEGIN_EXAMPLE
+period = 20 ms, timestamps in ms
+
+now  raw  candidate_since  update() returns
+  0   0         -          0        (first sample -> stable)
+  5   1         5          nullopt  (candidate started)
+ 10   0         -          nullopt  (back to stable, candidate cancelled)
+ 30   1        30          nullopt  (candidate restarts)
+ 55   1        30          1        (held >= 20 ms -> promoted)
+#+END_EXAMPLE
+
+** hysteresis: a two-threshold latch
+
+=hysteresis<T>= is a Schmitt trigger: it converts an ordered analogue =T=
+(default =double=) into a clean =bool=. Construct it with both thresholds,
+=hysteresis{low, high}= (with =low <= high=). Each =push(sample)= returns the
+latched =bool=:
+
+- a sample at or above =high= drives the output =true=,
+- a sample at or below =low= drives it =false=,
+- a sample strictly between =low= and =high= leaves the output *unchanged*.
+
+That middle band is the deadband. Because flipping back requires crossing the
+whole band, noise with an amplitude smaller than =high - low= can never cause a
+toggle. Note this type is a *converter*: its input is analogue and its output is
+=bool=, so it exposes =input_type= / =output_type= rather than a single shared
+=value_type=.
+
+The latch starts =false=. =reset()= clears it to =false=; =reset(initial)= sets
+a known starting =bool=. Move the band at runtime with =thresholds(low, high)=;
+read the corners with =low_threshold()= / =high_threshold()=. Setting
+=low == high= removes the deadband and the filter degrades to a plain
+comparator.
+
+#+BEGIN_EXAMPLE
+Schmitt-trigger transfer curve (out vs in)
+
+out
+ 1 |            .----------------  (stays 1 until in drops below low)
+   |            |
+   |            |
+ 0 |------------'                  (stays 0 until in rises above high)
+   +-----+------+----------------> in
+        low    high
+         <------>
+         deadband: output holds here, no toggling
+   rising edge flips at  high
+   falling edge flips at low
+#+END_EXAMPLE
+
+** glitch: reject pulses shorter than N samples
+
+=glitch<T, N>= rejects any pulse narrower than =N= samples. It is *stricter*
+than =debounce=: where debounce accepts any value that repeats =Threshold=
+times, glitch accepts a new value only if it persists for =N= consecutive
+samples *and* the signal does not return to the stable value in between. If the
+signal drops back to stable before the count is reached, the candidate is
+discarded and the transient is suppressed entirely. =T= is usually =bool= for a
+digital line, or an integer register value for a bus read; =N= (default 3) is
+the minimum accepted pulse width in samples.
+
+Each =push(sample)= returns the stable value. A sample equal to the stable value
+*cancels* any pending candidate and resets the hold counter to zero. A sample
+equal to the current candidate counts up; on reaching =N= it becomes the new
+stable value. A sample that is neither restarts the counter at one with the new
+candidate. The first =push= after unprimed construction or =reset()= seeds the
+stable value. =pending()= reports whether a candidate is currently being held
+(hold counter above zero).
+
+Construct unprimed with =glitch<bool, N>{}= or primed with
+=glitch<bool, N>{initial}=. =reset()= returns to unprimed; =reset(initial)=
+installs a known stable value with no pending candidate.
+
+#+BEGIN_EXAMPLE
+N = 3, stable starts at 0
+
+raw     : 0 1 0 1 1 0 1 1 1 1
+hold    : - 1 0 1 2 0 1 2 3 -
+stable  : 0 0 0 0 0 0 0 0 1 1
+              ^   ^       ^
+              |   |       accepted: 3 consecutive 1s, no return to 0
+              |   pulse returned to 0 at hold=2 -> cancelled (glitch)
+              single-sample spike -> cancelled (glitch)
+#+END_EXAMPLE
+
+* When to use it
+
+- slew :: Reach for =slew= to ramp a setpoint or to protect an actuator or motor
+  from a sudden jump by capping the change per sample. Take a target position or
+  speed command and feed it through =slew= so the commanded value can only change
+  by =max_rate= per control tick, sparing the mechanism from step shocks. It
+  suits any output that must track its target smoothly: LED dimming, a
+  control-surface response, a ramped DAC level. It does *not* reject noise; pair
+  it with a smoothing filter upstream if the target itself is noisy.
+- debounce :: Reach for =debounce= to reject contact bounce or chatter on a
+  discrete input such as a button or a limit switch by requiring a number of
+  consecutive agreeing samples. Three (or =Threshold=) consecutive identical
+  reads confirm the press, so contact bounce collapses to one clean transition.
+  Best when your poll rate is steady and known, since the settling time is
+  =Threshold= divided by the sample rate; set =Threshold= from that rate.
+- timed_debounce :: Reach for =timed_debounce= when you want the same intent as
+  =debounce= but gated by an elapsed real duration, so it stays robust to a
+  varying or unknown sample rate. Use it for a button or GPIO line polled
+  irregularly or event-driven, or when you want to state settling directly in
+  milliseconds. Feed each =update= a monotonic timestamp and act on the engaged
+  optional; the settling guarantee is the wall-clock =period=, independent of
+  poll frequency.
+- hysteresis :: Reach for =hysteresis= for a binary decision on a noisy analogue
+  signal such as a thermostat (on above 22 degC, off below 20 degC), a
+  battery-level indicator, or any level or threshold detector where a single
+  threshold would chatter. The deadband between =low= and =high= gives the
+  immunity; size it to comfortably exceed the noise amplitude at the threshold.
+- glitch :: Reach for =glitch= to suppress short transient pulses such as an EMI
+  or ESD spike on a digital line, ringing on a UART RX or I2C SDA edge, or any
+  line where a wrong value must persist for several samples before you trust it,
+  while still passing a genuine sustained change. Stricter than =debounce=
+  because a return to the prior state cancels the candidate outright.
+
+A few notes that apply to all five:
+
+- They are *heap-free* and hold only a few scalars of state, so they fit on the
+  smallest target.
+- Every per-sample operation (=push= or =update=) is *O(1)* and =noexcept=.
+- There is no shared mutable state and no allocation, so a single instance is
+  *ISR-safe* to drive from an interrupt or a bare-metal superloop, as long as
+  you do not touch the same instance concurrently from two contexts.
+- =reset()= everywhere returns the filter to its unprimed "no history"
+  condition; the =reset(initial)= overload instead installs a known,
+  already-confirmed output so the next sample is judged against it.
+
+* Best practices and tuning
+
+Each filter has one tuning knob, and getting it right is mostly about matching
+it to the physics of your signal.
+
+- slew :: =max_rate= is in *output units per sample*, so to convert from a
+  physical rate you multiply by the sample period: a 500 units/second limit at
+  100 Hz is 5 units/sample. Pick =max_rate= from the fastest legitimate change
+  the actuator should track. Too small and the output lags real commands; too
+  large and it stops protecting the mechanism.
+- debounce :: Set =Threshold= = debounce_time * sample_rate. A typical mechanical
+  button needs roughly 5 to 50 ms of settling, so at 1 kHz that is 5 to 50
+  samples. A =Threshold= that is too low lets chatter through; too high adds
+  latency before the change is reported.
+- timed_debounce :: Prefer it over count-based =debounce= when the sample rate is
+  irregular or event-driven, since the settling guarantee is in real time. The
+  =now= timestamps you pass must be monotonic non-decreasing for the elapsed-time
+  comparison to be meaningful.
+- hysteresis :: Size the deadband (=high= minus =low=) to comfortably exceed the
+  peak-to-peak noise at the threshold, so noise alone cannot cross both edges.
+  Center the band on the decision point so the rising and falling trips sit
+  symmetrically around the value you actually care about.
+- glitch :: Set the width =N= to just longer than the longest spurious pulse you
+  must reject but shorter than the shortest real event you must keep. It trades
+  =N= samples of latency on a genuine change for that rejection, so do not make
+  =N= larger than the rejection target requires.
+
+All five filters are *heap-free*, *O(1)*, and =noexcept=, and are safe to call
+from an interrupt handler. They hold only a few scalars of state, so a single
+instance can be driven directly from an ISR or a bare-metal superloop, provided
+you do not touch the same instance concurrently from two contexts.
+
+Runnable: [[file:../../../examples/filter/shaping.cpp][examples/filter/shaping.cpp]]

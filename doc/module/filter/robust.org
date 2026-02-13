@@ -1,0 +1,323 @@
+#+TITLE: robust
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+A linear smoother (a moving average, an EMA, a low-pass) is the right tool only
+when the noise it fights is symmetric, stationary, and the signal lives in one
+sensor. That covers a lot of cases and breaks on four common ones. A single
+outlier spike, a reading ten times too large for one sample, drags a mean toward
+itself and contaminates the output for the whole window; averaging spreads the
+fault, it does not remove it. A sensor whose noise level you actually know
+deserves trust proportional to that knowledge, not a fixed forgetting factor
+guessed by hand. Two sensors measuring the same quantity, each accurate in a
+different frequency band, want to be combined rather than picked. And sometimes
+the system you need to undo (an echo path, a noisy channel, an unknown plant) is
+not known ahead of time and must be identified from the data as it arrives.
+
+The four filters here answer those four needs: =median= rejects outliers instead
+of averaging them, =kalman= weights a measurement against a prediction by their
+relative uncertainty, =complementary= fuses two sensors by frequency, and =lms=
+adapts an FIR filter online to match a desired signal. All four share the
+polled, header-only, allocation-free shape of the rest of the module: you call
+=push= once per sample and read the result.
+
+* The idea
+
+*median* is an order statistic, not a moving sum. It sorts the window and returns
+the central value, so the output is always one of the actual samples. An outlier
+sits at the extreme end of the sorted order and never reaches the middle: a
+window of =N= rejects any burst of fewer than =N / 2= bad samples completely,
+with no smearing into the neighbours. The price is that it does not smooth at
+all, the output is a real sample, so it pairs naturally with a linear stage
+downstream.
+
+*kalman* keeps a running estimate of a scalar state together with its own
+uncertainty. Each sample it predicts the state forward (here the model is a
+constant, so the prediction is the previous estimate with its uncertainty grown
+by the process noise =Q=), then corrects toward the new measurement by an amount
+set by the Kalman gain =K=. The gain is the ratio of how unsure the prediction
+is to how unsure prediction and measurement are together: a clean sensor (small
+=R=) pulls the estimate hard toward each reading, a noisy one (large =R=) barely
+nudges it. This is the simplified one-dimensional scalar form, two tuning numbers
+=Q= and =R= rather than full matrices.
+
+*complementary* splits two sensors by frequency and trusts each where it is good.
+One sensor (the fast one, a gyroscope) is accurate over short intervals but
+drifts over long ones; the other (the slow one, an accelerometer) is noisy
+sample to sample but has no long-term bias. The blend =y = alpha * fast +
+(1 - alpha) * slow= weights them with a single number, the two weights summing to
+one, so the fast sensor supplies the high-frequency detail and the slow sensor
+anchors the low-frequency truth. No state model, no matrices, just a weighted sum.
+
+*lms* (least mean squares) learns an FIR filter from the data. It holds a set of
+=N= tap weights, computes its output as their dot product with the recent input
+history, compares that output to a desired signal, and slides every tap a small
+step down the gradient of the squared error. Over many samples the taps converge
+to the FIR filter that best maps input to desired in the mean-square sense. The
+step size sets how big each correction is, and so trades convergence speed
+against stability.
+
+* How it works
+
+** median: the order statistic
+
+=median<T, N>= holds a ring buffer of the last =N= raw samples and, on each
+=push=, copies the valid portion into scratch, sorts it, and returns the central
+element. =T= is any =std::totally_ordered= type (default =double=), =N= the
+window size (default 3). There are no units: the filter only compares, never
+arithmetically combines, so it works on integers, fixed-point, or anything with
+an order.
+
+Before the window has filled, =push= operates on the samples seen so far rather
+than waiting, so there is no startup transient and no priming step to remember;
+=filled()= reports =true= once =N= samples have arrived. For an even number of
+valid samples there is no single middle, so the filter returns the lower of the
+two central values: the index =(count - 1) / 2= picks the lower middle without
+favouring the upper element. =reset()= clears the buffer back to empty, after
+which =value()= returns a value-initialised =T= and =filled()= is =false= again.
+
+The outlier rejection is the whole point. A lone spike lands at an end of the
+sorted order and is never selected:
+
+#+BEGIN_EXAMPLE
+window N = 3, stream:   10  11  500  12  13
+                              ^ outlier spike
+
+push 10  -> sort {10}          -> median 10
+push 11  -> sort {10, 11}      -> median 10   (lower of two middles)
+push 500 -> sort {10, 11, 500} -> median 11   spike sits at the top, ignored
+push 12  -> sort {11, 12, 500} -> median 12   spike still at the top
+push 13  -> sort {12, 13, 500} -> median 13   spike now leaving the window
+#+END_EXAMPLE
+
+The 500 never appears at the output. A mean over the same three samples would
+have reported (10 + 11 + 500) / 3 = 173 at the spike and stayed polluted for two
+more samples.
+
+** kalman: prediction blended with measurement
+
+=kalman<T>= (=T= floating-point, default =double=) carries four numbers: the
+process noise =Q=, the measurement noise =R=, the current estimate =x=, and the
+current error covariance =P=. Construct it as =kalman{process_noise_Q,
+measurement_noise_R}=, optionally with an initial estimate and covariance.
+=push(measurement)= runs one predict-then-update cycle and returns the new
+estimate:
+
+#+BEGIN_EXAMPLE
+Predict:
+    x_pred = x                 (constant-state model: estimate carries over)
+    P_pred = P + Q             (uncertainty grows by the process noise)
+
+Update:
+    K = P_pred / (P_pred + R)  (Kalman gain, in [0, 1])
+    x = x_pred + K * (z - x_pred)
+    P = (1 - K) * P_pred
+#+END_EXAMPLE
+
+The meaning of the two parameters is everything. =Q= is how much the true state
+is expected to drift between samples: raise it and the filter believes the world
+is moving, so it keeps =P= high and stays responsive. =R= is the variance of the
+sensor: raise it and each measurement is trusted less, so =K= shrinks and the
+output smooths harder. Both carry the units of the signal squared (they are
+variances). The gain =K= is computed automatically and is never set by hand;
+=gain()= reports what the next =push= would use without mutating state.
+
+The filter is unprimed at construction: the first =push= after construction or
+=reset= adopts the measurement directly as the estimate and skips the update, so
+there is no slow climb from an arbitrary initial value. =reset(estimate, cov)=
+restores a known estimate and covariance and marks the filter unprimed again, so
+the next =push= reseeds from its measurement; =noise(q, r)= swaps the two noise
+parameters while leaving the estimate and covariance untouched.
+
+The update divides by =P_pred + R=. If =P=, =Q=, and =R= are all zero that
+denominator is zero, which would be a NaN; the implementation guards it by
+returning a gain of 0, which trusts the prediction fully and holds the estimate
+rather than producing garbage. In practice =Q= and =R= are non-negative and not
+both zero, so the guard only ever fires in degenerate configurations.
+
+As long as a real signal stays steady, =P= falls sample by sample and the gain
+shrinks with it: the filter grows confident and reacts less to each new reading.
+
+#+BEGIN_EXAMPLE
+Q = 0.01, R = 1.0, steady measurements near 20.0
+
+sample   P_pred = P + Q    K = P_pred/(P_pred+R)    estimate
+  1        (primed)          n/a                      20.00   seeds directly
+  2        1.01              0.50                      20.0x
+  3        0.51              0.34                      ...
+  4        0.35              0.26                      ...    K keeps shrinking
+  ...      -> approaches sqrt(Q*R) region, K settles small and steady
+#+END_EXAMPLE
+
+A larger =Q= floors the gain higher, keeping the filter alert to genuine change.
+
+** complementary: two sensors fused by frequency
+
+=complementary<T>= (=T= floating-point, default =double=) stores one weight
+=alpha= in =(0, 1)= and the last output. Construct it as =complementary{alpha}=.
+The fusion call takes both sensors:
+
+#+BEGIN_EXAMPLE
+push(fast, slow) -> alpha * fast + (1 - alpha) * slow
+#+END_EXAMPLE
+
+=alpha= is the weight of the fast, drift-prone sensor; the slow, drift-free
+sensor gets =1 - alpha=. A value near 1 trusts the fast sensor and follows quick
+motion at the cost of accumulating its drift; a value near 0 leans on the slow
+sensor and rejects drift at the cost of responsiveness. The weights are
+dimensionless and the two inputs share the units of the quantity being
+estimated. There is no internal state model and nothing to prime: the first
+=push(fast, slow)= already produces a correct blend, since it needs no history.
+
+There is also a single-argument =push(sample)= overload, provided so the type
+satisfies the common =filter_like= interface. It treats the sample as the fast
+input and the previous output as the slow input, which reduces to a first-order
+low-pass with smoothing factor =alpha=. Reach for it only when you have one
+signal and want EMA-like behaviour from this type; the two-argument form is the
+reason the filter exists.
+
+=alpha()= reads the weight and =alpha(a)= replaces it for subsequent samples.
+=reset()= clears the stored output to zero and =reset(initial)= sets it to a
+known starting value, which matters for the single-argument overload because that
+form feeds the previous output back; the two-argument form recomputes from
+scratch each call and so does not depend on what =reset= restored.
+
+** lms: FIR taps that adapt themselves
+
+=lms<T, N>= (=T= floating-point, =N= the number of taps) holds =N= coefficients,
+a ring buffer of the last =N= inputs, and the step size =mu=. Construct it as
+=lms{step_size}= (or default-construct for taps of zero and =mu= = 0.01).
+=push(input, desired)= runs one filter-then-adapt step and returns the output
+computed *before* the update:
+
+#+BEGIN_EXAMPLE
+y[n] = sum over k of w[k] * x[n - k]      filter with the current taps
+e[n] = d[n] - y[n]                        error against the desired signal
+w[k] += step_size * e[n] * x[n - k]       slide every tap down the gradient
+#+END_EXAMPLE
+
+The taps start at zero, so the first output is zero and the first error is the
+full desired value; each =push= moves the taps one step toward minimising the
+squared error, and over many samples they converge to the best FIR fit. =mu= (the
+step size) governs that descent: too small and the filter adapts slowly and never
+tracks fast change, too large and the taps overshoot and the coefficients
+explode. Typical safe values sit between 0.001 and 0.1, and normalising by the
+input power keeps a given choice stable as the signal level varies. =mu= is
+dimensionless; =input= and =desired= share the signal units.
+
+=coefficients()= returns a =std::span= over the =N= adapted taps so you can
+inspect the learned filter (in system identification the taps *are* the answer).
+=error()= returns the last =d - y= residual, the quantity the filter is driving
+toward zero, and =value()= the last output. =reset()= zeros the taps, the
+history, and the cached output and error, while deliberately preserving the step
+size, so a re-run starts from a blank filter but keeps your tuning.
+
+#+BEGIN_EXAMPLE
+desired d[n] tracked, output y[n] chasing it as the taps learn:
+
+  e[n] = d[n] - y[n]
+  |
+  |*                        large error early: taps still near zero
+  | *
+  |   *
+  |      *  *
+  |           *   *   *  *  *  *  *      error decays as taps converge
+  +-------------------------------------> n
+#+END_EXAMPLE
+
+A smaller step size makes that curve descend more gently but more reliably; too
+large a step and it diverges upward instead.
+
+* When to use it
+
+- median :: De-spiking. Reach for it when the corruption is impulsive (salt-and-
+  pepper noise, an ultrasonic rangefinder returning occasional nonsense, a stray
+  bit flip) rather than smooth wideband noise. It removes outliers outright but
+  does not smooth, so a small linear stage after it is common. It is the wrong
+  tool for Gaussian wideband noise, where a linear smoother wins, and it
+  distorts genuine fast edges by clipping them to a held sample, so keep the
+  window short when real transients carry information.
+- kalman :: Statistically weighted smoothing of one noisy scalar (temperature,
+  distance, voltage) when you can characterise the sensor noise =R= and the
+  expected drift =Q=. It tracks genuine change faster than an EMA of equal
+  smoothness because the gain adapts instead of staying fixed. Choose it when
+  you can put numbers on how noisy the sensor is and how fast the truth moves;
+  if you cannot, an EMA with a hand-picked factor is simpler and gives up
+  little. This scalar form models one quantity, so reach for a full matrix
+  Kalman when states couple (position and velocity, multiple axes).
+- complementary :: Fusing two sensors that are each good in a different band, the
+  textbook case being IMU tilt from a drifting gyroscope and a noisy
+  accelerometer. Pick it over a Kalman filter when determinism and a single
+  obvious tuning knob matter more than statistically optimal rejection. It
+  assumes the two sensors genuinely split by frequency, the fast one trustworthy
+  short-term and the slow one trustworthy long-term; if both are noisy in the
+  same band it has nothing to exploit and a Kalman filter that weights by
+  variance does better.
+- lms :: Identifying or undoing an unknown system online: echo cancellation,
+  adaptive noise cancellation, channel equalisation, plant identification.
+  Anything where you have a reference =input= and a =desired= target and want the
+  filter to discover the mapping itself. It needs that desired reference to adapt
+  against, so it does not fit plain denoising where no target exists, and the
+  system it learns should change slowly relative to the convergence time or the
+  taps never settle.
+
+Stability and cost:
+
+- =median= is =O(N log N)= per sample from the sort, but =N= is small in practice
+  (3 to 11), so this is a handful of comparisons. It allocates nothing.
+- =kalman= and =complementary= are =O(1)= per sample and =lms= is =O(N)= for both
+  the filter and the tap update; all three are heap-free and carry only a fixed
+  array of state.
+- =lms= is the only one with a convergence condition: the step size must be small
+  enough for the input power, or the taps diverge. When the signal level varies,
+  normalise the step by the input power; otherwise keep =mu= in the conservative
+  0.001 to 0.1 range. =kalman= is unconditionally stable for non-negative =Q= and
+  =R=, and =complementary= for any =alpha= in =(0, 1)=.
+
+* Best practices and tuning
+
+** median
+
+Choose an *odd* window so the median is a unique middle value rather than the
+lower of two candidates. A window of =N= rejects bursts of fewer than =N / 2=
+consecutive outliers, so size it to the longest spike you expect to swallow.
+Keep =N= small (3 to 11): the per-sample cost is =O(N log N)= from the sort, and
+a larger window also rounds off more of the real signal. The filter does not
+smooth, so it pairs well with a downstream linear smoother that cleans up the
+residual wideband noise the median leaves untouched.
+
+** kalman
+
+=R= (measurement noise) is the easier parameter: estimate it from the sensor
+datasheet, or hold the input constant and measure the residual variance of the
+raw readings. =Q= (process noise) is the critical knob and encodes how fast the
+true state may drift, so raise it for a more responsive filter and lower it for
+a smoother one. Tune iteratively by checking that the innovation sequence (each
+measurement minus its prediction) looks like zero-mean noise: a biased or
+trending innovation means =Q= is too low to keep up. Both =Q= and =R= carry the
+units of the signal squared, because they are variances, so scale them with the
+signal if you change its units.
+
+** complementary
+
+=alpha= is the weight of the fast, drift-prone sensor; for an IMU a value near
+0.95 to 0.99 is typical, trusting the gyroscope short-term while letting the
+accelerometer correct slow drift. =alpha= relates to a time constant =tau= and
+the sample period =dt= by =alpha = tau / (tau + dt)=, so pick =alpha= from the
+crossover time you want rather than by trial: decide how many seconds of
+gyroscope you trust before the accelerometer should reassert, set that as =tau=,
+and solve for =alpha= at your sample rate.
+
+** lms
+
+The step size =mu= must satisfy =0 < mu < 2 / (input signal power)= for
+stability; this is the standard LMS bound. Too small and the filter adapts
+slowly, too large and it diverges. When the input level varies, normalise the
+step by the instantaneous input power so a single =mu= stays stable across
+levels: the NLMS variant updates =w += mu / (eps + ||x||^2) * e * x=, where
+=eps= guards against division by zero on a silent input. A typical fixed =mu=
+sits between 0.001 and 0.1.
+
+Runnable: [[file:../../../examples/filter/robust.cpp][examples/filter/robust.cpp]]
