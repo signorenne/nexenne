@@ -11,7 +11,7 @@
  * \c tick_clock backend adapter, and \c manual_clock. Helpers: \c duration_parts
  * with \c extract_parts and \c format, the saturating \c to_count_sat, and the
  * \c frequency Hz/period conversions. Measurement and control: \c stopwatch,
- * \c fixed_stopwatch, \c scope_timer, \c profiler, \c frame_timer, \c countdown,
+ * \c static_stopwatch, \c scope_timer, \c profiler, \c frame_timer, \c countdown,
  * \c deadline, \c interval, \c alarm, and \c rate_limiter.
  */
 
@@ -21,7 +21,6 @@
 #include <nexenne/chrono/countdown.hpp>
 #include <nexenne/chrono/deadline.hpp>
 #include <nexenne/chrono/duration_parts.hpp>
-#include <nexenne/chrono/fixed_stopwatch.hpp>
 #include <nexenne/chrono/frame_timer.hpp>
 #include <nexenne/chrono/frequency.hpp>
 #include <nexenne/chrono/interval.hpp>
@@ -29,6 +28,7 @@
 #include <nexenne/chrono/profiler.hpp>
 #include <nexenne/chrono/rate_limiter.hpp>
 #include <nexenne/chrono/scope_timer.hpp>
+#include <nexenne/chrono/static_stopwatch.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
 #include <nexenne/chrono/tick_clock.hpp>
 

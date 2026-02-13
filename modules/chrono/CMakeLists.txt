@@ -23,7 +23,7 @@ nexenne_add_module(chrono
         include/nexenne/chrono/countdown.hpp
         include/nexenne/chrono/deadline.hpp
         include/nexenne/chrono/duration_parts.hpp
-        include/nexenne/chrono/fixed_stopwatch.hpp
+        include/nexenne/chrono/static_stopwatch.hpp
         include/nexenne/chrono/frame_timer.hpp
         include/nexenne/chrono/frequency.hpp
         include/nexenne/chrono/interval.hpp
