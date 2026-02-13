@@ -47,6 +47,12 @@ Follow a module to its own index, which lists, per class it provides, a guide
   =lms=), control shapers (=slew=, =debounce=, =hysteresis=, =glitch=), and
   validation guards (=range_guard=, =rate_guard=, =validator=, =majority=,
   =stale_detector=).
+- [[file:signal/README.org][signal]] (needs =container=, =utility=) : a header-only signal/slot system, a
+  typed multicast callback channel with no virtual dispatch and no heap on the
+  slot path. Priority-ordered =emit=, one-shot and lifetime-tracked
+  subscriptions, a connect-only =sink= view, RAII =scoped_connection= /
+  =emit_blocker=, and defined reentrancy (connect, disconnect, or destroy the
+  signal from inside a slot).
 
 * Dependency layering
 
@@ -55,6 +61,7 @@ A module may only use the modules below it; the build refuses a cycle.
 #+BEGIN_EXAMPLE
   benchmark      micro-benchmark runner
   serialization  JSON / CBOR / MessagePack / binary / COBS codecs
+  signal         signal/slot multicast callbacks
      |
      v
   container      vectors, maps, sets, queues, trees, graphs

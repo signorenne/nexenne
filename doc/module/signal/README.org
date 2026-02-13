@@ -1,0 +1,34 @@
+#+TITLE: nexenne::signal
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+A header-only signal/slot system: a typed, multicast callback channel in the
+Qt sense, built on [[file:../utility/README.org][nexenne::utility]] and [[file:../container/README.org][nexenne::container]]. The single idea that
+ties the module together: a =signal<R(Args...)>= is a list of callables (slots)
+that you connect to and then fire all at once with =emit=, with no virtual
+dispatch and no heap on the slot path. Type erasure uses
+=utility::in_place_function= (fixed inline storage, a callable too large is
+rejected at compile time) and the slot list is a =container::small_vector= with
+four inline slots, so a typical signal with a handful of subscribers allocates
+only once, for its shared core. That makes it usable in an embedded event loop,
+not just on a desktop.
+
+The hard parts a naive callback list gets wrong are lifetime and reentrancy, and
+those are the module's focus: a subscriber can outlive or predecease the signal,
+a slot can connect or disconnect (itself or others) or even destroy the signal
+from inside its own callback, and emits can nest. Every one of those is defined
+and safe here.
+
+* The emitter
+
+- [[file:signals.org][signals]] : =signal= and its connect-only =sink= view. The connect overloads
+  (plain, =connect_once=, member-function, lifetime-tracked), priority ordering,
+  =emit= and =emit_and_collect=, =block= / =unblock=, and the reentrancy and
+  destroy-during-emit guarantees.
+
+* The handles
+
+- [[file:connections.org][connections]] : the lifetime tools. =connection= and the RAII
+  =scoped_connection= returned by =connect=, the receiver-side =slot= that
+  auto-disconnects every subscription a subscriber makes when it dies, and the
+  RAII =emit_blocker= that suppresses emission for a scope.
