@@ -56,8 +56,9 @@ Follow a module to its own index, which lists, per class it provides, a guide
   =static_signal= variant trades unbounded slots for zero heap.
 - [[file:ecs/README.org][ecs]] (needs =container=, =signal=) : a sparse-set entity-component registry
   in the EnTT style, with no virtual dispatch. Recycle-safe =entity_id= handles,
-  cache-friendly per-type component storage, =add= / =remove= / =get= / =has= /
-  =patch=, multi-component =view= queries with an exclude list, and per-component
+  pointer-stable per-type component storage (so a view can add or remove
+  components while iterating), =add= / =remove= / =get= / =has= / =patch=,
+  multi-component =view= queries with an exclude list, and per-component
   =on_construct= / =on_update= / =on_destroy= lifecycle signals.
 
 * Dependency layering

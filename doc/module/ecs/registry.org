@@ -15,10 +15,11 @@ a class, it is whichever entity happens to carry =health=, =position=, and
 rather than by reassigning a base pointer.
 
 The reason to do this, beyond the modelling flexibility, is data layout. When
-every =position= lives next to every other =position= in one contiguous array,
-the system that updates positions streams through memory linearly and the cache
+every =position= is packed together rather than scattered as one heap node per
+entity, the system that updates positions streams through memory and the cache
 does the rest. That is the data-oriented payoff, and it is what the storage
-design below exists to deliver.
+design below exists to deliver, while also keeping a component's address stable
+for as long as the component lives.
 
 =nexenne::ecs::registry= is the object that owns all of it: the pool of entity
 identities, the per-type component storages, and the lifecycle signals that fire
@@ -31,15 +32,26 @@ The naive ECS keeps a =std::map<entity, T>= per component type. Lookup is a tree
 or hash probe, and iteration jumps all over the heap chasing pointers, exactly
 the access pattern a cache hates. The sparse-set model fixes both.
 
-Each component type gets two parallel structures. A *sparse* array is indexed by
-the entity's slot index and tells you where (if anywhere) that entity's component
-lives in the dense array. The *dense* side is two contiguous vectors held in
-lockstep: the entity-index =keys= and the component =values=. Looking up one
-entity is one sparse read then one dense read, =O(1)= with no probing. Iterating
-every component of a type is a straight walk over the dense =values= array, which
-is exactly the contiguous, cache-friendly access the naive map could not give
-you. In this module each component type's storage is a
-=container::dense_map<uint32, T>= wrapping that scheme.
+Each component type gets two structures. A *sparse* array is indexed by the
+entity's slot index and tells you which slot (if any) holds that entity's
+component. The *slot* side is a pointer-stable pool: a chunked
+=container::stable_vector= of slots, each either holding a live component (with
+the entity index that owns it) or empty (a tombstone). Looking up one entity is
+one sparse read then one slot read, =O(1)= with no probing. Iterating every
+component of a type walks the slot range and skips the tombstones, a packed,
+cache-friendly access the naive map could not give you. In this module each
+component type's storage is a =detail::component_pool<T>= wrapping that scheme.
+
+The pool is pointer-stable on purpose. Because the slots live in a
+=stable_vector= that never relocates an element, a =T&= you hold keeps its
+address for the component's whole lifetime, even as other components are added
+(growing the pool) or removed. Removal *tombstones* the slot in place (it clears
+the value and parks the slot on a free list for the next insert to reuse) rather
+than swap-popping a live element into the hole. That is what makes it safe to add
+to or remove from a storage while a [[file:views.org][view]] iterates it: no walk ever has an
+element move under it, and no handed-out reference dangles. The trade is that the
+live components are not one flat array; iteration visits live slots plus any
+not-yet-reused tombstones, chunk by chunk.
 
 The entity handle is built to survive recycling. =entity_id= is an opaque
 {index, generation} pair. The index addresses the registry's per-slot arrays; the
@@ -144,24 +156,26 @@ the type-independent cold paths (=destroy(e)=, =clear()=) reach every storage
 through one direct indirect call with no vtable lookup.
 
 The hot path skips the indirection entirely. =storage<T>()= returns the concrete
-=component_storage<T>&=, and its =keys()= / =values()= give you contiguous spans
-parallel to each other. A system loop over =values()= compiles down to a straight
-walk over a =std::vector<T>=: no function-pointer call, no per-element branch,
-fully inlinable. That is where the cache-friendliness is actually spent.
+=component_storage<T>&=, and its =values()= is a range over the live components.
+A system loop over =values()= walks the slots chunk by chunk, skipping
+tombstones: no function-pointer call, no per-element type erasure, fully
+inlinable. That is where the cache-friendliness is actually spent. The reference
+each iteration yields is stable, so the loop body may even add or remove
+components without dangling it.
 
 #+BEGIN_EXAMPLE
-component_storage<T>  ==  dense_map<uint32, T>
+component_storage<T>  ==  component_pool<T>
 
-  sparse (by entity index)        dense (parallel, contiguous)
-  +----+----+----+----+----+      keys:   [ 3 | 0 | 7 ]
-  | .  |  1 | .  |  0 |  . | ...  values: [ Ta| Tb| Tc]   <- the hot loop
-  +----+----+----+----+----+               ^   ^   ^
-   idx0 idx1 idx2 idx3 idx4                 |   |   |
-        |         |                         |   |   |
-        +---------|-------------------------+   |   |  entity 1 -> dense[0]
-                  +-----------------------------+      entity 3 -> dense[1]
+  sparse (by entity index)        slots (pointer-stable, chunked)
+  +----+----+----+----+----+      slot 0: { key 3, Ta }   <- live
+  |  2 | .  | .  |  1 |  . | ...  slot 1: { key 0, Tb }   <- live
+  +----+----+----+----+----+      slot 2: <tombstone>     <- skipped
+   idx0 idx1 idx2 idx3 idx4       slot 3: { key 7, Tc }   <- live
+     |              |
+     +--------------|---------> slot 1   entity 0 -> slot 1  (sparse holds 2)
+                    +---------> slot 0   entity 3 -> slot 0  (sparse holds 1)
 
-  // hot path: zero indirection, contiguous walk
+  // hot path: no type erasure, walks live slots, refs stay valid mid-loop
   for (auto& v : reg.storage<T>().values()) { update(v); }
 #+END_EXAMPLE
 
@@ -203,7 +217,7 @@ operation                         cost
 create / destroy                  O(1) amortised  (destroy: O(C), see below)
 add / remove / get / has          O(1)
 destroy(e)                        O(C), C = number of registered component types
-iterate one component type        contiguous, cache-friendly
+iterate one component type        chunked, cache-friendly (skips tombstones)
 #+END_EXAMPLE
 
 =destroy= is =O(C)= because it must check every registered storage for the
@@ -215,13 +229,15 @@ standard convention: concurrent reads are safe, concurrent mutation is not.
 
 ** Constraints to respect
 
-- *Lifecycle listeners must not structurally modify the storage they observe.*
+- *A lifecycle listener must not remove the very component it was handed.*
   Inside an =on_construct=, =on_update=, or =on_destroy= listener (and inside a
-  =patch= mutator), do not add or remove a =T= on another entity, and do not
-  destroy an entity that holds a =T=. Any of those can reallocate the =T= storage
-  and dangle the very component reference the signal is still passing to the
-  listener. Read and mutate the referenced component freely; just do not grow or
-  shrink its storage.
+  =patch= mutator), do not remove this =T= from the entity being signalled, and
+  do not destroy that entity: either would destroy the component under the
+  reference still being delivered to the remaining listeners. Everything else is
+  fair game. Because the storage is pointer-stable, you *may* add or remove
+  components on *other* entities, and destroy *other* entities, mid-listener: the
+  pool may grow or tombstone a slot, but the delivered reference keeps its
+  address. Read and mutate the referenced component freely.
 
 - *Entity index and generation are both =uint32=.* The registry addresses up to
   2^32 slots and counts up to 2^32 reuses per slot before the generation wraps
