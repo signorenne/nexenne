@@ -23,7 +23,7 @@ and allocation-free except the growable-lap =stopwatch= and the map-backed
 
 * Measurement
 
-- [[file:stopwatch.org][stopwatch]] : =stopwatch= and =fixed_stopwatch= with start / pause / resume /
+- [[file:stopwatch.org][stopwatch]] : =stopwatch= and =static_stopwatch= with start / pause / resume /
   lap, accumulating across intervals; the fixed variant is allocation-free.
 - [[file:scope-profiling.org][scope profiling]] : =scope_timer= (RAII, fires a callback on scope exit) and
   =profiler= (named buckets aggregating count / min / max / mean).
