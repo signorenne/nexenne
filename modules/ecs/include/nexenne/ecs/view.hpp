@@ -42,17 +42,23 @@
  *
  * Iteration strategy:
  *
- *   - The view picks the smallest include storage as the driver
- *     at construction time. The driver's \c keys() span is cached so
- *     the iterator loop is a plain index walk over a contiguous array.
+ *   - The view picks the smallest include storage as the driver at
+ *     construction time and walks its slots: indices \c [0, slot_count()),
+ *     skipping tombstoned slots. Because the storage pool is pointer-stable,
+ *     this is safe even when the loop body adds or removes components or
+ *     destroys entities: live components keep their addresses, and a slot
+ *     appended mid-iteration falls beyond the slot count captured at the
+ *     start, so it is not visited.
  *
- *   - For each driver entry, the view checks that all other includes
+ *   - The driver is one of several heterogeneous include storages, so its
+ *     slot walk (slot count, liveness, key) goes through a small captured
+ *     function-pointer cursor set once at construction (not a vtable). The
+ *     per-entity membership tests on the other includes and excludes, and
+ *     the component lookups, are typed and inline.
+ *
+ *   - For each live driver slot, the view checks that all other includes
  *     are present and that no exclude is present, both via O(1)
  *     sparse-set membership tests.
- *
- *   - All storage pointers are typed, captured in tuples at view
- *     construction. The hot loop is fully inlined (no virtual
- *     dispatch, no function-pointer indirection).
  *
  * For an empty component type \p T (\c std::is_empty_v<T> == true),
  * the callback still receives a (dummy) reference per the standard
@@ -66,7 +72,6 @@
 #include <cstdint>
 #include <iterator>
 #include <ranges>
-#include <span>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -112,12 +117,21 @@ private:
   using exclude_list = detail::type_list<Excludes...>;
   using includes_storage = std::tuple<component_storage<Includes>*...>;
   using excludes_storage = std::tuple<component_storage<Excludes>*...>;
-  using key_span = std::span<std::uint32_t const>;
+  // The driver is one of the heterogeneous include storages chosen at
+  // runtime (the smallest), so its slot walk is reached through this captured
+  // function-pointer cursor rather than a typed call. Set once at
+  // construction by \c bind_driver; never null afterwards.
+  using slot_count_fn = auto (*)(void const*) noexcept -> std::size_t;
+  using is_live_fn = auto (*)(void const*, std::size_t) noexcept -> bool;
+  using key_at_fn = auto (*)(void const*, std::size_t) noexcept -> std::uint32_t;
 
   registry* m_registry{nullptr};
   includes_storage m_includes{};
   excludes_storage m_excludes{};
-  key_span m_driver_keys{};
+  void const* m_driver{nullptr};
+  slot_count_fn m_driver_slot_count{nullptr};
+  is_live_fn m_driver_is_live{nullptr};
+  key_at_fn m_driver_key_at{nullptr};
 
   template <typename Func>
   static constexpr auto wants_entity_id_v = std::is_invocable_v<Func&, entity_id, Includes&...>;
@@ -132,11 +146,9 @@ public:
    *
    * @param reg  Registry to view. Must outlive the view.
    *
-   * @pre  \p reg outlives this view, and its include / exclude
-   *       storages are not structurally modified while the view is
-   *       used.
-   * @post Storage exists for every include and exclude type. The
-   *       driver key span is cached.
+   * @pre  \p reg outlives this view.
+   * @post Storage exists for every include and exclude type. The driver
+   *       cursor is bound to the smallest include storage.
    *
    * @complexity \c O(sizeof...(Includes)).
    */
@@ -144,7 +156,7 @@ public:
       : m_registry{&reg}
       , m_includes{&reg.template storage<Includes>()...}
       , m_excludes{&reg.template storage<Excludes>()...} {
-    m_driver_keys = find_smallest_driver();
+    bind_driver(select_driver_index(), std::index_sequence_for<Includes...>{});
   }
 
   /**
@@ -182,19 +194,27 @@ public:
    * @tparam Func  Callable invocable with either accepted form.
    * @param  f     Callback invoked once per matching entity.
    *
-   * @pre  \p f must not structurally modify the viewed storages (add
-   *       or remove components, create or destroy entities) for the
-   *       duration of the loop.
-   * @post Every entity matching the filters at call time was passed to
-   *       \p f exactly once.
+   * @pre  None. Thanks to the pointer-stable storage, \p f may add or
+   *       remove components and create or destroy entities during the loop
+   *       without dangling the references it holds.
+   * @post Every entity matching the filters at the start was passed to \p f
+   *       exactly once, unless \p f removed it (or a required component)
+   *       before it was reached. A component added by \p f during the loop
+   *       is not guaranteed to be visited.
    *
-   * @complexity \c O(D) driver entries times \c O(sizeof...(Includes)
+   * @complexity \c O(D) driver slots times \c O(sizeof...(Includes)
    *             + sizeof...(Excludes)) membership tests each.
    */
   template <typename Func>
   auto each(Func&& f) const noexcept -> void {
-    for (auto pos{std::size_t{0}}; pos < m_driver_keys.size(); ++pos) {
-      auto const idx{m_driver_keys[pos]};
+    // Capture the slot count once: a slot appended by \p f during the loop
+    // lies beyond it and is not visited.
+    auto const count{m_driver_slot_count(m_driver)};
+    for (auto slot{std::size_t{0}}; slot < count; ++slot) {
+      if (!m_driver_is_live(m_driver, slot)) {
+        continue;
+      }
+      auto const idx{m_driver_key_at(m_driver, slot)};
       if (!passes_filter(idx)) {
         continue;
       }
@@ -202,14 +222,14 @@ public:
         auto const gen{m_registry->generation_at(idx)};
         std::apply(
           [&f, idx, gen](auto*... s) noexcept {
-            // passes_filter ensures every storage contains idx,
-            // so find() never returns end() here.
-            f(entity_id{idx, gen}, (*s->find(idx)).second...);
+            // passes_filter ensures every include holds idx, so try_get
+            // never returns nullptr here.
+            f(entity_id{idx, gen}, (*s->try_get(idx))...);
           },
           m_includes
         );
       } else {
-        std::apply([&f, idx](auto*... s) noexcept { f((*s->find(idx)).second...); }, m_includes);
+        std::apply([&f, idx](auto*... s) noexcept { f((*s->try_get(idx))...); }, m_includes);
       }
     }
   }
@@ -237,10 +257,16 @@ public:
   private:
     basic_view const* m_view{nullptr};
     std::size_t m_pos{0};
+    // Slot count captured at construction. Bounding advance by this fixed
+    // value (rather than a live re-read) keeps a slot appended during
+    // iteration out of range, so the iterator still terminates at \c end().
+    std::size_t m_count{0};
 
     auto advance_to_valid() noexcept -> void {
-      auto const& keys{m_view->m_driver_keys};
-      while (m_pos < keys.size() && !m_view->passes_filter(keys[m_pos])) {
+      while (
+        m_pos < m_count
+        && (!m_view->driver_is_live(m_pos) || !m_view->passes_filter(m_view->driver_key_at(m_pos)))
+      ) {
         ++m_pos;
       }
     }
@@ -255,18 +281,18 @@ public:
     constexpr iterator() noexcept = default;
 
     /**
-     * @brief Constructs an iterator into \p v at driver position
-     *        \p pos, then advances to the first matching entry.
+     * @brief Constructs an iterator into \p v at driver slot \p pos, then
+     *        advances to the first matching live slot.
      *
      * @param v    View being iterated.
-     * @param pos  Starting driver position, in \c [0, driver size].
+     * @param pos  Starting driver slot, in \c [0, slot count].
      *
-     * @pre  \p pos is <= the driver key count.
+     * @pre  \p pos is no greater than the driver slot count.
      * @post The iterator points at the first matching entry at or
      *       after \p pos, or equals \c end() if none.
      */
     explicit iterator(basic_view const& v, std::size_t const pos) noexcept
-        : m_view{&v}, m_pos{pos} {
+        : m_view{&v}, m_pos{pos}, m_count{v.driver_slot_count()} {
       advance_to_valid();
     }
 
@@ -280,13 +306,13 @@ public:
      * @post The iterator is unchanged.
      */
     [[nodiscard]] auto operator*() const noexcept -> value_type {
-      auto const idx{m_view->m_driver_keys[m_pos]};
+      auto const idx{m_view->driver_key_at(m_pos)};
       auto const gen{m_view->m_registry->generation_at(idx)};
       return std::apply(
         [idx, gen](auto*... s) noexcept -> value_type {
-          // advance_to_valid guarantees every storage contains
-          // idx, so find() never returns end() here.
-          return value_type{entity_id{idx, gen}, (*s->find(idx)).second...};
+          // advance_to_valid guarantees every include holds idx, so
+          // try_get never returns nullptr here.
+          return value_type{entity_id{idx, gen}, (*s->try_get(idx))...};
         },
         m_view->m_includes
       );
@@ -366,7 +392,7 @@ public:
    * @complexity \c O(1).
    */
   [[nodiscard]] auto end() const noexcept -> iterator {
-    return iterator{*this, m_driver_keys.size()};
+    return iterator{*this, driver_slot_count()};
   }
 
 private:
@@ -386,28 +412,53 @@ private:
     return true;
   }
 
-  [[nodiscard]] auto find_smallest_driver() const noexcept -> key_span {
+  // Driver slot walk, reached through the captured cursor.
+  [[nodiscard]] auto driver_slot_count() const noexcept -> std::size_t {
+    return m_driver_slot_count(m_driver);
+  }
+
+  [[nodiscard]] auto driver_is_live(std::size_t const slot) const noexcept -> bool {
+    return m_driver_is_live(m_driver, slot);
+  }
+
+  [[nodiscard]] auto driver_key_at(std::size_t const slot) const noexcept -> std::uint32_t {
+    return m_driver_key_at(m_driver, slot);
+  }
+
+  // Index of the smallest include storage, used as the iteration driver.
+  [[nodiscard]] auto select_driver_index() const noexcept -> std::size_t {
     if constexpr (sizeof...(Includes) == 1) {
-      return std::get<0>(m_includes)->keys();
+      return 0;
     } else {
       using size_array = std::array<std::size_t, sizeof...(Includes)>;
       auto const sizes{
         std::apply([](auto*... s) noexcept { return size_array{s->size()...}; }, m_includes)
       };
       auto const min_it{std::min_element(sizes.begin(), sizes.end())};
-      auto const driver_idx{static_cast<std::size_t>(min_it - sizes.begin())};
-      auto result{key_span{}};
-      dispatch_keys(driver_idx, result, std::index_sequence_for<Includes...>{});
-      return result;
+      return static_cast<std::size_t>(min_it - sizes.begin());
     }
   }
 
+  // Binds the cursor to include storage \c I (the chosen driver).
+  template <std::size_t I>
+  auto bind_driver_to() noexcept -> void {
+    using storage_ptr = std::tuple_element_t<I, includes_storage>;
+    using storage_type = std::remove_pointer_t<storage_ptr>;
+    m_driver = std::get<I>(m_includes);
+    m_driver_slot_count = +[](void const* d) noexcept -> std::size_t {
+      return static_cast<storage_type const*>(d)->slot_count();
+    };
+    m_driver_is_live = +[](void const* d, std::size_t s) noexcept -> bool {
+      return static_cast<storage_type const*>(d)->is_live(s);
+    };
+    m_driver_key_at = +[](void const* d, std::size_t s) noexcept -> std::uint32_t {
+      return static_cast<storage_type const*>(d)->key_at(s);
+    };
+  }
+
   template <std::size_t... Is>
-  auto dispatch_keys(std::size_t const driver_idx, key_span& out, std::index_sequence<Is...>)
-    const noexcept -> void {
-    ((driver_idx == Is ? static_cast<void>(out = std::get<Is>(m_includes)->keys())
-                       : static_cast<void>(0)),
-     ...);
+  auto bind_driver(std::size_t const driver_idx, std::index_sequence<Is...>) noexcept -> void {
+    ((driver_idx == Is ? bind_driver_to<Is>() : static_cast<void>(0)), ...);
   }
 };
 
