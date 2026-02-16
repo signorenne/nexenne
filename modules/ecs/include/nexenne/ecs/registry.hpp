@@ -24,14 +24,20 @@
  *     \c storage<T>() directly with the concrete type, so the loop
  *     inlines fully.
  *
- * The hot path (iterating one component type) is:
+ * Each \c component_storage<T> is a pointer-stable \c detail::component_pool:
+ * a reference to a component keeps its address for the component's whole
+ * lifetime, so it is safe to add or remove components (even destroy whole
+ * entities) while a \c view iterates, without dangling the references the
+ * view hands out. Removal tombstones the slot in place rather than
+ * compacting, so iterating one component type is:
  *
  *   \code
  *   for (auto& p : reg.storage<position>().values()) { ... }
  *   \endcode
  *
- *   which compiles down to a contiguous walk over a
- *   \c std::vector<position>: no function pointer indirection at all.
+ *   a chunk-by-chunk walk that skips tombstoned slots: cache-friendly within
+ *   each chunk and free of function pointer indirection, though not a single
+ *   flat array (the price of pointer stability).
  *
  * Cold paths (\c destroy(e), \c clear()) call into every storage
  * through the function pointers (single indirect call, no vtable
@@ -43,7 +49,8 @@
  *   - Per-component \c add / \c remove / \c get / \c has: O(1).
  *   - \c destroy(e): O(C) where C is the number of registered
  *     component types.
- *   - Iteration over one component type: contiguous, cache-friendly.
+ *   - Iteration over one component type: chunked and cache-friendly,
+ *     visiting live slots plus any not-yet-reused tombstones.
  *
  * Exception policy: every operation is \c noexcept. Allocation
  * failures terminate. Out-of-bounds / stale-handle accesses return
@@ -60,13 +67,12 @@
 #include <expected>
 #include <functional>
 #include <memory>
-#include <span>
 #include <utility>
 #include <vector>
 
-#include <nexenne/container/dense_map.hpp>
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/sparse_set.hpp>
+#include <nexenne/ecs/component_pool.hpp>
 #include <nexenne/ecs/type_id.hpp>
 #include <nexenne/signal/connection.hpp>
 #include <nexenne/signal/signal.hpp>
@@ -74,7 +80,6 @@
 namespace nexenne::ecs {
 
 using nexenne::container::container_error;
-using nexenne::container::dense_map;
 using nexenne::container::sparse_set;
 
 namespace detail {
@@ -200,36 +205,50 @@ public:
 };
 
 /**
- * @brief Typed per-component storage: a \c dense_map<entity index, T>.
+ * @brief Typed per-component storage: a pointer-stable \c component_pool
+ *        keyed by entity index.
  *
  * Used by the registry as the concrete storage type behind each
- * \c type_id<T>() slot. Exposed via \c registry::storage<T>() so
- * callers can iterate \c keys() / \c values() with no indirection.
- * Also owns the three lifecycle signals (construct / update / destroy)
- * that the registry fires as components are attached, replaced, and
- * removed.
+ * \c type_id<T>() slot. Exposed via \c registry::storage<T>() so callers
+ * can iterate \c values() (live components) or walk the slot interface the
+ * \c view drives off. Also owns the three lifecycle signals (construct /
+ * update / destroy) that the registry fires as components are attached,
+ * replaced, and removed.
  *
- * Not derived from any base: the registry erases the type through
- * function pointers rather than virtual dispatch. Pinned in place
- * (non-copyable, non-movable) because the registry holds a raw pointer
- * to it and the signals back-reference their own storage.
+ * The backing \c detail::component_pool is pointer-stable: a reference to a
+ * component keeps its address for the component's whole lifetime, even as
+ * other components are added or removed. That is what lets a \c view add to
+ * or remove from a storage while iterating it without dangling the
+ * references it hands out. Removal tombstones the slot in place rather than
+ * compacting, so the live components are not contiguous; iterate them with
+ * \c values() or the \c slot_count / \c is_live / \c key_at / \c value_at
+ * slot interface.
+ *
+ * Not derived from any base: the registry erases the type through function
+ * pointers rather than virtual dispatch. Pinned in place (non-copyable,
+ * non-movable) because the registry holds a raw pointer to it and the
+ * signals back-reference their own storage.
  *
  * @tparam T  Component value type stored per entity index.
  */
 template <typename T>
 class component_storage {
 public:
-  using map_type = dense_map<std::uint32_t, T>;  ///< Dense storage keyed by entity index.
+  using pool_type =
+    detail::component_pool<T>;  ///< Pointer-stable backing pool keyed by entity index.
+  using size_type = typename pool_type::size_type;  ///< Count and slot-index type.
+  /// @brief Range over the live components, yielded by \c values() (mutable).
+  using value_range = detail::pool_value_range<pool_type>;
+  /// @brief Range over the live components, yielded by \c values() (const).
+  using const_value_range = detail::pool_value_range<pool_type const>;
   /// @brief Signal type for the three lifecycle events, signature
   ///        \c (entity_id, T&).
   using signal_type = nexenne::signal::signal<void(entity_id, T&)>;
   /// @brief Connect-only sink published for each lifecycle signal.
   using sink_type = nexenne::signal::sink<void(entity_id, T&)>;
-  using iterator = typename map_type::iterator;              ///< Mutable component iterator.
-  using const_iterator = typename map_type::const_iterator;  ///< Const component iterator.
 
 private:
-  map_type m_data{};
+  pool_type m_pool{};
   signal_type m_on_construct{};
   signal_type m_on_update{};
   signal_type m_on_destroy{};
@@ -253,13 +272,14 @@ public:
   auto operator=(component_storage&&) -> component_storage& = delete;
 
   /**
-   * @brief Inserts a component at \p index if absent.
+   * @brief Inserts a component at \p index, overwriting any existing one.
    *
    * Does not fire any signal; the registry emits lifecycle signals
-   * around this call.
+   * around this call. An existing component is assigned in place, keeping
+   * its address.
    *
    * @param index  Entity index key.
-   * @param value  Component value, moved into the map.
+   * @param value  Component value, moved into the pool.
    *
    * @return \c true when a new entry was created, \c false when one
    *         already existed (in which case it is overwritten).
@@ -268,14 +288,15 @@ public:
    * @post \c contains(index) is \c true.
    */
   auto insert(std::uint32_t const index, T value) noexcept -> bool {
-    return m_data.insert_or_assign(index, std::move(value));
+    return m_pool.insert_or_assign(index, std::move(value));
   }
 
   /**
    * @brief Erases the component at \p index if present.
    *
    * Does not fire any signal; the registry emits \c on_destroy before
-   * calling this.
+   * calling this. Tombstones the slot in place, so every other
+   * component keeps its address.
    *
    * @param index  Entity index key.
    *
@@ -286,37 +307,37 @@ public:
    * @post \c contains(index) is \c false.
    */
   auto erase(std::uint32_t const index) noexcept -> bool {
-    return m_data.erase(index);
+    return m_pool.erase(index);
   }
 
   /**
-   * @brief \c std::map::find-style lookup returning an iterator (mutable).
+   * @brief Pointer to the component at \p index, or \c nullptr (mutable).
    *
    * @param index  Entity index key.
    *
-   * @return An iterator to the entry, or \c end() when \p index is
-   *         absent.
-   *
-   * @pre None.
-   * @post The storage is unchanged.
-   */
-  [[nodiscard]] auto find(std::uint32_t const index) noexcept -> iterator {
-    return m_data.find(index);
-  }
-
-  /**
-   * @brief \c std::map::find-style lookup returning an iterator (const).
-   *
-   * @param index  Entity index key.
-   *
-   * @return A const iterator to the entry, or \c end() when \p index
+   * @return A stable pointer to the component, or \c nullptr when \p index
    *         is absent.
    *
    * @pre None.
    * @post The storage is unchanged.
    */
-  [[nodiscard]] auto find(std::uint32_t const index) const noexcept -> const_iterator {
-    return m_data.find(index);
+  [[nodiscard]] auto try_get(std::uint32_t const index) noexcept -> T* {
+    return m_pool.try_get(index);
+  }
+
+  /**
+   * @brief Pointer to the component at \p index, or \c nullptr (const).
+   *
+   * @param index  Entity index key.
+   *
+   * @return A stable pointer to the \c const component, or \c nullptr when
+   *         \p index is absent.
+   *
+   * @pre None.
+   * @post The storage is unchanged.
+   */
+  [[nodiscard]] auto try_get(std::uint32_t const index) const noexcept -> T const* {
+    return m_pool.try_get(index);
   }
 
   /**
@@ -332,7 +353,7 @@ public:
    */
   [[nodiscard]] auto at(std::uint32_t const index
   ) noexcept -> std::expected<std::reference_wrapper<T>, container_error> {
-    if (auto* const ptr{m_data.at(index)}; ptr != nullptr) {
+    if (auto* const ptr{m_pool.try_get(index)}; ptr != nullptr) {
       return std::ref(*ptr);
     }
     return std::unexpected{container_error::not_found};
@@ -351,7 +372,7 @@ public:
    */
   [[nodiscard]] auto at(std::uint32_t const index
   ) const noexcept -> std::expected<std::reference_wrapper<T const>, container_error> {
-    if (auto const* const ptr{m_data.at(index)}; ptr != nullptr) {
+    if (auto const* const ptr{m_pool.try_get(index)}; ptr != nullptr) {
       return std::cref(*ptr);
     }
     return std::unexpected{container_error::not_found};
@@ -368,7 +389,7 @@ public:
    * @post The storage is unchanged.
    */
   [[nodiscard]] auto contains(std::uint32_t const index) const noexcept -> bool {
-    return m_data.contains(index);
+    return m_pool.contains(index);
   }
 
   /**
@@ -383,23 +404,23 @@ public:
    * @post The storage is unchanged.
    */
   [[nodiscard]] auto count(std::uint32_t const index) const noexcept -> std::size_t {
-    return m_data.count(index);
+    return m_pool.contains(index) ? std::size_t{1} : std::size_t{0};
   }
 
   /**
-   * @brief Number of stored components.
+   * @brief Number of live (non-tombstoned) components.
    *
-   * @return The component count.
+   * @return The live component count.
    *
    * @pre None.
    * @post The storage is unchanged.
    */
   [[nodiscard]] auto size() const noexcept -> std::size_t {
-    return m_data.size();
+    return m_pool.size();
   }
 
   /**
-   * @brief Reports whether the storage holds no components.
+   * @brief Reports whether the storage holds no live components.
    *
    * @return \c true iff \c size() is 0.
    *
@@ -407,7 +428,7 @@ public:
    * @post The storage is unchanged.
    */
   [[nodiscard]] auto empty() const noexcept -> bool {
-    return m_data.empty();
+    return m_pool.empty();
   }
 
   /**
@@ -417,94 +438,105 @@ public:
    * @post \c empty() is \c true. Listeners stay connected.
    */
   auto clear() noexcept -> void {
-    m_data.clear();
+    m_pool.clear();
   }
 
   /**
-   * @brief Contiguous span of the stored entity-index keys.
+   * @brief Total number of slots, live plus tombstone.
    *
-   * @return A span over the dense key array, parallel to \c values().
+   * Drives view iteration together with \c is_live: walk \c [0, slot_count())
+   * and skip slots where \c is_live is \c false.
    *
-   * @pre None.
-   * @post The storage is unchanged. The span is invalidated by any
-   *       structural modification.
-   */
-  [[nodiscard]] auto keys() const noexcept -> std::span<std::uint32_t const> {
-    return m_data.keys();
-  }
-
-  /**
-   * @brief Contiguous span of the stored components (mutable).
-   *
-   * @return A span over the dense value array, parallel to \c keys().
-   *
-   * @pre None.
-   * @post The storage is structurally unchanged. The span is
-   *       invalidated by any structural modification.
-   */
-  [[nodiscard]] auto values() noexcept -> std::span<T> {
-    return m_data.values();
-  }
-
-  /**
-   * @brief Contiguous span of the stored components (const).
-   *
-   * @return A span over the dense \c const value array.
-   *
-   * @pre None.
-   * @post The storage is unchanged. The span is invalidated by any
-   *       structural modification.
-   */
-  [[nodiscard]] auto values() const noexcept -> std::span<T const> {
-    return m_data.values();
-  }
-
-  /**
-   * @brief Iterator to the first (key, value) entry (mutable).
-   *
-   * @return A begin iterator, equal to \c end() when empty.
+   * @return The slot count.
    *
    * @pre None.
    * @post The storage is unchanged.
    */
-  [[nodiscard]] auto begin() noexcept -> iterator {
-    return m_data.begin();
+  [[nodiscard]] auto slot_count() const noexcept -> size_type {
+    return m_pool.slot_count();
   }
 
   /**
-   * @brief Past-the-end iterator (mutable).
+   * @brief Whether slot \p slot currently holds a live component.
    *
-   * @return An end iterator.
+   * @param slot  Slot index, less than \c slot_count().
    *
-   * @pre None.
+   * @return \c true when the slot is live, \c false when it is a tombstone.
+   *
+   * @pre \p slot is less than \c slot_count().
    * @post The storage is unchanged.
    */
-  [[nodiscard]] auto end() noexcept -> iterator {
-    return m_data.end();
+  [[nodiscard]] auto is_live(size_type const slot) const noexcept -> bool {
+    return m_pool.is_live(slot);
   }
 
   /**
-   * @brief Iterator to the first (key, value) entry (const).
+   * @brief Entity index owning the live component at \p slot.
    *
-   * @return A const begin iterator, equal to \c end() when empty.
+   * @param slot  Live slot index.
    *
-   * @pre None.
+   * @return The entity index key for that slot.
+   *
+   * @pre \c is_live(slot) is \c true.
    * @post The storage is unchanged.
    */
-  [[nodiscard]] auto begin() const noexcept -> const_iterator {
-    return m_data.begin();
+  [[nodiscard]] auto key_at(size_type const slot) const noexcept -> std::uint32_t {
+    return m_pool.key_at(slot);
   }
 
   /**
-   * @brief Past-the-end iterator (const).
+   * @brief The component at live slot \p slot (mutable).
    *
-   * @return A const end iterator.
+   * @param slot  Live slot index.
    *
-   * @pre None.
+   * @return A stable reference to the component.
+   *
+   * @pre \c is_live(slot) is \c true.
    * @post The storage is unchanged.
    */
-  [[nodiscard]] auto end() const noexcept -> const_iterator {
-    return m_data.end();
+  [[nodiscard]] auto value_at(size_type const slot) noexcept -> T& {
+    return m_pool.value_at(slot);
+  }
+
+  /**
+   * @brief The component at live slot \p slot (const).
+   *
+   * @param slot  Live slot index.
+   *
+   * @return A stable reference to the \c const component.
+   *
+   * @pre \c is_live(slot) is \c true.
+   * @post The storage is unchanged.
+   */
+  [[nodiscard]] auto value_at(size_type const slot) const noexcept -> T const& {
+    return m_pool.value_at(slot);
+  }
+
+  /**
+   * @brief Range over the live components, skipping tombstones (mutable).
+   *
+   * @return A forward range yielding each live component by reference.
+   *
+   * @pre None.
+   * @post The storage is structurally unchanged. The range is invalidated
+   *       by \c clear; pointer stability keeps individual references valid
+   *       across other inserts and erases.
+   */
+  [[nodiscard]] auto values() noexcept -> value_range {
+    return value_range{m_pool};
+  }
+
+  /**
+   * @brief Range over the live components, skipping tombstones (const).
+   *
+   * @return A forward range yielding each live \c const component by
+   *         reference.
+   *
+   * @pre None.
+   * @post The storage is unchanged. The range is invalidated by \c clear.
+   */
+  [[nodiscard]] auto values() const noexcept -> const_value_range {
+    return const_value_range{m_pool};
   }
 
   /**
@@ -648,9 +680,8 @@ template <typename T>
     .destroy_fn = +[](void* d) noexcept -> void { delete static_cast<component_storage<T>*>(d); },
     .fire_on_destroy_fn = +[](void* d, entity_id e) noexcept -> void {
       auto* const s{static_cast<component_storage<T>*>(d)};
-      auto const it{s->find(e.index())};
-      if (it != s->end()) {
-        s->emit_destroy(e, (*it).second);
+      if (auto* const value{s->try_get(e.index())}; value != nullptr) {
+        s->emit_destroy(e, *value);
       }
     },
   };
@@ -952,11 +983,12 @@ public:
    *       means exactly one \c on_construct<T>() fired; a \c false
    *       result with a valid \p e means one \c on_update<T>() fired.
    *
-   * @warning A listener invoked by the fired signal must not structurally
-   *          modify the \c T storage (add or remove a \c T on another entity,
-   *          or destroy an entity holding a \c T): that can reallocate the
-   *          storage and dangle the component reference still being passed to
-   *          the signal.
+   * @warning A listener invoked by the fired signal must not remove this \c T
+   *          from \p e, nor destroy \p e, while the signal is firing: that
+   *          would invalidate the very reference still being delivered. Adding
+   *          or removing components on other entities (and destroying other
+   *          entities) is safe: the pointer-stable storage keeps the delivered
+   *          reference valid even if its pool grows or tombstones a slot.
    *
    * @complexity \c O(1).
    */
@@ -967,12 +999,12 @@ public:
     }
     auto& storage{ensure_storage<T>()};
     auto const inserted{storage.insert(e.index(), std::move(value))};
-    auto const it{storage.find(e.index())};
-    // \c find never returns end() right after a successful insert.
+    // try_get never returns nullptr right after a successful insert.
+    auto* const stored{storage.try_get(e.index())};
     if (inserted) {
-      storage.emit_construct(e, (*it).second);
+      storage.emit_construct(e, *stored);
     } else {
-      storage.emit_update(e, (*it).second);
+      storage.emit_update(e, *stored);
     }
     return inserted;
   }
@@ -995,9 +1027,10 @@ public:
    *       one \c on_destroy<T>() fired. On a \c false result the
    *       registry is unchanged.
    *
-   * @warning A listener invoked by the fired signal must not structurally
-   *          modify the \c T storage; that can reallocate it and dangle the
-   *          component reference still being passed to the signal.
+   * @warning A listener invoked by the fired signal must not itself remove
+   *          this \c T from \p e, nor destroy \p e: that would invalidate the
+   *          reference still being delivered to the other listeners. Structural
+   *          changes to other entities are safe; the storage is pointer-stable.
    *
    * @complexity \c O(1).
    */
@@ -1010,11 +1043,11 @@ public:
     if (storage == nullptr) {
       return false;
     }
-    auto const it{storage->find(e.index())};
-    if (it == storage->end()) {
+    auto* const value{storage->try_get(e.index())};
+    if (value == nullptr) {
       return false;
     }
-    storage->emit_destroy(e, (*it).second);
+    storage->emit_destroy(e, *value);
     return storage->erase(e.index());
   }
 
@@ -1041,8 +1074,9 @@ public:
    *       registry is unchanged and \p mutator did not run.
    *
    * @warning Neither \p mutator nor a listener invoked by the fired signal may
-   *          structurally modify the \c T storage; that can reallocate it and
-   *          dangle the component reference both of them receive.
+   *          remove this \c T from \p e or destroy \p e: that would invalidate
+   *          the reference both receive. Structural changes to other entities
+   *          are safe; the storage is pointer-stable.
    *
    * @complexity \c O(1) plus the cost of \p mutator.
    */
@@ -1056,13 +1090,12 @@ public:
     if (storage == nullptr) {
       return false;
     }
-    auto const it{storage->find(e.index())};
-    if (it == storage->end()) {
+    auto* const value{storage->try_get(e.index())};
+    if (value == nullptr) {
       return false;
     }
-    auto& value{(*it).second};
-    mutator(value);
-    storage->emit_update(e, value);
+    mutator(*value);
+    storage->emit_update(e, *value);
     return true;
   }
 
@@ -1336,8 +1369,8 @@ public:
   /**
    * @brief Direct access to the typed storage for \p T (mutable).
    *
-   * The hot path for iteration: \c keys() / \c values() on the
-   * returned storage compile to contiguous walks with no indirection.
+   * The hot path for iteration: \c values() on the returned storage walks
+   * the live components with no indirection (chunked, skipping tombstones).
    * Creates the storage lazily on first call for type \p T.
    *
    * @tparam T  Component type whose storage is wanted.
