@@ -79,7 +79,9 @@ private:
     }
     auto const dt_sec{static_cast<double>(dt_ns) * 1e-9};
     m_tokens = std::min(m_capacity, m_tokens + dt_sec * m_refill_per_sec);
-    m_last = now;
+    // Hold the anchor monotonic: a backward clock must not move it back, which
+    // would re-credit the skipped interval as refill on the next forward step.
+    m_last = std::max(m_last, now);
   }
 
 public:
