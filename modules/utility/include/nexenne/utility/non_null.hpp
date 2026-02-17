@@ -69,7 +69,9 @@ public:
    */
   // NOLINTNEXTLINE(hicpp-explicit-conversions): non_null is meant to convert implicitly
   constexpr non_null(pointer_type ptr) noexcept : m_ptr{std::move(ptr)} {
-    assert(m_ptr != nullptr && "non_null: constructed with nullptr");
+    if !consteval {
+      assert(m_ptr != nullptr && "non_null: constructed with nullptr");
+    }
   }
 
   /// @brief Deleted: constructing from \c nullptr is a compile-time error.
