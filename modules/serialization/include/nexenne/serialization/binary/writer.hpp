@@ -278,7 +278,11 @@ public:
   auto write_bytes(std::span<byte_type const> const data) noexcept -> std::expected<void, error> {
     if (!fits(data.size())) [[unlikely]]
       return std::unexpected{error::buffer_full};
-    std::memcpy(m_buf.data() + m_pos, data.data(), data.size());
+    // Guard the copy: memcpy with a null pointer is undefined even for size 0,
+    // and an empty span's data() may be null.
+    if (!data.empty()) {
+      std::memcpy(m_buf.data() + m_pos, data.data(), data.size());
+    }
     m_pos += data.size();
     return {};
   }
@@ -313,7 +317,9 @@ public:
     }
     auto const n{xs.size() * sizeof(T)};
     if constexpr (std::endian::native == std::endian::little || sizeof(T) == 1) {
-      std::memcpy(m_buf.data() + m_pos, xs.data(), n);
+      if (n != 0) {  // memcpy with a null/empty source is UB even for size 0
+        std::memcpy(m_buf.data() + m_pos, xs.data(), n);
+      }
       m_pos += n;
     } else {
       for (auto const& x : xs) {
@@ -415,7 +421,10 @@ public:
       v >>= 7;
     }
     m_buf[m_pos++] = static_cast<byte_type>(v);
-    std::memcpy(m_buf.data() + m_pos, s.data(), s.size());
+    // memcpy with a null pointer is UB even for size 0.
+    if (!s.empty()) {
+      std::memcpy(m_buf.data() + m_pos, s.data(), s.size());
+    }
     m_pos += s.size();
     return {};
   }

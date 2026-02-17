@@ -448,7 +448,10 @@ public:
       detail::store_be32(m_buf.data() + m_pos, static_cast<std::uint32_t>(n));
       m_pos += 4;
     }
-    std::memcpy(m_buf.data() + m_pos, s.data(), n);
+    // memcpy with a null pointer is UB even for size 0.
+    if (n != 0) {
+      std::memcpy(m_buf.data() + m_pos, s.data(), n);
+    }
     m_pos += n;
     return {};
   }
@@ -492,7 +495,11 @@ public:
       detail::store_be32(m_buf.data() + m_pos, static_cast<std::uint32_t>(n));
       m_pos += 4;
     }
-    std::memcpy(m_buf.data() + m_pos, data.data(), n);
+    // memcpy with a null pointer is UB even for size 0; an empty payload's
+    // data() may be null.
+    if (n != 0) {
+      std::memcpy(m_buf.data() + m_pos, data.data(), n);
+    }
     m_pos += n;
     return {};
   }
