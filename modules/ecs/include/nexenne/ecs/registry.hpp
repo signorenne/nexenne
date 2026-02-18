@@ -1266,8 +1266,8 @@ public:
    * @complexity \c O(sizeof...(Cs)).
    */
   template <typename... Cs>
-  [[nodiscard]] auto all_of(entity_id const e) const noexcept -> bool {
-    return (has<Cs>(e) && ...);
+  [[nodiscard]] auto all_of([[maybe_unused]] entity_id const e) const noexcept -> bool {
+    return (has<Cs>(e) && ...);  // empty pack: vacuously true, e then unused
   }
 
   /**
@@ -1287,8 +1287,8 @@ public:
    * @complexity \c O(sizeof...(Cs)).
    */
   template <typename... Cs>
-  [[nodiscard]] auto any_of(entity_id const e) const noexcept -> bool {
-    return (has<Cs>(e) || ...);
+  [[nodiscard]] auto any_of([[maybe_unused]] entity_id const e) const noexcept -> bool {
+    return (has<Cs>(e) || ...);  // empty pack: vacuously false, e then unused
   }
 
   /**
