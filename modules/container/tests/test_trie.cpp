@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <random>
+#include <set>
 #include <span>
 #include <string>
 #include <utility>
@@ -147,6 +149,210 @@ TEST_CASE("nexenne::container::trie holds a move-only value") {
   CHECK(**t.find("ab"s) == 2);
   CHECK(t.erase("a"s));
   CHECK(t.contains("ab"s));  // erasing "a" keeps "ab" reachable
+}
+
+TEST_CASE("nexenne::container::trie the empty trie") {
+  trie_t t;
+  CHECK(t.empty());
+  CHECK(t.size() == 0);
+  CHECK(t.find("x"s) == nullptr);
+  CHECK_FALSE(t.contains("x"s));
+  CHECK_FALSE(t.erase("x"s));
+  CHECK(t.starts_with(""s));  // empty prefix always matches the root
+  CHECK_FALSE(t.starts_with("a"s));
+  CHECK_FALSE(t.contains(""s));  // no value stored at the empty key
+  CHECK(trie_t::max_size() > 0);
+  int visited{0};
+  t.for_each([&](std::span<char const>, int) { ++visited; });
+  CHECK(visited == 0);
+}
+
+TEST_CASE("nexenne::container::trie the empty-string key holds its own value") {
+  trie_t t;
+  CHECK(t.insert(""s, 7));  // empty key is a real, distinct entry
+  CHECK(t.size() == 1);
+  CHECK(t.contains(""s));
+  REQUIRE(t.find(""s) != nullptr);
+  CHECK(*t.find(""s) == 7);
+  CHECK(t.insert("a"s, 1));  // coexists with non-empty keys
+  CHECK(t.size() == 2);
+  CHECK_FALSE(t.insert(""s, 8));  // replace
+  CHECK(*t.find(""s) == 8);
+  CHECK(t.erase(""s));
+  CHECK_FALSE(t.contains(""s));
+  CHECK(t.contains("a"s));  // erasing the empty key keeps others
+  CHECK(t.size() == 1);
+}
+
+TEST_CASE("nexenne::container::trie a key that is a strict prefix of another") {
+  trie_t t;
+  t.insert("car"s, 1);
+  t.insert("card"s, 2);  // "car" is a prefix of "card"
+  CHECK(t.contains("car"s));
+  CHECK(t.contains("card"s));
+  // erasing the shorter key must not break the longer one that lives past it
+  CHECK(t.erase("car"s));
+  CHECK_FALSE(t.contains("car"s));
+  CHECK(t.contains("card"s));
+  CHECK(*t.find("card"s) == 2);
+  // and erasing the longer key after that prunes cleanly
+  CHECK(t.erase("card"s));
+  CHECK(t.empty());
+  CHECK_FALSE(t.starts_with("c"s));
+}
+
+TEST_CASE("nexenne::container::trie erasing a deep key keeps unrelated siblings intact") {
+  trie_t t;
+  for (auto const& [k, v] : std::vector<std::pair<std::string, int>>{
+         {"apple", 1}, {"apply", 2}, {"apt", 3}, {"banana", 4}
+       }) {
+    t.insert(k, v);
+  }
+  CHECK(t.erase("apple"s));
+  CHECK_FALSE(t.contains("apple"s));
+  CHECK(t.contains("apply"s));   // shares "appl"
+  CHECK(t.contains("apt"s));     // shares "ap"
+  CHECK(t.contains("banana"s));  // unrelated branch
+  CHECK(t.size() == 3);
+  CHECK(t.starts_with("appl"s));  // "apply" still keeps the shared prefix alive
+}
+
+TEST_CASE("nexenne::container::trie const find overload") {
+  trie_t t;
+  t.insert("hi"s, 5);
+  trie_t const& ct{t};
+  REQUIRE(ct.find("hi"s) != nullptr);
+  CHECK(*ct.find("hi"s) == 5);
+  CHECK(ct.find("ho"s) == nullptr);
+}
+
+TEST_CASE("nexenne::container::trie const for_each visits entries") {
+  trie_t t;
+  t.insert("a"s, 1);
+  t.insert("bb"s, 2);
+  trie_t const& ct{t};
+  int sum{0};
+  ct.for_each([&](std::span<char const>, int const& v) { sum += v; });
+  CHECK(sum == 3);
+}
+
+TEST_CASE("nexenne::container::trie clear and swap") {
+  trie_t a;
+  a.insert("a"s, 1);
+  a.insert("ab"s, 2);
+  a.clear();
+  CHECK(a.empty());
+  CHECK_FALSE(a.contains("a"s));
+  a.insert("z"s, 9);  // usable after clear
+
+  trie_t b;
+  b.insert("x"s, 7);
+  swap(a, b);  // friend swap
+  CHECK(a.contains("x"s));
+  CHECK(b.contains("z"s));
+  a.swap(b);  // member swap
+  CHECK(a.contains("z"s));
+  CHECK(b.contains("x"s));
+}
+
+TEST_CASE("nexenne::container::trie copy assignment and self-assignment") {
+  trie_t a;
+  a.insert("cat"s, 1);
+  a.insert("car"s, 2);
+  trie_t b;
+  b.insert("dog"s, 9);
+  b = a;  // replaces b's content with a deep clone
+  CHECK(a == b);
+  b.insert("cart"s, 3);
+  CHECK_FALSE(a.contains("cart"s));  // independent
+  CHECK_FALSE(a.contains("dog"s));
+
+  auto const& alias{a};
+  a = alias;  // NOLINT: self copy-assignment is a no-op
+  CHECK(a.contains("cat"s));
+  CHECK(a.size() == 2);
+}
+
+TEST_CASE("nexenne::container::trie move assignment") {
+  trie_t a;
+  a.insert("hi"s, 1);
+  trie_t b;
+  b.insert("bye"s, 2);
+  b = std::move(a);
+  CHECK(b.contains("hi"s));
+  CHECK_FALSE(b.contains("bye"s));
+  CHECK(a.empty());    // NOLINT: moved-from reset to usable empty trie
+  a.insert("ok"s, 3);  // still usable
+  CHECK(a.contains("ok"s));
+}
+
+TEST_CASE("nexenne::container::trie keyed by raw bytes (uint8_t tokens)") {
+  cn::trie<std::uint8_t, int> t;
+  std::vector<std::uint8_t> const a{0x00, 0xFF, 0x80};  // includes the zero byte
+  std::vector<std::uint8_t> const b{0x00, 0xFF};        // a prefix of a
+  CHECK(t.insert(a, 1));
+  CHECK(t.insert(b, 2));
+  CHECK(*t.find(a) == 1);
+  CHECK(*t.find(b) == 2);
+  CHECK(t.starts_with(std::vector<std::uint8_t>{0x00}));
+  CHECK(t.size() == 2);
+  CHECK(t.erase(b));
+  CHECK(t.contains(a));  // erasing the prefix keeps the longer byte key
+}
+
+TEST_CASE("nexenne::container::trie of non-trivial std::string values") {
+  cn::trie<char, std::string> t;
+  CHECK(t.insert("greet"s, std::string("hello")));
+  CHECK(t.insert("greeting"s, std::string("howdy")));  // shares prefix "greet"
+  CHECK(*t.find("greet"s) == "hello");
+  CHECK(*t.find("greeting"s) == "howdy");
+  cn::trie<char, std::string> clone{t};  // copy exercised under LSan
+  CHECK(clone == t);
+  CHECK(t.erase("greet"s));
+  CHECK(t.contains("greeting"s));
+  CHECK(clone.contains("greet"s));  // clone independent
+}
+
+TEST_CASE("nexenne::container::trie differential against std::set<std::string> under random ops") {
+  std::mt19937 rng{777};
+  std::uniform_int_distribution<int> len{0, 4};
+  std::uniform_int_distribution<int> ch{'a', 'd'};  // small alphabet -> shared prefixes
+  std::uniform_int_distribution<int> op{0, 2};
+  auto const make_key{[&]() -> std::string {
+    std::string s;
+    int const n{len(rng)};
+    for (int i{0}; i < n; ++i) {
+      s.push_back(static_cast<char>(ch(rng)));
+    }
+    return s;
+  }};
+  cn::trie<char, int> t;
+  std::set<std::string> ref;
+  for (int step{0}; step < 5000; ++step) {
+    auto const key{make_key()};
+    switch (op(rng)) {
+      case 0: {
+        bool const fresh{t.insert(key, step)};
+        bool const refFresh{ref.insert(key).second};
+        CHECK(fresh == refFresh);
+        break;
+      }
+      case 1: {
+        bool const removed{t.erase(key)};
+        bool const refRemoved{ref.erase(key) == 1};
+        CHECK(removed == refRemoved);
+        break;
+      }
+      default:
+        CHECK(t.contains(key) == (ref.count(key) == 1));
+        break;
+    }
+    CHECK(t.size() == ref.size());
+  }
+  // the set of stored keys must match the reference exactly
+  std::set<std::string> harvested;
+  t.for_each([&](std::span<char const> k, int) { harvested.emplace(k.begin(), k.end()); });
+  CHECK(harvested == ref);
 }
 
 }  // namespace

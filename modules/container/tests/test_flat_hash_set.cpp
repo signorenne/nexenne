@@ -5,7 +5,10 @@
 
 #include <doctest/doctest.h>
 
+#include <cstddef>
+#include <random>
 #include <string>
+#include <unordered_set>
 
 #include <nexenne/container/flat_hash_set.hpp>
 
@@ -13,6 +16,14 @@ namespace {
 
 namespace cn = nexenne::container;
 using set_t = cn::flat_hash_set<int>;
+
+// A hash that funnels every element into one bucket, forcing the probe sequence
+// and tombstone handling to do real work.
+struct colliding_hash {
+  [[nodiscard]] auto operator()(int) const noexcept -> std::size_t {
+    return 0;
+  }
+};
 
 TEST_CASE("nexenne::container::flat_hash_set insert deduplicates") {
   set_t s;
@@ -132,6 +143,145 @@ TEST_CASE("nexenne::container::flat_hash_set works with string elements") {
   CHECK(s.contains("alpha"));
   CHECK_FALSE(s.contains("gamma"));
   CHECK(s.size() == 2);
+}
+
+TEST_CASE("nexenne::container::flat_hash_set resolves heavy collisions correctly") {
+  cn::flat_hash_set<int, colliding_hash> s;
+  for (int i{0}; i < 50; ++i) {
+    CHECK(s.insert(i));
+  }
+  CHECK(s.size() == 50);
+  for (int i{0}; i < 50; ++i) {
+    CHECK(s.contains(i));
+  }
+  for (int i{0}; i < 50; i += 2) {
+    CHECK(s.erase(i));
+  }
+  CHECK(s.size() == 25);
+  for (int i{0}; i < 50; ++i) {
+    CHECK(s.contains(i) == (i % 2 != 0));
+  }
+  for (int i{0}; i < 50; i += 2) {
+    CHECK(s.insert(i));  // reuses tombstones along the single probe chain
+  }
+  CHECK(s.size() == 50);
+  for (int i{0}; i < 50; ++i) {
+    CHECK(s.contains(i));
+  }
+}
+
+TEST_CASE("nexenne::container::flat_hash_set erase-then-reinsert churn keeps membership exact") {
+  set_t s;
+  for (int i{0}; i < 30; ++i) {
+    s.insert(i);
+  }
+  for (int round{0}; round < 40; ++round) {
+    for (int i{0}; i < 30; ++i) {
+      CHECK(s.erase(i));
+    }
+    CHECK(s.empty());
+    for (int i{0}; i < 30; ++i) {
+      CHECK(s.insert(i));
+    }
+    CHECK(s.size() == 30);
+    for (int i{0}; i < 30; ++i) {
+      CHECK(s.contains(i));
+    }
+  }
+}
+
+TEST_CASE("nexenne::container::flat_hash_set load_factor and the expected-entries constructor") {
+  set_t empty;
+  CHECK(empty.capacity() == 0);
+  CHECK(empty.load_factor() == doctest::Approx(0.0));
+  CHECK(empty.max_size() > 0);
+
+  set_t sized{100};  // reserve up front
+  CHECK(sized.capacity() >= 100);
+  auto const reserved{sized.capacity()};
+  for (int i{0}; i < 50; ++i) {
+    sized.insert(i);
+  }
+  CHECK(sized.capacity() == reserved);  // no rehash within the reservation
+  CHECK(sized.load_factor() > 0.0);
+  CHECK(sized.load_factor() < 1.0);
+}
+
+TEST_CASE("nexenne::container::flat_hash_set empty set queries return misses, never UB") {
+  set_t s;
+  CHECK(s.empty());
+  CHECK(s.size() == 0);
+  CHECK_FALSE(s.contains(1));
+  CHECK(s.count(1) == 0);
+  CHECK_FALSE(s.erase(1));
+  CHECK(s.begin() == s.end());
+}
+
+TEST_CASE("nexenne::container::flat_hash_set const iteration walks every element") {
+  set_t s;
+  s.insert(10);
+  s.insert(20);
+  s.insert(30);
+  auto const& cs{s};
+  int count{0};
+  int sum{0};
+  for (auto const& v : cs) {
+    ++count;
+    sum += v;
+  }
+  CHECK(count == 3);
+  CHECK(sum == 60);
+  CHECK(cs.cbegin() != cs.cend());
+}
+
+TEST_CASE("nexenne::container::flat_hash_set with string elements survives churn") {
+  cn::flat_hash_set<std::string> s;
+  for (auto const& word : {"delta", "alpha", "charlie", "bravo", "echo", "alpha"}) {
+    s.insert(std::string{word});
+  }
+  CHECK(s.size() == 5);
+  CHECK(s.contains("alpha"));
+  CHECK(s.erase("charlie"));
+  CHECK_FALSE(s.contains("charlie"));
+  CHECK(s.insert(std::string{"foxtrot"}));
+  CHECK(s.size() == 5);
+}
+
+TEST_CASE("nexenne::container::flat_hash_set differential against std::unordered_set") {
+  cn::flat_hash_set<std::string> flat;
+  std::unordered_set<std::string> ref;
+  std::mt19937 rng{20260623};
+  std::uniform_int_distribution<int> key_dist{0, 80};
+  std::uniform_int_distribution<int> op_dist{0, 2};
+  for (int step{0}; step < 6000; ++step) {
+    auto const key{"k" + std::to_string(key_dist(rng))};
+    switch (op_dist(rng)) {
+      case 0: {
+        auto const flat_new{flat.insert(key)};
+        auto const ref_new{ref.insert(key).second};
+        CHECK(flat_new == ref_new);
+        break;
+      }
+      case 1: {
+        CHECK(flat.erase(key) == (ref.erase(key) != 0));
+        break;
+      }
+      default: {
+        CHECK(flat.contains(key) == (ref.count(key) != 0));
+        break;
+      }
+    }
+    CHECK(flat.size() == ref.size());
+  }
+  for (auto const& key : ref) {
+    CHECK(flat.contains(key));
+  }
+  std::size_t flat_count{0};
+  for (auto const& v : flat) {
+    static_cast<void>(v);
+    ++flat_count;
+  }
+  CHECK(flat_count == ref.size());
 }
 
 }  // namespace
