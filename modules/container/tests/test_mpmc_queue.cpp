@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -46,12 +47,89 @@ TEST_CASE("nexenne::container::mpmc_queue emplace and try_pop") {
   CHECK_FALSE(q.try_pop().has_value());
 }
 
+TEST_CASE("nexenne::container::mpmc_queue size_approx and max_size track occupancy") {
+  cn::mpmc_queue<int, 8> q;
+  CHECK(q.max_size() == 8);
+  CHECK(q.capacity_value == 8);
+  CHECK(q.size_approx() == 0);
+  CHECK(q.empty_approx());
+  CHECK_FALSE(q.full_approx());
+  for (int i{0}; i < 4; ++i) {
+    CHECK(q.push(i).has_value());
+    CHECK(q.size_approx() == static_cast<std::size_t>(i + 1));
+  }
+  REQUIRE(q.pop().has_value());
+  CHECK(q.size_approx() == 3);
+}
+
+TEST_CASE("nexenne::container::mpmc_queue wraps around the ring across many laps") {
+  cn::mpmc_queue<int, 4> q;
+  for (int round{0}; round < 20; ++round) {
+    for (int i{0}; i < 4; ++i) {
+      CHECK(q.push(round * 4 + i).has_value());
+    }
+    CHECK(q.push(-1).error() == cn::container_error::full);
+    for (int i{0}; i < 4; ++i) {
+      auto v{q.pop()};
+      REQUIRE(v.has_value());
+      CHECK(*v == round * 4 + i);  // FIFO within each lap
+    }
+    CHECK(q.empty_approx());
+  }
+}
+
+TEST_CASE("nexenne::container::mpmc_queue holds non-trivial std::string elements") {
+  cn::mpmc_queue<std::string, 4> q;
+  CHECK(q.push(std::string(120, 'z')).has_value());
+  CHECK(q.emplace(60, 'w').has_value());
+  std::string const original{"stay"};
+  CHECK(q.push(original).has_value());
+  CHECK(original == "stay");
+  CHECK(q.push("d").has_value());
+  CHECK(q.push("overflow").error() == cn::container_error::full);
+
+  auto a{q.pop()};
+  REQUIRE(a.has_value());
+  CHECK(*a == std::string(120, 'z'));
+  auto b{q.pop()};
+  REQUIRE(b.has_value());
+  CHECK(*b == std::string(60, 'w'));
+  auto c{q.pop()};
+  REQUIRE(c.has_value());
+  CHECK(*c == "stay");
+}
+
 TEST_CASE("nexenne::container::mpmc_queue holds a move-only type") {
   cn::mpmc_queue<std::unique_ptr<int>, 4> q;
   CHECK(q.push(std::make_unique<int>(9)).has_value());
   auto v{q.pop()};
   REQUIRE(v.has_value());
   CHECK(**v == 9);
+}
+
+TEST_CASE("nexenne::container::mpmc_queue moves from the source unique_ptr") {
+  cn::mpmc_queue<std::unique_ptr<int>, 4> q;
+  auto p{std::make_unique<int>(13)};
+  CHECK(q.push(std::move(p)).has_value());
+  CHECK(p == nullptr);
+  auto v{q.pop()};
+  REQUIRE(v.has_value());
+  CHECK(**v == 13);
+}
+
+TEST_CASE("nexenne::container::mpmc_queue try_pop on empty returns nullopt") {
+  cn::mpmc_queue<int, 4> q;
+  CHECK_FALSE(q.try_pop().has_value());
+}
+
+TEST_CASE("nexenne::container::mpmc_queue destructor drains remaining move-only elements") {
+  // Fill and leave queued; destructor must free each unique_ptr exactly once.
+  cn::mpmc_queue<std::unique_ptr<int>, 8> q;
+  for (int i{0}; i < 8; ++i) {
+    CHECK(q.push(std::make_unique<int>(i)).has_value());
+  }
+  CHECK(q.full_approx());
+  CHECK(q.push(std::make_unique<int>(99)).error() == cn::container_error::full);
 }
 
 TEST_CASE("nexenne::container::mpmc_queue many producers and consumers conserve every item") {
@@ -92,6 +170,101 @@ TEST_CASE("nexenne::container::mpmc_queue many producers and consumers conserve 
   CHECK(produced.load() == total);
   CHECK(consumed.load() == total);
   CHECK(consumed_sum.load() == total);  // every item carried value 1, none lost or duplicated
+}
+
+TEST_CASE("nexenne::container::mpmc_queue conserves distinct payloads across producers/consumers") {
+  // Producer p pushes ids [p*per_producer, ...); every consumer marks ids it
+  // pops. Each id must be marked exactly once across all consumers, catching any
+  // loss or duplication a CAS race on either counter could introduce.
+  constexpr int producers{4};
+  constexpr int consumers{4};
+  constexpr int per_producer{40000};
+  constexpr int total{producers * per_producer};
+  cn::mpmc_queue<int, 1024> q;
+  std::vector<std::atomic<int>> seen(static_cast<std::size_t>(total));
+  std::atomic<int> consumed{0};
+
+  {
+    std::vector<std::jthread> threads;
+    for (int p{0}; p < producers; ++p) {
+      threads.emplace_back([&q, p] {
+        int const base{p * per_producer};
+        for (int i{0}; i < per_producer; ++i) {
+          while (!q.push(base + i).has_value()) {
+            // spin
+          }
+        }
+      });
+    }
+    for (int c{0}; c < consumers; ++c) {
+      threads.emplace_back([&q, &seen, &consumed, total] {
+        while (consumed.load(std::memory_order_relaxed) < total) {
+          if (auto v{q.try_pop()}) {
+            REQUIRE(*v >= 0);
+            REQUIRE(*v < total);
+            seen[static_cast<std::size_t>(*v)].fetch_add(1, std::memory_order_relaxed);
+            consumed.fetch_add(1, std::memory_order_relaxed);
+          }
+        }
+      });
+    }
+  }  // join
+
+  CHECK(consumed.load() == total);
+  bool each_once{true};
+  for (auto const& c : seen) {
+    if (c.load(std::memory_order_relaxed) != 1) {
+      each_once = false;
+      break;
+    }
+  }
+  CHECK(each_once);
+}
+
+TEST_CASE("nexenne::container::mpmc_queue conserves move-only elements across producers/consumers"
+) {
+  constexpr int producers{4};
+  constexpr int consumers{4};
+  constexpr int per_producer{15000};
+  constexpr int total{producers * per_producer};
+  cn::mpmc_queue<std::unique_ptr<int>, 512> q;
+  std::vector<std::atomic<int>> seen(static_cast<std::size_t>(total));
+  std::atomic<int> consumed{0};
+
+  {
+    std::vector<std::jthread> threads;
+    for (int p{0}; p < producers; ++p) {
+      threads.emplace_back([&q, p] {
+        int const base{p * per_producer};
+        for (int i{0}; i < per_producer; ++i) {
+          while (!q.push(std::make_unique<int>(base + i)).has_value()) {
+            // spin
+          }
+        }
+      });
+    }
+    for (int c{0}; c < consumers; ++c) {
+      threads.emplace_back([&q, &seen, &consumed, total] {
+        while (consumed.load(std::memory_order_relaxed) < total) {
+          if (auto v{q.try_pop()}) {
+            REQUIRE(*v != nullptr);
+            seen[static_cast<std::size_t>(**v)].fetch_add(1, std::memory_order_relaxed);
+            consumed.fetch_add(1, std::memory_order_relaxed);
+          }
+        }
+      });
+    }
+  }  // join
+
+  CHECK(consumed.load() == total);
+  bool each_once{true};
+  for (auto const& c : seen) {
+    if (c.load(std::memory_order_relaxed) != 1) {
+      each_once = false;
+      break;
+    }
+  }
+  CHECK(each_once);  // no leak/double-free under LSan; exact conservation
 }
 
 }  // namespace
