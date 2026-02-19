@@ -1,0 +1,71 @@
+#+TITLE: hashing
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Three non-cryptographic hash families, for hash tables, fingerprints, content
+addressing, and bloom-filter inputs. None are cryptographically secure; do not
+use them for passwords, signatures, or anything an adversary can attack. Each
+hashes a byte span or a string view and takes an optional seed.
+
+- =fnv1a= : FNV-1a, width 32 or 64. Tiny (one XOR and one multiply per byte)
+  and fully =constexpr=, with a streaming =fnv1a_ctx=. Quality is fine for short
+  keys, worse than the others on larger or adversarial inputs.
+- =murmur3= : MurmurHash3, width 32 (a =std::uint32_t=) or 128 (a pair of
+  =std::uint64_t=). High quality across SMHasher; the default when you do not
+  need =constexpr=. The 128-bit variant is the long fingerprint.
+- =xxhash= : xxHash, width 32 or 64, with a streaming =xxhash_ctx=. The fastest
+  on large inputs; the 32-bit variant suits MCUs (no 64-bit multiplies).
+
+Multi-byte words are read little-endian on every host, so all three reproduce
+the published reference vectors regardless of native byte order.
+
+* How it works
+
+** FNV-1a
+
+For each byte: =hash ^= byte; hash *= prime=, starting from the FNV offset
+basis. That is the whole algorithm. Because it is a plain fold with no block
+structure, it streams trivially (=fnv1a_ctx= keeps just the running value, no
+buffer) and runs at compile time, which is what makes it the right pick for
+compile-time string and state identifiers. Its weakness is the avalanche: a
+change in the last byte passes through only one multiply, so the low bits mix
+poorly. That is acceptable for hash-table keys, not for fingerprints.
+
+** MurmurHash3 and xxHash
+
+Both process the input in fixed blocks (4 bytes for murmur3-32, 16 for
+murmur3-128, 16/32 for xxHash), each block multiplied by large primes, rotated,
+and folded into one or more accumulators; a tail step handles the leftover
+bytes, and a final avalanche (=fmix= for murmur, a shift/multiply cascade for
+xxHash) thoroughly mixes the result so every input bit affects about half the
+output bits. The constants and rotations are the published reference values, so
+the output matches the canonical implementations. xxHash uses four parallel
+accumulators over wider stripes, which is why it is faster on large inputs.
+
+xxHash and FNV also offer a streaming context (=xxhash_ctx=, =fnv1a_ctx=): feed
+bytes in arbitrarily sized chunks with =update=, read the digest with =value=.
+xxHash buffers a single partial stripe internally, so chunk boundaries never
+change the result; the finalized value equals the one-shot hash of the
+concatenated input.
+
+* When to use it
+
+- Compile-time identifier, or the smallest possible code on an MCU: =fnv1a=.
+- General-purpose hash-table or default fingerprint: =murmur3<32>= or
+  =murmur3<128>=.
+- Hashing large buffers fast, or a streaming digest of chunked input: =xxhash=.
+
+Confidence: the suite is validated against the official FNV-1a test vectors,
+the canonical xxHash empty-input vectors, and the SMHasher verification values
+for MurmurHash3 (0xB0F57EE3 for the 32-bit and 0x6384BA69 for the 128-bit
+variant, each computed over all key lengths 0 to 255).
+
+#+BEGIN_SRC cpp
+namespace alg = nexenne::algorithm;
+constexpr auto id{alg::fnv1a<64>(std::string_view{"state.idle"})};  // compile time
+auto const fp{alg::xxhash<64>(payload_bytes)};                      // fast fingerprint
+#+END_SRC
+
+Runnable: [[file:../../../examples/algorithm/hashing.cpp][examples/algorithm/hashing.cpp]]
