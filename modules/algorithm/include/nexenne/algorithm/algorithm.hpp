@@ -10,6 +10,7 @@
  * checksums, byte encodings, and graph algorithms.
  *
  * @note Module under construction. Headers are ported in dependency-ordered
- *       phases; each category's includes are added here as that category
- *       lands. This umbrella currently pulls in nothing.
+ *       phases; each category's includes are added here as that category lands.
  */
+
+#include <nexenne/algorithm/binary_search.hpp>
