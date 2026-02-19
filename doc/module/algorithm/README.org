@@ -25,7 +25,8 @@ Planned categories:
   finding, ODE integrators, FFT.
 - [[file:hashing.org][hashing]] : =fnv1a=, =murmur3=, =xxhash= (non-cryptographic; hash tables,
   fingerprints, content addressing).
-- checksum : =adler32=, =crc=.
+- [[file:checksum.org][checksum]] : =adler32=, =crc= (integrity checks; generic Rocksoft-model
+  CRC engine with named presets).
 - encoding : =hex=, =base32=, =base64=, =url=, =cobs=.
 - graph : traversal (=bfs=, =dfs=), shortest paths (=dijkstra=, =a_star=,
   =bellman_ford=, =floyd_warshall=), structure (=topological_sort=,
