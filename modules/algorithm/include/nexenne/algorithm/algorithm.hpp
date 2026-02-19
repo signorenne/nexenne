@@ -14,3 +14,6 @@
  */
 
 #include <nexenne/algorithm/binary_search.hpp>
+#include <nexenne/algorithm/hash/fnv.hpp>
+#include <nexenne/algorithm/hash/murmur.hpp>
+#include <nexenne/algorithm/hash/xxhash.hpp>

@@ -1,6 +1,7 @@
 # One executable per example, named nexenne_example_algorithm_<name>.
 set(_algorithm_examples
     binary_search
+    hashing
 )
 
 foreach(_example IN LISTS _algorithm_examples)

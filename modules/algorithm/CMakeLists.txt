@@ -17,6 +17,9 @@ nexenne_add_module(algorithm
     HEADERS
         include/nexenne/algorithm/algorithm.hpp
         include/nexenne/algorithm/binary_search.hpp
+        include/nexenne/algorithm/hash/fnv.hpp
+        include/nexenne/algorithm/hash/murmur.hpp
+        include/nexenne/algorithm/hash/xxhash.hpp
 )
 
 if(NEXENNE_BUILD_TESTS)
