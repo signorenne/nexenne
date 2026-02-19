@@ -2,6 +2,7 @@
 set(_algorithm_examples
     binary_search
     checksum
+    encoding
     hashing
 )
 
