@@ -1,6 +1,7 @@
 # One executable per example, named nexenne_example_algorithm_<name>.
 set(_algorithm_examples
     binary_search
+    checksum
     hashing
 )
 
