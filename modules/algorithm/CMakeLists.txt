@@ -16,6 +16,7 @@ endif()
 nexenne_add_module(algorithm
     HEADERS
         include/nexenne/algorithm/algorithm.hpp
+        include/nexenne/algorithm/binary_search.hpp
 )
 
 if(NEXENNE_BUILD_TESTS)
