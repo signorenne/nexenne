@@ -1,0 +1,71 @@
+#+TITLE: checksum
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Integrity checks for detecting accidental corruption: a fast lightweight one
+(=adler32=) and a configurable, high-detection one (=crc=). Both take a byte
+span or a string view; neither is cryptographically secure, so they guard
+against transmission and storage errors, not tampering.
+
+- =adler32= : zlib's Adler-32. Two additions per byte, no table. A \p seed
+  parameter continues a checksum across chunks. Cheap, but weaker than CRC on
+  short messages.
+- =crc= : a generic table-driven CRC engine parameterised by a =crc_spec=
+  (the Rocksoft model), with named presets for the common CRC-8, CRC-16, and
+  CRC-32 variants, =crc8= / =crc32= / =crc32c= convenience wrappers, and a
+  streaming =crc_ctx=. The whole engine is =constexpr=.
+
+* How it works
+
+** Adler-32
+
+It keeps two 16-bit sums modulo 65521 (the largest prime below 2^16): =a= is
+the running sum of all bytes, =b= the running sum of every =a=. The result is
+=(b << 16) | a=. Taking the modulus on every byte is wasteful, so the
+implementation defers it: it accumulates up to 5552 bytes (zlib's NMAX, the
+largest count that cannot overflow a 32-bit accumulator) before reducing, which
+gives a result identical to the per-byte version at a fraction of the divisions.
+Because the two sums fully describe the state, an interrupted checksum resumes
+by passing the previous result back as the =seed=.
+
+** CRC
+
+A CRC treats the message as the coefficients of a polynomial and returns the
+remainder after dividing by a fixed generator polynomial; that remainder catches
+all single-bit errors, all burst errors up to the register width, and most
+others, which is why CRCs dominate wire and storage formats. Six parameters (the
+Rocksoft model) pin down a specific CRC: the register =width=, the =poly=, the
+=init= value, whether input bytes and the output register are bit-reflected
+(=ref_in= / =ref_out=), and the final =xor_out=. The catalogue at
+https://reveng.sourceforge.io/crc-catalogue/all.htm lists about a hundred named
+CRCs; each is one =crc_spec= literal.
+
+Rather than divide bit by bit, the engine builds a 256-entry table once per spec
+(processing a whole byte per step) at =constexpr= time, so it lives in ROM and
+costs only a load and two XORs per byte at run time. =crc_ctx= exposes the same
+computation incrementally: =update= folds in each chunk, =value= applies output
+reflection and the final XOR to a copy of the register without disturbing it.
+
+* When to use it
+
+- A quick running check over non-adversarial data, or resuming a check across
+  chunks cheaply: =adler32=.
+- A storage or wire-format integrity field, or matching a device or protocol
+  that mandates a specific CRC: =crc= with the matching preset (or a custom
+  =crc_spec=). For a general 32-bit check, =crc32= (zlib/PNG) or =crc32c=
+  (hardware-accelerated on many CPUs).
+
+Confidence: every preset is pinned to its reveng catalogue check value for the
+string "123456789", and the engine is differentially validated against an
+independent bit-serial CRC over random inputs; Adler-32 is pinned to zlib
+vectors and checked against a naive per-byte reference past its block boundary.
+
+#+BEGIN_SRC cpp
+namespace alg = nexenne::algorithm;
+auto const c{alg::crc32(payload)};                       // zlib/PNG CRC-32
+constexpr auto fp{alg::crc<alg::crc16_modbus_spec>("ID")};  // compile-time
+#+END_SRC
+
+Runnable: [[file:../../../examples/algorithm/checksum.cpp][examples/algorithm/checksum.cpp]]
