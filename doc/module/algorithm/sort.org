@@ -1,0 +1,66 @@
+#+TITLE: sort
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Non-comparison integer sorts that beat the =O(N log N)= comparison lower bound
+when the keys are bounded unsigned integers. Both sort a contiguous range in
+place, are stable, and take a span or an iterator pair.
+
+- =counting_sort= : tallies values into buckets. =O(N + K)= for values in
+  =[0, max_value]=, so it wins when the value range =K= is comparable to or
+  smaller than =N=.
+- =radix_sort= : least-significant-digit radix sort over 8-bit digits.
+  =O(N * sizeof(T))=, i.e. linear for any fixed integer width, with no bound on
+  the values. An allocating overload manages its own scratch; a
+  caller-scratch overload runs heap-free.
+
+* How it works
+
+** counting_sort
+
+It makes one pass to count how many times each value occurs into an array of
+=max_value + 1= buckets, then writes the values back in order, expanding each
+bucket to its tally. That is two linear passes and one =O(K)= array, no
+comparisons. The caller supplies =max_value= so the input is not scanned twice;
+a value above it would index past the count array, so that is a precondition,
+not a runtime check. For an unknown or wide range, take =std::ranges::max= first
+or reach for =radix_sort=.
+
+** radix_sort
+
+It sorts one byte at a time, least-significant first, with a stable counting
+pass per byte (count occurrences, prefix-sum into offsets, scatter front to
+back). After =sizeof(T)= passes the range is fully ordered. The passes ping-pong
+between the range and a scratch buffer the same size; when =sizeof(T)= is odd
+the result lands in scratch and is copied back. Stability of each pass is what
+makes the whole sort correct: a more-significant digit never disturbs the order
+established by the less-significant ones.
+
+Only unsigned integers are supported, because the byte order of a signed or
+floating-point value does not match its numeric order. To sort those, bias them
+into an unsigned domain first.
+
+* When to use it
+
+- Keys in a known small range (bytes, small identifiers, histogram data):
+  =counting_sort=.
+- Large arrays of fixed-width unsigned integers where =O(N log N)= is the
+  bottleneck, or a heap-free sort on an MCU: =radix_sort= (with the
+  caller-scratch overload for the heap-free case).
+- Anything else (general comparables, custom orderings, tiny arrays): plain
+  =std::sort=.
+
+Confidence: both sorts are validated differentially against =std::sort= over
+random inputs of every unsigned width and many shapes (sorted, reversed,
+all-equal, all-zero, all-max), and =radix_sort= is checked through its
+caller-scratch overload and its odd-width copy-back path.
+
+#+BEGIN_SRC cpp
+namespace alg = nexenne::algorithm;
+alg::counting_sort(std::span{bytes}, std::uint8_t{255});  // O(N + 256)
+alg::radix_sort(std::span{ids});                          // O(N), any 32-bit values
+#+END_SRC
+
+Runnable: [[file:../../../examples/algorithm/sort.cpp][examples/algorithm/sort.cpp]]
