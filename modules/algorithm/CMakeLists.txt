@@ -27,6 +27,8 @@ nexenne_add_module(algorithm
         include/nexenne/algorithm/hash/fnv.hpp
         include/nexenne/algorithm/hash/murmur.hpp
         include/nexenne/algorithm/hash/xxhash.hpp
+        include/nexenne/algorithm/sort/counting_sort.hpp
+        include/nexenne/algorithm/sort/radix_sort.hpp
 )
 
 if(NEXENNE_BUILD_TESTS)
