@@ -12,15 +12,21 @@
 #include <span>
 #include <string_view>
 
-#include <nexenne/algorithm/checksum/adler32.hpp>
 #include <nexenne/algorithm/checksum/crc.hpp>
+#include <nexenne/algorithm/checksum/modular_sum.hpp>
 
 namespace alg = nexenne::algorithm;
 
 auto main() -> int {
   constexpr std::string_view text{"123456789"};
 
-  std::printf("adler32(\"123456789\") = 0x%08x\n", alg::adler32(text));
+  std::printf("adler32   (\"123456789\") = 0x%08x\n", alg::adler32(text));
+  std::printf("fletcher16(\"123456789\") = 0x%04x\n", alg::fletcher16(text));
+  std::printf("fletcher32(\"123456789\") = 0x%08x\n", alg::fletcher32(text));
+  std::printf(
+    "fletcher64(\"123456789\") = 0x%016llx\n",
+    static_cast<unsigned long long>(alg::fletcher64(text))
+  );
   std::printf("crc32   (\"123456789\") = 0x%08x\n", alg::crc32(text));
   std::printf("crc32c  (\"123456789\") = 0x%08x\n", alg::crc32c(text));
   std::printf("crc8    (\"123456789\") = 0x%02x\n", alg::crc8(text));
