@@ -17,8 +17,8 @@ nexenne_add_module(algorithm
     HEADERS
         include/nexenne/algorithm/algorithm.hpp
         include/nexenne/algorithm/binary_search.hpp
-        include/nexenne/algorithm/checksum/adler32.hpp
         include/nexenne/algorithm/checksum/crc.hpp
+        include/nexenne/algorithm/checksum/modular_sum.hpp
         include/nexenne/algorithm/encoding/alphabet.hpp
         include/nexenne/algorithm/encoding/base_n.hpp
         include/nexenne/algorithm/encoding/cobs.hpp
