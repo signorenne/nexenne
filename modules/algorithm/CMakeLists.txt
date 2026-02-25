@@ -29,6 +29,12 @@ nexenne_add_module(algorithm
         include/nexenne/algorithm/hash/xxhash.hpp
         include/nexenne/algorithm/sort/counting_sort.hpp
         include/nexenne/algorithm/sort/radix_sort.hpp
+        include/nexenne/algorithm/string/aho_corasick.hpp
+        include/nexenne/algorithm/string/boyer_moore.hpp
+        include/nexenne/algorithm/string/kmp.hpp
+        include/nexenne/algorithm/string/levenshtein.hpp
+        include/nexenne/algorithm/string/suffix_array.hpp
+        include/nexenne/algorithm/string/z_function.hpp
 )
 
 if(NEXENNE_BUILD_TESTS)
