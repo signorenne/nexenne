@@ -270,13 +270,34 @@ public:
    */
   template <std::ranges::forward_range KeyRange>
   constexpr auto erase(KeyRange&& key) noexcept -> bool {
-    auto* const target{descend(key)};
-    if (target == nullptr || !target->value.has_value()) {
+    // Record the (parent, edge) pairs along the descent so a removal can prune
+    // back up its own path in O(k) instead of rescanning the whole trie.
+    std::vector<std::pair<node*, uchar_type>> path;
+    auto* cur{m_root.get()};
+    for (auto const& c : key) {
+      auto const uc{static_cast<uchar_type>(c)};
+      auto* const slot{cur->children.at(uc)};
+      if (slot == nullptr) {
+        return false;
+      }
+      path.emplace_back(cur, uc);
+      cur = slot->get();
+    }
+    if (!cur->value.has_value()) {
       return false;
     }
-    target->value.reset();
+    cur->value.reset();
     --m_size;
-    prune_subtree(m_root.get());
+    // Walk back up the path, dropping each node that is now a valueless leaf and
+    // stopping at the first node still in use (it holds a value or has children).
+    for (auto it{path.rbegin()}; it != path.rend(); ++it) {
+      auto* const slot{it->first->children.at(it->second)};
+      auto const* const child{slot != nullptr ? slot->get() : nullptr};
+      if (child == nullptr || child->value.has_value() || !child->children.empty()) {
+        break;
+      }
+      static_cast<void>(it->first->children.erase(it->second));
+    }
     return true;
   }
 
@@ -504,26 +525,6 @@ private:
       cur = slot->get();
     }
     return cur;
-  }
-
-  // Walk post-order and drop nodes that hold no value and have no children.
-  // Runs after a successful erase to keep the trie compact.
-  static auto prune_subtree(node* const n) noexcept -> void {
-    if (n == nullptr) {
-      return;
-    }
-    // Recurse first, then collect the now-dead child keys and erase them after
-    // the walk so the child map is not mutated mid-iteration.
-    std::vector<uchar_type> victims;
-    for (auto& [uc, child] : n->children) {
-      prune_subtree(child.get());
-      if (child != nullptr && !child->value.has_value() && child->children.empty()) {
-        victims.push_back(uc);
-      }
-    }
-    for (auto const uc : victims) {
-      static_cast<void>(n->children.erase(uc));
-    }
   }
 
   static auto clone_subtree(node const* const src) noexcept -> std::unique_ptr<node> {
