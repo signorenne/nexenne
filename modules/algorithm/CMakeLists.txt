@@ -24,6 +24,17 @@ nexenne_add_module(algorithm
         include/nexenne/algorithm/encoding/cobs.hpp
         include/nexenne/algorithm/encoding/codec_error.hpp
         include/nexenne/algorithm/encoding/url.hpp
+        include/nexenne/algorithm/graph/a_star.hpp
+        include/nexenne/algorithm/graph/bellman_ford.hpp
+        include/nexenne/algorithm/graph/bfs.hpp
+        include/nexenne/algorithm/graph/connected_components.hpp
+        include/nexenne/algorithm/graph/dfs.hpp
+        include/nexenne/algorithm/graph/dijkstra.hpp
+        include/nexenne/algorithm/graph/floyd_warshall.hpp
+        include/nexenne/algorithm/graph/kruskal_mst.hpp
+        include/nexenne/algorithm/graph/lca.hpp
+        include/nexenne/algorithm/graph/tarjan_scc.hpp
+        include/nexenne/algorithm/graph/topological_sort.hpp
         include/nexenne/algorithm/hash/fnv.hpp
         include/nexenne/algorithm/hash/murmur.hpp
         include/nexenne/algorithm/hash/xxhash.hpp
