@@ -3,6 +3,7 @@ set(_algorithm_examples
     binary_search
     checksum
     encoding
+    graph
     hashing
     numerical
     sort
