@@ -390,4 +390,30 @@ TEST_CASE("nexenne::container::trie erase prunes only the dead path") {
   CHECK(t.size() == 2);
 }
 
+TEST_CASE("nexenne::container::trie deep keys do not overflow the stack") {
+  // A single very long key makes the trie 100k nodes deep. Copy, traversal,
+  // equality, erase, and teardown must all be iterative; recursion to this depth
+  // would overflow the stack.
+  auto const deep{std::string(100000, 'a')};
+  {
+    trie_t t;
+    CHECK(t.insert(deep, 1));
+    CHECK(t.insert(deep + "b", 2));  // branches one level deeper
+    CHECK(t.size() == 2);
+
+    trie_t copy{t};  // clone_subtree
+    CHECK(copy.size() == 2);
+    CHECK(copy == t);  // nodes_equal
+
+    auto count{0};
+    copy.for_each([&](std::span<char const>, int) { count += 1; });  // for_each_impl
+    CHECK(count == 2);
+
+    CHECK(copy.contains(deep));
+    CHECK(copy.erase(deep));  // path-local erase down the long chain
+    CHECK(copy.size() == 1);
+    CHECK(copy != t);
+  }  // iterative destructors run here
+}
+
 }  // namespace
