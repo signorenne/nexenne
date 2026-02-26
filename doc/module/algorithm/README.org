@@ -21,8 +21,8 @@ Planned categories:
 - [[file:sort.org][sort]] : =counting_sort=, =radix_sort= (linear-time, stable integer sorts).
 - [[file:string-matching.org][string matching]] : =kmp=, =z_function=, =boyer_moore=, =aho_corasick=,
   =levenshtein=, =suffix_array=.
-- numerical : stable sums and online stats, integration, interpolation, root
-  finding, ODE integrators, FFT.
+- [[file:numerical.org][numerical]] : compensated sums and online stats, root finding, integration,
+  interpolation, ODE integrators, FFT.
 - [[file:hashing.org][hashing]] : =fnv1a=, =murmur3=, =xxhash= (non-cryptographic; hash tables,
   fingerprints, content addressing).
 - [[file:checksum.org][checksum]] : =adler32=, =crc= (integrity checks; generic Rocksoft-model
