@@ -1,0 +1,88 @@
+#+TITLE: numerical
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Numerical routines that the standard library leaves out: accurate summation,
+streaming statistics, root finding, quadrature, interpolation, ODE stepping,
+and the FFT. The routines that can fail (root finders, FFT) report through
+=std::expected<T, numerical_error>=; the rest are total functions.
+
+- =kahan_sum= / =neumaier_sum= : compensated summation, far more accurate than
+  naive accumulation at O(1) extra memory.
+- =running_stats= / =histogram= / =ema_stats= : single-pass online statistics
+  (Welford mean/variance, fixed-bucket histogram, exponentially-weighted mean).
+- =bisection= / =newton= : scalar root finders, robust and fast respectively.
+- =trapezoidal= / =simpson= / =gauss_legendre_5= : numerical integration.
+- =lerp= and friends, =linear_interpolator=, =cubic_spline= : interpolation.
+- =euler_step= / =rk4_step= / =verlet_step= / =velocity_verlet_step= : ODE and
+  mechanics integrators.
+- =fft= / =ifft= / =rfft= : the radix-2 FFT.
+
+* How it works
+
+** Accurate sums and online stats
+
+Naive floating-point accumulation drifts as the running sum grows relative to
+the addends. =kahan_sum= keeps a compensation term that re-injects the
+low-order bits each addition drops; =neumaier_sum= refines it for addends
+larger than the running sum. =running_stats= uses Welford's recurrence, which
+updates the mean and the sum of squared deviations without ever forming a large
+sum of squares, so it stays accurate when the mean dwarfs the spread; it also
+merges two streams in closed form for parallel reduction.
+
+** Root finding and quadrature
+
+=bisection= needs a bracket whose endpoints straddle a sign change and halves it
+each step, so it always converges but linearly. =newton= uses the derivative to
+converge quadratically near a simple root, at the risk of diverging far from
+one. For integration, the trapezoidal and Simpson rules sum weighted samples on
+an even grid (second and fourth order); =gauss_legendre_5= places five samples
+at the Gauss-Legendre nodes and is exact for polynomials up to degree 9, the
+best accuracy per evaluation on smooth integrands.
+
+** Interpolation and ODEs
+
+The stateless eases (=lerp=, =smoothstep=, =catmull_rom=, ...) are single
+expressions. =linear_interpolator= and =cubic_spline= store knots and binary
+search for the bracketing segment; the spline solves a tridiagonal system once
+(Thomas algorithm) for C2 continuity. The ODE steppers each advance one step:
+=rk4_step= averages four derivative samples for fourth-order accuracy, while the
+Verlet integrators are symplectic and conserve energy over long runs, which
+plain Euler does not.
+
+** FFT
+
+=fft= is the in-place radix-2 Cooley-Tukey transform: a bit-reversal
+permutation followed by log N butterfly stages, O(N log N). =ifft= reuses the
+same machinery and divides by N. =rfft= exploits the Hermitian symmetry of
+real input to do half the work, packing N real samples into N/2 complex ones.
+Sizes must be powers of two.
+
+* When to use it
+
+- Summing many values where accuracy matters, or live mean/variance/quantiles
+  over a stream: the sums and =running_stats= / =histogram=.
+- Solving f(x) = 0: =bisection= when you have a bracket and need robustness,
+  =newton= when you have a derivative and want speed.
+- Integrating a function: =gauss_legendre_5= for smooth integrands,
+  =simpson= for a fixed grid.
+- Resampling a table or animating along a curve: the interpolators.
+- Stepping a simulation: =rk4_step= for general ODEs, the Verlet steppers for
+  energy-conserving mechanics.
+- Spectral analysis: =fft= / =rfft=.
+
+Confidence: the sums are checked on catastrophic-cancellation inputs; the root
+finders and quadrature against closed-form answers (including Gauss-Legendre's
+degree-9 exactness); =running_stats= against a two-pass reference with merge;
+the FFT by round-trip, a naive-DFT differential, and known spectra.
+
+#+BEGIN_SRC cpp
+namespace alg = nexenne::algorithm;
+auto const r{alg::bisection<double>([](double x){ return x*x - 2; }, 0, 2)};  // sqrt(2)
+auto const i{alg::gauss_legendre_5([](double x){ return std::sin(x); }, 0, 3.14159)};
+alg::fft<double>(std::span{signal});   // expected<void, numerical_error>
+#+END_SRC
+
+Runnable: [[file:../../../examples/algorithm/numerical.cpp][examples/algorithm/numerical.cpp]]
