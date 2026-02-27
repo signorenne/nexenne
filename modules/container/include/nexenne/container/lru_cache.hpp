@@ -4,10 +4,10 @@
  * @file
  * @brief Fixed-capacity cache with least-recently-used eviction.
  *
- * \c lru_cache<Key, Value> bounds itself at a caller-specified entry count. Every
- * \c get and \c put promotes the touched entry to the most-recently-used end of
- * an internal recency order; when the cache is full and a \c put introduces a new
- * key, the least-recently-used entry is evicted and its storage recycled.
+ * \c lru_cache<Key, Value, Capacity> bounds itself at a compile-time entry count.
+ * Every \c get and \c put promotes the touched entry to the most-recently-used end
+ * of an internal recency order; when the cache is full and a \c put introduces a
+ * new key, the least-recently-used entry is evicted and its storage recycled.
  *
  * It layers two ported containers: an \c intrusive_list orders entries by recency
  * (front is MRU, back is LRU) and a \c flat_hash_map indexes them by key for
@@ -20,7 +20,6 @@
  * mutates the recency order.
  */
 
-#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <functional>
@@ -42,6 +41,8 @@ namespace nexenne::container {
  * @tparam Value Mapped value type; must be default-constructible and movable,
  *               for the same reason (the pool is pre-sized and \c put
  *               move-assigns the value into a reused node).
+ * @tparam Capacity Maximum number of entries; fixed at compile time and must be
+ *                  at least one (a zero \c Capacity fails to compile).
  * @tparam Hash Hash functor; \c std::hash<Key> by default.
  * @tparam KeyEq Equality predicate; \c std::equal_to<Key> by default.
  *
@@ -51,10 +52,11 @@ namespace nexenne::container {
 template <
   typename Key,
   typename Value,
+  std::size_t Capacity,
   typename Hash = std::hash<Key>,
   typename KeyEq = std::equal_to<Key>>
-  requires std::default_initializable<Key> && std::movable<Key> && std::default_initializable<Value>
-           && std::movable<Value>
+  requires(Capacity >= 1) && std::default_initializable<Key> && std::movable<Key>
+          && std::default_initializable<Value> && std::movable<Value>
 class lru_cache {
 public:
   using key_type = Key;
@@ -73,7 +75,6 @@ private:
   std::vector<node_t*> m_free;
   intrusive_list<node_t> m_lru;
   flat_hash_map<Key, node_t*, Hash, KeyEq> m_index;
-  size_type m_capacity{};
 
   auto acquire_node() noexcept -> node_t* {
     if (!m_free.empty()) {
@@ -83,7 +84,7 @@ private:
     }
     // No free slot: evict the LRU entry and reuse its node. Safe because a full
     // cache (the only way the free list is empty) has a non-empty recency list,
-    // which the capacity >= 1 precondition guarantees.
+    // which the Capacity >= 1 constraint guarantees.
     auto* const evicted{m_lru.back()};
     m_lru.erase(*evicted);
     static_cast<void>(m_index.erase(evicted->key));
@@ -92,21 +93,17 @@ private:
 
 public:
   /**
-   * @brief Constructs a cache holding up to \p capacity entries.
+   * @brief Constructs an empty cache holding up to \c Capacity entries.
    *
    * Pre-allocates the node pool and the index, so steady-state \c get / \c put
    * performs no further allocation.
    *
-   * @param capacity Maximum number of entries; must be at least one.
-   *
-   * @pre \p capacity is at least one; a zero capacity is undefined behaviour
-   *      (asserted in debug).
-   * @post \c empty() is \c true and \c capacity() equals \p capacity.
+   * @pre None. A zero \c Capacity fails to compile.
+   * @post \c empty() is \c true and \c capacity() equals \c Capacity.
    */
-  explicit lru_cache(size_type const capacity) noexcept : m_pool(capacity), m_capacity{capacity} {
-    assert(capacity > 0 && "lru_cache capacity must be at least one");
-    m_free.reserve(capacity);
-    m_index.reserve(capacity);
+  lru_cache() noexcept : m_pool(Capacity) {
+    m_free.reserve(Capacity);
+    m_index.reserve(Capacity);
     for (auto& n : m_pool) {
       m_free.push_back(std::addressof(n));
     }
@@ -153,31 +150,31 @@ public:
    * @post None. The cache is not modified.
    */
   [[nodiscard]] auto full() const noexcept -> bool {
-    return m_lru.size() == m_capacity;
+    return m_lru.size() == Capacity;
   }
 
   /**
    * @brief Maximum number of entries the cache may hold.
    *
-   * @return The configured capacity.
+   * @return \c Capacity.
    *
    * @pre None.
    * @post None. The cache is not modified.
    */
-  [[nodiscard]] auto capacity() const noexcept -> size_type {
-    return m_capacity;
+  [[nodiscard]] static constexpr auto capacity() noexcept -> size_type {
+    return Capacity;
   }
 
   /**
    * @brief Largest number of entries the cache can ever hold.
    *
-   * @return The configured capacity.
+   * @return \c Capacity.
    *
    * @pre None.
    * @post None. The cache is not modified.
    */
-  [[nodiscard]] auto max_size() const noexcept -> size_type {
-    return m_capacity;
+  [[nodiscard]] static constexpr auto max_size() noexcept -> size_type {
+    return Capacity;
   }
 
   /**
