@@ -25,9 +25,10 @@
  * Memory profile:
  *
  *   - No allocation. Zero. All buffers come from the caller.
- *   - Bounded recursion: the depth stack is an NTTP-sized
- *     \c std::array<bool>, defaulting to 32 levels, change it
- *     to suit the target's stack budget.
+ *   - Bounded recursion: \c parse_value descends one call frame
+ *     per nested array or object and refuses to descend past
+ *     \c MaxDepth (an NTTP, default 32). Size it to suit the
+ *     target's stack budget.
  *   - Strings are returned as \c std::string_view into the
  *     source buffer. Escape sequences are NOT decoded in place
  *     to avoid a scratch buffer; if you need decoded text, pass
@@ -44,7 +45,6 @@
  *   - \c error::invalid_number, \c error::invalid_escape, etc.
  */
 
-#include <array>
 #include <charconv>
 #include <concepts>
 #include <cstddef>
@@ -221,8 +221,6 @@ public:
 private:
   std::string_view m_src{};
   size_type m_pos{0};
-  // false = array context, true = object context.
-  std::array<bool, MaxDepth> m_stack{};
   size_type m_depth{0};
 
   [[nodiscard]] constexpr auto eof() const noexcept -> bool {
@@ -415,7 +413,7 @@ private:
   [[nodiscard]] auto parse_array(V& v) noexcept -> std::expected<void, error> {
     if (m_depth >= MaxDepth)
       return std::unexpected{error::depth_limit_exceeded};
-    m_stack[m_depth++] = false;
+    ++m_depth;
     ++m_pos;  // '['
     if (!v.on_begin_array())
       return std::unexpected{error::invalid_input};
@@ -452,7 +450,7 @@ private:
   [[nodiscard]] auto parse_object(V& v) noexcept -> std::expected<void, error> {
     if (m_depth >= MaxDepth)
       return std::unexpected{error::depth_limit_exceeded};
-    m_stack[m_depth++] = true;
+    ++m_depth;
     ++m_pos;  // '{'
     if (!v.on_begin_object())
       return std::unexpected{error::invalid_input};
@@ -505,10 +503,11 @@ private:
  * event. No allocation occurs: string and key payloads are passed as raw
  * views into \p src and escape sequences are not decoded.
  *
- * @tparam MaxDepth Maximum nesting depth; the engine reserves a
- *                  \c std::array<bool, MaxDepth> on the stack (32 levels
- *                  by default). Bump for deeply nested payloads, shrink
- *                  for tight RAM.
+ * @tparam MaxDepth Maximum nesting depth; the parser recurses one call
+ *                  frame per level and refuses to descend past \c MaxDepth
+ *                  (32 by default). Each level is a real stack frame, so
+ *                  size it against the target's stack budget: bump for
+ *                  deeply nested payloads, shrink for tight RAM.
  * @tparam V        Visitor type satisfying \c sax_visitor.
  * @param src      JSON text to scan.
  * @param visitor  Receiver of parse events; mutated through its
