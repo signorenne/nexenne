@@ -767,6 +767,29 @@ TEST_CASE("nexenne::chrono::rate_limiter rejects negative and non-finite acquire
   CHECK(rl.tokens() == doctest::Approx(5.0));  // untouched by rejected acquires
 }
 
+TEST_CASE("nexenne::chrono::rate_limiter clamps a non-finite capacity to zero") {
+  using clk = ch::basic_manual_clock<struct rl_nan_cap_tag>;
+  clk::reset();
+  auto const nan{std::numeric_limits<double>::quiet_NaN()};
+  auto const inf{std::numeric_limits<double>::infinity()};
+
+  // A NaN capacity must not leave the bucket silently admitting everything: it
+  // clamps to an empty, never-refilling bucket.
+  ch::rate_limiter<clk> rl_nan{nan, 1.0};
+  CHECK(rl_nan.capacity() == doctest::Approx(0.0));
+  CHECK_FALSE(rl_nan.try_acquire());
+
+  // Infinities are clamped too, not treated as an unbounded bucket.
+  ch::rate_limiter<clk> rl_inf{inf, inf};
+  CHECK(rl_inf.capacity() == doctest::Approx(0.0));
+  CHECK_FALSE(rl_inf.try_acquire());
+
+  // A valid limiter is unaffected by the clamp.
+  ch::rate_limiter<clk> rl_ok{3.0, 10.0};
+  CHECK(rl_ok.capacity() == doctest::Approx(3.0));
+  CHECK(rl_ok.try_acquire());
+}
+
 TEST_CASE("nexenne::chrono::rate_limiter a zero refill rate never recovers") {
   using clk = ch::basic_manual_clock<struct rl_zero_rate_tag>;
   clk::reset();
