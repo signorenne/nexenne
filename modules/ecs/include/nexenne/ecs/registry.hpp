@@ -876,9 +876,9 @@ public:
     // grow m_storages, reallocating the entry table, so copy this entry's
     // dispatch out before firing: the pointed-to storage objects are pinned, so
     // the copied data pointer and function pointers stay valid across the fire
-    // even though a reference into m_storages would dangle. Indexed up to the
-    // count captured here (not a range-for); a storage added mid-loop cannot
-    // hold \p e (it is being destroyed), so skipping it is correct.
+    // even though a reference into m_storages would dangle. The loop is indexed
+    // up to the count captured here (not a range-for) so a reallocation does not
+    // invalidate it.
     auto const storage_count{m_storages.size()};
     for (auto i{std::size_t{0}}; i < storage_count; ++i) {
       auto* const data{m_storages[i].data};
@@ -890,6 +890,18 @@ public:
       // m_storages[i] must not be touched past here: fire may reallocate it.
       fire_on_destroy(data, e);
       erase(data, e.index());
+    }
+    // \p e is still valid during the fire above (the generation is bumped
+    // below), so an on_destroy listener could have attached a component to it,
+    // either in a storage added past storage_count or in one this loop had
+    // already passed. erase runs no user code, so one final sweep over every
+    // storage fully detaches \p e and preserves the "destroy leaves no
+    // components" invariant.
+    for (auto i{std::size_t{0}}; i < m_storages.size(); ++i) {
+      auto* const data{m_storages[i].data};
+      if (data != nullptr && m_storages[i].contains_fn(data, e.index())) {
+        m_storages[i].erase_fn(data, e.index());
+      }
     }
     // Bump the generation so stale handles read invalid; step over 0 on
     // wraparound so a recycled slot never mints the invalid generation-0 handle.
