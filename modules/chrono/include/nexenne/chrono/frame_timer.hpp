@@ -96,6 +96,12 @@ public:
     auto dt{duration::zero()};
     if (m_started) {
       dt = now - m_last;
+      // A steady clock never runs backward, but if a non-steady clock is
+      // substituted, clamp a negative delta to zero so it cannot corrupt the
+      // running fps sum (parity with rate_limiter's backward-clock guard).
+      if (dt < duration::zero()) {
+        dt = duration::zero();
+      }
       // Keep a running sum so \c fps() is O(1). When the
       // window is full, subtract the slot we're about to
       // overwrite; otherwise just add the new value.
