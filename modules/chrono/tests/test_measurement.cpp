@@ -469,4 +469,15 @@ TEST_CASE("nexenne::chrono::frame_timer window-size-one tracks only the latest f
   CHECK(ft.fps() == doctest::Approx(50.0));
 }
 
+TEST_CASE("nexenne::chrono::frame_timer clamps a backward delta to zero") {
+  using clk = ch::basic_manual_clock<struct ft_back_tag>;
+  clk::reset();
+  ch::frame_timer<clk, 4> ft;
+  static_cast<void>(ft.tick());  // prime m_last at t == 0
+  clk::advance(10ms);
+  CHECK(ft.tick() > clk::duration::zero());   // forward delta is positive
+  clk::advance(-20ms);                        // clock jumps backward
+  CHECK(ft.tick() == clk::duration::zero());  // negative delta is clamped, not corrupting
+}
+
 }  // namespace
