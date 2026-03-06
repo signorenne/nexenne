@@ -111,6 +111,13 @@ public:
     if (contains(k)) {
       return false;
     }
+    // A key at the top of size_type would need size_type + 1 sparse slots, an
+    // unrepresentable capacity; reject it rather than let ensure_sparse_capacity
+    // wrap k + 1 to a smaller size and then index out of bounds. The guard is
+    // dead for key types narrower than size_type (the common case).
+    if (static_cast<size_type>(k) == std::numeric_limits<size_type>::max()) {
+      return false;
+    }
     ensure_sparse_capacity(k);
     m_sparse[k] = m_dense.size();
     m_dense.push_back(k);
