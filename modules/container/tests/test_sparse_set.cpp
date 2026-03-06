@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <random>
 #include <set>
 #include <type_traits>
@@ -245,6 +246,22 @@ TEST_CASE("nexenne::container::sparse_set differential against std::set under ra
   std::sort(dense.begin(), dense.end());
   std::vector<std::uint32_t> const expected(model.begin(), model.end());
   CHECK(dense == expected);
+}
+
+TEST_CASE("nexenne::container::sparse_set rejects an unrepresentable maximum key") {
+  // A key equal to size_type's maximum would need size_type + 1 sparse slots, an
+  // unrepresentable capacity; it must be rejected cleanly rather than wrap the
+  // capacity to zero and write out of bounds. Only reachable for the 64-bit key
+  // alias (a 32-bit key can never equal a 64-bit size_type's maximum).
+  auto s{cn::sparse_set_u64{}};
+  auto const max_key{std::numeric_limits<std::uint64_t>::max()};
+  CHECK_FALSE(s.insert(max_key));  // rejected, no out-of-bounds write
+  CHECK_FALSE(s.contains(max_key));
+  CHECK(s.size() == 0);
+  // A large but representable key still works.
+  CHECK(s.insert(std::uint64_t{1000}));
+  CHECK(s.contains(std::uint64_t{1000}));
+  CHECK(s.size() == 1);
 }
 
 }  // namespace
