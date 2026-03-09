@@ -16,6 +16,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <span>
 #include <vector>
 
@@ -243,6 +244,16 @@ TEST_CASE("nexenne::algorithm integer sorts match std::sort on a large random bu
   auto const hi{*std::ranges::max_element(counted)};
   alg::counting_sort(std::span<std::uint32_t>{counted}, hi);
   CHECK(counted == ref);
+}
+
+TEST_CASE("nexenne::algorithm::counting_sort falls back instead of overflowing the bucket count") {
+  // max_value at size_t's maximum makes the bucket count (max + 1) wrap to zero;
+  // the sort must fall back to a comparison sort, not write into an empty vector.
+  auto data{std::vector<std::uint64_t>{5, 1, 9, 1, 0, 7, 3}};
+  auto ref{data};
+  std::ranges::sort(ref);
+  alg::counting_sort(std::span<std::uint64_t>{data}, std::numeric_limits<std::uint64_t>::max());
+  CHECK(data == ref);
 }
 
 }  // namespace
