@@ -8,7 +8,7 @@
  * it for inter-event intervals in a Poisson process, packet inter-
  * arrivals, sensor noise modelling, lifetime simulations.
  *
- * Algorithm: \c -log(1, U) / lambda where \c U ~ Uniform(0, 1). One
+ * Algorithm: \c -log(1 - U) / lambda where \c U ~ Uniform(0, 1). One
  * log call per sample. We use \c -log(U) (which is mathematically
  * equivalent) and skip the subtraction, but only when \c U > 0,
  * since \c log(0) is undefined.

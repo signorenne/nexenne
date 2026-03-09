@@ -5,7 +5,7 @@
  * @brief Gamma distribution sampler (Marsaglia-Tsang).
  *
  * Generates samples from \c Gamma(alpha, theta) where alpha is shape and theta is
- * scale (so mean = alphatheta, variance = alphatheta^2). Used directly for waiting
+ * scale (so mean = alpha*theta, variance = alpha*theta^2). Used directly for waiting
  * times in compound Poisson processes, prior distributions in
  * Bayesian inference, and as a building block for beta / chi-square
  * sampling.
