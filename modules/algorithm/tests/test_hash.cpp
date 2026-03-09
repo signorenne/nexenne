@@ -120,6 +120,15 @@ TEST_CASE("nexenne::algorithm::xxhash published known-answer vectors") {
   CHECK(alg::xxhash<64>(bytes_of("abc")) == alg::xxhash<64>(std::string_view{"abc"}));
 }
 
+TEST_CASE("nexenne::algorithm::xxhash seeded known-answer vectors") {
+  // The seed-0 vectors above never exercise the seed-offset init constants; pin a
+  // non-zero seed against reference xxHash.
+  CHECK(alg::xxhash<32>(std::string_view{""}, 1u) == 0x0B2CB792u);
+  CHECK(alg::xxhash<64>(std::string_view{""}, 1ull) == 0xD5AFBA1336A3BE4Bull);
+  // A non-zero seed changes the result from the default.
+  CHECK(alg::xxhash<32>(std::string_view{"abc"}, 1u) != alg::xxhash<32>(std::string_view{"abc"}));
+}
+
 // MurmurHash3: SMHasher verification values
 // SMHasher hashes keys of length 0..255 (key[i] == i) each with seed 256-len,
 // stores each little-endian result end to end, then hashes that buffer with
@@ -160,7 +169,11 @@ TEST_CASE("nexenne::algorithm::murmur3<128> matches the SMHasher verification va
     }
   }
   auto const verification{alg::murmur3<128>(std::span<std::uint8_t const>{hashes}, 0ull)};
-  CHECK(static_cast<std::uint32_t>(verification[0]) == 0x6384BA69u);
+  // The verification feeds all 128 bits of every hash into this final hash, so it
+  // already covers the full output; pin both 64-bit words (low 32 bits of word 0
+  // are the published SMHasher value) rather than only a 32-bit slice.
+  CHECK(verification[0] == 0x63F3DE036384BA69ull);
+  CHECK(verification[1] == 0x7192878CE684ED2Dull);
 }
 
 TEST_CASE("nexenne::algorithm::murmur3<32> of empty input is zero") {
