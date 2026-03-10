@@ -1,0 +1,15 @@
+nexenne_add_module_tests(logging
+    SOURCES
+        test_async_sink.cpp
+        test_config.cpp
+        test_json_sink.cpp
+        test_level.cpp
+        test_logger.cpp
+        test_manager.cpp
+        test_multi_sink.cpp
+        test_pattern_formatter.cpp
+        test_record.cpp
+        test_rotating_file_sink.cpp
+        test_sink.cpp
+        test_stream_logger.cpp
+)
