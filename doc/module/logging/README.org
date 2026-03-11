@@ -1,0 +1,27 @@
+#+TITLE: nexenne::logging
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Header-only C++23 structured logging built on [[file:../container/README.org][nexenne::container]]: a
+small spdlog/quill-style stack of severity *levels*, a formatted *record*,
+pluggable *sinks*, a *logger*, a global *manager*, and compile-time-gated
+=LOG_*= macros.
+
+Portable by design: sinks write through =<cstdio>= (no =<fstream>=), the
+in-memory ring sink reuses =container::ring_buffer=, and the async backend
+reuses =container::mpmc_queue=. The ESP-IDF sink (=esp_log_sink.hpp=) is the
+bare-metal path and is not part of the umbrella.
+
+* Status
+
+Under construction. Ported so far:
+
+- [[file:levels.org][levels]] : =level=, =to_string=, =to_char=, and the compile-time
+  =NEXENNE_LOG_MIN_LEVEL= gate.
+- [[file:record.org][record]] : the formatted-and-stamped log event that flows to the sinks.
+- [[file:config.org][config]] : compile-time queue-size / async policy.
+- [[file:sinks.org][sinks]] : the =sink= interface, the console/file/ring sinks, and the multi/json/rotating/async sinks.
+- [[file:formatters.org][formatters]] : the =%=-token =pattern_formatter=.
+- [[file:manager.org][manager]] : the async/sync backend that drains records onto sinks.
+- [[file:loggers.org][loggers]] : =basic_logger=, =format_string=, and the =LOG_*= macros.
+- [[file:stream-logger.org][stream_logger]] : the heap-free synchronous logger for embedded targets.
