@@ -1,0 +1,33 @@
+#+TITLE: logging record
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::logging::record= is the single log event that flows from a logger,
+through the (optional) async backend queue, to one or more sinks. It is a plain
+aggregate of the event's metadata plus the already-formatted text:
+
+| field        | type                          | meaning                          |
+|--------------+-------------------------------+----------------------------------|
+| =timestamp=  | =system_clock::time_point=    | wall-clock time of construction  |
+| =severity=   | =level=                       | event severity                   |
+| =location=   | =source_location=             | call site that logged            |
+| =thread_id=  | =thread::id=                  | producing thread                 |
+| =logger_name=| =string= (owned)              | name of the originating logger   |
+| =message=    | =string= (moved in)           | pre-formatted message text       |
+
+* Design notes
+
+- *Formatted on the producer.* The message is formatted (=std::format=) in the
+  log call, so the backend only routes it. This keeps the queue payload one
+  cheap-to-move type.
+- *Owned logger name.* The name is copied, not borrowed, so a record stays valid
+  after its logger is destroyed (records can outlive a logger in the queue).
+- *Cost.* A passing log call allocates: the moved-in message plus a copy of the
+  logger name (short names stay in small-string storage). A hot path that cannot
+  pay this should gate the call out with =NEXENNE_LOG_MIN_LEVEL=, which elides
+  the whole expansion. The stamping constructor is therefore *not* =noexcept= :
+  =bad_alloc= propagates rather than terminating.
+- *Move-only by convention.* The queue moves records in; sinks read them by
+  const reference.

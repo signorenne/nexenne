@@ -1,0 +1,20 @@
+#+TITLE: logging pattern formatter
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=pattern_formatter= turns a =record= into a line driven by a user pattern of
+=%=-tokens, an alternative to a sink's fixed =default_format=. Tokens cover the
+timestamp, level (name or single char), logger name, source file (basename) and
+line, function, thread id, and the message, plus a literal =%%=.
+
+A null source-location file or function name is rendered as =?= rather than
+dereferenced (the port fixed a null-pointer UB the reference had on the =%f= and
+=%s= tokens). Construction copies the pattern string, so the constructor is not
+=noexcept= (allocation may propagate); =set_pattern= only move-assigns.
+
+#+BEGIN_SRC cpp
+nexenne::logging::pattern_formatter fmt{"%t [%L] %n: %v"};
+auto const line = fmt.format(rec);  // "12:34:56.789 [W] net: link down"
+#+END_SRC

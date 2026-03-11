@@ -1,0 +1,45 @@
+#+TITLE: logging levels
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::logging::level= is the severity scale every logger, sink, and macro
+filters on. It mirrors the syslog/spdlog/quill set so the names are familiar:
+
+| level    | value | meaning                                          |
+|----------+-------+--------------------------------------------------|
+| trace    |     0 | most verbose: entry/exit, every iteration        |
+| debug    |     1 | diagnostics useful only when debugging           |
+| info     |     2 | normal operation worth recording                 |
+| warn     |     3 | unusual but recoverable                          |
+| error    |     4 | a failure that needs attention                   |
+| critical |     5 | system-level failure: data loss, security event  |
+| off      |     6 | silence the logger or sink entirely              |
+
+Lower numeric values are more verbose. A logger or sink configured at =info=
+accepts =info=, =warn=, =error=, and =critical= and drops =trace= and =debug=;
+=off= drops everything. Because the enum is ordered, the filter is a single
+integer comparison.
+
+* Naming
+
+- =to_string(level)= returns a fixed five-character upper-case name (=INFO =,
+  =CRIT =) so log columns align.
+- =to_char(level)= returns a one-character tag (=I=, =C=) for compact lines.
+
+Both are =constexpr= and =noexcept=, and both name an out-of-range value rather
+than invoking undefined behaviour (=?????= / =?=).
+
+* Compile-time gating
+
+#+BEGIN_SRC cpp
+#define NEXENNE_LOG_MIN_LEVEL ::nexenne::logging::level::warn
+#include <nexenne/logging/logging.hpp>
+// trace/debug/info LOG_* calls now expand to nothing: zero runtime, zero size.
+#+END_SRC
+
+The default threshold is =trace= (everything compiled in). Set it to =off= to
+strip all logging from a release build.
+
+Runnable: [[file:../../../examples/logging/levels.cpp][examples/logging/levels.cpp]]

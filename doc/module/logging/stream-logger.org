@@ -1,0 +1,59 @@
+#+TITLE: logging heap-free stream_logger
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=stream_logger= (=basic_stream_logger<BufferSize>=) is the heap-averse sibling of
+=basic_logger=: the same call surface and the same =format_string= source-location
+capture, but with no =manager=, no backend thread, no queue, no mutex, and no
+=std::string= allocation. Each call formats with =std::format_to_n= into a stack
+buffer of compile-time size =BufferSize= and writes it with a single =fwrite= to a
+=FILE*=. An overlong message is truncated at the buffer boundary and marked with
+"...". Because nothing allocates, the level calls are =noexcept=.
+
+It is the right logger for an MCU / Cortex-M / ESP32, or anywhere the heap is
+forbidden for logging but levels, formatting, and source location are still
+wanted. The trade-offs are: synchronous (the call blocks until =fwrite= takes the
+bytes), no structured fields, and no fan-out. For any of those, use
+=basic_logger=.
+
+#+BEGIN_SRC cpp
+nexenne::logging::stream_logger log{"boot", nexenne::logging::level::info};
+log.info("clock = {} MHz", freq);   // no allocation, writes to stdout
+#+END_SRC
+
+The name is a =std::string_view= held without copying, so the caller keeps it
+alive (a string literal is the typical, cheapest choice).
+
+* Output writer
+
+The destination is a compile-time =Writer=: any callable handed the formatted
+bytes as a =std::span<char const>=. It defaults to =file_writer= (a =FILE*=),
+but an MCU can plug in a UART, a SEGGER RTT channel, or anything else with *zero
+call overhead* (the writer inlines) and *no =FILE*= / stdio dependency*.
+
+#+BEGIN_SRC cpp
+struct uart_writer {
+  void operator()(std::span<char const> bytes) const noexcept {
+    uart_send(bytes.data(), bytes.size());     // your transport
+  }
+};
+
+nexenne::logging::basic_stream_logger<uart_writer> log{"mcu"};
+log.info("temp = {} C", t);   // formats on the stack, hands bytes to uart_writer
+
+// FILE* stays the default; retarget it through writer():
+nexenne::logging::stream_logger f{"app", level::info, file_writer{stderr}};
+f.writer().stream = some_file;
+#+END_SRC
+
+The writer must be =noexcept= (the log call is =noexcept=). =file_writer= guards
+a null handle, so a logger built with =file_writer{nullptr}= emits nothing.
+
+* Freestanding
+
+=stream_logger= depends only on =format_string.hpp= (and =<format>= / =<array>=
+/ =<atomic>=), not on the manager backend, so including it pulls in no
+=<thread>= / =<mutex>= / =<vector>=. It is the path to use on a no-thread,
+heap-averse target.
