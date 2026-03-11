@@ -212,8 +212,8 @@ concept strong_typedef_like = is_strong_typedef<std::remove_cvref_t<X>>::value;
  * @tparam B Second strong type.
  */
 template <typename A, typename B>
-concept same_tag = strong_typedef_like<A> && strong_typedef_like<B>
-                   && std::same_as<detail::tag_t<A>, detail::tag_t<B>>;
+concept same_tag_as = strong_typedef_like<A> && strong_typedef_like<B>
+                      && std::same_as<detail::tag_t<A>, detail::tag_t<B>>;
 
 /// @cond INTERNAL
 namespace detail {
@@ -756,7 +756,7 @@ using common_strong_t = strong_typedef<
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::add> && detail::has_op<B, ability::add>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::add> && detail::has_op<B, ability::add>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u + v; }
 [[nodiscard]] constexpr auto
 operator+(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
@@ -779,7 +779,7 @@ operator+(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::subtract>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::subtract>
              && detail::has_op<B, ability::subtract>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u - v; }
 [[nodiscard]] constexpr auto
@@ -866,7 +866,7 @@ template <strong_typedef_like X>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::modulo>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::modulo>
              && detail::has_op<B, ability::modulo>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u % v; }
 [[nodiscard]] constexpr auto
@@ -962,7 +962,8 @@ template <strong_typedef_like X, typename S>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::ratio> && detail::has_op<B, ability::ratio>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::ratio>
+             && detail::has_op<B, ability::ratio>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u / v; }
 [[nodiscard]] constexpr auto
 operator/(A const& a, B const& b) noexcept -> detail::common_value_t<A, B> {
@@ -984,7 +985,7 @@ operator/(A const& a, B const& b) noexcept -> detail::common_value_t<A, B> {
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::bit_and>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::bit_and>
              && detail::has_op<B, ability::bit_and>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u & v; }
 [[nodiscard]] constexpr auto
@@ -1008,7 +1009,7 @@ operator&(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::bit_or>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::bit_or>
              && detail::has_op<B, ability::bit_or>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u | v; }
 [[nodiscard]] constexpr auto
@@ -1032,7 +1033,7 @@ operator|(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::bit_xor>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::bit_xor>
              && detail::has_op<B, ability::bit_xor>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u ^ v; }
 [[nodiscard]] constexpr auto
@@ -1118,7 +1119,7 @@ template <strong_typedef_like X, typename S>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::equality>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::equality>
              && detail::has_op<B, ability::equality>
 [[nodiscard]] constexpr auto operator==(A const& a, B const& b) noexcept -> bool {
   using r = detail::common_value_t<A, B>;
@@ -1139,7 +1140,7 @@ template <strong_typedef_like A, strong_typedef_like B>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::ordered>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::ordered>
              && detail::has_op<B, ability::ordered>
 [[nodiscard]] constexpr auto operator<=>(A const& a, B const& b) noexcept
   -> std::compare_three_way_result_t<detail::common_value_t<A, B>, detail::common_value_t<A, B>> {
@@ -1305,7 +1306,7 @@ template <strong_typedef_like X>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::saturating>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::saturating>
              && detail::has_op<B, ability::saturating>
              && std::integral<detail::common_value_t<A, B>>
 [[nodiscard]] constexpr auto
@@ -1330,7 +1331,7 @@ sat_add(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag<A, B> && detail::has_op<A, ability::saturating>
+  requires same_tag_as<A, B> && detail::has_op<A, ability::saturating>
              && detail::has_op<B, ability::saturating>
              && std::integral<detail::common_value_t<A, B>>
 [[nodiscard]] constexpr auto
