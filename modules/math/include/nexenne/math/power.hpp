@@ -21,6 +21,7 @@
 #include <cmath>
 #include <concepts>
 #include <cstdint>
+#include <limits>
 
 #include <nexenne/math/constants.hpp>
 
@@ -57,11 +58,43 @@ template <std::floating_point Real>
   if (value <= Real{0}) {
     return Real{0};
   }
-  auto y{value};
-  for (auto i{0}; i < 30; ++i) {
-    y = Real{0.5} * (y + value / y);
+  // Infinity has no finite root and, left unguarded, would spin the range-reduction
+  // loop forever (inf * 0.25 == inf never drops below 4), which at compile time is
+  // a hard error. Return it directly; sqrt(inf) is inf. (NaN falls through both
+  // loops untouched and propagates through the iteration as NaN.)
+  if (value > std::numeric_limits<Real>::max()) {
+    return value;
   }
-  return y;
+  // Range reduction first: factor value = m * 4^e2 with m in [1, 4). Heron's
+  // method converges fast only from a starting point near the root, and seeding
+  // it with y = value diverges for large magnitudes (sqrt(1e20) needs ~33 pure
+  // halvings before the quadratic phase even begins, more than a fixed iteration
+  // budget allows). Reducing to [1, 4) gives a bounded, well-conditioned start
+  // for any magnitude; sqrt(value) = sqrt(m) * 2^e2.
+  auto m{value};
+  int e2{0};
+  while (m >= Real{4}) {
+    m *= Real{0.25};
+    ++e2;
+  }
+  while (m < Real{1}) {
+    m *= Real{4};
+    --e2;
+  }
+  // Heron's method (Newton-Raphson on f(y) = y^2 - m): each step averages y with
+  // m/y, halving then squaring the error (quadratic convergence). From m in
+  // [1, 4) a fixed eight iterations reach full double precision.
+  // https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Heron's_method
+  auto y{m};
+  for (int i{0}; i < 8; ++i) {
+    y = Real{0.5} * (y + m / y);
+  }
+  // Scale the root back by 2^e2 (a power of two, exact in floating point).
+  auto scale{Real{1}};
+  for (int i{0}; i < (e2 < 0 ? -e2 : e2); ++i) {
+    scale *= Real{2};
+  }
+  return e2 < 0 ? y / scale : y * scale;
 }
 
 }  // namespace detail
@@ -128,6 +161,18 @@ template <std::floating_point Real>
  */
 template <detail::ieee_float Real>
 [[nodiscard]] constexpr auto fast_inv_sqrt(Real const value) noexcept -> Real {
+  // Why the bit trick works. An IEEE-754 float stores value as
+  // (1 + m) * 2^e with e in the exponent field and m in the mantissa, so the
+  // raw integer bit pattern, read as an int, is an affine approximation of
+  // log2(value): I ~= L*(e + bias + m) where L = 2^mantissa_bits. We want
+  // y = value^(-1/2), whose log2 is -1/2 * log2(value). In integer-bits space
+  // that is the map I_y ~= (3/2)*L*(bias) - (1/2)*I, i.e. "magic - (I >> 1)":
+  // the >>1 halves the exponent, the subtraction negates it, and the magic
+  // constant supplies the (3/2)*L*bias offset chosen to also minimize the
+  // mantissa-linearization error. That gives ~1e-3; each Newton-Raphson step on
+  // f(y) = 1/y^2 - value, y <- y*(3/2 - (value/2)*y^2), roughly doubles the
+  // correct digits, so two steps reach ~5e-6. Magic constants: Lomont (2003).
+  // https://www.lomont.org/papers/2003/InvSqrt.pdf
   if constexpr (std::same_as<Real, float>) {
     auto const half{Real{0.5} * value};
     auto bits{std::bit_cast<std::int32_t>(value)};
@@ -174,6 +219,11 @@ template <std::floating_point Real>
   if (exponent < 0) {
     return Real{1} / pow_int(base, -exponent);
   }
+  // Exponentiation by squaring: read the exponent in binary. base^exponent is
+  // the product of base^(2^k) for each set bit k, so square the running base
+  // each step and fold it into the result only when the low bit is set. That is
+  // O(log exponent) multiplies instead of the naive O(exponent).
+  // https://en.wikipedia.org/wiki/Exponentiation_by_squaring
   auto result{Real{1}};
   while (exponent > 0) {
     if ((exponent & 1) != 0) {
@@ -206,16 +256,23 @@ template <std::floating_point Real>
  */
 template <detail::ieee_float Real>
 [[nodiscard]] constexpr auto fast_exp(Real const x) noexcept -> Real {
+  // Compute e^x as 2^y with y = x*log2(e), then split y = yi + yf into its floor
+  // yi (an integer) and the fraction yf in [0, 1). Then 2^y = 2^yi * 2^yf.
   auto const y{x * log2_e_v<Real>};
   auto const yi{static_cast<Real>(static_cast<long long>(y >= Real{0} ? y : y - Real{1}))};
   auto const yf{y - yi};
-  // 7-term Taylor for 2^yf around yf=0, derived from exp(yf*ln(2)).
-  // Coefficients are (ln(2))^k / k! for k = 0..7.
+  // 2^yf for yf in [0, 1): degree-7 Taylor of exp(yf*ln(2)) about yf=0, so the
+  // coefficients are (ln 2)^k / k! for k = 0..7. This is the accurate part.
   auto const two_yf{
     Real{1}
     + yf
         * (Real{0.69314718055994531} + yf * (Real{0.24022650695910071} + yf * (Real{0.05550410866482158} + yf * (Real{0.00961812910762848} + yf * (Real{0.00133335581464284} + yf * (Real{0.00015403530393381} + yf * Real{0.00001525273380405}))))))
   };
+  // Multiply by 2^yi for free: in IEEE-754 the exponent field sits just above
+  // the mantissa (bit 23 for float, bit 52 for double), and adding 1 there
+  // multiplies the value by 2. So adding yi shifted into the exponent field
+  // injects the 2^yi factor directly into the bits (Schraudolph 1999).
+  // https://nic.schraudolph.org/pubs/Schraudolph99.pdf
   if constexpr (std::same_as<Real, float>) {
     auto bits{std::bit_cast<std::int32_t>(two_yf)};
     bits += static_cast<std::int32_t>(yi) << 23;
@@ -249,6 +306,18 @@ template <detail::ieee_float Real>
  */
 template <detail::ieee_float Real>
 [[nodiscard]] constexpr auto fast_log(Real const x) noexcept -> Real {
+  // Subnormals have a zero exponent field and an un-normalized mantissa, which
+  // the bit decode below would misread. Scale such an input up by 2^64 into the
+  // normal range, then subtract 64*ln(2) from the result. (2^64 normalizes the
+  // smallest subnormal of both float and double.)
+  if (x < std::numeric_limits<Real>::min()) {
+    return fast_log(x * Real{0x1p64}) - Real{64} * ln_two_v<Real>;
+  }
+  // Split x = m * 2^e exactly using the IEEE bit layout, so
+  // ln(x) = e*ln(2) + ln(m) with m in [1, 2). The exponent field (8 bits for
+  // float, biased by 127; 11 bits for double, biased by 1023) gives e directly.
+  // Clearing that field and OR-ing in the bias pattern (0x3F80'0000 for float,
+  // i.e. exponent = 0) leaves the original mantissa with value in [1, 2).
   Real exp_part{};
   Real m{};
   if constexpr (std::same_as<Real, float>) {
@@ -262,9 +331,12 @@ template <detail::ieee_float Real>
     bits = (bits & 0x000F'FFFF'FFFF'FFFF) | 0x3FF0'0000'0000'0000;
     m = std::bit_cast<double>(bits);
   }
-  // u = (m - 1) / (m + 1) lies in [0, 1/3] for m in [1, 2).
-  // ln(m) = 2 * (u + u^3/3 + u^5/5 + u^7/7 + u^9/9 + u^11/11 + ...).
-  // 6 terms keeps truncation error below about 1e-7 at the worst case u = 1/3.
+  // ln(m) via the area-hyperbolic-tangent series ln(m) = 2*atanh((m-1)/(m+1)).
+  // Substituting u = (m-1)/(m+1), which lies in [0, 1/3] for m in [1, 2), gives
+  // ln(m) = 2*(u + u^3/3 + u^5/5 + u^7/7 + u^9/9 + u^11/11 + ...). The series
+  // converges much faster than a direct fit to log2(m) because u stays small;
+  // 6 terms keep truncation error below about 1e-7 at the worst case u = 1/3.
+  // https://en.wikipedia.org/wiki/Logarithm#Power_series (area hyperbolic tangent)
   auto const u{(m - Real{1}) / (m + Real{1})};
   auto const u2{u * u};
   auto const ln_m{
