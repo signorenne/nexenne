@@ -3,4 +3,7 @@ nexenne_add_module_tests(math
         test_foundations.cpp
         test_scalar.cpp
         test_power.cpp
+        test_angle.cpp
+        test_trigonometry.cpp
+        test_fixed.cpp
 )

@@ -3,6 +3,9 @@ set(_math_examples
     constants
     scalar
     power
+    angle
+    trigonometry
+    fixed
 )
 
 foreach(_example IN LISTS _math_examples)
