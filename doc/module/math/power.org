@@ -1,0 +1,109 @@
+#+TITLE: powers, roots, and fast transcendentals
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Roots and powers with a compile-time path, plus a set of deliberately
+*approximate* transcendentals for the hot loop: =sqrt= and =inv_sqrt=,
+=pow_int= (integer exponent by squaring), and the bit-trick trio =fast_inv_sqrt=,
+=fast_exp=, =fast_log=. The fast functions trade a few digits of accuracy for a
+large speed-up and stay =constexpr=; reach for libm's =std::exp= / =std::log=
+when precision matters.
+
+* The idea
+
+A square root or an exponential is expensive, and a lot of code does not need all
+fifteen digits libm guarantees: a lighting falloff, a soft-body damping term, a
+probability weight. The classic answer is to read the IEEE-754 bits as an
+integer. The exponent field of a float *is* (approximately) the log of the value,
+so an integer operation on the bit pattern is an approximate operation on the
+real value, refined with one or two Newton or Taylor steps. C++23 makes
+=std::bit_cast= =constexpr=, so these tricks now work in constant evaluation too,
+not just at runtime.
+
+* How it works
+
+** sqrt and pow_int
+
+=sqrt= dispatches to =std::sqrt= at runtime (full precision, hardware
+accelerated) and runs a Heron (Newton) iteration during constant evaluation,
+since =std::sqrt= is not portably =constexpr= (GCC allows it, clang does not).
+The constant-evaluation path first range-reduces the input to =[1, 4)= by
+factoring out a power of four, because seeding Heron from the raw value diverges
+for large magnitudes (=sqrt(1e20)= would need dozens of pure halvings before the
+quadratic phase begins). From the reduced start eight iterations reach full
+double precision, and the root is scaled back by the (exact) power of two.
+=pow_int(base, n)= is exponentiation by squaring, =O(log n)= multiplies, with the
+negative case handled as =1 / pow_int(base, -n)=.
+
+** fast_inv_sqrt
+
+The Quake III "=Q_rsqrt=": reinterpret the float as an integer, compute
+=magic - (bits >> 1)=, reinterpret back, then refine with two Newton steps of
+=y = y*(1.5 - 0.5*x*y^2)=. Each Newton step roughly doubles the correct digits,
+landing near =5e-6= relative error after two. The magic constant is Lomont's 2003
+value for =float=, with the matching 64-bit constant for =double=.
+
+#+BEGIN_EXAMPLE
+bits  = bit_cast<int>(x)
+bits  = 0x5F375A86 - (bits >> 1)      // exponent halved and negated, approx
+y     = bit_cast<float>(bits)         // ~1e-3 accurate
+y    *= 1.5 - 0.5*x*y*y   (x2)        // two Newton refinements -> ~5e-6
+#+END_EXAMPLE
+
+** fast_exp and fast_log
+
+=fast_exp= splits =e^x= as =2^(x*log2 e)=, injects the integer part straight into
+the exponent field, and corrects the fractional part with a 7-term Taylor series
+of =2^yf= (Schraudolph 1999). =fast_log= inverts the idea: pull the binary
+exponent and mantissa out of the bits, then evaluate =ln(m)= for the mantissa
+=m= in =[1, 2)= with the fast-converging series =2*atanh((m-1)/(m+1))=. Because
+=m= is confined to =[1, 2)=, six terms hold the error near =1e-7=.
+
+** Restricted to float and double
+
+The three bit-trick functions are constrained on a =detail::ieee_float= concept
+(=float= or =double=), the only two layouts they decode. Calling them with
+=long double= is a clean constraint failure, not a =bit_cast= size-mismatch error
+buried in the body.
+
+* When to use them
+
+- =sqrt= / =inv_sqrt= / =pow_int= for exact (to rounding) results, including in
+  =constexpr= contexts.
+- =fast_inv_sqrt= for normalizing a direction where a relative error of =5e-6= is
+  invisible, which is most of graphics.
+- =fast_exp= / =fast_log= inside a tight loop (decay, attenuation, soft weights)
+  where libm's call cost dominates and a few ULP do not matter.
+
+Not for anything where accuracy is load-bearing (financial, scientific, an
+iteration that compounds the error): use =std::sqrt=, =std::exp=, =std::log=.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+constexpr auto r{nm::sqrt(2.0)};                 // constexpr Newton; std::sqrt at runtime
+constexpr auto k{nm::pow_int(2.0, 10)};          // 1024.0
+auto const inv_len{nm::fast_inv_sqrt(len_sq)};   // ~5e-6 relative error
+auto const w{nm::fast_exp(-distance)};           // cheap falloff weight
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/power.cpp][examples/math/power.cpp]]
+
+* See also
+
+- [[file:scalar.org][scalar]] : =square=, =cube=, and the rounding and interpolation utilities.
+- [[file:trigonometry.org][trigonometry]] : the three-speed sine and cosine, the same accuracy-for-speed
+  trade applied to the trig functions.
+
+* Further reading
+
+- Chris Lomont, "Fast Inverse Square Root" (2003), the magic-constant analysis:
+  https://www.lomont.org/papers/2003/InvSqrt.pdf
+- Nicol Schraudolph, "A Fast, Compact Approximation of the Exponential Function"
+  (Neural Computation, 1999): https://nic.schraudolph.org/pubs/Schraudolph99.pdf
+- cppreference, "std::bit_cast (since C++20, constexpr in C++23)":
+  https://en.cppreference.com/w/cpp/numeric/bit_cast

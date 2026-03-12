@@ -19,6 +19,14 @@ the dimension is known to the compiler, not the profiler.
   degree/radian conversion factors, as =inline constexpr= variable templates that
   follow the caller's precision, plus unsuffixed =double= aliases. Forwards what
   =std::numbers= already has and adds what it lacks.
+- [[file:scalar.org][scalar]] : the everyday single-number operations: selection (=clamp=,
+  =saturate=, =move_toward=), interpolation (=lerp=, =smoothstep=, =remap=),
+  float classification (=almost_equal=, =isnan=), rounding (=floor=, =round=,
+  =fract=), and wrapping (=mod=, =repeat=, =wrap=, =ping_pong=). All =constexpr=
+  and =noexcept=, with graphics-friendly conventions.
+- [[file:power.org][power]] : =sqrt=, =inv_sqrt=, and =pow_int= with a =constexpr= path, plus the
+  bit-trick approximations =fast_inv_sqrt=, =fast_exp=, and =fast_log= that trade
+  a few digits for speed in the hot loop.
 
 * Headers without an article
 
