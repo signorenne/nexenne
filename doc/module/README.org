@@ -60,6 +60,12 @@ Follow a module to its own index, which lists, per class it provides, a guide
   components while iterating), =add= / =remove= / =get= / =has= / =patch=,
   multi-component =view= queries with an exclude list, and per-component
   =on_construct= / =on_update= / =on_destroy= lifecycle signals.
+- [[file:math/README.org][math]] (needs =utility=, =random=) : the numeric toolbox: fixed-size
+  =vector<T, N>= and =matrix<T, N>=, unit quaternions and Euler angles for
+  rotations, scalar utilities and constants, three-speed trigonometry, strong
+  =angle= and Q-format =fixed= types, transform and projection matrices,
+  parametric curves, and geometric samplers. Generic over the scalar type and
+  =constexpr= where the language allows.
 
 * Dependency layering
 
@@ -80,6 +86,9 @@ A module may only use the modules below it; the build refuses a cycle.
      v
   utility        the foundation, no dependencies
 
+  math           vectors, matrices, quaternions (needs utility and random)
+     |
+     v
   random         seedable RNG (independent, no dependencies)
   filter         discrete-time digital filters (independent, no dependencies)
 #+END_EXAMPLE
