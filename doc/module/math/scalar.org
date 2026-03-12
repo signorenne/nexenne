@@ -1,0 +1,102 @@
+#+TITLE: scalar utilities
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+The everyday operations on a single number, the ones a graphics or physics loop
+reaches for constantly: selection (=min=, =max=, =clamp=, =saturate=, =step=,
+=move_toward=), sign and magnitude (=abs=, =sign=, =copysign=, =square=,
+=cube=), interpolation (=lerp=, =inverse_lerp=, =remap=, =smoothstep=), float
+classification (=almost_equal=, =approximately_zero=, =isnan=, =isinf=,
+=isfinite=), rounding (=trunc=, =floor=, =ceil=, =round=, =fract=), and modulo
+and wrapping (=mod=, =repeat=, =wrap=, =ping_pong=). Everything is =constexpr=
+and =noexcept=, generic over the scalar type.
+
+* The idea
+
+Two themes run through the header. First, *constexpr everywhere*: the standard
+does not make =std::floor= and friends =constexpr= until C++26, so the rounding
+functions compute the answer themselves during constant evaluation and dispatch
+to libm at runtime via =if consteval=, getting both compile-time usability and
+hardware speed. Second, *the right convention for graphics*: where the standard
+library makes a choice that surprises a graphics programmer, this header makes
+the other one. =mod= takes the sign of the divisor (Python convention, so
+=mod(-1, 3) == 2=), not the dividend like =std::fmod=; =fract= returns a value in
+=[0, 1)= even for negatives; =clamp= propagates NaN instead of leaking a bound.
+
+* How it works
+
+** Constexpr rounding via if consteval
+
+=trunc=, =floor=, and =ceil= each have two bodies selected by =if consteval=. At
+compile time =trunc= casts through =long long= for in-range values, but first
+returns any input whose magnitude is already integral (=>= 2/epsilon=) unchanged,
+which avoids the undefined cast of an out-of-range float; =floor= / =ceil= adjust
+the truncation by one when the sign demands it; at runtime all three call the libm
+intrinsic. =round= (ties away from zero) is layered on =trunc=, not =floor=:
+=floor(x + 0.5)= double-rounds (adding =0.5= to the largest value below =0.5=
+rounds it up, so =0.49999999999999994= would wrongly round to =1=), so =round=
+truncates and then steps out by one only when the discarded fraction reaches a
+half. =fract= and =mod= are layered on =floor=. All are =constexpr= for free.
+
+#+BEGIN_EXAMPLE
+floor(-2.1) = -3      ceil(-2.7) = -2      round(2.5) = 3 (ties away from 0)
+fract(-0.25) = 0.75   mod(-1, 3) = 2 (sign of divisor)
+#+END_EXAMPLE
+
+** Interpolation family
+
+=lerp(a, b, t)= is =a + t*(b - a)=, exact at the endpoints; =inverse_lerp= is its
+inverse (value to parameter); =remap= composes the two to move a value from one
+interval to another. =smoothstep= runs =inverse_lerp= through the Hermite
+=3t^2 - 2t^3= curve (zero derivative at both edges) after saturating to =[0, 1]=.
+=move_toward= is the frame-rate-independent cousin of =lerp=: step toward a
+target by at most a fixed amount, snapping when within range. A non-positive step
+means "do not move" and returns the current value, so a negative =max_delta=
+cannot accidentally step away from the target (the vector =move_toward= guards the
+same way).
+
+** Tolerance-aware comparison
+
+=almost_equal(a, b)= combines an absolute and a relative test, =|a - b| <=
+abs_tol= *or* =|a - b| <= rel_tol * max(|a|, |b|)=, so it stays correct both near
+zero (absolute test dominates) and at large magnitudes (relative test dominates).
+=isnan= uses the IEEE-754 property that NaN is the only value not equal to
+itself, so it too works during constant evaluation.
+
+* When to use them
+
+- =clamp= / =saturate= to keep a value in range; =saturate= is the =[0, 1]= case
+  that colour and blend math wants.
+- =lerp= / =smoothstep= for blends and eases; =move_toward= for "approach at a
+  capped speed" without overshoot.
+- =repeat= / =wrap= / =ping_pong= for cyclic time, tile indices, and bouncing
+  parameters.
+- =almost_equal= / =approximately_zero= at boundaries where exact float equality
+  would be wrong.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+constexpr auto y{nm::smoothstep(0.0, 1.0, 0.25)};   // eased, in [0, 1]
+auto const c{nm::clamp(value, lo, hi)};
+auto const t{nm::repeat(time, period)};             // cyclic time in [0, period)
+if (nm::approximately_zero(dot)) { /* effectively perpendicular */ }
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/scalar.cpp][examples/math/scalar.cpp]]
+
+* See also
+
+- [[file:power.org][power]] : =sqrt=, =pow_int=, and the fast bit-trick transcendentals.
+- [[file:constants.org][constants]] : =epsilon_v= backs the tolerance defaults here.
+
+* Further reading
+
+- Ken Perlin's smoothstep and the Hermite interpolation it is built on:
+  https://en.wikipedia.org/wiki/Smoothstep
+- cppreference, "if consteval (since C++23)", the dispatch the rounding functions
+  use: https://en.cppreference.com/w/cpp/language/if
