@@ -17,6 +17,16 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+# The library never reads errno (every math operation is noexcept and documents
+# its preconditions instead), so let the compiler drop the errno-keeping branch
+# and out-of-line libm stub around sqrt and the other math builtins. Applied only
+# to this project's own translation units (tests, examples, benchmarks): the
+# header-only libraries carry no flags, so a consumer that adds nexenne via
+# add_subdirectory is never forced into this codegen choice.
+if(PROJECT_IS_TOP_LEVEL AND NOT MSVC)
+    add_compile_options(-fno-math-errno)
+endif()
+
 option(NEXENNE_BUILD_TESTS        "Build nexenne unit tests"          ${PROJECT_IS_TOP_LEVEL})
 option(NEXENNE_BUILD_EXAMPLES     "Build nexenne example programs"    ${PROJECT_IS_TOP_LEVEL})
 option(NEXENNE_BUILD_BENCHMARKS   "Build nexenne benchmark suites"    ${PROJECT_IS_TOP_LEVEL})
