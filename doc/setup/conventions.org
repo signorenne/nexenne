@@ -60,6 +60,36 @@ full rules are in [[file:../../CONTRIBUTING.org][CONTRIBUTING.org]].
 
 All prose docs are Org mode (=.org=), never Markdown; do not add =.md= files.
 
+* Documenting the math-heavy modules
+
+The numerically dense modules, =math= and =geometry= (and the tower above them,
+=physics= and =simulation=), carry a heavier documentation burden than the rest
+of the library: the techniques are hard to follow from the code alone and hard to
+search for online. They are documented to a stricter standard, and any new code
+in them must meet it.
+
+- *Explain every non-obvious technique in the code itself*, not only in the
+  =.org= article. A reader of the header should understand the /why/ and /how/
+  without leaving the file. This covers bit-tricks, range reduction, polynomial
+  coefficients and the interval they are fit on, Newton and Horner steps, magic
+  constants, fixed-point scaling, and the quaternion, matrix, and projection
+  identities.
+- *Give the derivation or intuition*, not just a restatement. For example: why
+  =0x5F375A86= halves the IEEE-754 exponent; why the sincos quadrant table maps
+  =k mod 4= the way it does; how the Q-format =scale^2= cancels in a fixed-point
+  multiply.
+- *Put a searchable reference in the code comment*: an author, year, and title; a
+  named identity; or a URL. References belong in the code so the technique can be
+  looked up, and they are repeated in the article's =Further reading= section.
+  Every math and geometry article ends with =Further reading= linking the
+  authoritative sources (papers, cppreference, the named method).
+- *State what a type can represent*, with the formula and concrete numbers, and
+  make it queryable where it makes sense (for example =fixed='s =min()=,
+  =max()=, =resolution()=, and =integer_bits=).
+
+The aim is that both the code and the articles stand on their own and can be
+picked up cold in a later session.
+
 * See also
 
 [[file:api-docs.org][API docs]], [[file:hooks.org][Git hooks]], [[file:tools.org][Tools and tech]].
