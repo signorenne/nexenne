@@ -145,6 +145,11 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 move_toward(Real const current, Real const target, Real const max_delta) noexcept -> Real {
+  // A non-positive step means "do not move": without this guard a negative
+  // max_delta would step the wrong way (current - |max_delta|), away from target.
+  if (max_delta <= Real{0}) {
+    return current;
+  }
   auto const delta{target - current};
   auto const distance{delta < Real{0} ? -delta : delta};
   if (distance <= max_delta) {
@@ -349,6 +354,10 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 smoothstep(Real const edge0, Real const edge1, Real const value) noexcept -> Real {
+  // Normalize the input to t in [0, 1], then shape it with the cubic Hermite
+  // polynomial 3t^2 - 2t^3. That cubic is the unique one with values 0 at t=0 and
+  // 1 at t=1 and zero first derivative at both ends, so the curve eases in and
+  // out smoothly (no velocity discontinuity at the edges, unlike a raw lerp).
   auto const t{saturate(inverse_lerp(edge0, edge1, value))};
   return Real{t * t * (Real{3} - Real{2} * t)};
 }
@@ -379,6 +388,12 @@ template <std::floating_point Real>
   Real const abs_tol = static_cast<Real>(1e-6),
   Real const rel_tol = static_cast<Real>(1e-5)
 ) noexcept -> bool {
+  // Two tests OR-ed together because neither alone is right everywhere. The
+  // absolute test (diff <= abs_tol) is needed near zero, where a relative test
+  // would demand impossible precision (the relative gap of two tiny numbers can
+  // be huge). The relative test (diff <= rel_tol * larger-magnitude) is needed
+  // for large values, where floating-point spacing is itself larger than any
+  // fixed absolute tolerance. Either passing means "close enough".
   auto const diff{abs(a - b)};
   auto const scale{max(abs(a), abs(b))};
   return diff <= abs_tol || diff <= rel_tol * scale;
@@ -468,12 +483,20 @@ template <std::floating_point Real>
  *
  * @return Integral value of \p value with the fractional part removed.
  *
- * @pre \p value is finite and within the range of \c long \c long.
+ * @pre \p value is finite.
  * @post Result has the same sign as \p value and magnitude no greater.
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto trunc(Real const value) noexcept -> Real {
   if consteval {
+    // Any value of magnitude >= 2/epsilon has no fractional bits left, so it is
+    // already integral; return it unchanged. This both is correct and avoids the
+    // undefined cast of an out-of-range float to long long for huge inputs (a
+    // value above LLONG_MAX would otherwise be UB).
+    constexpr Real integral_threshold{Real{2} / std::numeric_limits<Real>::epsilon()};
+    if (value >= integral_threshold || value <= -integral_threshold) {
+      return value;
+    }
     return static_cast<Real>(static_cast<long long>(value));
   } else {
     return std::trunc(value);
@@ -535,7 +558,17 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto round(Real const value) noexcept -> Real {
-  return value >= Real{0} ? floor(value + Real{0.5}) : ceil(value - Real{0.5});
+  // Truncate toward zero, then step out by one when the discarded fraction is at
+  // least a half (ties away from zero). The naive floor(x + 0.5) is wrong:
+  // adding 0.5 to the largest value below 0.5 rounds up to exactly 1.0, so it
+  // would round 0.49999999999999994 to 1 instead of 0 (a double-rounding error).
+  // Comparing the fraction avoids that and stays within 0.5 of the input.
+  auto const truncated{trunc(value)};
+  auto const fraction{value - truncated};
+  if (value >= Real{0}) {
+    return fraction >= Real{0.5} ? truncated + Real{1} : truncated;
+  }
+  return fraction <= Real{-0.5} ? truncated - Real{1} : truncated;
 }
 
 /**
@@ -555,7 +588,12 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto fract(Real const value) noexcept -> Real {
-  return value - floor(value);
+  // value - floor(value) is mathematically in [0, 1), but for a tiny negative
+  // input the subtraction rounds up to exactly 1 (1 - 1e-20 == 1.0 in double),
+  // breaking the half-open postcondition and any caller indexing with it. Pull
+  // that boundary case back to 0.
+  auto const f{value - floor(value)};
+  return f >= Real{1} ? Real{0} : f;
 }
 
 /**
@@ -577,7 +615,19 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto mod(Real const a, Real const b) noexcept -> Real {
-  return a - b * floor(a / b);
+  // Floor-based modulo: subtract the largest multiple of b not exceeding a.
+  // Because floor rounds toward negative infinity (not toward zero like the
+  // truncated division behind std::fmod), the remainder always takes the sign of
+  // b, which is what cyclic quantities (angles, tile indices) want.
+  auto const r{a - b * floor(a / b)};
+  // The result is mathematically in [0, b) (or (b, 0] for b < 0), but rounding
+  // can land it on the excluded endpoint b: for a tiny a of opposite sign,
+  // a - b*(-1) rounds to b. Pull that back to 0 so the half-open postcondition
+  // holds (and callers like repeat/wrap/fract that index with it stay in range).
+  if ((b > Real{0} && r >= b) || (b < Real{0} && r <= b)) {
+    return Real{0};
+  }
+  return r;
 }
 
 /**
