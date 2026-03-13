@@ -1,0 +1,119 @@
+#+TITLE: fixed-point Q-format arithmetic
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=fixed<Storage, FractionBits>=: a signed integer with an implicit binary scale,
+so the same integer ALU does fractional arithmetic with no FPU and bit-exact,
+deterministic results. Full operator set (=+= =-= =*= =/= and compound forms),
+explicit conversions to and from integers and floats, and ready-made aliases
+=q8_8=, =q16_16=, =q32_32=.
+
+* The idea
+
+A Q-format number stores =value * 2^FractionBits= as a plain integer: with 8
+fraction bits the stored integer 256 means 1.0, 384 means 1.5. Addition and
+subtraction are then just integer add and subtract (the scale carries through
+untouched). The subtlety is multiplication and division, where the scale factor
+does not carry through cleanly and the intermediate can overflow, which is where
+the implementation earns its keep.
+
+* How it works
+
+** Storage and the scale
+
+The class holds one signed integer =m_raw= and exposes the compile-time
+=scale = 1 << FractionBits=. Constructing from an integer shifts up by
+=FractionBits= (lossless); from a float, it multiplies by =scale= and truncates.
+=to_float= divides by =scale=; =to_int= arithmetic-right-shifts, which rounds
+toward negative infinity (so a stored -0.5 yields -1, not 0, documented in the
+header).
+
+** What a format can represent (queryable)
+
+The representable set is exposed as compile-time members, so you never have to
+hand-derive it:
+
+- =integer_bits= : the integer bit count, =B - 1 - FractionBits=.
+- =resolution()= : the constant step between adjacent values, =1/2^FractionBits=
+  (also the smallest positive value). Fixed-point spacing does *not* grow with
+  magnitude, unlike floating point.
+- =min()= / =max()= : the range endpoints, =-2^integer_bits= and
+  =2^integer_bits - resolution=.
+
+#+BEGIN_SRC cpp
+static_assert(nm::q16_16::integer_bits == 15);
+static_assert(nm::q16_16::resolution().to_float() == 1.0 / 65536.0);
+static_assert(nm::q16_16::min().to_float() == -32768.0);
+#+END_SRC
+
+** Why multiply and divide need a wider intermediate
+
+Each raw integer is =realvalue * scale=, so the raw product of two values is
+=(a*b) * scale^2=, one scale factor too many; the code shifts right by
+=FractionBits= to divide that extra scale back out. Division is the mirror: the
+raw quotient cancels both scales, so the dividend is pre-shifted left by
+=FractionBits= first. Both intermediates can need up to twice the storage width
+(a Q16.16 product of two ~2^31 raws is ~2^62), so the operation promotes to a
+doubly-wide integer (=int64= for <= 32-bit storage, =__int128= for 64-bit) before
+the multiply or shift, then narrows back. This is the one place fixed-point bites
+the naive implementation, and the header handles it.
+
+Both multiply and divide round their narrowed result to nearest, ties away from
+zero. That choice is deliberate and shared: a plain arithmetic right shift would
+floor the product toward negative infinity while integer division truncates the
+quotient toward zero, so the two would disagree by a ulp on negative operands and
+break identities like =(-a)*b == -(a*b)=. Rounding both the same way, symmetrically
+about zero, keeps those identities exact.
+
+One configuration constraint follows from the scale factor: =FractionBits= must
+leave at least one integer bit (=1 .. 8*sizeof(Storage) - 2=). With zero integer
+bits, =2^FractionBits= would not fit the signed storage and =scale= would wrap
+negative, so that degenerate pure-fractional format is rejected at compile time.
+
+#+BEGIN_EXAMPLE
+raw layout for Q16.16 (32-bit), value 1.5:
+  bit:  31                16 15                 0
+        [   integer part   ][  fraction * 2^16  ]
+        0000000000000001     1000000000000000      = 0x00018000 = 98304 = 1.5*2^16
+#+END_EXAMPLE
+
+** Overflow policy
+
+The =+=, =-=, and result narrowing do not check for overflow: signed overflow of
+the storage type is undefined behaviour, so a result outside the type's range (for
+Q16.16, about +/-32768) wraps or is UB. Choose a storage type wide enough for the
+range, and remember that =*= and =/= only protect the *intermediate*, the final
+value must still fit.
+
+* When to use it
+
+- A target with no FPU, or where soft-float is too slow.
+- When bit-exact, cross-platform determinism matters (lockstep simulation,
+  replays) more than the dynamic range of floating point.
+- =q16_16= is the sensible default; =q8_8= for tight memory and small ranges;
+  =q32_32= for wide ranges (pays the =__int128= multiply path).
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+constexpr nm::q16_16 a{1.5};
+constexpr nm::q16_16 b{2};
+static_assert((a * b).to_float() == 3.0);   // exact, wide intermediate
+static_assert((a + b).to_int() == 3);        // floor of 3.5 is 3
+
+nm::q16_16 acc{0};
+acc += nm::q16_16{0.25};                      // integer-ALU accumulate
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/fixed.cpp][examples/math/fixed.cpp]]
+
+* Further reading
+
+- The Q (number format) convention and its arithmetic rules:
+  https://en.wikipedia.org/wiki/Q_(number_format)
+- A practical primer on fixed-point multiply/divide scaling:
+  https://en.wikipedia.org/wiki/Fixed-point_arithmetic#Operations

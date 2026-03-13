@@ -1,0 +1,91 @@
+#+TITLE: angle: radians and degrees as distinct types
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Two strong types, =radians<Real>= and =degrees<Real>=, that make the most common
+angle bug, mixing units, a compile error instead of a silent wrong answer. Each
+wraps a single scalar, carries the full algebra (=+=, =-=, scale, ratio,
+comparison), converts explicitly with =to_radians= / =to_degrees=, and feeds the
+trig wrappers =sin= / =cos= / =tan= / =sincos=. Wrapping helpers =wrap_signed=
+and =wrap_unsigned= keep accumulated rotations bounded.
+
+* The idea
+
+A bare =double= angle says nothing about its unit, so =std::sin(degrees)= or
+=rotate(90)= (90 what?) compiles and silently does the wrong thing. The fix is a
+*strong type*: a one-field wrapper with =explicit= construction so a raw scalar
+cannot slip in, and a typed conversion that is the only bridge between the two
+units. Because the wrapper is trivially copyable and the size of one scalar, it
+passes through a register exactly like the primitive, so the safety is free at
+runtime. Only the trig wrappers are non-=constexpr= (they call libm); all the
+algebra and the conversions are =constexpr=.
+
+* How it works
+
+** The wrappers
+
+=radians= and =degrees= each hold one =value_type= (the =Real= parameter), expose
+=value()= (const and mutable), and default the spaceship operator so the full set
+of comparisons comes for free. Construction from a raw scalar is =explicit=, so
+=radians<double> r = 1.5;= does not compile; you write =radians<double>{1.5}=,
+which reads as "1.5 radians".
+
+** The algebra
+
+Two angles of the same unit add and subtract; an angle scales by a scalar on
+either side and divides by one; and the ratio of two same-unit angles is a
+dimensionless scalar. Crucially there is *no* =radians + degrees= overload, so a
+unit mismatch is a hard error, and the only way across is the explicit conversion
+built on =deg_to_rad_v= / =rad_to_deg_v= from [[file:constants.org][constants]].
+
+** Wrapping
+
+=wrap_signed= reduces an angle to =[-pi, pi)= and =wrap_unsigned= to =[0, 2pi)=,
+both via a floor-modulo reduction (reusing =scalar::mod=). Floor-modulo, not a
+truncating =long long= cast: the cast would overflow into undefined behaviour
+once the angle exceeds the integer range, whereas floor stays defined for any
+finite magnitude. A small boundary guard then keeps the result strictly inside
+the half-open interval, since a sub-ulp negative input can otherwise round up
+onto the excluded upper endpoint (=wrap_unsigned(-1e-17)= would land on exactly
+=2pi=). Reduction is only meaningful while the input still resolves the period:
+past about =1e15= radians the spacing between doubles exceeds =2pi=, so the
+result is necessarily coarse (but still defined). These keep a cumulative heading
+from growing without bound so comparisons and interpolation stay well-conditioned.
+The trig utilities =angle_diff= and =lerp_angle= (in [[file:trigonometry.org][trigonometry]]) build on
+=wrap_signed= to always take the short way around.
+
+* When to use it
+
+- At every API boundary that takes an angle: accept =radians<Real>= (or
+  =degrees<Real>= for human-facing input), never a bare scalar.
+- =to_radians(deg)= once at the boundary, then stay in radians internally (what
+  libm and the rotation code want).
+- =wrap_signed= on an accumulated heading before comparing or interpolating.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+constexpr nm::degrees_d turn{90.0};
+constexpr auto r{nm::to_radians(turn)};   // explicit, typed bridge
+auto const s{nm::sin(r)};                  // trig takes radians only
+
+// nm::radians_d{1} + nm::degrees_d{1};    // does not compile: unit mismatch
+auto const heading{nm::wrap_signed(nm::radians_d{7.0})};  // into [-pi, pi)
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/angle.cpp][examples/math/angle.cpp]]
+
+* See also
+
+- [[file:trigonometry.org][trigonometry]] : the three-speed sin/cos and the angle-aware lerp built on
+  these types.
+- [[file:constants.org][constants]] : =deg_to_rad_v= and =rad_to_deg_v= back the conversions.
+
+* Further reading
+
+- The strong-typedef idea, applied to units:
+  https://www.fluentcpp.com/2016/12/08/strong-types-for-strong-interfaces/
