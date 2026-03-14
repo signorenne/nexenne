@@ -16,4 +16,7 @@
 #include <nexenne/math/fixed.hpp>
 #include <nexenne/math/power.hpp>
 #include <nexenne/math/scalar.hpp>
+#include <nexenne/math/normalized.hpp>
 #include <nexenne/math/trigonometry.hpp>
+#include <nexenne/math/vector.hpp>
+#include <nexenne/math/vector_algorithms.hpp>
