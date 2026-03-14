@@ -6,4 +6,6 @@ nexenne_add_module_tests(math
         test_angle.cpp
         test_trigonometry.cpp
         test_fixed.cpp
+        test_vector.cpp
+        test_vector_algorithms.cpp
 )

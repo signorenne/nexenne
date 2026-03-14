@@ -6,6 +6,7 @@ set(_math_examples
     angle
     trigonometry
     fixed
+    vectors
 )
 
 foreach(_example IN LISTS _math_examples)
