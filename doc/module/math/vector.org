@@ -1,0 +1,125 @@
+#+TITLE: the fixed-size vector
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=vector<Value, N>=: a compile-time-sized, generic-over-scalar vector with named
+=.x()= / =.y()= / =.z()= / =.w()= accessors and swizzles for the 2, 3, and 4
+component cases, the full element-wise algebra (=+ - * /=, scalar scale, unary
+minus, compound assignment), indexing, iteration, a =data()= pointer, and
+lexicographic comparison. It is the base type of all the graphics and physics
+math; the algorithms (dot, cross, length, normalize) live next door in
+[[file:vector_algorithms.org][vector_algorithms]].
+
+* The idea
+
+Two goals pull against each other: ergonomics (write =v.x()=, =v.xyz()=) and a
+layout the compiler can vectorize. The type gets both by storing a single
+=std::array<Value, N>= and exposing the named components as accessor functions
+over it (the Eigen idiom), rather than as a union of named members and an array
+(the GLM idiom), which GCC will not let you read across at constant evaluation.
+The array gives a flat, contiguous, padding-free layout; the accessors give the
+ergonomics; everything stays =constexpr=.
+
+* How it works
+
+** One storage, four faces
+
+The shared interface (indexing, =data()=, iteration, =size()=, comparison) lives
+once in =detail::vector_base=, which holds the only data member. =vector<Value,N>=
+and the 2D/3D/4D specializations derive from it and add just their named
+accessors and swizzles. Because only the base has data members and the derived
+classes add none, a vector stays *standard-layout and trivially copyable*, which
+the =static_assert= block in the header pins down.
+
+** The memory layout
+
+A vector is exactly its components, end to end, no padding and no header:
+
+#+BEGIN_EXAMPLE
+  vector<float, 4>  (16 bytes, alignof 4)
+  +--------+--------+--------+--------+
+  |  x     |  y     |  z     |  w     |     each cell = 4-byte float
+  +--------+--------+--------+--------+
+  0        4        8        12       16     byte offset
+  ^
+  data()  ->  &x, contiguous; v[i] and the iterators walk this array
+
+  vector<float, 3>  (12 bytes, NOT padded to 16)
+  +--------+--------+--------+
+  |  x     |  y     |  z     |
+  +--------+--------+--------+
+#+END_EXAMPLE
+
+=sizeof(vector<float,N>) == N*sizeof(float)= exactly, so an array of vectors packs
+tight and =data()= can be handed to any C API expecting =float*=.
+
+** SIMD: it vectorizes, on purpose, for free
+
+That tight contiguous layout is what lets the compiler auto-vectorize the
+element-wise operators with no intrinsics and no per-platform code. At the
+project's =-O2=, a =vector<float,4>= addition compiles to a single SSE packed
+instruction:
+
+#+BEGIN_EXAMPLE
+  vector<float,4> a + b   ->   movups (a)      ; load 4 floats
+                               movups (b)      ; load 4 floats
+                               addps            ; add all 4 lanes at once
+                               ret
+  a + b*s                 ->   shufps           ; broadcast the scalar
+                               mulps ; addps    ; packed multiply then add
+#+END_EXAMPLE
+
+The operators are plain =for= loops over the fixed =N=; the loop form is exactly
+what the vectorizer recognizes. We *deliberately keep the natural alignment*
+rather than force =alignas(16)=: padding would break the =sizeof= guarantee (a
+=vector<float,3>= would grow to 16 bytes), cost memory on the embedded targets,
+and buy nothing on modern hardware, where an unaligned packed load (=movups=) is
+as fast as an aligned one. Wider SIMD (AVX, 8 floats at once) needs a =-march=
+flag the build does not assume. The element-wise ops vectorize; reductions like
+=dot= keep a deterministic scalar sum (see [[file:vector_algorithms.org][vector_algorithms]] for why).
+
+** Construction and deduction
+
+Deduction guides cover the 2, 3, and 4 component forms, so =vector{1.0f, 2.0f,
+3.0f}= deduces =vector<float, 3>=. The guides require all arguments to share one
+arithmetic type; a mixed call like =vector{1, 2.0f}= is rejected on purpose, to
+keep integer-promotion surprises out of templated algorithms.
+
+* When to use it
+
+- As the value type for any positional or directional quantity: points,
+  directions, colours, texture coordinates.
+- Reach for the named aliases (=vector3_f=, =vector4_d=, ...) at call sites; use
+  =vector<Value, N>= in generic code.
+- Pass by value or =const&= freely; both are cheap and the operators take =const&=
+  so the four components load contiguously into one SIMD register.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+constexpr auto p{nm::vector{1.0f, 2.0f, 3.0f}};   // vector<float,3>
+constexpr auto q{nm::vector3_f{4, 5, 6}};
+constexpr auto sum{p + q};                         // one packed add
+constexpr auto scaled{2.0f * p};
+auto const flat{p.xy()};                           // swizzle to vector<float,2>
+for (float c : sum) { /* contiguous iteration */ }
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/vectors.cpp][examples/math/vectors.cpp]]
+
+* See also
+
+- [[file:vector_algorithms.org][vector_algorithms]] : dot, cross, length, normalize, projection, and the rest.
+- [[file:normalized.org][normalized]] : the unit-length wrapper built on top.
+- [[file:matrix.org][matrix]] : the 2D sibling, with the same storage philosophy.
+
+* Further reading
+
+- The Eigen accessor-over-array idiom versus the GLM named-union idiom, and why
+  constexpr favours the former: https://eigen.tuxfamily.org/
+- Agner Fog, "Optimizing software in C++", on small-vector layout and how the
+  auto-vectorizer consumes it: https://www.agner.org/optimize/
