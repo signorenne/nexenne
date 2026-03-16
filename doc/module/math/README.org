@@ -40,6 +40,18 @@ the dimension is known to the compiler, not the profiler.
   bit-exact-deterministic targets, with a doubly-wide intermediate for multiply
   and divide, and =q8_8= / =q16_16= / =q32_32= aliases.
 
+* Vectors
+
+- [[file:vector.org][vector]] : =vector<Value, N>=, the fixed-size vector with named =.x()= / =.y()=
+  / =.z()= / =.w()= accessors and swizzles, the full element-wise algebra, and a
+  tight contiguous =std::array= layout that the compiler auto-vectorizes to packed
+  SSE.
+- [[file:vector_algorithms.org][vector_algorithms]] : the operations on vectors: =dot=, =cross=, =length=,
+  =normalize= and friends, =project= / =reject= / =reflect=, element-wise
+  =lerp= / =clamp= / min / max, reductions, and =angle_between=.
+- [[file:normalized.org][normalized]] : =normalized<Real, N>=, the strong wrapper that carries the
+  unit-length guarantee in the type so direction-consuming APIs need not re-check.
+
 * Headers without an article
 
 - =math.hpp= : the umbrella header; includes the whole module.
