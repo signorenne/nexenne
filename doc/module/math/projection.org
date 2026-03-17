@@ -1,0 +1,87 @@
+#+TITLE: projection matrices
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+The four 4x4 builders that map view space to clip space for a 3D pipeline:
+=perspective= and =ortho= (OpenGL-style depth in [-1, 1]) and their =perspective_zo=
+/ =ortho_zo= siblings (Vulkan and Direct3D depth in [0, 1]). Each returns a
+column-major [[file:matrix.org][matrix]] ready to upload with no transpose.
+
+* The idea
+
+A camera projection answers one question: given a point in the viewer's space,
+where does it land on the screen, and at what depth? Perspective makes distant
+things smaller (a frustum collapsing to a cube); orthographic keeps sizes constant
+(a box mapped straight to a cube). The only fiddly part is that different GPU APIs
+want the clip-space depth in a different range, which is the sole difference
+between the plain and =_zo= forms.
+
+* How it works
+
+** perspective
+
+Builds the matrix for a symmetric frustum with vertical field of view =fovy=. The
+key value is =f = cot(fovy/2)=, the focal length: it scales y so the top of the
+frustum lands at clip =y = 1=, and =f/aspect= does the same for x (the aspect
+divide is why widescreen does not stretch). The entry =m(3,2) = -1= copies =-z=
+into the clip =w=; the GPU later divides x, y, z by that =w=, and that divide *is*
+the perspective foreshortening (far things, with larger =-z=, shrink). Row 2 then
+remaps view-space z in =[near, far]= onto the clip depth range. The viewer looks
+down =-Z= (right-handed).
+
+#+BEGIN_EXAMPLE
+  | f/aspect   0    0            0           |
+  |    0       f    0            0           |
+  |    0       0   (zf+zn)/(zn-zf)  2 zf zn/(zn-zf) |   <- depth row, [-1,1]
+  |    0       0   -1            0           |   <- copies -z into w
+#+END_EXAMPLE
+
+** perspective_zo
+
+Identical except row 2 maps depth onto =[0, 1]= instead of =[-1, 1]=, so the depth
+coefficients lose the term that produced the negative half. Use it for Vulkan and
+Direct3D, whose clip volume has =z in [0, 1]=.
+
+** ortho and ortho_zo
+
+Orthographic projection is a plain affine remap with no =w= divide: scale each
+axis so the box =[left,right] x [bottom,top] x [near,far]= maps onto the clip
+cube, and translate so the box center lands at the origin. The diagonal holds the
+three scales, the last column the three translations. =ortho= targets =z in
+[-1, 1]=, =ortho_zo= targets =z in [0, 1]= (half the z scale and offset).
+
+* When to use them
+
+- =perspective= / =perspective_zo= for a normal 3D camera; pick the variant that
+  matches your graphics API's depth convention (OpenGL vs Vulkan/D3D).
+- =ortho= / =ortho_zo= for 2D, UI, isometric, and shadow-map cameras, where
+  parallel lines must stay parallel.
+- Convert a degrees field of view with the [[file:angle.org][angle]] helpers before calling; the
+  argument is radians.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+auto const proj{nm::perspective(nm::to_radians(60.0).value(),  // 60 deg vertical FOV
+                                16.0 / 9.0, 0.1, 1000.0)};
+auto const ui{nm::ortho(0.0, width, height, 0.0, -1.0, 1.0)};  // top-left origin 2D
+auto const clip{proj * view * model * point};                  // the usual MVP chain
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/matrices.cpp][examples/math/matrices.cpp]]
+
+* See also
+
+- [[file:matrix.org][matrix]] : the column-major matrix these return.
+- [[file:transform.org][transform]] : the model and view matrices that pair with these.
+
+* Further reading
+
+- Songho, "OpenGL Projection Matrix", a careful derivation of the perspective and
+  orthographic forms: https://www.songho.ca/opengl/gl_projectionmatrix.html
+- On the [-1,1] versus [0,1] clip-depth conventions across APIs:
+  https://vincent-p.github.io/posts/vulkan_perspective_matrix/
