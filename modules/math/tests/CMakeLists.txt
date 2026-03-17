@@ -8,4 +8,8 @@ nexenne_add_module_tests(math
         test_fixed.cpp
         test_vector.cpp
         test_vector_algorithms.cpp
+        test_matrix.cpp
+        test_projection.cpp
+        test_math_accuracy.cpp
+        test_matrix_accuracy.cpp
 )

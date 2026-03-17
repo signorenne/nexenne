@@ -7,6 +7,7 @@ set(_math_examples
     trigonometry
     fixed
     vectors
+    matrices
 )
 
 foreach(_example IN LISTS _math_examples)
