@@ -64,19 +64,19 @@ public:
   using size_type = std::size_t;
 
 private:
-  struct node_t : intrusive_list_hook<node_t> {
+  struct node : intrusive_list_hook<node> {
     Key key{};
     Value value{};
   };
 
   // Stable storage so the list and index pointers stay valid: the pool is sized
   // to capacity at construction and never grows, so node addresses never move.
-  std::vector<node_t> m_pool;
-  std::vector<node_t*> m_free;
-  intrusive_list<node_t> m_lru;
-  flat_hash_map<Key, node_t*, Hash, KeyEq> m_index;
+  std::vector<node> m_pool;
+  std::vector<node*> m_free;
+  intrusive_list<node> m_lru;
+  flat_hash_map<Key, node*, Hash, KeyEq> m_index;
 
-  auto acquire_node() noexcept -> node_t* {
+  auto acquire_node() noexcept -> node* {
     if (!m_free.empty()) {
       auto* const n{m_free.back()};
       m_free.pop_back();
@@ -209,17 +209,17 @@ public:
    */
   auto put(Key key, Value value) noexcept -> void {
     if (auto* const existing{m_index.find(key)}) {
-      auto* const node{*existing};
-      node->value = std::move(value);
-      m_lru.erase(*node);
-      m_lru.push_front(*node);
+      auto* const entry{*existing};
+      entry->value = std::move(value);
+      m_lru.erase(*entry);
+      m_lru.push_front(*entry);
       return;
     }
-    auto* const node{acquire_node()};
-    node->key = std::move(key);
-    node->value = std::move(value);
-    m_lru.push_front(*node);
-    static_cast<void>(m_index.insert(node->key, node));
+    auto* const entry{acquire_node()};
+    entry->key = std::move(key);
+    entry->value = std::move(value);
+    m_lru.push_front(*entry);
+    static_cast<void>(m_index.insert(entry->key, entry));
   }
 
   /**
@@ -240,10 +240,10 @@ public:
     if (slot == nullptr) {
       return nullptr;
     }
-    auto* const node{*slot};
-    m_lru.erase(*node);
-    m_lru.push_front(*node);
-    return std::addressof(node->value);
+    auto* const entry{*slot};
+    m_lru.erase(*entry);
+    m_lru.push_front(*entry);
+    return std::addressof(entry->value);
   }
 
   /**
@@ -300,10 +300,10 @@ public:
     if (slot == nullptr) {
       return false;
     }
-    auto* const node{*slot};
-    m_lru.erase(*node);
+    auto* const entry{*slot};
+    m_lru.erase(*entry);
     static_cast<void>(m_index.erase(key));
-    m_free.push_back(node);
+    m_free.push_back(entry);
     return true;
   }
 
