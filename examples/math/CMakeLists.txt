@@ -8,6 +8,7 @@ set(_math_examples
     fixed
     vectors
     matrices
+    rotations
 )
 
 foreach(_example IN LISTS _math_examples)
