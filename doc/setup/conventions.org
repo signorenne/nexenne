@@ -20,6 +20,11 @@ and lint rules on every change.
   =std::remove_cv_t=). A concrete class, struct, or enum carries *no suffix*
   (=sin_cos=, not =sin_cos_t=, just as =std::vector= has none); a member type
   alias uses =_type= (=value_type=); a variable template uses =_v= (=pi_v=).
+- Reuse the standard library, do not reinvent it: =std::numbers= constants,
+  =<algorithm>= / =<numeric>= / =<ranges>=, =<type_traits>=, =<bit>=, and the
+  like. Re-implement a std facility only for a stated reason (a measured
+  optimization, a guarantee std lacks such as =constexpr= or determinism, or a
+  real gap), and say which in a comment.
 - Trailing return types everywhere (=modernize-use-trailing-return-type=), braced
   init, =const= by default (=misc-const-correctness= transforms non-reassigned
   locals), ranges over raw loops.
