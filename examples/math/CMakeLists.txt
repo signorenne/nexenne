@@ -9,6 +9,8 @@ set(_math_examples
     vectors
     matrices
     rotations
+    transforms
+    curves
 )
 
 foreach(_example IN LISTS _math_examples)
