@@ -13,6 +13,8 @@ nexenne_add_module_tests(math
         test_quaternion.cpp
         test_slerp_variants.cpp
         test_euler.cpp
+        test_transform.cpp
+        test_curve.cpp
         test_math_accuracy.cpp
         test_matrix_accuracy.cpp
 )

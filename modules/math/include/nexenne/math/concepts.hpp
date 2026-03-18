@@ -37,4 +37,22 @@ concept arithmetic = std::is_arithmetic_v<Value>;
 template <typename Value>
 concept signed_arithmetic = arithmetic<Value> && std::is_signed_v<Value>;
 
+/**
+ * @brief A point type that can be affinely combined over a scalar field.
+ *
+ * Requires the operations curve and interpolation routines perform: adding and
+ * subtracting two points and scaling a point by a \p Scalar, each yielding a
+ * point again. Satisfied by \c vector<Real, N> and by the scalar \p Scalar
+ * itself (so a single value can be eased along a curve like a position can).
+ *
+ * @tparam Point  Point type under test.
+ * @tparam Scalar Scalar field the point is scaled by (a floating-point type).
+ */
+template <typename Point, typename Scalar>
+concept affine_point = requires(Point const p, Scalar const s) {
+  { p + p } -> std::convertible_to<Point>;
+  { p - p } -> std::convertible_to<Point>;
+  { p* s } -> std::convertible_to<Point>;
+};
+
 }  // namespace nexenne::math
