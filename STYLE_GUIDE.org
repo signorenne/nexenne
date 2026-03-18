@@ -131,6 +131,18 @@ Forbidden: =T x(...)=, =auto x = expr=, =int x = 0=. Members default with
 
 * Idioms and performance
 
+- *Reuse the standard library; do not reinvent it.* Use what is already in
+  =std=, the numeric constants in [[https://en.cppreference.com/w/cpp/header/numbers][=<numbers>=]] (=std::numbers::pi=, =e=,
+  =sqrt2=, =ln2=, ...), the algorithms in =<algorithm>= / =<numeric>= /
+  =<ranges>=, the type traits in =<type_traits>=, and the utilities in
+  =<bit>= / =<cmath>= / =<concepts>=, instead of hand-rolling an equivalent.
+  Re-implement a standard facility *only* for a strict, stated reason, and say
+  which in a comment: a measured optimization (a fast approximation, a SIMD
+  layout), a guarantee the standard one lacks (=constexpr=, =noexcept=,
+  deterministic rounding, freestanding/no-allocation), or a genuine gap in the
+  standard. A module's own constants header (for example =math::constants=)
+  *forwards* the =std= values and only *adds* what is missing; callers reuse it
+  rather than typing a literal.
 - Prefer =std::ranges= algorithms and =std::views= over raw loops.
 - =std::array= over C arrays; smart pointers over =new= / =delete=.
 - Never a C-style =(T)x= or functional =T(x)= cast: use =static_cast= (and
