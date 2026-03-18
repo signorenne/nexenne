@@ -10,6 +10,9 @@ nexenne_add_module_tests(math
         test_vector_algorithms.cpp
         test_matrix.cpp
         test_projection.cpp
+        test_quaternion.cpp
+        test_slerp_variants.cpp
+        test_euler.cpp
         test_math_accuracy.cpp
         test_matrix_accuracy.cpp
 )
