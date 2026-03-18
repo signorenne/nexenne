@@ -1,0 +1,78 @@
+#+TITLE: euler angles
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Turns ambiguous "Euler angles" into an explicit convention: an =euler_order= enum
+naming all six rotation orders, an =euler_angles= carrier for the three per-axis
+angles, =to_quaternion(angles, order)= to convert under a chosen order, and
+=from_ypr= for the aerospace yaw-pitch-roll shortcut. Everything produces a unit
+[[file:quaternion.org][quaternion]].
+
+* The idea
+
+"Rotate 30, 40, 50 degrees" is meaningless until you say *in what order* and
+*about which axes*, and getting it wrong is the classic source of orientation
+bugs. There are six orders (=xyz=, =xzy=, ..., =zyx=) and an extrinsic-versus-
+intrinsic choice on top. This header refuses to guess: the order is a required
+argument, spelled out in the type system. Euler angles are kept only as a human-
+facing input and interchange format; the moment they enter the system they become
+a quaternion, which is the representation that actually composes and interpolates
+([[file:quaternion.org][quaternion]] explains why).
+
+* How it works
+
+** The convention
+
+The orders are *intrinsic* (rotations about the body's own, successively rotated
+axes): =xyz= rotates about the body X first, then the once-rotated Y, then the
+twice-rotated Z. The extrinsic (world-fixed) reading is the same set reversed, so
+intrinsic =xyz= equals extrinsic =zyx=. All angles are radians, right-hand rule.
+
+** Conversion
+
+=to_quaternion= builds one half-angle [[file:quaternion.org][quaternion]] per axis and composes them in the
+named order. For =xyz= the product =qx * qy * qz= is intrinsic x-then-y-then-z;
+equivalently, since the Hamilton product applies right to left, it rotates a vector
+about the fixed world z first, then y, then x (the extrinsic =zyx= reading of the
+same orientation). =from_ypr(yaw, pitch, roll)= maps the aerospace angles onto
+intrinsic =zyx= (=z = yaw=, =y = pitch=, =x = roll=) and delegates; it matches
+quaternion.hpp's dedicated =from_euler= for that convention.
+
+** The carrier
+
+=euler_angles<Real>= is a small encapsulated class (private members, =x()= /
+=y()= / =z()= accessors, fixed at construction), not a bag of public fields, so it
+travels through the API as a real value type. Construct it positionally:
+=euler_angles{rx, ry, rz}=, passing zero for an unused axis.
+
+* When to use it
+
+- At the boundary where a human or a file provides angles: read them with an
+  explicit =euler_order=, convert once to a quaternion, and work in quaternions
+  thereafter.
+- =from_ypr= for aircraft, vehicles, and cameras described in yaw-pitch-roll.
+- Do not accumulate or interpolate Euler angles directly; that is what invites
+  gimbal lock. Convert and use [[file:quaternion.org][quaternion]].
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+auto const q{nm::to_quaternion(nm::euler_angles<double>{0.3, 0.5, 0.7},
+                               nm::euler_order::zyx)};
+auto const aircraft{nm::from_ypr(yaw, pitch, roll)};  // aerospace shortcut
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/rotations.cpp][examples/math/rotations.cpp]]
+
+* See also
+
+- [[file:quaternion.org][quaternion]] : the target representation and =from_euler=.
+
+* Further reading
+
+- On rotation orders, extrinsic versus intrinsic, and gimbal lock:
+  https://en.wikipedia.org/wiki/Euler_angles
