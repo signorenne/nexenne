@@ -12,6 +12,7 @@ set(_math_examples
     transforms
     curves
     sampling
+    debug
 )
 
 foreach(_example IN LISTS _math_examples)
