@@ -1,0 +1,110 @@
+#+TITLE: curve
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Parametric curve interpolation for paths and animation: quadratic and cubic
+Bezier, uniform Catmull-Rom, and cubic Hermite, each with a matching tangent
+(first-derivative) function, plus the =ease_smoothstep= and =ease_smootherstep=
+easing curves. Everything is generic over an =affine_point= - usually a [[file:vector.org][vector]],
+but a bare scalar qualifies too, so the same routines ease a single value.
+
+* The idea
+
+These are all cubic (or lower) polynomials in the parameter =t=, differing only
+in how the coefficients are derived from the control data:
+
+- *Bezier* blends the control points with Bernstein weights that sum to 1, so the
+  curve stays inside the control polygon's convex hull and the handles pull it.
+- *Catmull-Rom* interpolates every control point (the curve passes *through* them)
+  and derives each endpoint's tangent from its neighbours, which is what you want
+  for a path threaded through waypoints.
+- *Hermite* is the underlying basis: two endpoints and two explicit tangents.
+  Bezier and Catmull-Rom are just two ways of choosing those tangents.
+
+Because each is a polynomial, the tangent is simply its analytic derivative -
+exact velocity along the curve, not a finite difference.
+
+* How it works
+
+** The point type
+
+Every function is templated on =<std::floating_point Real, affine_point<Real>
+Point>=. The =affine_point= concept (in =concepts.hpp=) asks only for =p + p=,
+=p - p=, and =p * Real= - exactly the operations the polynomial blends use. A
+=vector<Real, N>= satisfies it (curves through space), and so does =Real= itself
+(easing one number), so no separate scalar overloads are needed.
+
+** Bezier
+
+=bezier_quadratic= and =bezier_cubic= evaluate the Bernstein form directly; the
+tangent functions are the derivative, itself a lower-degree Bezier between the
+control-leg vectors (=p1 - p0= and friends). All four interpolate their first and
+last control points exactly at =t = 0= and =t = 1=.
+
+** Catmull-Rom
+
+=catmull_rom(p0, p1, p2, p3, t)= returns the segment from =p1= to =p2=, using
+=p0= and =p3= only to set the endpoint tangents =0.5*(p2 - p0)= and
+=0.5*(p3 - p1)=. Chaining it over each consecutive four-point window of a list
+gives a C1-continuous curve through all the interior points. The implementation
+is the expanded cubic in the four points; =catmull_rom_tangent= is its
+derivative.
+
+** Hermite
+
+=hermite(p0, m0, p1, m1, t)= blends the two endpoints and their tangents with the
+Hermite basis (=h00 = 2t^3 - 3t^2 + 1=, etc.). It reproduces the endpoints at the
+ends, and =hermite_tangent= reproduces the supplied tangents there - a useful
+sanity check and the reason it composes cleanly with physics that tracks
+velocity.
+
+** Easing
+
+=ease_smoothstep= is =smoothstep(0, 1, t)= (the cubic =3t^2 - 2t^3=), and
+=ease_smootherstep= is Perlin's quintic =6t^5 - 15t^4 + 10t^3=. The quintic also
+zeroes its *second* derivative at the ends, so it starts and stops even more
+gently. Both clamp their input to =[0, 1]= first, so feeding a raw, unclamped
+progress value cannot extrapolate past the endpoints.
+
+* When to use it
+
+- =bezier_cubic= for design-tool paths and animation handles.
+- =catmull_rom= for a smooth path through a list of waypoints.
+- =hermite= when you already have positions and velocities (e.g. from physics).
+- the =ease_*= curves for time-warping an animation's progress; remember they
+  clamp, so you can pass an unbounded =elapsed / duration=.
+- any =_tangent= function when you need the direction or speed of travel, for
+  orienting something along the curve.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+auto const p{nm::bezier_cubic(nm::vector2_d{0, 0}, nm::vector2_d{0, 1},
+                              nm::vector2_d{1, 1}, nm::vector2_d{1, 0}, 0.5)};
+auto const v{nm::bezier_cubic_tangent(/* same points */ p, p, p, p, 0.5)};
+
+auto const eased{nm::ease_smootherstep(elapsed / duration)};  // clamps for you
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/curves.cpp][examples/math/curves.cpp]]
+
+* See also
+
+- [[file:vector.org][vector]] : the usual =affine_point= for spatial curves.
+- [[file:scalar.org][scalar]] : =smoothstep= / =saturate=, which the easing curves build on, and
+  =lerp= for the straight-line case.
+
+* Further reading
+
+- Bezier curves and the Bernstein basis:
+  https://en.wikipedia.org/wiki/B%C3%A9zier_curve
+- Catmull-Rom splines:
+  https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline
+- Cubic Hermite splines:
+  https://en.wikipedia.org/wiki/Cubic_Hermite_spline
+- Smoothstep and smootherstep:
+  https://en.wikipedia.org/wiki/Smoothstep

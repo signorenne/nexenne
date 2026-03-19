@@ -1,0 +1,107 @@
+#+TITLE: transform
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Builds the homogeneous transform matrices that move geometry around: 2D builders
+returning a [[file:matrix.org][matrix]] =mat3= (=translation2=, =rotation2=, =scale2=) and 3D builders
+returning a =mat4= (=translation3=, =scale3=, =rotation3= from a [[file:quaternion.org][quaternion]],
+=rotation3_axis_angle=), the right-handed =look_at= view matrix, and the
+=transform_point= / =transform_direction= helpers that actually apply a =mat4=.
+
+* The idea
+
+A homogeneous matrix folds rotation, scale, and translation into one object you
+can compose by multiplication and apply uniformly. The trick is the extra
+coordinate: a 2D point becomes =(x, y, 1)= and a 3D point =(x, y, z, 1)=, so a
+translation - which is not linear in the original coordinates - becomes a plain
+matrix column acting on that constant 1. A direction instead carries a 0 in the
+last slot, so the translation column multiplies by zero and is ignored. That one
+distinction is why points and directions need different apply functions.
+
+* How it works
+
+** Affine builders
+
+Each builder starts from =matrix::identity()= and writes only the cells that
+differ from it - the translation column, the diagonal scale factors, or the
+rotation block - the same element-assignment style the [[file:projection.org][projection]] builders use.
+=rotation2= is the only non-=constexpr= 2D builder, because it calls the libm
+=sin= / =cos=; =rotation3= just forwards to the quaternion's =to_matrix4=, and
+=rotation3_axis_angle= goes through =from_axis_angle=, so it returns a =result=
+and reports a zero axis rather than producing a NaN matrix.
+
+** The look_at view matrix
+
+=look_at(eye, target, up)= is the world-to-view basis change. It builds an
+orthonormal frame - =forward = normalize(target - eye)=,
+=right = normalize(forward x up)=, =true_up = right x forward= - and lays those
+axes into the rows, with the last column the negated projection of =eye= onto
+each axis (the rotation transpose times =-eye=). Because =true_up= is recomputed
+from =right= and =forward=, the supplied =up= only has to be roughly upward, not
+exactly perpendicular. Coincident =eye= / =target= or an =up= parallel to the
+view direction are reported as errors. This is the classic gluLookAt matrix and
+shares the module's right-handed, forward = -Z convention (so it lines up with
+the [[file:projection.org][projection]] builders). The *rotation-only* form of the same intent is
+=look_at_rotation= in [[file:quaternion.org][quaternion]].
+
+** Applying a matrix
+
+=transform_point= treats the input as =(x, y, z, 1)=, multiplies through the
+packed [[file:matrix.org][matrix]]-vector product (column combination, so it vectorizes), and divides
+by the resulting =w= so a projection matrix maps correctly; when =w= is 1 (affine)
+or 0 (a point at infinity) the divide is skipped. =transform_direction= treats
+the input as =(x, y, z, 0)=: translation drops out and only the upper-left 3x3
+block applies. The result is not re-normalized, so a matrix carrying scale
+changes a direction's length. One caveat: this is right for tangents and travel
+directions, but *not* for surface normals under non-uniform scale - a normal must
+go through the inverse transpose of the 3x3 block to stay perpendicular. Use
+=transform_direction= only for rigid or uniform-scale matrices, or feed it an
+already inverse-transposed matrix when transforming normals.
+
+** What lives elsewhere
+
+Projection matrices (=perspective=, =ortho=, and the =_zo= depth variants) are in
+[[file:projection.org][projection]], not here - this header is purely the model/view side of the
+model-view-projection trio, and reuses the projection builders rather than
+duplicating them.
+
+* When to use it
+
+- Compose a model matrix from =translation3 * rotation3 * scale3= (right to
+  left: scale first, then rotate, then translate).
+- =look_at= for a camera's view matrix; pair it with a [[file:projection.org][projection]] matrix.
+- =transform_point= to move a position through a matrix (it handles the
+  perspective divide); =transform_direction= for normals and velocities that
+  should ignore translation.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+auto const model{nm::translation3(nm::vector3_d{0, 1, 0})
+                 * nm::rotation3(*nm::from_axis_angle(nm::vector3_d{0, 1, 0},
+                                                       nm::radians_d{0.5}))};
+auto const p{nm::transform_point(model, nm::vector3_d{1, 0, 0})};
+
+auto const view{nm::look_at(nm::vector3_d{0, 0, 5},   // eye
+                            nm::vector3_d{0, 0, 0},   // target
+                            nm::vector3_d{0, 1, 0})}; // up
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/transforms.cpp][examples/math/transforms.cpp]]
+
+* See also
+
+- [[file:matrix.org][matrix]] : the matrix type and =make_matrix3= / =make_matrix4=.
+- [[file:projection.org][projection]] : the projection half of the MVP pipeline.
+- [[file:quaternion.org][quaternion]] : =to_matrix4= and the rotation-only =look_at_rotation=.
+
+* Further reading
+
+- The view matrix construction (gluLookAt):
+  https://learnopengl.com/Getting-started/Camera
+- Homogeneous coordinates and affine transforms:
+  https://en.wikipedia.org/wiki/Transformation_matrix#Affine_transformations
