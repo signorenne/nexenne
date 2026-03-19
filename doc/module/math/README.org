@@ -59,6 +59,13 @@ the dimension is known to the compiler, not the profiler.
   and a column-combination multiply that compiles to packed SSE.
 - [[file:projection.org][projection]] : the 4x4 =perspective= / =ortho= builders (plus the =_zo= Vulkan
   and Direct3D depth variants) that map view space to clip space.
+- [[file:transform.org][transform]] : the affine builders (=translation_=, =rotation_=, =scale_= in 2D
+  and 3D), the =look_at= view matrix, and =transform_point= / =transform_direction=.
+
+* Curves and easing
+
+- [[file:curve.org][curve]] : parametric =bezier_=, =catmull_rom=, and =hermite= evaluators with
+  matching tangents, plus the =ease_smoothstep= / =ease_smootherstep= curves.
 
 * Rotations
 
@@ -73,8 +80,8 @@ the dimension is known to the compiler, not the profiler.
 * Headers without an article
 
 - =math.hpp= : the umbrella header; includes the whole module.
-- =concepts.hpp= : the internal constraints (=arithmetic=, =signed_arithmetic=)
-  that keep the templates honest.
+- =concepts.hpp= : the internal constraints (=arithmetic=, =signed_arithmetic=,
+  =affine_point=) that keep the templates honest.
 - =error.hpp= : the =math_error= enum and the =result<T>= alias
   (=std::expected<T, math_error>=) returned by the fallible operations.
 
