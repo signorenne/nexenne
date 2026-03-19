@@ -15,6 +15,7 @@ nexenne_add_module_tests(math
         test_euler.cpp
         test_transform.cpp
         test_curve.cpp
+        test_random.cpp
         test_math_accuracy.cpp
         test_matrix_accuracy.cpp
 )

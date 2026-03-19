@@ -8,9 +8,9 @@
  * utilities, powers, three-speed trigonometry), the strong angle and Q-format
  * fixed-point types, the fixed-size vectors (with their algorithms and the
  * unit-length wrapper), the column-major matrices with the projection builders,
- * the rotation types (unit quaternions with slerp variants, Euler angles), and
- * the affine transform builders and parametric curves. The geometric samplers and
- * the hashing and formatting support join this list as they are ported.
+ * the rotation types (unit quaternions with slerp variants, Euler angles), the
+ * affine transform builders and parametric curves, and the geometric random
+ * samplers. The hashing and formatting support joins this list as it is ported.
  */
 
 #include <nexenne/math/angle.hpp>
@@ -25,6 +25,7 @@
 #include <nexenne/math/power.hpp>
 #include <nexenne/math/projection.hpp>
 #include <nexenne/math/quaternion.hpp>
+#include <nexenne/math/random.hpp>
 #include <nexenne/math/scalar.hpp>
 #include <nexenne/math/slerp_variants.hpp>
 #include <nexenne/math/transform.hpp>
