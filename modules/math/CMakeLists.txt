@@ -23,6 +23,8 @@ nexenne_add_module(math
         include/nexenne/math/error.hpp
         include/nexenne/math/euler.hpp
         include/nexenne/math/fixed.hpp
+        include/nexenne/math/format.hpp
+        include/nexenne/math/hash.hpp
         include/nexenne/math/matrix.hpp
         include/nexenne/math/power.hpp
         include/nexenne/math/projection.hpp
