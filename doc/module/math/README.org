@@ -83,6 +83,13 @@ the dimension is known to the compiler, not the profiler.
   =unit_vector3= directions, =point_in_unit_disc= / =point_in_unit_ball=, and
   =random_angle=.
 
+* Standard-library integration
+
+- [[file:hash.org][hash]] : =std::hash= specializations so =vector=, =matrix=, and =quaternion=
+  work as =unordered_= keys.
+- [[file:format.org][format]] : =to_string=, =operator<<=, and =std::formatter= for =vector=,
+  =matrix=, =quaternion=, and =normalized=.
+
 * Headers without an article
 
 - =math.hpp= : the umbrella header; includes the whole module.
