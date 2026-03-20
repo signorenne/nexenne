@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <limits>
 #include <type_traits>
 
 #include <nexenne/math/matrix.hpp>
@@ -107,4 +108,18 @@ TEST_CASE("inverse round-trips to identity, rejects singular") {
   auto const singular{math::inverse(math::make_matrix2(1.0, 2.0, 2.0, 4.0))};
   REQUIRE_FALSE(singular.has_value());
   CHECK(singular.error() == math::math_error::singular_matrix);
+}
+
+TEST_CASE("inverse rejects a non-finite determinant instead of returning garbage (regression)") {
+  // A NaN entry makes det NaN; the old guard (abs(det) <= eps) let it through as a
+  // bogus success. An overflowing det (inf) likewise must report singular.
+  auto nan_m{math::matrix3_d::identity()};
+  nan_m(0, 0) = std::numeric_limits<double>::quiet_NaN();
+  CHECK_FALSE(math::inverse(nan_m).has_value());
+
+  auto big_m{math::matrix3_d::identity()};
+  big_m(0, 0) = 1e308;
+  big_m(1, 1) = 1e308;
+  big_m(2, 2) = 1e308;  // det ~ 1e924 -> +inf
+  CHECK_FALSE(math::inverse(big_m).has_value());
 }
