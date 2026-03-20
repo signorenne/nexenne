@@ -213,7 +213,11 @@ struct std::formatter<nexenne::math::vector<Value, N>> {
    * @post None.
    */
   constexpr auto parse(std::format_parse_context& ctx) {
-    return ctx.begin();
+    auto it{ctx.begin()};
+    if (it != ctx.end() && *it != '}') {
+      throw std::format_error("nexenne::math formatters take no format specification");
+    }
+    return it;
   }
 
   /**
@@ -252,7 +256,11 @@ struct std::formatter<nexenne::math::quaternion<Real>> {
    * @post None.
    */
   constexpr auto parse(std::format_parse_context& ctx) {
-    return ctx.begin();
+    auto it{ctx.begin()};
+    if (it != ctx.end() && *it != '}') {
+      throw std::format_error("nexenne::math formatters take no format specification");
+    }
+    return it;
   }
 
   /**
@@ -292,7 +300,11 @@ struct std::formatter<nexenne::math::matrix<Value, N>> {
    * @post None.
    */
   constexpr auto parse(std::format_parse_context& ctx) {
-    return ctx.begin();
+    auto it{ctx.begin()};
+    if (it != ctx.end() && *it != '}') {
+      throw std::format_error("nexenne::math formatters take no format specification");
+    }
+    return it;
   }
 
   /**
@@ -332,7 +344,11 @@ struct std::formatter<nexenne::math::normalized<Real, N>> {
    * @post None.
    */
   constexpr auto parse(std::format_parse_context& ctx) {
-    return ctx.begin();
+    auto it{ctx.begin()};
+    if (it != ctx.end() && *it != '}') {
+      throw std::format_error("nexenne::math formatters take no format specification");
+    }
+    return it;
   }
 
   /**
