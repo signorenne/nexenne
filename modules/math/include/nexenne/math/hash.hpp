@@ -91,6 +91,11 @@ struct std::hash<nexenne::math::matrix<Value, N>> {
    */
   [[nodiscard]] auto operator()(nexenne::math::matrix<Value, N> const& m
   ) const noexcept -> std::size_t {
+    // Unlike vector, a matrix is not a flat range of scalars (it is an array of
+    // column vectors), so fold the scalar elements directly rather than reusing
+    // hash_range, which would otherwise hash the column-vectors. The column-major
+    // (c outer, r inner) order is fixed and load-bearing: it must match for any
+    // two equal matrices, so do not change it.
     auto seed{std::size_t{0}};
     for (std::size_t c{0}; c < N; ++c) {
       for (std::size_t r{0}; r < N; ++r) {

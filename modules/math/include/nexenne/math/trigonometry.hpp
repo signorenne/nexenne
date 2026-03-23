@@ -162,7 +162,7 @@ template <std::floating_point Real>
 /**
  * @brief Polynomial cosine on the reduced interval [-pi/4, pi/4].
  *
- * Degree-8 Taylor polynomial in Horner form. Error on the order of 1e-8 over
+ * Degree-8 Taylor polynomial in Horner form. Error about 2.5e-8 over
  * [-pi/4, pi/4].
  *
  * @tparam Real Floating-point type.
@@ -177,8 +177,8 @@ template <std::floating_point Real>
 [[nodiscard]] constexpr auto poly_cos_reduced(Real const x) noexcept -> Real {
   // The Maclaurin series cos(x) = 1 - x^2/2! + x^4/4! - x^6/6! + x^8/8! in Horner
   // form. The denominators are the even factorials 2, 24, 720, 40320. The first
-  // dropped term is x^10/10!, ~3e-9 at x=pi/4, so over the reduced interval this
-  // is good to roughly 1e-8.
+  // dropped term is x^10/10! = (pi/4)^10/3628800 ~ 2.5e-8 at x=pi/4, so over the
+  // reduced interval this is good to about 2.5e-8.
   auto const x2{x * x};
   return Real{1}
          - x2
@@ -392,8 +392,9 @@ template <std::floating_point Real>
 /**
  * @brief Approximate \c atan of \p x, in radians.
  *
- * Degree-9 polynomial on [-1, 1] with the \c atan(1/x) reduction for |x|>1.
- * Maximum error around 6e-6 across the real line.
+ * Degree-11 odd polynomial (the six terms x, x^3, ..., x^11) on [-1, 1], with the
+ * \c atan(1/x) reduction for |x|>1. Maximum error around 1.7e-6 across the real
+ * line.
  *
  * @tparam Real Floating-point type.
  * @param x Value.
@@ -557,8 +558,10 @@ template <std::floating_point Real>
 [[nodiscard]] constexpr auto to_unit_phase(Real const x) noexcept -> Real {
   // Floor-modulo into [0, 2pi) via scalar::mod, which reduces with floor and so
   // stays bounded for any finite magnitude (a truncating long long cast would be
-  // undefined for inputs above LLONG_MAX, e.g. lut_sin(1e30)). Rescale to [0, 1)
-  // with a boundary guard so a tiny rounding cannot land the phase on exactly 1.
+  // undefined for inputs above LLONG_MAX, e.g. lut_sin(1e30)). mod's result is
+  // strictly below 2pi, so phase < 1; but rounding can leave it a hair below 0,
+  // so the (phase < 0) branch wraps that residue up to just under 1. The
+  // (phase >= 1) branch never fires (mod's upper end is already strict).
   auto phase{mod(x, tau_v<Real>) / tau_v<Real>};
   if (phase >= Real{1}) {
     phase -= Real{1};

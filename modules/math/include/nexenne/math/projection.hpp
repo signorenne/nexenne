@@ -51,8 +51,14 @@ template <std::floating_point Real>
   // f = cot(fovy/2) is the focal length: it scales y so a point at the top of the
   // frustum lands at clip y = 1, and f/aspect does the same for x. The m(3,2) =
   // -1 copies -z into the clip w, so the GPU's later divide by w performs the
-  // perspective foreshortening. Row 2 remaps view-space z in [near, far] onto the
-  // [-1, 1] clip range (hence the (near - far) denominator).
+  // perspective foreshortening. Row 2 maps view-space z to clip z; after the w
+  // divide we need clip_z(-near) = -1 and clip_z(-far) = +1 (the viewer looks
+  // down -Z, so the planes are at z = -near and z = -far). With clip_z =
+  // (A*z + B)/(-z), those two conditions are A*near - B = near and
+  // A*far - B = -far; subtracting gives A*(near-far) = near+far, so
+  // A = (far+near)/(near-far) = m(2,2) and then B = 2*far*near/(near-far) = m(2,3).
+  // Hence the (near - far) denominator.
+  // https://www.songho.ca/opengl/gl_projectionmatrix.html
   auto const f{Real{1} / std::tan(fovy_rad / Real{2})};
   auto const range_inv{Real{1} / (near_z - far_z)};
 

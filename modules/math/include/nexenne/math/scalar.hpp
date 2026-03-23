@@ -166,7 +166,9 @@ move_toward(Real const current, Real const target, Real const max_delta) noexcep
  *
  * @return The magnitude of \p value.
  *
- * @pre None.
+ * @pre For a signed integer \p Value, \p value is not the most-negative value
+ *      (its negation is not representable, so \c -value would be signed-overflow
+ *      UB; e.g. \c abs(INT_MIN)). Floating-point input has no precondition.
  * @post Result is non-negative when \p value is not NaN.
  */
 template <signed_arithmetic Value>
@@ -218,7 +220,11 @@ template <std::floating_point Real>
 /**
  * @brief Squares \p value.
  *
- * Computes \p value times itself with no intermediate widening.
+ * Returns the product in \p Value. For an integer \p Value narrower than \c int
+ * the operands are promoted to \c int for the multiply (the usual arithmetic
+ * conversions), which is exactly why the result is cast back to \p Value - the
+ * computation widens, the result type does not. The mathematical product must fit
+ * \p Value, as for any fixed-width multiply.
  *
  * @tparam Value Arithmetic type.
  * @param value The value to square.
