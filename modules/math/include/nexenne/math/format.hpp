@@ -195,33 +195,36 @@ auto operator<<(std::ostream& os, normalized<Real, N> const& n) -> std::ostream&
 }  // namespace nexenne::math
 
 /**
- * @brief \c std::format support for \c vector (empty format spec only).
+ * @brief \c std::format support for \c vector: the spec applies to each component.
+ *
+ * Holds a component \c std::formatter and forwards the format spec to it, so
+ * \c std::format("{:+.3f}", v) formats every element with \c +.3f - e.g.
+ * \c "vector3(+1.000, +2.000, +3.000)". The empty spec gives the default
+ * rendering (same as \c to_string).
  *
  * @tparam Value Component type.
  * @tparam N Component count.
  */
 template <nexenne::math::arithmetic Value, std::size_t N>
 struct std::formatter<nexenne::math::vector<Value, N>> {
+  std::formatter<Value> component;  ///< Parses and applies the per-component spec.
+
   /**
-   * @brief Parses the format spec, accepting only the empty one.
+   * @brief Forwards the spec to the component formatter.
    *
    * @param ctx Format parse context.
    *
-   * @return Iterator to the first unparsed character.
+   * @return Iterator past the parsed spec.
    *
    * @pre None.
-   * @post None.
+   * @post \c component holds the parsed spec.
    */
   constexpr auto parse(std::format_parse_context& ctx) {
-    auto it{ctx.begin()};
-    if (it != ctx.end() && *it != '}') {
-      throw std::format_error("nexenne::math formatters take no format specification");
-    }
-    return it;
+    return component.parse(ctx);
   }
 
   /**
-   * @brief Writes the vector's debug string into the context output.
+   * @brief Writes the vector, formatting each component with the parsed spec.
    *
    * @tparam FormatContext Deduced output context type.
    * @param v Vector to format.
@@ -230,41 +233,48 @@ struct std::formatter<nexenne::math::vector<Value, N>> {
    * @return Iterator past the last character written.
    *
    * @pre None.
-   * @post The textual vector has been written to \p ctx.
+   * @post The formatted vector has been written to \p ctx.
    */
   template <typename FormatContext>
   auto format(nexenne::math::vector<Value, N> const& v, FormatContext& ctx) const {
-    return std::format_to(ctx.out(), "{}", nexenne::math::to_string(v));
+    auto out{std::format_to(ctx.out(), "vector{}(", N)};
+    for (std::size_t i{0}; i < N; ++i) {
+      if (i != 0) {
+        out = std::format_to(out, ", ");
+      }
+      ctx.advance_to(out);
+      out = component.format(v[i], ctx);
+    }
+    *out++ = ')';
+    return out;
   }
 };
 
 /**
- * @brief \c std::format support for \c quaternion (empty format spec only).
+ * @brief \c std::format support for \c quaternion: the spec applies to x, y, z, w.
  *
  * @tparam Real Component type.
  */
 template <std::floating_point Real>
 struct std::formatter<nexenne::math::quaternion<Real>> {
+  std::formatter<Real> component;  ///< Parses and applies the per-component spec.
+
   /**
-   * @brief Parses the format spec, accepting only the empty one.
+   * @brief Forwards the spec to the component formatter.
    *
    * @param ctx Format parse context.
    *
-   * @return Iterator to the first unparsed character.
+   * @return Iterator past the parsed spec.
    *
    * @pre None.
-   * @post None.
+   * @post The held component formatter holds the parsed spec.
    */
   constexpr auto parse(std::format_parse_context& ctx) {
-    auto it{ctx.begin()};
-    if (it != ctx.end() && *it != '}') {
-      throw std::format_error("nexenne::math formatters take no format specification");
-    }
-    return it;
+    return component.parse(ctx);
   }
 
   /**
-   * @brief Writes the quaternion's debug string into the context output.
+   * @brief Writes the quaternion as \c "quaternion(x, y, z; w)" with the spec.
    *
    * @tparam FormatContext Deduced output context type.
    * @param q Quaternion to format.
@@ -273,42 +283,53 @@ struct std::formatter<nexenne::math::quaternion<Real>> {
    * @return Iterator past the last character written.
    *
    * @pre None.
-   * @post The textual quaternion has been written to \p ctx.
+   * @post The formatted quaternion has been written to \p ctx.
    */
   template <typename FormatContext>
   auto format(nexenne::math::quaternion<Real> const q, FormatContext& ctx) const {
-    return std::format_to(ctx.out(), "{}", nexenne::math::to_string(q));
+    auto out{std::format_to(ctx.out(), "quaternion(")};
+    ctx.advance_to(out);
+    out = component.format(q.x(), ctx);
+    out = std::format_to(out, ", ");
+    ctx.advance_to(out);
+    out = component.format(q.y(), ctx);
+    out = std::format_to(out, ", ");
+    ctx.advance_to(out);
+    out = component.format(q.z(), ctx);
+    out = std::format_to(out, "; ");
+    ctx.advance_to(out);
+    out = component.format(q.w(), ctx);
+    *out++ = ')';
+    return out;
   }
 };
 
 /**
- * @brief \c std::format support for \c matrix (empty format spec only).
+ * @brief \c std::format support for \c matrix: the spec applies to each element.
  *
  * @tparam Value Component type.
  * @tparam N Matrix dimension.
  */
 template <nexenne::math::arithmetic Value, std::size_t N>
 struct std::formatter<nexenne::math::matrix<Value, N>> {
+  std::formatter<Value> component;  ///< Parses and applies the per-element spec.
+
   /**
-   * @brief Parses the format spec, accepting only the empty one.
+   * @brief Forwards the spec to the component formatter.
    *
    * @param ctx Format parse context.
    *
-   * @return Iterator to the first unparsed character.
+   * @return Iterator past the parsed spec.
    *
    * @pre None.
-   * @post None.
+   * @post The held component formatter holds the parsed spec.
    */
   constexpr auto parse(std::format_parse_context& ctx) {
-    auto it{ctx.begin()};
-    if (it != ctx.end() && *it != '}') {
-      throw std::format_error("nexenne::math formatters take no format specification");
-    }
-    return it;
+    return component.parse(ctx);
   }
 
   /**
-   * @brief Writes the matrix's debug string into the context output.
+   * @brief Writes the matrix in row-major order, each element with the spec.
    *
    * @tparam FormatContext Deduced output context type.
    * @param m Matrix to format.
@@ -317,42 +338,54 @@ struct std::formatter<nexenne::math::matrix<Value, N>> {
    * @return Iterator past the last character written.
    *
    * @pre None.
-   * @post The textual matrix has been written to \p ctx.
+   * @post The formatted matrix has been written to \p ctx.
    */
   template <typename FormatContext>
   auto format(nexenne::math::matrix<Value, N> const& m, FormatContext& ctx) const {
-    return std::format_to(ctx.out(), "{}", nexenne::math::to_string(m));
+    auto out{std::format_to(ctx.out(), "matrix{}(", N)};
+    for (std::size_t r{0}; r < N; ++r) {
+      if (r != 0) {
+        out = std::format_to(out, "; ");
+      }
+      for (std::size_t c{0}; c < N; ++c) {
+        if (c != 0) {
+          out = std::format_to(out, ", ");
+        }
+        ctx.advance_to(out);
+        out = component.format(m(r, c), ctx);
+      }
+    }
+    *out++ = ')';
+    return out;
   }
 };
 
 /**
- * @brief \c std::format support for \c normalized (empty format spec only).
+ * @brief \c std::format support for \c normalized: forwards the spec to the vector.
  *
  * @tparam Real Component type.
  * @tparam N Component count.
  */
 template <std::floating_point Real, std::size_t N>
 struct std::formatter<nexenne::math::normalized<Real, N>> {
+  std::formatter<nexenne::math::vector<Real, N>> inner;  ///< Formats the wrapped vector.
+
   /**
-   * @brief Parses the format spec, accepting only the empty one.
+   * @brief Forwards the spec to the wrapped-vector formatter.
    *
    * @param ctx Format parse context.
    *
-   * @return Iterator to the first unparsed character.
+   * @return Iterator past the parsed spec.
    *
    * @pre None.
-   * @post None.
+   * @post The held vector formatter holds the parsed spec.
    */
   constexpr auto parse(std::format_parse_context& ctx) {
-    auto it{ctx.begin()};
-    if (it != ctx.end() && *it != '}') {
-      throw std::format_error("nexenne::math formatters take no format specification");
-    }
-    return it;
+    return inner.parse(ctx);
   }
 
   /**
-   * @brief Writes the wrapper's debug string into the context output.
+   * @brief Writes \c "normalized(...)" around the wrapped vector's formatting.
    *
    * @tparam FormatContext Deduced output context type.
    * @param n Unit-length wrapper to format.
@@ -361,10 +394,14 @@ struct std::formatter<nexenne::math::normalized<Real, N>> {
    * @return Iterator past the last character written.
    *
    * @pre None.
-   * @post The textual wrapper has been written to \p ctx.
+   * @post The formatted wrapper has been written to \p ctx.
    */
   template <typename FormatContext>
   auto format(nexenne::math::normalized<Real, N> const& n, FormatContext& ctx) const {
-    return std::format_to(ctx.out(), "{}", nexenne::math::to_string(n));
+    auto out{std::format_to(ctx.out(), "normalized(")};
+    ctx.advance_to(out);
+    out = inner.format(n.value(), ctx);
+    *out++ = ')';
+    return out;
   }
 };
