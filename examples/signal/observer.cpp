@@ -1,16 +1,21 @@
 /**
  * @file
  * @brief Publish/subscribe with nexenne::signal: priority, one-shot, lifetime
- *        tracking, scoped and blocked connections.
+ *        tracking, scoped and blocked connections, return aggregation.
  *
  * A sensor publishes readings through a signal exposed as a connect-only sink.
  * Subscribers connect with a member function tracked by a slot (so they
  * auto-disconnect when they die), a one-shot calibration hook, and a
- * priority-ordered logger. The example also shows a scoped_connection and an
- * emit_blocker.
+ * priority-ordered logger. The example also shows a scoped_connection, an
+ * emit_blocker, explicit handle disconnect, disconnect_all, and a separate
+ * non-void signal aggregated with emit_and_collect.
+ *
+ * For the full event-driven walkthrough see showcase.cpp; this file is the
+ * focused publish/subscribe tour.
  */
 
 #include <print>
+#include <vector>
 
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/signal/signal.hpp>
@@ -102,4 +107,36 @@ auto main() -> int {
   }  // beep's scoped_connection disconnects here
   std::println("after the scoped subscriber left:");
   alarm.emit();  // nothing connected
+
+  // A connection is a value handle: keep it and disconnect explicitly when the
+  // subscription's life is neither a scope nor an object, and disconnect_all to
+  // clear the whole signal at once (here, a "tear down the UI" moment).
+  std::println("\nexplicit disconnect and disconnect_all:");
+  auto chime{alarm.connect([] noexcept { std::println("  chime"); })};
+  auto buzz{alarm.connect([] noexcept { std::println("  buzz"); })};
+  std::println("both connected ({} slots):", alarm.size());
+  alarm.emit();  // chime, buzz
+  std::println("disconnect chime explicitly: {}", chime.disconnect());
+  alarm.emit();  // buzz only
+  alarm.disconnect_all();
+  std::println("after disconnect_all, empty: {}", alarm.empty());
+  static_cast<void>(buzz);  // its slot is already gone; the handle now no-ops
+
+  // A non-void signal: each slot returns a value and emit_and_collect gathers
+  // them in fire order. A poll like this fans one query out to every registered
+  // responder, then folds the answers - no central response table to maintain.
+  std::println("\nvote tally via emit_and_collect:");
+  auto poll{sg::signal<bool(int)>{}};
+  auto const a{poll.connect([](int n) noexcept { return n > 0; })};
+  auto const b{poll.connect([](int n) noexcept { return n % 2 == 0; })};
+  auto const c{poll.connect([](int n) noexcept { return n < 100; })};
+  static_cast<void>(a);
+  static_cast<void>(b);
+  static_cast<void>(c);
+  std::vector<bool> const votes{poll.emit_and_collect(42)};
+  auto yes{0};
+  for (bool const v : votes) {
+    yes += v ? 1 : 0;
+  }
+  std::println("  {} of {} responders said yes for 42", yes, votes.size());
 }
