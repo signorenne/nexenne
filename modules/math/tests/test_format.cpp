@@ -49,10 +49,15 @@ TEST_CASE("std::format and operator<< agree with to_string") {
   CHECK(std::format("v = {}!", v) == "v = vector3(5, 6, 7)!");
 }
 
-TEST_CASE("formatters reject a non-empty format spec (regression)") {
-  // parse() now enforces the documented "empty spec only" instead of silently
-  // accepting; a non-empty spec throws std::format_error.
+TEST_CASE("formatters forward the spec to each component") {
+  // The format spec applies to every element, so precision/sign/width work.
+  CHECK(std::format("{:+.2f}", math::vector3_d{1.5, -2.0, 3.0}) == "vector3(+1.50, -2.00, +3.00)");
+  CHECK(std::format("{:.1f}", math::quaternion_d{1, 2, 3, 4}) == "quaternion(1.0, 2.0, 3.0; 4.0)");
+  CHECK(std::format("{:.1f}", math::matrix2_d::identity()) == "matrix2(1.0, 0.0; 0.0, 1.0)");
+  // The empty spec still gives the default rendering.
+  CHECK(std::format("{}", math::vector3_i{5, 6, 7}) == "vector3(5, 6, 7)");
+
+  // An invalid component spec is rejected by the component formatter.
   math::vector3_d const v{1, 2, 3};
-  CHECK_THROWS_AS((void)std::vformat("{:5}", std::make_format_args(v)), std::format_error);
-  CHECK_NOTHROW((void)std::vformat("{}", std::make_format_args(v)));
+  CHECK_THROWS_AS((void)std::vformat("{:Z}", std::make_format_args(v)), std::format_error);
 }
