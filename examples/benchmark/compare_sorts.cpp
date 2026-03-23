@@ -7,10 +7,17 @@
  * report a speedup. do_not_optimize keeps the work under test from being
  * deleted by the optimiser. Timings are machine-dependent, so this prints the
  * measured summaries rather than asserting fixed numbers.
+ *
+ * The last two tours go further: a custom config to trade accuracy for a faster
+ * run, a throughput figure derived from the result, and the JSON dump used to
+ * feed a result into CI.
  */
 
 #include <algorithm>
+#include <chrono>
+#include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <numeric>
 #include <vector>
 
@@ -69,6 +76,38 @@ auto main() -> int {
     }
   )};
   sorted.print();
+
+  // A custom config: fewer, shorter sample batches and no warmup for a quick,
+  // lower-confidence reading. Use this when you want a fast turnaround during
+  // development; keep the defaults for numbers you will quote. We also turn the
+  // result into a throughput figure: the hand sum touches data.size() 4-byte
+  // elements per call, so bytes_per_second reports the achieved memory rate.
+  auto const quick_cfg{bm::config{
+    .target_duration = std::chrono::milliseconds{20},
+    .sample_count = 3,
+    .min_iterations = 1,
+    .warmup = false,
+  }};
+  auto const quick{bm::run(
+    "sum: hand loop (quick cfg)",
+    [&] noexcept {
+      auto total{std::uint64_t{0}};
+      for (auto const x : data) {
+        total += x;
+      }
+      bm::do_not_optimize(total);
+    },
+    quick_cfg
+  )};
+  quick.print();
+  auto const bytes_per_iter{data.size() * sizeof(std::uint32_t)};
+  std::cout << "  -> " << quick.bytes_per_second(bytes_per_iter) / 1e9 << " GB/s scanned\n";
+
+  // For CI: dump the result as a JSON object (name, the timing fields, and the
+  // raw per-sample means) so a dashboard can ingest it without scraping text.
+  std::cout << "json: ";
+  quick.to_json(std::cout);
+  std::cout << '\n';
 
   return 0;
 }
