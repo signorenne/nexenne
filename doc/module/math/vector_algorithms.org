@@ -54,7 +54,8 @@ vector is rejected (or replaced by a fallback) before any division.
 multiplies by the =fast_inv_sqrt= bit-trick (about 5e-6 relative error, see
 [[file:power.org][power]]); =normalize_or= takes a caller-supplied fallback direction and returns a
 plain vector. The default threshold of 1e-20 is on the *squared* length, so it
-corresponds to a length around 1e-10.
+corresponds to a length around 1e-10 (tuned for =double=; for =float=, where 1e-10
+is already near the precision floor, pass a larger type-appropriate threshold).
 
 ** project, reject, reflect
 
