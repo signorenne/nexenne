@@ -18,8 +18,10 @@
 #include <format>
 #include <ostream>
 #include <string>
+#include <string_view>
 
 #include <nexenne/math/concepts.hpp>
+#include <nexenne/math/error.hpp>
 #include <nexenne/math/matrix.hpp>
 #include <nexenne/math/normalized.hpp>
 #include <nexenne/math/quaternion.hpp>
@@ -403,5 +405,32 @@ struct std::formatter<nexenne::math::normalized<Real, N>> {
     out = inner.format(n.value(), ctx);
     *out++ = ')';
     return out;
+  }
+};
+
+/**
+ * @brief \c std::format support for \c math_error: prints its \c to_string name.
+ *
+ * Inherits the string formatter so a spec (width, alignment) applies to the name,
+ * and so \c std::format("{}", err) works directly on a value returned from a
+ * \c result<T> without a manual \c to_string call.
+ */
+template <>
+struct std::formatter<nexenne::math::math_error> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the error's \c to_string name through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param err Error to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The error name has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::math::math_error const err, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::math::to_string(err), ctx);
   }
 };
