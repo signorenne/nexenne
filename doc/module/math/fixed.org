@@ -28,7 +28,9 @@ The class holds one signed integer =m_raw= and exposes the compile-time
 =FractionBits= (lossless); from a float, it multiplies by =scale= and truncates.
 =to_float= divides by =scale=; =to_int= arithmetic-right-shifts, which rounds
 toward negative infinity (so a stored -0.5 yields -1, not 0, documented in the
-header).
+header). Mind that these two roundings *disagree*: the float constructor
+truncates toward zero while =to_int= floors toward negative infinity, so
+=fixed{-0.5f}.to_int()= is -1, not the 0 a truncating round-trip would give.
 
 ** What a format can represent (queryable)
 

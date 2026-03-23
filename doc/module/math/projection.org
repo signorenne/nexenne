@@ -52,6 +52,16 @@ cube, and translate so the box center lands at the origin. The diagonal holds th
 three scales, the last column the three translations. =ortho= targets =z in
 [-1, 1]=, =ortho_zo= targets =z in [0, 1]= (half the z scale and offset).
 
+** A note on invalid input
+
+Unlike [[file:matrix.org][inverse]], the projection builders do not return a =result=: they assume
+their preconditions (=fovy_rad= in =(0, pi)=, positive =aspect=, distinct
+near/far, etc.) and return a plain =matrix=. Violating them produces a matrix with
+=inf= or =NaN= entries (e.g. =near == far= divides by zero, =aspect == 0= or
+=fovy == 0= make the focal term infinite) rather than a reported error. They are
+infallible-by-contract; validate the arguments at the call site if they come from
+untrusted input.
+
 * When to use them
 
 - =perspective= / =perspective_zo= for a normal 3D camera; pick the variant that
