@@ -7,6 +7,13 @@ set(_chrono_examples
     scope_timer
     rate_limiter
     frame_timer
+    showcase
+    profiler
+    static_stopwatch
+    interval
+    alarm
+    deadline
+    tick_clock
 )
 
 foreach(_example IN LISTS _chrono_examples)

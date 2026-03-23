@@ -5,6 +5,7 @@ set(_filter_examples
     robust
     shaping
     guards
+    showcase
 )
 
 foreach(_example IN LISTS _filter_examples)

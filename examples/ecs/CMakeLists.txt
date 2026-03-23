@@ -1,6 +1,10 @@
 # One executable per example, named nexenne_example_ecs_<name>.
 set(_ecs_examples
     simulation
+    showcase
+    lifecycle
+    queries
+    signals
 )
 
 foreach(_example IN LISTS _ecs_examples)
