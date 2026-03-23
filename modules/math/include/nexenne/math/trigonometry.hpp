@@ -155,8 +155,13 @@ template <std::floating_point Real>
   // after x^7 leaves a next term x^9/9!, which is ~3e-7 at the interval edge
   // x=pi/4, so the reduction to [-pi/4, pi/4] is what keeps this accurate.
   auto const x2{x * x};
-  return x
-         * (Real{1} - x2 * (Real{1} / Real{6} - x2 * (Real{1} / Real{120} - x2 * (Real{1} / Real{5040}))));
+  // Horner from the highest term down; bit-identical to the nested form, within
+  // the column limit.
+  auto p{Real{1} / Real{5040}};
+  p = Real{1} / Real{120} - x2 * p;
+  p = Real{1} / Real{6} - x2 * p;
+  p = Real{1} - x2 * p;
+  return x * p;
 }
 
 /**
@@ -180,9 +185,13 @@ template <std::floating_point Real>
   // dropped term is x^10/10! = (pi/4)^10/3628800 ~ 2.5e-8 at x=pi/4, so over the
   // reduced interval this is good to about 2.5e-8.
   auto const x2{x * x};
-  return Real{1}
-         - x2
-             * (Real{1} / Real{2} - x2 * (Real{1} / Real{24} - x2 * (Real{1} / Real{720} - x2 * (Real{1} / Real{40320}))));
+  // Horner from the highest term down; bit-identical to the nested form, within
+  // the column limit.
+  auto p{Real{1} / Real{40320}};
+  p = Real{1} / Real{720} - x2 * p;
+  p = Real{1} / Real{24} - x2 * p;
+  p = Real{1} / Real{2} - x2 * p;
+  return Real{1} - x2 * p;
 }
 
 /**
@@ -362,11 +371,16 @@ template <std::floating_point Real>
   // first: callers routinely pass acos(dot) where rounding nudges the dot a hair
   // past 1, which would make sqrt(1 - ax) take a negative argument and return NaN.
   auto const ax{min(abs(x), Real{1})};
-  auto const p{
-    Real{1.5707963050}
-    + ax
-        * (Real{-0.2145988016} + ax * (Real{0.0889789874} + ax * (Real{-0.0501743046} + ax * (Real{0.0308918810} + ax * (Real{-0.0170881256} + ax * (Real{0.0066700901} + ax * Real{-0.0012624911}))))))
-  };
+  // Horner from the highest coefficient down; bit-identical to the nested form,
+  // within the column limit.
+  auto p{Real{-0.0012624911}};
+  p = Real{0.0066700901} + ax * p;
+  p = Real{-0.0170881256} + ax * p;
+  p = Real{0.0308918810} + ax * p;
+  p = Real{-0.0501743046} + ax * p;
+  p = Real{0.0889789874} + ax * p;
+  p = Real{-0.2145988016} + ax * p;
+  p = Real{1.5707963050} + ax * p;
   auto const v{half_pi_v<Real> - sqrt(Real{1} - ax) * p};
   return radians<Real>{x < Real{0} ? -v : v};
 }
@@ -412,10 +426,15 @@ template <std::floating_point Real>
   auto const ax{abs(x)};
   auto const reduced{ax > Real{1} ? Real{1} / ax : ax};
   auto const r2{reduced * reduced};
-  auto const p{
-    reduced
-    * (Real{0.99997726} + r2 * (Real{-0.33262347} + r2 * (Real{0.19354346} + r2 * (Real{-0.11643287} + r2 * (Real{0.05265332} + r2 * Real{-0.01172120})))))
-  };
+  // Horner from the highest coefficient down; bit-identical to the nested form,
+  // within the column limit.
+  auto q{Real{-0.01172120}};
+  q = Real{0.05265332} + r2 * q;
+  q = Real{-0.11643287} + r2 * q;
+  q = Real{0.19354346} + r2 * q;
+  q = Real{-0.33262347} + r2 * q;
+  q = Real{0.99997726} + r2 * q;
+  auto const p{reduced * q};
   auto const folded{ax > Real{1} ? half_pi_v<Real> - p : p};
   return radians<Real>{x < Real{0} ? -folded : folded};
 }
