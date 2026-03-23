@@ -554,6 +554,16 @@ template <std::floating_point Real>
   auto const cy{std::cos(yaw.value() * Real{0.5})};
   auto const sy{std::sin(yaw.value() * Real{0.5})};
 
+  // This is the expanded Hamilton product q = q_yaw(Z) * q_pitch(Y) * q_roll(X),
+  // i.e. intrinsic Z-Y-X (aerospace), where each q_axis is the half-angle
+  // quaternion (sin(a/2)*axis, cos(a/2)). Multiplying the three single-axis
+  // quaternions out and collecting terms gives the eight products below; for
+  // example the scalar part w = cr*cp*cy + sr*sp*sy and the x part picks up
+  // +sr*cp*cy (roll about X) minus the cross term cr*sp*sy. Each component has
+  // exactly one sign that differs from its neighbours - that sign pattern is the
+  // whole content of the formula and the usual place a hand-port goes wrong, so
+  // it is laid out explicitly rather than via three quaternion multiplies.
+  // https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles#Euler_angles_(in_3-2-1_sequence)_to_quaternion_conversion
   return quaternion<Real>{
     sr * cp * cy - cr * sp * sy,
     cr * sp * cy + sr * cp * sy,
@@ -609,6 +619,10 @@ template <std::floating_point Real>
       axis = cross(vector<Real, 3>{Real{0}, Real{1}, Real{0}}, f);
     }
     auto const unit_axis{*normalize(axis)};
+    // A 180-degree turn about a unit axis n is the half-angle quaternion
+    // (sin(90)*n, cos(90)) = (n, 0): a pure quaternion with zero scalar part.
+    // Because the axis is orthogonal to `from`, rotating `from` by pi about it
+    // sends it to -from = to, as required.
     return quaternion<Real>{unit_axis.x(), unit_axis.y(), unit_axis.z(), Real{0}};
   }
   auto const h{half * (Real{1} / sqrt(half_len_sq))};  // unit bisector
@@ -701,6 +715,12 @@ template <std::floating_point Real>
 [[nodiscard]] auto to_axis_angle(quaternion<Real> const q) noexcept -> axis_angle<Real> {
   auto const w_clamped{clamp(q.w(), Real{-1}, Real{1})};
   auto const angle{Real{2} * std::acos(w_clamped)};
+  // sin_half = sin(theta/2) = |vector part| = sqrt(1 - w^2). The axis = vector/sin_half
+  // is ill-defined only where sin_half ~ 0, i.e. w ~ +/-1 -> theta ~ 0 or 2*pi
+  // (both the identity rotation up to sign); there the axis is arbitrary, so we
+  // return +X. Note the antipodal end w ~ -1 is covered by the same test. Near
+  // theta = pi the axis is perfectly well conditioned (sin_half ~ 1), so it needs
+  // no special case despite being the "halfway" angle.
   auto const sin_half{sqrt(Real{1} - w_clamped * w_clamped)};
   if (sin_half < static_cast<Real>(1e-8)) {
     return axis_angle<Real>{vector<Real, 3>{Real{1}, Real{0}, Real{0}}, radians<Real>{angle}};
@@ -753,9 +773,17 @@ template <std::floating_point Real>
   auto const r{*right};
   auto const u{cross(back, r)};
 
-  // The orthonormal basis as a rotation matrix (columns r, u, back), converted by
-  // the trace formula. Each branch handles the case where a different diagonal
-  // term dominates, so the divisor s is never near zero.
+  // The orthonormal basis as a rotation matrix (columns r, u, back), converted to
+  // a quaternion by the Shepperd/trace method. Read off the to_matrix3 form
+  // backwards: the off-diagonal differences recover w times each axis,
+  //   m21 - m12 = 4*w*x,  m02 - m20 = 4*w*y,  m10 - m01 = 4*w*z,
+  // and the trace gives w directly, trace = 3 - 4(x^2+y^2+z^2) = 4*w^2 - 1, so
+  // s = 2*sqrt(trace+1) = 4*w and w = s/4 = 0.25*s, x = (m21-m12)/s, etc. That
+  // division by w is unstable when w ~ 0, so each branch instead solves for the
+  // component (w, x, y, or z) that the diagonal shows is largest in magnitude,
+  // keeping the divisor s = 4*|largest| safely away from zero; the other three
+  // components follow from the corresponding sums/differences.
+  // https://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
   auto const m00{r.x()};
   auto const m01{u.x()};
   auto const m02{back.x()};
@@ -811,6 +839,15 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto to_matrix3(quaternion<Real> const q) noexcept -> matrix<Real, 3> {
+  // Derivation. Writing the rotation R = q*v*conjugate(q) out in components gives,
+  // for a quaternion (x, y, z, w), the diagonal entry R00 = w^2 + x^2 - y^2 - z^2
+  // and off-diagonals like R01 = 2(xy - wz), R10 = 2(xy + wz) (the wz terms carry
+  // the rotation's handedness; they flip sign across the diagonal). For a UNIT
+  // quaternion w^2 + x^2 + y^2 + z^2 = 1, so w^2 + x^2 - y^2 - z^2 = 1 - 2(y^2+z^2):
+  // that substitution is what removes w from the diagonal and leaves the familiar
+  // 1 - 2(...) form below. Each named product (xx, wz, ...) is computed once and
+  // reused across the (i,j) and (j,i) pair it appears in.
+  // https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#From_a_quaternion_to_an_orthogonal_matrix
   auto const xx{q.x() * q.x()};
   auto const yy{q.y() * q.y()};
   auto const zz{q.z() * q.z()};

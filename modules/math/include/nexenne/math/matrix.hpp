@@ -826,15 +826,16 @@ template <std::floating_point Real, std::size_t N>
     return result;
   } else {
     // N == 4: inverse = adjugate / det, where the adjugate is the transpose of the
-    // cofactor matrix, so result(i, j) = cofactor(j, i) / det. This uses the
-    // Laplace-expansion-by-complementary-minors identity (the same factorization
-    // GLM ships): every 3x3 cofactor of a 4x4 splits into a 2x2 minor of the top
-    // two rows times a 2x2 minor of the bottom two rows. There are only six
-    // distinct 2x2 minors per row-pair, so name them once - s0..s5 from rows 0,1
-    // and c0..c5 from rows 2,3 (sX and cX cover complementary column pairs) - and
-    // every adjugate entry below is a signed sum of products of one s and one c.
-    // The alternating signs are the cofactor checkerboard.
-    // https://en.wikipedia.org/wiki/Laplace_expansion#Laplace_expansion_of_a_determinant_by_complementary_minors
+    // cofactor matrix, so result(i, j) = cofactor(j, i) / det. Each cofactor is a
+    // signed 3x3 determinant; expanded along one row it becomes a single matrix
+    // element times a 2x2 minor of the two rows that remain. Those 2x2 minors are
+    // shared across many cofactors, so name them once: s0..s5 are the six 2x2
+    // column-minors of rows 0-1 and c0..c5 the six of rows 2-3, with sX and cX
+    // taken on the SAME column pair (s0,c0 -> cols {0,1}; s5,c5 -> cols {2,3}).
+    // Each result(i,j) below is then a signed sum of element*minor terms reusing
+    // these, with the alternating cofactor sign. (This is the GLM gtc factoring;
+    // the determinant above instead pairs complementary minors directly.)
+    // https://en.wikipedia.org/wiki/Adjugate_matrix
     auto const s0{m(0, 0) * m(1, 1) - m(1, 0) * m(0, 1)};
     auto const s1{m(0, 0) * m(1, 2) - m(1, 0) * m(0, 2)};
     auto const s2{m(0, 0) * m(1, 3) - m(1, 0) * m(0, 3)};

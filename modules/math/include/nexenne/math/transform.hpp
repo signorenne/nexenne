@@ -221,8 +221,12 @@ template <std::floating_point Real>
     return std::unexpected{math_error::parallel_vectors};
   }
   auto const true_up{cross(*right, *forward)};
-  // The basis axes go in the rows; the last column is the rotation transpose
-  // applied to -eye. The bottom row (0, 0, 0, 1) comes from the identity.
+  // The basis axes go in the rows (the view rotation is the transpose of the
+  // world frame), and each row's last column is -dot(row_axis, eye) so the eye
+  // maps to the origin. Row 2 is -forward, so its translation entry is
+  // -dot(-forward, eye) = +dot(forward, eye) - that is why this one column reads
+  // with a plus sign while the other two read with a minus. The bottom row
+  // (0, 0, 0, 1) comes from the identity.
   auto m{matrix<Real, 4>::identity()};
   m(0, 0) = right->x();
   m(0, 1) = right->y();
