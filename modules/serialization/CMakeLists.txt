@@ -18,6 +18,7 @@ nexenne_add_module(serialization
     HEADERS
         include/nexenne/serialization/serialization.hpp
         include/nexenne/serialization/error.hpp
+        include/nexenne/serialization/format.hpp
         include/nexenne/serialization/cobs.hpp
         include/nexenne/serialization/versioned.hpp
         include/nexenne/serialization/cbor.hpp
