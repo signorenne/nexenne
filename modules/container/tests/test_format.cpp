@@ -161,6 +161,40 @@ TEST_CASE("nexenne::container::format flat_hash_set prints set-like") {
   CHECK(cn::to_string(empty) == "flat_hash_set{}");
 }
 
+TEST_CASE("nexenne::container::format deque prints as a sequence (index-walked)") {
+  cn::deque<int> d;
+  d.push_back(1);
+  d.push_back(2);
+  d.push_front(0);
+  CHECK(cn::to_string(d) == "deque[0, 1, 2]");
+  CHECK(std::format("{}", d) == "deque[0, 1, 2]");
+
+  cn::deque<int> const empty;
+  CHECK(cn::to_string(empty) == "deque[]");
+}
+
+TEST_CASE("nexenne::container::format ordered flat containers match the hashed brace style") {
+  cn::flat_map<int, int> m;
+  m.insert({2, 20});
+  m.insert({1, 10});
+  // flat_map is sorted, so the output order is deterministic.
+  CHECK(cn::to_string(m) == "flat_map{1: 10, 2: 20}");
+  CHECK(std::format("{}", m) == "flat_map{1: 10, 2: 20}");
+
+  cn::flat_set<int> s;
+  s.insert(3);
+  s.insert(1);
+  s.insert(2);
+  CHECK(cn::to_string(s) == "flat_set{1, 2, 3}");
+  CHECK(std::format("{}", s) == "flat_set{1, 2, 3}");
+
+  cn::static_flat_map<int, int, 8> sm;
+  sm.insert({5, 50});
+  sm.insert({4, 40});
+  CHECK(cn::to_string(sm) == "static_flat_map{4: 40, 5: 50}");
+  CHECK(std::format("{}", sm) == "static_flat_map{4: 40, 5: 50}");
+}
+
 TEST_CASE("nexenne::container::format gap_buffer prints as a sequence") {
   cn::gap_buffer<int> b;
   b.insert(1);
