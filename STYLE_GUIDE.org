@@ -59,6 +59,16 @@ externally-needed type definitions lead the class.
 Name stored types with =using= aliases (for example =using function_type = Fn=)
 and use the alias throughout the class, not the raw template parameter.
 
+*Every value or wrapper type exposes a =using value_type = ...;=* as the first
+entry of its leading =public:= section, naming the element or underlying type it
+holds (the component type of a vector or box, the scalar of a strong type, the
+stored =T= of a container). It is mandatory, not optional: generic code and the
+formatters rely on it, and a type that prints its state should never force a
+caller to rediscover the element type. Use the alias internally too rather than
+respelling the template parameter. Other member aliases take the =_type= suffix
+(=size_type=, =const_reference=); only the metafunction-result conventions in the
+naming section differ.
+
 Alias *any* long, complex, or repeated type expression and use the alias rather
 than spelling it inline: function-pointer types as =using fn = R (*)(Args...)=
 (never a name buried mid-declarator like =R (*p)(Args...)=), and nested
