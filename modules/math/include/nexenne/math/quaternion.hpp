@@ -642,10 +642,12 @@ template <std::floating_point Real>
 class axis_angle {
 public:
   using value_type = Real;  ///< The scalar component type.
+  using axis_type = vector<value_type, 3>;  ///< The rotation axis type.
+  using angle_type = radians<value_type>;   ///< The rotation angle type.
 
 private:
-  vector<Real, 3> m_axis{Real{1}, Real{0}, Real{0}};
-  radians<Real> m_angle{};
+  axis_type m_axis{value_type{1}, value_type{0}, value_type{0}};
+  angle_type m_angle{};
 
 public:
   /**
@@ -665,7 +667,7 @@ public:
    * @pre None.
    * @post The axis equals \p axis and the angle equals \p angle.
    */
-  constexpr axis_angle(vector<Real, 3> const axis, radians<Real> const angle) noexcept
+  constexpr axis_angle(axis_type const axis, angle_type const angle) noexcept
       : m_axis{axis}, m_angle{angle} {}
 
   /**
@@ -676,7 +678,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto axis() const noexcept -> vector<Real, 3> const& {
+  [[nodiscard]] constexpr auto axis() const noexcept -> axis_type const& {
     return m_axis;
   }
 
@@ -688,7 +690,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto angle() const noexcept -> radians<Real> const& {
+  [[nodiscard]] constexpr auto angle() const noexcept -> angle_type const& {
     return m_angle;
   }
 };
