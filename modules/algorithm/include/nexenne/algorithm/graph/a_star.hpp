@@ -43,8 +43,12 @@ struct a_star_result {
 
 namespace detail {
 
-/// PQ entry for A*. Same shape as the Dijkstra one but using f-value (g + h)
-/// rather than raw distance.
+/**
+ * @brief Priority-queue entry for A*.
+ *
+ * Same shape as the Dijkstra entry but ordered by the f-value (g + h) rather
+ * than the raw distance.
+ */
 template <std::unsigned_integral V, typename Weight>
 struct a_star_entry {
   V vertex{};

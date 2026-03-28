@@ -28,16 +28,16 @@ namespace nexenne::algorithm {
  * \c invalid_input and \c incomplete_input mean the source itself is malformed.
  */
 enum class codec_error : std::uint8_t {
-  invalid_input,     ///< Source contains a byte the codec rejects (non-hex
-                     ///< character, non-alphabet base64 byte, malformed COBS
-                     ///< code byte).
+  invalid_input,     ///< Source contains a byte the codec rejects.
   buffer_too_small,  ///< Destination span exhausted before the codec finished.
-  incomplete_input,  ///< Source ended mid-token (odd hex nibble, truncated
-                     ///< base64 quad, missing COBS terminator).
+  incomplete_input,  ///< Source ended mid-token (odd nibble, truncated quad).
 };
 
-/// @brief The result of a heap-free codec call: bytes or characters written, or
-///        the reason it failed.
+/**
+ * @brief The result of a heap-free codec call.
+ *
+ * Holds the count of bytes or characters written, or the reason it failed.
+ */
 using codec_result = std::expected<std::size_t, codec_error>;
 
 /// @brief The result of a codec call returning freshly allocated bytes.
