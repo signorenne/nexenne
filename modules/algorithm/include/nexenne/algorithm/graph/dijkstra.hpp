@@ -43,9 +43,12 @@ struct default_weight_fn {
   }
 };
 
-/// PQ entry. Lives at namespace scope so that the friend operator<=> is
-/// well-formed (friend declarations in local classes are ill-formed under
-/// C++23).
+/**
+ * @brief Priority-queue entry for Dijkstra's algorithm.
+ *
+ * Lives at namespace scope so the friend \c operator<=> is well-formed (friend
+ * declarations in local classes are ill-formed under C++23).
+ */
 template <std::unsigned_integral V, typename Weight>
 struct dijkstra_entry {
   V vertex{};
