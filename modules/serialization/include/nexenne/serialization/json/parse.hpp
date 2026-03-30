@@ -43,8 +43,12 @@ namespace nexenne::serialization::json {
 struct parse_options {
   bool allow_comments{false};         ///< Accept line and C-style block comments.
   bool allow_trailing_commas{false};  ///< Accept a comma after the last element.
-  /// Maximum container nesting depth. The parser recurses per level, so a deep
-  /// limit can overflow a small stack; the default is conservative.
+  /**
+   * @brief Maximum container nesting depth.
+   *
+   * The parser recurses per level, so a deep limit can overflow a small stack;
+   * the default is conservative.
+   */
   std::size_t max_depth{128};
 };
 
