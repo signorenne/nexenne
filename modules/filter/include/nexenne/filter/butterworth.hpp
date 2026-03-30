@@ -57,8 +57,11 @@ private:
   std::array<biquad<T>, SectionsN> m_sections{};
   value_type m_last{};
 
-  /// @brief Per-section Q for an order-2N Butterworth cascade:
-  ///        Q_k = 1 / (2 * sin((2k+1) * pi / (4N))).
+  /**
+   * @brief Per-section Q for an order-2N Butterworth cascade.
+   *
+   * Q_k = 1 / (2 * sin((2k+1) * pi / (4N))).
+   */
   [[nodiscard]] static auto section_q(std::size_t const section_idx) noexcept -> T {
     auto const n{static_cast<T>(SectionsN)};
     auto const theta{(static_cast<T>(2 * section_idx + 1) * std::numbers::pi_v<T>) / (T{4} * n)};
