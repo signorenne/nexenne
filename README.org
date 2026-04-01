@@ -1,4 +1,3 @@
-#+TITLE: nexenne
 #+SUBTITLE: modular C++23 library collection
 #+AUTHOR: signorenne
 #+OPTIONS: toc:2 num:nil ^:nil
@@ -13,26 +12,24 @@ the whole thing and link =nexenne::all=, or take a single module with
 their dependencies in one short file, so each module's =CMakeLists.txt= stays
 a few lines.
 
-* Status
+* Documentation
 
-Active development. =utility= is complete and reviewed (20 components);
-=container= is in progress, ported one container at a time and reviewed and
-hardened as each lands. Modules are added one at a time, and a fresh checkout
-configures and builds whatever modules are present.
+A layered org-mode knowledge base lives under [[file:doc/README.org][doc/]]: the root index points at
+the per-module guides and the setup topics, which point at the leaf articles.
 
-* Modules
+- [[file:doc/README.org][doc/README.org]] : the documentation root, start here.
+- /Module guides/ ([[file:doc/module/][doc/module/]]) : one folder per module, each an index plus a
+  per-class article (purpose, how it works with diagrams, usage). For example
+  [[file:doc/module/math/README.org][math]], [[file:doc/module/container/README.org][container]], [[file:doc/module/serialization/README.org][serialization]], [[file:doc/module/algorithm/README.org][algorithm]].
+- /Setup and infrastructure/ ([[file:doc/setup/README.org][doc/setup/]]) : the [[file:doc/setup/build-system.org][build system]], [[file:doc/setup/testing.org][testing]],
+  [[file:doc/setup/install.org][install]], [[file:doc/setup/cmake-helpers.org][CMake helpers]], [[file:doc/setup/hooks.org][git hooks]], and [[file:doc/setup/ci.org][CI]].
 
-- [[file:doc/module/utility/README.org][utility]] : complete. 20 small, independent helpers: =function_ref= and
-  =in_place_function=, =expected_utils=, =strong_typedef=, =static_string=,
-  =scope_guard= and =unique_resource=, =bit= and =align=, =meta= and
-  =type_list=, and more.
-- [[file:doc/module/container/README.org][container]] : in progress. Fixed-capacity and dynamic containers: =static_vector=,
-  =small_vector=, =ring_buffer=, =stable_vector=, =bitset_dynamic=, =bag=,
-  =deque=, =gap_buffer=, =heap=, and the =linear_arena= and =scratch_pad=
-  allocators.
+Generated API reference (Doxygen, fetched if not installed):
 
-Every module's guides and runnable examples live under [[file:doc/module/README.org][doc/module/]]; the full
-documentation tree starts at [[file:doc/README.org][doc/README.org]].
+#+BEGIN_SRC sh
+cmake -B build/docs -DNEXENNE_BUILD_DOCS=ON
+cmake --build build/docs --target nexenne_docs   # or nexenne_<name>_docs
+#+END_SRC
 
 * Requirements
 
@@ -97,22 +94,14 @@ The root discovers it on the next configure. Dependencies on other modules go
 one-per-line in =modules/my_module/module.deps=. Full rules and the PR
 checklist are in [[file:template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]].
 
-* Docs
-
-Doxygen (fetched if missing). =nexenne_<name>_docs= per module,
-=nexenne_docs= for all:
-
-#+BEGIN_SRC sh
-cmake -B build/docs -DNEXENNE_BUILD_DOCS=ON
-cmake --build build/docs --target nexenne_docs
-#+END_SRC
-
 * Style, in one breath
 
 C++23, snake_case everywhere (PascalCase template params), trailing return
 types, braced init only, const by default, ranges over raw loops, Javadoc
 Doxygen on every public symbol. Full rules in [[file:STYLE_GUIDE.org][STYLE_GUIDE.org]];
-commit convention in [[file:CONTRIBUTING.org][CONTRIBUTING.org]].
+commit convention in [[file:CONTRIBUTING.org][CONTRIBUTING.org]]. AI assistants are welcome, but the
+committer owns, reviews, and understands every line they submit:
+[[file:AI_DISCLAIMER.org][AI_DISCLAIMER.org]].
 
 * License
 
