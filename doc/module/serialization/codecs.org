@@ -1,4 +1,4 @@
-#+TITLE: nexenne::serialization - CBOR and MessagePack
+#+TITLE: nexenne::serialization: CBOR and MessagePack
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
