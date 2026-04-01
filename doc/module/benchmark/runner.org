@@ -1,4 +1,4 @@
-#+TITLE: nexenne::benchmark - the runner
+#+TITLE: nexenne::benchmark: the runner
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
