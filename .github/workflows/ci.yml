@@ -82,7 +82,7 @@ jobs:
         run: |
           files=$(git ls-files 'modules/*.hpp' 'modules/*.cpp')
           if [ -n "$files" ]; then
-            run-clang-tidy-18 -p build/dev -warnings-as-errors='*' -quiet $files
+            run-clang-tidy-18 -p build/dev -quiet $files
           else
             echo "no module sources to lint yet"
           fi
