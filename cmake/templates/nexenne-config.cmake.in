@@ -30,6 +30,18 @@ foreach(_comp IN LISTS _nexenne_requested)
     set(nexenne_${_comp}_FOUND TRUE)
 endforeach()
 
-include("${CMAKE_CURRENT_LIST_DIR}/nexenne-targets.cmake")
+# nexenne-targets.cmake defines the nexenne::all aggregate, whose interface
+# references every module target, so including it only resolves when all of them
+# are loaded. Pull it in for a full find_package(nexenne); a COMPONENTS subset
+# gets just the requested per-module targets (nexenne::<comp>).
+set(_nexenne_all_loaded TRUE)
+foreach(_comp IN LISTS _nexenne_known_components)
+    if(NOT _comp IN_LIST _nexenne_requested)
+        set(_nexenne_all_loaded FALSE)
+    endif()
+endforeach()
+if(_nexenne_all_loaded)
+    include("${CMAKE_CURRENT_LIST_DIR}/nexenne-targets.cmake")
+endif()
 
 check_required_components(nexenne)
