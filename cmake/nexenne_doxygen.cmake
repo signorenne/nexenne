@@ -58,6 +58,21 @@ if(NOT DOXYGEN_FOUND AND NEXENNE_FETCH_DOXYGEN_IF_MISSING)
     endif()
 endif()
 
+#
+# Graphviz dot drives the dependency and inheritance graphs. It is optional: if
+# dot is not installed, HAVE_DOT is set NO so Doxygen skips those graphs and the
+# build still succeeds (no Graphviz dependency to clone-and-build docs). The
+# Doxyfile templates read these via @ONLY configure_file.
+#
+find_program(NEXENNE_DOT_EXECUTABLE NAMES dot)
+if(NEXENNE_DOT_EXECUTABLE)
+    set(NEXENNE_DOXYGEN_HAVE_DOT "YES")
+    get_filename_component(NEXENNE_DOXYGEN_DOT_PATH "${NEXENNE_DOT_EXECUTABLE}" DIRECTORY)
+else()
+    set(NEXENNE_DOXYGEN_HAVE_DOT "NO")
+    set(NEXENNE_DOXYGEN_DOT_PATH "")
+endif()
+
 
 function(nexenne_add_module_docs name)
     set(_options  "")
