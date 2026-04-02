@@ -73,3 +73,8 @@ HTML_DYNAMIC_MENUS     = YES
 GENERATE_LATEX         = NO
 GENERATE_XML           = NO
 GENERATE_MAN           = NO
+
+# Graphviz dot graphs: enabled only when dot is available (HAVE_DOT and
+# DOT_PATH are filled in by CMake), so docs build with or without Graphviz.
+HAVE_DOT               = @NEXENNE_DOXYGEN_HAVE_DOT@
+DOT_PATH               = @NEXENNE_DOXYGEN_DOT_PATH@
