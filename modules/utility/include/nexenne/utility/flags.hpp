@@ -420,7 +420,7 @@ public:
    * @post None.
    */
   [[nodiscard]] friend constexpr auto
-  operator==(flags const lhs, flags const rhs) noexcept -> bool = default;
+  operator==(flags const& lhs, flags const& rhs) noexcept -> bool = default;
 };
 
 }  // namespace nexenne::utility
