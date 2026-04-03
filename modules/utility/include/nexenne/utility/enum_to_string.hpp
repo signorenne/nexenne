@@ -17,6 +17,7 @@
 
 #include <array>
 #include <cstddef>
+#include <initializer_list>
 #include <optional>
 #include <string_view>
 #include <type_traits>
@@ -90,11 +91,14 @@ template <typename E, int Min, int... Is>
 enum_search(std::underlying_type_t<E> const target, std::integer_sequence<int, Is...>) noexcept
   -> std::string_view {
   auto result{std::string_view{}};
-  [[maybe_unused]] auto const matched{
-    ((target == static_cast<std::underlying_type_t<E>>(Min + Is)
-        ? (result = enum_value_name<static_cast<E>(Min + Is)>(), true)
-        : false)
-     || ...)
+  // A braced-init-list expands the pack into a flat, left-to-right sequence.
+  // A fold expression would nest one binary operator per element and so blow
+  // past clang's expression-nesting limit (256) for large search windows. The
+  // leading empty-check keeps first-match-wins semantics.
+  [[maybe_unused]] std::initializer_list<int> const expansion{
+    (result.empty() && target == static_cast<std::underlying_type_t<E>>(Min + Is)
+       ? (result = enum_value_name<static_cast<E>(Min + Is)>(), 0)
+       : 0)...
   };
   return result;
 }
@@ -102,20 +106,27 @@ enum_search(std::underlying_type_t<E> const target, std::integer_sequence<int, I
 template <typename E, int Min, int... Is>
 [[nodiscard]] constexpr auto
 enum_count_impl(std::integer_sequence<int, Is...>) noexcept -> std::size_t {
-  return (
-    std::size_t{0} + ...
-    + (enum_value_name<static_cast<E>(Min + Is)>().empty() ? std::size_t{0} : std::size_t{1})
-  );
+  auto count{std::size_t{0}};
+  // Flat braced-init expansion rather than a sum fold, which would nest one
+  // operator per element and exceed clang's expression-nesting limit.
+  [[maybe_unused]] std::initializer_list<int> const expansion{
+    (count +=
+     (enum_value_name<static_cast<E>(Min + Is)>().empty() ? std::size_t{0} : std::size_t{1}),
+     0)...
+  };
+  return count;
 }
 
 template <typename E, int Min, std::size_t N, int... Is>
 constexpr auto
 enum_values_impl(std::array<E, N>& out, std::integer_sequence<int, Is...>) noexcept -> void {
   auto i{std::size_t{0}};
-  ((enum_value_name<static_cast<E>(Min + Is)>().empty()
-      ? static_cast<void>(0)
-      : static_cast<void>(out[i++] = static_cast<E>(Min + Is))),
-   ...);
+  // Flat braced-init expansion (evaluated left-to-right, so values pack in
+  // order) rather than a comma fold, which would exceed clang's nesting limit.
+  [[maybe_unused]] std::initializer_list<int> const expansion{(
+    enum_value_name<static_cast<E>(Min + Is)>().empty() ? 0
+                                                        : (out[i++] = static_cast<E>(Min + Is), 0)
+  )...};
 }
 
 template <typename E, int Min, int... Is>
@@ -123,10 +134,12 @@ template <typename E, int Min, int... Is>
 enum_cast_impl(std::string_view const name, std::integer_sequence<int, Is...>) noexcept
   -> std::optional<E> {
   auto result{std::optional<E>{}};
-  [[maybe_unused]] auto const matched{
-    ((enum_name_matches<static_cast<E>(Min + Is)>(name) ? (result = static_cast<E>(Min + Is), true)
-                                                        : false)
-     || ...)
+  // Flat braced-init expansion rather than an || fold, which would exceed
+  // clang's expression-nesting limit; the guard keeps first-match-wins.
+  [[maybe_unused]] std::initializer_list<int> const expansion{
+    (!result && enum_name_matches<static_cast<E>(Min + Is)>(name)
+       ? (result = static_cast<E>(Min + Is), 0)
+       : 0)...
   };
   return result;
 }
