@@ -641,7 +641,7 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 class axis_angle {
 public:
-  using value_type = Real;  ///< The scalar component type.
+  using value_type = Real;                  ///< The scalar component type.
   using axis_type = vector<value_type, 3>;  ///< The rotation axis type.
   using angle_type = radians<value_type>;   ///< The rotation angle type.
 
