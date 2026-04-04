@@ -7,7 +7,7 @@
  * The standard library exposes \c file_name(), \c line(), \c column(), and
  * \c function_name() but no formatter. Loggers usually want a short tag like
  * "file.cpp:42" or a longer "file.cpp:42 in function"; both helpers here write
- * into a caller-supplied buffer with \c snprintf and return a \c string_view
+ * into a caller-supplied buffer with a bounded copy and return a \c string_view
  * into it. The buffer must outlive the view.
  *
  * \code
@@ -17,9 +17,10 @@
  * \endcode
  */
 
+#include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstddef>
-#include <cstdio>
 #include <source_location>
 #include <string_view>
 
@@ -37,21 +38,29 @@ namespace detail {
   return path.substr(pos + 1);
 }
 
-// Turns an snprintf return value into a string_view over buf, handling the
-// error (<= 0) and truncation (>= buffer size) cases: snprintf returns the
-// length it WOULD have written, so a value at or past the buffer size means the
-// output was clipped to size - 1 usable chars.
+// Appends as much of `text` as still fits, advancing `pos`. `cap` is the usable
+// length: callers pass the buffer size minus one so a trailing slot always stays
+// free to null-terminate, which also makes a one-byte buffer yield an empty
+// result. The copy is bounded, so it never overruns and the output is a prefix.
 template <std::size_t N>
-[[nodiscard]] auto
-view_of_snprintf(std::array<char, N> const& buf, int const written) noexcept -> std::string_view {
-  if (written <= 0) {
-    return std::string_view{};
-  }
-  auto const n{
-    static_cast<std::size_t>(written) >= buf.size() ? buf.size() - 1
-                                                    : static_cast<std::size_t>(written)
-  };
-  return std::string_view{buf.data(), n};
+auto append(
+  std::array<char, N>& buf, std::size_t& pos, std::size_t const cap, std::string_view const text
+) noexcept -> void {
+  auto const n{std::min(text.size(), cap - pos)};
+  std::copy_n(text.data(), n, buf.data() + pos);
+  pos += n;
+}
+
+// Appends the decimal form of a line number; a 32-bit value needs 10 digits.
+template <std::size_t N>
+auto append_line(
+  std::array<char, N>& buf, std::size_t& pos, std::size_t const cap, unsigned const value
+) noexcept -> void {
+  auto digits{std::array<char, 10>{}};
+  auto const end{std::to_chars(digits.data(), digits.data() + digits.size(), value).ptr};
+  append(
+    buf, pos, cap, std::string_view{digits.data(), static_cast<std::size_t>(end - digits.data())}
+  );
 }
 
 }  // namespace detail
@@ -80,10 +89,13 @@ template <std::size_t N>
 [[nodiscard]] auto format_short(std::source_location const& loc, std::array<char, N>& buf) noexcept
   -> std::string_view {
   auto const file{detail::basename_of(loc.file_name())};
-  auto const written{std::snprintf(
-    buf.data(), buf.size(), "%.*s:%u", static_cast<int>(file.size()), file.data(), loc.line()
-  )};
-  return detail::view_of_snprintf(buf, written);
+  auto pos{std::size_t{0}};
+  auto const cap{buf.size() - 1};  // leave one slot to null-terminate buf
+  detail::append(buf, pos, cap, file);
+  detail::append(buf, pos, cap, ":");
+  detail::append_line(buf, pos, cap, loc.line());
+  buf[pos] = '\0';  // pos <= cap < N, so this is always in range
+  return std::string_view{buf.data(), pos};
 }
 
 /**
@@ -108,17 +120,15 @@ template <std::size_t N>
 [[nodiscard]] auto format_long(std::source_location const& loc, std::array<char, N>& buf) noexcept
   -> std::string_view {
   auto const file{detail::basename_of(loc.file_name())};
-  auto const* const func{loc.function_name()};
-  auto const written{std::snprintf(
-    buf.data(),
-    buf.size(),
-    "%.*s:%u in %s",
-    static_cast<int>(file.size()),
-    file.data(),
-    loc.line(),
-    func
-  )};
-  return detail::view_of_snprintf(buf, written);
+  auto pos{std::size_t{0}};
+  auto const cap{buf.size() - 1};  // leave one slot to null-terminate buf
+  detail::append(buf, pos, cap, file);
+  detail::append(buf, pos, cap, ":");
+  detail::append_line(buf, pos, cap, loc.line());
+  detail::append(buf, pos, cap, " in ");
+  detail::append(buf, pos, cap, std::string_view{loc.function_name()});
+  buf[pos] = '\0';  // pos <= cap < N, so this is always in range
+  return std::string_view{buf.data(), pos};
 }
 
 }  // namespace nexenne::utility
