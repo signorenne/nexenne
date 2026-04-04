@@ -40,7 +40,7 @@ TEST_CASE("fast_inv_sqrt is within tolerance for float and double") {
     CHECK(math::fast_inv_sqrt(x) == doctest::Approx(reference).epsilon(1e-4));
     CHECK(
       math::fast_inv_sqrt(static_cast<float>(x))
-      == doctest::Approx(static_cast<float>(reference)).epsilon(1e-4)
+      == doctest::Approx(static_cast<double>(reference)).epsilon(1e-4)
     );
   }
   // constexpr path works (bit_cast is constexpr in C++23).
