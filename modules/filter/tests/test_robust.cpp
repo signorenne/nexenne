@@ -191,10 +191,10 @@ TEST_CASE("nexenne::filter::median float instantiation matches double behaviour"
   static_cast<void>(f.push(10.0F));
   static_cast<void>(f.push(10.0F));
   static_cast<void>(f.push(10.0F));
-  CHECK(f.push(1000.0F) == doctest::Approx(10.0F));
-  CHECK(f.value() == doctest::Approx(10.0F));
+  CHECK(f.push(1000.0F) == doctest::Approx(10.0));
+  CHECK(f.value() == doctest::Approx(10.0));
   f.reset();
-  CHECK(f.value() == doctest::Approx(0.0F));
+  CHECK(f.value() == doctest::Approx(0.0));
 }
 
 TEST_CASE("nexenne::filter::kalman first sample seeds the estimate (no transient)") {
@@ -337,11 +337,11 @@ TEST_CASE("nexenne::filter::kalman all-equal input keeps the estimate pinned") {
 
 TEST_CASE("nexenne::filter::kalman float instantiation seeds and converges") {
   auto kf{flt::kalman<float>{0.01F, 0.1F}};
-  CHECK(kf.push(3.0F) == doctest::Approx(3.0F));  // prime
+  CHECK(kf.push(3.0F) == doctest::Approx(3.0));  // prime
   for (auto i{0}; i < 50; ++i) {
     static_cast<void>(kf.push(3.0F));
   }
-  CHECK(kf.value() == doctest::Approx(3.0F).epsilon(0.01));
+  CHECK(kf.value() == doctest::Approx(3.0).epsilon(0.01));
   CHECK(std::isfinite(kf.value()));
 }
 
@@ -431,10 +431,10 @@ TEST_CASE("nexenne::filter::complementary alternating extremes blend determinist
 
 TEST_CASE("nexenne::filter::complementary float instantiation") {
   auto cf{flt::complementary<float>{0.25F}};
-  CHECK(cf.push(8.0F, 4.0F) == doctest::Approx(5.0F));
+  CHECK(cf.push(8.0F, 4.0F) == doctest::Approx(5.0));
   cf.reset();
-  CHECK(cf.value() == doctest::Approx(0.0F));
-  CHECK(cf.push(4.0F, 8.0F) == doctest::Approx(7.0F));  // 0.25*4 + 0.75*8
+  CHECK(cf.value() == doctest::Approx(0.0));
+  CHECK(cf.push(4.0F, 8.0F) == doctest::Approx(7.0));  // 0.25*4 + 0.75*8
 }
 
 TEST_CASE("nexenne::filter::lms default construction reports zero taps and the default step") {
@@ -602,15 +602,15 @@ TEST_CASE("nexenne::filter::lms very long stable run stays finite and converged"
 
 TEST_CASE("nexenne::filter::lms float instantiation hand-check") {
   auto f{flt::lms<float, 2>{0.1F}};
-  CHECK(f.push(2.0F, 5.0F) == doctest::Approx(0.0F));
-  CHECK(f.error() == doctest::Approx(5.0F));
-  CHECK(f.coefficients()[0] == doctest::Approx(1.0F));
-  CHECK(f.push(3.0F, 7.0F) == doctest::Approx(3.0F));
-  CHECK(f.coefficients()[0] == doctest::Approx(2.2F));
-  CHECK(f.coefficients()[1] == doctest::Approx(0.8F));
+  CHECK(f.push(2.0F, 5.0F) == doctest::Approx(0.0));
+  CHECK(f.error() == doctest::Approx(5.0));
+  CHECK(f.coefficients()[0] == doctest::Approx(1.0));
+  CHECK(f.push(3.0F, 7.0F) == doctest::Approx(3.0));
+  CHECK(f.coefficients()[0] == doctest::Approx(2.2));
+  CHECK(f.coefficients()[1] == doctest::Approx(0.8));
   f.reset();
-  CHECK(f.value() == doctest::Approx(0.0F));
-  CHECK(f.step_size() == doctest::Approx(0.1F));
+  CHECK(f.value() == doctest::Approx(0.0));
+  CHECK(f.step_size() == doctest::Approx(0.1));
 }
 
 }  // namespace

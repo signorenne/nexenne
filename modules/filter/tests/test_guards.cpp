@@ -193,9 +193,9 @@ TEST_CASE("nexenne::filter::rate_guard reset(initial) primes to a known value") 
 
 TEST_CASE("nexenne::filter::rate_guard float instantiation") {
   auto f{flt::rate_guard<float>{0.5f}};
-  CHECK(f.push(1.0f) == doctest::Approx(1.0f));
-  CHECK(f.push(1.5f) == doctest::Approx(1.5f));  // delta 0.5 == limit
-  CHECK(f.push(3.0f) == doctest::Approx(1.5f));  // too far, holds
+  CHECK(f.push(1.0f) == doctest::Approx(1.0));
+  CHECK(f.push(1.5f) == doctest::Approx(1.5));  // delta 0.5 == limit
+  CHECK(f.push(3.0f) == doctest::Approx(1.5));  // too far, holds
 }
 
 TEST_CASE("nexenne::filter::rate_guard NaN sample fails the <= test and is rejected") {
