@@ -70,7 +70,8 @@ static_assert([] {
 // Self copy-assignment and self move-assignment are well-behaved at compile time.
 static_assert([] {
   vec v{1, 2, 3};
-  v = v;  // NOLINT(clang-diagnostic-self-assign-overloaded)
+  auto* const self{&v};
+  v = *self;  // self-assignment through a pointer; not flagged by the compiler
   return v.size() == 3 && v[0] == 1 && v[2] == 3;
 }());
 
@@ -290,7 +291,8 @@ TEST_CASE("nexenne::container::static_vector self-aliasing push_back and emplace
 
 TEST_CASE("nexenne::container::static_vector self copy-assignment is a no-op") {
   vec v{1, 2, 3};
-  v = v;  // NOLINT(clang-diagnostic-self-assign-overloaded)
+  auto* const self{&v};
+  v = *self;  // self-assignment through a pointer; not flagged by the compiler
   CHECK(v.size() == 3);
   CHECK(v[0] == 1);
   CHECK(v[1] == 2);

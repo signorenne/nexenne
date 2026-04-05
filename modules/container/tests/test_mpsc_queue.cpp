@@ -213,7 +213,7 @@ TEST_CASE("nexenne::container::mpsc_queue conserves move-only elements from many
         }
       });
     }
-    std::jthread consumer{[&q, &seen, total] {
+    std::jthread consumer{[&q, &seen] {
       int count{0};
       while (count < total) {
         if (auto v{q.try_pop()}) {

@@ -155,7 +155,7 @@ static_assert(std::same_as<util::function_args_t<lambda_t>, util::type_list<int,
 // A capturing lambda still has a single concrete operator().
 TEST_CASE("nexenne::utility::function_traits inspects a capturing lambda") {
   auto const captured{42};
-  auto const lam{[captured](int x) -> int { return x + captured; }};
+  auto const lam{[](int x) -> int { return x + captured; }};
   using lam_t = decltype(lam);
   CHECK(util::function_arity_v<lam_t> == 1);
   CHECK(std::same_as<util::function_return_t<lam_t>, int>);

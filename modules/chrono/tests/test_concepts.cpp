@@ -102,7 +102,7 @@ struct wrong_now_type {
   using period = std::milli;
   using duration = std::chrono::milliseconds;
   using time_point = std::chrono::time_point<wrong_now_type>;
-  static constexpr bool is_steady = true;
+  [[maybe_unused]] static constexpr bool is_steady = true;
 
   static auto now() noexcept -> int {  // not time_point
     return 0;
@@ -263,7 +263,7 @@ namespace {
 struct unsigned_rep_backend {
   using rep = unsigned;
   using period = std::micro;
-  static constexpr bool is_steady = true;
+  [[maybe_unused]] static constexpr bool is_steady = true;
 
   static auto ticks() noexcept -> rep {
     return 0;
@@ -274,7 +274,7 @@ struct unsigned_rep_backend {
 struct float_rep_backend {
   using rep = double;
   using period = std::micro;
-  static constexpr bool is_steady = true;
+  [[maybe_unused]] static constexpr bool is_steady = true;
 
   static auto ticks() noexcept -> rep {
     return 0;
@@ -285,7 +285,7 @@ struct float_rep_backend {
 struct negative_period_backend {
   using rep = std::int64_t;
   using period = std::ratio<-1, 1000>;
-  static constexpr bool is_steady = true;
+  [[maybe_unused]] static constexpr bool is_steady = true;
 
   static auto ticks() noexcept -> rep {
     return 0;
@@ -296,7 +296,7 @@ struct negative_period_backend {
 struct zero_period_backend {
   using rep = std::int64_t;
   using period = std::ratio<0, 1>;
-  static constexpr bool is_steady = true;
+  [[maybe_unused]] static constexpr bool is_steady = true;
 
   static auto ticks() noexcept -> rep {
     return 0;
@@ -307,7 +307,7 @@ struct zero_period_backend {
 struct nonratio_period_backend {
   using rep = std::int64_t;
   using period = int;
-  static constexpr bool is_steady = true;
+  [[maybe_unused]] static constexpr bool is_steady = true;
 
   static auto ticks() noexcept -> rep {
     return 0;
@@ -360,7 +360,7 @@ struct nonstatic_ticks_backend {
 // Missing rep alias.
 struct no_rep_backend {
   using period = std::micro;
-  static constexpr bool is_steady = true;
+  [[maybe_unused]] static constexpr bool is_steady = true;
 
   static auto ticks() noexcept -> std::int64_t {
     return 0;
@@ -370,7 +370,7 @@ struct no_rep_backend {
 // Missing period alias.
 struct no_period_backend {
   using rep = std::int64_t;
-  static constexpr bool is_steady = true;
+  [[maybe_unused]] static constexpr bool is_steady = true;
 
   static auto ticks() noexcept -> rep {
     return 0;
@@ -387,7 +387,7 @@ struct not_bool_convertible {
 struct non_bool_is_steady_backend {
   using rep = std::int64_t;
   using period = std::micro;
-  static inline not_bool_convertible is_steady{};
+  [[maybe_unused]] static inline not_bool_convertible is_steady{};
 
   static auto ticks() noexcept -> rep {
     return 0;
