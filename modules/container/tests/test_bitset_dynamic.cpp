@@ -464,8 +464,10 @@ TEST_CASE("nexenne::container::bitset_dynamic copy assignment and self-assignmen
   b.set(0);
   CHECK_FALSE(a[0]);  // deep copy, independent storage
 
-  // Self copy-assignment is a no-op.
-  a = a;
+  // Self copy-assignment is a no-op (assigned through a pointer so the
+  // compiler does not flag the deliberate self-assignment).
+  auto* const self{&a};
+  a = *self;
   CHECK(a.size() == 70);
   CHECK(a[5]);
   CHECK(a[69]);

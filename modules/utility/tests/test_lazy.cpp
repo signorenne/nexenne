@@ -179,7 +179,7 @@ TEST_CASE("nexenne::utility::lazy const wrapper still materialises on first acce
 TEST_CASE("nexenne::utility::lazy carries captured state into the factory") {
   std::string const prefix{"id-"};
   int const suffix{77};
-  auto value{util::lazy{[prefix, suffix] { return prefix + std::to_string(suffix); }}};
+  auto value{util::lazy{[prefix] { return prefix + std::to_string(suffix); }}};
 
   CHECK_FALSE(value.has_value());
   CHECK(*value == "id-77");

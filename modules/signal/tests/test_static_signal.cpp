@@ -299,7 +299,7 @@ TEST_CASE("nexenne::signal::static_signal accepts a callable that fits SlotCapac
   auto sink{0};
   auto const a{1000};
   auto const b{7};
-  auto const conn{sig.connect([a, b, &sink](int v) noexcept { sink = a + b + v; })};
+  auto const conn{sig.connect([&sink](int v) noexcept { sink = a + b + v; })};
   static_cast<void>(conn);
 
   sig.emit(1);
