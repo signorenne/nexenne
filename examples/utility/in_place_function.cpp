@@ -20,7 +20,7 @@ auto main() -> int {
   int const member_off{15};
 
   // Store a capturing lambda inline; the capture lives in the object itself.
-  auto rule{discount{[member_off](int price) { return price - member_off; }}};
+  auto rule{discount{[](int price) { return price - member_off; }}};
 
   std::println("has rule: {}", static_cast<bool>(rule));
   std::println("100 -> {}", rule(100));
