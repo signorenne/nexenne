@@ -11,6 +11,7 @@
 #include <optional>
 
 #include <nexenne/filter/filter.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -30,7 +31,7 @@ TEST_CASE("nexenne::filter::slew first push primes directly to the target") {
 
 TEST_CASE("nexenne::filter::slew limits the per-sample step toward a higher target") {
   auto f{flt::slew{5.0}};
-  static_cast<void>(f.push(0.0));                 // prime at 0
+  nexenne::utility::discard(f.push(0.0));         // prime at 0
   CHECK(f.push(100.0) == doctest::Approx(5.0));   // +5
   CHECK(f.push(100.0) == doctest::Approx(10.0));  // +5
   CHECK(f.push(100.0) == doctest::Approx(15.0));  // +5
@@ -39,7 +40,7 @@ TEST_CASE("nexenne::filter::slew limits the per-sample step toward a higher targ
 
 TEST_CASE("nexenne::filter::slew is symmetric for falling targets") {
   auto f{flt::slew{5.0}};
-  static_cast<void>(f.push(0.0));                  // prime at 0
+  nexenne::utility::discard(f.push(0.0));          // prime at 0
   CHECK(f.push(-100.0) == doctest::Approx(-5.0));  // -5
   CHECK(f.push(-100.0) == doctest::Approx(-10.0));
   CHECK(f.push(-100.0) == doctest::Approx(-15.0));
@@ -48,7 +49,7 @@ TEST_CASE("nexenne::filter::slew is symmetric for falling targets") {
 TEST_CASE("nexenne::filter::slew a big jump arrives in the exact number of steps") {
   // Prime at 0, target 23 with rate 5: steps 5,10,15,20,then clamp to 23.
   auto f{flt::slew{5.0}};
-  static_cast<void>(f.push(0.0));
+  nexenne::utility::discard(f.push(0.0));
   CHECK(f.push(23.0) == doctest::Approx(5.0));
   CHECK(f.push(23.0) == doctest::Approx(10.0));
   CHECK(f.push(23.0) == doctest::Approx(15.0));
@@ -59,7 +60,7 @@ TEST_CASE("nexenne::filter::slew a big jump arrives in the exact number of steps
 
 TEST_CASE("nexenne::filter::slew small changes pass straight through") {
   auto f{flt::slew{10.0}};
-  static_cast<void>(f.push(0.0));
+  nexenne::utility::discard(f.push(0.0));
   CHECK(f.push(5.0) == doctest::Approx(5.0));    // |5| <= 10
   CHECK(f.push(2.0) == doctest::Approx(2.0));    // |2-5| <= 10
   CHECK(f.push(-7.0) == doctest::Approx(-7.0));  // |-7-2| <= 10
@@ -67,7 +68,7 @@ TEST_CASE("nexenne::filter::slew small changes pass straight through") {
 
 TEST_CASE("nexenne::filter::slew an exactly-at-rate change is admitted whole") {
   auto f{flt::slew{5.0}};
-  static_cast<void>(f.push(0.0));
+  nexenne::utility::discard(f.push(0.0));
   CHECK(f.push(5.0) == doctest::Approx(5.0));  // delta exactly == rate
   CHECK(f.push(0.0) == doctest::Approx(0.0));  // delta exactly == rate down
 }
@@ -75,7 +76,7 @@ TEST_CASE("nexenne::filter::slew an exactly-at-rate change is admitted whole") {
 TEST_CASE("nexenne::filter::slew a negative rate is clamped to zero and freezes output") {
   auto f{flt::slew{-5.0}};
   CHECK(f.max_rate() == doctest::Approx(0.0));
-  static_cast<void>(f.push(10.0));  // first sample still primes
+  nexenne::utility::discard(f.push(10.0));  // first sample still primes
   CHECK(f.value() == doctest::Approx(10.0));
   CHECK(f.push(100.0) == doctest::Approx(10.0));  // rate 0 -> frozen
   CHECK(f.push(-100.0) == doctest::Approx(10.0));
@@ -83,7 +84,7 @@ TEST_CASE("nexenne::filter::slew a negative rate is clamped to zero and freezes 
 
 TEST_CASE("nexenne::filter::slew rate zero freezes after priming") {
   auto f{flt::slew{0.0}};
-  static_cast<void>(f.push(7.0));
+  nexenne::utility::discard(f.push(7.0));
   CHECK(f.push(999.0) == doctest::Approx(7.0));
   CHECK(f.push(-999.0) == doctest::Approx(7.0));
 }
@@ -99,7 +100,7 @@ TEST_CASE("nexenne::filter::slew max_rate setter clamps negatives to zero") {
 
 TEST_CASE("nexenne::filter::slew changing the rate mid-run takes effect next push") {
   auto f{flt::slew{1.0}};
-  static_cast<void>(f.push(0.0));
+  nexenne::utility::discard(f.push(0.0));
   CHECK(f.push(100.0) == doctest::Approx(1.0));
   f.max_rate(50.0);
   CHECK(f.push(100.0) == doctest::Approx(51.0));  // 1 + 50
@@ -107,7 +108,7 @@ TEST_CASE("nexenne::filter::slew changing the rate mid-run takes effect next pus
 
 TEST_CASE("nexenne::filter::slew reset returns to the unprimed zero state") {
   auto f{flt::slew{5.0}};
-  static_cast<void>(f.push(50.0));
+  nexenne::utility::discard(f.push(50.0));
   CHECK(f.value() == doctest::Approx(50.0));
   f.reset();
   CHECK(f.value() == doctest::Approx(0.0));      // unprimed -> value 0
@@ -123,7 +124,7 @@ TEST_CASE("nexenne::filter::slew reset to a primed initial rate-limits the next 
 
 TEST_CASE("nexenne::filter::slew float instantiation behaves identically") {
   auto f{flt::slew<float>{5.0F}};
-  static_cast<void>(f.push(0.0F));
+  nexenne::utility::discard(f.push(0.0F));
   CHECK(f.push(100.0F) == doctest::Approx(5.0));
   CHECK(f.push(100.0F) == doctest::Approx(10.0));
 }
@@ -136,18 +137,18 @@ TEST_CASE("nexenne::filter::debounce first push of an unprimed filter is accepte
 
 TEST_CASE("nexenne::filter::debounce accepts a change only after exactly N stable samples") {
   auto f{flt::debounce<bool, 3>{}};
-  static_cast<void>(f.push(false));  // primes stable=false
-  CHECK(f.push(true) == false);      // streak 1, one short
-  CHECK(f.push(true) == false);      // streak 2, one short
-  CHECK(f.push(true) == true);       // streak 3 -> promoted
+  nexenne::utility::discard(f.push(false));  // primes stable=false
+  CHECK(f.push(true) == false);              // streak 1, one short
+  CHECK(f.push(true) == false);              // streak 2, one short
+  CHECK(f.push(true) == true);               // streak 3 -> promoted
   CHECK(f.value() == true);
 }
 
 TEST_CASE("nexenne::filter::debounce a glitch shorter than N is rejected") {
   auto f{flt::debounce<bool, 3>{}};
-  static_cast<void>(f.push(false));
-  static_cast<void>(f.push(false));
-  static_cast<void>(f.push(false));
+  nexenne::utility::discard(f.push(false));
+  nexenne::utility::discard(f.push(false));
+  nexenne::utility::discard(f.push(false));
   CHECK(f.push(true) == false);   // 1-sample glitch
   CHECK(f.push(false) == false);  // back to stable, never promoted
 }
@@ -180,7 +181,7 @@ TEST_CASE("nexenne::filter::debounce Threshold==1 accepts a change immediately (
   CHECK(f.push(2) == 2);
 
   auto g{flt::debounce<int, 1>{}};
-  static_cast<void>(g.push(0));  // prime
+  nexenne::utility::discard(g.push(0));  // prime
   CHECK(g.push(1) == 1);
   CHECK(g.push(0) == 0);
 }
@@ -188,7 +189,7 @@ TEST_CASE("nexenne::filter::debounce Threshold==1 accepts a change immediately (
 TEST_CASE("nexenne::filter::debounce default Threshold is 3") {
   auto f{flt::debounce<bool>{}};
   CHECK(flt::debounce<bool>::threshold == std::size_t{3});
-  static_cast<void>(f.push(false));
+  nexenne::utility::discard(f.push(false));
   CHECK(f.push(true) == false);
   CHECK(f.push(true) == false);
   CHECK(f.push(true) == true);
@@ -238,7 +239,7 @@ TEST_CASE("nexenne::filter::timed_debounce first sample is accepted immediately"
 
 TEST_CASE("nexenne::filter::timed_debounce a same-as-stable sample yields nothing") {
   auto db{flt::timed_debounce<ns>{20ms}};
-  static_cast<void>(db.update(ns{0}, true));
+  nexenne::utility::discard(db.update(ns{0}, true));
   auto const r{db.update(ns{500'000}, true)};
   CHECK_FALSE(r.has_value());
   CHECK(db.stable_value() == true);
@@ -246,7 +247,7 @@ TEST_CASE("nexenne::filter::timed_debounce a same-as-stable sample yields nothin
 
 TEST_CASE("nexenne::filter::timed_debounce a candidate that does not hold is rejected") {
   auto db{flt::timed_debounce<ns>{20ms}};
-  static_cast<void>(db.update(ns{0}, false));                // stable=false
+  nexenne::utility::discard(db.update(ns{0}, false));        // stable=false
   CHECK_FALSE(db.update(ns{1'000'000}, true).has_value());   // candidate starts
   CHECK_FALSE(db.update(ns{2'000'000}, false).has_value());  // back to stable, cancelled
   CHECK(db.stable_value() == false);
@@ -257,7 +258,7 @@ TEST_CASE("nexenne::filter::timed_debounce a candidate that does not hold is rej
 
 TEST_CASE("nexenne::filter::timed_debounce a candidate held for the period is promoted") {
   auto db{flt::timed_debounce<ns>{20ms}};
-  static_cast<void>(db.update(ns{0}, false));
+  nexenne::utility::discard(db.update(ns{0}, false));
   CHECK_FALSE(db.update(ns{1'000'000}, true).has_value());  // candidate at t=1ms
   auto const r{db.update(ns{1'000'000 + 20'000'000}, true)};
   REQUIRE(r.has_value());
@@ -267,7 +268,7 @@ TEST_CASE("nexenne::filter::timed_debounce a candidate held for the period is pr
 
 TEST_CASE("nexenne::filter::timed_debounce promotion needs elapsed >= period, not just >") {
   auto db{flt::timed_debounce<ns>{20ms}};
-  static_cast<void>(db.update(ns{0}, false));
+  nexenne::utility::discard(db.update(ns{0}, false));
   CHECK_FALSE(db.update(ns{1'000'000}, true).has_value());  // candidate since 1ms
   // Exactly one ns short of the period: still bouncing.
   CHECK_FALSE(db.update(ns{1'000'000 + 20'000'000 - 1}, true).has_value());
@@ -281,8 +282,8 @@ TEST_CASE("nexenne::filter::timed_debounce promotion needs elapsed >= period, no
 TEST_CASE("nexenne::filter::timed_debounce a candidate that changes restarts the timer") {
   // The header restarts candidate_since whenever raw != current candidate.
   auto db{flt::timed_debounce<ns>{20ms}};
-  static_cast<void>(db.update(ns{0}, false));       // stable=false
-  CHECK_FALSE(db.update(ns{0}, true).has_value());  // candidate=true since 0
+  nexenne::utility::discard(db.update(ns{0}, false));  // stable=false
+  CHECK_FALSE(db.update(ns{0}, true).has_value());     // candidate=true since 0
   // A new differing candidate cannot occur for a bool line (only false==stable
   // cancels), so re-feed true after a long gap and confirm it now promotes.
   auto const r{db.update(ns{20'000'000}, true)};
@@ -292,7 +293,7 @@ TEST_CASE("nexenne::filter::timed_debounce a candidate that changes restarts the
 
 TEST_CASE("nexenne::filter::timed_debounce zero period collapses to pass-through") {
   auto db{flt::timed_debounce<ns>{0ms}};
-  static_cast<void>(db.update(ns{0}, false));
+  nexenne::utility::discard(db.update(ns{0}, false));
   auto const r{db.update(ns{1}, true)};
   REQUIRE(r.has_value());
   CHECK(*r == true);
@@ -321,7 +322,7 @@ TEST_CASE("nexenne::filter::timed_debounce default construction has zero period 
 
 TEST_CASE("nexenne::filter::timed_debounce reset clears the stable state") {
   auto db{flt::timed_debounce<ns>{20ms}};
-  static_cast<void>(db.update(ns{0}, true));
+  nexenne::utility::discard(db.update(ns{0}, true));
   CHECK(db.has_stable());
   db.reset();
   CHECK_FALSE(db.has_stable());
@@ -335,7 +336,7 @@ TEST_CASE("nexenne::filter::timed_debounce reset clears the stable state") {
 TEST_CASE("nexenne::filter::timed_debounce a candidate cancelled mid-flight then re-held promotes"
 ) {
   auto db{flt::timed_debounce<ns>{10ms}};
-  static_cast<void>(db.update(ns{0}, false));
+  nexenne::utility::discard(db.update(ns{0}, false));
   CHECK_FALSE(db.update(ns{1'000'000}, true).has_value());   // candidate at 1ms
   CHECK_FALSE(db.update(ns{2'000'000}, false).has_value());  // cancelled (==stable)
   CHECK_FALSE(db.update(ns{3'000'000}, true).has_value());   // fresh candidate at 3ms
@@ -367,12 +368,12 @@ TEST_CASE("nexenne::filter::hysteresis flips only across the correct thresholds"
 TEST_CASE("nexenne::filter::hysteresis the dead band holds the previous state both ways") {
   auto f{flt::hysteresis{20.0, 25.0}};
   // Drive high, then sweep down through the band without crossing low.
-  static_cast<void>(f.push(30.0));
+  nexenne::utility::discard(f.push(30.0));
   CHECK(f.value() == true);
   CHECK(f.push(24.0) == true);
   CHECK(f.push(21.0) == true);
   // Now drive low, then sweep up through the band without crossing high.
-  static_cast<void>(f.push(10.0));
+  nexenne::utility::discard(f.push(10.0));
   CHECK(f.value() == false);
   CHECK(f.push(21.0) == false);
   CHECK(f.push(24.0) == false);
@@ -385,8 +386,8 @@ TEST_CASE("nexenne::filter::hysteresis the high threshold is inclusive") {
 
 TEST_CASE("nexenne::filter::hysteresis the low threshold is inclusive") {
   auto f{flt::hysteresis{20.0, 25.0}};
-  static_cast<void>(f.push(30.0));  // go high first
-  CHECK(f.push(20.0) == false);     // sample <= low -> false
+  nexenne::utility::discard(f.push(30.0));  // go high first
+  CHECK(f.push(20.0) == false);             // sample <= low -> false
 }
 
 TEST_CASE("nexenne::filter::hysteresis equal thresholds act as a plain comparator") {
@@ -399,7 +400,7 @@ TEST_CASE("nexenne::filter::hysteresis equal thresholds act as a plain comparato
 
 TEST_CASE("nexenne::filter::hysteresis reset clears to false") {
   auto f{flt::hysteresis{20.0, 25.0}};
-  static_cast<void>(f.push(30.0));
+  nexenne::utility::discard(f.push(30.0));
   CHECK(f.value() == true);
   f.reset();
   CHECK(f.value() == false);
@@ -417,7 +418,7 @@ TEST_CASE("nexenne::filter::hysteresis reset to a known state") {
 
 TEST_CASE("nexenne::filter::hysteresis thresholds setter replaces both bounds") {
   auto f{flt::hysteresis{20.0, 25.0}};
-  static_cast<void>(f.push(30.0));  // latch true
+  nexenne::utility::discard(f.push(30.0));  // latch true
   f.thresholds(0.0, 100.0);
   CHECK(f.low_threshold() == doctest::Approx(0.0));
   CHECK(f.high_threshold() == doctest::Approx(100.0));
@@ -527,15 +528,15 @@ TEST_CASE("nexenne::filter::glitch default N is 3") {
 TEST_CASE("nexenne::filter::glitch pending reflects the in-flight transition") {
   auto f{flt::glitch<bool, 3>{false}};
   CHECK_FALSE(f.pending());
-  static_cast<void>(f.push(true));
+  nexenne::utility::discard(f.push(true));
   CHECK(f.pending());
-  static_cast<void>(f.push(false));
+  nexenne::utility::discard(f.push(false));
   CHECK_FALSE(f.pending());  // cancelled
 }
 
 TEST_CASE("nexenne::filter::glitch unprimed reset re-seeds on next push") {
   auto f{flt::glitch<int, 3>{5}};
-  static_cast<void>(f.push(9));
+  nexenne::utility::discard(f.push(9));
   f.reset();
   CHECK(f.value() == 0);  // value-initialised int
   CHECK_FALSE(f.pending());
@@ -544,7 +545,7 @@ TEST_CASE("nexenne::filter::glitch unprimed reset re-seeds on next push") {
 
 TEST_CASE("nexenne::filter::glitch reset to a value clears any pending candidate") {
   auto f{flt::glitch<int, 3>{0}};
-  static_cast<void>(f.push(1));  // start a candidate
+  nexenne::utility::discard(f.push(1));  // start a candidate
   CHECK(f.pending());
   f.reset(42);
   CHECK(f.value() == 42);

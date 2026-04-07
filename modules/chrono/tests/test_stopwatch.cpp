@@ -13,6 +13,7 @@
 #include <nexenne/chrono/manual_clock.hpp>
 #include <nexenne/chrono/static_stopwatch.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -74,7 +75,7 @@ TEST_CASE("nexenne::chrono::static_stopwatch bounds its lap buffer and counts dr
   sw.start();
   for (int i{0}; i < 4; ++i) {
     clk::advance(10ms);
-    static_cast<void>(sw.lap());
+    nexenne::utility::discard(sw.lap());
   }
   CHECK(sw.lap_count() == 4);         // total laps seen
   CHECK(sw.stored_lap_count() == 2);  // only the buffer capacity is retained
@@ -187,7 +188,7 @@ TEST_CASE("nexenne::chrono::stopwatch reset returns to idle and clears laps") {
   ch::stopwatch<clk> sw;
   sw.start();
   clk::advance(30ms);
-  static_cast<void>(sw.lap());
+  nexenne::utility::discard(sw.lap());
   sw.reset();
   CHECK(sw.is_idle());
   CHECK(sw.elapsed() == clk::duration::zero());
@@ -204,8 +205,8 @@ TEST_CASE("nexenne::chrono::stopwatch restart clears prior state and re-times") 
   ch::stopwatch<clk> sw;
   sw.start();
   clk::advance(80ms);
-  static_cast<void>(sw.lap());
-  static_cast<void>(sw.lap());
+  nexenne::utility::discard(sw.lap());
+  nexenne::utility::discard(sw.lap());
   sw.restart();  // reset + start
   CHECK(sw.is_running());
   CHECK(sw.lap_count() == 0);
@@ -286,7 +287,7 @@ TEST_CASE("nexenne::chrono::stopwatch peek_lap measures from the last lap baseli
   ch::stopwatch<clk> sw;
   sw.start();
   clk::advance(10ms);
-  static_cast<void>(sw.lap());  // baseline now at 10ms
+  nexenne::utility::discard(sw.lap());  // baseline now at 10ms
   clk::advance(7ms);
   auto const p{sw.peek_lap()};
   REQUIRE(p.has_value());
@@ -302,7 +303,7 @@ TEST_CASE("nexenne::chrono::stopwatch many laps aggregate correctly") {
   std::vector<int> const segs{5, 50, 20, 35, 10};
   for (auto const s : segs) {
     clk::advance(ms{s});
-    static_cast<void>(sw.lap());
+    nexenne::utility::discard(sw.lap());
   }
   CHECK(sw.lap_count() == 5);
   CHECK(std::chrono::duration_cast<ms>(sw.lap_sum()) == 120ms);
@@ -352,9 +353,9 @@ TEST_CASE("nexenne::chrono::stopwatch clear_laps drops laps and rebases") {
   ch::stopwatch<clk> sw;
   sw.start();
   clk::advance(10ms);
-  static_cast<void>(sw.lap());
+  nexenne::utility::discard(sw.lap());
   clk::advance(20ms);
-  static_cast<void>(sw.lap());
+  nexenne::utility::discard(sw.lap());
   CHECK(sw.lap_count() == 2);
   sw.clear_laps();
   CHECK(sw.lap_count() == 0);
@@ -376,7 +377,7 @@ TEST_CASE("nexenne::chrono::stopwatch single lap min equals max equals average")
   ch::stopwatch<clk> sw;
   sw.start();
   clk::advance(17ms);
-  static_cast<void>(sw.lap());
+  nexenne::utility::discard(sw.lap());
   CHECK(std::chrono::duration_cast<ms>(*sw.lap_min()) == 17ms);
   CHECK(std::chrono::duration_cast<ms>(*sw.lap_max()) == 17ms);
   CHECK(std::chrono::duration_cast<ms>(*sw.lap_average()) == 17ms);
@@ -510,8 +511,8 @@ TEST_CASE("nexenne::chrono::static_stopwatch and stopwatch agree on lap stats be
   sw.start();
   for (int s : {5, 50, 20, 35, 10}) {
     clk::advance(ms{s});
-    static_cast<void>(fsw.lap());
-    static_cast<void>(sw.lap());
+    nexenne::utility::discard(fsw.lap());
+    nexenne::utility::discard(sw.lap());
   }
   CHECK(fsw.lap_count() == sw.lap_count());
   CHECK(fsw.stored_lap_count() == sw.lap_count());
@@ -545,7 +546,7 @@ TEST_CASE("nexenne::chrono::static_stopwatch overflow keeps running mean faithfu
   // four laps of 10,20,30,40 ms; buffer holds only the first two
   for (int s : {10, 20, 30, 40}) {
     clk::advance(ms{s});
-    static_cast<void>(sw.lap());
+    nexenne::utility::discard(sw.lap());
   }
   CHECK(sw.lap_count() == 4);
   CHECK(sw.stored_lap_count() == 2);
@@ -564,7 +565,7 @@ TEST_CASE("nexenne::chrono::static_stopwatch overflowing lap still returns the s
   ch::static_stopwatch<1, clk> sw;
   sw.start();
   clk::advance(10ms);
-  static_cast<void>(sw.lap());  // fills the buffer
+  nexenne::utility::discard(sw.lap());  // fills the buffer
   clk::advance(33ms);
   auto const l{sw.lap()};  // dropped from storage but still returned
   REQUIRE(l.has_value());
@@ -580,7 +581,7 @@ TEST_CASE("nexenne::chrono::static_stopwatch clear_laps zeroes all lap counters"
   sw.start();
   for (int s : {10, 20, 30}) {
     clk::advance(ms{s});
-    static_cast<void>(sw.lap());
+    nexenne::utility::discard(sw.lap());
   }
   CHECK(sw.laps_dropped() == 1);
   sw.clear_laps();
@@ -604,7 +605,7 @@ TEST_CASE("nexenne::chrono::static_stopwatch reset and restart clear overflow st
   sw.start();
   for (int i{0}; i < 3; ++i) {
     clk::advance(10ms);
-    static_cast<void>(sw.lap());
+    nexenne::utility::discard(sw.lap());
   }
   CHECK(sw.laps_dropped() == 2);
   sw.reset();

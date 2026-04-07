@@ -16,6 +16,7 @@
 
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/indexed_priority_queue.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -245,7 +246,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue recycles handles after rem
   max_pq q;
   auto const h0{q.push(1)};
   auto const h1{q.push(2)};
-  static_cast<void>(q.pop());  // removes 2 (top), frees h1
+  nexenne::utility::discard(q.pop());  // removes 2 (top), frees h1
   CHECK_FALSE(q.contains(h1));
   CHECK(q.contains(h0));
   auto const h2{q.push(3)};  // should reuse the freed handle slot
@@ -284,7 +285,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue heap invariant holds after
       case 1:
         if (!q.empty()) {
           auto const top{q.top_handle().value()};
-          static_cast<void>(q.pop());
+          nexenne::utility::discard(q.pop());
           std::erase(live, top);
         }
         break;

@@ -12,6 +12,7 @@
 #include <span>
 
 #include <nexenne/filter/filter.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -45,9 +46,9 @@ TEST_CASE("nexenne::filter::median default-constructed state") {
 TEST_CASE("nexenne::filter::median rejects a single spike while passing the level") {
   // Subsumes the legacy "rejects a single spike" case.
   auto f{flt::median<double, 3>{}};
-  static_cast<void>(f.push(10.0));
-  static_cast<void>(f.push(10.0));
-  static_cast<void>(f.push(10.0));
+  nexenne::utility::discard(f.push(10.0));
+  nexenne::utility::discard(f.push(10.0));
+  nexenne::utility::discard(f.push(10.0));
   CHECK(f.filled());
   CHECK(f.push(1000.0) == doctest::Approx(10.0));  // spike rejected
   CHECK(f.push(10.0) == doctest::Approx(10.0));
@@ -71,18 +72,18 @@ TEST_CASE("nexenne::filter::median EVEN window returns the LOWER-middle element"
   // two central values is returned, i.e. index (N - 1) / 2 of the sorted set.
   auto f{flt::median<double, 4>{}};
   // Push an unsorted permutation of {1,2,3,4}; sorted -> {1,2,3,4}.
-  static_cast<void>(f.push(4.0));
-  static_cast<void>(f.push(2.0));
-  static_cast<void>(f.push(1.0));
+  nexenne::utility::discard(f.push(4.0));
+  nexenne::utility::discard(f.push(2.0));
+  nexenne::utility::discard(f.push(1.0));
   auto const v{f.push(3.0)};  // index (4-1)/2 = 1 -> 2.0 (lower middle, not 3.0)
   CHECK(v == doctest::Approx(2.0));
   CHECK(f.value() == doctest::Approx(2.0));
 
   // A second even window with a different known sorted set {2,4,6,8} -> 4.0.
   auto g{flt::median<double, 4>{}};
-  static_cast<void>(g.push(8.0));
-  static_cast<void>(g.push(6.0));
-  static_cast<void>(g.push(2.0));
+  nexenne::utility::discard(g.push(8.0));
+  nexenne::utility::discard(g.push(6.0));
+  nexenne::utility::discard(g.push(2.0));
   CHECK(g.push(4.0) == doctest::Approx(4.0));  // index 1 of {2,4,6,8}
 }
 
@@ -105,8 +106,8 @@ TEST_CASE("nexenne::filter::median window size 1 is passthrough") {
 
 TEST_CASE("nexenne::filter::median monotonic ramp through a full window") {
   auto f{flt::median<double, 3>{}};
-  static_cast<void>(f.push(1.0));
-  static_cast<void>(f.push(2.0));
+  nexenne::utility::discard(f.push(1.0));
+  nexenne::utility::discard(f.push(2.0));
   CHECK(f.push(3.0) == doctest::Approx(2.0));  // {1,2,3} -> 2
   CHECK(f.push(4.0) == doctest::Approx(3.0));  // {2,3,4} -> 3
   CHECK(f.push(5.0) == doctest::Approx(4.0));  // {3,4,5} -> 4
@@ -117,12 +118,12 @@ TEST_CASE("nexenne::filter::median tracks a step after a majority of the window 
   // Subsumes the legacy "tracks a step change after N/2+1 samples" case.
   auto f{flt::median<double, 5>{}};
   for (auto i{0}; i < 5; ++i) {
-    static_cast<void>(f.push(0.0));
+    nexenne::utility::discard(f.push(0.0));
   }
   CHECK(f.value() == doctest::Approx(0.0));
-  static_cast<void>(f.push(100.0));  // {0,0,0,0,100} -> 0
+  nexenne::utility::discard(f.push(100.0));  // {0,0,0,0,100} -> 0
   CHECK(f.value() == doctest::Approx(0.0));
-  static_cast<void>(f.push(100.0));  // {0,0,0,100,100} -> 0
+  nexenne::utility::discard(f.push(100.0));  // {0,0,0,100,100} -> 0
   CHECK(f.value() == doctest::Approx(0.0));
   auto const v{f.push(100.0)};         // {0,0,100,100,100} -> 100
   CHECK(v == doctest::Approx(100.0));  // 3 of 5 are now 100
@@ -138,8 +139,8 @@ TEST_CASE("nexenne::filter::median repeated (all-equal) values") {
 
 TEST_CASE("nexenne::filter::median alternating extremes settle on a stable median") {
   auto f{flt::median<double, 3>{}};
-  static_cast<void>(f.push(-1e6));
-  static_cast<void>(f.push(1e6));
+  nexenne::utility::discard(f.push(-1e6));
+  nexenne::utility::discard(f.push(1e6));
   // window {-1e6, 1e6, -1e6} sorted -> middle is -1e6
   CHECK(f.push(-1e6) == doctest::Approx(-1e6));
   // window {1e6, -1e6, 1e6} sorted -> middle is 1e6
@@ -149,7 +150,7 @@ TEST_CASE("nexenne::filter::median alternating extremes settle on a stable media
 TEST_CASE("nexenne::filter::median single non-zero sample among zeros") {
   auto f{flt::median<double, 5>{}};
   for (auto i{0}; i < 5; ++i) {
-    static_cast<void>(f.push(0.0));
+    nexenne::utility::discard(f.push(0.0));
   }
   CHECK(f.push(999.0) == doctest::Approx(0.0));  // lone spike rejected
   CHECK(f.value() == doctest::Approx(0.0));
@@ -157,9 +158,9 @@ TEST_CASE("nexenne::filter::median single non-zero sample among zeros") {
 
 TEST_CASE("nexenne::filter::median reset clears the window and value") {
   auto f{flt::median<double, 3>{}};
-  static_cast<void>(f.push(5.0));
-  static_cast<void>(f.push(6.0));
-  static_cast<void>(f.push(7.0));
+  nexenne::utility::discard(f.push(5.0));
+  nexenne::utility::discard(f.push(6.0));
+  nexenne::utility::discard(f.push(7.0));
   CHECK(f.filled());
   CHECK(f.value() == doctest::Approx(6.0));
   f.reset();
@@ -188,9 +189,9 @@ TEST_CASE("nexenne::filter::median very long run rejects intermittent spikes") {
 
 TEST_CASE("nexenne::filter::median float instantiation matches double behaviour") {
   auto f{flt::median<float, 3>{}};
-  static_cast<void>(f.push(10.0F));
-  static_cast<void>(f.push(10.0F));
-  static_cast<void>(f.push(10.0F));
+  nexenne::utility::discard(f.push(10.0F));
+  nexenne::utility::discard(f.push(10.0F));
+  nexenne::utility::discard(f.push(10.0F));
   CHECK(f.push(1000.0F) == doctest::Approx(10.0));
   CHECK(f.value() == doctest::Approx(10.0));
   f.reset();
@@ -207,7 +208,7 @@ TEST_CASE("nexenne::filter::kalman converges to a constant measurement") {
   // Subsumes the legacy "converges to a constant measurement" case.
   auto kf{flt::kalman{0.01, 0.1}};
   for (auto i{0}; i < 50; ++i) {
-    static_cast<void>(kf.push(42.0));
+    nexenne::utility::discard(kf.push(42.0));
   }
   CHECK(kf.value() == doctest::Approx(42.0).epsilon(0.01));
 }
@@ -217,7 +218,7 @@ TEST_CASE("nexenne::filter::kalman noisy constant converges to the true level") 
   auto kf{flt::kalman{0.001, 1.0}};
   for (auto i{0}; i < 400; ++i) {
     auto const dither{(i % 2 == 0) ? 1.0 : -1.0};
-    static_cast<void>(kf.push(20.0 + dither));
+    nexenne::utility::discard(kf.push(20.0 + dither));
   }
   CHECK(kf.value() == doctest::Approx(20.0).epsilon(0.05));
 }
@@ -226,10 +227,10 @@ TEST_CASE("nexenne::filter::kalman tracks a step change") {
   // Subsumes the legacy "tracks a step change" case.
   auto kf{flt::kalman{0.1, 0.5}};
   for (auto i{0}; i < 20; ++i) {
-    static_cast<void>(kf.push(0.0));
+    nexenne::utility::discard(kf.push(0.0));
   }
   for (auto i{0}; i < 50; ++i) {
-    static_cast<void>(kf.push(100.0));
+    nexenne::utility::discard(kf.push(100.0));
   }
   CHECK(kf.value() == doctest::Approx(100.0).epsilon(1.0));
 }
@@ -250,12 +251,12 @@ TEST_CASE("nexenne::filter::kalman gain evolves as covariance shrinks") {
   // Q=0, R=1, P0=1.
   auto kf{flt::kalman{0.0, 1.0, 0.0, 1.0}};
   CHECK(kf.gain() == doctest::Approx(0.5));  // P_pred=1, denom=2 -> 0.5 (pre-prime)
-  static_cast<void>(kf.push(10.0));          // prime: P stays 1
+  nexenne::utility::discard(kf.push(10.0));  // prime: P stays 1
   CHECK(kf.gain() == doctest::Approx(0.5));
-  static_cast<void>(kf.push(10.0));  // K=0.5 -> P=0.5; next gain: 0.5/1.5
+  nexenne::utility::discard(kf.push(10.0));  // K=0.5 -> P=0.5; next gain: 0.5/1.5
   CHECK(kf.covariance() == doctest::Approx(0.5));
   CHECK(kf.gain() == doctest::Approx(1.0 / 3.0));
-  static_cast<void>(kf.push(10.0));  // P=(2/3)*0.5 = 1/3
+  nexenne::utility::discard(kf.push(10.0));  // P=(2/3)*0.5 = 1/3
   CHECK(kf.covariance() == doctest::Approx(1.0 / 3.0));
 }
 
@@ -287,11 +288,11 @@ TEST_CASE("nexenne::filter::kalman process vs measurement noise change convergen
   // filter must reach the new level faster than a sluggish, high-R one.
   auto agile{flt::kalman{1.0, 0.1}};         // trusts measurements, adapts quickly
   auto sluggish{flt::kalman{0.001, 100.0}};  // trusts model, adapts slowly
-  static_cast<void>(agile.push(0.0));
-  static_cast<void>(sluggish.push(0.0));
+  nexenne::utility::discard(agile.push(0.0));
+  nexenne::utility::discard(sluggish.push(0.0));
   for (auto i{0}; i < 10; ++i) {
-    static_cast<void>(agile.push(100.0));
-    static_cast<void>(sluggish.push(100.0));
+    nexenne::utility::discard(agile.push(100.0));
+    nexenne::utility::discard(sluggish.push(100.0));
   }
   CHECK(agile.value() > sluggish.value());
   CHECK(agile.value() == doctest::Approx(100.0).epsilon(0.05));
@@ -300,7 +301,7 @@ TEST_CASE("nexenne::filter::kalman process vs measurement noise change convergen
 
 TEST_CASE("nexenne::filter::kalman noise() swaps parameters without touching state") {
   auto kf{flt::kalman{0.0, 1.0, 0.0, 1.0}};
-  static_cast<void>(kf.push(10.0));  // prime, estimate=10, P=1
+  nexenne::utility::discard(kf.push(10.0));  // prime, estimate=10, P=1
   CHECK(kf.gain() == doctest::Approx(0.5));
   kf.noise(0.0, 3.0);                              // R now 3 -> gain = 1/(1+3) = 0.25
   CHECK(kf.value() == doctest::Approx(10.0));      // estimate untouched
@@ -311,7 +312,7 @@ TEST_CASE("nexenne::filter::kalman noise() swaps parameters without touching sta
 TEST_CASE("nexenne::filter::kalman reset reseeds estimate, covariance, and priming") {
   auto kf{flt::kalman{0.1, 0.5}};
   for (auto i{0}; i < 30; ++i) {
-    static_cast<void>(kf.push(50.0));
+    nexenne::utility::discard(kf.push(50.0));
   }
   CHECK(kf.value() == doctest::Approx(50.0).epsilon(0.1));
   kf.reset(5.0, 2.0);
@@ -328,7 +329,7 @@ TEST_CASE("nexenne::filter::kalman reset reseeds estimate, covariance, and primi
 
 TEST_CASE("nexenne::filter::kalman all-equal input keeps the estimate pinned") {
   auto kf{flt::kalman{0.01, 0.1}};
-  static_cast<void>(kf.push(7.0));
+  nexenne::utility::discard(kf.push(7.0));
   for (auto i{0}; i < 200; ++i) {
     auto const v{kf.push(7.0)};
     CHECK(v == doctest::Approx(7.0));
@@ -339,7 +340,7 @@ TEST_CASE("nexenne::filter::kalman float instantiation seeds and converges") {
   auto kf{flt::kalman<float>{0.01F, 0.1F}};
   CHECK(kf.push(3.0F) == doctest::Approx(3.0));  // prime
   for (auto i{0}; i < 50; ++i) {
-    static_cast<void>(kf.push(3.0F));
+    nexenne::utility::discard(kf.push(3.0F));
   }
   CHECK(kf.value() == doctest::Approx(3.0).epsilon(0.01));
   CHECK(std::isfinite(kf.value()));
@@ -386,7 +387,7 @@ TEST_CASE("nexenne::filter::complementary single-input overload is a first-order
   CHECK(cf.push(10.0) == doctest::Approx(7.5));   // 0.5*10 + 0.5*5
   CHECK(cf.push(10.0) == doctest::Approx(8.75));  // 0.5*10 + 0.5*7.5
   for (auto i{0}; i < 100; ++i) {
-    static_cast<void>(cf.push(10.0));
+    nexenne::utility::discard(cf.push(10.0));
   }
   CHECK(cf.value() == doctest::Approx(10.0).epsilon(0.001));  // converges to input
 }
@@ -410,7 +411,7 @@ TEST_CASE("nexenne::filter::complementary alpha() setter changes subsequent blen
 
 TEST_CASE("nexenne::filter::complementary reset variants") {
   auto cf{flt::complementary{0.5}};
-  static_cast<void>(cf.push(10.0, 10.0));
+  nexenne::utility::discard(cf.push(10.0, 10.0));
   CHECK(cf.value() == doctest::Approx(10.0));
   cf.reset();
   CHECK(cf.value() == doctest::Approx(0.0));  // reset() -> zero
@@ -482,7 +483,7 @@ TEST_CASE("nexenne::filter::lms identifies a simple gain system (stable mu)") {
   for (auto i{0}; i < 500; ++i) {
     x = (i % 2 == 0) ? 1.0 : 0.5;
     auto const d{3.0 * x};
-    static_cast<void>(f.push(x, d));
+    nexenne::utility::discard(f.push(x, d));
   }
   CHECK(f.coefficients()[0] == doctest::Approx(3.0).epsilon(0.05));
   CHECK(std::abs(f.error()) < 0.05);
@@ -499,7 +500,7 @@ TEST_CASE("nexenne::filter::lms error shrinks over iterations as it adapts") {
       std::sin(0.3 * static_cast<double>(i)) + 0.5 * std::cos(0.11 * static_cast<double>(i))
     };
     auto const d{2.0 * x + 1.0 * prev};
-    static_cast<void>(f.push(x, d));
+    nexenne::utility::discard(f.push(x, d));
     if (i == 5) {
       first_abs_err = std::abs(f.error());
     }
@@ -521,7 +522,7 @@ TEST_CASE("nexenne::filter::lms a stable mu drives the running error toward zero
   auto early_err{0.0};
   auto late_err{0.0};
   for (auto i{0}; i < 200; ++i) {
-    static_cast<void>(f.push(1.0, target));
+    nexenne::utility::discard(f.push(1.0, target));
     if (i == 1) {
       early_err = std::abs(f.error());
     }
@@ -554,7 +555,7 @@ TEST_CASE("nexenne::filter::lms reset clears taps and history but preserves the 
   // Subsumes the legacy reset case.
   auto f{flt::lms<double, 2>{0.07}};
   for (auto i{0}; i < 50; ++i) {
-    static_cast<void>(f.push(1.0, 2.0));
+    nexenne::utility::discard(f.push(1.0, 2.0));
   }
   CHECK(f.coefficients()[0] != doctest::Approx(0.0));  // adapted away from zero
   f.reset();
@@ -572,7 +573,7 @@ TEST_CASE("nexenne::filter::lms reset clears taps and history but preserves the 
 TEST_CASE("nexenne::filter::lms all-zero desired keeps taps at zero from a zero start") {
   auto f{flt::lms<double, 3>{0.1}};
   for (auto i{0}; i < 100; ++i) {
-    static_cast<void>(f.push(1.0, 0.0));
+    nexenne::utility::discard(f.push(1.0, 0.0));
   }
   // Output starts at 0, desired is 0, so the error is 0 and no tap ever moves.
   for (auto const c : f.coefficients()) {
@@ -588,7 +589,7 @@ TEST_CASE("nexenne::filter::lms very long stable run stays finite and converged"
     auto const x{std::sin(0.2 * static_cast<double>(i))};
     // 3-tap target embedded in a 4-tap filter (4th tap should fade to ~0).
     auto const d{1.5 * x + 0.5 * prev[0] - 0.25 * prev[1]};
-    static_cast<void>(f.push(x, d));
+    nexenne::utility::discard(f.push(x, d));
     prev[2] = prev[1];
     prev[1] = prev[0];
     prev[0] = x;

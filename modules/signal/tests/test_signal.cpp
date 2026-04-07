@@ -9,6 +9,7 @@
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/signal/signal.hpp>
 #include <nexenne/signal/slot.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -34,7 +35,7 @@ TEST_CASE("nexenne::signal::signal connect / emit fires the slot") {
   sig.emit();
   CHECK(count == 2);
 
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("nexenne::signal::signal operator() is an alias for emit") {
@@ -46,7 +47,7 @@ TEST_CASE("nexenne::signal::signal operator() is an alias for emit") {
   sig(4);
   CHECK(seen == 7);
 
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("nexenne::signal::signal emit with arguments forwards them") {
@@ -60,7 +61,7 @@ TEST_CASE("nexenne::signal::signal emit with arguments forwards them") {
   sig.emit(100, 200);
   CHECK(sum == 300);
 
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("nexenne::signal::signal forwards a reference argument so slots can mutate it") {
@@ -71,7 +72,7 @@ TEST_CASE("nexenne::signal::signal forwards a reference argument so slots can mu
   sig.emit(value);
   CHECK(value == 10);
 
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("nexenne::signal::signal reference mutation chains across multiple slots") {
@@ -84,8 +85,8 @@ TEST_CASE("nexenne::signal::signal reference mutation chains across multiple slo
   // First slot makes 3, second makes 30: each sees the previous slot's mutation.
   CHECK(value == 30);
 
-  (void)c1;
-  (void)c2;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
 }
 
 TEST_CASE("nexenne::signal::signal supports multiple slots in connection order") {
@@ -102,9 +103,9 @@ TEST_CASE("nexenne::signal::signal supports multiple slots in connection order")
   CHECK(log[1] == 10);
   CHECK(log[2] == 15);
 
-  (void)c1;
-  (void)c2;
-  (void)c3;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
+  nexenne::utility::discard(c3);
 }
 
 TEST_CASE("nexenne::signal::signal empty emit is a no-op") {
@@ -282,9 +283,9 @@ TEST_CASE("nexenne::signal::signal disconnect_all clears every slot") {
   sig.emit();
   CHECK(count == 0);
 
-  (void)c1;
-  (void)c2;
-  (void)c3;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
+  nexenne::utility::discard(c3);
 }
 
 // priority ordering
@@ -303,9 +304,9 @@ TEST_CASE("nexenne::signal::signal slot priority orders invocation") {
   CHECK(log[1] == 1);  // priority 0
   CHECK(log[2] == 2);  // priority 10
 
-  (void)c_low;
-  (void)c_mid;
-  (void)c_high;
+  nexenne::utility::discard(c_low);
+  nexenne::utility::discard(c_mid);
+  nexenne::utility::discard(c_high);
 }
 
 TEST_CASE("nexenne::signal::signal same priority preserves insertion order (stable sort)") {
@@ -321,9 +322,9 @@ TEST_CASE("nexenne::signal::signal same priority preserves insertion order (stab
   CHECK(log[1] == 2);
   CHECK(log[2] == 3);
 
-  (void)c1;
-  (void)c2;
-  (void)c3;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
+  nexenne::utility::discard(c3);
 }
 
 TEST_CASE("nexenne::signal::signal mixed priorities with ties keep insertion order within a tier") {
@@ -338,10 +339,10 @@ TEST_CASE("nexenne::signal::signal mixed priorities with ties keep insertion ord
   sig.emit();
   CHECK(order == std::vector{2, 4, 1, 3});
 
-  (void)c1;
-  (void)c2;
-  (void)c3;
-  (void)c4;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
+  nexenne::utility::discard(c3);
+  nexenne::utility::discard(c4);
 }
 
 // one-shot
@@ -358,7 +359,7 @@ TEST_CASE("nexenne::signal::signal connect_once fires exactly once") {
   REQUIRE(seen.size() == 1);
   CHECK(seen[0] == 1);
   CHECK(sig.empty());
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("nexenne::signal::signal connect_once handle reports invalid-target after the sweep") {
@@ -382,7 +383,7 @@ TEST_CASE("nexenne::signal::signal connect_once with stateful capture fires once
   sig.emit();
   CHECK(fired == 42);
   CHECK(sig.empty());
-  (void)c;
+  nexenne::utility::discard(c);
 }
 
 TEST_CASE(
@@ -397,7 +398,7 @@ TEST_CASE(
       sig.emit();  // re-entrant emit of the same signal from the once slot
     }
   })};
-  (void)c;
+  nexenne::utility::discard(c);
 
   sig.emit();
   CHECK(n == 1);       // fired exactly once despite the re-entrant emit
@@ -421,8 +422,8 @@ TEST_CASE("nexenne::signal::signal one-shot fires alongside a persistent slot, t
   CHECK(persistent == 2);
   CHECK(once == 1);
 
-  (void)cp;
-  (void)co;
+  nexenne::utility::discard(cp);
+  nexenne::utility::discard(co);
 }
 
 // emit_and_collect
@@ -437,8 +438,8 @@ TEST_CASE("nexenne::signal::signal emit_and_collect returns slot results in prio
   CHECK(results[0] == 20);  // c2: n*2 (priority -1)
   CHECK(results[1] == 11);  // c1: n+1 (priority 0)
 
-  (void)c1;
-  (void)c2;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
 }
 
 TEST_CASE("nexenne::signal::signal emit_and_collect skips disconnected slots") {
@@ -453,8 +454,8 @@ TEST_CASE("nexenne::signal::signal emit_and_collect skips disconnected slots") {
   CHECK(results[0] == 1);
   CHECK(results[1] == 3);
 
-  (void)c1;
-  (void)c3;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c3);
 }
 
 TEST_CASE("nexenne::signal::signal emit_and_collect returns empty when blocked") {
@@ -463,7 +464,7 @@ TEST_CASE("nexenne::signal::signal emit_and_collect returns empty when blocked")
   sig.block();
   auto const results{sig.emit_and_collect()};
   CHECK(results.empty());
-  (void)c;
+  nexenne::utility::discard(c);
 }
 
 TEST_CASE("nexenne::signal::signal supports non-void return types (values discarded by emit)") {
@@ -476,7 +477,7 @@ TEST_CASE("nexenne::signal::signal supports non-void return types (values discar
   sig.emit(7);
   CHECK(last == 7);
   // Return value of slot is discarded; emit() returns void.
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 // THE REENTRANCY MATRIX
@@ -496,7 +497,7 @@ TEST_CASE("nexenne::signal::signal reentrancy (a): a slot connecting a new slot 
       added = sig.connect([&] noexcept { order.push_back(2); });
     }
   })};
-  (void)first;
+  nexenne::utility::discard(first);
 
   sig.emit();
   // Only the first slot fired; the deferred slot was not visited.
@@ -524,7 +525,7 @@ TEST_CASE("nexenne::signal::signal reentrancy (a-bulk): a slot connecting many s
       keep.push_back(sig.connect([&] noexcept { ++fired; }));
     }
   })};
-  (void)first;
+  nexenne::utility::discard(first);
 
   sig.emit();  // only the first slot fires; the 20 deferred ones are not visited
   CHECK(fired == 1);
@@ -577,7 +578,7 @@ TEST_CASE(
   CHECK(log[0] == 1);
   CHECK(log[1] == 2);
 
-  (void)c1;
+  nexenne::utility::discard(c1);
 }
 
 TEST_CASE("nexenne::signal::signal reentrancy (d): disconnecting an already-fired slot is safe") {
@@ -611,7 +612,7 @@ TEST_CASE("nexenne::signal::signal reentrancy (d): disconnecting an already-fire
   REQUIRE(log.size() == 1);  // only c2 remains
   CHECK(log[0] == 2);
 
-  (void)c2;
+  nexenne::utility::discard(c2);
 }
 
 TEST_CASE("nexenne::signal::signal reentrancy (e): disconnect_all during emit empties the signal") {
@@ -636,8 +637,8 @@ TEST_CASE("nexenne::signal::signal reentrancy (e): disconnect_all during emit em
   CHECK(fired == 1);
   CHECK(tail_fired == 0);
 
-  (void)first;
-  (void)tail;
+  nexenne::utility::discard(first);
+  nexenne::utility::discard(tail);
 }
 
 TEST_CASE("nexenne::signal::signal reentrancy (e2): disconnect_all during emit drops a slot "
@@ -647,10 +648,10 @@ TEST_CASE("nexenne::signal::signal reentrancy (e2): disconnect_all during emit d
   auto first{sig.connect([&] noexcept {
     ++fired;
     auto const pending{sig.connect([&] noexcept { ++fired; })};  // deferred this emit
-    static_cast<void>(pending);
+    nexenne::utility::discard(pending);
     sig.disconnect_all();  // must drop the deferred connect too, not just live slots
   })};
-  (void)first;
+  nexenne::utility::discard(first);
 
   sig.emit();  // first fires, connects a slot, then disconnect_all
   sig.emit();  // nothing must fire: every slot, including the deferred one, is gone
@@ -685,8 +686,8 @@ TEST_CASE("nexenne::signal::signal reentrancy (f): nested emit of the same signa
   CHECK(inner_hits == 1);
   CHECK(sig.size() == 2);  // both slots survive the nested emit
 
-  (void)re_emitter;
-  (void)plain;
+  nexenne::utility::discard(re_emitter);
+  nexenne::utility::discard(plain);
 }
 
 TEST_CASE("nexenne::signal::signal reentrancy: disconnecting a slot connected in the same emit "
@@ -698,7 +699,7 @@ TEST_CASE("nexenne::signal::signal reentrancy: disconnecting a slot connected in
     auto pending{sig.connect([&] noexcept { ++fired; })};
     pending.disconnect();  // kill it before it is ever merged into the live list
   })};
-  (void)first;
+  nexenne::utility::discard(first);
 
   sig.emit();  // first fires; the pending connection is marked dead, never merged
   sig.emit();  // so the second emit only fires the first slot again
@@ -713,7 +714,7 @@ TEST_CASE("nexenne::signal::signal reentrancy: a slot may destroy the signal mid
     ++fired;
     sig.reset();  // destroy the signal from within its own emit
   })};
-  (void)c;
+  nexenne::utility::discard(c);
 
   sig->emit();  // the pinned core keeps the iteration alive; must not crash
   CHECK(fired == 1);
@@ -843,7 +844,7 @@ TEST_CASE("nexenne::signal::signal slot fires while a tracked owner is alive, st
   sig.emit();
   CHECK(fired == 1);  // slot saw the dead owner and did nothing
 
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("nexenne::signal::signal a tracked owner dying DURING an emit is observed by later slots"
@@ -871,8 +872,8 @@ TEST_CASE("nexenne::signal::signal a tracked owner dying DURING an emit is obser
   CHECK(killer_ran);
   CHECK_FALSE(observer_saw_alive);  // owner died during this same emit
 
-  (void)killer;
-  (void)observer;
+  nexenne::utility::discard(killer);
+  nexenne::utility::discard(observer);
 }
 
 // sink (connect-only view)
@@ -889,7 +890,7 @@ TEST_CASE("nexenne::signal::sink exposes connect but hides emit") {
   sig.emit(42);  // only the signal can fire
   CHECK(count == 1);
 
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("nexenne::signal::sink refers to the live signal: connects land on it") {
@@ -903,8 +904,8 @@ TEST_CASE("nexenne::signal::sink refers to the live signal: connects land on it"
   CHECK(sig.size() == 2);
   sig.emit();
   CHECK(fired == 2);
-  (void)c1;
-  (void)c2;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
 }
 
 TEST_CASE("nexenne::signal::sink supports connect_once") {
@@ -916,7 +917,7 @@ TEST_CASE("nexenne::signal::sink supports connect_once") {
   sig.emit();
   CHECK(fired == 1);
   CHECK(sig.empty());
-  (void)c;
+  nexenne::utility::discard(c);
 }
 
 // emit_blocker
@@ -1002,7 +1003,7 @@ TEST_CASE("nexenne::signal::emit_blocker move transfers the restore (only the de
   CHECK_FALSE(sig.is_blocked());
   sig.emit();
   CHECK(fired == 1);
-  (void)c;
+  nexenne::utility::discard(c);
 }
 
 TEST_CASE("nexenne::signal::emit_blocker move-assign restores the prior signal first") {
@@ -1111,7 +1112,7 @@ TEST_CASE("nexenne::signal::signal accepts a free function (fast path)") {
   sig.emit(5);
   sig.emit(10);
   CHECK(free_count == 15);
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("nexenne::signal::signal accepts a captureless lambda (fast path)") {
@@ -1121,7 +1122,7 @@ TEST_CASE("nexenne::signal::signal accepts a captureless lambda (fast path)") {
 
   sig.emit(7);
   CHECK(free_count == 7);
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("nexenne::signal::signal mixes fast-path and capturing slots correctly") {
@@ -1136,8 +1137,8 @@ TEST_CASE("nexenne::signal::signal mixes fast-path and capturing slots correctly
   CHECK(free_count == 3);
   CHECK(local_count == 6);
 
-  (void)c1;
-  (void)c2;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
 }
 
 // connection identity
@@ -1157,8 +1158,8 @@ TEST_CASE("nexenne::signal::connection equality: same slot, same signal") {
   auto c3{sig.connect([] noexcept {})};
   CHECK_FALSE(c1 == c3);  // different slot
 
-  (void)c1;
-  (void)c3;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c3);
 }
 
 TEST_CASE("nexenne::signal::connection equality: different signals never compare equal") {
@@ -1186,7 +1187,7 @@ TEST_CASE("nexenne::signal::signal survives destroy-during-emit (slot pulls the 
   sig_ptr->emit();
   CHECK(count == 1);
   // No UB; the core was pinned during emit and outlived the signal.
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 }  // namespace
