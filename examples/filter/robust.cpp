@@ -16,6 +16,7 @@
 #include <nexenne/filter/complementary.hpp>
 #include <nexenne/filter/kalman.hpp>
 #include <nexenne/filter/median.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -99,12 +100,12 @@ auto main() -> int {
   auto lms{flt::lms<double, 1>{0.1}};
   for (auto n{0}; n < 500; ++n) {
     auto const in{(n % 2 == 0) ? 1.0 : 0.5};
-    static_cast<void>(lms.push(in, 3.0 * in));
+    nexenne::utility::discard(lms.push(in, 3.0 * in));
   }
   std::println("   after 500 samples at gain 3: {:.3f}", lms.coefficients()[0]);
   for (auto n{0}; n < 500; ++n) {
     auto const in{(n % 2 == 0) ? 1.0 : 0.5};
-    static_cast<void>(lms.push(in, 5.0 * in));
+    nexenne::utility::discard(lms.push(in, 5.0 * in));
   }
   std::println("   after 500 more at gain 5: {:.3f} (re-converged)", lms.coefficients()[0]);
   return 0;

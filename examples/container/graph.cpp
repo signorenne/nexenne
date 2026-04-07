@@ -10,6 +10,7 @@
 #include <print>
 
 #include <nexenne/container/graph.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -19,10 +20,10 @@ namespace cn = nexenne::container;
 
 auto main() -> int {
   cn::graph<int> roads{4};  // 4 cities, edges weighted by distance
-  static_cast<void>(roads.add_edge(0, 1, 5));
-  static_cast<void>(roads.add_edge(0, 2, 3));
-  static_cast<void>(roads.add_edge(1, 3, 2));
-  static_cast<void>(roads.add_edge(2, 3, 7));
+  nexenne::utility::discard(roads.add_edge(0, 1, 5));
+  nexenne::utility::discard(roads.add_edge(0, 2, 3));
+  nexenne::utility::discard(roads.add_edge(1, 3, 2));
+  nexenne::utility::discard(roads.add_edge(2, 3, 7));
 
   std::println("cities: {}, roads: {}", roads.vertex_count(), roads.edge_count());
 

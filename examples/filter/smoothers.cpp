@@ -24,6 +24,7 @@
 #include <nexenne/filter/highpass.hpp>
 #include <nexenne/filter/lowpass.hpp>
 #include <nexenne/filter/sma.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -167,8 +168,8 @@ auto main() -> int {
   // lingering memory of the old value.
   std::println("\n8. reset() clears filter memory:");
   auto e{flt::ema{0.2}};
-  static_cast<void>(e.push(100.0));
-  static_cast<void>(e.push(100.0));
+  nexenne::utility::discard(e.push(100.0));
+  nexenne::utility::discard(e.push(100.0));
   std::println("   primed high, value() = {:.1f}", e.value());
   e.reset();
   std::println("   after reset, push(3.0) = {:.1f} (reseeds, no lag)", e.push(3.0));

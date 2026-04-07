@@ -20,6 +20,7 @@
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/signal/signal.hpp>
 #include <nexenne/signal/slot.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -87,8 +88,8 @@ auto main() -> int {
   std::println("after the display expired:");
   temp.publish(24.0);  // only the logger remains
 
-  static_cast<void>(log);
-  static_cast<void>(calib);
+  nexenne::utility::discard(log);
+  nexenne::utility::discard(calib);
 
   // A directly-owned signal shows scoped_connection (RAII disconnect) and
   // emit_blocker (scoped, save-and-restore emission suppression).
@@ -120,7 +121,7 @@ auto main() -> int {
   alarm.emit();  // buzz only
   alarm.disconnect_all();
   std::println("after disconnect_all, empty: {}", alarm.empty());
-  static_cast<void>(buzz);  // its slot is already gone; the handle now no-ops
+  nexenne::utility::discard(buzz);  // its slot is already gone; the handle now no-ops
 
   // A non-void signal: each slot returns a value and emit_and_collect gathers
   // them in fire order. A poll like this fans one query out to every registered
@@ -130,9 +131,9 @@ auto main() -> int {
   auto const a{poll.connect([](int n) noexcept { return n > 0; })};
   auto const b{poll.connect([](int n) noexcept { return n % 2 == 0; })};
   auto const c{poll.connect([](int n) noexcept { return n < 100; })};
-  static_cast<void>(a);
-  static_cast<void>(b);
-  static_cast<void>(c);
+  nexenne::utility::discard(a);
+  nexenne::utility::discard(b);
+  nexenne::utility::discard(c);
   std::vector<bool> const votes{poll.emit_and_collect(42)};
   auto yes{0};
   for (bool const v : votes) {

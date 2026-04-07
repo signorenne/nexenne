@@ -16,6 +16,7 @@
 
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/signal/static_signal.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -70,7 +71,7 @@ auto main() -> int {
   std::println("after the display expired:");
   temp.publish(22.5);  // only the logger remains
 
-  static_cast<void>(log);
+  nexenne::utility::discard(log);
 
   // Capacity is fixed: a connect past the bound fails instead of allocating.
   auto bus{sg::static_signal<void(), 2>{}};
@@ -92,7 +93,7 @@ auto main() -> int {
   auto const startup{tick.connect_once([](int frame) noexcept {
     std::println("  startup on frame {}", frame);
   })};
-  static_cast<void>(startup);
+  nexenne::utility::discard(startup);
 
   // A persistent frame logger, and a self-disarming watchdog that disconnects
   // the logger from inside its own invocation. static_signal defers the removal
@@ -101,10 +102,10 @@ auto main() -> int {
   auto const watchdog{tick.connect([&logger](int frame) noexcept {
     if (frame == 2) {
       std::println("  watchdog silences the logger");
-      static_cast<void>(logger.disconnect());  // safe mid-emit, deferred sweep
+      nexenne::utility::discard(logger.disconnect());  // safe mid-emit, deferred sweep
     }
   })};
-  static_cast<void>(watchdog);
+  nexenne::utility::discard(watchdog);
 
   std::println("\nheap-free tick channel:");
   tick.emit(1);  // startup, frame 1
