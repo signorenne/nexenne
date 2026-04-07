@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include <nexenne/utility/discard.hpp>
 #include <nexenne/utility/scope_guard.hpp>
 
 namespace {
@@ -65,7 +66,7 @@ TEST_CASE("nexenne::utility::scope_guard active guard runs exactly once") {
   auto runs{0};
   {
     auto const guard{nexenne::utility::scope_guard{[&] { ++runs; }}};
-    static_cast<void>(guard);
+    nexenne::utility::discard(guard);
   }
   CHECK(runs == 1);  // not zero, not two
 }
@@ -193,7 +194,7 @@ TEST_CASE("nexenne::utility::scope_guard works with a function pointer") {
   CHECK(counter == 0);
   {
     auto const guard{nexenne::utility::scope_guard{+[] { ++counter; }}};
-    static_cast<void>(guard);
+    nexenne::utility::discard(guard);
   }
   CHECK(counter == 1);
 }

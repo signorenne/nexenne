@@ -15,6 +15,7 @@
 #include <nexenne/random/pcg.hpp>
 #include <nexenne/random/seed_seq.hpp>
 #include <nexenne/random/xoshiro.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -306,7 +307,7 @@ TEST_CASE("nexenne::random::engines drive a std::<random> distribution") {
 TEST_CASE("nexenne::random::xoshiro256ss copy continues the identical sequence") {
   rnd::xoshiro256ss src{0xABCDEF};
   for (int i{0}; i < 13; ++i) {
-    static_cast<void>(src.next());  // advance partway
+    nexenne::utility::discard(src.next());  // advance partway
   }
   rnd::xoshiro256ss copy{src};         // copy mid-stream
   CHECK(copy.state() == src.state());  // state() fully captures position
@@ -318,7 +319,7 @@ TEST_CASE("nexenne::random::xoshiro256ss copy continues the identical sequence")
 TEST_CASE("nexenne::random::pcg32 copy continues the identical sequence") {
   rnd::pcg32 src{0xABCDEF, 9};
   for (int i{0}; i < 13; ++i) {
-    static_cast<void>(src.next());
+    nexenne::utility::discard(src.next());
   }
   rnd::pcg32 copy{src};
   CHECK(copy.state() == src.state());
@@ -330,7 +331,7 @@ TEST_CASE("nexenne::random::pcg32 copy continues the identical sequence") {
 TEST_CASE("nexenne::random::xoshiro256ss state() reflects advancement and equal states agree") {
   rnd::xoshiro256ss a{4242};
   auto const s0{a.state()};
-  static_cast<void>(a.next());
+  nexenne::utility::discard(a.next());
   CHECK(a.state() != s0);  // a single step changes the visible state
 
   rnd::xoshiro256ss fresh{4242};
@@ -345,7 +346,7 @@ TEST_CASE("nexenne::random::pcg32 advance(n) equals n single steps") {
     rnd::pcg32 stepped{42, 1};
     jumped.advance(n);
     for (std::int64_t i{0}; i < n; ++i) {
-      static_cast<void>(stepped.next());
+      nexenne::utility::discard(stepped.next());
     }
     CHECK(jumped.state() == stepped.state());
     CHECK(jumped.next() == stepped.next());
@@ -356,7 +357,7 @@ TEST_CASE("nexenne::random::pcg32 advance with a negative delta runs the sequenc
   rnd::pcg32 e{42, 1};
   auto const start{e.state()};
   for (int i{0}; i < 5; ++i) {
-    static_cast<void>(e.next());
+    nexenne::utility::discard(e.next());
   }
   e.advance(-5);  // unwind the five forward steps
   CHECK(e.state() == start);

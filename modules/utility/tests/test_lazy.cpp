@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include <nexenne/utility/discard.hpp>
 #include <nexenne/utility/lazy.hpp>
 
 namespace {
@@ -95,7 +96,7 @@ TEST_CASE("nexenne::utility::lazy retries after the factory throws") {
     return 99;
   }}};
 
-  CHECK_THROWS_AS(static_cast<void>(*value), std::runtime_error);
+  CHECK_THROWS_AS(util::discard(*value), std::runtime_error);
   CHECK_FALSE(value.has_value());
 
   CHECK(*value == 99);  // call_once did not latch the throwing attempt
@@ -146,16 +147,16 @@ TEST_CASE("nexenne::utility::lazy materialises only on access, never on construc
   CHECK(runs == 0);
 
   // Single materialisation.
-  static_cast<void>(value.get());
+  util::discard(value.get());
   CHECK(runs == 1);
 
   // Many subsequent accesses through all accessors: still one run.
-  static_cast<void>(value.get());
-  static_cast<void>(*value);
-  static_cast<void>(value.operator->());
-  static_cast<void>(std::as_const(value).get());
-  static_cast<void>(*std::as_const(value));
-  static_cast<void>(std::as_const(value).operator->());
+  util::discard(value.get());
+  util::discard(*value);
+  util::discard(value.operator->());
+  util::discard(std::as_const(value).get());
+  util::discard(*std::as_const(value));
+  util::discard(std::as_const(value).operator->());
   CHECK(runs == 1);
 }
 
@@ -249,9 +250,9 @@ TEST_CASE("nexenne::utility::lazy retries multiple times until the factory succe
     return 500;
   }}};
 
-  CHECK_THROWS_AS(static_cast<void>(*value), std::runtime_error);
+  CHECK_THROWS_AS(util::discard(*value), std::runtime_error);
   CHECK_FALSE(value.has_value());
-  CHECK_THROWS_AS(static_cast<void>(value.get()), std::runtime_error);
+  CHECK_THROWS_AS(util::discard(value.get()), std::runtime_error);
   CHECK_FALSE(value.has_value());
   CHECK(attempts == 2);
 

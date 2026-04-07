@@ -11,6 +11,7 @@
 #include <unordered_set>
 
 #include <nexenne/container/flat_hash_set.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -278,7 +279,7 @@ TEST_CASE("nexenne::container::flat_hash_set differential against std::unordered
   }
   std::size_t flat_count{0};
   for (auto const& v : flat) {
-    static_cast<void>(v);
+    nexenne::utility::discard(v);
     ++flat_count;
   }
   CHECK(flat_count == ref.size());

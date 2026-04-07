@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <nexenne/container/object_pool.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -138,8 +139,8 @@ TEST_CASE("nexenne::container::object_pool tracks the high-water mark") {
   REQUIRE(c.has_value());
   CHECK(pool.high_water_mark() == 3);
 
-  static_cast<void>(pool.destroy(*a));
-  static_cast<void>(pool.destroy(*b));
+  nexenne::utility::discard(pool.destroy(*a));
+  nexenne::utility::discard(pool.destroy(*b));
   CHECK(pool.high_water_mark() == 3);  // peak survives releases
   CHECK(pool.size() == 1);
   pool.clear_high_water_mark();
@@ -214,7 +215,7 @@ TEST_CASE("nexenne::container::object_pool acquiring every slot yields distinct 
 
 TEST_CASE("nexenne::container::object_pool const inspection accessors") {
   pool4 pool;
-  static_cast<void>(pool.emplace(1));
+  nexenne::utility::discard(pool.emplace(1));
   auto const& view{pool};
   CHECK(view.size() == 1);
   CHECK_FALSE(view.empty());

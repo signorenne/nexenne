@@ -12,6 +12,7 @@
 #include <limits>
 
 #include <nexenne/filter/filter.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -140,7 +141,7 @@ TEST_CASE("nexenne::filter::rate_guard first sample seeds and within-rate passes
 
 TEST_CASE("nexenne::filter::rate_guard exact-boundary delta is accepted (<=)") {
   auto f{flt::rate_guard{5.0}};
-  static_cast<void>(f.push(10.0));
+  nexenne::utility::discard(f.push(10.0));
   CHECK(f.push(15.0) == doctest::Approx(15.0));  // delta exactly 5 -> accepted
   CHECK(f.push(10.0) == doctest::Approx(10.0));  // delta exactly 5 downward
   // Just over the boundary is rejected.
@@ -149,7 +150,7 @@ TEST_CASE("nexenne::filter::rate_guard exact-boundary delta is accepted (<=)") {
 
 TEST_CASE("nexenne::filter::rate_guard rejection is measured from the held value, not the input") {
   auto f{flt::rate_guard{5.0}};
-  static_cast<void>(f.push(0.0));
+  nexenne::utility::discard(f.push(0.0));
   CHECK(f.push(100.0) == doctest::Approx(0.0));  // rejected, still 0
   // A later sample is judged against 0 (the held value), not the rejected 100.
   CHECK(f.push(3.0) == doctest::Approx(3.0));
@@ -165,7 +166,7 @@ TEST_CASE("nexenne::filter::rate_guard negative max_delta clamps to zero and fre
 
 TEST_CASE("nexenne::filter::rate_guard max_delta(d) setter clamps negatives and keeps value") {
   auto f{flt::rate_guard{1.0}};
-  static_cast<void>(f.push(50.0));
+  nexenne::utility::discard(f.push(50.0));
   f.max_delta(-3.0);
   CHECK(f.max_delta() == doctest::Approx(0.0));
   CHECK(f.value() == doctest::Approx(50.0));  // held value untouched
@@ -176,7 +177,7 @@ TEST_CASE("nexenne::filter::rate_guard max_delta(d) setter clamps negatives and 
 
 TEST_CASE("nexenne::filter::rate_guard reset() unprimes so next push seeds") {
   auto f{flt::rate_guard{2.0}};
-  static_cast<void>(f.push(50.0));
+  nexenne::utility::discard(f.push(50.0));
   f.reset();
   CHECK(f.value() == doctest::Approx(0.0));
   CHECK(f.max_delta() == doctest::Approx(2.0));      // rate limit preserved
@@ -201,7 +202,7 @@ TEST_CASE("nexenne::filter::rate_guard float instantiation") {
 TEST_CASE("nexenne::filter::rate_guard NaN sample fails the <= test and is rejected") {
   auto const nan{std::numeric_limits<double>::quiet_NaN()};
   auto f{flt::rate_guard{5.0}};
-  static_cast<void>(f.push(10.0));
+  nexenne::utility::discard(f.push(10.0));
   // std::abs(NaN - 10) is NaN; NaN <= 5 is false, so the sample is rejected.
   CHECK(f.push(nan) == doctest::Approx(10.0));
   CHECK(f.push(12.0) == doctest::Approx(12.0));  // recovers from the held 10
@@ -237,7 +238,7 @@ TEST_CASE("nexenne::filter::validator primed ctor rejects a bad first sample") {
 
 TEST_CASE("nexenne::filter::validator passes valid, holds last-good through a run of invalids") {
   auto f{flt::validator{[](int const& x) { return x > 0; }, int{0}}};
-  static_cast<void>(f.push(5));
+  nexenne::utility::discard(f.push(5));
   CHECK(f.push(-1) == 5);  // invalid -> holds 5
   CHECK(f.push(0) == 5);   // boundary: 0 is not > 0 -> holds 5
   CHECK(f.push(-9) == 5);  // sustained invalid run keeps last good
@@ -247,7 +248,7 @@ TEST_CASE("nexenne::filter::validator passes valid, holds last-good through a ru
 
 TEST_CASE("nexenne::filter::validator reset unprimes so next push is accepted unconditionally") {
   auto f{flt::validator{[](int const& x) { return x > 0; }, int{50}}};
-  static_cast<void>(f.push(10));
+  nexenne::utility::discard(f.push(10));
   f.reset();
   CHECK(f.value() == 0);        // value-initialised int
   CHECK(f.push(-100) == -100);  // unprimed again -> accepted unconditionally
@@ -283,8 +284,8 @@ TEST_CASE("nexenne::filter::majority corrects a single corrupted read out of thr
   auto f{flt::majority<int, 3>{}};
   CHECK(f.filled() == false);
   CHECK(f.value() == 0);
-  static_cast<void>(f.push(42));
-  static_cast<void>(f.push(42));
+  nexenne::utility::discard(f.push(42));
+  nexenne::utility::discard(f.push(42));
   CHECK(f.push(99) == 42);  // 2x42 vs 1x99 -> 42
   CHECK(f.filled() == true);
 }
@@ -299,12 +300,12 @@ TEST_CASE("nexenne::filter::majority fill transient resolves the running mode ea
 
 TEST_CASE("nexenne::filter::majority tracks a real shift once the window refills") {
   auto f{flt::majority<int, 3>{}};
-  static_cast<void>(f.push(10));
-  static_cast<void>(f.push(10));
-  static_cast<void>(f.push(10));
-  static_cast<void>(f.push(20));  // window 10,10,20 -> 10
+  nexenne::utility::discard(f.push(10));
+  nexenne::utility::discard(f.push(10));
+  nexenne::utility::discard(f.push(10));
+  nexenne::utility::discard(f.push(20));  // window 10,10,20 -> 10
   CHECK(f.value() == 10);
-  static_cast<void>(f.push(20));  // window 10,20,20 -> 20
+  nexenne::utility::discard(f.push(20));  // window 10,20,20 -> 20
   CHECK(f.value() == 20);
   CHECK(f.push(20) == 20);  // window 20,20,20 -> 20
 }
@@ -312,8 +313,8 @@ TEST_CASE("nexenne::filter::majority tracks a real shift once the window refills
 TEST_CASE("nexenne::filter::majority all-distinct window breaks ties toward the newest") {
   // N=3 with three different values: each appears once, recency wins.
   auto f{flt::majority<int, 3>{}};
-  static_cast<void>(f.push(1));
-  static_cast<void>(f.push(2));
+  nexenne::utility::discard(f.push(1));
+  nexenne::utility::discard(f.push(2));
   CHECK(f.push(3) == 3);  // 1,2,3 all count 1 -> newest (3)
 }
 
@@ -329,7 +330,7 @@ TEST_CASE("nexenne::filter::majority window size 1 always returns the latest sam
 TEST_CASE("nexenne::filter::majority all-equal window returns that value") {
   auto f{flt::majority<int, 5>{}};
   for (auto i{0}; i < 5; ++i) {
-    static_cast<void>(f.push(3));
+    nexenne::utility::discard(f.push(3));
   }
   CHECK(f.filled() == true);
   CHECK(f.value() == 3);
@@ -337,8 +338,8 @@ TEST_CASE("nexenne::filter::majority all-equal window returns that value") {
 
 TEST_CASE("nexenne::filter::majority bool default type votes a 3-window") {
   auto f{flt::majority<>{}};  // bool, N=3
-  static_cast<void>(f.push(true));
-  static_cast<void>(f.push(true));
+  nexenne::utility::discard(f.push(true));
+  nexenne::utility::discard(f.push(true));
   CHECK(f.push(false) == true);   // 2 true vs 1 false
   CHECK(f.push(false) == false);  // window true,false,false -> false
 }
@@ -363,21 +364,21 @@ TEST_CASE("nexenne::filter::majority tie-after-wrap: newest sample wins the even
 TEST_CASE("nexenne::filter::majority even window keeps a clear majority across a wrap") {
   // N=4: a clear (non-tie) majority must survive the wrap correctly.
   auto f{flt::majority<int, 4>{}};
-  static_cast<void>(f.push(1));
-  static_cast<void>(f.push(2));
-  static_cast<void>(f.push(2));
+  nexenne::utility::discard(f.push(1));
+  nexenne::utility::discard(f.push(2));
+  nexenne::utility::discard(f.push(2));
   CHECK(f.push(2) == 2);  // window 1,2,2,2 -> 2 (filled)
   // Wrap: next push overwrites the oldest slot (the 1).
-  CHECK(f.push(2) == 2);         // window 2,2,2,2 -> 2
-  static_cast<void>(f.push(5));  // window 2,2,2,5 -> 2
+  CHECK(f.push(2) == 2);                 // window 2,2,2,2 -> 2
+  nexenne::utility::discard(f.push(5));  // window 2,2,2,5 -> 2
   CHECK(f.value() == 2);
 }
 
 TEST_CASE("nexenne::filter::majority reset empties the buffer and clears value") {
   auto f{flt::majority<int, 3>{}};
-  static_cast<void>(f.push(1));
-  static_cast<void>(f.push(1));
-  static_cast<void>(f.push(1));
+  nexenne::utility::discard(f.push(1));
+  nexenne::utility::discard(f.push(1));
+  nexenne::utility::discard(f.push(1));
   CHECK(f.filled() == true);
   f.reset();
   CHECK(f.filled() == false);
@@ -394,10 +395,10 @@ TEST_CASE("nexenne::filter::stale_detector flags after exactly N identical sampl
   CHECK(f.push(42) == 42);  // streak 1
   CHECK(f.is_stale() == false);
   CHECK(f.streak() == 1);
-  static_cast<void>(f.push(42));  // streak 2
+  nexenne::utility::discard(f.push(42));  // streak 2
   CHECK(f.is_stale() == false);
   CHECK(f.streak() == 2);
-  static_cast<void>(f.push(42));  // streak 3 == N -> stale
+  nexenne::utility::discard(f.push(42));  // streak 3 == N -> stale
   CHECK(f.is_stale() == true);
   CHECK(f.streak() == 3);
 }
@@ -405,7 +406,7 @@ TEST_CASE("nexenne::filter::stale_detector flags after exactly N identical sampl
 TEST_CASE("nexenne::filter::stale_detector streak saturates at N and stays stale") {
   auto f{flt::stale_detector<int, 3>{}};
   for (auto i{0}; i < 6; ++i) {
-    static_cast<void>(f.push(1));
+    nexenne::utility::discard(f.push(1));
   }
   CHECK(f.is_stale() == true);
   CHECK(f.streak() == 3);  // capped at N, does not run away
@@ -413,9 +414,9 @@ TEST_CASE("nexenne::filter::stale_detector streak saturates at N and stays stale
 
 TEST_CASE("nexenne::filter::stale_detector a changed value clears staleness and resets streak") {
   auto f{flt::stale_detector<int, 3>{}};
-  static_cast<void>(f.push(1));
-  static_cast<void>(f.push(1));
-  static_cast<void>(f.push(1));
+  nexenne::utility::discard(f.push(1));
+  nexenne::utility::discard(f.push(1));
+  nexenne::utility::discard(f.push(1));
   CHECK(f.is_stale() == true);
   CHECK(f.push(2) == 2);  // fresh value
   CHECK(f.is_stale() == false);
@@ -443,9 +444,9 @@ TEST_CASE("nexenne::filter::stale_detector N == 1 is stale immediately on the fi
 
 TEST_CASE("nexenne::filter::stale_detector reset returns to the unprimed condition") {
   auto f{flt::stale_detector<int, 3>{}};
-  static_cast<void>(f.push(4));
-  static_cast<void>(f.push(4));
-  static_cast<void>(f.push(4));
+  nexenne::utility::discard(f.push(4));
+  nexenne::utility::discard(f.push(4));
+  nexenne::utility::discard(f.push(4));
   CHECK(f.is_stale() == true);
   f.reset();
   CHECK(f.is_stale() == false);
@@ -460,11 +461,11 @@ TEST_CASE("nexenne::filter::stale_detector reset returns to the unprimed conditi
 TEST_CASE("nexenne::filter::stale_detector double type with default N flags a frozen reading") {
   auto f{flt::stale_detector<double, 10>{}};
   for (auto i{0}; i < 9; ++i) {
-    static_cast<void>(f.push(1.5));
+    nexenne::utility::discard(f.push(1.5));
   }
   CHECK(f.is_stale() == false);  // one short of the threshold
   CHECK(f.streak() == 9);
-  static_cast<void>(f.push(1.5));
+  nexenne::utility::discard(f.push(1.5));
   CHECK(f.is_stale() == true);  // tenth identical sample -> stale
   CHECK(f.value() == doctest::Approx(1.5));
 }
@@ -472,7 +473,7 @@ TEST_CASE("nexenne::filter::stale_detector double type with default N flags a fr
 TEST_CASE("nexenne::filter::stale_detector alternating values never go stale") {
   auto f{flt::stale_detector<int, 3>{}};
   for (auto i{0}; i < 10; ++i) {
-    static_cast<void>(f.push(i % 2));
+    nexenne::utility::discard(f.push(i % 2));
     CHECK(f.is_stale() == false);
     CHECK(f.streak() == 1);
   }

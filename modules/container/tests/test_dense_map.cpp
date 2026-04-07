@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <nexenne/container/dense_map.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -126,7 +127,7 @@ TEST_CASE("nexenne::container::dense_map const iteration and mutable-to-const co
   map_t const& cm{m};
   int total{0};
   for (auto const [k, v] : cm) {
-    static_cast<void>(k);
+    nexenne::utility::discard(k);
     total += v;
   }
   CHECK(total == 30);
@@ -312,7 +313,7 @@ TEST_CASE("nexenne::container::dense_map iterator post-increment and default con
   CHECK((*copy).first != (*it).first);
   CHECK(++it == m.end());
   map_t::iterator const def{};  // default-constructed iterator is well-formed
-  static_cast<void>(def);
+  nexenne::utility::discard(def);
 }
 
 TEST_CASE("nexenne::container::dense_map self swap is a no-op") {

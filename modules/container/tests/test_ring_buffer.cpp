@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <nexenne/container/ring_buffer.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -25,8 +26,10 @@ static_assert(std::forward_iterator<rb::const_iterator>);
 TEST_CASE("nexenne::container::ring_buffer push_overwrite of the evicted element when full") {
   cn::ring_buffer<std::string, 2> r;
   std::string const oldest{"oldest string, long enough to live on the heap rather than SSO"};
-  static_cast<void>(r.push(oldest));
-  static_cast<void>(r.push("newer string, also heap allocated to avoid the small-string buffer"));
+  nexenne::utility::discard(r.push(oldest));
+  nexenne::utility::discard(
+    r.push("newer string, also heap allocated to avoid the small-string buffer")
+  );
   std::string const expected{*r.front()};  // the element about to be evicted
   r.push_overwrite(*r.front());            // aliases the evicted slot
   CHECK(*r.back() == expected);
@@ -418,7 +421,7 @@ TEST_CASE("nexenne::container::ring_buffer self-aliasing push_overwrite across a
   r.push("one string long enough to live on the heap and not be inlined by SSO");
   r.push("two string also long enough to dodge the small-string optimization here");
   r.push("three string likewise heap allocated for the same reason as the rest");
-  static_cast<void>(r.pop());  // head advances off zero so subsequent pushes wrap
+  nexenne::utility::discard(r.pop());  // head advances off zero so subsequent pushes wrap
   r.push("four string heap allocated to keep the buffer at capacity once more");
   // Now full with a non-zero head. push_overwrite a copy of the back, which
   // aliases a live slot while the oldest slot is evicted.
@@ -492,7 +495,7 @@ TEST_CASE("nexenne::container::ring_buffer copies and moves a wrapped std::strin
   a.push("first string long enough to truly live on the heap and not inline");
   a.push("second string equally long to escape the small-string optimization");
   a.push("third string also heap allocated to keep the element count honest");
-  static_cast<void>(a.pop());  // head moves off zero
+  nexenne::utility::discard(a.pop());  // head moves off zero
   a.push("fourth string heap allocated to refill the slot the pop just freed");
   // Logical order now [second, third, fourth] with a non-zero head.
 
@@ -605,7 +608,7 @@ TEST_CASE("nexenne::container::ring_buffer swap of two wrapped buffers preserves
   cn::ring_buffer<std::string, 3> a;
   a.push("a1 string long enough to be a genuine heap allocation in this test");
   a.push("a2 string also long enough to escape the small-string optimization");
-  static_cast<void>(a.pop());
+  nexenne::utility::discard(a.pop());
   a.push("a3 string heap allocated to leave a with a non-zero head after pop");
 
   cn::ring_buffer<std::string, 3> b;
@@ -653,7 +656,7 @@ static_assert([] {
   a.push(1);
   a.push(2);
   a.push(3);
-  static_cast<void>(a.pop());          // head off zero
+  nexenne::utility::discard(a.pop());  // head off zero
   a.push(4);                           // logical [2,3,4], non-zero head
   cn::ring_buffer<int, 3> const b{a};  // copy canonicalises head
   bool ok{b.size() == 3 && b[0] == 2 && b[1] == 3 && b[2] == 4};
