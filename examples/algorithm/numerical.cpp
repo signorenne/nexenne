@@ -23,6 +23,7 @@
 #include <nexenne/algorithm/numerical/numerical_error.hpp>
 #include <nexenne/algorithm/numerical/ode.hpp>
 #include <nexenne/algorithm/numerical/online_stats.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace alg = nexenne::algorithm;
 
@@ -120,8 +121,8 @@ auto main() -> int {
   // FFT round-trip: forward then inverse returns the original signal (to rounding).
   auto sig{std::vector<std::complex<double>>{{1, 0}, {2, 0}, {3, 0}, {4, 0}}};
   auto const original{sig};
-  static_cast<void>(alg::fft<double>(std::span<std::complex<double>>{sig}));
-  static_cast<void>(alg::ifft<double>(std::span<std::complex<double>>{sig}));
+  nexenne::utility::discard(alg::fft<double>(std::span<std::complex<double>>{sig}));
+  nexenne::utility::discard(alg::ifft<double>(std::span<std::complex<double>>{sig}));
   std::printf(
     "fft round-trip ok: %s\n",
     (std::abs(sig[0] - original[0]) < 1e-9 && std::abs(sig[3] - original[3]) < 1e-9) ? "yes" : "no"

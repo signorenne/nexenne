@@ -9,6 +9,7 @@
 #include <print>
 
 #include <nexenne/container/object_pool.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -32,7 +33,7 @@ auto main() -> int {
   std::println("spawned: {} live, full: {}", pool.size(), pool.full());
 
   if (b.has_value()) {
-    static_cast<void>(pool.destroy(*b));  // one dies, its slot recycles
+    nexenne::utility::discard(pool.destroy(*b));  // one dies, its slot recycles
   }
   std::println("one died: {} live", pool.size());
 
@@ -40,13 +41,13 @@ auto main() -> int {
   std::println("respawned: {} live, peak: {}", pool.size(), pool.high_water_mark());
 
   if (a.has_value()) {
-    static_cast<void>(pool.destroy(*a));
+    nexenne::utility::discard(pool.destroy(*a));
   }
   if (c.has_value()) {
-    static_cast<void>(pool.destroy(*c));
+    nexenne::utility::discard(pool.destroy(*c));
   }
   if (d.has_value()) {
-    static_cast<void>(pool.destroy(*d));
+    nexenne::utility::discard(pool.destroy(*d));
   }
   // spawned: 3 live, full: true
   // one died: 2 live

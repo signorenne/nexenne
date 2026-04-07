@@ -20,6 +20,7 @@
 #include <print>
 
 #include <nexenne/ecs/ecs.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace ecs = nexenne::ecs;
 
@@ -76,7 +77,7 @@ auto main() -> int {
       std::println("  [on_update] entity {} now tag {}", who.index(), n.tag);
     })
   };
-  static_cast<void>(update_log);
+  nexenne::utility::discard(update_log);
   reg.patch<name>(e, [](name& n) noexcept { n.tag += 100; });
 
   // 4. Destroy and generation safety. Capture the slot index, destroy the

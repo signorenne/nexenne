@@ -11,6 +11,7 @@
 #include <string>
 
 #include <nexenne/container/lru_cache.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -23,8 +24,8 @@ auto main() -> int {
   textures.put("grass.png", 1);
   textures.put("stone.png", 2);
 
-  static_cast<void>(textures.get("grass.png"));  // touch grass: it becomes MRU
-  textures.put("water.png", 3);                  // full: evicts LRU (stone)
+  nexenne::utility::discard(textures.get("grass.png"));  // touch grass: it becomes MRU
+  textures.put("water.png", 3);                          // full: evicts LRU (stone)
 
   std::println("resident: {}", textures.size());
   std::println("grass cached: {}", textures.contains("grass.png"));

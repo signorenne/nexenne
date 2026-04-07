@@ -24,6 +24,7 @@
 #include <vector>
 
 #include <nexenne/ecs/ecs.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace ecs = nexenne::ecs;
 
@@ -65,9 +66,9 @@ auto main() -> int {
       std::println("  destroy:   entity {} -{}  (total {})", e.index(), s.points, total);
     })
   };
-  static_cast<void>(on_add);
-  static_cast<void>(on_change);
-  static_cast<void>(on_remove);
+  nexenne::utility::discard(on_add);
+  nexenne::utility::discard(on_change);
+  nexenne::utility::discard(on_remove);
 
   auto const a{reg.create()};
   auto const b{reg.create()};
@@ -103,7 +104,7 @@ auto main() -> int {
   auto observer{reg.on_construct<score>().connect(
     [&spawned_log](ecs::entity_id const e, score const&) noexcept { spawned_log.push_back(e); }
   )};
-  static_cast<void>(observer);
+  nexenne::utility::discard(observer);
 
   for (int i{0}; i < 3; ++i) {
     auto const e{reg.create()};

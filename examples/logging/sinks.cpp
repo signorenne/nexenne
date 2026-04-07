@@ -28,6 +28,7 @@
 #include <nexenne/logging/multi_sink.hpp>
 #include <nexenne/logging/rotating_file_sink.hpp>
 #include <nexenne/logging/sink.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace lg = nexenne::logging;
 
@@ -143,9 +144,9 @@ auto main() -> int {
     }
   }
   // Tidy up the files this tour wrote so reruns start clean.
-  static_cast<void>(std::remove(base.c_str()));
-  static_cast<void>(std::remove((base + ".1").c_str()));
-  static_cast<void>(std::remove((base + ".2").c_str()));
+  nexenne::utility::discard(std::remove(base.c_str()));
+  nexenne::utility::discard(std::remove((base + ".1").c_str()));
+  nexenne::utility::discard(std::remove((base + ".2").c_str()));
   std::puts("  (rotated files cleaned up)");
   return 0;
 }
