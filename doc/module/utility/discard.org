@@ -1,0 +1,57 @@
+#+TITLE: discard
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::discard= evaluates its arguments and throws the results away,
+giving an explicit, greppable replacement for the C-style =(void)expr= and
+=static_cast<void>(expr)= idioms, which the style guide bans.
+
+* The idea
+
+Code sometimes needs to evaluate something only for its side effects, or to
+deliberately ignore a =[[nodiscard]]= return, or to mark a variable as
+intentionally touched. The traditional spelling is a void cast, which is a
+cast smell and easy to skim past. =discard= turns that into a named function
+call that reads as a verb: the intent is in the name, not hidden in a cast.
+
+* How it works
+
+=discard= is a single variadic function template,
+=template <typename... Ts> constexpr void discard(Ts&&...) noexcept {}=. Each
+argument is evaluated at the call site (so side effects happen and any exception
+thrown while computing an argument still propagates), bound to a forwarding
+reference, and then ignored because the body is empty. Passing a value as a
+function argument counts as a use, so a =[[nodiscard]]= result is consumed
+without a warning. It is =constexpr= and =noexcept=, and because the body does
+nothing the compiler inlines it to nothing.
+
+For a *named* declaration that may go unused, prefer the standard
+=[[maybe_unused]]= attribute on the declaration; =discard= is for an unnamed
+result or for marking an existing variable as deliberately used.
+
+* When to use it
+
+Reach for =discard= to drop a =[[nodiscard]]= return you genuinely do not need
+(=discard(resource.release())=), to keep a RAII variable alive while saying so
+out loud (=discard(connection)=), or to evaluate something purely for its side
+effect. Anywhere you would once have written =(void)x= or =static_cast<void>(x)=.
+
+Alternatives: =[[maybe_unused]]= on the declaration when the entity is named and
+simply might not be read; an actual use of the value when one exists.
+
+GOTCHAS. =discard= does not suppress evaluation, it forces it: every argument is
+computed. It is not a way to silence "this could be const" or similar lints, only
+to discard a value. Do not use it to discard a =volatile= read that must stay
+observable (for example a benchmark sink): binding to a reference does not
+perform the read.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto const guard{make_scope_guard()};
+nexenne::utility::discard(guard);              // kept alive on purpose
+
+nexenne::utility::discard(resource.release()); // drop a [[nodiscard]] result
+#+END_SRC
