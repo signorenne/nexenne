@@ -25,6 +25,7 @@
 #include <utility>
 
 #include <nexenne/container/flat_hash_map.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::container {
 
@@ -208,8 +209,8 @@ public:
     if (m_l_to_r.contains(left) || m_r_to_l.contains(right)) {
       return false;
     }
-    static_cast<void>(m_l_to_r.insert(left, right));
-    static_cast<void>(m_r_to_l.insert(std::move(right), std::move(left)));
+    nexenne::utility::discard(m_l_to_r.insert(left, right));
+    nexenne::utility::discard(m_r_to_l.insert(std::move(right), std::move(left)));
     return true;
   }
 
@@ -232,18 +233,18 @@ public:
     size_type displaced{0};
     // Evict the left side's old binding (and its reverse), if any.
     if (auto const* const old_right{m_l_to_r.find(left)}) {
-      static_cast<void>(m_r_to_l.erase(*old_right));
+      nexenne::utility::discard(m_r_to_l.erase(*old_right));
       ++displaced;
     }
     // Evict the right side's old binding (and its forward), if any.
     if (auto const* const old_left{m_r_to_l.find(right)}) {
-      static_cast<void>(m_l_to_r.erase(*old_left));
+      nexenne::utility::discard(m_l_to_r.erase(*old_left));
       ++displaced;
     }
     // insert_or_assign, not insert: a surviving same-side key must be overwritten
     // so the two maps stay in sync.
-    static_cast<void>(m_l_to_r.insert_or_assign(left, right));
-    static_cast<void>(m_r_to_l.insert_or_assign(std::move(right), std::move(left)));
+    nexenne::utility::discard(m_l_to_r.insert_or_assign(left, right));
+    nexenne::utility::discard(m_r_to_l.insert_or_assign(std::move(right), std::move(left)));
     return displaced;
   }
 
@@ -269,8 +270,8 @@ public:
     // first. e.g. erase_left(*find_by_right(r)) aliases the r_to_l entry.
     auto const right_key{*right};
     auto const left_key{left};
-    static_cast<void>(m_r_to_l.erase(right_key));
-    static_cast<void>(m_l_to_r.erase(left_key));
+    nexenne::utility::discard(m_r_to_l.erase(right_key));
+    nexenne::utility::discard(m_l_to_r.erase(left_key));
     return true;
   }
 
@@ -295,8 +296,8 @@ public:
     // aliases the l_to_r entry that the first erase would destroy.
     auto const left_key{*left};
     auto const right_key{right};
-    static_cast<void>(m_l_to_r.erase(left_key));
-    static_cast<void>(m_r_to_l.erase(right_key));
+    nexenne::utility::discard(m_l_to_r.erase(left_key));
+    nexenne::utility::discard(m_r_to_l.erase(right_key));
     return true;
   }
 

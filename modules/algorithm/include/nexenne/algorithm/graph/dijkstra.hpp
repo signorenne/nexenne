@@ -22,6 +22,7 @@
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/graph.hpp>
 #include <nexenne/container/indexed_priority_queue.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::algorithm {
 
@@ -138,7 +139,7 @@ template <
       if (candidate < distances[target]) {
         distances[target] = candidate;
         if (handles[target] != no_h) {
-          static_cast<void>(pq.update(handles[target], entry{edge.target, candidate}));
+          nexenne::utility::discard(pq.update(handles[target], entry{edge.target, candidate}));
         } else {
           handles[target] = pq.push(entry{edge.target, candidate});
         }

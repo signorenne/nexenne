@@ -39,6 +39,8 @@
 #include <utility>
 #include <vector>
 
+#include <nexenne/utility/discard.hpp>
+
 namespace nexenne::container {
 
 /**
@@ -633,7 +635,7 @@ public:
       return *existing;
     }
     // Insert a copy so key stays valid for the lookup of the new slot below.
-    static_cast<void>(insert(key, Value{}));
+    nexenne::utility::discard(insert(key, Value{}));
     return *find(key);
   }
 
