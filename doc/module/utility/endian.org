@@ -1,0 +1,58 @@
+#+TITLE: endian
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility= endian helpers read and write unsigned integers to byte
+spans in a fixed byte order: =write_be= / =read_be= for big-endian (network
+order) and =write_le= / =read_le= for little-endian. They are the building block
+for any wire format, file header, or hardware register layout.
+
+* The idea
+
+Serializers repeatedly hand-roll the same "shift the bytes out in the right
+order" (or "byteswap unless the host already matches") logic, once per codec.
+That logic is easy to get subtly wrong and clutters every encode/decode path.
+These four functions state the byte order in the name, take a fixed-extent span
+so the byte count is part of the type, and leave no temporary behind.
+
+* How it works
+
+Each function is a function template over an =std::unsigned_integral U=. The
+destination or source is an =std::span<std::byte, sizeof(U)>= (mutable for
+=write=, =const= for =read=): the static extent means the span is exactly the
+right size by construction, so there is no separate length argument and no way to
+under-run the buffer. =write_be= deduces =U= from the value; =read_be= takes =U=
+explicitly since there is no value to deduce from.
+
+The body is plain shifts and =std::to_integer=, which is portable (it does not
+branch on =std::endian::native=) and =constexpr=, so the helpers also run at
+compile time. At run time every compiler recognises the pattern and lowers it to
+a single load/store plus a =BSWAP= / =REV= when the host order differs, so the
+abstraction costs nothing.
+
+* When to use it
+
+Use these wherever bytes cross a boundary that fixes their order: a binary
+protocol, an on-disk format, a checksum over a canonical byte layout, or a
+memory-mapped peripheral register. Pick =_be= or =_le= to match the format you
+are speaking, not the host you are running on.
+
+Alternatives: =std::byteswap= alone when you already have the integer in the
+right place and only need to flip it; for the host's own order a plain copy is
+enough and no helper is needed.
+
+GOTCHAS. The span extent must equal =sizeof(U)= exactly, so a dynamic-extent
+span does not bind, take a fixed sub-span (=buf.first<4>()=) first. Only unsigned
+integer types are accepted; convert a signed value with a =static_cast= to its
+unsigned counterpart at the boundary, where the bit pattern is what matters.
+
+* Usage
+
+#+BEGIN_SRC cpp
+std::array<std::byte, 4> buf{};
+nexenne::utility::write_be(std::span{buf}, std::uint32_t{0x01020304});
+// buf == {0x01, 0x02, 0x03, 0x04}
+auto const value{nexenne::utility::read_be<std::uint32_t>(std::span{buf})};
+#+END_SRC
