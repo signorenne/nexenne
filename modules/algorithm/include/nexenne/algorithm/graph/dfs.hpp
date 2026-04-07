@@ -19,6 +19,7 @@
 #include <nexenne/container/bitset_dynamic.hpp>
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/graph.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::algorithm {
 
@@ -69,7 +70,7 @@ auto dfs(nexenne::container::graph<E, V> const& g, V const source, Visitor&& vis
     if (visited[u_idx]) {
       continue;
     }
-    static_cast<void>(visited.set(u_idx));
+    nexenne::utility::discard(visited.set(u_idx));
 
     if constexpr (std::is_same_v<std::invoke_result_t<Visitor&, V>, bool>) {
       if (!visit(u)) {

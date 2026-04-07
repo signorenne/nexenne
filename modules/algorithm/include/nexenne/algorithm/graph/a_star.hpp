@@ -26,6 +26,7 @@
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/graph.hpp>
 #include <nexenne/container/indexed_priority_queue.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::algorithm {
 
@@ -192,7 +193,7 @@ template <
         g_score[target_i] = tentative;
         auto const f{tentative + h_of(target)};
         if (handles[target_i] != no_h) {
-          static_cast<void>(pq.update(handles[target_i], entry{target, f}));
+          nexenne::utility::discard(pq.update(handles[target_i], entry{target, f}));
         } else {
           handles[target_i] = pq.push(entry{target, f});
         }

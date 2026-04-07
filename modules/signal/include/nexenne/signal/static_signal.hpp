@@ -48,6 +48,7 @@
 #include <nexenne/container/static_vector.hpp>
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/utility/defer.hpp>
+#include <nexenne/utility/discard.hpp>
 #include <nexenne/utility/in_place_function.hpp>
 
 namespace nexenne::signal {
@@ -295,7 +296,7 @@ public:
     if (m_owned.size() == Capacity) {
       return false;
     }
-    static_cast<void>(m_owned.push_back(static_scoped_connection{c}));
+    nexenne::utility::discard(m_owned.push_back(static_scoped_connection{c}));
     return true;
   }
 
@@ -489,7 +490,7 @@ public:
     requires std::invocable<Fn&, Args...>
   auto connect(Fn&& fn, static_slot<Capacity>& owner, int const priority = 0) -> static_connection {
     auto c{connect(std::forward<Fn>(fn), priority)};
-    static_cast<void>(owner.track(c));
+    nexenne::utility::discard(owner.track(c));
     return c;
   }
 
@@ -623,7 +624,7 @@ public:
         if (slot.once) {
           slot.alive = false;
         }
-        static_cast<void>(slot.invoke(args...));
+        slot.invoke(args...);
       }
     }
   }
@@ -727,7 +728,7 @@ private:
     auto const id{m_next_id++};
     auto entry{slot_entry{.id = id, .priority = priority, .alive = true, .once = once}};
     entry.fn_obj = slot_fn_type{std::forward<Fn>(fn)};
-    static_cast<void>(m_slots.push_back(std::move(entry)));
+    nexenne::utility::discard(m_slots.push_back(std::move(entry)));
     if (m_emit_depth > 0) {
       // Append only: the live prefix must not move while an emit iterates it.
       // The new slot sits past the captured length, so this emit skips it, and
@@ -791,7 +792,7 @@ private:
     for (auto i{pos}; i + 1 < m_slots.size(); ++i) {
       m_slots[i] = std::move(m_slots[i + 1]);
     }
-    static_cast<void>(m_slots.pop_back());
+    nexenne::utility::discard(m_slots.pop_back());
   }
 
   auto sweep_dead() noexcept -> void {
@@ -805,7 +806,7 @@ private:
       }
     }
     while (m_slots.size() > write) {
-      static_cast<void>(m_slots.pop_back());
+      nexenne::utility::discard(m_slots.pop_back());
     }
   }
 };

@@ -42,6 +42,7 @@
 #include <string_view>
 
 #include <nexenne/logging/sink.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::logging {
 
@@ -100,8 +101,8 @@ public:
    */
   ~json_sink() noexcept override {
     if (m_owns_file && m_file != nullptr) {
-      static_cast<void>(std::fflush(m_file));
-      static_cast<void>(std::fclose(m_file));
+      nexenne::utility::discard(std::fflush(m_file));
+      nexenne::utility::discard(std::fclose(m_file));
     }
   }
 
@@ -151,12 +152,12 @@ protected:
     line += R"("})";
     line += '\n';
 
-    static_cast<void>(std::fwrite(line.data(), 1, line.size(), m_file));
+    nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), m_file));
   }
 
   auto flush_out() noexcept -> void override {
     if (m_file != nullptr) {
-      static_cast<void>(std::fflush(m_file));
+      nexenne::utility::discard(std::fflush(m_file));
     }
   }
 
