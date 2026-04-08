@@ -1,0 +1,61 @@
+#+TITLE: buffer_cursor
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::buffer_cursor= tracks a read or write position within a byte
+span and answers bounds questions, bundling the "span plus offset plus is-there-
+room check" trio that every hand-rolled serializer or parser repeats.
+
+* The idea
+
+A codec almost always carries three things together: the buffer, how far into it
+it has got, and a check for whether the next N bytes are available. Spelled out
+by hand in every reader and writer, those three drift apart and the bounds check
+gets copy-pasted. =buffer_cursor= packages them into one small value so the
+position can never be read without its buffer and the room check is written once.
+
+* How it works
+
+The cursor stores an =std::span<Byte>= and a =std::size_t= offset, nothing more,
+so it is trivially copyable and owns no storage. Use a =const Byte= for a read
+cursor and a mutable =Byte= for a write cursor; a deduction guide picks =Byte=
+from a span of any extent. =remaining()= is =size() - position()=, and the single
+=has(n)= query answers both "are there =n= more bytes to read" and "do =n= more
+fit", because both reduce to =n <= remaining()=. =advance(n)= moves the offset,
+=retreat(n)= steps it back (for ungetting a peeked element), and =seek(pos)= jumps
+to an absolute one; =peek(n)= returns the next =n= bytes as a
+sub-span without moving and =take(n)= returns them and advances; =next()= reads a
+single element and advances, =put(b)= writes one and advances (write cursors
+only), and =consumed()= returns the prefix =[0, position())= already read or
+written. Every member is =constexpr= and trivial, so the cursor compiles away to
+the same index arithmetic you would have written by hand.
+
+* When to use it
+
+Use a =buffer_cursor= as the state of a byte-stream reader or writer: a binary
+decoder walking a packet, an encoder filling a buffer, a parser scanning a
+fixed-layout record. Query =has(n)= before reading or writing =n= bytes, then
+=take(n)= to consume them. It pairs naturally with the [[file:endian.org][endian]] helpers, which
+take the fixed-extent span that =take= hands back.
+
+Alternatives: a raw =std::span= and a loop when there is no running position to
+track; a full streaming abstraction when you also need growth, ownership, or
+backing-store management, which the cursor deliberately does not provide.
+
+GOTCHAS. The cursor borrows the span; the underlying bytes must outlive it. It
+does not enforce its own preconditions: =advance=, =peek=, and =take= assume
+=has(n)= is true, so check first (an over-run is undefined, exactly as with the
+hand-written code it replaces). =remaining()= underflows if the position is
+pushed past the end, so never advance beyond =size()=.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto cur{nexenne::utility::buffer_cursor{std::span{buf}}};
+while (cur.has(4)) {
+  auto const value{nexenne::utility::read_be<std::uint32_t>(cur.take(4).first<4>())};
+  consume(value);
+}
+#+END_SRC
