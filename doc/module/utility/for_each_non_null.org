@@ -1,0 +1,52 @@
+#+TITLE: for_each_non_null
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::for_each_non_null= applies a callable to the pointee of every
+element of a range that is not null, replacing the ubiquitous "iterate, skip the
+nulls, dereference the rest" loop over a container of pointer-like handles.
+
+* The idea
+
+Collections of optional handles are everywhere: a list of sinks, a slot table of
+=shared_ptr=, an array of raw back-pointers. Acting on them always means the same
+three-line dance: loop, test against =nullptr=, dereference. Written out at every
+call site the null check is easy to forget and the dereference is done by hand.
+This helper does the check once and hands the callback a guaranteed-live
+reference.
+
+* How it works
+
+=for_each_non_null= is a function template over an =std::ranges::input_range= and
+a callable. It iterates the range, compares each element to =nullptr=, and for
+the survivors calls =std::invoke(fn, *element)=, passing the *pointee* by
+reference, so the callback never sees a null and never dereferences. A
+=requires= clause checks that =fn(*element)= is well formed, so a mismatched
+callback fails with a clear error at the call. It works for any pointer-like
+element (raw pointer, =shared_ptr=, =unique_ptr=, =non_null=) and inlines to the
+same loop you would have written.
+
+* When to use it
+
+Use it to run an action over a container of optional handles: dispatch a record
+to every live sink, flush every open file, notify every connected observer.
+The callback takes the dereferenced element, so it reads as an operation on the
+thing rather than on the pointer.
+
+Alternatives: =range | std::views::filter(...)= when you want a lazy view to
+compose further rather than an eager action; a plain loop when you also need the
+index, the pointer itself, or early exit.
+
+GOTCHAS. The callback receives =*element=, not the pointer, so write
+=[](sink& s){ s.write(r); }=, not =s->write(r)=. The traversal is eager and runs
+to completion; it has no break, so use a plain loop when you need to stop early.
+Nulls are skipped silently, which is the point, but it means an all-null range
+simply calls nothing.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::utility::for_each_non_null(m_sinks, [&](auto& sink) { sink.write(r); });
+#+END_SRC
