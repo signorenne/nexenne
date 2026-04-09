@@ -55,6 +55,7 @@
 #include <nexenne/serialization/binary/reader.hpp>
 #include <nexenne/serialization/binary/writer.hpp>
 #include <nexenne/serialization/error.hpp>
+#include <nexenne/utility/endian.hpp>
 
 namespace nexenne::serialization {
 
@@ -86,25 +87,26 @@ concept versioned_decoder = requires(Codec const& c, binary::reader& r, std::uin
 namespace detail {
 
 inline auto store_le32(std::byte* const dst, std::uint32_t const v) noexcept -> void {
-  dst[0] = static_cast<std::byte>(v & 0xFF);
-  dst[1] = static_cast<std::byte>((v >> 8) & 0xFF);
-  dst[2] = static_cast<std::byte>((v >> 16) & 0xFF);
-  dst[3] = static_cast<std::byte>((v >> 24) & 0xFF);
+  nexenne::utility::write_le(
+    std::span<std::byte, sizeof(std::uint32_t)>{dst, sizeof(std::uint32_t)}, v
+  );
 }
 
 inline auto store_le16(std::byte* const dst, std::uint16_t const v) noexcept -> void {
-  dst[0] = static_cast<std::byte>(v & 0xFF);
-  dst[1] = static_cast<std::byte>((v >> 8) & 0xFF);
+  nexenne::utility::write_le(
+    std::span<std::byte, sizeof(std::uint16_t)>{dst, sizeof(std::uint16_t)}, v
+  );
 }
 
 inline auto load_le32(std::byte const* const src) noexcept -> std::uint32_t {
-  return static_cast<std::uint32_t>(src[0]) | (static_cast<std::uint32_t>(src[1]) << 8)
-         | (static_cast<std::uint32_t>(src[2]) << 16) | (static_cast<std::uint32_t>(src[3]) << 24);
+  return nexenne::utility::read_le<std::uint32_t>(
+    std::span<std::byte const, sizeof(std::uint32_t)>{src, sizeof(std::uint32_t)}
+  );
 }
 
 inline auto load_le16(std::byte const* const src) noexcept -> std::uint16_t {
-  return static_cast<std::uint16_t>(
-    static_cast<std::uint16_t>(src[0]) | (static_cast<std::uint16_t>(src[1]) << 8)
+  return nexenne::utility::read_le<std::uint16_t>(
+    std::span<std::byte const, sizeof(std::uint16_t)>{src, sizeof(std::uint16_t)}
   );
 }
 
