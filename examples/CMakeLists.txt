@@ -2,6 +2,7 @@
 # NEXENNE_BUILD_EXAMPLES is ON (default for a top-level build).
 add_subdirectory(utility)
 add_subdirectory(container)
+add_subdirectory(can)
 add_subdirectory(chrono)
 add_subdirectory(random)
 add_subdirectory(benchmark)
