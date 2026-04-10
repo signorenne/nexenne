@@ -240,10 +240,19 @@ TEST_CASE("nexenne::algorithm integer sorts match std::sort on a large random bu
   alg::radix_sort(std::span<std::uint32_t>{radixed});
   CHECK(radixed == ref);
 
+  // counting_sort allocates one bucket per value in [0, hi], so it suits only
+  // small key ranges; bound the keys here, since full uint32 keys would need
+  // billions of buckets and exhaust memory. radix_sort above covers the full
+  // range.
   auto counted{data0};
+  for (auto& v : counted) {
+    v %= 10'000u;
+  }
+  auto counted_ref{counted};
+  std::ranges::sort(counted_ref);
   auto const hi{*std::ranges::max_element(counted)};
   alg::counting_sort(std::span<std::uint32_t>{counted}, hi);
-  CHECK(counted == ref);
+  CHECK(counted == counted_ref);
 }
 
 TEST_CASE("nexenne::algorithm::counting_sort falls back instead of overflowing the bucket count") {
