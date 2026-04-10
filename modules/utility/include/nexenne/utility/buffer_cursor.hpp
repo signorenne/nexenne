@@ -195,14 +195,16 @@ public:
    *
    * Available only on a write cursor (a mutable \c Byte).
    *
+   * @tparam B Defaulted to \c Byte; present only to constrain this overload to a
+   *           mutable (write) cursor.
    * @param value Element to store.
    *
    * @pre \c has(1) is \c true.
    * @post \c position() has grown by one.
    */
-  constexpr auto put(std::remove_const_t<Byte> const value) noexcept -> void
-    requires(!std::is_const_v<Byte>)
-  {
+  template <typename B = Byte>
+    requires(!std::is_const_v<B>)
+  constexpr auto put(std::remove_const_t<Byte> const value) noexcept -> void {
     m_buf[m_pos] = value;
     ++m_pos;
   }
