@@ -14,6 +14,7 @@
  */
 
 #include <cstdint>
+#include <expected>
 #include <string_view>
 
 namespace nexenne::serialization {

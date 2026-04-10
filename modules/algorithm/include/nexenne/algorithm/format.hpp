@@ -12,6 +12,7 @@
  * callers pay for the dependency only when they include this header.
  */
 
+#include <expected>
 #include <format>
 #include <string_view>
 
