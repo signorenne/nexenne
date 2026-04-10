@@ -22,6 +22,7 @@ nexenne_add_module(can
         include/nexenne/can/can.hpp
         include/nexenne/can/dlc.hpp
         include/nexenne/can/error.hpp
+        include/nexenne/can/frame.hpp
         include/nexenne/can/id.hpp
 )
 

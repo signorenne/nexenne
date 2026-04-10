@@ -11,6 +11,7 @@
 
 #include <nexenne/can/dlc.hpp>
 #include <nexenne/can/error.hpp>
+#include <nexenne/can/frame.hpp>
 #include <nexenne/can/id.hpp>
 
 namespace nexenne::can {}
