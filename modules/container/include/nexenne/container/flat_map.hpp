@@ -266,7 +266,18 @@ public:
     );
   }
 
-  /// @copydoc lower_bound(Key const&)
+  /**
+   * @brief First entry whose key is not ordered before \p key.
+   *
+   * @param key Key to search for.
+   *
+   * @return A const_iterator to the first entry with key \c >= \p key, or \c end().
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
   [[nodiscard]] constexpr auto lower_bound(Key const& key) const noexcept -> const_iterator {
     return std::lower_bound(
       m_data.begin(),
@@ -338,7 +349,18 @@ public:
     );
   }
 
-  /// @copydoc upper_bound(Key const&)
+  /**
+   * @brief First entry whose key is ordered after \p key.
+   *
+   * @param key Key to search for.
+   *
+   * @return A const_iterator to the first entry with key \c > \p key, or \c end().
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
   [[nodiscard]] constexpr auto upper_bound(Key const& key) const noexcept -> const_iterator {
     return std::upper_bound(
       m_data.begin(),
@@ -368,7 +390,18 @@ public:
     return m_data.end();
   }
 
-  /// @copydoc find(Key const&)
+  /**
+   * @brief Locates the entry whose key equals \p key.
+   *
+   * @param key Key to search for.
+   *
+   * @return A const_iterator to the matching entry, or \c end() when absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
   [[nodiscard]] constexpr auto find(Key const& key) const noexcept -> const_iterator {
     auto const pos{lower_bound(key)};
     if (pos != m_data.end() && !m_cmp(key, pos->first)) {
@@ -507,7 +540,21 @@ public:
     return pos == m_data.end() ? nullptr : std::addressof(pos->second);
   }
 
-  /// @copydoc at(Key const&)
+  /**
+   * @brief Checked access to the value for \p key.
+   *
+   * Unlike \c std::map::at this never throws: it returns \c nullptr for a
+   * missing key.
+   *
+   * @param key Key whose value to access.
+   *
+   * @return A pointer to the const mapped value, or \c nullptr when \p key is absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
   [[nodiscard]] constexpr auto at(Key const& key) const noexcept -> Value const* {
     auto const pos{find(key)};
     return pos == m_data.end() ? nullptr : std::addressof(pos->second);
