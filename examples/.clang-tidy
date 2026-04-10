@@ -1,0 +1,24 @@
+# nexenne clang-tidy configuration for the examples (relaxed).
+#
+# Inherits the strict library .clang-tidy at the repo root and drops the
+# opinionated/style families: examples exist to read clearly, so the
+# cppcoreguidelines / hicpp / modernize / readability style checks are off here
+# (clang-format and STYLE_GUIDE.org own style). The real bug-finders
+# (bugprone / clang-analyzer / concurrency / cert / misc / performance /
+# portability) plus identifier naming and trailing-return-type stay on.
+
+InheritParentConfig: true
+
+Checks: >
+  -cppcoreguidelines-*,
+  -hicpp-*,
+  -modernize-*,
+  modernize-use-trailing-return-type,
+  -readability-*,
+  readability-identifier-naming,
+  -bugprone-exception-escape,
+  -bugprone-unused-return-value,
+  -bugprone-use-after-move,
+  -cert-err33-c,
+  -misc-no-recursion,
+  -performance-enum-size
