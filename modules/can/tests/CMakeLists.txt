@@ -1,4 +1,6 @@
 nexenne_add_module_tests(can
     SOURCES
         test_error.cpp
+        test_id.cpp
+        test_dlc.cpp
 )
