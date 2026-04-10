@@ -24,12 +24,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 
 #include <nexenne/serialization/error.hpp>
 #include <nexenne/serialization/json/value.hpp>
+#include <nexenne/utility/buffer_cursor.hpp>
 
 namespace nexenne::serialization::json {
 
@@ -71,7 +73,7 @@ namespace detail {
 class parser {
 public:
   parser(std::string_view const src, parse_options const opts) noexcept
-      : m_src{src}, m_opts{opts} {}
+      : m_cursor{std::span<char const>{src.data(), src.size()}}, m_opts{opts} {}
 
   [[nodiscard]] auto parse() -> std::expected<value, parse_error> {
     skip_ws();
@@ -80,7 +82,7 @@ public:
       return std::unexpected{v.error()};
     }
     skip_ws();
-    if (m_pos != m_src.size()) {
+    if (!m_cursor.exhausted()) {
       return std::unexpected{make_error(error::unexpected_character)};
     }
     if (m_bad_comment) {
@@ -90,19 +92,25 @@ public:
   }
 
 private:
-  std::string_view m_src{};
+  utility::buffer_cursor<char const> m_cursor;
   parse_options m_opts{};
-  std::size_t m_pos{0};
   std::size_t m_line{1};
   std::size_t m_col{1};
   bool m_bad_comment{false};  ///< Set when a block comment runs to EOF unterminated.
 
   [[nodiscard]] auto make_error(error const e) const noexcept -> parse_error {
-    return {.code = e, .offset = m_pos, .line = m_line, .column = m_col};
+    return {.code = e, .offset = m_cursor.position(), .line = m_line, .column = m_col};
+  }
+
+  // True when the source at the cursor begins with the keyword literal
+  // \p lit (e.g. "null"). Mirrors the old substr(pos, len) == lit test:
+  // a clamped substr can never equal lit unless len bytes remain.
+  [[nodiscard]] auto matches_literal(std::string_view const lit) const noexcept -> bool {
+    return m_cursor.has(lit.size()) && std::string_view{m_cursor.data(), lit.size()} == lit;
   }
 
   auto advance() noexcept -> char {
-    auto const c{m_src[m_pos++]};
+    auto const c{m_cursor.next()};
     if (c == '\n') {
       ++m_line;
       m_col = 1;
@@ -113,16 +121,16 @@ private:
   }
 
   auto skip_ws() noexcept -> void {
-    while (m_pos < m_src.size()) {
-      auto const c{m_src[m_pos]};
+    while (!m_cursor.exhausted()) {
+      auto const c{m_cursor.data()[0]};
       if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
         advance();
         continue;
       }
-      if (m_opts.allow_comments && c == '/' && m_pos + 1 < m_src.size()) {
-        auto const c2{m_src[m_pos + 1]};
+      if (m_opts.allow_comments && c == '/' && m_cursor.has(2)) {
+        auto const c2{m_cursor.data()[1]};
         if (c2 == '/') {
-          while (m_pos < m_src.size() && m_src[m_pos] != '\n') {
+          while (!m_cursor.exhausted() && m_cursor.data()[0] != '\n') {
             advance();
           }
           continue;
@@ -130,16 +138,16 @@ private:
         if (c2 == '*') {
           advance();
           advance();
-          while (m_pos + 1 < m_src.size() && !(m_src[m_pos] == '*' && m_src[m_pos + 1] == '/')) {
+          while (m_cursor.has(2) && !(m_cursor.data()[0] == '*' && m_cursor.data()[1] == '/')) {
             advance();
           }
-          if (m_pos + 1 < m_src.size()) {
+          if (m_cursor.has(2)) {
             advance();
             advance();
           } else {
             // Unterminated block comment: consume the rest and flag it so the
             // top-level parse rejects the input instead of silently accepting.
-            m_pos = m_src.size();
+            m_cursor.seek(m_cursor.size());
             m_bad_comment = true;
           }
           continue;
@@ -154,10 +162,10 @@ private:
       return std::unexpected{make_error(error::depth_limit_exceeded)};
     }
     skip_ws();
-    if (m_pos >= m_src.size()) {
+    if (m_cursor.exhausted()) {
       return std::unexpected{make_error(error::unexpected_end)};
     }
-    auto const c{m_src[m_pos]};
+    auto const c{m_cursor.data()[0]};
     switch (c) {
       case '{':
         return parse_object(depth + 1);
@@ -192,7 +200,7 @@ private:
   }
 
   [[nodiscard]] auto parse_null() -> std::expected<value, parse_error> {
-    if (m_src.substr(m_pos, 4) != "null") {
+    if (!matches_literal("null")) {
       return std::unexpected{make_error(error::unexpected_character)};
     }
     for (auto i{0}; i < 4; ++i)
@@ -201,12 +209,12 @@ private:
   }
 
   [[nodiscard]] auto parse_bool() -> std::expected<value, parse_error> {
-    if (m_src.substr(m_pos, 4) == "true") {
+    if (matches_literal("true")) {
       for (auto i{0}; i < 4; ++i)
         advance();
       return value{true};
     }
-    if (m_src.substr(m_pos, 5) == "false") {
+    if (matches_literal("false")) {
       for (auto i{0}; i < 5; ++i)
         advance();
       return value{false};
@@ -215,17 +223,17 @@ private:
   }
 
   [[nodiscard]] auto parse_number() -> std::expected<value, parse_error> {
-    auto const start{m_pos};
+    auto const start{m_cursor.position()};
     auto const is_digit{[this] {
-      return m_pos < m_src.size() && m_src[m_pos] >= '0' && m_src[m_pos] <= '9';
+      return !m_cursor.exhausted() && m_cursor.data()[0] >= '0' && m_cursor.data()[0] <= '9';
     }};
-    if (m_src[m_pos] == '-')
+    if (m_cursor.data()[0] == '-')
       advance();
     // Integer part (RFC 8259): a single 0, or [1-9][0-9]*. No leading zeros.
     if (!is_digit()) {
       return std::unexpected{make_error(error::invalid_number)};
     }
-    if (m_src[m_pos] == '0') {
+    if (m_cursor.data()[0] == '0') {
       advance();
       if (is_digit()) {  // a leading zero like "01"
         return std::unexpected{make_error(error::invalid_number)};
@@ -235,7 +243,7 @@ private:
         advance();
     }
     auto is_float{false};
-    if (m_pos < m_src.size() && m_src[m_pos] == '.') {
+    if (!m_cursor.exhausted() && m_cursor.data()[0] == '.') {
       is_float = true;
       advance();
       if (!is_digit()) {  // a fraction needs at least one digit, e.g. "1." is invalid
@@ -244,10 +252,10 @@ private:
       while (is_digit())
         advance();
     }
-    if (m_pos < m_src.size() && (m_src[m_pos] == 'e' || m_src[m_pos] == 'E')) {
+    if (!m_cursor.exhausted() && (m_cursor.data()[0] == 'e' || m_cursor.data()[0] == 'E')) {
       is_float = true;
       advance();
-      if (m_pos < m_src.size() && (m_src[m_pos] == '+' || m_src[m_pos] == '-')) {
+      if (!m_cursor.exhausted() && (m_cursor.data()[0] == '+' || m_cursor.data()[0] == '-')) {
         advance();
       }
       if (!is_digit()) {  // an exponent needs at least one digit, e.g. "1e" is invalid
@@ -256,7 +264,8 @@ private:
       while (is_digit())
         advance();
     }
-    auto const text{m_src.substr(start, m_pos - start)};
+    auto const text{std::string_view{m_cursor.buffer().data() + start, m_cursor.position() - start}
+    };
     if (is_float) {
       auto out{0.0};
       auto const r{std::from_chars(text.data(), text.data() + text.size(), out)};
@@ -284,21 +293,21 @@ private:
   }
 
   [[nodiscard]] auto parse_string() -> std::expected<std::string, parse_error> {
-    if (m_src[m_pos] != '"') {
+    if (m_cursor.data()[0] != '"') {
       return std::unexpected{make_error(error::unexpected_character)};
     }
     advance();
     auto out{std::string{}};
     out.reserve(16);
-    while (m_pos < m_src.size()) {
-      auto const c{m_src[m_pos]};
+    while (!m_cursor.exhausted()) {
+      auto const c{m_cursor.data()[0]};
       if (c == '"') {
         advance();
         return out;
       }
       if (c == '\\') {
         advance();
-        if (m_pos >= m_src.size()) {
+        if (m_cursor.exhausted()) {
           return std::unexpected{make_error(error::invalid_escape)};
         }
         auto const esc{advance()};
@@ -328,7 +337,7 @@ private:
             out.push_back('\t');
             break;
           case 'u': {
-            if (m_pos + 4 > m_src.size()) {
+            if (!m_cursor.has(4)) {
               return std::unexpected{make_error(error::invalid_escape)};
             }
             auto cp{std::uint32_t{0}};
@@ -346,7 +355,7 @@ private:
             }
             // Surrogate-pair handling for non-BMP code points.
             if (cp >= 0xD800 && cp <= 0xDBFF) {
-              if (m_pos + 6 > m_src.size() || m_src[m_pos] != '\\' || m_src[m_pos + 1] != 'u') {
+              if (!m_cursor.has(6) || m_cursor.data()[0] != '\\' || m_cursor.data()[1] != 'u') {
                 return std::unexpected{make_error(error::invalid_escape)};
               }
               advance();
@@ -409,7 +418,7 @@ private:
     advance();  // '['
     array arr{};
     skip_ws();
-    if (m_pos < m_src.size() && m_src[m_pos] == ']') {
+    if (!m_cursor.exhausted() && m_cursor.data()[0] == ']') {
       advance();
       return value{std::move(arr)};
     }
@@ -419,19 +428,19 @@ private:
         return std::unexpected{elem.error()};
       arr.push_back(std::move(*elem));
       skip_ws();
-      if (m_pos >= m_src.size()) {
+      if (m_cursor.exhausted()) {
         return std::unexpected{make_error(error::unexpected_end)};
       }
-      if (m_src[m_pos] == ',') {
+      if (m_cursor.data()[0] == ',') {
         advance();
         skip_ws();
-        if (m_opts.allow_trailing_commas && m_pos < m_src.size() && m_src[m_pos] == ']') {
+        if (m_opts.allow_trailing_commas && !m_cursor.exhausted() && m_cursor.data()[0] == ']') {
           advance();
           return value{std::move(arr)};
         }
         continue;
       }
-      if (m_src[m_pos] == ']') {
+      if (m_cursor.data()[0] == ']') {
         advance();
         return value{std::move(arr)};
       }
@@ -443,20 +452,20 @@ private:
     advance();  // '{'
     object obj{};
     skip_ws();
-    if (m_pos < m_src.size() && m_src[m_pos] == '}') {
+    if (!m_cursor.exhausted() && m_cursor.data()[0] == '}') {
       advance();
       return value{std::move(obj)};
     }
     while (true) {
       skip_ws();
-      if (m_pos >= m_src.size() || m_src[m_pos] != '"') {
+      if (m_cursor.exhausted() || m_cursor.data()[0] != '"') {
         return std::unexpected{make_error(error::unexpected_character)};
       }
       auto key{parse_string()};
       if (!key)
         return std::unexpected{key.error()};
       skip_ws();
-      if (m_pos >= m_src.size() || m_src[m_pos] != ':') {
+      if (m_cursor.exhausted() || m_cursor.data()[0] != ':') {
         return std::unexpected{make_error(error::unexpected_character)};
       }
       advance();
@@ -468,19 +477,19 @@ private:
         return std::unexpected{make_error(error::duplicate_key)};
       }
       skip_ws();
-      if (m_pos >= m_src.size()) {
+      if (m_cursor.exhausted()) {
         return std::unexpected{make_error(error::unexpected_end)};
       }
-      if (m_src[m_pos] == ',') {
+      if (m_cursor.data()[0] == ',') {
         advance();
         skip_ws();
-        if (m_opts.allow_trailing_commas && m_pos < m_src.size() && m_src[m_pos] == '}') {
+        if (m_opts.allow_trailing_commas && !m_cursor.exhausted() && m_cursor.data()[0] == '}') {
           advance();
           return value{std::move(obj)};
         }
         continue;
       }
-      if (m_src[m_pos] == '}') {
+      if (m_cursor.data()[0] == '}') {
         advance();
         return value{std::move(obj)};
       }
