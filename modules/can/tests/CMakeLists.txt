@@ -3,4 +3,5 @@ nexenne_add_module_tests(can
         test_error.cpp
         test_id.cpp
         test_dlc.cpp
+        test_frame.cpp
 )
