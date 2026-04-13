@@ -1,0 +1,128 @@
+name: release pr
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: "Release target"
+        required: true
+        default: snapshot
+        type: choice
+        options: [snapshot, module]
+      module:
+        description: "Module name for module releases"
+        required: false
+        type: string
+      version:
+        description: "Stable X.Y.Z version override"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: prepare release PR
+    if: "${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'chore(release): prepare') }}"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.NEXENNE_RELEASE_BOT_TOKEN || github.token }}
+
+      - uses: taiki-e/install-action@git-cliff
+
+      - name: Prepare release files
+        id: prep
+        run: |
+          set -euo pipefail
+
+          kind="${{ github.event.inputs.kind || 'snapshot' }}"
+          module="${{ github.event.inputs.module || '' }}"
+          version="${{ github.event.inputs.version || '' }}"
+
+          args=(--kind "$kind")
+          if [ -n "$module" ]; then
+            args+=(--module "$module")
+          fi
+          if [ -n "$version" ]; then
+            args+=("$version")
+          fi
+
+          scripts/prepare_release.sh "${args[@]}"
+
+          if git diff --quiet -- cmake/nexenne_version.cmake CHANGELOG.org; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$kind" = "module" ]; then
+            if [ -z "$module" ]; then
+              echo "module release requires a module input" >&2
+              exit 2
+            fi
+            upper="$(printf '%s\n' "$module" | tr '[:lower:]-' '[:upper:]_')"
+            var="NEXENNE_MODULE_${upper}_VERSION"
+            prepared_version="$(sed -n "s/^set(${var}[[:space:]]*\"\\([^\"]*\\)\")$/\\1/p" cmake/nexenne_version.cmake)"
+            tag="nexenne-${module}-v${prepared_version}"
+            branch="release/${tag}"
+            title="chore(release): prepare ${tag}"
+          else
+            prepared_version="$(sed -n 's/^set(NEXENNE_VERSION[[:space:]]*"\([^"]*\)")$/\1/p' cmake/nexenne_version.cmake)"
+            tag="v${prepared_version}"
+            branch="release/${tag}"
+            title="chore(release): prepare ${tag}"
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          echo "module=$module" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update release PR
+        if: steps.prep.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.NEXENNE_RELEASE_BOT_TOKEN || github.token }}
+          BRANCH: ${{ steps.prep.outputs.branch }}
+          TAG: ${{ steps.prep.outputs.tag }}
+          TITLE: ${{ steps.prep.outputs.title }}
+          KIND: ${{ steps.prep.outputs.kind }}
+          MODULE: ${{ steps.prep.outputs.module }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "nexenne-release-bot"
+          git config user.email "nexenne-release-bot@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add cmake/nexenne_version.cmake CHANGELOG.org
+          git commit -m "$TITLE"
+          git push --force-with-lease origin "$BRANCH"
+
+          body="$(mktemp)"
+          {
+            echo "Automated release preparation for \`$TAG\`."
+            echo
+            echo "- Kind: \`$KIND\`"
+            if [ -n "$MODULE" ]; then
+              echo "- Module: \`$MODULE\`"
+            fi
+            echo "- Updates: \`cmake/nexenne_version.cmake\`, \`CHANGELOG.org\`"
+          } > "$body"
+
+          if gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh pr edit "$BRANCH" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$body"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
+              --title "$TITLE" --body-file "$body"
+          fi

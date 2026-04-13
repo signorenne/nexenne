@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.23)
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/nexenne_version.cmake")
+
 project(nexenne
-    VERSION      0.1.0
+    VERSION      ${NEXENNE_VERSION}
     DESCRIPTION  "Nexenne: modular C++23 libraries"
     HOMEPAGE_URL "https://github.com/signorenne/nexenne"
     LANGUAGES    CXX
@@ -97,6 +99,12 @@ if(NEXENNE_INSTALL AND _enabled_modules)
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nexenne
     )
     set(_nexenne_components "${_enabled_modules}")
+    set(_nexenne_component_versions "")
+    foreach(_module IN LISTS _enabled_modules)
+        nexenne_get_module_version("${_module}" _module_version)
+        string(APPEND _nexenne_component_versions
+            "set(nexenne_${_module}_VERSION \"${_module_version}\")\n")
+    endforeach()
     configure_package_config_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates/nexenne-config.cmake.in"
         "${CMAKE_CURRENT_BINARY_DIR}/nexenne-config.cmake"

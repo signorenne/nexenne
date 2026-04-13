@@ -13,7 +13,10 @@
 
 include(CMakeFindDependencyMacro)
 
+set(nexenne_VERSION "@PROJECT_VERSION@")
+set(nexenne_MODULES "@_nexenne_components@")
 set(_nexenne_known_components "@_nexenne_components@")
+@_nexenne_component_versions@
 
 set(_nexenne_requested ${nexenne_FIND_COMPONENTS})
 if(NOT _nexenne_requested)

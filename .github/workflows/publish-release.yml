@@ -1,0 +1,124 @@
+name: publish release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - cmake/nexenne_version.cmake
+      - CHANGELOG.org
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-release-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish stable release
+    if: "${{ contains(github.event.head_commit.message, 'chore(release): prepare') }}"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: taiki-e/install-action@git-cliff
+
+      - name: Resolve release metadata
+        id: meta
+        run: |
+          set -euo pipefail
+
+          changed="$(git diff "${{ github.event.before }}" "$GITHUB_SHA" -- cmake/nexenne_version.cmake \
+            | sed -n 's/^+set(\(NEXENNE[A-Z_]*VERSION\)[[:space:]]*"\([^"]*\)").*/\1 \2/p')"
+          count="$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)"
+          if [ "$count" -eq 1 ]; then
+            var="$(printf '%s\n' "$changed" | awk '{print $1}')"
+            version="$(printf '%s\n' "$changed" | awk '{print $2}')"
+          elif [ "$count" -eq 0 ]; then
+            tag="$(printf '%s\n' "${{ github.event.head_commit.message }}" \
+              | sed -n 's/^chore(release): prepare \(.*\)$/\1/p' | head -n 1)"
+            if printf '%s\n' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              var="NEXENNE_VERSION"
+              version="${tag#v}"
+            elif printf '%s\n' "$tag" | grep -Eq '^nexenne-[a-z][a-z0-9_]*-v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              module="$(printf '%s\n' "$tag" | sed -n 's/^nexenne-\([a-z][a-z0-9_]*\)-v[0-9].*$/\1/p')"
+              upper="$(printf '%s\n' "$module" | tr '[:lower:]-' '[:upper:]_')"
+              var="NEXENNE_MODULE_${upper}_VERSION"
+              version="${tag##*-v}"
+            else
+              echo "could not infer release tag from commit message" >&2
+              exit 1
+            fi
+            manifest_version="$(sed -n "s/^set(${var}[[:space:]]*\"\\([^\"]*\\)\")$/\\1/p" cmake/nexenne_version.cmake)"
+            if [ "$manifest_version" != "$version" ]; then
+              echo "$var is $manifest_version, expected $version from $tag" >&2
+              exit 1
+            fi
+          else
+            echo "expected exactly one version variable change, got $count" >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+
+          if ! printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "stable release version must be X.Y.Z: $version" >&2
+            exit 1
+          fi
+
+          if [ "$var" = "NEXENNE_VERSION" ]; then
+            kind="snapshot"
+            module=""
+            tag="v${version}"
+            package_args=()
+            cliff_args=(--tag-pattern '^v[0-9]+\.[0-9]+\.[0-9]+$' --ignore-tags '^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$')
+          else
+            kind="module"
+            module="$(printf '%s\n' "$var" | sed 's/^NEXENNE_MODULE_//; s/_VERSION$//' | tr '[:upper:]' '[:lower:]')"
+            tag="nexenne-${module}-v${version}"
+            package_args=(--module "$module")
+            cliff_args=(--tag-pattern "^nexenne-${module}-v[0-9]+\\.[0-9]+\\.[0-9]+$" --ignore-tags "^nexenne-${module}-v[0-9]+\\.[0-9]+\\.[0-9]+-rc\\.[0-9]+$" --include-path "modules/$module/**" --include-path "doc/module/$module/**" --include-path "examples/$module/**")
+          fi
+
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "$tag already exists; skipping publish" >&2
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          echo "module=$module" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          : > package-args.txt
+          if [ "${#package_args[@]}" -gt 0 ]; then
+            printf '%s\n' "${package_args[@]}" > package-args.txt
+          fi
+          printf '%s\n' "${cliff_args[@]}" > cliff-args.txt
+
+      - name: Build and package
+        if: steps.meta.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          package_args=()
+          if [ -s package-args.txt ]; then
+            mapfile -t package_args < package-args.txt
+          fi
+          scripts/package_release.sh "${package_args[@]}" "${{ steps.meta.outputs.version }}"
+
+      - name: Create release
+        if: steps.meta.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mapfile -t cliff_args < cliff-args.txt
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+          git-cliff --config cliff.toml --current "${cliff_args[@]}" --strip header --output release-notes.org
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "$TAG" --notes-file release-notes.org

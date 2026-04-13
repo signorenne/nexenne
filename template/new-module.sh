@@ -45,6 +45,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 template_dir="$script_dir/module"
 target_dir="$repo_root/modules/$name"
+version_file="$repo_root/cmake/nexenne_version.cmake"
 
 if [[ ! -d "$template_dir" ]]; then
     echo "error: template not found at $template_dir" >&2
@@ -68,6 +69,28 @@ done < <(find "$target_dir" -depth -name '__MODULE__*' -print0)
 find "$target_dir" -type f -print0 \
     | xargs -0 sed -i "s/__MODULE__/${name}/g"
 
+upper="$(printf '%s\n' "$name" | tr '[:lower:]-' '[:upper:]_')"
+if ! grep -q "NEXENNE_MODULE_${upper}_VERSION" "$version_file"; then
+    tmp_versions="$(mktemp)"
+    awk -v module="$name" -v var="NEXENNE_MODULE_${upper}_VERSION" '
+        /^set\(NEXENNE_KNOWN_MODULES/ {
+            in_modules = 1
+            print
+            next
+        }
+        in_modules && /^\)/ {
+            print "    " module
+            in_modules = 0
+        }
+        /^function\(nexenne_validate_stable_semver/ {
+            print "set(" var " \"0.1.0\")"
+            print ""
+        }
+        { print }
+    ' "$version_file" > "$tmp_versions"
+    mv "$tmp_versions" "$version_file"
+fi
+
 cat <<EOF
 created module nexenne::${name} at modules/${name}/
 
@@ -76,11 +99,12 @@ next steps:
      (delete the placeholder and add your real public API)
   2. update modules/${name}/CMakeLists.txt:
        - the DESCRIPTION string
-       - add inter-module deps via 'DEPENDS <name>' if needed
+       - add inter-module deps in modules/${name}/module.deps if needed
        - keep the HEADERS list in sync with files you add
   3. add real tests in modules/${name}/tests/
-  4. configure and verify:
+  4. review cmake/nexenne_version.cmake and adjust the module version if needed
+  5. configure and verify:
        cmake --preset dev
        cmake --build --preset dev
-       ctest --preset dev
+       cmake --build --preset dev --target nexenne_tests
 EOF

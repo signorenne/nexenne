@@ -3,11 +3,12 @@ include_guard(GLOBAL)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 include(GenerateExportHeader)
+include(nexenne_version)
 include(nexenne_modules)
 
 # nexenne_add_module(<name>
 #   [KIND <INTERFACE|STATIC|SHARED|OBJECT>]   default INTERFACE (header-only)
-#   [VERSION <ver>]                           default PROJECT_VERSION
+#   [VERSION <ver>]                           default module version manifest
 #   [HEADERS <file>...]                       public headers
 #   [SOURCES <file>...]                       required unless KIND is INTERFACE
 #   [LINK_PUBLIC  <lib>...]                   external libs, transitively exposed
@@ -38,12 +39,9 @@ function(nexenne_add_module name)
     endif()
 
     if(NOT NMOD_VERSION)
-        if(PROJECT_VERSION)
-            set(NMOD_VERSION "${PROJECT_VERSION}")
-        else()
-            set(NMOD_VERSION "0.0.0")
-        endif()
+        nexenne_get_module_version("${name}" NMOD_VERSION)
     endif()
+    string(REGEX REPLACE "^([0-9]+)\\..*$" "\\1" _nexenne_module_version_major "${NMOD_VERSION}")
 
     nexenne_read_module_deps("${CMAKE_CURRENT_SOURCE_DIR}" _deps)
 
@@ -61,7 +59,7 @@ function(nexenne_add_module name)
             VISIBILITY_INLINES_HIDDEN ON
             POSITION_INDEPENDENT_CODE ON
             VERSION                   ${NMOD_VERSION}
-            SOVERSION                 ${PROJECT_VERSION_MAJOR}
+            SOVERSION                 ${_nexenne_module_version_major}
         )
     endif()
 
@@ -119,7 +117,7 @@ function(nexenne_add_module name)
         nexenne_install_module(${name} "${_fileset}" "${NMOD_VERSION}" "${_deps}" "${NMOD_HEADERS}")
     endif()
 
-    message(STATUS "[nexenne] module: ${name} (${NMOD_KIND}; deps: ${_deps})")
+    message(STATUS "[nexenne] module: ${name} v${NMOD_VERSION} (${NMOD_KIND}; deps: ${_deps})")
 endfunction()
 
 # Install rules and package config for one module. Split out so the body of
@@ -152,6 +150,7 @@ function(nexenne_install_module name fileset version deps headers)
     )
 
     set(_module_name "${name}")
+    set(_module_version "${version}")
     set(_module_deps "")
     foreach(_dep IN LISTS deps)
         string(APPEND _module_deps "find_dependency(nexenne-${_dep} REQUIRED)\n")

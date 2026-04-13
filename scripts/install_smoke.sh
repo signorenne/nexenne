@@ -15,11 +15,14 @@ prefix="$(mktemp -d)"
 build="$(mktemp -d)"
 consumer_src="$(mktemp -d)"
 consumer_build="$(mktemp -d)"
+version_backup="$(mktemp)"
 created_module=0
+cp cmake/nexenne_version.cmake "$version_backup"
 
 cleanup() {
     [ "$created_module" = "1" ] && rm -rf "modules/$mod"
-    rm -rf "$prefix" "$build" "$consumer_src" "$consumer_build"
+    cp "$version_backup" cmake/nexenne_version.cmake
+    rm -rf "$prefix" "$build" "$consumer_src" "$consumer_build" "$version_backup"
 }
 trap cleanup EXIT
 
