@@ -17,14 +17,14 @@ Each =NEXENNE_*= toggle is a cache =option=. The first four and =NEXENNE_INSTALL
 default to ON only when nexenne is the top-level project (=PROJECT_IS_TOP_LEVEL=),
 so an embedded build stays quiet. =NEXENNE_WARNINGS_AS_ERRORS= is OFF by default.
 
-| option                       | default            | effect                                         |
-|------------------------------+--------------------+------------------------------------------------|
-| =NEXENNE_BUILD_TESTS=        | top-level          | build doctest suites and the =nexenne_tests= target |
-| =NEXENNE_BUILD_EXAMPLES=     | top-level          | build programs under =examples/=               |
-| =NEXENNE_BUILD_BENCHMARKS=   | top-level          | build =benchmarks/= (if that dir exists)       |
-| =NEXENNE_BUILD_DOCS=         | OFF                | generate Doxygen API docs, define =nexenne_docs= |
-| =NEXENNE_INSTALL=            | top-level          | generate install rules and package configs     |
-| =NEXENNE_WARNINGS_AS_ERRORS= | OFF                | add =-Werror= (or =/WX=) via =nexenne::warnings= |
+| option                       | default   | effect                                              |
+|------------------------------+-----------+-----------------------------------------------------|
+| =NEXENNE_BUILD_TESTS=        | top-level | build doctest suites and the =nexenne_tests= target |
+| =NEXENNE_BUILD_EXAMPLES=     | top-level | build programs under =examples/=                    |
+| =NEXENNE_BUILD_BENCHMARKS=   | top-level | build =benchmarks/= (if that dir exists)            |
+| =NEXENNE_BUILD_DOCS=         | OFF       | generate Doxygen API docs, define =nexenne_docs=    |
+| =NEXENNE_INSTALL=            | top-level | generate install rules and package configs          |
+| =NEXENNE_WARNINGS_AS_ERRORS= | OFF       | add =-Werror= (or =/WX=) via =nexenne::warnings=    |
 
 Two more options are defined by the helpers, not the root:
 =NEXENNE_FETCH_DOXYGEN_IF_MISSING= (default ON, see [[file:api-docs.org][API docs]])
@@ -42,12 +42,12 @@ From [[file:../../CMakePresets.json][CMakePresets.json]]. Configure with
 a hidden =base= preset that selects the Ninja generator and puts the build tree
 at =build/<presetName>=.
 
-| preset    | inherits | build type     | notes                                |
-|-----------+----------+----------------+--------------------------------------|
-| =dev=     | base     | Debug          | tests on, examples on                |
-| =release= | base     | RelWithDebInfo | tests off, examples off              |
-| =asan=    | dev      | Debug          | adds =-fsanitize=address,undefined=  |
-| =ci=      | dev      | Debug          | =NEXENNE_WARNINGS_AS_ERRORS=ON=       |
+| preset    | inherits | build type     | notes                               |
+|-----------+----------+----------------+-------------------------------------|
+| =dev=     | base     | Debug          | tests on, examples on               |
+| =release= | base     | RelWithDebInfo | tests off, examples off             |
+| =asan=    | dev      | Debug          | adds =-fsanitize=address,undefined= |
+| =ci=      | dev      | Debug          | =NEXENNE_WARNINGS_AS_ERRORS=ON=     |
 
 Build presets: =dev=, =release=, =asan=, =ci= (each tied to the matching
 configure preset), plus =tests= which configures with =dev= and builds the
