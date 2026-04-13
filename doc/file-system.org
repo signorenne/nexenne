@@ -1,0 +1,103 @@
+#+TITLE: File system layout
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+Owns where files belong in the repo and how to decide where new code goes. For
+build mechanics see [[file:setup/build-system.org][setup/build-system.org]] and
+[[file:setup/modules.org][setup/modules.org]]. For naming and C++ style see
+[[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]].
+
+* Top level
+
+#+BEGIN_SRC text
+nexenne/
+|-- README.org              project overview and quick start
+|-- VISION.org              project direction and non-goals
+|-- DESIGN.org              API and library design principles
+|-- AGENTS.org              agent working-memory floor
+|-- STYLE_GUIDE.org         C++ style and Doxygen mechanics
+|-- CONTRIBUTING.org        workflow, gates, commits
+|-- AI_DISCLAIMER.org       AI-assistance accountability policy
+|-- CHANGELOG.org           generated Conventional Commit changelog
+|-- CMakeLists.txt          root build and install rules
+|-- CMakePresets.json       dev, ci, asan, release presets
+|-- cliff.toml              git-cliff changelog and version-bump config
+|-- cmake/                  reusable CMake helpers and package templates
+|-- include/nexenne/        repo umbrella header
+|-- modules/<name>/         library modules
+|-- examples/<name>/        runnable usage examples
+|-- doc/                    docs map, setup docs, module guides
+|-- scripts/                local automation
+`-- template/               module scaffold and new-module guide
+#+END_SRC
+
+* Module layout
+
+#+BEGIN_SRC text
+modules/<name>/
+|-- CMakeLists.txt
+|-- module.deps
+|-- include/nexenne/<name>/
+|   |-- <name>.hpp
+|   `-- <topic>.hpp
+|-- src/
+|-- tests/
+|   |-- CMakeLists.txt
+|   `-- test_<topic>.cpp
+`-- doc/
+    |-- CMakeLists.txt
+    `-- Doxyfile.in
+#+END_SRC
+
+=src/= exists only for compiled modules. Header-only modules normally have no
+=src/= files. =module.deps= is omitted or empty only when the module has no
+nexenne module dependencies.
+
+* Docs layout
+
+#+BEGIN_SRC text
+doc/
+|-- README.org              role matrix, registry, docs ownership
+|-- glossary.org            canonical terms
+|-- writing.org             prose style and punctuation rules
+|-- file-system.org         where files go
+|-- architecture.org        repo-level architecture
+|-- dependencies.org        dependency policy
+|-- agent-workflows.org     reusable task workflows for agents
+|-- setup/                  build, test, CI, install, tools
+`-- module/<name>/          module index and component guides
+#+END_SRC
+
+Root hubs are for project-wide rules and direction. Setup docs are for
+infrastructure. Module docs are for user-facing library behavior.
+
+* Where new code goes
+
+| Work                    | Path                                              |
+|-------------------------+---------------------------------------------------|
+| New public component    | =modules/<mod>/include/nexenne/<mod>/<topic>.hpp= |
+| Module umbrella include | =modules/<mod>/include/nexenne/<mod>/<mod>.hpp=   |
+| Component tests         | =modules/<mod>/tests/test_<topic>.cpp=            |
+| Component example       | =examples/<mod>/<topic>.cpp=                      |
+| Component guide         | =doc/module/<mod>/<topic>.org=                    |
+| Module overview         | =doc/module/<mod>/README.org=                     |
+| Build helper            | =cmake/nexenne_<topic>.cmake=                     |
+| Local automation        | =scripts/<name>.sh=                               |
+| Module scaffold change  | =template/=                                       |
+| Setup or process docs   | =doc/setup/<topic>.org=                           |
+
+* Generated and local files
+
+=build/= trees, generated Doxygen HTML, installed test prefixes, and local
+compiler databases are generated artifacts. Do not document behavior by pointing
+to generated output; document the source file or command that creates it.
+
+* Decision rules
+
+- If code is public to consumers, it belongs under =modules/<mod>/include=.
+- If code only demonstrates public usage, it belongs under =examples/<mod>/=.
+- If code only tests behavior, it belongs under =modules/<mod>/tests/=.
+- If a helper is needed by several modules at runtime, consider =utility= only
+  when it has no higher-level domain meaning.
+- If a helper is needed only by CMake, keep it under =cmake/=.
+- If a concept is explained in two docs, pick one owner and link from the other.
