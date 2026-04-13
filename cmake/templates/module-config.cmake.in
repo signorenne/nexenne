@@ -8,6 +8,8 @@
 
 include(CMakeFindDependencyMacro)
 
+set(nexenne_@_module_name@_VERSION "@_module_version@")
+
 @_module_deps@
 
 include("${CMAKE_CURRENT_LIST_DIR}/nexenne-@_module_name@-targets.cmake")

@@ -4,8 +4,10 @@ cmake_minimum_required(VERSION 3.23)
 # the umbrella helpers and pull in any dependencies listed in module.deps.
 # Inside the monorepo build the root has already done this, so it is skipped.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/nexenne_version.cmake")
+    nexenne_get_module_version(serialization _nexenne_module_version)
     project(nexenne_serialization
-        VERSION     0.1.0
+        VERSION     ${_nexenne_module_version}
         DESCRIPTION "nexenne::serialization - JSON, CBOR, MessagePack, binary, COBS codecs"
         LANGUAGES   CXX
     )

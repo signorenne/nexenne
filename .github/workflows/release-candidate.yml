@@ -1,0 +1,116 @@
+name: release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: "Release target"
+        required: true
+        default: snapshot
+        type: choice
+        options: [snapshot, module]
+      module:
+        description: "Module name for module RCs"
+        required: false
+        type: string
+      version:
+        description: "X.Y.Z or X.Y.Z-rc.N; omitted auto-picks next RC for the manifest version"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-rc:
+    name: publish release candidate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: taiki-e/install-action@git-cliff
+
+      - name: Resolve RC metadata
+        id: meta
+        run: |
+          set -euo pipefail
+
+          kind="${{ github.event.inputs.kind }}"
+          module="${{ github.event.inputs.module || '' }}"
+          requested="${{ github.event.inputs.version || '' }}"
+
+          if [ "$kind" = "module" ]; then
+            if [ -z "$module" ] || [ ! -d "modules/$module" ]; then
+              echo "module RCs require a valid module input" >&2
+              exit 2
+            fi
+            upper="$(printf '%s\n' "$module" | tr '[:lower:]-' '[:upper:]_')"
+            var="NEXENNE_MODULE_${upper}_VERSION"
+            core="$(sed -n "s/^set(${var}[[:space:]]*\"\\([^\"]*\\)\")$/\\1/p" cmake/nexenne_version.cmake)"
+            tag_prefix="nexenne-${module}-v"
+            package_args=(--module "$module")
+            cliff_args=(--tag-pattern "^nexenne-${module}-v[0-9]+\\.[0-9]+\\.[0-9]+$" --ignore-tags "^nexenne-${module}-v[0-9]+\\.[0-9]+\\.[0-9]+-rc\\.[0-9]+$" --include-path "modules/$module/**" --include-path "doc/module/$module/**" --include-path "examples/$module/**")
+          else
+            core="$(sed -n 's/^set(NEXENNE_VERSION[[:space:]]*"\([^"]*\)")$/\1/p' cmake/nexenne_version.cmake)"
+            tag_prefix="v"
+            package_args=()
+            cliff_args=(--tag-pattern '^v[0-9]+\.[0-9]+\.[0-9]+$' --ignore-tags '^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$')
+          fi
+
+          if [ -n "$requested" ]; then
+            if ! printf '%s\n' "$requested" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$'; then
+              echo "version must be X.Y.Z or X.Y.Z-rc.N" >&2
+              exit 2
+            fi
+            version="$requested"
+            core="${requested%%-*}"
+          else
+            last_rc="$(git tag --list "${tag_prefix}${core}-rc.*" | sed -n "s/^${tag_prefix}${core}-rc\\.\\([0-9][0-9]*\\)$/\\1/p" | sort -n | tail -n 1)"
+            next_rc="$(( ${last_rc:-0} + 1 ))"
+            version="${core}-rc.${next_rc}"
+          fi
+
+          tag="${tag_prefix}${version}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "$tag already exists" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          : > package-args.txt
+          if [ "${#package_args[@]}" -gt 0 ]; then
+            printf '%s\n' "${package_args[@]}" > package-args.txt
+          fi
+          printf '%s\n' "${cliff_args[@]}" > cliff-args.txt
+
+      - name: Build and package
+        run: |
+          set -euo pipefail
+          package_args=()
+          if [ -s package-args.txt ]; then
+            mapfile -t package_args < package-args.txt
+          fi
+          cmake --preset ci
+          cmake --build --preset ci
+          cmake --build --preset ci --target nexenne_tests
+          scripts/package_release.sh "${package_args[@]}" "${{ steps.meta.outputs.version }}"
+
+      - name: Create prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mapfile -t cliff_args < cliff-args.txt
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+          git-cliff --config cliff.toml --current "${cliff_args[@]}" --strip header --output release-notes.org
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "$TAG" --notes-file release-notes.org --prerelease
