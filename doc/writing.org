@@ -1,0 +1,130 @@
+#+TITLE: Writing style
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+Owns prose style for nexenne docs, README text, release notes, issue text,
+examples, diagnostics, and comments. [[file:glossary.org][glossary.org]] owns terms.
+[[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]] owns C++ syntax and Doxygen mechanics.
+
+* Shape
+
+Write like a maintainer explaining the library to another engineer who wants to
+build, debug, or use it. Be direct, concrete, and specific. Avoid marketing
+language and vague praise.
+
+Good nexenne prose answers:
+
+- what the thing does,
+- when to use it,
+- what it costs,
+- what it does not do,
+- which file or command owns the next step.
+
+* Punctuation
+
+- No em dash or en dash characters in docs, comments, commits, or release text.
+  Use a comma, period, colon, parentheses, or a plain hyphen instead.
+- One sentence per idea when possible.
+- Prefer sentence case for headings.
+- Do not put trailing periods on short headings, table labels, or checklist
+  items. Body sentences keep their periods.
+- Use Org code markup for identifiers and commands: =cmake --preset dev=,
+  =nexenne::container=, =module.deps=.
+- Keep a commit subject to one concise sentence in =type(scope): description=
+  form, with no body. If a change cannot be described in one sentence, split it
+  into smaller commits rather than writing a wall of text.
+
+* Words to avoid
+
+Avoid words that sound impressive but do not carry engineering detail:
+
+- powered by,
+- intelligent,
+- smart,
+- seamless,
+- revolutionary,
+- blazing fast,
+- next-gen,
+- unlock,
+- empower,
+- leverage,
+- streamline,
+- enterprise-grade,
+- world-class,
+- best-in-class.
+
+Avoid minimizers:
+
+- simply,
+- just,
+- obviously,
+- basically.
+
+If something is simple, the reader can see it. If it is not simple, the word
+does not help.
+
+* Structure
+
+Lead with the problem, then the mechanism.
+
+Bad:
+
+#+BEGIN_QUOTE
+nexenne provides a powerful collection of next-generation containers.
+#+END_QUOTE
+
+Good:
+
+#+BEGIN_QUOTE
+=static_vector= gives fixed-capacity storage with vector-like indexing and no
+heap allocation.
+#+END_QUOTE
+
+For a guide, prefer:
+
+1. Purpose.
+2. The idea.
+3. When to use it.
+4. Gotchas or limits.
+5. Usage.
+6. Further reading when the technique is math-heavy or algorithmic.
+
+* Term consistency
+
+Use the glossary term every time. Do not alternate between "package",
+"library", and "module" when the thing is a nexenne module. Do not call
+=module.deps= a manifest in one doc and a dependency file in another.
+
+If the term is missing, add it to [[file:glossary.org][glossary.org]] or use a more
+ordinary word.
+
+* Honesty
+
+- Name limits directly.
+- Do not promise roadmap work in docs for code that does not exist.
+- Do not hide platform, compiler, allocation, exception, or determinism limits.
+- If a module is scaffolded but not fully documented, say so in the docs map.
+- Do not turn a test gap into a confident claim.
+
+* Comments and Doxygen
+
+Comments explain non-obvious intent, invariants, derivations, and references.
+They do not narrate syntax. Doxygen is part of the public API surface, so it
+uses the same plain language as the guides.
+
+For math-heavy code, include enough context for a reader to search the method:
+author, named identity, paper title, standard reference, or URL. Repeat the
+authoritative references in the guide's =Further reading= section.
+
+* Layout ownership in docs
+
+Borrowing the useful part of Goodboy's UI styling rule: structure is owned once.
+In docs, that means:
+
+- The docs map owns the registry.
+- A module README owns its component list.
+- A component guide owns its explanation.
+- Setup docs own infrastructure mechanics.
+
+Do not scatter the same list across several files. Put the canonical list in
+one owner and link to it.
