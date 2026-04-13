@@ -28,17 +28,20 @@ jobs:
 
       - name: Resolve release metadata
         id: meta
+        env:
+          BEFORE: ${{ github.event.before }}
+          HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
 
-          changed="$(git diff "${{ github.event.before }}" "$GITHUB_SHA" -- cmake/nexenne_version.cmake \
+          changed="$(git diff "$BEFORE" "$GITHUB_SHA" -- cmake/nexenne_version.cmake \
             | sed -n 's/^+set(\(NEXENNE[A-Z_]*VERSION\)[[:space:]]*"\([^"]*\)").*/\1 \2/p')"
           count="$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)"
           if [ "$count" -eq 1 ]; then
             var="$(printf '%s\n' "$changed" | awk '{print $1}')"
             version="$(printf '%s\n' "$changed" | awk '{print $2}')"
           elif [ "$count" -eq 0 ]; then
-            tag="$(printf '%s\n' "${{ github.event.head_commit.message }}" \
+            tag="$(printf '%s\n' "$HEAD_COMMIT_MSG" \
               | sed -n 's/^chore(release): prepare \(.*\)$/\1/p' | head -n 1)"
             if printf '%s\n' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
               var="NEXENNE_VERSION"

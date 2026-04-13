@@ -38,12 +38,16 @@ jobs:
 
       - name: Resolve RC metadata
         id: meta
+        env:
+          KIND_INPUT: ${{ github.event.inputs.kind }}
+          MODULE_INPUT: ${{ github.event.inputs.module }}
+          VERSION_INPUT: ${{ github.event.inputs.version }}
         run: |
           set -euo pipefail
 
-          kind="${{ github.event.inputs.kind }}"
-          module="${{ github.event.inputs.module || '' }}"
-          requested="${{ github.event.inputs.version || '' }}"
+          kind="$KIND_INPUT"
+          module="${MODULE_INPUT:-}"
+          requested="${VERSION_INPUT:-}"
 
           if [ "$kind" = "module" ]; then
             if [ -z "$module" ] || [ ! -d "modules/$module" ]; then
