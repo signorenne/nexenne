@@ -4,10 +4,10 @@
 
 Every module is header-only C++23, dependency-light, and picked individually,
 exposed as =nexenne::<name>= (both the CMake target and the namespace). A module
-names its dependencies in =module.deps=, and the build discovers and orders them
-automatically, so the set below grows as modules are ported. A module may only
-depend on modules below it in the layering, which keeps the bottom of the stack
-free-standing and the whole set acyclic.
+names its dependencies in =module.deps=, and the build discovers and orders
+them automatically. The set below is the public module catalogue. A module may
+only depend on modules below it in the layering, which keeps the bottom of the
+stack free-standing and the whole set acyclic.
 
 Follow a module to its own index, which lists, per class it provides, a guide
 (purpose, the idea, idiomatic usage) and a runnable example.
@@ -83,33 +83,35 @@ Follow a module to its own index, which lists, per class it provides, a guide
   =angle= and Q-format =fixed= types, transform and projection matrices,
   parametric curves, and geometric samplers. Generic over the scalar type and
   =constexpr= where the language allows.
+- =geometry= (needs =math=, =utility=) : geometric primitives and spatial
+  queries. The code module exists and currently exposes the shared
+  =geometry_error= / =result<T>= error foundation; its Org module index and
+  examples are the first known docs gap in [[file:../README.org][doc/README.org]].
 
 * Dependency layering
 
 A module may only use the modules below it; the build refuses a cycle.
 
 #+BEGIN_EXAMPLE
-  ecs            entity-component registry (needs signal and container)
+  ecs            entity-component registry (needs container, signal, utility)
+  benchmark      micro-benchmark runner (needs chrono and serialization)
+  geometry       geometric primitives and spatial queries (needs math and utility)
      |
      v
-  benchmark      micro-benchmark runner
-  serialization  JSON / CBOR / MessagePack / binary / COBS codecs
-  signal         signal/slot multicast callbacks
-  algorithm      search, hashing, sorting, string, numerical, graph algorithms
-  logging        leveled logging with sinks, async manager, and macros
+  algorithm      search, hashing, sorting, string, numerical, graph algorithms (needs container and utility)
+  logging        leveled logging with sinks, async manager, and macros (needs container and utility)
+  serialization  JSON / CBOR / MessagePack / binary / COBS codecs (needs container and utility)
+  signal         signal/slot multicast callbacks (needs container and utility)
+  math           vectors, matrices, quaternions (needs random and utility)
      |
      v
-  container      vectors, maps, sets, queues, trees, graphs
-  chrono         clock-templated timing primitives
+  container      vectors, maps, sets, queues, trees, graphs (needs utility)
+  chrono         clock-templated timing primitives (needs utility)
+  random         seedable RNG (needs utility)
+  filter         discrete-time digital filters (needs utility)
      |
      v
   utility        the foundation, no dependencies
-
-  math           vectors, matrices, quaternions (needs utility and random)
-     |
-     v
-  random         seedable RNG (independent, no dependencies)
-  filter         discrete-time digital filters (independent, no dependencies)
 #+END_EXAMPLE
 
 More modules join as they are ported, each declaring its place in the layering

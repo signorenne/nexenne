@@ -16,7 +16,7 @@ C++23 compiler and CMake with Ninja.
   for (the hidden =base= preset sets =Ninja=). Fast and parallel.
 - C++23 compilers : tested on [[https://gcc.gnu.org][GCC]] 15.2, with
   [[https://clang.llvm.org][Clang]] 18+ and MSVC 19.40+ supported. CI builds with
-  GCC 14 and Clang 18 (runner availability). See [[file:ci.org][CI]].
+  GCC 15 and Clang 19. See [[file:ci.org][CI]].
 - [[https://cmake.org/cmake/help/latest/module/FetchContent.html][FetchContent]] :
   the CMake module that pulls missing dependencies (doctest, optionally Doxygen)
   at configure time, so a fresh clone is self-contained.
@@ -34,7 +34,8 @@ C++23 compiler and CMake with Ninja.
   uses =clang-format-18=.
 - [[https://clang.llvm.org/extra/clang-tidy/][clang-tidy]] (minimum 18) : static
   analysis plus naming enforcement. Checks in
-  [[file:../../.clang-tidy][.clang-tidy]]; CI runs =run-clang-tidy-18=. See
+  [[file:../../.clang-tidy][.clang-tidy]]; CI runs =clang-tidy-19= and
+  =run-clang-tidy-19=. See
   [[file:conventions.org][Conventions]].
 - [[https://clang.llvm.org/docs/AddressSanitizer.html][AddressSanitizer]] +
   [[https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html][UBSan]] :

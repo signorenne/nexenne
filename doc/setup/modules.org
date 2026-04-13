@@ -3,11 +3,12 @@
 #+STARTUP: showall
 
 A module is a library =nexenne::<name>= whose API lives in namespace
-=nexenne::<name>=, header-only by default. The two shipped modules are
-=nexenne::utility= and =nexenne::container= (container depends on utility).
-Scaffold a new one with =./template/new-module.sh <name>=; the root
-[[file:../../CMakeLists.txt][build]] discovers it on the next configure with no
-edits to the root. Full author guide and PR checklist:
+=nexenne::<name>=, header-only by default. The current module catalogue and
+dependency layering live in [[file:../module/README.org][doc/module/README.org]];
+this file owns the build mechanics. Scaffold a new module with
+=./template/new-module.sh <name>=; the root [[file:../../CMakeLists.txt][build]]
+discovers it on the next configure with no edits to the root. Full author guide
+and PR checklist:
 [[file:../../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]].
 
 * Layout
@@ -65,12 +66,12 @@ no =DEPENDS= argument. External (non-nexenne) libraries go in =LINK_PUBLIC= or
 
 =KIND= on =nexenne_add_module= selects the library type:
 
-| KIND      | meaning                                                       |
-|-----------+---------------------------------------------------------------|
-| INTERFACE | header-only (default); cannot take SOURCES or LINK_PRIVATE     |
-| STATIC    | compiled static archive; requires SOURCES                     |
+| KIND      | meaning                                                                |
+|-----------+------------------------------------------------------------------------|
+| INTERFACE | header-only (default); cannot take SOURCES or LINK_PRIVATE             |
+| STATIC    | compiled static archive; requires SOURCES                              |
 | SHARED    | compiled shared lib; requires SOURCES; auto-generates an export header |
-| OBJECT    | object library; requires SOURCES                              |
+| OBJECT    | object library; requires SOURCES                                       |
 
 A SHARED module gets =include/nexenne/<name>/<name>_export.hpp= generated with
 the macro =NEXENNE_<NAME>_EXPORT=, plus hidden visibility and SOVERSION.

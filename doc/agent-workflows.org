@@ -1,0 +1,134 @@
+#+TITLE: Agent workflows
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+Owns reusable workflows for AI agents and human contributors doing multi-step
+work in nexenne. [[file:../AGENTS.org][AGENTS.org]] carries the short working-memory floor;
+this file carries the longer playbooks.
+
+* Common sequence
+
+Most non-trivial work follows this chain:
+
+1. /Scout/ : read the docs map, inspect the touched module, identify owners,
+   nearby examples, tests, and risks.
+2. /Plan/ : choose files, validation commands, and the smallest coherent scope.
+3. /Implement/ : edit code, tests, examples, docs, and CMake wiring together.
+4. /Review/ : inspect the diff for behavior, missing coverage, drift, and
+   commands that still need to run.
+
+Keep handoffs concrete: files touched, decisions made, open questions, commands
+run, and commands still needed.
+
+* Public component workflow
+
+Use this when adding or changing a public API inside an existing module.
+
+1. Load [[file:../AGENTS.org][AGENTS.org]], [[file:README.org][doc/README.org]],
+   [[file:file-system.org][file-system.org]], [[file:architecture.org][architecture.org]],
+   [[file:../DESIGN.org][DESIGN.org]], [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]], the module index, and
+   the component guide if one exists.
+2. Inspect similar components in the same module before inventing a new shape.
+3. Edit the header and Doxygen together.
+4. Update the module umbrella header and =nexenne_add_module(... HEADERS ...)=
+   list if a header was added or removed.
+5. Add or update doctest coverage under =modules/<mod>/tests/=.
+6. Add or update the example under =examples/<mod>/= and its CMake list.
+7. Update the Org guide and the module index.
+8. Run the narrow test binary first. Then run =nexenne_tests= under the relevant
+   preset before finishing.
+
+Exit criteria: public header, Doxygen, tests, example, guide, module index, and
+CMake wiring agree.
+
+* Bug fix workflow
+
+1. Reproduce the bug with the narrowest test or example.
+2. Add a failing doctest when the bug affects public behavior.
+3. Fix the implementation without weakening the test.
+4. Update docs only when the documented behavior changes or the previous docs
+   made the bug likely.
+5. Run the fixed test, then the module suite, then the wider target appropriate
+   to the risk.
+
+Golden rule: if a test fails because the code is wrong, fix the code.
+
+* New module workflow
+
+1. Read [[file:../VISION.org][VISION.org]], [[file:../DESIGN.org][DESIGN.org]],
+   [[file:setup/modules.org][setup/modules.org]], and
+   [[file:../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]].
+2. Run =./template/new-module.sh <name>=.
+3. Decide the dependency layer and write =module.deps=.
+4. Add the first public component with tests, example, and guide.
+5. Add =doc/module/<name>/README.org= and register it in
+   [[file:module/README.org][doc/module/README.org]]. Update
+   [[file:README.org][doc/README.org]] if the new module changes the role map or
+   known docs gaps.
+6. Add =examples/<name>/= and link it from =examples/CMakeLists.txt=.
+7. Run =cmake --preset dev= and =cmake --build --preset dev --target
+   nexenne_tests=.
+
+Do not land an empty module that has no documented public component unless the
+explicit task is scaffolding only.
+
+* Docs improvement workflow
+
+1. Identify the owner doc before editing. If two docs own the same fact, choose
+   one owner and turn the other into a pointer.
+2. Read [[file:writing.org][writing.org]] for prose, punctuation, and term rules.
+3. Keep hubs short. Move examples, edge cases, and reference material to spokes.
+4. Register new root or setup docs in [[file:README.org][doc/README.org]].
+5. Register module leaf docs in the module README.
+6. Preserve Org mode. Do not add Markdown docs.
+7. Run =git diff --check= before finishing.
+
+* Review workflow
+
+Review starts with findings, not summary. Check:
+
+- public behavior and edge cases,
+- missing tests or examples,
+- Doxygen and Org guide drift,
+- CMake lists and umbrella headers,
+- dependency-policy violations,
+- module layering,
+- stale docs or duplicated ownership,
+- validation commands that were skipped.
+
+When there are no findings, say so and name any residual risk.
+
+* Parallel work
+
+Parallel work is useful only when scopes do not touch the same owner files.
+Good candidates:
+
+- two independent module leaf guides,
+- tests in different modules,
+- examples that do not share =examples/CMakeLists.txt=,
+- scouting separate modules before one planner consolidates.
+
+Bad candidates:
+
+- two agents editing =doc/README.org=,
+- two agents editing the same module umbrella header,
+- one agent moving files while another edits includes,
+- parallel changes to root CMake or CI without one merge owner.
+
+Use separate git worktrees for true parallel implementation. One merge owner
+integrates results, resolves conflicts, runs the wider validation, and updates
+the docs map if ownership changed.
+
+* Handoff template
+
+#+BEGIN_EXAMPLE
+Goal:
+Files touched:
+Decisions:
+Open questions:
+Commands run:
+Commands still needed:
+Risks:
+#+END_EXAMPLE
+
+Short handoffs are fine when the task is small. Missing commands are not.
