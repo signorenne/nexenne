@@ -8,9 +8,7 @@
 2. Branch off =main=; never commit straight to it.
 3. New module: =./template/new-module.sh <name>=, then follow [[file:template/MODULE_GUIDE.org][MODULE_GUIDE.org]].
 4. Write to [[file:STYLE_GUIDE.org][STYLE_GUIDE.org]]; let =.clang-format= / =.clang-tidy= enforce it.
-5. Use [[file:doc/agent-workflows.org][doc/agent-workflows.org]] for multi-step tasks and
-   handoffs.
-6. The =ci= preset must be green before a PR:
+5. The =ci= preset must be green before a PR:
    =cmake --preset ci && cmake --build --preset ci --target nexenne_tests=.
 
 * Adding a component to a module
@@ -57,6 +55,13 @@ A PR merges only when every job is green:
 | =docs=        | Doxygen builds with no documentation errors       |
 | =install=     | install, then a consumer find_package()s a module |
 
+* Releases
+
+Release PRs are automated. The global =NEXENNE_VERSION= is a snapshot of the
+whole repo; each =NEXENNE_MODULE_<NAME>_VERSION= is the independent package/API
+version for one module. Maintainers use [[file:doc/setup/release.org][Release and versioning]] for stable
+releases, release candidates, artifacts, and rollback rules.
+
 * Commit messages
 
 Subject line is =type(scope): description=:
@@ -93,21 +98,9 @@ change per commit; one topic per PR.
 
 * AI code assistants
 
-Allowed, with full developer accountability for every line submitted. Start AI
-and human agent work from [[file:AGENTS.org][AGENTS.org]], then use the role matrix
-in [[file:doc/README.org][doc/README.org]] to load the right setup or module docs. See
-[[file:AI_DISCLAIMER.org][AI_DISCLAIMER.org]] for the accountability policy.
+Allowed, with full developer accountability for every line submitted. See
+[[file:AI_DISCLAIMER.org][AI_DISCLAIMER.org]].
 
 * Docs format
 
 All prose docs are Org mode (=.org=), never Markdown. Do not add =.md= files.
-Register new setup docs and root docs in [[file:doc/README.org][doc/README.org]];
-register module leaf docs in the owning module's =README.org=.
-Prose style, including the no-em-dash rule, lives in
-[[file:doc/writing.org][doc/writing.org]].
-
-* Dependencies
-
-Adding an external dependency requires the checklist in
-[[file:doc/dependencies.org][doc/dependencies.org]]. Inter-module dependencies belong
-only in =modules/<name>/module.deps=.

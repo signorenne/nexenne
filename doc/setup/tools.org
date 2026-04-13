@@ -25,16 +25,16 @@ C++23 compiler and CMake with Ninja.
 
 * Test and quality
 
-- [[https://github.com/doctest/doctest][doctest]] (=v2.4.11=, pinned via
-  =NEXENNE_DOCTEST_GIT_TAG=) : the unit-test framework, header-only and fetched
+- [[https://github.com/doctest/doctest][doctest]] (=2.4.12=, pinned via
+  =NEXENNE_DOCTEST_VERSION=) : the unit-test framework, header-only and fetched
   if not installed. See [[file:testing.org][Testing]].
 - [[https://clang.llvm.org/docs/ClangFormat.html][clang-format]] (minimum 18) :
   the formatter. Options are pinned explicitly in
   [[file:../../.clang-format][.clang-format]] for cross-version determinism. CI
   uses =clang-format-18=.
-- [[https://clang.llvm.org/extra/clang-tidy/][clang-tidy]] (minimum 18) : static
+- [[https://clang.llvm.org/extra/clang-tidy/][clang-tidy]] (minimum 19 in CI) : static
   analysis plus naming enforcement. Checks in
-  [[file:../../.clang-tidy][.clang-tidy]]; CI runs =clang-tidy-19= and
+  [[file:../../.clang-tidy][.clang-tidy]]; CI runs =clang-tidy-19= /
   =run-clang-tidy-19=. See
   [[file:conventions.org][Conventions]].
 - [[https://clang.llvm.org/docs/AddressSanitizer.html][AddressSanitizer]] +
@@ -44,7 +44,7 @@ C++23 compiler and CMake with Ninja.
 
 * Docs
 
-- [[https://www.doxygen.nl][Doxygen]] (fetches =Release_1_12_0= when missing and
+- [[https://www.doxygen.nl][Doxygen]] (=1.12.0= prebuilt Linux x86_64 archive when missing and
   =NEXENNE_FETCH_DOXYGEN_IF_MISSING=ON=) : API docs from header comments. See
   [[file:api-docs.org][API docs]].
 - [[https://orgmode.org][Org mode]] : the format for every prose doc in this repo
@@ -54,6 +54,8 @@ C++23 compiler and CMake with Ninja.
 
 - [[https://docs.github.com/actions][GitHub Actions]] : CI. Workflow in
   [[file:../../.github/workflows/ci.yml][.github/workflows/ci.yml]]; see [[file:ci.org][CI]].
+- [[https://git-cliff.org][git-cliff]] : Conventional Commit changelog and version bump helper for
+  release PRs; config in [[file:../../cliff.toml][cliff.toml]]. See [[file:release.org][Release and versioning]].
 - [[https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks][Git hooks]] : the
   local format and build/test gates in [[file:../../.githooks/][.githooks/]]; see
   [[file:hooks.org][Git hooks]].
@@ -67,4 +69,4 @@ C++23 compiler and CMake with Ninja.
 
 * See also
 
-[[file:build-system.org][Build system]], [[file:ci.org][CI]], [[file:conventions.org][Conventions]], [[file:README.org][setup index]].
+[[file:build-system.org][Build system]], [[file:ci.org][CI]], [[file:conventions.org][Conventions]], [[file:release.org][Release and versioning]], [[file:README.org][setup index]].

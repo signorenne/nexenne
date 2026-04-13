@@ -3,10 +3,10 @@
 #+STARTUP: showall
 
 Tests use [[https://github.com/doctest/doctest][doctest]]. The
-[[file:../../cmake/nexenne_testing.cmake][nexenne_testing.cmake]] helper tries
-=find_package(doctest CONFIG)= first and falls back to =FetchContent= of the tag
-in =NEXENNE_DOCTEST_GIT_TAG= (default =v2.4.11=) if no install is found, so a
-fresh clone needs nothing extra. There is no CTest integration:
+[[file:../../cmake/nexenne_testing.cmake][nexenne_testing.cmake]] helper fetches the
+hash-verified upstream release archive for =NEXENNE_DOCTEST_VERSION= (default
+=2.4.12=) when =doctest::doctest_with_main= is not already provided, so a fresh
+clone needs nothing extra. There is no CTest integration:
 =nexenne_add_module_tests= builds one doctest binary per module and attaches it
 to the aggregate =nexenne_tests= target.
 

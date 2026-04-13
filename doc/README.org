@@ -1,193 +1,33 @@
-#+TITLE: nexenne docs map
-#+SUBTITLE: role-based entry points and documentation ownership
-#+OPTIONS: toc:2 num:nil ^:nil
+#+TITLE: nexenne knowledge base
+#+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-Start here to find the right file for the work in front of you, then load only
-what the role and touched area require. Every doc has one job and one owner. If
-a concept lives in two places, one of them is stale: keep the floor in the hub
-and the full reference in the owning spoke.
+nexenne is a monorepo of small, focused, header-only C++23 libraries. Each is a
+/module/, exposed as the CMake target =nexenne::<name>= and the namespace
+=nexenne::<name>=, picked individually or all at once via =nexenne::all=.
 
-* Role to doc matrix
+This is the root of the documentation tree. It is layered: this page points at
+indexes, each index points at the next level, and the leaves are per-topic
+articles (one class guide, or one infrastructure topic). Reading top-down: go to
+/Modules/ to learn what the library offers and how to use a given class, or to
+/Setup and infrastructure/ to learn how the project is built, tested, and
+consumed. Start here.
 
-An =x= means "load this when working in that role". Load top to bottom, then
-pull module or component deep dives only when the task touches them.
+* Indexes
 
-| Doc                         | scout | planner | impl | review | module | onboard |
-|-----------------------------+-------+---------+------+--------+--------+---------|
-| [[file:../README.org][README.org]]                  |       |         |      |        |        | x       |
-| [[file:../VISION.org][VISION.org]]                  | x     | x       |      |        | x      | x       |
-| [[file:../DESIGN.org][DESIGN.org]]                  |       | x       | x    | x      | x      | x       |
-| [[file:../AGENTS.org][AGENTS.org]]                  | x     | x       | x    | x      | x      | x       |
-| [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]]             |       | x       | x    | x      | x      | x       |
-| [[file:../CONTRIBUTING.org][CONTRIBUTING.org]]            |       | x       | x    | x      | x      | x       |
-| [[file:../AI_DISCLAIMER.org][AI_DISCLAIMER.org]]           |       | x       | x    | x      | x      | x       |
-| [[file:README.org][doc/README.org]]              | x     | x       | x    | x      | x      | x       |
-| [[file:glossary.org][glossary.org]]                | x     | x       | x    | x      | x      | x       |
-| [[file:writing.org][writing.org]]                 |       | x       | x    | x      | x      | x       |
-| [[file:file-system.org][file-system.org]]             | x     | x       | x    | x      | x      | x       |
-| [[file:architecture.org][architecture.org]]            | x     | x       | x    | x      | x      | x       |
-| [[file:dependencies.org][dependencies.org]]            |       | x       | x    | x      | x      |         |
-| [[file:agent-workflows.org][agent-workflows.org]]         | x     | x       | x    | x      | x      |         |
-| [[file:module/README.org][module/README.org]]           | x     | x       | x    | x      | x      | x       |
-| =module/<name>/README.org=  | x     | x       | x    | x      | x      | x       |
-| =module/<name>/<topic>.org= |       |         | x    | x      | x      |         |
-| [[file:setup/README.org][setup/README.org]]            | x     | x       | x    | x      | x      | x       |
-| [[file:setup/build-system.org][setup/build-system.org]]      | x     | x       | x    | x      | x      | x       |
-| [[file:setup/modules.org][setup/modules.org]]           | x     | x       | x    | x      | x      | x       |
-| [[file:setup/cmake-helpers.org][setup/cmake-helpers.org]]     |       | x       | x    | x      | x      |         |
-| [[file:setup/testing.org][setup/testing.org]]           |       | x       | x    | x      | x      |         |
-| [[file:setup/api-docs.org][setup/api-docs.org]]          |       | x       | x    | x      | x      |         |
-| [[file:setup/hooks.org][setup/hooks.org]]             |       | x       | x    | x      | x      | x       |
-| [[file:setup/ci.org][setup/ci.org]]                |       | x       | x    | x      | x      | x       |
-| [[file:setup/install.org][setup/install.org]]           |       | x       |      | x      |        | x       |
-| [[file:setup/conventions.org][setup/conventions.org]]       |       | x       | x    | x      | x      | x       |
-| [[file:setup/tools.org][setup/tools.org]]             |       | x       | x    | x      | x      | x       |
-| [[file:../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]]   |       | x       | x    | x      | x      | x       |
+- [[file:module/README.org][Modules]] : every nexenne module, its purpose and where it sits in the
+  dependency layering; each module links on to a per-class guide and a runnable
+  example. Start here to find and learn a container or utility.
+- [[file:setup/README.org][Setup and infrastructure]] : the build system, module mechanics, tooling,
+  testing, CI, release automation, install, and conventions. Start here to build, extend, or
+  consume the project.
 
-Role names:
+* Top-level files
 
-- /scout/ maps the repo area and finds owners.
-- /planner/ decides scope, sequencing, commands, and risk.
-- /impl/ changes code, tests, examples, and docs.
-- /review/ checks behavior, maintainability, and missing coverage.
-- /module/ adds or reshapes a module.
-- /onboard/ learns how to build, use, and navigate the project.
-
-* Reference map
-
-The graph is hub and spoke, not a lateral web.
-
-- [[file:../AGENTS.org][AGENTS.org]] is the code hub. It holds the
-  working-memory floor for AI agents and humans: where work goes, execution
-  recipes, hard rules, validation commands, and review checklist.
-- [[file:../VISION.org][VISION.org]] owns project direction, principles, and
-  non-goals.
-- [[file:../DESIGN.org][DESIGN.org]] owns API and library surface design.
-- [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]] owns C++ style and public API
-  documentation mechanics. Other docs can quote a one-line floor and link back.
-- [[file:../CONTRIBUTING.org][CONTRIBUTING.org]] owns workflow, component-change
-  steps, commit subjects, hooks, CI, and PR gates.
-- [[file:glossary.org][glossary.org]] owns canonical terms.
-- [[file:writing.org][writing.org]] owns prose style, punctuation, and human-facing
-  text rules.
-- [[file:file-system.org][file-system.org]] owns where files go.
-- [[file:architecture.org][architecture.org]] owns the repo-level build and module
-  architecture.
-- [[file:dependencies.org][dependencies.org]] owns dependency policy.
-- [[file:agent-workflows.org][agent-workflows.org]] owns reusable multi-step task
-  playbooks for agents.
-- [[file:setup/README.org][setup/]] owns infrastructure deep dives: CMake,
-  modules, testing, install, API docs, hooks, CI, conventions, and tools.
-- [[file:module/README.org][module/]] owns the library catalogue. A module index
-  owns the public surface of that module. A component leaf owns the narrative
-  guide for one component or tightly grouped set of components.
-- [[file:../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]] owns the new-module
-  runbook and PR checklist.
-
-Hubs may restate a rule in one short line when an agent must keep it in memory.
-The explanation, examples, and edge cases live in the owning spoke. Spokes link
-to each other instead of copying paragraphs.
-
-* Guidelines for future additions
-
-- /Single source per concept./ One doc owns the fact. Everywhere else links to
-  that doc.
-- /Org mode only./ Prose docs use =.org=. Do not add =.md= docs.
-- /Naming./ Root hubs are uppercase words or established root names
-  (=AGENTS.org=, =STYLE_GUIDE.org=, =CONTRIBUTING.org=, =README.org=). Setup
-  topics use hyphen-case under =doc/setup/=. Module leaf docs follow the public
-  component name when it is one component (=static_vector.org=) and hyphen-case
-  when the guide covers a topic group (=string-matching.org=).
-- /Register new docs./ Root docs and setup docs are registered in this file.
-  Module leaves are registered in their module README. New modules are
-  registered in [[file:module/README.org][doc/module/README.org]].
-- /Header pointer./ Open each doc with a short statement of what it owns and
-  links to the related hub or next deep dive.
-- /Inline is floor, extract is reference./ Keep only the rule an agent must hold
-  in a hub. Put examples and edge cases in the owning spoke.
-- /Split threshold./ Split only when a doc is longer than one screen and has at
-  least three subtopics that can be loaded independently.
-- /Public API doc set./ A public component change normally touches the header
-  Doxygen, doctest suite, runnable example, Org guide, module README, and CMake
-  lists that enumerate those files.
-
-* Registry
-
-Every doc family, its purpose, and the roles that load it.
-
-** Root hubs
-
-| Doc               | Purpose                                           | Roles                                         |
-|-------------------+---------------------------------------------------+-----------------------------------------------|
-| [[file:../README.org][README.org]]        | Project overview, quick start, build, use, layout | onboard                                       |
-| [[file:../VISION.org][VISION.org]]        | Project direction, mission, principles, non-goals | scout, planner, module, onboard               |
-| [[file:../DESIGN.org][DESIGN.org]]        | API and library surface design principles         | planner, impl, review, module, onboard        |
-| [[file:../AGENTS.org][AGENTS.org]]        | Agent-facing code hub and working-memory floor    | scout, planner, impl, review, module, onboard |
-| [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]]   | C++ style, naming, Doxygen, API conventions       | planner, impl, review, module, onboard        |
-| [[file:../CONTRIBUTING.org][CONTRIBUTING.org]]  | Workflow, component-change recipe, gates, commits | planner, impl, review, module, onboard        |
-| [[file:../AI_DISCLAIMER.org][AI_DISCLAIMER.org]] | AI-assistance accountability policy               | planner, impl, review, module, onboard        |
-
-** General spokes
-
-| Doc                 | Purpose                                               | Roles                                         |
-|---------------------+-------------------------------------------------------+-----------------------------------------------|
-| [[file:glossary.org][glossary.org]]        | Canonical terms for docs, issues, and plans           | all                                           |
-| [[file:writing.org][writing.org]]         | Prose style, punctuation, and human-facing text rules | planner, impl, review, module, onboard        |
-| [[file:file-system.org][file-system.org]]     | File layout and where new work goes                   | all                                           |
-| [[file:architecture.org][architecture.org]]    | Repo-level module, target, docs, install architecture | scout, planner, impl, review, module, onboard |
-| [[file:dependencies.org][dependencies.org]]    | Dependency policy and vetting checklist               | planner, impl, review, module                 |
-| [[file:agent-workflows.org][agent-workflows.org]] | Multi-step task playbooks and handoffs                | scout, planner, impl, review, module          |
-
-** Setup and infrastructure
-
-| Doc               | Purpose                                                  | Roles                                         |
-|-------------------+----------------------------------------------------------+-----------------------------------------------|
-| [[file:setup/README.org][setup/README.org]]  | Setup index and quick-start commands                     | all                                           |
-| [[file:setup/build-system.org][build-system.org]]  | Root CMake, presets, top-level options and targets       | scout, planner, impl, review, module, onboard |
-| [[file:setup/modules.org][modules.org]]       | Module layout, discovery, deps, kinds, standalone builds | scout, planner, impl, review, module, onboard |
-| [[file:setup/cmake-helpers.org][cmake-helpers.org]] | CMake helper function reference                          | planner, impl, review, module                 |
-| [[file:setup/testing.org][testing.org]]       | doctest rules, targets, sanitizer preset                 | planner, impl, review, module                 |
-| [[file:setup/api-docs.org][api-docs.org]]      | Doxygen build and documentation targets                  | planner, impl, review, module                 |
-| [[file:setup/hooks.org][hooks.org]]         | Local git hooks and bypass policy                        | planner, impl, review, module, onboard        |
-| [[file:setup/ci.org][ci.org]]            | GitHub Actions jobs and required gates                   | planner, impl, review, module, onboard        |
-| [[file:setup/install.org][install.org]]       | find_package, add_subdirectory, FetchContent usage       | planner, review, onboard                      |
-| [[file:setup/conventions.org][conventions.org]]   | Pointers to enforced style and repo conventions          | planner, impl, review, module, onboard        |
-| [[file:setup/tools.org][tools.org]]         | Compiler, clang, Doxygen, Ninja, ccache expectations     | planner, impl, review, module, onboard        |
-
-** Module docs
-
-| Doc                         | Purpose                                      | Roles                                         |
-|-----------------------------+----------------------------------------------+-----------------------------------------------|
-| [[file:module/README.org][module/README.org]]           | Module catalogue and dependency layering     | scout, planner, impl, review, module, onboard |
-| =module/<name>/README.org=  | Module purpose, public surface, guide index  | scout, planner, impl, review, module, onboard |
-| =module/<name>/<topic>.org= | Component or topic guide with usage examples | impl, review, module                          |
-
-Current module indexes:
-
-| Module        | Index                           |
-|---------------+---------------------------------|
-| algorithm     | [[file:module/algorithm/README.org][module/algorithm/README.org]]     |
-| benchmark     | [[file:module/benchmark/README.org][module/benchmark/README.org]]     |
-| chrono        | [[file:module/chrono/README.org][module/chrono/README.org]]        |
-| container     | [[file:module/container/README.org][module/container/README.org]]     |
-| ecs           | [[file:module/ecs/README.org][module/ecs/README.org]]           |
-| filter        | [[file:module/filter/README.org][module/filter/README.org]]        |
-| logging       | [[file:module/logging/README.org][module/logging/README.org]]       |
-| math          | [[file:module/math/README.org][module/math/README.org]]          |
-| random        | [[file:module/random/README.org][module/random/README.org]]        |
-| serialization | [[file:module/serialization/README.org][module/serialization/README.org]] |
-| signal        | [[file:module/signal/README.org][module/signal/README.org]]        |
-| utility       | [[file:module/utility/README.org][module/utility/README.org]]       |
-
-** Templates
-
-| Doc                       | Purpose                             | Roles                                  |
-|---------------------------+-------------------------------------+----------------------------------------|
-| [[file:../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]] | New-module runbook and PR checklist | planner, impl, review, module, onboard |
-
-* Known docs gaps
-
-- =modules/geometry/= exists, but =doc/module/geometry/README.org= and
-  =examples/geometry/= do not yet exist. Add the module index and at least the
-  first component guide before growing that module further.
+- [[file:../CMakeLists.txt][CMakeLists.txt]] : root build, discovers and orders modules.
+- [[file:../CMakePresets.json][CMakePresets.json]] : dev / release / asan / ci presets.
+- [[file:../README.org][README.org]] : project overview and quick start.
+- [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]] : the C++ style, enforced by clang tooling.
+- [[file:../CONTRIBUTING.org][CONTRIBUTING.org]] : workflow, hooks, CI, commit convention.
+- [[file:../LICENSE][LICENSE]] : MIT.
+- [[file:../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]] : how to add a module plus a PR checklist.

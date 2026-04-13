@@ -5,9 +5,9 @@
 Public API docs are Doxygen, generated from the headers.
 [[file:../../cmake/nexenne_doxygen.cmake][nexenne_doxygen.cmake]] runs
 =find_package(Doxygen)=, and when Doxygen is missing and
-=NEXENNE_FETCH_DOXYGEN_IF_MISSING= is ON (its default), fetches and builds the
-tag in =NEXENNE_DOXYGEN_GIT_TAG= (default =Release_1_12_0=) from source so a
-fresh clone is self-contained. Opt out of the source build with
+=NEXENNE_FETCH_DOXYGEN_IF_MISSING= is ON (its default), downloads the official
+prebuilt Linux x86_64 archive for =NEXENNE_DOXYGEN_VERSION= (default =1.12.0=)
+so a fresh clone is self-contained on that platform. Opt out of the download with
 =-DNEXENNE_FETCH_DOXYGEN_IF_MISSING=OFF=; if Doxygen is then unavailable the doc
 targets are skipped with a warning rather than created.
 
