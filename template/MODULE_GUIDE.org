@@ -17,7 +17,9 @@ cmake --build --preset dev --target nexenne_tests
 
 The script copies =template/module/=, substitutes the name, and prints the
 next steps. Then write your API under =include/nexenne/my_module/= and tests
-under =tests/=.
+under =tests/=. It also adds =NEXENNE_MODULE_MY_MODULE_VERSION= to
+[[file:../cmake/nexenne_version.cmake][cmake/nexenne_version.cmake]] so the module has
+an independent package/API version from its first configure.
 
 * Layout
 
@@ -83,6 +85,7 @@ Build docs with =cmake -B build/docs -DNEXENNE_BUILD_DOCS=ON= then target
 * PR checklist
 
 - [ ] Name is lowercase snake_case; scaffolded from the template.
+- [ ] Module version is present in =cmake/nexenne_version.cmake=.
 - [ ] Every public header listed in =nexenne_add_module(... HEADERS ...)=.
 - [ ] Dependencies declared in =module.deps= (not includes-only).
 - [ ] Tests under =tests/= exercise the public API; new behavior, new tests.

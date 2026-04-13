@@ -22,6 +22,13 @@ libraries to =lib/= (=bin/= for runtime DLLs), the umbrella package config to
 =lib/cmake/nexenne-<name>/=. The version files use =SameMajorVersion=
 compatibility.
 
+The umbrella =nexenne= package version is the snapshot version from
+=NEXENNE_VERSION=. Each =nexenne-<name>= package uses that module's independent
+=NEXENNE_MODULE_<NAME>_VERSION=. The umbrella package also exposes
+=nexenne_MODULES= and =nexenne_<name>_VERSION= variables after
+=find_package(nexenne)=, so consumers can inspect the exact module state shipped
+by a snapshot.
+
 * Consume an installed package
 
 #+BEGIN_SRC cmake
@@ -64,4 +71,4 @@ cleans up. The [[file:ci.org][CI]] =install= job runs it; run it locally with
 
 * See also
 
-[[file:build-system.org][Build system]], [[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]], [[file:ci.org][CI]].
+[[file:build-system.org][Build system]], [[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]], [[file:ci.org][CI]], [[file:release.org][Release and versioning]].

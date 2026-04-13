@@ -1,0 +1,120 @@
+#+TITLE: Release and versioning
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+nexenne uses two SemVer layers:
+
+- =NEXENNE_VERSION= is the global snapshot version. A tag =vX.Y.Z= means "this
+  exact repo state, with this exact set of module versions".
+- =NEXENNE_MODULE_<NAME>_VERSION= is the independent package/API version for one
+  module. A tag =nexenne-<name>-vX.Y.Z= releases that module version from the
+  current repo state.
+
+Both layers support release candidates with =-rc.N= tags. CMake package version
+files always use the stable =X.Y.Z= core; RC suffixes appear only in Git tags,
+GitHub Releases, and archive names.
+
+* Version source
+
+All release state lives in
+[[file:../../cmake/nexenne_version.cmake][cmake/nexenne_version.cmake]]. Do not duplicate
+versions in module =CMakeLists.txt= files. The root =project()= reads
+=NEXENNE_VERSION=, standalone module =project()= calls read the matching module
+version, and =nexenne_add_module= stamps per-module package configs from the
+same manifest.
+
+The first automated release line stays on =0.1.x=. Bootstrap =v0.1.0= once, then
+let release PRs bump only the layer being released.
+
+* Stable releases
+
+Use release PRs. The workflow can prepare either a snapshot release or a module
+release:
+
+#+BEGIN_SRC sh
+scripts/prepare_release.sh                 # snapshot, auto-computed or bootstrap version
+scripts/prepare_release.sh 0.1.1           # explicit snapshot version
+scripts/prepare_release.sh --module math   # module release for nexenne-math
+scripts/prepare_release.sh --module math 0.2.0
+#+END_SRC
+
+Automation updates =cmake/nexenne_version.cmake= and prepends =CHANGELOG.org=
+using [[file:../../cliff.toml][cliff.toml]]. Snapshot release PR branches are
+=release/vX.Y.Z=. Module release PR branches are
+=release/nexenne-<name>-vX.Y.Z=. Merging the release PR to =main= lets
+=publish-release.yml= create the annotated tag, GitHub Release, source archive,
+installed CMake package archive, and =SHA256SUMS=.
+
+Configure a fine-grained =NEXENNE_RELEASE_BOT_TOKEN= repository secret for the
+release PR workflow. The workflow falls back to =GITHUB_TOKEN=, but bot-created
+PR branches pushed with the built-in token may not trigger the normal CI loop on
+GitHub.
+
+* Release bot token TODO
+
+Purpose: =release-pr.yml= needs to push a =release/...= branch and open or update
+a PR. GitHub's built-in =GITHUB_TOKEN= can do that, but pushes made with it are
+not guaranteed to trigger the normal PR CI workflows. A dedicated bot token makes
+release PRs behave like maintainer-created branches.
+
+Before relying on release automation:
+
+1. Create a fine-grained personal access token from a maintainer or machine-user
+   account.
+2. Limit it to the =signorenne/nexenne= repository.
+3. Grant repository permissions: Contents read/write, Pull requests read/write,
+   and Metadata read.
+4. Add it under GitHub repository settings:
+   =Settings -> Secrets and variables -> Actions -> New repository secret=.
+5. Name the secret exactly =NEXENNE_RELEASE_BOT_TOKEN=.
+6. Run =release-pr= manually once for a snapshot release to bootstrap =v0.1.0=,
+   then confirm the release PR gets the normal CI checks.
+
+If the secret is absent, the workflow still falls back to =GITHUB_TOKEN=. Treat
+that as a temporary mode: it can open the PR, but the release branch may need a
+manual CI nudge.
+
+* Release candidates
+
+Create RCs from a release branch through =release-candidate.yml=. Snapshot RC
+tags are =vX.Y.Z-rc.N=. Module RC tags are
+=nexenne-<name>-vX.Y.Z-rc.N=. If no RC version is provided, the workflow chooses
+the next =rc.N= for the current manifest version.
+
+Local equivalent:
+
+#+BEGIN_SRC sh
+NEXENNE_ALLOW_DIRTY=1 scripts/package_release.sh 0.1.1-rc.1
+NEXENNE_ALLOW_DIRTY=1 scripts/package_release.sh --module math 0.2.0-rc.1
+#+END_SRC
+
+* Artifacts
+
+Release archives are written to =dist/=:
+
+- =nexenne-X.Y.Z-source.tar.gz= and =nexenne-X.Y.Z-cmake.tar.gz= for snapshots.
+- =nexenne-<name>-X.Y.Z-source.tar.gz= and =nexenne-<name>-X.Y.Z-cmake.tar.gz=
+  for module releases.
+- =SHA256SUMS= covers every archive in that release.
+
+The CMake archive is installed from the repo state being released. For module
+releases this still includes dependency package configs, so consumers can resolve
+=find_package(nexenne-<name>)= without guessing matching dependency versions.
+
+* Rollback
+
+If a release PR is wrong, close it and delete its =release/...= branch. If a tag
+or GitHub Release was published incorrectly, delete the GitHub Release first,
+then delete the tag locally and remotely:
+
+#+BEGIN_SRC sh
+git tag -d v0.1.1
+git push origin :refs/tags/v0.1.1
+#+END_SRC
+
+For module releases, replace the tag with =nexenne-<name>-vX.Y.Z=. Never reuse a
+bad public version for different bits; bump to the next patch or RC instead.
+
+* See also
+
+[[file:ci.org][CI]], [[file:install.org][Install and consume]], [[file:cmake-helpers.org][CMake helpers]], [[file:tools.org][Tools and tech]].

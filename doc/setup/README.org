@@ -2,18 +2,14 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-How the project is built, tested, documented, and shipped: reference docs for
+How the project is built, tested, documented, versioned, and shipped: reference docs for
 the build system and tooling, kept separate from the per-class API guides (for
 the libraries themselves see [[file:../module/README.org][Modules]], or the
-guides under [[file:../module/README.org][doc/module/]]). One topic per file,
-grouped below into the build pipeline, the quality gates that guard every
-change, and the conventions and external tools the project leans on. The
-role-based docs map lives in [[file:../README.org][doc/README.org]]. New here? Run the
-quick start, then read /Build system/ for the whole picture, /Modules/ to add a
+guides under each =modules/<name>/doc/=). One topic per file, grouped below into
+the build pipeline, the quality gates that guard every change, and the
+conventions and external tools the project leans on. New here? Run the quick
+start, then read /Build system/ for the whole picture, /Modules/ to add a
 module, or /Install and consume/ to use nexenne in your own project.
-Repo-wide layout, architecture, and dependency policy live one level up in
-[[file:../file-system.org][file-system.org]], [[file:../architecture.org][architecture.org]], and
-[[file:../dependencies.org][dependencies.org]].
 
 * Quick start
 
@@ -34,6 +30,7 @@ The presets are =dev=, =release=, =asan=, =ci= (configure + build) plus the
 - [[file:modules.org][Modules]] : module layout, =module.deps=, discovery and ordering, kinds, standalone builds.
 - [[file:cmake-helpers.org][CMake helpers]] : every function in the =cmake/*.cmake= files, with signatures.
 - [[file:install.org][Install and consume]] : =find_package=, =add_subdirectory=, =FetchContent=.
+- [[file:release.org][Release and versioning]] : module SemVer, snapshot SemVer, RCs, changelog, artifacts.
 
 * Quality gates
 

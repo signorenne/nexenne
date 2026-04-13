@@ -14,25 +14,16 @@ a few lines.
 
 * Documentation
 
-A layered Org-mode knowledge base lives under [[file:doc/README.org][doc/]]. The root
-index is also the role matrix for AI agents and human contributors: start there
-to load only the docs your task needs. The working-memory floor for agents lives
-in [[file:AGENTS.org][AGENTS.org]], and the deeper references stay in the setup and
-module spokes.
+A layered org-mode knowledge base lives under [[file:doc/README.org][doc/]]: the root index points at
+the per-module guides and the setup topics, which point at the leaf articles.
 
 - [[file:doc/README.org][doc/README.org]] : the documentation root, start here.
-- [[file:AGENTS.org][AGENTS.org]] : agent-facing rules, execution recipes, validation commands.
-- [[file:VISION.org][VISION.org]] and [[file:DESIGN.org][DESIGN.org]] : project direction and API design
-  principles.
-- [[file:doc/glossary.org][doc/glossary.org]], [[file:doc/file-system.org][doc/file-system.org]],
-  [[file:doc/writing.org][doc/writing.org]], [[file:doc/architecture.org][doc/architecture.org]],
-  [[file:doc/dependencies.org][doc/dependencies.org]] : canonical terms, layout,
-  prose style, architecture, and dependency policy.
 - /Module guides/ ([[file:doc/module/][doc/module/]]) : one folder per module, each an index plus a
   per-class article (purpose, how it works with diagrams, usage). For example
   [[file:doc/module/math/README.org][math]], [[file:doc/module/container/README.org][container]], [[file:doc/module/serialization/README.org][serialization]], [[file:doc/module/algorithm/README.org][algorithm]].
 - /Setup and infrastructure/ ([[file:doc/setup/README.org][doc/setup/]]) : the [[file:doc/setup/build-system.org][build system]], [[file:doc/setup/testing.org][testing]],
   [[file:doc/setup/install.org][install]], [[file:doc/setup/cmake-helpers.org][CMake helpers]], [[file:doc/setup/hooks.org][git hooks]], and [[file:doc/setup/ci.org][CI]].
+  Release/versioning lives in [[file:doc/setup/release.org][release]].
 
 Generated API reference (Doxygen, fetched if not installed):
 
@@ -73,9 +64,6 @@ filters) at =build/dev/bin/nexenne_<name>_tests=.
 nexenne/
 |-- CMakeLists.txt        root: discovers modules, orders by dependency
 |-- CMakePresets.json     dev / release / asan / ci
-|-- VISION.org            project direction and non-goals
-|-- DESIGN.org            API/library surface principles
-|-- AGENTS.org            AI/human contributor working-memory floor
 |-- cmake/                build helpers (module, warnings, testing, doxygen)
 |-- include/nexenne/      umbrella header
 |-- modules/<name>/       one folder per module, same layout each

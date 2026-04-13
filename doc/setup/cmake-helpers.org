@@ -11,6 +11,7 @@ doc helpers).
 * Files
 
 - [[file:../../cmake/nexenne_modules.cmake][nexenne_modules.cmake]] : module discovery, dependency reading, and standalone bootstrap.
+- [[file:../../cmake/nexenne_version.cmake][nexenne_version.cmake]] : umbrella snapshot version plus per-module versions.
 - [[file:../../cmake/nexenne_module.cmake][nexenne_module.cmake]] : the module declaration helpers and their install rules.
 - [[file:../../cmake/nexenne_warnings.cmake][nexenne_warnings.cmake]] : the =nexenne::warnings= interface target.
 - [[file:../../cmake/nexenne_testing.cmake][nexenne_testing.cmake]] : finds or fetches doctest.
@@ -25,7 +26,7 @@ dependencies come from =modules/<name>/module.deps=, not from an argument.
 #+BEGIN_SRC cmake
 nexenne_add_module(<name>
     [KIND <INTERFACE|STATIC|SHARED|OBJECT>]   # default INTERFACE (header-only)
-    [VERSION <ver>]                           # default PROJECT_VERSION
+    [VERSION <ver>]                           # default module version manifest
     [HEADERS <file>...]                       # public headers (FILE_SET)
     [SOURCES <file>...]                       # required unless KIND is INTERFACE
     [LINK_PUBLIC  <lib>...]                   # external libs, transitively exposed
@@ -40,9 +41,15 @@ compiled KIND requires SOURCES), creates the target and =EXPORT_NAME=, requests
 clear error if a dependency target is not defined yet), and links the external
 libs. For =KIND SHARED= it also runs =generate_export_header= to produce
 =nexenne/<name>/<name>_export.hpp= with the macro =NEXENNE_<NAME>_EXPORT=, sets
-hidden visibility, and stamps =VERSION= / =SOVERSION=. Finally it appends the
-module to the global =NEXENNE_MODULES= property and, when =NEXENNE_INSTALL= is
-on, calls =nexenne_install_module=.
+hidden visibility, and stamps =VERSION= / =SOVERSION= from the module version.
+Finally it appends the module to the global =NEXENNE_MODULES= property and, when
+=NEXENNE_INSTALL= is on, calls =nexenne_install_module=.
+
+When =VERSION= is omitted, =nexenne_add_module= reads
+=NEXENNE_MODULE_<NAME>_VERSION= from
+[[file:../../cmake/nexenne_version.cmake][cmake/nexenne_version.cmake]]. A missing entry
+is a configure-time error, so a module cannot accidentally inherit the umbrella
+snapshot version.
 
 * Other module helpers (nexenne_module.cmake)
 
