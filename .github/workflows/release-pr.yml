@@ -43,12 +43,16 @@ jobs:
 
       - name: Prepare release files
         id: prep
+        env:
+          KIND_INPUT: ${{ github.event.inputs.kind }}
+          MODULE_INPUT: ${{ github.event.inputs.module }}
+          VERSION_INPUT: ${{ github.event.inputs.version }}
         run: |
           set -euo pipefail
 
-          kind="${{ github.event.inputs.kind || 'snapshot' }}"
-          module="${{ github.event.inputs.module || '' }}"
-          version="${{ github.event.inputs.version || '' }}"
+          kind="${KIND_INPUT:-snapshot}"
+          module="${MODULE_INPUT:-}"
+          version="${VERSION_INPUT:-}"
 
           args=(--kind "$kind")
           if [ -n "$module" ]; then
