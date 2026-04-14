@@ -20,11 +20,11 @@ jobs:
     if: "${{ contains(github.event.head_commit.message, 'chore(release): prepare') }}"
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
-      - uses: taiki-e/install-action@git-cliff
+      - uses: taiki-e/install-action@b7f35b6932e62116be70eb0558ef91ac16990738 # git-cliff
 
       - name: Resolve release metadata
         id: meta

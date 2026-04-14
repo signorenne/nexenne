@@ -15,7 +15,7 @@ jobs:
     name: clang-format
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - run: sudo apt-get update && sudo apt-get install -y clang-format-18
       - name: Check formatting
         run: |
@@ -31,13 +31,13 @@ jobs:
     runs-on: ubuntu-24.04
     env: { CC: gcc-15, CXX: g++-15 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Install GCC 15
         run: |
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt-get update
           sudo apt-get install -y g++-15 cmake ninja-build ccache
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ccache
           key: ccache-build-test-${{ github.sha }}
@@ -51,14 +51,14 @@ jobs:
     runs-on: ubuntu-24.04
     env: { CC: clang-19, CXX: clang++-19 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Install Clang 19
         run: |
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 19
           sudo apt-get install -y cmake ninja-build ccache
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ccache
           key: ccache-build-clang-${{ github.sha }}
@@ -72,7 +72,7 @@ jobs:
     runs-on: ubuntu-24.04
     env: { CC: gcc-15, CXX: g++-15 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Install GCC 15
         run: |
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-24.04
     env: { CC: clang-19, CXX: clang++-19 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Install Clang 19 and clang-tidy
         run: |
           wget https://apt.llvm.org/llvm.sh
@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-24.04
     env: { CC: gcc-15, CXX: g++-15 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Install GCC 15
         run: |
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
@@ -134,7 +134,7 @@ jobs:
     runs-on: ubuntu-24.04
     env: { CC: gcc-15, CXX: g++-15 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Install GCC 15
         run: |
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
