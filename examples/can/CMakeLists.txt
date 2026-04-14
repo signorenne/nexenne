@@ -1,6 +1,7 @@
 # One executable per example, named nexenne_example_can_<name>. Each is a
 # self-contained program demonstrating part of the nexenne::can module.
 set(_can_examples
+    frame
 )
 
 foreach(_example IN LISTS _can_examples)
