@@ -56,6 +56,11 @@ C++23 compiler and CMake with Ninja.
   [[file:../../.github/workflows/ci.yml][.github/workflows/ci.yml]]; see [[file:ci.org][CI]].
 - [[https://git-cliff.org][git-cliff]] : Conventional Commit changelog and version bump helper for
   release PRs; config in [[file:../../cliff.toml][cliff.toml]]. See [[file:release.org][Release and versioning]].
+- [[https://docs.github.com/code-security/dependabot][Dependabot]] : weekly
+  grouped PRs that keep the SHA-pinned GitHub Actions current; config in
+  [[file:../../.github/dependabot.yml][.github/dependabot.yml]]. It tracks the
+  =github-actions= ecosystem only, so the CMake-fetched doctest and Doxygen
+  versions stay manual.
 - [[https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks][Git hooks]] : the
   local format and build/test gates in [[file:../../.githooks/][.githooks/]]; see
   [[file:hooks.org][Git hooks]].
