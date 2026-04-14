@@ -1,0 +1,20 @@
+# Dependabot keeps the third-party GitHub Actions pinned in .github/workflows
+# current. It updates both the commit SHA and the trailing "# vN" comment.
+#
+# Only the github-actions ecosystem applies here: nexenne is C++/CMake and pulls
+# doctest and Doxygen through CMake FetchContent, which Dependabot does not track.
+# Bump those versions by hand in cmake/nexenne_testing.cmake and
+# cmake/nexenne_doxygen.cmake.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
