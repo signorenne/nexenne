@@ -32,6 +32,9 @@ Establish context before changing code: the goal, the constraints, the target
 hardware, the workflows, and how the existing code already solves nearby
 problems. Then reduce uncertainty before acting, not after.
 
+- Scout for reuse before writing new code. Check whether an existing component
+  fits or can be composed, and prefer small, modular pieces that combine into
+  larger ones over duplicating logic. See [[file:DESIGN.org][DESIGN.org]].
 - State the intended change and its expected outcome before editing, so each
   step has a predictable result. If the outcome is not clear yet, scout or plan
   more instead of guessing.

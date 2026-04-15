@@ -14,7 +14,8 @@ before acting, and land small, verifiable steps. Most non-trivial work follows
 it:
 
 1. /Scout/ : read the docs map, inspect the touched module, identify owners,
-   nearby examples, tests, and risks.
+   nearby examples, tests, risks, and existing components worth reusing instead
+   of duplicating.
 2. /Plan/ : choose files, validation commands, and the smallest coherent scope.
 3. /Implement/ : edit code, tests, examples, docs, and CMake wiring together.
 4. /Review/ : inspect the diff for behavior, missing coverage, drift, and
