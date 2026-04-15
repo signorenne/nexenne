@@ -9,6 +9,9 @@ not the full reference. The documentation map and role matrix live in
 `AGENTS.md` is the single source of truth for coding-assistant guidance in this
 repo. If a tool needs another filename, create a tiny bridge that imports or
 points to this file; do not copy these rules into a second maintained file.
+AI-assisted output is still the human committer's responsibility: review, test,
+and understand every line; use assistants, not autopilot, and do not add AI
+trailers.
 
 ## First load
 
@@ -133,11 +136,10 @@ module name lowercase snake_case. Declare nexenne dependencies in
 Docs are Org mode. Do not add Markdown docs. The only Markdown files allowed at
 the repo root are agent compatibility entrypoints such as `AGENTS.md`,
 `CLAUDE.md`, and `GEMINI.md`; keep `AGENTS.md` canonical and make tool-specific
-files point to it instead of duplicating rules. Put setup and infrastructure docs under
-`doc/setup/`, module overview docs under `doc/module/<name>/README.org`, and
-component guides under `doc/module/<name>/<topic>.org`. Register new docs in
-the owning index and, for new top-level or setup docs, in
-[doc/README.org](doc/README.org).
+files point to it instead of duplicating rules. Put setup docs under
+`doc/setup/`, module overviews under `doc/module/<name>/README.org`, and
+component guides under `doc/module/<name>/<topic>.org`. Register new docs in the
+owning index and, for new top-level or setup docs, in [doc/README.org](doc/README.org).
 
 ## Hard rules
 
@@ -165,7 +167,6 @@ the owning index and, for new top-level or setup docs, in
 - Commit subjects are `type(scope): description` with a required scope, kept to
   a single concise sentence with no body. Split a change that needs more than
   one sentence into smaller commits.
-- Do not add assistant or AI trailers to commits.
 
 ## Validation commands
 
