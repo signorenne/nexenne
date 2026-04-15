@@ -9,9 +9,11 @@
  * IO layer, and their formatters.
  */
 
+#include <nexenne/can/byte_order.hpp>
 #include <nexenne/can/dlc.hpp>
 #include <nexenne/can/error.hpp>
 #include <nexenne/can/frame.hpp>
 #include <nexenne/can/id.hpp>
+#include <nexenne/can/packing_plan.hpp>
 
 namespace nexenne::can {}

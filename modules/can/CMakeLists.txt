@@ -19,11 +19,13 @@ endif()
 # to this one, not here. External libraries go in LINK_PUBLIC / LINK_PRIVATE.
 nexenne_add_module(can
     HEADERS
+        include/nexenne/can/byte_order.hpp
         include/nexenne/can/can.hpp
         include/nexenne/can/dlc.hpp
         include/nexenne/can/error.hpp
         include/nexenne/can/frame.hpp
         include/nexenne/can/id.hpp
+        include/nexenne/can/packing_plan.hpp
 )
 
 if(NEXENNE_BUILD_TESTS)
