@@ -1,0 +1,122 @@
+#+TITLE: the ray
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=ray<Real, N>=: a half-line stored as an =origin= and a unit =direction=, the
+set of points =origin + t * direction= for =t >= 0=. One template covers 2D and
+3D; the aliases are =ray2= / =ray3=, each with =_f= (float) and =_d= (double).
+The factory =ray_from_points= builds and normalizes; the free queries =at=,
+=closest_point=, =distance_squared=, and =distance= operate on a ray whose
+direction is already unit length. Everything is =constexpr= and =noexcept=.
+
+* The idea
+
+A ray is the workhorse of picking, visibility, and casting: an origin and a
+direction, going one way only. The type stays deliberately thin, two vectors and
+nothing else, so it is trivially copyable and the =static_assert= block pins its
+size to exactly =2 * N= components (=4 * sizeof(float)= in 2D, =6= in 3D). The
+unit-direction invariant is the one thing the queries lean on, and the type does
+not enforce it on every construction; instead the *checked* path
+=ray_from_points= normalizes once and the cheap two-argument constructor trusts
+the caller. That split keeps the per-query math free of repeated normalization
+while still giving a safe way in.
+
+* How it works
+
+** The half-line
+
+For a unit direction, the parameter =t= is exactly the distance travelled from
+the origin. The ray is the =t >= 0= half; the =t < 0= half is the line behind
+the origin, off the ray:
+
+#+BEGIN_EXAMPLE
+        t < 0          t = 0         t > 0
+   . . . . . . . . . . . o==============>====================>
+       (behind, off      origin    direction (unit)        the ray
+        the half-line)                                     (t >= 0)
+#+END_EXAMPLE
+
+=at(r, t)= returns =origin + direction * t= without clamping, so it can sample
+the full line; it is the caller's choice to pass a non-negative =t=. The
+post-condition states it: the result is on the ray's line, and on the half-line
+when =t >= 0=.
+
+** The checked factory
+
+=ray_from_points(origin, target)= takes the direction as =normalize(target -
+origin)=. =normalize= itself is fallible (a zero-length input has no direction),
+so when =origin= and =target= coincide the factory returns
+=geometry_error::degenerate_primitive= rather than a NaN-laden direction. This is
+the module's error policy in miniature: a runtime-detectable degeneracy is a
+=result=, not a precondition the caller must pre-check. On success the
+post-condition guarantees a unit-length direction, which is exactly what every
+query downstream assumes.
+
+** Closest point: project, then clamp the parameter
+
+=closest_point(r, p)= drops =p= onto the ray's line by projecting the offset
+=p - origin= onto the unit direction: =t = dot(p - origin, direction)=. Because
+the direction is unit length there is no division by its squared length. The
+single subtlety is the half-line: if the foot of the perpendicular falls behind
+the origin (=t <= 0=), the nearest point of the *ray* is the origin itself, not
+that off-ray foot. So the code clamps the low end only:
+
+#+BEGIN_EXAMPLE
+      p                          p                         p
+      |                          .                          \
+      |  t > 0                  . .  t <= 0                   \  t > 0
+      v                        .   .                           v
+  o===*=========>          o<==.....  (foot behind o)      o====*======>
+      ^                    ^                                    ^
+  closest = o + dir*t   closest = o (clamped)            closest = o + dir*t
+#+END_EXAMPLE
+
+There is no high clamp: a ray is unbounded forward, so any =t > 0= is valid. The
+post-condition is that the result lies on the half-line.
+
+** Distances built on the closest point
+
+=distance_squared(r, p)= is just =length_squared(p - closest_point(r, p))=:
+square-root free, zero when =p= lies on the ray. =distance= adds the =sqrt=. Both
+are derived, so they inherit the half-line clamp for free and never report a
+shorter distance to a point that is only near the line behind the origin.
+
+* When to use it
+
+- As a pick or cast: build with =ray_from_points(camera, target)=, check the
+  =result= once, then reuse the unit-direction ray across many queries.
+- =at= to march along the ray (shadow feelers, sampling); =distance= /
+  =distance_squared= for proximity tests, preferring the squared form in hot
+  loops and comparisons.
+- The cheap two-argument constructor when you already hold a unit direction
+  (for example one carried in a =normalized=); =ray_from_points= when you only
+  have two points and want the normalization and the degeneracy check done for
+  you.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+if (auto const r{geo::ray_from_points(nm::vector3_d{0, 0, 0}, nm::vector3_d{0, 0, 5})}) {
+  constexpr nm::vector3_d p{1, 0, 2};
+  auto const near{geo::closest_point(*r, p)};   // (0, 0, 2): foot is ahead of origin
+  auto const dist{geo::distance(*r, p)};        // 1
+  auto const sample{geo::at(*r, 3.0)};          // (0, 0, 3): three units along the ray
+}
+#+END_SRC
+
+* See also
+
+- [[file:segment.org][segment]] : the finite sibling, parameter clamped to =[0, 1]= instead of =t >= 0=.
+- [[file:plane.org][plane]] : the surface a ray is most often cast against.
+- [[file:../math/vector_algorithms.org][math/vector_algorithms]] : the =dot=, =normalize=, and =length_squared= this header is built on.
+
+* Further reading
+
+- Ray-versus-primitive intersection and the projection-onto-direction technique:
+  Christer Ericson, "Real-Time Collision Detection", section 5.1.
+- The parametric line and half-line: https://en.wikipedia.org/wiki/Line_(geometry)#Ray

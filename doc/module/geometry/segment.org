@@ -1,0 +1,138 @@
+#+TITLE: the segment
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=segment<Real, N>=: a finite line segment stored as two endpoints =start= and
+=end=, the set of points =start + t * (end - start)= for =t in [0, 1]=. One
+template covers 2D and 3D; the aliases are =segment2= / =segment3=, each with
+=_f= (float) and =_d= (double). The free queries =direction=, =length= /
+=length_squared=, =at=, =closest_point=, =distance= / =distance_squared= work in
+any dimension; the 2D-only =intersects= returns the crossing point as a
+=std::optional=. Everything is =constexpr= and =noexcept=.
+
+* The idea
+
+A segment is a ray with a far end: the same parametric line, but the parameter
+is confined to =[0, 1]= rather than =t >= 0=. The type is two vectors and
+nothing else, trivially copyable, its size pinned by =static_assert= to exactly
+=2 * N= components. Storing the raw endpoints (rather than a start, a unit
+direction, and a length) keeps construction free and makes equality exact, at
+the cost of recomputing =direction= and =length= on demand; for a value type
+this thin that recompute is a couple of subtractions and is what keeps the whole
+header =constexpr=.
+
+* How it works
+
+** The unit interval
+
+=at(s, t) = start + (end - start) * t= places =start= at =t == 0=, =end= at
+=t == 1=, and a linear blend between. Nothing clamps =t=, so a value outside
+=[0, 1]= extrapolates past the endpoints along the same line:
+
+#+BEGIN_EXAMPLE
+   t < 0        t = 0                  t = 1        t > 1
+   . . . . . . . o====================o . . . . . . .
+   (extrapolate  start                end  extrapolate)
+                 |<---- direction = end - start ---->|
+                 |<------ length = |direction| ----->|
+#+END_EXAMPLE
+
+=direction(s)= is the *non-normalized* =end - start=; its magnitude is the
+length. =length_squared= and =length= read straight off it, the squared form
+square-root free for comparisons.
+
+** Closest point: project, clamp both ends, guard zero length
+
+=closest_point(s, p)= projects =p - start= onto the segment's direction and
+divides by its squared length to get the line parameter
+=t = dot(p - start, dir) / |dir|^2=, then clamps =t= into =[0, 1]=. Unlike the
+ray (one clamp) the segment clamps *both* ends, so a foot of the perpendicular
+beyond either endpoint snaps to that endpoint:
+
+#+BEGIN_EXAMPLE
+       p1            p2              p3
+        \            |               /
+   t<0   \    0<=t<=1|        t>1    /
+          \          v              /
+       o====*========*=============o
+       ^    closest  closest        ^
+   closest = start   = on segment   closest = end
+   (t clamped to 0)                 (t clamped to 1)
+#+END_EXAMPLE
+
+A degenerate, zero-length segment has =|dir|^2 == 0= and no direction to project
+onto; the code detects that (=len_sq <= 1e-20=) and returns =start= rather than
+dividing by zero. This is a handled edge, not an error: the function takes no
+precondition and never fails.
+
+** Distances built on the closest point
+
+=distance_squared(s, p)= is =length_squared(p - closest_point(s, p))=, zero when
+=p= lies on the segment; =distance= adds the =sqrt=. Both inherit the
+=[0, 1]= clamp and the zero-length guard for free.
+
+** 2D segment intersection: two parameters from the pseudo-cross
+
+=intersects(a, b)= (2D only) solves for where the two segments cross. With
+=r = dir(a)=, =s = dir(b)=, and the 2D pseudo-cross =cross(u, v) = ux*vy -
+uy*vx=, the crossing satisfies =a.start + r*t == b.start + s*u=. Crossing both
+sides with =s= and with =r= isolates the two parameters:
+
+#+BEGIN_EXAMPLE
+   rxs = cross(r, s)            ; signed area of the (r, s) parallelogram
+   qp  = b.start - a.start
+   t   = cross(qp, s) / rxs     ; parameter along a
+   u   = cross(qp, r) / rxs     ; parameter along b
+
+   a real crossing  <=>  rxs != 0  AND  t in [0,1]  AND  u in [0,1]
+#+END_EXAMPLE
+
+The whole test is square-root free. When =rxs == 0= the segments are parallel or
+collinear and the function returns =std::nullopt= even if they overlap: an
+overlap is a range of points, not the single crossing point this signature
+promises, so check parallelism explicitly if that case matters to you. The
+return type is =std::optional=, not =result=: a clean miss is a legitimate
+answer, not invalid input. The 3D skew-line closest-pair query is deliberately
+left to the cross-type =intersect.hpp= header.
+
+* When to use it
+
+- As an edge of a polygon or mesh, a motion span between two samples, or a
+  capsule's spine.
+- =closest_point= / =distance= for proximity and collision against a bounded
+  edge; prefer =distance_squared= in comparisons and hot loops.
+- =intersects= for 2D segment-segment crossing (line clipping, 2D collision);
+  remember the =std::nullopt= on parallel inputs.
+- =direction= when you need the edge vector; pass it through
+  =nexenne::math::normalize= yourself if you want a unit direction.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+constexpr geo::segment2_d edge{nm::vector2_d{0, 0}, {4, 0}};
+auto const near{geo::closest_point(edge, nm::vector2_d{6, 3})};  // (4, 0): clamped to end
+auto const d{geo::distance(edge, nm::vector2_d{2, 2})};          // 2
+
+constexpr geo::segment2_d other{nm::vector2_d{2, -1}, {2, 1}};
+if (auto const x{geo::intersects(edge, other)}) {
+  // *x == (2, 0)
+}
+#+END_SRC
+
+* See also
+
+- [[file:ray.org][ray]] : the unbounded sibling, parameter clamped to =t >= 0= instead of =[0, 1]=.
+- [[file:triangle.org][triangle]] : its edges are segments; =intersects= shares the 2D =cross=.
+- [[file:../math/vector_algorithms.org][math/vector_algorithms]] : =dot=, =cross=, =clamp=, =length_squared= this header builds on.
+
+* Further reading
+
+- The segment-segment crossing via the two-parameter pseudo-cross solve:
+  Christer Ericson, "Real-Time Collision Detection", section 5.1.9.
+- The parametric segment and point-segment distance:
+  https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line

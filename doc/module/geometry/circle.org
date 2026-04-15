@@ -1,0 +1,122 @@
+#+TITLE: the circle
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=circle2<Real>=: a closed 2D disc stored as a center point and a radius, with its
+metric queries. The measures are =area= and =circumference=; the predicates and
+geometry are =contains_point=, =closest_point=, =closest_point_on_boundary=,
+=distance=, =distance_squared=, =intersects= (disc-disc), and =bounding_aabb=.
+This is the *closed disc*, not the 1D boundary curve, so =area= and =circumference=
+are the disc measures; every other query is the 2D analogue of [[file:sphere.org][sphere3]].
+Everything is =constexpr= and =noexcept=, value-typed, and nothing allocates.
+
+Aliases: =circle2=, with =circle2_f= (float) and =circle2_d= (double).
+
+* The idea
+
+A disc is the 2D twin of the ball: orientation-free, so every query depends only
+on the distance from a point (or another center) to =center=. The type is three
+scalars (a =vector2= center plus a scalar radius), trivially copyable, with the
+radius expected non-negative. As with [[file:sphere.org][sphere3]] the queries that only compare
+magnitudes are written against the *squared* distance, taking a =sqrt= only when
+the actual geometry (a point projected onto the boundary) demands it. The radius
+forces that root for boundary work, so =circle2= is floating-point only, unlike
+the integer-capable [[file:aabb.org][aabb]].
+
+* How it works
+
+** Measures
+
+=area= is =pi * r^2= (using =pi_v=) and =circumference= is =2 * pi * r=, written as
+=tau_v * r= with =tau_v= the =2*pi= constant from [[file:../math/constants.org][constants]]. These are the disc
+measures: the enclosed area and the boundary length.
+
+** Containment by squared distance
+
+=contains_point= asks =|p - center| <= radius=, but compares squared values
+=length_squared(p - center) <= radius * radius= so no =sqrt= is taken. Both sides
+are non-negative, so the squared comparison preserves the ordering exactly, and
+boundary points count as contained.
+
+** Closest point, and the radial projection
+
+=closest_point= returns =p= unchanged when it is inside or on the boundary
+(=len_sq <= r^2=); otherwise it projects =p= radially onto the boundary, walking
+=radius= along the unit direction =offset / len=:
+
+#+BEGIN_EXAMPLE
+                  p (outside)
+                 /
+          ......*......       result = center + (p - center) * (radius / len)
+        .'    /      `.       where len = |p - center|
+       .     /         .
+       .    C----------.--> +x   inside p -> p returned unchanged
+       .              .          p == C   -> degenerate, see below
+        '..........'
+#+END_EXAMPLE
+
+=closest_point_on_boundary= is the same projection but always lands on the
+perimeter, even for interior points. Both share one degeneracy: when =p=
+coincides with =center=, the direction =offset / len= is =0/0=, undefined. There
+is no single right answer, so by convention the functions return the =+x= boundary
+point =center + (radius, 0)=. (=closest_point= covers this through its inside
+test; =closest_point_on_boundary= covers it with an explicit =len_sq <= 1e-20=
+check.)
+
+** Distance
+
+=distance= computes =|p - center| - radius= and clamps the result to =0=, so a
+point inside or on the disc reads distance =0= and an outside point reads its gap
+to the perimeter. =distance_squared= squares that; the =sqrt= is already spent
+computing the perimeter gap, so the squared form saves only the final multiply.
+
+** Disc-disc overlap and the bound
+
+Two discs touch or overlap when the distance between their centers is at most the
+sum of their radii. =intersects= tests this squared:
+=length_squared(a.center - b.center) <= (a.radius + b.radius)^2=, boundary touching
+included, no =sqrt=. =bounding_aabb= returns the tight box
+=[center - (r,r), center + (r,r)]= from [[file:aabb.org][aabb]].
+
+* When to use it
+
+- As a 2D bounding volume and broad-phase proxy: a disc-disc =intersects= is one
+  squared-distance compare.
+- =contains_point= for radius / range hit-testing in 2D; =distance_squared= when
+  comparing proximities and skipping the root.
+- =closest_point= for snapping or push-out against a disc;
+  =closest_point_on_boundary= when you specifically need a perimeter point.
+- =bounding_aabb= to drop a disc into an [[file:aabb.org][aabb]] broad-phase or a 2D grid.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+constexpr geo::circle2_d disc{nm::vector2_d{0, 0}, 2.0};
+constexpr auto a{geo::area(disc)};                          // pi * 4
+auto const inside{geo::contains_point(disc, nm::vector2_d{1, 1})};  // true
+
+constexpr geo::circle2_d other{nm::vector2_d{3, 0}, 1.5};
+auto const hit{geo::intersects(disc, other)};               // true (3 <= 3.5)
+auto const edge{geo::closest_point_on_boundary(disc, nm::vector2_d{5, 0})};  // (2,0)
+constexpr auto box{geo::bounding_aabb(disc)};               // [-2,-2]..[2,2]
+#+END_SRC
+
+* See also
+
+- [[file:sphere.org][sphere]] : the 3D ball this header is the 2D analogue of.
+- [[file:aabb.org][aabb]] : the box =bounding_aabb= returns and the broad-phase counterpart.
+- [[file:../math/vector_algorithms.org][math/vector_algorithms]] : =length=, =length_squared=, and the squared-distance
+  tricks the queries lean on.
+- [[file:../math/constants.org][math/constants]] : =pi_v= and =tau_v= behind =area= and =circumference=.
+
+* Further reading
+
+- Disc as a 2D bounding volume and closest-point / intersection queries (the 2D
+  specialisation of the sphere case): Christer Ericson, "Real-Time Collision
+  Detection", sections 4.3 and 5.1.
+- Area and circumference of the disc: https://en.wikipedia.org/wiki/Circle

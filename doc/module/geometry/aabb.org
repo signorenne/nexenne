@@ -1,0 +1,144 @@
+#+TITLE: the axis-aligned bounding box
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=aabb<Value, N>=: an axis-aligned bounding box stored as a (=min=, =max=) corner
+pair, with the measures (=area=, =perimeter= in 2D; =volume=, =surface_area= in
+3D), the predicates (=empty=, =contains_point=, =contains_aabb=, =intersects=),
+the set operations (=union_of=, =intersection_of=, =expand=, =expand_to_include=),
+the closest-point and distance queries (=closest_point=, =distance_squared=,
+=distance=), and a family of named constructors (=make_aabb_from_corners=,
+=make_aabb_from_center_half_size=, =make_aabb_from_points=, =empty_aabb=). One
+template covers both 2D and 3D; the measures are constrained to the dimension
+where they make sense. It is the one geometry type that also accepts an integer
+=Value= (=aabb2_i=, =aabb3_i=), since none of its core queries need a square root.
+
+Aliases: =aabb2= / =aabb3=, each with =_f= (float), =_d= (double), and =_i= (int).
+
+* The idea
+
+A bounding box answers "where roughly is this thing, and could two things
+possibly touch" without the cost of the exact shapes. The whole point is that the
+box be cheap, so the type is deliberately thin: two corner points, value
+semantics, trivially copyable. The choice that drives everything is storing the
+*two corners* (=min=, =max=) rather than a center and half-size. With corners,
+containment is two component-wise compares, the intersection of two boxes is one
+component-wise =max= and one component-wise =min=, and overlap is a per-axis range
+test. The center and half-size forms are recovered cheaply on demand (=center=,
+=half_size=) when a routine wants them. Because no query needs a =sqrt=, =Value=
+can be an integer, which the other geometry types cannot offer.
+
+* How it works
+
+** The two stored corners
+
+A box is exactly its lower and upper corners; everything else is derived:
+
+#+BEGIN_EXAMPLE
+              max = (max.x, max.y)
+       +-------------+
+       |             |        size       = max - min
+       |     .       |        center     = (min + max) / 2
+       |   center    |        half_size  = (max - min) / 2
+       +-------------+        area (2D)  = size.x * size.y
+   min = (min.x, min.y)
+#+END_EXAMPLE
+
+The corner constructor performs no validation: the caller guarantees
+=min[i] <= max[i]= on every axis. When the order is unknown, =make_aabb_from_points=
+folds the two points through component-wise =min= / =max= (from
+[[file:../math/vector_algorithms.org][vector_algorithms]]) so the argument order does not matter, and
+=make_aabb_from_center_half_size= builds =[center - half, center + half]=.
+A box where =min[i] > max[i]= on some axis is *empty*: =empty= reports it, and it
+is the deliberate state of the inverted seed returned by =empty_aabb= (=min= at the
+type's largest finite value, =max= at its negative), so the first
+=expand_to_include= snaps a tight box around exactly the points folded in.
+
+** Containment and overlap, as per-axis range tests
+
+With corners, =contains_point= is just =min[i] <= p[i] <= max[i]= on every axis
+(boundary inclusive), and =contains_aabb= reduces to containing the inner box's
+two corners. Overlap is the same idea read the other way: two boxes miss exactly
+when they are separated on *some* axis, so =intersects= returns =false= the moment
+it finds =a.max[i] < b.min[i]= or =a.min[i] > b.max[i]=, and =true= otherwise
+(touching boundaries count). This is the separating-axis test specialised to the
+fixed coordinate axes, which is why a box-box overlap is so cheap.
+
+** Set operations are component-wise min/max
+
+The union (smallest box containing both) takes the component-wise =min= of the two
+lower corners and =max= of the two upper corners. The intersection swaps them: the
+component-wise =max= of the lowers and =min= of the uppers. When the boxes do not
+overlap that intersection comes out inverted on the separating axis, so =empty=
+returns =true= for it rather than a wrong region. =expand= pushes every face out
+by a uniform =amount= (negative shrinks); =expand_to_include= grows the box just
+enough to swallow one more point, which is the per-point step of a bound fold
+seeded by =empty_aabb=.
+
+** Closest point by clamping per axis
+
+For a box, the nearest contained point to a query =p= is found independently on
+each axis: clamp =p[i]= into =[min[i], max[i]=]. If =p= is already inside, every
+clamp is a no-op and the result is =p= itself.
+
+#+BEGIN_EXAMPLE
+        p (outside)
+         \
+          \         +-------------+
+           `------> *             |     result[i] = clamp(p[i], min[i], max[i])
+                    |  box        |     inside p   -> clamp is a no-op -> p
+                    +-------------+     outside p  -> snapped to the face/corner
+#+END_EXAMPLE
+
+=distance_squared= is then just the squared distance from =p= to that clamped
+point, which is =0= when =p= is inside, and =distance= takes its =sqrt=. Keeping
+the squared form is the usual trick: a radius or nearest-neighbour test compares
+=distance_squared= against a squared threshold and never pays for the root.
+
+* When to use it
+
+- As the broad-phase proxy for any shape: test box-box =intersects= first, and run
+  the exact (and costlier) shape test only on the survivors.
+- As the bound a primitive folds into: =bounding_aabb= on [[file:triangle.org][triangle]], [[file:circle.org][circle]], and
+  [[file:sphere.org][sphere]] all return an =aabb=, and =union_of= / =expand_to_include= build the
+  bound of a whole set.
+- =closest_point= and =distance_squared= for point-to-box queries (snapping,
+  proximity); reach for =aabb*_i= when you are binning on an integer grid.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+constexpr geo::aabb2_d box{nm::vector2_d{0, 0}, {4, 3}};
+constexpr auto a{geo::area(box)};                       // 12
+auto const inside{geo::contains_point(box, nm::vector2_d{2, 1})};  // true
+
+constexpr geo::aabb2_d other{nm::vector2_d{3, 2}, {6, 5}};
+auto const hit{geo::intersects(box, other)};            // true (overlap)
+constexpr auto clip{geo::intersection_of(box, other)};  // the contact region
+
+// fold a point set into a tight bound
+auto bound{geo::empty_aabb<double, 2>()};               // empty seed
+bound = geo::expand_to_include(bound, nm::vector2_d{1, 1});
+bound = geo::expand_to_include(bound, nm::vector2_d{5, 2});
+auto const near{geo::closest_point(box, nm::vector2_d{10, 1})};  // (4, 1)
+#+END_SRC
+
+* See also
+
+- [[file:circle.org][circle]] / [[file:sphere.org][sphere]] : =bounding_aabb= wraps a disc / ball in a box.
+- [[file:triangle.org][triangle]] : =bounding_aabb= folds three vertices through the same component-wise
+  =min= / =max=.
+- [[file:../math/vector_algorithms.org][math/vector_algorithms]] : =component_min=, =component_max=, =clamp=, and the
+  distances this header is built on.
+
+* Further reading
+
+- AABBs, the slab/separating-axis overlap test, and closest-point-on-box by
+  per-axis clamping: Christer Ericson, "Real-Time Collision Detection",
+  sections 4.2 and 5.1.3.
+- Minimum bounding box: https://en.wikipedia.org/wiki/Minimum_bounding_box

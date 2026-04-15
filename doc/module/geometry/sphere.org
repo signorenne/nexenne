@@ -1,0 +1,125 @@
+#+TITLE: the sphere
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=sphere3<Real>=: a solid 3D ball stored as a center point and a radius, with its
+metric queries. The measures are =volume= and =surface_area=; the predicates and
+geometry are =contains_point=, =closest_point=, =closest_point_on_boundary=,
+=distance=, =distance_squared=, =intersects= (ball-ball), and =bounding_aabb=.
+This is the *solid ball*, not the 2D surface, so =volume= and =surface_area=
+replace the disc's =area= and =circumference=; otherwise every query mirrors
+[[file:circle.org][circle2]] one-to-one in three dimensions. Everything is =constexpr= and =noexcept=,
+value-typed, and nothing allocates.
+
+Aliases: =sphere3=, with =sphere3_f= (float) and =sphere3_d= (double).
+
+* The idea
+
+A ball is the cheapest non-trivial bounding volume and the simplest collision
+proxy: it has no orientation, so every query depends only on the distance from a
+point (or another center) to =center=. The type is therefore just four scalars (a
+=vector3= center plus a scalar radius), trivially copyable, with the radius
+expected non-negative. Because the queries care only about distances, the
+expensive ones are written against the *squared* distance and reach for a =sqrt=
+only when the actual geometry (a point projected onto the boundary) needs it.
+Unlike [[file:aabb.org][aabb]] the radius makes a =sqrt= unavoidable for boundary work, so =sphere3=
+is floating-point only.
+
+* How it works
+
+** Measures
+
+=volume= is =(4/3) * pi * r^3= and =surface_area= is =4 * pi * r^2=, both using
+=pi_v= from [[file:../math/constants.org][constants]]. They are the 3D counterparts of the disc's =area= and
+=circumference=.
+
+** Containment by squared distance
+
+=contains_point= asks =|p - center| <= radius=, but compares the *squared* values
+=length_squared(p - center) <= radius * radius= so no =sqrt= is taken. The
+comparison preserves the ordering exactly (both sides non-negative), and boundary
+points (=|p - center| == radius=) count as contained.
+
+** Closest point, and the radial projection
+
+=closest_point= returns =p= unchanged when it is inside or on the boundary
+(=len_sq <= r^2=); otherwise it projects =p= radially onto the boundary by walking
+=radius= along the unit direction =offset / len=:
+
+#+BEGIN_EXAMPLE
+                 p (outside)
+                /
+               /              result = center + (p - center) * (radius / len)
+        ......*......         where len = |p - center|
+      .'    / `.
+     .     /     .            inside p  -> p returned unchanged
+     .    C------.--> +x      p == C    -> degenerate, see below
+      .         .
+        '......'
+#+END_EXAMPLE
+
+=closest_point_on_boundary= is the same projection but always lands on the surface,
+even for interior points. Both share one degeneracy: when =p= coincides with
+=center= the direction =offset / len= is =0/0=, undefined. There is no single right
+answer, so by convention the function returns the =+x= boundary point
+=center + (radius, 0, 0)=. (=closest_point= guards this through its inside test;
+=closest_point_on_boundary= guards it with an explicit =len_sq <= 1e-20= check.)
+
+** Distance
+
+=distance= computes =|p - center| - radius= and clamps the result to =0=, so a
+point inside or on the ball reads distance =0= and an outside point reads its gap
+to the surface. =distance_squared= squares that. Note the squared form here is *not*
+a =sqrt= dodge: the =sqrt= is already spent computing the surface gap, so
+=distance_squared= only saves the final multiply over squaring =distance= at the
+call site.
+
+** Ball-ball overlap and the bound
+
+Two balls touch or overlap when the distance between their centers is at most the
+sum of their radii. =intersects= tests this squared:
+=length_squared(a.center - b.center) <= (a.radius + b.radius)^2=, boundary touching
+included, no =sqrt=. =bounding_aabb= returns the tight box
+=[center - (r,r,r), center + (r,r,r)]= from [[file:aabb.org][aabb]].
+
+* When to use it
+
+- As a bounding volume and broad-phase proxy: a ball-ball =intersects= is one
+  squared-distance compare, the cheapest pairwise overlap test there is.
+- =contains_point= for radius / range checks; =distance_squared= when you only
+  compare proximities and want to skip the root.
+- =closest_point= for snapping or push-out against a ball;
+  =closest_point_on_boundary= when you specifically need a surface point.
+- =bounding_aabb= to drop a ball into an [[file:aabb.org][aabb]] broad-phase or a spatial grid.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+constexpr geo::sphere3_d ball{nm::vector3_d{0, 0, 0}, 2.0};
+constexpr auto v{geo::volume(ball)};                       // (4/3) pi 8
+auto const inside{geo::contains_point(ball, nm::vector3_d{1, 1, 0})};  // true
+
+constexpr geo::sphere3_d other{nm::vector3_d{3, 0, 0}, 1.5};
+auto const hit{geo::intersects(ball, other)};              // true (3 <= 3.5)
+auto const surf{geo::closest_point_on_boundary(ball, nm::vector3_d{5, 0, 0})};  // (2,0,0)
+constexpr auto box{geo::bounding_aabb(ball)};              // [-2,-2,-2]..[2,2,2]
+#+END_SRC
+
+* See also
+
+- [[file:circle.org][circle]] : the 2D disc this header mirrors one-to-one.
+- [[file:aabb.org][aabb]] : the box =bounding_aabb= returns and the broad-phase counterpart.
+- [[file:../math/vector_algorithms.org][math/vector_algorithms]] : =length=, =length_squared=, and the squared-distance
+  tricks the queries lean on.
+- [[file:../math/constants.org][math/constants]] : =pi_v= behind =volume= and =surface_area=.
+
+* Further reading
+
+- Sphere as a bounding volume, ball-ball intersection, and closest-point-on-sphere:
+  Christer Ericson, "Real-Time Collision Detection", sections 4.3 and 5.1.
+- Volume and surface area of the ball: https://en.wikipedia.org/wiki/Sphere
