@@ -36,8 +36,9 @@ Testing/
 *.orig
 
 # ---------------------------------------------------------------------------
-# AI assistants / coding agents (drop everything; force-add if you really
-# want to commit one of these)
+# AI assistants / coding agents. Keep local tool state out of git. The root
+# AGENTS.md and tiny tool-specific bridge files are intentionally versioned as
+# shared agent entrypoints.
 # ---------------------------------------------------------------------------
 .claude/
 .claude-flow/
@@ -58,7 +59,6 @@ Testing/
 .codecompanion/
 .copilot/
 .copilot-*
-.github/copilot-instructions.md
 .openhands/
 .devin/
 .cody/
@@ -69,11 +69,8 @@ Testing/
 .history/
 .assistant/
 .ai/
-CLAUDE.md
-AGENTS.md
 AGENT.md
 CONVERSATIONS.md
-GEMINI.md
 COPILOT.md
 
 # ---------------------------------------------------------------------------
