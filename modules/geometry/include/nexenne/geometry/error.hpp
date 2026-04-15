@@ -29,17 +29,9 @@ namespace nexenne::geometry {
  * @brief Error enumeration for fallible geometry operations.
  */
 enum class geometry_error {
-  /// Primitive is degenerate (zero-length segment, zero-radius circle,
-  /// collinear triangle vertices, and similar).
-  degenerate_primitive,
-
-  /// Input violated a basic precondition the operation can detect (a NaN
-  /// component, a non-finite radius, and similar).
-  invalid_input,
-
-  /// Two features are parallel and cannot produce the requested intersection
-  /// (parallel lines, parallel planes).
-  parallel,
+  degenerate_primitive,  ///< Zero-length segment, zero-radius circle, collinear triangle, etc.
+  invalid_input,         ///< A precondition the op can detect failed (NaN or non-finite input).
+  parallel,              ///< Parallel features cannot produce the requested intersection.
 };
 
 /**
