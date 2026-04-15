@@ -143,8 +143,10 @@ in the owning index and, for new top-level or setup docs, in
 - Trailing return types, braced initialization, east const, and const by
   default.
 - Every public header starts with =#pragma once= and a Doxygen =@file= block.
-- Every public symbol has Javadoc-flavored Doxygen. Keep the tag order from
-  [[file:STYLE_GUIDE.org][STYLE_GUIDE.org]], including =@pre= and =@post=.
+- Every public symbol has Javadoc-flavored Doxygen: =/** ... */=, no HTML and no
+  backticks (use =\c= for inline code). Keep the tag order from
+  [[file:STYLE_GUIDE.org][STYLE_GUIDE.org]], including =@pre= and =@post=, and
+  document every parameter and return.
 - Recoverable errors use =std::expected<T, error_t>=. Do not throw for normal
   error reporting.
 - Dependency changes follow [[file:doc/dependencies.org][doc/dependencies.org]].
