@@ -105,7 +105,7 @@ jobs:
           fi
       - name: Run clang-tidy (examples, relaxed)
         run: |
-          examples=$(git ls-files 'examples/*.cpp')
+          examples=$(git ls-files 'examples/*/*.cpp')
           if [ -n "$examples" ]; then
             run-clang-tidy-19 -p build/dev -quiet $examples
           fi
