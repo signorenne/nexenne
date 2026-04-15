@@ -19,9 +19,13 @@ endif()
 nexenne_add_module(geometry
     HEADERS
         include/nexenne/geometry/aabb.hpp
+        include/nexenne/geometry/capsule.hpp
         include/nexenne/geometry/circle.hpp
         include/nexenne/geometry/error.hpp
+        include/nexenne/geometry/frustum.hpp
+        include/nexenne/geometry/obb.hpp
         include/nexenne/geometry/plane.hpp
+        include/nexenne/geometry/polygon.hpp
         include/nexenne/geometry/ray.hpp
         include/nexenne/geometry/segment.hpp
         include/nexenne/geometry/sphere.hpp
