@@ -37,6 +37,18 @@ first copy-paste, and the tests keep all three honest.
 - Keep defaults conservative and deterministic.
 - Avoid global state. If a component needs state, let the caller own it.
 
+* Composition and reuse
+
+Build from small, reusable pieces rather than one large class. Before adding a
+component, scout the codebase for an existing primitive to reuse or compose, and
+reach for it instead of duplicating the logic.
+
+The library already works this way. =utility::buffer_cursor= is a bounds-aware
+read/write position over a contiguous buffer, and the serialization readers and
+writers (binary, JSON, CBOR, MessagePack) all build on it instead of each
+re-implementing cursor bookkeeping. When the same logic shows up in two
+components, factor it into a small lower-layer type the higher-layer ones share.
+
 * Error model
 
 Recoverable errors return =std::expected<T, error_t>=. A legitimate absence of
