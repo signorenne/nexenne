@@ -2,7 +2,7 @@
 #+OPTIONS: toc:2 num:nil ^:nil
 #+STARTUP: showall
 
-Owns the rules for adding and vetting dependencies. [[file:../AGENTS.org][AGENTS.org]]
+Owns the rules for adding and vetting dependencies. [[file:../AGENTS.md][AGENTS.md]]
 carries the one-line floor. This file is the full policy.
 
 Every dependency is a maintenance promise. Add the smallest dependency set that

@@ -70,7 +70,11 @@ full rules are in [[file:../../CONTRIBUTING.org][CONTRIBUTING.org]].
 
 * Docs format
 
-All prose docs are Org mode (=.org=), never Markdown; do not add =.md= files.
+All prose docs are Org mode (=.org=), never Markdown. The root =AGENTS.md= file
+and tiny tool-specific bridge files, such as =CLAUDE.md=, =GEMINI.md=, and
+=.github/copilot-instructions.md=, are the only Markdown exception because AI
+tools discover those names directly. Keep =AGENTS.md= canonical and make
+tool-specific files point to it instead of duplicating rules.
 
 * Documenting the math-heavy modules
 

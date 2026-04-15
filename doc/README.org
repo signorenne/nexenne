@@ -18,7 +18,7 @@ pull module or component deep dives only when the task touches them.
 | [[file:../README.org][README.org]]                  |       |         |      |        |        | x       |
 | [[file:../VISION.org][VISION.org]]                  | x     | x       |      |        | x      | x       |
 | [[file:../DESIGN.org][DESIGN.org]]                  |       | x       | x    | x      | x      | x       |
-| [[file:../AGENTS.org][AGENTS.org]]                  | x     | x       | x    | x      | x      | x       |
+| [[file:../AGENTS.md][AGENTS.md]]                  | x     | x       | x    | x      | x      | x       |
 | [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]]             |       | x       | x    | x      | x      | x       |
 | [[file:../CONTRIBUTING.org][CONTRIBUTING.org]]            |       | x       | x    | x      | x      | x       |
 | [[file:../AI_DISCLAIMER.org][AI_DISCLAIMER.org]]           |       | x       | x    | x      | x      | x       |
@@ -59,9 +59,14 @@ Role names:
 
 The graph is hub and spoke, not a lateral web.
 
-- [[file:../AGENTS.org][AGENTS.org]] is the code hub. It holds the
-  working-memory floor for AI agents and humans: where work goes, execution
-  recipes, hard rules, validation commands, and review checklist.
+- [[file:../AGENTS.md][AGENTS.md]] is the code hub. It holds the working-memory
+  floor for AI agents and humans: where work goes, execution recipes, hard
+  rules, validation commands, and review checklist.
+- Tool-specific bridges such as [[file:../CLAUDE.md][CLAUDE.md]],
+  [[file:../GEMINI.md][GEMINI.md]], and
+  [[file:../.github/copilot-instructions.md][.github/copilot-instructions.md]]
+  point back to [[file:../AGENTS.md][AGENTS.md]] so every assistant uses the same
+  rules.
 - [[file:../VISION.org][VISION.org]] owns project direction, principles, and
   non-goals.
 - [[file:../DESIGN.org][DESIGN.org]] owns API and library surface design.
@@ -95,12 +100,16 @@ to each other instead of copying paragraphs.
 
 - /Single source per concept./ One doc owns the fact. Everywhere else links to
   that doc.
-- /Org mode only./ Prose docs use =.org=. Do not add =.md= docs.
+- /Org mode plus agent entrypoints./ Prose docs use =.org=. Do not add =.md=
+  docs, except =AGENTS.md= and tiny tool-specific bridge files such as
+  =CLAUDE.md=, =GEMINI.md=, and =.github/copilot-instructions.md=. =AGENTS.md=
+  is canonical; bridge files must not duplicate rules.
 - /Naming./ Root hubs are uppercase words or established root names
-  (=AGENTS.org=, =STYLE_GUIDE.org=, =CONTRIBUTING.org=, =README.org=). Setup
-  topics use hyphen-case under =doc/setup/=. Module leaf docs follow the public
-  component name when it is one component (=static_vector.org=) and hyphen-case
-  when the guide covers a topic group (=string-matching.org=).
+  (=AGENTS.md=, =CLAUDE.md=, =GEMINI.md=, =STYLE_GUIDE.org=,
+  =CONTRIBUTING.org=, =README.org=). Setup topics use hyphen-case under
+  =doc/setup/=. Module leaf docs follow the public component name when it is
+  one component (=static_vector.org=) and hyphen-case when the guide covers a
+  topic group (=string-matching.org=).
 - /Register new docs./ Root docs and setup docs are registered in this file.
   Module leaves are registered in their module README. New modules are
   registered in [[file:module/README.org][doc/module/README.org]].
@@ -125,7 +134,10 @@ Every doc family, its purpose, and the roles that load it.
 | [[file:../README.org][README.org]]        | Project overview, quick start, build, use, layout | onboard                                       |
 | [[file:../VISION.org][VISION.org]]        | Project direction, mission, principles, non-goals | scout, planner, module, onboard               |
 | [[file:../DESIGN.org][DESIGN.org]]        | API and library surface design principles         | planner, impl, review, module, onboard        |
-| [[file:../AGENTS.org][AGENTS.org]]        | Agent-facing code hub and working-memory floor    | scout, planner, impl, review, module, onboard |
+| [[file:../AGENTS.md][AGENTS.md]]        | Agent-facing code hub and working-memory floor    | scout, planner, impl, review, module, onboard |
+| [[file:../CLAUDE.md][CLAUDE.md]]        | Claude Code bridge that imports =AGENTS.md=       | tool entrypoint                               |
+| [[file:../GEMINI.md][GEMINI.md]]        | Gemini bridge that imports =AGENTS.md=            | tool entrypoint                               |
+| [[file:../.github/copilot-instructions.md][copilot-instructions.md]] | GitHub Copilot bridge to =AGENTS.md= | tool entrypoint |
 | [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]]   | C++ style, naming, Doxygen, API conventions       | planner, impl, review, module, onboard        |
 | [[file:../CONTRIBUTING.org][CONTRIBUTING.org]]  | Workflow, component-change recipe, gates, commits | planner, impl, review, module, onboard        |
 | [[file:../AI_DISCLAIMER.org][AI_DISCLAIMER.org]] | AI-assistance accountability policy               | planner, impl, review, module, onboard        |
@@ -176,6 +188,7 @@ Current module indexes:
 | container     | [[file:module/container/README.org][module/container/README.org]]     |
 | ecs           | [[file:module/ecs/README.org][module/ecs/README.org]]           |
 | filter        | [[file:module/filter/README.org][module/filter/README.org]]        |
+| geometry      | [[file:module/geometry/README.org][module/geometry/README.org]]      |
 | logging       | [[file:module/logging/README.org][module/logging/README.org]]       |
 | math          | [[file:module/math/README.org][module/math/README.org]]          |
 | random        | [[file:module/random/README.org][module/random/README.org]]        |
@@ -191,6 +204,6 @@ Current module indexes:
 
 * Known docs gaps
 
-- =modules/geometry/= exists, but =doc/module/geometry/README.org= and
-  =examples/geometry/= do not yet exist. Add the module index and at least the
-  first component guide before growing that module further.
+- =modules/geometry/= has a module index and component guides, but
+  =examples/geometry/= does not yet exist. Add runnable examples before growing
+  the public usage surface further.

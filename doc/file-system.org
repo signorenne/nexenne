@@ -14,7 +14,9 @@ nexenne/
 |-- README.org              project overview and quick start
 |-- VISION.org              project direction and non-goals
 |-- DESIGN.org              API and library design principles
-|-- AGENTS.org              agent working-memory floor
+|-- AGENTS.md               agent working-memory floor
+|-- CLAUDE.md               Claude Code bridge that imports AGENTS.md
+|-- GEMINI.md               Gemini bridge that imports AGENTS.md
 |-- STYLE_GUIDE.org         C++ style and Doxygen mechanics
 |-- CONTRIBUTING.org        workflow, gates, commits
 |-- AI_DISCLAIMER.org       AI-assistance accountability policy
@@ -69,7 +71,10 @@ doc/
 #+END_SRC
 
 Root hubs are for project-wide rules and direction. Setup docs are for
-infrastructure. Module docs are for user-facing library behavior.
+infrastructure. Module docs are for user-facing library behavior. =AGENTS.md=
+and tiny files that point to it for AI-tool compatibility, such as =CLAUDE.md=,
+=GEMINI.md=, and =.github/copilot-instructions.md=, are the only Markdown
+exceptions.
 
 * Where new code goes
 
