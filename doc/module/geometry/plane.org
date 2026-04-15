@@ -1,0 +1,127 @@
+#+TITLE: the plane
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=plane3<Real>=: an infinite 3D plane in Hessian normal form, stored as a unit
+=normal= and a scalar offset =d= such that a point =p= lies on the plane when
+=dot(normal, p) + d == 0=. Aliases are =plane3=, =plane3_f= (float), and
+=plane3_d= (double). Two checked factories build it: =plane_from_point_normal=
+and =plane_from_three_points=. The free queries =signed_distance=, =distance=,
+=closest_point=, and =contains_point= read off the same form. Everything is
+=constexpr= and =noexcept=.
+
+* The idea
+
+A plane has two classic representations: a point plus a normal (six numbers,
+redundant), or the Hessian form =n . p + d = 0= (four numbers, =n= unit). The
+type stores the Hessian form because it is compact and because nearly every
+query collapses to one dot product against it. The =static_assert= block pins
+the size to four components (=4 * sizeof(float)=): three for the normal, one for
+=d=. The default plane is the XY plane through the origin (normal =+Z=, =d ==
+0=), so a value-initialized =plane3= is a sensible plane rather than a degenerate
+one.
+
+* How it works
+
+** Hessian normal form
+
+The defining equation is =dot(normal, p) + d == 0=. Geometrically =-d= is the
+signed distance from the origin to the plane measured along =normal=: it is how
+far, and on which side, you step from the origin in the normal direction to reach
+the plane.
+
+#+BEGIN_EXAMPLE
+            normal (unit)
+               ^
+               |
+        -------+------------------  plane:  dot(n, p) + d = 0
+               |
+               |  -d  = signed distance origin -> plane, along n
+               |
+               O  origin
+
+   signed_distance(p) = dot(n, p) + d
+       > 0  : p is on the side the normal points to
+       = 0  : p is on the plane
+       < 0  : p is on the far side
+#+END_EXAMPLE
+
+** The checked factories
+
+=plane_from_point_normal(point, normal)= normalizes =normal= internally, so any
+non-zero direction is accepted; it then sets =d = -dot(n, point)= so the given
+point satisfies the plane equation exactly. =plane_from_three_points(a, b, c)=
+takes the normal as =normalize(cross(b - a, c - a))= (right-hand rule: viewing
+=a -> b -> c= counter-clockwise, the normal points toward the viewer) and again
+anchors =d = -dot(n, a)=.
+
+Both lean on =normalize=, which is fallible. A zero-length normal, or three
+collinear points whose cross product vanishes, cannot be normalized, so the
+factories return =geometry_error::degenerate_primitive= rather than a NaN-laden
+plane. A runtime-detectable degeneracy is a =result=, not a precondition the
+caller must pre-check; the cheap two-argument constructor trusts a unit normal
+when you already hold one.
+
+** Distance, projection, containment from one dot product
+
+Every query reuses =signed_distance(pl, p) = dot(pl.normal(), p) + pl.d()=:
+
+- =distance= is its absolute value, the unsigned perpendicular distance.
+- =closest_point(pl, p) = p - normal * signed_distance(pl, p)= steps =p= back
+  along the normal by exactly its signed distance, landing it on the plane (the
+  orthogonal projection):
+
+#+BEGIN_EXAMPLE
+        p
+        |  signed_distance(p)  (along n)
+        v
+  ------*------------------  plane
+        closest_point(p) = p - n * signed_distance(p)
+#+END_EXAMPLE
+
+- =contains_point(pl, p, tolerance)= reports =distance(pl, p) <= tolerance=, with
+  the tolerance defaulting to =1e-6=. It is a =bool= predicate, not a =result=:
+  on-or-off-the-plane is an answer, not invalid input. The tolerance is needed
+  because exact equality on the plane equation is unreachable in floating point.
+
+All four assume the stored normal is unit length, which the factories guarantee.
+
+* When to use it
+
+- As a clipping or culling boundary, a ground or wall, a mirror, or the
+  supporting plane of a triangle (=plane_from_three_points=).
+- =signed_distance= to classify points into half-spaces (which side, how far)
+  for culling and BSP-style partitioning; its sign is the side, its magnitude the
+  distance.
+- =closest_point= to project a point onto a surface; =contains_point= for an
+  on-plane test, widening the tolerance when your inputs are noisy.
+- Build through a factory and check the =result= once, then reuse the
+  unit-normal plane across many queries.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+if (auto const pl{geo::plane_from_point_normal(nm::vector3_d{0, 0, 0}, nm::vector3_d{0, 0, 2})}) {
+  constexpr nm::vector3_d p{1, 1, 5};
+  auto const sd{geo::signed_distance(*pl, p)};   // +5 (front half-space)
+  auto const foot{geo::closest_point(*pl, p)};   // (1, 1, 0)
+  auto const on{geo::contains_point(*pl, foot)}; // true
+}
+#+END_SRC
+
+* See also
+
+- [[file:triangle.org][triangle]] : =plane_from_three_points= builds the plane a triangle lies in.
+- [[file:ray.org][ray]] : the line most often cast against a plane.
+- [[file:../math/vector_algorithms.org][math/vector_algorithms]] : the =dot=, =cross=, and =normalize= this header is built on.
+
+* Further reading
+
+- The Hessian normal form and plane representations: Christer Ericson,
+  "Real-Time Collision Detection", section 3.6.
+- Hessian normal form: https://mathworld.wolfram.com/HessianNormalForm.html

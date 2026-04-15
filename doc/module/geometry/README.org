@@ -1,0 +1,98 @@
+#+TITLE: nexenne::geometry
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+The shape toolbox of the library: the primitives of 2D and 3D collision and
+spatial reasoning (rays, segments, planes, triangles, boxes, spheres, capsules)
+and the queries they answer (closest point, distance, containment,
+intersection). It is built directly on [[file:../math/README.org][nexenne::math]]: a geometry primitive is a
+small bundle of =vector=, and every query reduces to the dot, cross, length, and
+normalize from [[file:../math/vector_algorithms.org][vector_algorithms]].
+
+The spirit matches the rest of nexenne: everything is generic over the scalar
+type, =constexpr= wherever the language allows, =noexcept= throughout, no heap,
+and no runtime surprises. The primitives are thin value types, trivially
+copyable, their byte size pinned by =static_assert=; the interesting content is
+the free functions that query them.
+
+* Error policy
+
+The module distinguishes three failure shapes and gives each its own return
+type. See [[file:../../../modules/geometry/include/nexenne/geometry/error.hpp][=error.hpp=]].
+
+- *Invalid input the operation can detect* returns
+  =result<T> = std::expected<T, geometry_error>=. A degenerate primitive (a
+  zero-length normal, coincident points, collinear points) is reported, not
+  assumed away: =ray_from_points=, =plane_from_point_normal=,
+  =plane_from_three_points=, and =triangle::normal= all hand back a =result= and
+  report =geometry_error::degenerate_primitive= rather than producing a NaN-laden
+  shape. There is no separate precondition fast path: a caller who knows the
+  input is good still unwraps via =*result=, and the compiler elides the dead
+  error branch, so the runtime cost is essentially zero.
+- *A query that can legitimately have no answer* returns =std::optional=, not
+  =result=. A 2D =segment= =intersects= that finds no crossing returns
+  =std::nullopt=: a clean miss is an answer, not invalid input.
+- *A predicate* returns =bool=: =triangle::contains_point=,
+  =plane3::contains_point=.
+
+=geometry_error= is the module's own error space (=degenerate_primitive=,
+=invalid_input=, =parallel=); math-side failures stay in
+=nexenne::math::math_error=. Formatting for =geometry_error= lives in
+=format.hpp= so =error.hpp= stays free of =<format>=.
+
+* Naming
+
+Types carry their dimension in the name with *no underscore* before the digit:
+=ray2=, =ray3=, =segment2=, =segment3=, =triangle2=, =triangle3=, =plane3=. The
+scalar suffix is underscored: =_f= for =float=, =_d= for =double=. So =ray3_f= is
+a 3D ray of float, =plane3_d= a plane of double. A primitive that exists in only
+one dimension carries only that one (=plane3=, =circle2=, =sphere3=); one that
+spans both is a single template aliased per dimension (=ray2= / =ray3=).
+
+* The headers
+
+** Primitives
+
+- [[file:ray.org][ray]] : =ray2= / =ray3=, a half-line as origin plus unit direction, the
+  =t >= 0= parametric form. =at=, =closest_point= (clamped to the half-line),
+  distance, and the checked =ray_from_points= factory.
+- [[file:segment.org][segment]] : =segment2= / =segment3=, a finite segment as two endpoints, the
+  =t in [0, 1]= form. Length, =closest_point= (clamped to =[0, 1]=), distance,
+  and the 2D =intersects= returning the crossing as a =std::optional=.
+- [[file:plane.org][plane]] : =plane3=, an infinite plane in Hessian normal form (unit normal plus
+  offset =d=). Signed distance, projection, containment, and the checked
+  =plane_from_point_normal= / =plane_from_three_points= factories.
+- [[file:triangle.org][triangle]] : =triangle2= / =triangle3=, three vertices in winding order.
+  Signed area and 2D containment, 3D normal and area, centroid, bounding box.
+- [[file:circle.org][circle]] : the 2D disc.
+- [[file:sphere.org][sphere]] : the 3D ball.
+- =polygon.hpp= : the general N-vertex polygon (article pending).
+
+** Bounding volumes
+
+- [[file:aabb.org][aabb]] : the axis-aligned bounding box, the cheap conservative bound the other
+  primitives fold into via component-wise min / max.
+- [[file:obb.org][obb]] : the oriented bounding box.
+- [[file:capsule.org][capsule]] : a segment swept by a radius.
+- =frustum.hpp= : the six-plane view frustum (article pending).
+
+** Queries coming
+
+- =intersect= : the cross-type intersection queries (ray-triangle via
+  Moller-Trumbore, the 3D segment skew-line closest pair, and the rest) live in
+  their own header so each primitive stays focused on the queries intrinsic to
+  it. The within-type queries (closest point, distance, containment) ship with
+  their primitive.
+
+** Headers without an article
+
+- =geometry.hpp= : the umbrella header; includes the whole module. For finer
+  build dependencies, include the individual leaf headers directly.
+- =error.hpp= : the =geometry_error= enum and the =result<T>= alias
+  (=std::expected<T, geometry_error>=) the fallible factories return.
+
+* See also
+
+- [[file:../math/README.org][nexenne::math]] : the vectors, scalars, and =vector_algorithms= this module is built on.
+- [[file:../README.org][module index]]
+- [[file:../../../STYLE_GUIDE.org][STYLE_GUIDE.org]] : the code-style rules used in the examples.

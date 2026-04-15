@@ -1,0 +1,124 @@
+#+TITLE: the triangle
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=triangle<Real, N>=: three vertices =a=, =b=, =c= stored in winding order, with
+the queries a triangle answers in 2D and 3D. One template covers both
+dimensions; the dimension-specific queries are constrained to the dimension
+where they make sense. =centroid=, =area=, and =bounding_aabb= work in any
+dimension; =signed_area= and =contains_point= are 2D only; =normal= is 3D only
+(and =result=-returning, since a degenerate triangle has no normal).
+
+* The idea
+
+A triangle is the simplest non-degenerate polygon and the atom of every mesh, so
+the type is deliberately thin: three vertices, value semantics, trivially
+copyable. The interesting content is the queries, and every one of them reduces
+to a single cross product of the two edge vectors =b - a= and =c - a=. The 2D
+cross is a signed scalar (twice the signed area); the 3D cross is a vector (twice
+the area, along the face normal). Sharing that one primitive keeps the math
+consistent between dimensions and lets the whole header stay =constexpr= and
+=noexcept=.
+
+* How it works
+
+** Signed area, the shoelace as a single cross
+
+In 2D the signed area is =cross(b - a, c - a) / 2=, where =cross= is the 2D
+pseudo-cross =ux*vy - uy*vx= (see [[file:../math/vector_algorithms.org][vector_algorithms]]). This is the shoelace
+formula for a triangle written with the first vertex as the pivot. Its *sign* is
+the orientation, which is why =signed_area= doubles as a winding test:
+
+#+BEGIN_EXAMPLE
+        c                 c
+       / \               / \
+      /   \             /   \         signed_area > 0  (a,b,c) counter-clockwise
+     a-----b           b-----a        signed_area < 0  (a,b,c) clockwise
+   counter-clockwise   clockwise      signed_area = 0  collinear (degenerate)
+#+END_EXAMPLE
+
+=area= is just =|signed_area|=. In 3D there is no sign (no global notion of
+"clockwise" without a viewpoint), so =area= is =length(cross(b - a, c - a)) / 2=:
+the magnitude of the parallelogram spanned by the two edges, halved.
+
+** The face normal (3D)
+
+The unit face normal is =normalize(cross(b - a, c - a))=. By the right-hand rule,
+walking =a -> b -> c= counter-clockwise as seen from the tip of the normal makes
+the normal point toward the viewer. A collinear or coincident triangle spans no
+area, so its cross product is the zero vector and cannot be normalized; rather
+than hand back a NaN-laden direction, =normal= returns
+=result<vector>= and reports =geometry_error::degenerate_primitive=. This is the
+module's error policy in miniature: a runtime-detectable degeneracy is a
+=result=, not a precondition the caller must pre-check.
+
+** Point containment by orientation (2D)
+
+=contains_point= uses the three-edge orientation test rather than computing
+barycentric coordinates explicitly. For the query point =p= and each directed
+edge, the 2D cross of (edge, p - edge.start) gives a signed value whose sign says
+which side of that edge =p= lies on. =p= is inside the closed triangle exactly
+when it is on the same side of all three edges:
+
+#+BEGIN_EXAMPLE
+            c
+           / \           d1 = cross(a-p, b-p)   side of edge a->b
+          / p \          d2 = cross(b-p, c-p)   side of edge b->c
+         /  .  \         d3 = cross(c-p, a-p)   side of edge c->a
+        a-------b
+                         inside  <=>  d1,d2,d3 all >= 0   (ccw winding)
+                                 or   d1,d2,d3 all <= 0   (cw winding)
+#+END_EXAMPLE
+
+Accepting "all non-negative OR all non-positive" makes the test independent of
+the triangle's winding and inclusive of the boundary (a zero means "exactly on
+that edge"). Concretely the code rejects only when it has seen both a strictly
+negative and a strictly positive sign, so a point dead on an edge or vertex still
+counts as contained.
+
+** Centroid and bound
+
+=centroid= is the plain vertex average =(a + b + c) / 3= (for a triangle the
+area-weighted centroid and the vertex average coincide). =bounding_aabb= folds
+the three vertices through the component-wise =min= / =max= from [[file:aabb.org][aabb]], which
+vectorizes to a couple of packed instructions.
+
+* When to use it
+
+- As a mesh face, a picking target (with the ray-triangle test in [[file:intersect.org][intersect]]),
+  or the unit of a triangulation.
+- Use =contains_point= for 2D hit-testing; for 3D "is this coplanar point inside
+  the face" project onto the triangle's plane first.
+- =normal= before lighting or back-face decisions; check the =result= once and
+  reuse the unit normal.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+constexpr geo::triangle2_d tri{nm::vector2_d{0, 0}, {4, 0}, {0, 3}};
+constexpr auto a{geo::signed_area(tri)};          // +6 (counter-clockwise)
+auto const inside{geo::contains_point(tri, nm::vector2_d{1, 1})};  // true
+
+geo::triangle3_d face{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
+if (auto const n{geo::normal(face)}) {            // result<vector3_d>
+  // *n is the unit +Z normal
+}
+#+END_SRC
+
+* See also
+
+- [[file:aabb.org][aabb]] : the bounding box =bounding_aabb= folds into.
+- [[file:plane.org][plane]] : a triangle's supporting plane (=plane_from_three_points=).
+- [[file:intersect.org][intersect]] : ray-triangle (Moller-Trumbore) and the cross-type queries.
+- [[file:../math/vector_algorithms.org][math/vector_algorithms]] : the 2D and 3D =cross= this header is built on.
+
+* Further reading
+
+- Barycentric coordinates and the orientation (sign-of-cross) point-in-triangle
+  test: Christer Ericson, "Real-Time Collision Detection", section 3.4.
+- The shoelace formula: https://en.wikipedia.org/wiki/Shoelace_formula
