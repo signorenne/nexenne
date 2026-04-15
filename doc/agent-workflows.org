@@ -3,13 +3,13 @@
 #+STARTUP: showall
 
 Owns reusable workflows for AI agents and human contributors doing multi-step
-work in nexenne. [[file:../AGENTS.org][AGENTS.org]] carries the short working-memory floor;
+work in nexenne. [[file:../AGENTS.md][AGENTS.md]] carries the short working-memory floor;
 this file carries the longer playbooks.
 
 * Common sequence
 
 This chain operationalizes the working method in
-[[file:../AGENTS.org][AGENTS.org]]: establish context first, reduce uncertainty
+[[file:../AGENTS.md][AGENTS.md]]: establish context first, reduce uncertainty
 before acting, and land small, verifiable steps. Most non-trivial work follows
 it:
 
@@ -28,7 +28,7 @@ run, and commands still needed.
 
 Use this when adding or changing a public API inside an existing module.
 
-1. Load [[file:../AGENTS.org][AGENTS.org]], [[file:README.org][doc/README.org]],
+1. Load [[file:../AGENTS.md][AGENTS.md]], [[file:README.org][doc/README.org]],
    [[file:file-system.org][file-system.org]], [[file:architecture.org][architecture.org]],
    [[file:../DESIGN.org][DESIGN.org]], [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]], the module index, and
    the component guide if one exists.

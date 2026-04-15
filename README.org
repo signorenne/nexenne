@@ -17,11 +17,15 @@ a few lines.
 A layered Org-mode knowledge base lives under [[file:doc/README.org][doc/]]. The root
 index is also the role matrix for AI agents and human contributors: start there
 to load only the docs your task needs. The working-memory floor for agents lives
-in [[file:AGENTS.org][AGENTS.org]], and the deeper references stay in the setup and
+in [[file:AGENTS.md][AGENTS.md]], and the deeper references stay in the setup and
 module spokes.
 
 - [[file:doc/README.org][doc/README.org]] : the documentation root, start here.
-- [[file:AGENTS.org][AGENTS.org]] : agent-facing rules, execution recipes, validation commands.
+- [[file:AGENTS.md][AGENTS.md]] : canonical agent-facing rules, execution recipes,
+  validation commands. Tool-specific bridges, such as
+  [[file:CLAUDE.md][CLAUDE.md]], [[file:GEMINI.md][GEMINI.md]], and
+  [[file:.github/copilot-instructions.md][.github/copilot-instructions.md]], point
+  back to it.
 - [[file:VISION.org][VISION.org]] and [[file:DESIGN.org][DESIGN.org]] : project direction and API design
   principles.
 - [[file:doc/glossary.org][doc/glossary.org]], [[file:doc/file-system.org][doc/file-system.org]],
@@ -76,7 +80,9 @@ nexenne/
 |-- CMakePresets.json     dev / release / asan / ci
 |-- VISION.org            project direction and non-goals
 |-- DESIGN.org            API/library surface principles
-|-- AGENTS.org            AI/human contributor working-memory floor
+|-- AGENTS.md             AI/human contributor working-memory floor
+|-- CLAUDE.md             Claude Code bridge that imports AGENTS.md
+|-- GEMINI.md             Gemini bridge that imports AGENTS.md
 |-- cmake/                build helpers (module, warnings, testing, doxygen)
 |-- include/nexenne/      umbrella header
 |-- modules/<name>/       one folder per module, same layout each

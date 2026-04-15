@@ -101,15 +101,19 @@ change per commit; one topic per PR.
 * AI code assistants
 
 Allowed, with full developer accountability for every line submitted. Start AI
-and human agent work from [[file:AGENTS.org][AGENTS.org]], then use the role matrix
+and human agent work from [[file:AGENTS.md][AGENTS.md]], then use the role matrix
 in [[file:doc/README.org][doc/README.org]] to load the right setup or module docs. See
 [[file:AI_DISCLAIMER.org][AI_DISCLAIMER.org]] for the accountability policy.
 
 * Docs format
 
-All prose docs are Org mode (=.org=), never Markdown. Do not add =.md= files.
-Register new setup docs and root docs in [[file:doc/README.org][doc/README.org]];
-register module leaf docs in the owning module's =README.org=.
+All prose docs are Org mode (=.org=), never Markdown. The root
+=AGENTS.md= file and tiny tool-specific bridges such as =CLAUDE.md=,
+=GEMINI.md=, and =.github/copilot-instructions.md= are the only Markdown
+exception: they exist for AI-tool discovery and must point to =AGENTS.md=
+rather than duplicate rules. Register new setup docs and root docs in
+[[file:doc/README.org][doc/README.org]]; register module leaf docs in the owning
+module's =README.org=.
 Prose style, including the no-em-dash rule, lives in
 [[file:doc/writing.org][doc/writing.org]].
 
