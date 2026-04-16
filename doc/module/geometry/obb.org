@@ -1,0 +1,141 @@
+#+TITLE: the oriented bounding box
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=obb2<Real>= and =obb3<Real>=: a box that may be rotated to any orientation,
+stored as a =center=, a =half_size= (the half-extent along each local axis), and
+a =rotation=. The two flavours differ only in how they carry that rotation:
+=obb2= holds a =math::radians= angle, =obb3= a =math::quaternion=. Each provides
+the size query (=area= in 2D, =volume= in 3D), =corners=, =contains_point=, and
+=bounding_aabb=; the full OBB-OBB overlap (the Separating Axis Theorem) lives in
+the cross-type =intersect= header. Aliases: =obb2= / =obb3=, each with =_f=
+(float) and =_d= (double).
+
+* The idea
+
+An axis-aligned box is cheap but cannot follow an object as it turns; the moment
+you rotate the object, the tight axis-aligned box bloats. An oriented box carries
+its own rotation, so it stays snug around a rotating object at the cost of one
+extra rotation per query. The type stays thin and value-like: just the three
+members, trivially copyable, defaulted comparison. The single trick that makes
+every query simple is that you never rotate the *box*; you rotate the *query
+point* by the inverse rotation into the box's own local frame, where the box is
+once again axis-aligned and the test collapses to a per-axis comparison against
+=half_size=.
+
+* How it works
+
+** Two rotation representations, one asymmetry
+
+=obb3= stores the rotation as a unit quaternion. Quaternion rotation is pure
+arithmetic (see [[file:../math/quaternion.org][quaternion]]), so every 3D query is =constexpr=: =volume=,
+=corners=, =contains_point=, and =bounding_aabb= all evaluate at compile time.
+
+=obb2= stores the rotation as a plain angle in [[file:../math/angle.org][radians]]. Turning an angle into a
+rotation needs =std::sin= and =std::cos=, and neither is =constexpr= in C++23.
+That is the one place the 2D and 3D types diverge: =corners=, =contains_point=,
+and =bounding_aabb= on =obb2= are *runtime only*. =area= stays =constexpr= (it
+touches no trig). The asymmetry is documented in the header and is expected to
+lift once P1383 makes the standard trig functions =constexpr=; a caller who needs
+a compile-time 2D OBB today can substitute =fast_sin= / =fast_cos= from
+[[file:../math/trigonometry.org][trigonometry]] at about 5e-7 accuracy.
+
+** Containment: rotate the point, not the box
+
+To test a point, transform it into the box's local frame and compare against
+=half_size= on each axis. In 2D the offset =p - center= is rotated by the inverse
+angle (the rotation matrix transposed, which for a 2x2 rotation is the
+sign-flipped sine terms), then both components are checked against the half-size:
+
+#+BEGIN_EXAMPLE
+  world frame                    local frame (rotate offset by -theta)
+
+        +y                              +ly
+         |    . p                        |
+         |   /                     +-----------+  half_size = (hx, hy)
+      .--+--.  half_size           |     |     |
+     /   |theta\                    |    .|. p' |  inside  <=>
+    /    +------ +x      ===>       |-----+-----+--- +lx       |lx| <= hx
+    \         /                     |     |     |          and |ly| <= hy
+     \       /                      +-----------+
+      `-----'                             |
+   center, rotated box           box is axis-aligned here
+#+END_EXAMPLE
+
+In 3D the same idea uses the *conjugate* quaternion as the inverse rotation
+(valid because the quaternion is unit length): =local = rotate(conjugate(rotation),
+p - center)=, then =|local.x|<=hx=, =|local.y|<=hy=, =|local.z|<=hz=. The test is
+boundary-inclusive (=<==).
+
+** Corners
+
+The 2D box emits its four corners counter-clockwise from the local sign pattern
+=(-hx,-hy)=, =(+hx,-hy)=, =(+hx,+hy)=, =(-hx,+hy)=, each rotated by the angle and
+translated by the center. The 3D box emits eight corners by iterating the index
+=i= from 0 to 7 and reading its low three bits as the sign pattern =(zyx)=: =x= is
+positive when =(i & 1)=, =y= when =(i & 2)=, =z= when =(i & 4)=. Each local
+corner is rotated by the quaternion and translated.
+
+** The axis-aligned bound
+
+=bounding_aabb(obb2)= starts from the [[file:aabb.org][empty AABB]] and folds the four =corners=
+through =expand_to_include= (so it inherits the 2D runtime-only trig).
+
+=bounding_aabb(obb3)= does *not* enumerate corners. The world half-extent of a
+rotated box is =abs(R) * half=: along each world axis =k= the box reaches the sum
+over its local axes =j= of =|R(k, j)| * half[j]=, because the farthest corner
+folds every local half-axis in by its absolute projection. So the 3D bound is one
+quaternion-to-matrix build plus nine multiply-adds, exact and far cheaper than
+rotating all eight corners (at =-O3= it inlines to a branchless, call-free block).
+
+#+BEGIN_EXAMPLE
+  world_half[k] = |R(k,0)|*hx + |R(k,1)|*hy + |R(k,2)|*hz      (R = to_matrix3(q))
+  bound = aabb{ center - world_half, center + world_half }
+#+END_EXAMPLE
+
+* When to use it
+
+- As the bounding volume for an object that rotates with its content (a crate, a
+  vehicle, a turret) where an axis-aligned box would be too loose.
+- =contains_point= for picking and overlap-with-a-point; =bounding_aabb= to drop
+  an OBB into an axis-aligned broad phase before the exact test.
+- For OBB-OBB or OBB-versus-other-shape overlap, reach for the SAT routines in
+  the [[file:intersect.org][intersect]] header rather than rolling your own.
+- Prefer =obb3= where you want compile-time evaluation; for =obb2= remember the
+  trig-bearing queries are runtime only.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+// 3D: constexpr, rotation is a quaternion.
+constexpr auto spin{nm::quaternion_d::identity()};
+constexpr geo::obb3_d box{nm::vector3_d{0, 0, 0}, {1, 2, 3}, spin};
+constexpr auto vol{geo::volume(box)};                       // 48
+constexpr auto in{geo::contains_point(box, nm::vector3_d{0.5, 0, 0})};  // true
+
+// 2D: rotation is an angle; corners / contains_point are runtime only.
+geo::obb2_d quad{nm::vector2_d{0, 0}, {2, 1}, nm::radians_d{nm::quarter_pi}};
+auto const cs{geo::corners(quad)};                          // four ccw corners
+auto const bound{geo::bounding_aabb(quad)};
+#+END_SRC
+
+* See also
+
+- [[file:aabb.org][aabb]] : the axis-aligned box =bounding_aabb= produces, and its building blocks.
+- [[file:intersect.org][intersect]] : OBB-OBB overlap via the Separating Axis Theorem.
+- [[file:../math/quaternion.org][math/quaternion]] : the 3D rotation type, and why its rotate is constexpr.
+- [[file:../math/angle.org][math/angle]] : the =radians= type the 2D box carries.
+- [[file:../math/trigonometry.org][math/trigonometry]] : =fast_sin= / =fast_cos= for a constexpr 2D substitute.
+
+* Further reading
+
+- Oriented bounding boxes, the SAT overlap test, and the local-frame containment
+  reduction: Christer Ericson, "Real-Time Collision Detection", section 4.4.
+- The Separating Axis Theorem for box-box overlap: Christer Ericson, "Real-Time
+  Collision Detection", section 5.2.1.
+- https://en.wikipedia.org/wiki/Minimum_bounding_box#Arbitrarily_oriented_minimum_bounding_box

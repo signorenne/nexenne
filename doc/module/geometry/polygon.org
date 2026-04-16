@@ -1,0 +1,138 @@
+#+TITLE: the polygon view
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=polygon2<Real>=: a 2D polygon of arbitrary vertex count, held as a *non-owning*
+=std::span= over vertices the caller owns. It is a view, not a container: it
+stores one span and allocates nothing, which keeps the whole geometry module
+allocation-free while still handling polygons of any size. The queries are the
+shoelace =signed_area= (and its absolute =area=), =perimeter=, an area-weighted
+=centroid=, a ray-cast =contains_point=, a =convex= test, and =bounding_aabb=.
+They assume a simple (non-self-intersecting) polygon, and the area-bearing ones
+assume at least three vertices. Everything is =constexpr= and =noexcept=.
+Aliases: =polygon2=, =polygon2_f= (float), =polygon2_d= (double).
+
+* The idea
+
+Unlike the fixed-vertex-count primitives, a polygon has no natural size, so a
+value-type with inline storage would either cap the count or allocate. The view
+sidesteps the dilemma: the caller keeps the vertices in whatever storage suits
+them (a =std::array=, a =std::vector=, a slice of a mesh buffer), and =polygon2=
+borrows a read-only window onto them. That makes the type a cheap, copyable handle
+and pushes the lifetime question onto the caller, exactly where ownership already
+lives.
+
+The type is deliberately 2D only and not templated on a dimension =N=, because its
+two signature algorithms are *intrinsically planar*. The shoelace =signed_area=
+relies on a signed orientation, which only exists in the plane; there is no global
+"clockwise" in 3D. The ray-cast =contains_point= shoots a horizontal ray and
+counts crossings, which presumes a 2D coordinate to cast along. A 3D polygonal
+face is better served by [[file:triangle.org][triangle]] (for a single face) or, later, by a convex hull;
+this header does not try to generalize past the plane.
+
+* How it works
+
+** The shoelace, edge by edge
+
+=signed_area= walks each directed edge =(a, b)= around the loop (wrapping with
+=(i+1) % n=) and accumulates the cross term =a.x*b.y - b.x*a.y=, then halves the
+sum. Geometrically each term is twice the signed area of the triangle from the
+origin through that edge; summing around the closed loop cancels everything
+outside the polygon and leaves its signed area:
+
+#+BEGIN_EXAMPLE
+        v2                       2A = sum over edges (a, b) of
+       /  \                            a.x * b.y  -  b.x * a.y
+      /    \                      A  = that sum  /  2
+    v1      v3
+      \    /                      A > 0  vertices wind counter-clockwise
+       \  /                       A < 0  vertices wind clockwise
+        v0                        A = 0  degenerate (collinear, or n < 3)
+#+END_EXAMPLE
+
+A polygon of fewer than three vertices returns zero. =area= is just the absolute
+value, and the *sign* doubles as a winding test.
+
+** Perimeter and the area-weighted centroid
+
+=perimeter= sums =length(b - a)= over the wrapped edges (returning zero below two
+vertices). =centroid= is the standard polygon-centroid formula, valid for any
+simple polygon including non-convex ones: it accumulates the same per-edge cross
+term =cross_v= used by the shoelace, weighting each by =(p0 + p1)=, and divides by
+six times the signed area. When that area is exactly zero the formula would divide
+by zero, so a degenerate polygon falls back to the plain arithmetic mean of the
+vertices. An empty polygon returns the origin.
+
+** Point containment by ray casting
+
+=contains_point= uses the odd-parity rule: cast a horizontal ray rightward from
+the query point and count how many polygon edges it crosses; an odd count means
+inside. The loop pairs each vertex =i= with its predecessor =j= (the
+=j = i++= idiom walks both indices). An edge is a candidate only when it straddles
+the query's =y= (the =(vi.y > p.y) != (vj.y > p.y)= test, which also handles the
+half-open convention that avoids double-counting shared vertices). For a
+straddling edge it solves for the edge's =x= at the query's =y= and flips the
+inside flag when the crossing is to the right of =p=. This works for non-convex
+polygons; behaviour for a point exactly on the boundary is unspecified.
+
+** Convexity by cross-sign consistency
+
+=convex= checks that the polygon never reverses its turn direction. For each
+consecutive triple =(a, b, c)= it computes the cross product of the two edge
+vectors and tracks the sign of every nonzero turn. The moment it sees both a
+positive and a negative turn it returns false. A polygon of fewer than three
+vertices is not convex. A subtle case: a fully collinear loop never establishes a
+turn sign at all, so the function returns false for it too. It is degenerate, not
+convex.
+
+** The axis-aligned bound
+
+=bounding_aabb= folds every vertex through =expand_to_include= starting from the
+[[file:aabb.org][empty AABB]]. A polygon with no vertices yields an empty box (its =empty()= is
+true).
+
+* When to use it
+
+- For any planar polygon whose vertices you already store somewhere: build a
+  =polygon2= over them and query without copying.
+- =signed_area= for area plus winding in one call; =centroid= for a center of
+  mass; =contains_point= for 2D hit-testing of non-convex shapes; =convex= to
+  decide whether a cheaper convex algorithm applies.
+- Keep the backing storage alive for as long as the view: =polygon2= does not own
+  its vertices.
+- For a single 3D face use [[file:triangle.org][triangle]]; for 3D hulls wait for the convex-hull
+  facility rather than reaching for this header.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+constexpr std::array<nm::vector2_d, 4> verts{
+  nm::vector2_d{0, 0}, {4, 0}, {4, 3}, {0, 3}
+};
+constexpr geo::polygon2_d quad{std::span<nm::vector2_d const>{verts}};
+
+constexpr auto a{geo::signed_area(quad)};        // +12 (counter-clockwise)
+constexpr auto cx{geo::centroid(quad)};          // (2, 1.5)
+constexpr auto is_convex{geo::convex(quad)};     // true
+auto const hit{geo::contains_point(quad, nm::vector2_d{2, 1})};  // true
+#+END_SRC
+
+* See also
+
+- [[file:triangle.org][triangle]] : the three-vertex case, the 3D face, and the same shoelace cross.
+- [[file:aabb.org][aabb]] : the bounding box, =empty_aabb= and =expand_to_include=.
+- [[file:../math/vector.org][math/vector]] : the 2D vertex type and its arithmetic.
+
+* Further reading
+
+- The shoelace formula: https://en.wikipedia.org/wiki/Shoelace_formula
+- The polygon-centroid formula: https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
+- The ray-casting (even-odd / crossing-number) point-in-polygon test:
+  https://en.wikipedia.org/wiki/Point_in_polygon
+- Point-in-polygon and polygon area: Christer Ericson, "Real-Time Collision
+  Detection", section 5.4.

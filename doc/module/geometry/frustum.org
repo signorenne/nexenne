@@ -1,0 +1,146 @@
+#+TITLE: the view frustum
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=frustum3<Real>=: the convex volume a camera can see, stored as six planes. Each
+plane is in Hessian form with its normal pointing *inward*, so a point is inside
+the frustum exactly when its signed distance to every plane is non-negative. The
+planes are kept in the order fixed by the =frustum_plane= enum: =left=, =right=,
+=bottom=, =top=, =near_plane=, =far_plane=. The header provides
+=frustum_from_view_projection= (extract the planes from a camera's view-projection
+matrix), =plane_of= (fetch one named plane), and two conservative culling tests:
+=intersects= against a [[file:sphere.org][sphere]] and =intersects= against an [[file:aabb.org][AABB]]. Everything is
+=constexpr= and =noexcept= and nothing allocates. Aliases: =frustum3=,
+=frustum3_f= (float), =frustum3_d= (double).
+
+* The idea
+
+A perspective camera sees a truncated pyramid: the four side planes splay out from
+the eye, capped by a near and a far plane. Rather than carry that pyramid as
+vertices, the frustum carries its six bounding planes. Picking *inward* normals
+makes the inside test uniform and branch-light: a point is visible only if it is
+on the inside half-space of all six planes, that is, =signed_distance >= 0= for
+each. That single convention turns visibility culling, the most frequent query a
+renderer makes, into six fused multiply-adds and a sign check.
+
+The culling tests are deliberately *conservative*. They are allowed to keep a
+primitive that is actually just outside a frustum edge, but they will never reject
+one that is visible. That is the right trade for a broad phase: a false keep costs
+one wasted draw; a false reject is a visible object popping out of the scene.
+
+* How it works
+
+** Six inward planes
+
+#+BEGIN_EXAMPLE
+                 top
+              ___________
+             /|         |\          all normals point INWARD
+       left / |  near   | \ right
+           /  |_________|  \        point inside  <=>
+          /  /           \  \         signed_distance(plane, p) >= 0
+         /  /   far        \  \       for every one of the six planes
+        /__/_______________ \__\
+                bottom              (near = near_plane, far = far_plane)
+#+END_EXAMPLE
+
+The class is just =std::array<plane3, 6>= with defaulted comparison. =plane_of(f,
+frustum_plane::left)= indexes that array by the enum value.
+
+** Extracting the planes: Gribb-Hartmann
+
+=frustum_from_view_projection= recovers the six planes from a combined
+view-projection matrix using the Gribb-Hartmann method. The insight is that clip
+space is defined by the inequalities =-w <= c <= w= on each clip coordinate =c=,
+and =w= and =c= are themselves rows of the view-projection matrix applied to the
+point. Rearranging each inequality into =plane . point >= 0= shows that every
+frustum plane is just the fourth row of the matrix plus or minus one of the first
+three rows:
+
+#+BEGIN_EXAMPLE
+  left   = row3 + rowX        right = row3 - rowX
+  bottom = row3 + rowY        top   = row3 - rowY
+  near   = row3 + rowZ        far   = row3 - rowZ
+
+  (row3 is the w-row; rowX/rowY/rowZ are axis rows 0/1/2 of the matrix)
+#+END_EXAMPLE
+
+Each raw plane's first three components form the normal and the fourth is the
+offset =d=. The code then normalizes every plane by dividing through by the length
+of its normal, so the normals come out unit length and =signed_distance= reports a
+true Euclidean distance. A plane that comes out degenerate (zero-length normal) is
+left unnormalized rather than dividing by zero. Because the clip convention is
+baked into the matrix you pass in, the same extraction works for OpenGL or D3D
+depth and for either a full view-projection (a world-space frustum) or the
+projection alone (a view-space frustum).
+
+** Sphere culling
+
+=intersects(frustum, sphere)= rejects the sphere only when it lies fully outside
+some single plane: it walks the six planes and returns false as soon as
+=signed_distance(plane, center) < -radius=, meaning the whole sphere sits beyond
+that plane's outside face. If no plane rejects it, the sphere is potentially
+visible and the test returns true. This is exact for the sphere-versus-plane part
+and conservative overall (a sphere tucked just past a frustum corner can pass all
+six per-plane tests).
+
+** Box culling: the projected-radius trick
+
+=intersects(frustum, aabb)= reduces the box to its center and half-extent and, for
+each plane, asks the same question the sphere test does, but with a radius that
+depends on the plane. The right "radius" for a box against a given plane is the
+projection of its half-extent onto the plane normal,
+=r = |h.x*n.x| + |h.y*n.y| + |h.z*n.z|=, which is the distance from the box center
+to its most-positive corner measured along the normal. The box is rejected when
+even that nearest extent is outside: =signed_distance(plane, center) + r < 0=.
+Like the sphere test it can keep an edge-straddling box, which is acceptable for
+broad-phase culling.
+
+* When to use it
+
+- As the culling volume in a render loop: build it once per frame from the
+  camera's view-projection matrix, then test every object's bounding sphere or box
+  before submitting it.
+- =intersects(frustum, sphere)= when objects already carry a bounding sphere;
+  =intersects(frustum, aabb)= when they carry an axis-aligned box. Both are
+  broad-phase: a "true" means "draw it", not "it is definitely on screen".
+- =plane_of= when you need a specific clipping plane (for example to clip geometry
+  against the near plane).
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+auto const vp{projection * view};                          // view-projection matrix
+auto const frustum{geo::frustum_from_view_projection(vp)};
+
+geo::sphere3_f const bound{nm::vector3_f{0, 0, -10}, 2.0f};
+if (geo::intersects(frustum, bound)) {
+  // potentially visible: submit the draw
+}
+
+auto const near{geo::plane_of(frustum, geo::frustum_plane::near_plane)};
+#+END_SRC
+
+* See also
+
+- [[file:plane.org][plane]] : the Hessian plane type and =signed_distance=, the frustum's atom.
+- [[file:sphere.org][sphere]] : the bounding-sphere culling target.
+- [[file:aabb.org][aabb]] : the bounding-box culling target, =center= and =half_size=.
+- [[file:../math/matrix.org][math/matrix]] : the view-projection matrix the planes are extracted from.
+- [[file:../math/projection.org][math/projection]] : the perspective and orthographic builders that produce it.
+
+* Further reading
+
+- Gabor Gribb and Klaus Hartmann, "Fast Extraction of Viewing Frustum Planes from
+  the World-View-Projection Matrix" (2001), the plane-extraction method used here:
+  https://www.gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
+- View-frustum culling and the box projected-radius (n-vertex) test: Christer
+  Ericson, "Real-Time Collision Detection", section 5.2.3.
+- https://en.wikipedia.org/wiki/Viewing_frustum
+- The Hessian normal form of a plane:
+  https://en.wikipedia.org/wiki/Hesse_normal_form

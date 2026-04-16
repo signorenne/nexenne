@@ -1,0 +1,118 @@
+#+TITLE: the capsule
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=capsule<Real, N>=: the set of points within a =radius= of a central segment (the
+spine), stored as the two spine endpoints =start= / =end= and the =radius=. In 2D
+that swept disk is a stadium (a rectangle with two semicircle caps); in 3D it is a
+pill (a cylinder with two hemisphere caps). One template covers both dimensions
+through the =N= parameter; the size query is constrained to the dimension where it
+makes sense (=area= in 2D, =volume= in 3D), while =axis=, =length=,
+=contains_point=, =closest_point=, and =bounding_aabb= work in any dimension.
+Everything is =constexpr= and =noexcept= and nothing allocates. Aliases:
+=capsule2= / =capsule3=, each with =_f= (float) and =_d= (double).
+
+* The idea
+
+A capsule is the rounded sibling of the segment: take a line segment and thicken
+it uniformly. That gives a convex volume with no sharp corners, which makes it a
+forgiving collision proxy for elongated objects (a limb, a projectile, a
+character) and gives every distance query a closed form. The key economy is that
+the capsule owns no geometry of its own beyond its radius: every query delegates
+to the [[file:segment.org][segment]] spine and then accounts for the radius. "Is the point inside" is
+"is the point within =radius= of the spine"; "closest point on the capsule" is
+"closest point on the spine, pushed out by =radius=".
+
+* How it works
+
+** Stadium and pill
+
+The shape is the spine offset outward in every perpendicular direction by
+=radius=. The straight middle is a rectangle (2D) or a cylinder (3D); the two ends
+are the rounded caps that a bare segment lacks:
+
+#+BEGIN_EXAMPLE
+  2D stadium                          area = 2*r*L  +  pi*r^2
+                                            \_____/    \____/
+        ___________________               rectangle    two semicircles
+       /                   \                            = one full circle
+      |  start ========= end |   <- spine, length L
+       \___________________/    radius r on every side
+
+  3D pill                             volume = pi*r^2*L  +  (4/3)*pi*r^3
+       _______________                        \_______/    \_________/
+     /                 \                       cylinder     two hemispheres
+    (  *=============*  )  <- spine                          = one full sphere
+     \_______________/     radius r around the cylinder
+#+END_EXAMPLE
+
+The =area= and =volume= formulas read straight off this decomposition: the two
+half-caps always sum to exactly one whole circle (2D) or one whole sphere (3D), so
+the cap term carries no factor of two.
+
+** Containment and closest point, via the spine
+
+=contains_point= is the squared-distance test =distance_squared(spine, p) <=
+radius^2=. It calls the segment's own =distance_squared= for the spine and
+compares against =radius^2=, so no square root is ever taken on the containment
+path.
+
+=closest_point= first finds =on_axis = closest_point(spine, p)= using the
+segment's projection (which clamps to the endpoints, giving the caps their round
+shape for free). If =p= already lies within =radius= of the spine it is inside, so
+the point itself is returned. Otherwise the result is =on_axis= pushed out toward
+=p= by exactly =radius=: =on_axis + offset * (radius / length(offset))=, where
+=offset = p - on_axis=. Only this outside branch pays for a square root.
+
+** The axis-aligned bound
+
+=bounding_aabb= is the union of the two end-cap boxes. It takes the per-axis min
+and max of the two spine endpoints (a tight box around the spine) and grows it by
+=radius= on every axis. That is exact: the extreme point of a capsule along any
+coordinate axis is a cap surface point, which sits exactly =radius= beyond the
+corresponding spine endpoint.
+
+* When to use it
+
+- As a collision proxy for an elongated object: a character controller, a limb, a
+  swept projectile. The rounded ends mean no corner cases at the caps.
+- =contains_point= for a cheap inside test; =closest_point= to resolve a
+  penetration or snap a point to the surface; =bounding_aabb= to feed a broad
+  phase.
+- A zero-length capsule degenerates to a [[file:sphere.org][sphere]]; reach for =sphere= directly when
+  the spine adds nothing.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+constexpr geo::capsule3_d pill{nm::vector3_d{0, 0, 0}, {0, 4, 0}, 1.0};
+constexpr auto v{geo::volume(pill)};                 // pi*1*4 + (4/3)*pi
+constexpr auto in{geo::contains_point(pill, nm::vector3_d{0.5, 2, 0})};  // true
+
+auto const snap{geo::closest_point(pill, nm::vector3_d{3, 2, 0})};  // on the surface
+auto const box{geo::bounding_aabb(pill)};            // spine box grown by r
+
+constexpr geo::capsule2_d stadium{nm::vector2_d{0, 0}, {3, 0}, 0.5};
+constexpr auto a{geo::area(stadium)};                // 2*0.5*3 + pi*0.25
+#+END_SRC
+
+* See also
+
+- [[file:segment.org][segment]] : the spine, and the =distance_squared= / =closest_point= the capsule
+  delegates to.
+- [[file:sphere.org][sphere]] : the zero-length degenerate case, and the cap geometry.
+- [[file:aabb.org][aabb]] : the bounding box, and =component_min= / =component_max=.
+- [[file:../math/vector_algorithms.org][math/vector_algorithms]] : the length and projection primitives underneath.
+
+* Further reading
+
+- Capsules (the "sphere-swept segment"), their closest-point query, and use as a
+  collision primitive: Christer Ericson, "Real-Time Collision Detection",
+  section 4.5.1, with the point-segment distance in section 5.1.2.
+- https://en.wikipedia.org/wiki/Capsule_(geometry)
+- The 2D stadium: https://en.wikipedia.org/wiki/Stadium_(geometry)
