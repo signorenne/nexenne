@@ -22,6 +22,7 @@
 #include <nexenne/geometry/ray.hpp>
 #include <nexenne/geometry/segment.hpp>
 #include <nexenne/geometry/sphere.hpp>
+#include <nexenne/geometry/support.hpp>
 #include <nexenne/geometry/triangle.hpp>
 
 namespace nexenne::geometry {}
