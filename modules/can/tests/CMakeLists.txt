@@ -4,4 +4,5 @@ nexenne_add_module_tests(can
         test_id.cpp
         test_dlc.cpp
         test_frame.cpp
+        test_packing_plan.cpp
 )
