@@ -1,0 +1,265 @@
+#+TITLE: cross-type intersection
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+The =intersects(a, b)= overloads that bridge two *different* primitive types.
+Same-type predicates live with their primitive (=intersects(aabb, aabb)= in
+[[file:aabb.org][aabb]], =intersects(sphere3, sphere3)= in [[file:sphere.org][sphere]]); this header is for the
+mixed pairs. Every overload is named =intersects= and comes in one of three
+return shapes:
+
+- =bool=, when only the overlap fact matters (sphere vs box, OBB vs OBB, the
+  capsule pairs).
+- =std::optional<Real>=, when a ray-cast =t= parameter is the output (a ray
+  against a primitive), with =nullopt= for a miss.
+- =std::optional<vector>=, when the hit point itself is the output (segment vs
+  plane).
+
+Everything is =constexpr= and =noexcept= *except* the 2D OBB queries
+(=obb2= overlaps and =ray2= vs =obb2=), which call =std::sin= / =std::cos= on
+the box's radians angle and so are runtime-only in C++23, exactly as in [[file:obb.org][obb]].
+The types are the usual aliases: =plane3=, =sphere3=, =circle2=, =obb2=, =obb3=,
+=aabb2=/=aabb3=, =ray2=/=ray3=, =segment2=/=segment3=, =triangle2=/=triangle3=,
+=capsule2=/=capsule3=, each with =_f= (float) and =_d= (double) suffixes.
+
+* The idea
+
+Three threads run through the file. A *ray cast* substitutes the parametric ray
+=origin + t*dir= into the surface equation and returns the smallest non-negative
+root =t=; a miss is =nullopt=. A *closest-point overlap* leans on the
+point-to-primitive distances from [[file:closest_point.org][closest_point]] and the per-primitive headers:
+two padded shapes overlap exactly when the gap between their cores is within the
+sum of their radii, so the whole test is one squared-distance compare. And the
+*oriented-box overlaps* use the Separating Axis Theorem (SAT): two convex boxes
+are disjoint if and only if some axis exists on which their projections do not
+overlap, so the test enumerates a finite set of candidate axes and looks for one
+that separates.
+
+Two ideas recur and earn their own helpers. An axis-aligned box is just an
+oriented box with the identity basis, so the AABB-vs-OBB tests reuse the OBB SAT
+verbatim. And a ray against an oriented box is a ray against an axis-aligned box
+once the ray is brought into the box's local frame, so those overloads rotate
+the ray and delegate to ray-vs-aabb.
+
+* How it works
+
+** Ray vs plane
+
+=dot(n, dir)= is the rate the signed plane distance changes as you walk the ray.
+When it is zero the ray runs parallel to the plane and never crosses, so the
+result is =nullopt=. Otherwise =t= solves =dot(n, origin + t*dir) + d == 0= (the
+signed distance reaching zero); a negative =t= means the crossing is behind the
+origin and is also rejected.
+
+** Ray vs aabb, the slab method
+
+A box is the intersection of =N= axis-aligned slabs, one per axis (the pair of
+planes bounding the box on that axis). For each slab the ray is inside for =t= in
+=[t1, t2]=; the ray hits the box only where all =N= intervals overlap. The code
+tracks the running intersection =[t_near, t_far]= and rejects the moment it goes
+empty (=t_near > t_far=):
+
+#+BEGIN_EXAMPLE
+   axis x:   |=================|              [t1x, t2x]
+   axis y:        |=====================|     [t1y, t2y]
+   axis z:    |===============|               [t1z, t2z]
+                  |==========|
+                t_near      t_far             running intersection
+
+   t_near = max(t1 over all axes)   enter the box at the last slab entered
+   t_far  = min(t2 over all axes)   leave  the box at the first slab left
+   hit  <=>  t_near <= t_far  and  t_far >= 0
+#+END_EXAMPLE
+
+For each axis with non-zero direction the two slab crossings =t1=, =t2= are
+ordered (so the entry/exit are correct regardless of the ray's sign on that
+axis). An axis with zero direction is parallel to its slab: a hit then needs the
+origin already between that slab's planes, otherwise the ray can never enter on
+that axis and the result is =nullopt=. A box entirely behind the ray
+(=t_far < 0=) misses; an origin already inside clamps the entry distance to =0=.
+
+** Ray vs sphere and ray vs circle, geometric quadratic form
+
+Substituting the ray into =|p - center|^2 = r^2= gives =t^2 + 2*b*t + c = 0=
+with =b = dot(m, dir)= and =c = |m|^2 - r^2=, where =m= points from the center to
+the ray origin. Three early outs: =c > 0= means the origin is outside, and with
+=b > 0= the ray also points away, so it cannot hit; a negative discriminant
+=b*b - c= means the line misses the sphere entirely. Otherwise the near root is
+=-b - sqrt(discr)= (tangent contacts, a double root, count as hits); a negative
+root means the origin is inside the sphere, so the entry distance is clamped to
+=0=. =intersects(ray2, circle2)= is the same algebra in two dimensions, the disc
+form of ray vs sphere.
+
+** Ray vs triangle, Moller-Trumbore
+
+Moller and Trumbore (1997) solve =origin + t*dir = a + u*edge1 + v*edge2= for the
+barycentric =(u, v)= and the distance =t= in one shot via Cramer's rule, with
+=edge1 = b - a= and =edge2 = c - a=. The triple products are arranged so the
+determinant =a = dot(edge1, h)= with =h = dir x edge2= appears once; =|a| ~ 0=
+means the ray is parallel to the triangle's plane (miss). =u= and =v= are the
+barycentric coordinates, so the hit is inside the triangle exactly when
+=u >= 0=, =v >= 0=, and =u + v <= 1=; a final =t < 0= rejects an intersection
+behind the origin. Both face windings hit (no back-face culling).
+
+** Segment vs plane, a point result
+
+The same crossing as ray vs plane, but the output is the *point* and the
+parameter is confined to the finite segment. With =dir = end - start=, a near-zero
+=dot(n, dir)= means the segment is parallel to the plane (=nullopt=). Otherwise
+=t= solves the signed distance reaching zero; keeping =t= in =[0, 1]= keeps the
+crossing within the segment, and a =t= outside that range means both endpoints
+sit on the same side of the plane. On a hit the result is =start + dir * t=.
+
+** Closest-point overlaps
+
+A padded shape is its core grown by a radius, so "do they overlap" is "is the
+core within the summed radii of the other shape". Each of these is one squared
+compare, no =sqrt=:
+
+- =intersects(sphere3, aabb3)= and =intersects(circle2, aabb2)=:
+  =distance_squared(box, center) <= radius^2=, the squared distance from the
+  center to its closest point on the box against the squared radius.
+- =intersects(sphere3, plane3)=: =distance(plane, center) <= radius=, true when
+  the sphere straddles or touches the plane.
+- =intersects(capsule3, sphere3)= and =intersects(capsule2, circle2)=: a capsule
+  is its spine grown by =cap.radius()=, so the test is "is the sphere center
+  within =cap.radius() + s.radius()= of the spine", i.e.
+  =distance_squared(axis(cap), center) <= r_sum^2=.
+- =intersects(capsule, capsule)= (2D or 3D): take the closest spine-to-spine pair
+  from [[file:closest_point.org][closest_point]], then overlap when those points come within the sum of the
+  radii, =distance_squared(pa, pb) <= r_sum^2=.
+
+** OBB overlap, the Separating Axis Theorem
+
+Projected onto a candidate axis, each box becomes an interval: a center
+projection plus or minus a half-width. That half-width is the box's *support
+width* along the axis, computed by =detail::projected_radius=, the sum over the
+box's own axes of each half-extent times how much that axis aligns with the query
+axis (=sum of half[i] * |dot(basis[i], axis)|=). =detail::separated_on= then
+performs one SAT test: the boxes are separated on =axis= when the gap between the
+center projections exceeds the sum of the two support radii.
+
+#+BEGIN_EXAMPLE
+              project both boxes onto the candidate axis ----->
+
+     center_a o------ ra ------|         |------ rb ------o center_b
+                               |  gap    |
+              |<------ ra + rb ------>|   |
+                               |<- center_dist = |dot(delta, axis)| ->|
+
+   separated on this axis  <=>  center_dist > ra + rb
+   boxes overlap           <=>  NO candidate axis separates them
+#+END_EXAMPLE
+
+The candidate set differs by dimension:
+
+- =intersects(obb2, obb2)= tests *4 axes*: the two edge normals of each box (its
+  local axes). If none separates, they overlap. (Runtime only.)
+- =intersects(obb3, obb3)= tests *15 axes*: the 6 face normals (3 per box) plus
+  the 9 pairwise edge cross products =cross(basis_a[i], basis_b[j])=. The
+  edge-cross axes catch edge-on-edge separations the face normals miss. A
+  near-zero cross (=length_squared <= 1e-12=) means the two edges are parallel, so
+  it carries no new direction and is skipped; otherwise the cross is *normalized*
+  before the projection test, so a short edge-cross axis cannot amplify rounding
+  error on the float path (its length is =sin(angle)= in =[0, 1]= regardless of
+  =Real=). The 3 axes of each box come from =detail::axes=, which reads the
+  columns of =to_matrix3(q)= (one matrix build shared across all three, cheaper
+  than three separate quaternion rotations).
+- =intersects(aabb2, obb2)= and =intersects(aabb3, obb3)=: the AABB is an OBB with
+  the identity basis (=detail::identity_basis=), so the same SAT applies as-is,
+  with =half_size(box)= and =center(box)= standing in for the AABB. The 2D form
+  is runtime only (it calls =detail::axes(obb2)=, which uses =std::sin= /
+  =std::cos=); the 3D form is =constexpr=.
+
+** Ray vs OBB, reduce to the local frame
+
+Rotating the ray by the *inverse* of the box orientation makes the box
+axis-aligned about the origin, so the problem collapses to ray-vs-aabb on a box
+with extents =[-half_size, +half_size]=:
+
+#+BEGIN_EXAMPLE
+   world frame                 box local frame (rotate ray by inverse rotation)
+
+       /  __                          | ____ |
+      / _/  \  obb                    ||    ||  aabb [-half, +half]
+   o-----------> ray         ==>   o--+------+--->  local ray
+   origin                          local origin     (then slab method)
+#+END_EXAMPLE
+
+=intersects(ray2, obb2)= builds the rotation from =-theta= (the 2x2 inverse
+rotation) and is runtime only. =intersects(ray3, obb3)= uses
+=conjugate(box.rotation())=, the inverse of the unit quaternion (see
+[[file:../math/quaternion.org][math/quaternion]]), and is =constexpr=. Both then call the ray-vs-aabb overload,
+so they inherit its =nullopt=-on-miss and clamp-to-zero-when-inside behaviour.
+
+* When to use it
+
+- Ray casts (=ray3= vs =plane3=, =aabb3=, =sphere3=, =triangle3=, =obb3=, and the
+  2D forms) for picking, line-of-sight, and visibility probes; the returned =t= is
+  a distance when the direction is unit length, and =nullopt= is a clean miss.
+- Segment vs plane when you need the crossing *point* on a finite segment (portal
+  clipping, a path hitting a wall).
+- The closest-point overlaps for fast broad-phase yes/no tests where a padded
+  shape (sphere, circle, capsule) meets a box, plane, or another padded shape.
+- The OBB SAT overlaps for oriented-box collision; prefer the =constexpr= 3D and
+  AABB-vs-OBB3 forms in compile-time contexts, and remember the 2D OBB queries
+  are runtime only.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+// Ray cast: optional<Real> t, nullopt on a miss.
+constexpr geo::ray3_d ray{nm::vector3_d{0, 0, 0}, nm::vector3_d{0, 0, 1}};
+constexpr geo::sphere3_d s{nm::vector3_d{0, 0, 5}, 1.0};
+if (auto const t{geo::intersects(ray, s)}) {
+  auto const hit{ray.origin() + ray.direction() * *t};   // entry point
+}
+
+// Segment vs plane: optional<vector>, the crossing point.
+constexpr geo::segment3_d seg{nm::vector3_d{0, 0, -1}, nm::vector3_d{0, 0, 1}};
+constexpr geo::plane3_d pl{nm::vector3_d{0, 0, 1}, 0.0};   // z = 0
+if (auto const p{geo::intersects(seg, pl)}) {
+  // *p == {0, 0, 0}
+}
+
+// Overlap predicate: bool.
+constexpr geo::aabb3_d box{nm::vector3_d{-1, -1, -1}, nm::vector3_d{1, 1, 1}};
+constexpr bool overlaps{geo::intersects(s, box)};         // closest-point test
+
+// 3D OBB SAT is constexpr; the 2D OBB query is runtime only.
+geo::obb3_d const a{/* center */ {0, 0, 0}, /* half */ {1, 1, 1}, /* rot */ {}};
+geo::obb3_d const b{{1.5, 0, 0}, {1, 1, 1}, {}};
+bool const hit_obb{geo::intersects(a, b)};
+#+END_SRC
+
+* See also
+
+- [[file:aabb.org][aabb]] : the slab-method target; =center= / =half_size= feed the OBB SAT.
+- [[file:obb.org][obb]] : the oriented box, its radians (2D) and quaternion (3D) orientation.
+- [[file:plane.org][plane]] : the Hessian plane the ray and segment tests cross.
+- [[file:sphere.org][sphere]] : the ray-vs-sphere target and a closest-point overlap shape.
+- [[file:triangle.org][triangle]] : the Moller-Trumbore target, =a= / =b= / =c= vertices.
+- [[file:capsule.org][capsule]] : the spine-plus-radius shape behind the capsule overlaps.
+- [[file:closest_point.org][closest_point]] : the segment-segment kernel the capsule-capsule test rides on.
+- [[file:../math/quaternion.org][math/quaternion]] : =conjugate= and =rotate=, used to bring the ray into the OBB3
+  local frame.
+
+* Further reading
+
+- The Separating Axis Theorem for oriented boxes (the 15-axis 3D test and the
+  projected-radius support width): Christer Ericson, "Real-Time Collision
+  Detection", chapter 4 (sections 4.2 and 4.4).
+- Segment and ray tests against planes, boxes, and spheres: Christer Ericson,
+  "Real-Time Collision Detection", chapter 5 (sections 5.3.1, 5.3.2, 5.3.3,
+  5.3.8).
+- Tomas Moller and Ben Trumbore, "Fast, Minimum Storage Ray/Triangle
+  Intersection", Journal of Graphics Tools 2(1), 1997, the ray-triangle algorithm
+  used here.
+- https://en.wikipedia.org/wiki/Hyperplane_separation_theorem
+- https://en.wikipedia.org/wiki/Moller%E2%80%93Trumbore_intersection_algorithm
+- https://en.wikipedia.org/wiki/Slab_method
