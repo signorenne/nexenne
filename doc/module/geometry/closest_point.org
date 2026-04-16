@@ -1,0 +1,102 @@
+#+TITLE: closest-point queries
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+The cross-type closest-point pairs, where both inputs are extended primitives:
+=closest_points(segment, segment)= returns the pair of points realizing the
+minimum distance between two segments, and =closest_points(capsule, capsule)=
+runs the same query on the two capsule spines. The simpler point-to-primitive
+queries (point to segment, point to box) live next to each primitive; this
+header is only for the segment-segment kernel and its capsule wrapper.
+
+* The idea
+
+Two segments in 2D or 3D realize their minimum distance at a unique pair of
+points (unique up to the parallel/overlap case). Finding that pair is the
+workhorse behind capsule-capsule collision, swept-sphere tests, and tube
+proximity. The kernel is the classic clamped-parameter solve from Ericson: solve
+the unconstrained line-line problem, then clamp the parameters back onto the
+finite segments. The capsule overload is then a one-liner, because a capsule is
+just its spine grown by a radius, so the spine closest-points minus the radii is
+the capsule gap.
+
+* How it works
+
+** Parametrize, minimize, clamp
+
+Write the two segments as =P(s) = s1.start + s*d1= and =Q(t) = s2.start + t*d2=
+for =s, t= in =[0, 1]=. The squared distance =|P(s) - Q(t)|^2= is a quadratic in
+=(s, t)=; setting its gradient to zero gives a 2x2 linear system whose
+coefficients are the dot products
+
+#+BEGIN_EXAMPLE
+  a = d1 . d1   (squared length of segment 1)
+  e = d2 . d2   (squared length of segment 2)
+  b = d1 . d2   (alignment of the two directions)
+  c = d1 . r,   f = d2 . r,   with  r = s1.start - s2.start
+#+END_EXAMPLE
+
+The system's determinant is the Gram determinant =a*e - b*b=. It is non-negative
+always and *zero exactly when the segments are parallel* (then =b^2 = a*e= by the
+Cauchy-Schwarz equality). On the interior solution =s = (b*f - c*e) / (a*e - b*b)=;
+parallel input takes the fallback =s = 0=.
+
+** From the infinite line to the finite segment
+
+The line-line solution can land off either segment. The fix is to clamp =s= to
+=[0, 1]=, recompute =t = (b*s + f) / e= for that clamped =s=, and if *that* =t=
+left =[0, 1]=, pin =t= to the nearer end and re-solve =s= one last time:
+
+#+BEGIN_EXAMPLE
+   s2.end
+      \                          clamped solve walks the boundary of the
+       \   * Q(t)                [0,1] x [0,1] square: solve interior, clamp
+   o----+------o  s1             s, re-solve t, clamp t, re-solve s. Two
+   s1.start  s1.end              clamps suffice because the squared distance
+        * P(s)                   is convex, so the constrained minimum lies on
+                                 the boundary the first clamp lands on.
+#+END_EXAMPLE
+
+The leading guards cover the degeneracies before any division: if both segments
+are points (=a= and =e= near zero) the answer is just the two start points; if
+only one is a point, the other reduces to a point-to-segment projection.
+
+** The capsule wrapper
+
+=closest_points(capsule, capsule)= forwards to the segment kernel on
+=axis(c1)= and =axis(c2)= (the spines). Subtracting =c1.radius() + c2.radius()=
+from the distance between the returned points gives the signed capsule gap, which
+is exactly what =intersects(capsule, capsule)= in [[file:intersect.org][intersect]] tests.
+
+* When to use it
+
+- Capsule-capsule and capsule-sphere collision (the spine distance is the whole
+  game).
+- Swept-sphere / thick-segment proximity, tube and wire clearance checks.
+- Use the returned pair directly for a contact point or a penetration vector;
+  the separation is =distance(p1, p2)=.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+constexpr geo::segment3_d s1{nm::vector3_d{0, 0, 0}, {2, 0, 0}};
+constexpr geo::segment3_d s2{nm::vector3_d{1, -1, 1}, {1, 1, 1}};
+constexpr auto pair{geo::closest_points(s1, s2)};   // {p1 on s1, p2 on s2}
+auto const gap{nm::distance(pair.first, pair.second)};
+#+END_SRC
+
+* See also
+
+- [[file:segment.org][segment]] : the segment type and its point-to-segment closest point.
+- [[file:capsule.org][capsule]] : the spine-plus-radius shape the wrapper serves.
+- [[file:intersect.org][intersect]] : capsule-capsule overlap, built on this kernel.
+
+* Further reading
+
+- Christer Ericson, "Real-Time Collision Detection", section 5.1.9 (closest
+  points of two segments), which this implementation follows directly.
