@@ -21,8 +21,10 @@ nexenne_add_module(geometry
         include/nexenne/geometry/aabb.hpp
         include/nexenne/geometry/capsule.hpp
         include/nexenne/geometry/circle.hpp
+        include/nexenne/geometry/closest_point.hpp
         include/nexenne/geometry/error.hpp
         include/nexenne/geometry/frustum.hpp
+        include/nexenne/geometry/intersect.hpp
         include/nexenne/geometry/obb.hpp
         include/nexenne/geometry/plane.hpp
         include/nexenne/geometry/polygon.hpp
