@@ -91,6 +91,13 @@ spans both is a single template aliased per dimension (=ray2= / =ray3=).
   =segment3=), so support-based collision queries can run on them and on any
   mixed pair.
 
+** Transforms
+
+- [[file:transform.org][transform]] : the =transform2d= / =transform3d= pose aggregates (position +
+  rotation + scale), =to_matrix=, =transform_point= / =transform_direction=, the
+  per-shape =transform(pose, shape)= overloads (an =aabb= becomes an =obb= under
+  rotation), and =decompose_2= / =decompose_3= to recover a pose from a matrix.
+
 ** Headers without an article
 
 - =geometry.hpp= : the umbrella header; includes the whole module. For finer
