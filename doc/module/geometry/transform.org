@@ -1,0 +1,146 @@
+#+TITLE: poses and shape transforms
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=transform.hpp= bundles a position, a rotation, and a scale into one "pose"
+value, and applies it to points, directions, and whole shapes. The math module
+builds the matrices ([[file:../math/transform.org][translation3, rotation3, scale3]]); this header adds the
+aggregates =transform2d= / =transform3d=, their =to_matrix=,
+=transform_point= / =transform_direction=, the per-shape =transform(pose, shape)=
+overloads, and =decompose_2= / =decompose_3= to recover a pose from a matrix.
+Aliases: =transform2d= / =transform3d=, each =_f= and =_d=. The 3D path is fully
+=constexpr=; the 2D path and =decompose_2= are runtime-only (they need
+=std::sin= / =std::cos= / =std::atan2=, not =constexpr= in C++23).
+
+* The idea
+
+A "pose" is where a thing is, how it is turned, and how big it is: position,
+rotation, scale. Game objects, bones, cameras, and physics bodies all carry one.
+Storing the three parts separately (rather than a raw matrix) keeps them
+editable and interpolatable, and the matrix is derived on demand.
+
+The conventional composition order is *scale, then rotate, then translate*. As a
+matrix that is =translation * rotation * scale=, applied right to left to a
+column vector: the point is scaled first, then rotated about the origin, then
+moved into place. Every function here respects that one order, so poses compose
+predictably and =decompose= can invert the build exactly.
+
+Applying a pose to a *shape* is the same idea lifted from points to primitives,
+with one twist: a rotation tilts an axis-aligned box off the axes, so the honest
+image of an =aabb= is an oriented box, an [[file:obb.org][obb]]. Rounded shapes (sphere, circle)
+stay round only under uniform scale; under non-uniform scale we grow the radius
+by the largest scale factor, giving the smallest enclosing round shape (exact
+when the scale is uniform).
+
+* How it works
+
+** The pose to a matrix and a point
+
+=to_matrix(pose)= multiplies the three math builders in order. =transform_point=
+promotes the point to homogeneous coordinates with =w = 1=, multiplies, and
+drops =w=; =transform_direction= uses =w = 0= so the translation column is
+ignored (a direction has no position).
+
+#+BEGIN_EXAMPLE
+  to_matrix(t) = translation(t.position) * rotation(t.rotation) * scale(t.scale)
+
+  point:      [x y z 1]^T  -- scaled, rotated, translated
+  direction:  [x y z 0]^T  -- scaled, rotated, NOT translated
+#+END_EXAMPLE
+
+** The pose to a shape
+
+| shape            | result | how                                                |
+|------------------+--------+----------------------------------------------------|
+| sphere / circle  | same   | center as a point; radius * largest scale factor   |
+| triangle         | same   | each vertex as a point (exact)                     |
+| aabb             | obb    | center as a point, half * scale, pose rotation     |
+| obb              | obb    | center as a point, half * scale, rotations composed |
+
+The =aabb -> obb= case is the interesting one: an axis-aligned box has its faces
+on the world axes, so once the pose rotates it those faces tilt and the only
+honest description is an oriented box. The box center maps through
+=transform_point=, the half-extents scale per axis, and the pose rotation
+becomes the obb orientation, which is exact. For an =obb= the pose rotation is
+composed onto the box's own (quaternion multiply in 3D, angle addition in 2D);
+the half-size scaling is exact under a uniform scale.
+
+#+BEGIN_EXAMPLE
+       aabb              rotate 45 deg            obb
+     +-------+                                    /\
+     |       |              ===>                 /  \
+     |   .   |    faces leave the axes          <  . >
+     |       |    so an obb describes it         \  /
+     +-------+    exactly                          \/
+#+END_EXAMPLE
+
+** Decompose: recovering a pose from a matrix
+
+=decompose_3= inverts the standard build: the translation is the fourth column,
+the scale is the length of each of the first three columns, and the rotation is a
+trace-based quaternion extraction from the columns after dividing the scale out.
+=decompose_2= is the 2D analogue with =atan2= for the angle. Both report
+=geometry_error::degenerate_primitive= when a scale component is zero (the matrix
+is singular and the rotation cannot be recovered). =decompose_3= is =constexpr=
+(only arithmetic and the constexpr =sqrt=); =decompose_2= is runtime-only.
+
+* Complexity
+
+Every operation is constant time (a few small matrix or quaternion products).
+=to_matrix=, =transform_point=, and the shape transforms are a fixed number of
+multiply-adds; =decompose= is a fixed extraction.
+
+The constexpr split is the only subtlety: prefer the 3D pose where compile-time
+evaluation matters, because the 2D path bottoms out on libm trig.
+
+* When to use it
+
+- As the pose of a scene object, bone, or camera: store a =transform3d=, edit its
+  parts, and call =to_matrix= for the renderer or =transform_point= for picking.
+- To move a collision shape into world space before a query: =transform(pose,
+  shape)= gives the world-space primitive to hand to [[file:intersect.org][intersect]] or [[file:gjk.org][gjk]].
+- To pull a pose back out of a matrix you were handed (an imported node, a parent
+  product): =decompose_3= / =decompose_2=, checking the =result=.
+- Remember the rounded-shape caveat: a non-uniform scale of a sphere or circle
+  returns the enclosing round shape, not an ellipsoid; reach for an obb when you
+  need the tight non-uniform bound.
+- The 2D path is runtime-only; if you need a constexpr 2D pose, precompute the
+  matrix or stay in 3D.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+auto t{geo::transform3d_f::identity()};
+t.position() = nm::vector3_f{5, 0, 0};
+t.rotation() = *nm::from_axis_angle(nm::vector3_f{0, 0, 1}, nm::radians<float>{nm::half_pi_v<float>});
+t.scale() = nm::vector3_f{2, 2, 2};
+
+auto const m{to_matrix(t)};                                   // 4x4 for the renderer
+auto const p{transform_point(t, nm::vector3_f{1, 0, 0})};     // (5, 2, 0)
+auto const world_box{transform(t, geo::aabb<float, 3>{       // an aabb becomes an obb
+  nm::vector3_f{-1, -1, -1}, nm::vector3_f{1, 1, 1}})};
+auto const back{geo::decompose_3(m)};                         // result<transform3d_f>
+#+END_SRC
+
+* See also
+
+- [[file:../math/transform.org][math/transform]] : the =translation3= / =rotation3= / =scale3= matrix builders
+  and =look_at= this header bundles.
+- [[file:../math/quaternion.org][math/quaternion]] : the 3D rotation type, =from_axis_angle=, and quaternion
+  multiply used to compose rotations.
+- [[file:obb.org][obb]] : the oriented box an =aabb= or =obb= transform produces.
+- [[file:sphere.org][sphere]], [[file:circle.org][circle]], [[file:triangle.org][triangle]] : the other shapes a pose can transform.
+
+* Further reading
+
+- Christer Ericson, "Real-Time Collision Detection", chapter 4 (bounding volumes
+  and how transforms map them), Morgan Kaufmann, 2004.
+- Ken Shoemake, "Matrix Animation and Polar Decomposition", Graphics Interface
+  1992: the basis for stable matrix-to-rotation extraction.
+- The trace-based quaternion-from-matrix method, as in Mike Day, "Converting a
+  Rotation Matrix to a Quaternion" (Insomniac Games, 2015).
