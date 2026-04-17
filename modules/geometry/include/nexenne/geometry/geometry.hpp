@@ -10,6 +10,7 @@
  */
 
 #include <nexenne/geometry/aabb.hpp>
+#include <nexenne/geometry/aabb_tree.hpp>
 #include <nexenne/geometry/capsule.hpp>
 #include <nexenne/geometry/circle.hpp>
 #include <nexenne/geometry/closest_point.hpp>
