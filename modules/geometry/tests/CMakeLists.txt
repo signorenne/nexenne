@@ -5,5 +5,6 @@ nexenne_add_module_tests(geometry
         test_composites.cpp
         test_queries.cpp
         test_support.cpp
+        test_aabb_tree.cpp
         test_transform.cpp
 )
