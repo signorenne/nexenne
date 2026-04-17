@@ -1,0 +1,144 @@
+#+TITLE: support mappings for the primitives
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=support.hpp= gives the analytic primitives the one operation GJK and EPA need
+from a shape: the /support mapping/, the surface point furthest along a given
+direction. [[file:convex_hull.org][convex_hull3]] already has one (a scan over its vertices); this header
+adds free =support(shape, direction)= overloads for =sphere3=, =capsule3=,
+=obb3=, =aabb= (3D), =triangle3=, and =segment3=, so the same collision pipeline
+runs on any of those, and on any mixed pair. Each overload returns a
+=vector<Real, 3>=, the exact protocol the [[file:gjk.org][convex_shape]] concept requires, and
+GJK and EPA find them by argument-dependent lookup. Everything is =constexpr= and
+=noexcept= and nothing allocates.
+
+* The idea
+
+A convex shape can be described entirely by its support mapping: hand it a
+direction, it hands back the point of the shape that reaches furthest that way.
+GJK and EPA never look at faces, edges, or normals; they only ever call support.
+So to make a sphere or a box collide, we do not build a mesh of it, we just write
+its support function in closed form. That keeps the analytic primitives analytic
+(no vertex lists, no allocation) while letting them share one collision engine
+with [[file:convex_hull.org][convex_hull3]].
+
+The mapping splits into two families. Shapes with flat faces or straight edges
+(box, triangle, segment, aabb) take their support at a /vertex/: a face or edge
+that ties on the dot product resolves to one of its corners, so a small argmax is
+exact. Rounded shapes (sphere, capsule) take their support on the /surface/: the
+furthest skeleton point pushed out by the radius along the unit direction. A
+capsule is just a sphere swept along a segment, so its support is the segment's
+support grown by the radius, which is why the two share a shape.
+
+* How it works
+
+** Sphere and capsule: skeleton plus radius
+
+The support of a ball of radius =r= centred at =c= is =c + r * dhat=, where =dhat=
+is the unit search direction: the cap of the ball pointing along =d=. A capsule
+generalises this: pick the spine endpoint furthest along =d=, then push it out by
+=r * dhat=.
+
+#+BEGIN_EXAMPLE
+  d ---->                       support
+                                  v
+     start o========o end   ->    o========O )   the far endpoint, then
+            (spine)                        +r    grown by r along dhat
+#+END_EXAMPLE
+
+A (near) zero direction has no defined =dhat=, so =normalize_or= falls back to the
++x cap by convention; GJK never seeds a zero direction in practice.
+
+** Oriented and axis-aligned boxes: pick the corner
+
+For an =obb3= the furthest corner folds each local half-axis in by the sign of its
+projection on =d=:
+
+#+BEGIN_EXAMPLE
+  support(box, d) = center + sum over k of sign(axis_k . d) * h_k * axis_k
+#+END_EXAMPLE
+
+where =axis_k= are the columns of the box rotation (the box's local frame) and
+=h_k= its half-extents. Choosing the sign per axis selects the furthest of the
+eight corners without enumerating them. An =aabb= is the same with the world axes,
+which reduces to picking, per component, the =max= corner when =d[k] >= 0= and the
+=min= corner otherwise.
+
+** Triangle and segment: the furthest vertex
+
+With only three (or two) vertices the support is a plain argmax of
+=dot(vertex, d)=. A segment is degenerate on its own, but it is a useful support
+shape: the Minkowski sum of a segment with another convex shape models a swept
+query.
+
+** ADL is the whole extension mechanism
+
+GJK and EPA call the unqualified =support(shape, direction)=, so adding a new
+collidable shape is purely additive: write one overload in =nexenne::geometry=,
+and the algorithms pick it up with no change to themselves. That is exactly how
+=convex_hull3= and these primitives coexist.
+
+* Complexity
+
+| shape    | cost | note                                       |
+|----------+------+--------------------------------------------|
+| sphere   | O(1) | one normalize plus a scaled add            |
+| capsule  | O(1) | one dot comparison, one normalize          |
+| obb3     | O(1) | three axis rotations, three signed adds    |
+| aabb     | O(1) | three sign tests                           |
+| triangle | O(1) | three dot products                         |
+| segment  | O(1) | two dot products                           |
+
+Every primitive support is constant time, in contrast to the =O(N)= vertex scan
+of [[file:convex_hull.org][convex_hull3]]. That is the payoff for keeping the primitives analytic.
+
+* When to use it
+
+- Include it whenever you want GJK or EPA to run on a =sphere3=, =obb3=,
+  =capsule3=, =aabb=, =triangle3=, or =segment3=, alone or in a mixed pair.
+- Prefer a dedicated closed-form test when one exists: =sphere= vs =sphere= and
+  =aabb= vs =aabb= overlaps in [[file:intersect.org][intersect]] are cheaper and exact. Reach for
+  support-based GJK/EPA when the pair has no closed form (capsule vs obb, hull vs
+  sphere) or when you need the contact manifold EPA produces.
+- The direction passed to a support need not be unit length; GJK and EPA pass raw
+  search directions.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+geo::sphere3_f const s{nm::vector3_f{0, 0, 0}, 1.0f};
+geo::obb3_f const box{nm::vector3_f{1, 0, 0}, nm::vector3_f{1, 1, 1}, nm::quaternion<float>{}};
+
+// Direct support queries (free overloads, found by ADL).
+auto const cap{support(s, nm::vector3_f{1, 0, 0})};   // {1, 0, 0}, the +x cap
+auto const cnr{support(box, nm::vector3_f{1, 1, 1})}; // {2, 1, 1}, a box corner
+
+// The whole point: GJK and EPA now run on the primitives.
+auto const hit{geo::gjk<float>(s, box, nm::vector3_f{1, 0, 0})};
+if (hit.overlap) {
+  auto const contact{geo::epa<float>(s, box, hit.simplex)};
+  // contact.normal, contact.penetration_depth, contact points.
+}
+#+END_SRC
+
+* See also
+
+- [[file:gjk.org][gjk]] : the overlap test that consumes these support mappings.
+- [[file:epa.org][epa]] : recovers penetration depth and contact from the GJK simplex.
+- [[file:convex_hull.org][convex_hull]] : the other =support= provider, for polyhedral shapes.
+- [[file:sphere.org][sphere]], [[file:capsule.org][capsule]], [[file:obb.org][obb]], [[file:triangle.org][triangle]] : the shapes whose mappings live here.
+
+* Further reading
+
+- Christer Ericson, "Real-Time Collision Detection", section 9.5.2 (support
+  mappings), Morgan Kaufmann, 2004.
+- Gino van den Bergen, "Collision Detection in Interactive 3D Environments",
+  Morgan Kaufmann, 2003: the support-mapping treatment GJK and EPA build on.
+- The support-mapping shape family in the Bullet physics SDK
+  (=btConvexShape::localGetSupportingVertex=).
+  https://github.com/bulletphysics/bullet3

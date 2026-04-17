@@ -84,6 +84,13 @@ spans both is a single template aliased per dimension (=ray2= / =ray3=).
   it. The within-type queries (closest point, distance, containment) ship with
   their primitive.
 
+** Support mappings
+
+- [[file:support.org][support]] : the support mappings (furthest point along a direction) for the
+  analytic primitives (=sphere3=, =obb3=, =capsule3=, =aabb=, =triangle3=,
+  =segment3=), so support-based collision queries can run on them and on any
+  mixed pair.
+
 ** Headers without an article
 
 - =geometry.hpp= : the umbrella header; includes the whole module. For finer
