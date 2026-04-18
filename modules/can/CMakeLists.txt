@@ -21,6 +21,7 @@ nexenne_add_module(can
     HEADERS
         include/nexenne/can/byte_order.hpp
         include/nexenne/can/can.hpp
+        include/nexenne/can/codec.hpp
         include/nexenne/can/dlc.hpp
         include/nexenne/can/error.hpp
         include/nexenne/can/frame.hpp
