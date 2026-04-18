@@ -1,0 +1,186 @@
+#+TITLE: the dynamic aabb tree
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=aabb_tree<T, N, Real>=: a dynamic bounding-volume hierarchy of axis-aligned
+boxes, the broad-phase structure that turns "which of my n objects could
+interact" from an =O(n^2)= all-pairs scan into an =O(log n + k)= tree walk. Each
+leaf stores a box and a caller-chosen payload =T= (an entity id, an index, any
+handle); internal nodes store the box that encloses their two children. It
+supports =O(log n)= =insert= / =remove= / =update=, region =query=, and
+=raycast=. Unlike the rest of the module it owns a heap-allocated node pool, so
+(like [[file:epa.org][epa]]) it is =noexcept= and terminates on allocation failure rather than
+returning a =result=. No aliases: the payload type is yours to pick.
+
+* The idea
+
+A scene with =n= moving bodies asks the same question every frame: which pairs
+are close enough to test exactly? Comparing all pairs is =n(n-1)/2= tests, almost
+all wasted on objects at opposite ends of the world. A broad phase is the cheap
+filter that runs first and returns only plausible candidates; a hierarchy of
+boxes is how you build it. Group nearby leaves under a parent box, group parents
+under grandparents, and a query that misses a node's box can skip that node's
+entire subtree in one test.
+
+Two design choices make it work well as objects move:
+
+- *Fat boxes.* A leaf stores its real box padded outward by a small margin. A
+  body that moves a little still fits inside its fat box, so =update= can do
+  nothing at all (it returns =false=): no tree surgery for slow movers, the
+  common case. The cost is slightly looser queries, a few extra candidates the
+  exact test rejects.
+- *Self-balancing.* Insertion chooses where to put a leaf with the surface-area
+  heuristic (prefer the parent whose box grows least), then fixes any local
+  imbalance with single tree rotations on the way back to the root, keeping depth
+  logarithmic so queries stay fast.
+
+This is the dynamic tree of Box2D's =b2DynamicTree= and Bullet's =btDbvt=.
+
+* How it works
+
+** The node pool
+
+Every node, leaf or internal, lives in one =std::vector<node>=; children are
+=uint32_t= indices into that vector, not pointers. That keeps nodes small and
+contiguous (cache-friendly traversal) and lets a handle be a plain index. A
+=remove= does not shrink the vector: it threads the freed slot onto a singly
+linked free list (reusing the =child_a= field as the "next free" link), and the
+next =insert= pops that slot. So the pool never grows past its high-water mark
+and handles stay dense.
+
+A node's =height= field encodes its role: =-1= free, =0= leaf, =>0= internal.
+
+#+BEGIN_EXAMPLE
+        [root]                 internal nodes hold the union box of
+        /    \                 their two children; leaves hold a fat
+    [n1]      [n2]             object box plus a payload. A query box
+    /  \      /  \            that misses [n1]'s box skips A and B
+  (A)  (B)  (C)  (D)          together in a single overlap test.
+   leaves carry payloads
+#+END_EXAMPLE
+
+** Inserting a leaf: pick the sibling by surface area
+
+To add a leaf the tree descends from the root, at each internal node comparing
+the cost of stopping here (making a new parent over this node) against the cost
+of pushing the leaf into either child, and follows the cheaper branch. The cost
+is the surface-area heuristic: a box's =surface_area= in 3D, its =perimeter= in
+2D (the same idea one dimension down). Minimising enclosing surface area keeps
+sibling boxes tight, which is what makes later queries prune well. A new internal
+parent is then spliced in above the chosen sibling, with the sibling and the new
+leaf as its children.
+
+** Keeping it balanced: rotations
+
+After an insert or remove, the tree walks from the touched node up to the root.
+At each node it refits the box (=union_of= of its children) and recomputes the
+height, and if one child subtree is more than one level taller than the other it
+performs a single rotation, swapping the over-tall child up and the shorter
+subtree down. This is the AVL-style rebalance Box2D uses; it bounds the height at
+=O(log n)= so the tree never degrades into a list under adversarial insert order.
+
+#+BEGIN_EXAMPLE
+  before (C too tall):      rotate_left(A):
+
+        A                          C
+       / \                        / \
+      B   C          ==>         A   F      (the taller of C's children, F,
+         / \                    / \         stays high with C; the shorter,
+        F   G                  B   G        G, drops to be B's new sibling)
+#+END_EXAMPLE
+
+** Querying and raycasting
+
+Both walks use an inline 64-entry stack (no heap for the logarithmic depth of a
+balanced tree). =query(region, visitor)= pushes the root, and for each popped
+node: skip it if its box misses =region=, else if it is a leaf call the visitor,
+else push both children. =raycast(r, max_t, visitor)= is the same with
+[[file:intersect.org][ray-vs-box]] (=intersects(ray, box)=) as the node test, passing the entry
+distance =t= to the visitor.
+
+The visitor return type drives the walk via =if constexpr=:
+
+- A =query= visitor returning =bool= can stop early (return =false=); a =void=
+  one always continues.
+- A =raycast= visitor returning =Real= updates the working =max_t= (return a
+  smaller value to prune farther leaves), which makes a closest-hit query a
+  one-liner; a =void= one leaves =max_t= alone.
+
+* Complexity
+
+| operation         | cost          | note                                       |
+|-------------------+---------------+--------------------------------------------|
+| insert            | O(log n)      | SAH descent plus a refit/rebalance walk    |
+| remove            | O(log n)      | collapse the parent, then rebalance up     |
+| update (fits fat) | O(1)          | the common case: no work, returns false    |
+| update (moved)    | O(log n)      | a remove plus an insert                    |
+| query / raycast   | O(log n + k)  | k leaves reported                          |
+| height, size      | O(1)          | read a field                               |
+
+Memory is one =node= per leaf plus one internal node per leaf (a binary tree of
+=L= leaves has =L - 1= internals), all in a single growable pool.
+
+The inline traversal stack is 64 deep. For any balanced tree that is far more
+than the depth ever reached; a pathologically degenerate tree could in principle
+exceed it and silently skip a subtree, but the rebalancing keeps real trees far
+below that bound.
+
+* When to use it
+
+- Physics broad phase: insert every body's world box, then =query= each body (or
+  walk pairs) to get the candidate set for the exact narrow-phase test, instead
+  of the =O(n^2)= loop.
+- Raycasts against a whole scene: picking, line-of-sight, projectiles. Use the
+  =Real=-returning visitor for closest-hit.
+- Frustum or region culling: =query= the camera or trigger region for the
+  visible or contained set.
+- Set the =padding= to roughly the size of a typical object's per-frame motion:
+  larger padding means fewer restructures but looser queries.
+- It is a broad phase, not an exact test: a =query= hit means the fat boxes
+  overlap, so always follow it with the precise test ([[file:intersect.org][intersect]], [[file:gjk.org][gjk]]).
+- It owns a heap pool: keep one tree and reuse it across frames rather than
+  rebuilding, and do not use it where allocation is forbidden.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+using tree = geo::aabb_tree<std::uint32_t, 3, float>;  // payload = entity id
+using box = geo::aabb<float, 3>;
+
+tree world{0.2f};  // fat-box padding suited to ~unit-size movers
+auto const h{world.insert(box{nm::vector3_f{-1, -1, -1}, nm::vector3_f{1, 1, 1}}, 7u)};
+
+// Broad-phase candidates overlapping a region.
+world.query(box{nm::vector3_f{0, 0, 0}, nm::vector3_f{2, 2, 2}},
+            [&](auto handle, std::uint32_t id) { /* narrow-phase test */ });
+
+// Closest hit along a ray: shrink max_t to the nearest hit as we go.
+auto best{std::numeric_limits<float>::max()};
+world.raycast(geo::ray<float, 3>{nm::vector3_f{}, nm::vector3_f{1, 0, 0}}, best,
+              [&](auto, std::uint32_t id, float t) -> float { best = nm::min(best, t); return best; });
+
+world.update(h, box{nm::vector3_f{-0.9f, -1, -1}, nm::vector3_f{1.1f, 1, 1}});  // tiny move: no-op
+#+END_SRC
+
+* See also
+
+- [[file:aabb.org][aabb]] : the box type plus =union_of=, =surface_area= / =perimeter=, and the
+  =intersects= / =contains_aabb= tests the tree is built on.
+- [[file:intersect.org][intersect]] : the =intersects(ray, aabb)= ray cast the =raycast= node test uses.
+- [[file:gjk.org][gjk]], [[file:epa.org][epa]] : the narrow-phase exact tests a broad-phase candidate feeds into.
+- [[file:frustum.org][frustum]] : the view volume whose planes a culling =query= can drive.
+
+* Further reading
+
+- Christer Ericson, "Real-Time Collision Detection", chapter 6 (bounding-volume
+  hierarchies and broad-phase methods), Morgan Kaufmann, 2004.
+- Erin Catto, the Box2D =b2DynamicTree= (the dynamic AABB tree, SAH insertion,
+  and rotation rebalancing this implementation follows).
+  https://github.com/erincatto/box2d
+- The Bullet physics SDK =btDbvt= dynamic bounding-volume tree.
+  https://github.com/bulletphysics/bullet3
