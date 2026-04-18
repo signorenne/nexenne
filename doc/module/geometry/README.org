@@ -98,6 +98,14 @@ spans both is a single template aliased per dimension (=ray2= / =ray3=).
   per-shape =transform(pose, shape)= overloads (an =aabb= becomes an =obb= under
   rotation), and =decompose_2= / =decompose_3= to recover a pose from a matrix.
 
+** Spatial acceleration
+
+- [[file:aabb_tree.org][aabb_tree]] : a dynamic bounding-volume hierarchy of axis-aligned boxes, the
+  broad phase that answers region overlap and raycast queries in =O(log n + k)=
+  instead of the =O(n^2)= all-pairs scan. Fat-box padding and rotation
+  rebalancing keep it cheap as objects move. The allocating type in the module
+  is a node pool.
+
 ** Headers without an article
 
 - =geometry.hpp= : the umbrella header; includes the whole module. For finer
