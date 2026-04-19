@@ -9,6 +9,7 @@
  * IO layer, and their formatters.
  */
 
+#include <nexenne/can/byte_field.hpp>
 #include <nexenne/can/byte_order.hpp>
 #include <nexenne/can/codec.hpp>
 #include <nexenne/can/dlc.hpp>

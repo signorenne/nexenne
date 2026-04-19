@@ -19,6 +19,7 @@ endif()
 # to this one, not here. External libraries go in LINK_PUBLIC / LINK_PRIVATE.
 nexenne_add_module(can
     HEADERS
+        include/nexenne/can/byte_field.hpp
         include/nexenne/can/byte_order.hpp
         include/nexenne/can/can.hpp
         include/nexenne/can/codec.hpp
