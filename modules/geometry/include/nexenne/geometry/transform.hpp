@@ -308,9 +308,14 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] auto
 transform_point(transform2d<Real> const t, vector<Real, 2> const p) noexcept -> vector<Real, 2> {
-  auto const m{to_matrix(t)};
-  auto const h{m * vector<Real, 3>{p.x(), p.y(), Real{1}}};
-  return vector<Real, 2>{h.x(), h.y()};
+  // Scale, then rotate by the angle, then translate, directly: this is the hot
+  // path, so it avoids building and multiplying the 3x3 matrix. The result equals
+  // to_matrix(t) applied to p.
+  auto const c{std::cos(t.rotation().value())};
+  auto const s{std::sin(t.rotation().value())};
+  auto const sx{p.x() * t.scale().x()};
+  auto const sy{p.y() * t.scale().y()};
+  return vector<Real, 2>{t.position().x() + c * sx - s * sy, t.position().y() + s * sx + c * sy};
 }
 
 /**
@@ -329,9 +334,13 @@ transform_point(transform2d<Real> const t, vector<Real, 2> const p) noexcept -> 
 template <std::floating_point Real>
 [[nodiscard]] auto transform_direction(transform2d<Real> const t, vector<Real, 2> const d) noexcept
   -> vector<Real, 2> {
-  auto const m{to_matrix(t)};
-  auto const h{m * vector<Real, 3>{d.x(), d.y(), Real{0}}};
-  return vector<Real, 2>{h.x(), h.y()};
+  // Scale then rotate directly (no matrix build, no translation), the hot path.
+  // The result equals the linear part of to_matrix(t) applied to d.
+  auto const c{std::cos(t.rotation().value())};
+  auto const s{std::sin(t.rotation().value())};
+  auto const sx{d.x() * t.scale().x()};
+  auto const sy{d.y() * t.scale().y()};
+  return vector<Real, 2>{c * sx - s * sy, s * sx + c * sy};
 }
 
 /**
@@ -364,13 +373,19 @@ template <std::floating_point Real>
  *
  * @pre None.
  * @post The result is \p p mapped through \p t.
+ *
+ * @note Applies scale, then a quaternion rotation, then translation directly
+ *       instead of building and multiplying the 4x4 matrix, since transforming
+ *       points is the hot path. The result equals \c to_matrix(t) applied to
+ *       \p p.
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 transform_point(transform3d<Real> const t, vector<Real, 3> const p) noexcept -> vector<Real, 3> {
-  auto const m{to_matrix(t)};
-  auto const h{m * vector<Real, 4>{p.x(), p.y(), p.z(), Real{1}}};
-  return vector<Real, 3>{h.x(), h.y(), h.z()};
+  auto const scaled{
+    vector<Real, 3>{p.x() * t.scale().x(), p.y() * t.scale().y(), p.z() * t.scale().z()}
+  };
+  return t.position() + nexenne::math::rotate(t.rotation(), scaled);
 }
 
 /**
@@ -385,14 +400,19 @@ transform_point(transform3d<Real> const t, vector<Real, 3> const p) noexcept -> 
  * @pre None.
  * @post The result is \p d under the linear part of \p t; translation is not
  *       applied.
+ *
+ * @note Applies scale then rotation directly (no matrix build, no translation),
+ *       since this is the hot path. The result equals the linear part of
+ *       \c to_matrix(t) applied to \p d.
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto transform_direction(
   transform3d<Real> const t, vector<Real, 3> const d
 ) noexcept -> vector<Real, 3> {
-  auto const m{to_matrix(t)};
-  auto const h{m * vector<Real, 4>{d.x(), d.y(), d.z(), Real{0}}};
-  return vector<Real, 3>{h.x(), h.y(), h.z()};
+  auto const scaled{
+    vector<Real, 3>{d.x() * t.scale().x(), d.y() * t.scale().y(), d.z() * t.scale().z()}
+  };
+  return nexenne::math::rotate(t.rotation(), scaled);
 }
 
 // Applying a pose to a whole shape. A rotation tilts an axis-aligned box off the
