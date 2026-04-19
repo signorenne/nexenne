@@ -485,8 +485,9 @@ private:
       auto const child_a{s.child_a};
       auto const child_b{s.child_b};
       auto const combined{union_of(s.bounds, leaf_bounds)};
-      auto const cost_here{Real{2} * sah_cost(combined)};
-      auto const cost_inherit{Real{2} * (sah_cost(combined) - sah_cost(s.bounds))};
+      auto const combined_cost{sah_cost(combined)};
+      auto const cost_here{Real{2} * combined_cost};
+      auto const cost_inherit{Real{2} * (combined_cost - sah_cost(s.bounds))};
       auto const a_combined{union_of(m_nodes[child_a].bounds, leaf_bounds)};
       auto const b_combined{union_of(m_nodes[child_b].bounds, leaf_bounds)};
       auto const cost_a{

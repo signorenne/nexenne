@@ -35,7 +35,6 @@
  * Interactive 3D Environments (Morgan Kaufmann 2003).
  */
 
-#include <array>
 #include <concepts>
 #include <cstddef>
 
@@ -110,10 +109,13 @@ template <std::floating_point Real>
 /**
  * @brief Support point of an oriented box: the corner furthest along \p direction.
  *
- * Folds each local half-axis in by the sign of its projection on \p direction:
- * \c center + sum_k sign(axis_k . d) * h_k * axis_k, where the axes are the
- * columns of the box's rotation. Choosing the sign per axis selects the furthest
- * of the eight corners without enumerating them.
+ * The furthest corner is \c center + sum_k sign(axis_k . d) * h_k * axis_k, where
+ * the axes are the columns of the box's rotation. Rather than rotate all three
+ * world axes out (three rotations) and dot each with \p direction, the direction
+ * is rotated once into the box's local frame (where \c axis_k . d is just
+ * component \c k), the sign-folded half-extents form the local corner, and that
+ * corner is rotated back: two quaternion rotations instead of three. This is the
+ * inner GJK and EPA loop, so the saved rotation matters.
  *
  * @tparam Real Floating-point component type.
  * @param box Oriented box (3D).
@@ -129,19 +131,16 @@ template <std::floating_point Real>
   obb3<Real> const& box, nexenne::math::vector<Real, 3> const& direction
 ) noexcept -> nexenne::math::vector<Real, 3> {
   using vector_type = nexenne::math::vector<Real, 3>;
-  auto result{box.center()};
   auto const h{box.half_size()};
-  // The local axes are the box rotation applied to the world basis vectors.
-  auto const axes{std::array<vector_type, 3>{
-    nexenne::math::rotate(box.rotation(), vector_type{Real{1}, Real{0}, Real{0}}),
-    nexenne::math::rotate(box.rotation(), vector_type{Real{0}, Real{1}, Real{0}}),
-    nexenne::math::rotate(box.rotation(), vector_type{Real{0}, Real{0}, Real{1}}),
+  // Direction in the box's local frame: the conjugate rotation is the inverse for
+  // a unit quaternion, so local.k is exactly axis_k . direction.
+  auto const local{nexenne::math::rotate(nexenne::math::conjugate(box.rotation()), direction)};
+  auto const corner{vector_type{
+    local.x() >= Real{0} ? h.x() : -h.x(),
+    local.y() >= Real{0} ? h.y() : -h.y(),
+    local.z() >= Real{0} ? h.z() : -h.z(),
   }};
-  for (auto k{std::size_t{0}}; k < 3; ++k) {
-    auto const sign{nexenne::math::dot(axes[k], direction) >= Real{0} ? Real{1} : Real{-1}};
-    result = result + axes[k] * (sign * h[k]);
-  }
-  return result;
+  return box.center() + nexenne::math::rotate(box.rotation(), corner);
 }
 
 /**
