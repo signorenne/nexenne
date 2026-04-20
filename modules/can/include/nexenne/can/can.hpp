@@ -16,6 +16,8 @@
 #include <nexenne/can/error.hpp>
 #include <nexenne/can/frame.hpp>
 #include <nexenne/can/id.hpp>
+#include <nexenne/can/message.hpp>
+#include <nexenne/can/message_builder.hpp>
 #include <nexenne/can/packing_plan.hpp>
 #include <nexenne/can/signal.hpp>
 #include <nexenne/can/signal_builder.hpp>
