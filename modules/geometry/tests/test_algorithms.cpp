@@ -13,6 +13,7 @@
 #include <span>
 
 #include <nexenne/geometry/convex_hull.hpp>
+#include <nexenne/geometry/epa.hpp>
 #include <nexenne/geometry/gjk.hpp>
 #include <nexenne/math/vector.hpp>
 #include <nexenne/math/vector_algorithms.hpp>
@@ -214,6 +215,114 @@ TEST_CASE("gjk: differential against exact box overlap over random placements") 
     ++checked;
   }
   CHECK(checked > 600);  // the skip band should never swallow most of the trials
+}
+
+TEST_CASE("epa: penetration depth and a unit normal on an axis-aligned overlap") {
+  // Cubes of size 1 (half 0.5) centered at -0.25 and +0.25 overlap by 0.5 on x
+  // and fully on y and z, so the minimum separation is 0.5 along x.
+  auto const va{cube_vertices(vec3{-0.25f, 0, 0}, 0.5f)};
+  auto const vb{cube_vertices(vec3{0.25f, 0, 0}, 0.5f)};
+  geo::convex_hull3_f const a{std::span<vec3 const>{va}};
+  geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
+  auto const g{geo::gjk(a, b, vec3{1, 0, 0})};
+  REQUIRE(g.overlap);
+  auto const e{geo::epa(a, b, g.simplex)};
+  REQUIRE(e.converged);
+  CHECK(e.penetration_depth == doctest::Approx(0.5f).epsilon(0.05f));
+  CHECK(std::abs(e.normal.x()) > 0.9f);  // separation runs along x
+  CHECK(std::abs(e.normal.y()) < 0.1f);
+  CHECK(std::abs(e.normal.z()) < 0.1f);
+  CHECK(nm::length(e.normal) == doctest::Approx(1.0f));  // normal is unit length
+}
+
+TEST_CASE("epa: moving B out by depth*normal separates the shapes") {
+  // A convention-independent check of normal AND depth AND sign together:
+  // translating B along the penetration vector must end the overlap.
+  auto const va{cube_vertices(vec3{-0.25f, 0, 0}, 0.5f)};
+  auto const vb{cube_vertices(vec3{0.25f, 0, 0}, 0.5f)};
+  geo::convex_hull3_f const a{std::span<vec3 const>{va}};
+  geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
+  auto const g{geo::gjk(a, b, vec3{1, 0, 0})};
+  REQUIRE(g.overlap);
+  auto const e{geo::epa(a, b, g.simplex)};
+  REQUIRE(e.converged);
+
+  auto vb_moved{vb};
+  auto const push{e.normal * (e.penetration_depth + 0.05f)};
+  for (auto& v : vb_moved) {
+    v = v + push;
+  }
+  geo::convex_hull3_f const b_moved{std::span<vec3 const>{vb_moved}};
+  CHECK_FALSE(geo::gjk(a, b_moved, vec3{1, 0, 0}).overlap);
+}
+
+TEST_CASE("epa: depth tracks the overlap amount across offsets") {
+  // Equal cubes (size 1) offset along x by `off` overlap by 1 - off on x.
+  for (auto const off : {0.2f, 0.4f, 0.6f, 0.8f}) {
+    auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
+    auto const vb{cube_vertices(vec3{off, 0, 0}, 0.5f)};
+    geo::convex_hull3_f const a{std::span<vec3 const>{va}};
+    geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
+    auto const g{geo::gjk(a, b, vec3{1, 0, 0})};
+    REQUIRE(g.overlap);
+    auto const e{geo::epa(a, b, g.simplex)};
+    REQUIRE(e.converged);
+    CHECK(e.penetration_depth == doctest::Approx(1.0f - off).epsilon(0.05f));
+  }
+}
+
+TEST_CASE("epa: a non-tetrahedron simplex does not converge") {
+  auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
+  geo::convex_hull3_f const a{std::span<vec3 const>{va}};
+  geo::gjk_simplex3<float> partial{};
+  partial.count = 2;  // a line, not the tetrahedron EPA requires
+  auto const e{geo::epa(a, a, partial)};
+  CHECK_FALSE(e.converged);
+}
+
+TEST_CASE("epa: differential against exact box penetration over random overlaps") {
+  // For two equal axis-aligned cubes (size 1) the per-axis overlap is 1 - |off|,
+  // and the true penetration is the smallest of the three (the minimum
+  // translation axis). EPA must reproduce that depth, and translating B out
+  // along its result must separate the pair. We skip near-ties where two axes
+  // share the minimum, since the penetration axis is then ambiguous.
+  std::mt19937 rng{0x5EEDu};
+  std::uniform_real_distribution<float> off{-0.9f, 0.9f};
+  auto checked{0};
+  for (auto trial{0}; trial < 500; ++trial) {
+    vec3 const center{off(rng), off(rng), off(rng)};
+    std::array<float, 3> overlap{
+      1.0f - std::abs(center.x()), 1.0f - std::abs(center.y()), 1.0f - std::abs(center.z())
+    };
+    auto sorted{overlap};
+    std::sort(sorted.begin(), sorted.end());
+    if (sorted[1] - sorted[0] < 0.05f) {
+      continue;  // two axes tie for the minimum: ambiguous penetration axis
+    }
+    auto const expected_depth{sorted[0]};
+
+    auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
+    auto const vb{cube_vertices(center, 0.5f)};
+    geo::convex_hull3_f const a{std::span<vec3 const>{va}};
+    geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
+    auto const g{geo::gjk(a, b, center)};
+    REQUIRE(g.overlap);
+    auto const e{geo::epa(a, b, g.simplex)};
+    REQUIRE(e.converged);
+    CHECK(e.penetration_depth == doctest::Approx(expected_depth).epsilon(0.02f));
+    CHECK(nm::length(e.normal) == doctest::Approx(1.0f).epsilon(0.01f));
+
+    // Joint check: pushing B out by the penetration vector ends the overlap.
+    auto vb_moved{vb};
+    auto const push{e.normal * (e.penetration_depth + 0.02f)};
+    for (auto& v : vb_moved) {
+      v = v + push;
+    }
+    geo::convex_hull3_f const b_moved{std::span<vec3 const>{vb_moved}};
+    CHECK_FALSE(geo::gjk(a, b_moved, center).overlap);
+    ++checked;
+  }
+  CHECK(checked > 350);
 }
 
 }  // namespace
