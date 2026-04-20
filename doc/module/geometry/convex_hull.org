@@ -1,0 +1,143 @@
+#+TITLE: the convex hull view
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=convex_hull3<Real>=: a 3D convex polytope of arbitrary vertex count, held as a
+*non-owning* =std::span= over vertices the caller owns. Like [[file:polygon.org][polygon2]] it is a
+view, not a container: it stores one span and allocates nothing, which keeps the
+whole geometry module allocation-free. It exposes exactly one operation, the
+=support= function (the vertex furthest along a given direction), plus a
+=bounding_aabb=. That single primitive is everything the GJK and EPA collision
+algorithms ask of a shape. Everything is =constexpr= and =noexcept=. Aliases:
+=convex_hull3=, =convex_hull3_f= (float), =convex_hull3_d= (double).
+
+* The idea
+
+A convex polyhedron (a cube, an icosahedron, a faceted gem, a low-poly mesh) is
+described by its vertices, but collision detection never needs the faces, edges,
+or normals. The one question a collision engine asks is: given a direction, which
+point of the shape reaches furthest that way? That is the /support function/, and
+for a polytope its answer is always a vertex. So the hull stores nothing but a
+window onto the vertices and computes the support by a linear scan. It does not
+build the hull (no monotone chain, no QuickHull) and does not verify convexity:
+it /represents/ the convex hull of the vertices you hand it and trusts that they
+already are a convex set. This is the same minimal collision shape Bullet calls
+=btConvexHullShape=.
+
+The view, rather than an owning =std::vector=, is a deliberate choice: it matches
+[[file:polygon.org][polygon2]] and keeps the module heap-free. The caller keeps the vertices in
+whatever storage suits them (a =std::array= on the stack, a =std::vector= they
+own, a slice of a mesh buffer) and the hull borrows them read-only. The cost is
+the usual view contract: the vertices must outlive the hull, exactly as with
+=std::span= and =std::string_view=.
+
+* How it works
+
+** The support function
+
+=support(direction)= returns the vertex maximising the dot product with
+=direction=. Picture a plane whose normal is =direction= sweeping in from
+infinity: the support point is the last vertex it touches. Faces and edges that
+tie on the dot product simply resolve to one of their vertices, so scanning the
+vertices finds the exact answer.
+
+#+BEGIN_EXAMPLE
+  direction d ---->
+
+      e-------f          support(d) is the vertex with the
+     /|      /|          largest dot(vertex, d): here the
+    a-------b |          rightmost corner b (or f, tied), the
+    | g-----|-h          last point a plane with normal d
+    |/      |/           sweeping right would touch.
+    c-------d'
+       (a cube, 8 vertices; the scan keeps the running max)
+#+END_EXAMPLE
+
+The scan keeps a running best vertex and best dot, replacing them whenever a
+later vertex scores higher. An empty hull has no vertices to return, so it yields
+the origin; callers should not collision-test an empty hull.
+
+GJK and EPA discover =support= through argument-dependent lookup: they call the
+free function =support(shape, direction)=, so any type that provides such an
+overload in =nexenne::geometry= becomes usable with them. =convex_hull3=
+satisfies it with a member =support=, and the free overload forwards to it. The
+free function is the extension point; the member is just its implementation for
+the hull. A sphere, box, or capsule can join the same protocol by supplying its
+own =support= overload, without touching the algorithms.
+
+** The bounding box
+
+=bounding_aabb(hull)= folds every vertex through [[file:aabb.org][expand_to_include]] starting from
+the empty AABB, exactly as =polygon2= does. A hull with no vertices yields an
+empty box (its =empty()= is true). The broad phase uses this conservative bound
+to cull pairs before the exact GJK test runs.
+
+* Complexity
+
+All operations are linear in the vertex count =N=, with no auxiliary structures.
+
+| operation                | cost   | note                            |
+|--------------------------+--------+---------------------------------|
+| support                  | O(N)   | one scan, keeping a running max |
+| bounding_aabb            | O(N)   | one pass folding the vertices   |
+| construction, vertices() | O(1)   | stores or returns a span        |
+
+Memory overhead: one =std::span= (a pointer and a length); the hull owns no
+vertex storage. The linear =support= scan is the right choice for the up-to-30
+vertices typical of physics hulls; larger hulls would switch to hill-climbing
+over a vertex-adjacency list, which slots in behind the same signature.
+
+* When to use it
+
+- As the collision body of a polyhedral shape (die, crystal, low-poly mesh) fed
+  to GJK and EPA, when no analytic primitive (sphere, capsule, box) describes it.
+- Build a =convex_hull3= over vertices you already store and query =support=
+  without copying; keep the backing storage alive for as long as the view.
+- Prefer an analytic primitive when one fits: [[file:sphere.org][sphere]], [[file:capsule.org][capsule]], and [[file:obb.org][obb]] carry
+  closed-form queries that are faster and more precise than a vertex scan.
+- Not for the /explicit/ hull with faces and normals (rendering, clipping,
+  topology): that is the job of a computational-geometry library such as CGAL or
+  Qhull. =convex_hull3= keeps only what real-time collision needs.
+- The vertices must genuinely be convex: interior or duplicate points are
+  harmless (wasted work), but a non-convex set produces silently wrong results.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+// Caller owns the vertices; the hull is a view over them.
+constexpr std::array<nm::vector3_f, 8> verts{
+  nm::vector3_f{-0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f},
+  {-0.5f, 0.5f, -0.5f},               {0.5f, 0.5f, -0.5f},
+  {-0.5f, -0.5f, 0.5f},               {0.5f, -0.5f, 0.5f},
+  {-0.5f, 0.5f, 0.5f},                {0.5f, 0.5f, 0.5f},
+};
+constexpr geo::convex_hull3_f cube{std::span<nm::vector3_f const>{verts}};
+
+constexpr auto s{cube.support(nm::vector3_f{1, 1, 1})};  // the (+,+,+) corner
+constexpr auto box{geo::bounding_aabb(cube)};            // tight cube bounds
+auto const adl{support(cube, nm::vector3_f{1, 0, 0})};   // free overload, x == +0.5
+#+END_SRC
+
+* See also
+
+- [[file:polygon.org][polygon]] : the 2D non-owning vertex-set view this hull mirrors.
+- [[file:aabb.org][aabb]] : the bounding box, =empty_aabb=, and =expand_to_include=.
+- [[file:sphere.org][sphere]], [[file:capsule.org][capsule]], [[file:obb.org][obb]] : the analytic primitives to prefer when they fit.
+- [[file:../math/vector.org][math/vector]] : the 3D vertex type and its =dot=.
+
+* Further reading
+
+- Elmer G. Gilbert, Daniel W. Johnson, S. Sathiya Keerthi, "A fast procedure for
+  computing the distance between complex objects in three-dimensional space",
+  IEEE Journal of Robotics and Automation, vol. 4, no. 2, 1988, pp. 193-203: the
+  paper that cast convex shapes as their support functions.
+  https://ieeexplore.ieee.org/document/2083
+- Christer Ericson, "Real-Time Collision Detection", chapter 9 (convex shapes and
+  the support mapping), Morgan Kaufmann, 2004.
+- The support-mapping family of collision shapes, as in the Bullet physics SDK
+  =btConvexHullShape=. https://github.com/bulletphysics/bullet3

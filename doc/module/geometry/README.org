@@ -66,7 +66,9 @@ spans both is a single template aliased per dimension (=ray2= / =ray3=).
   Signed area and 2D containment, 3D normal and area, centroid, bounding box.
 - [[file:circle.org][circle]] : the 2D disc.
 - [[file:sphere.org][sphere]] : the 3D ball.
-- =polygon.hpp= : the general N-vertex polygon (article pending).
+- [[file:polygon.org][polygon]] : =polygon2=, the general N-vertex planar polygon as a non-owning
+  =std::span= view; shoelace area and winding, perimeter, centroid, ray-cast
+  containment, convexity, and bounding box.
 
 ** Bounding volumes
 
@@ -105,6 +107,17 @@ spans both is a single template aliased per dimension (=ray2= / =ray3=).
   instead of the =O(n^2)= all-pairs scan. Fat-box padding and rotation
   rebalancing keep it cheap as objects move. The allocating type in the module
   is a node pool.
+
+** Convex shapes and collision
+
+- [[file:convex_hull.org][convex_hull]] : =convex_hull3=, a convex polytope as a non-owning =std::span=
+  view over its vertices, exposing the =support= function (furthest vertex along
+  a direction) that the GJK and EPA collision algorithms consume, plus a
+  =bounding_aabb=.
+- [[file:gjk.org][gjk]] : the Gilbert-Johnson-Keerthi convex overlap test. Builds a simplex inside
+  the Minkowski difference of two =convex_shape= shapes and reports whether it
+  encloses the origin; returns the terminal simplex for EPA. The EPA penetration
+  solver that consumes it is in progress.
 
 ** Headers without an article
 
