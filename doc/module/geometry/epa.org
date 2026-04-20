@@ -5,8 +5,9 @@
 * Purpose
 
 =epa(a, b, simplex)= recovers how deep two overlapping convex shapes penetrate
-and along which direction, picking up where [[file:gjk.org][GJK]] leaves off. Given GJK's terminal
-tetrahedron (a simplex enclosing the origin of the Minkowski difference), the
+and along which direction, picking up where [[file:gjk.org][GJK]] leaves off. Given GJK's overlap
+simplex (the vertices carrying the origin of the Minkowski difference, which EPA
+grows into a seed tetrahedron), the
 Expanding Polytope Algorithm returns an =epa_result3<Real>=: the penetration
 =normal= (unit, from B's surface toward A's), the =penetration_depth= (the
 smallest translation that separates them), per-shape =contact_point_a= and
@@ -35,11 +36,23 @@ face closest to the origin, until the closest face reaches the true surface.
 
 * How it works
 
+** Seeding a tetrahedron from the GJK simplex
+
+The signed-volumes [[file:gjk.org][GJK]] reports overlap with whatever simplex carries the origin,
+which can be a single point, an edge, or a triangle, not always a full
+tetrahedron. EPA first grows that seed to four affinely independent vertices: it
+probes the world axes for a distinct second vertex, searches perpendicular to the
+resulting edge for a third, and probes both sides of the triangle along its normal
+for a fourth (taking the apex that reaches further off the plane). The origin,
+having lain on the original lower simplex, ends up on a face or edge of the seed,
+which the centroid-based orientation below handles. A simplex too degenerate to
+grow (coincident or collinear supports) leaves EPA non-converged.
+
 ** The expanding polytope
 
 EPA stores the polytope as a shared vertex list plus triangular faces indexing
 into it. Each face caches its outward unit normal and its distance from the
-origin. Seeded with GJK's four tetrahedron vertices and four faces, the loop:
+origin. Seeded with the four tetrahedron vertices and four faces, the loop:
 
 1. Picks the face nearest the origin (smallest distance).
 2. Asks the shapes for a support point along that face's normal: the furthest
@@ -97,8 +110,9 @@ A and on B, the deepest points of the contact.
 - After [[file:gjk.org][GJK]] reports an overlap, to turn the yes/no answer into the contact data a
   solver needs: depth, normal, and contact points. GJK and EPA are the standard
   pair for convex penetration.
-- Pass GJK's terminal simplex straight through. EPA needs a 4-vertex tetrahedron
-  enclosing the origin; given anything else it returns \c converged == false.
+- Pass GJK's terminal simplex straight through, whatever its size: EPA grows a
+  point, edge, or triangle seed into a tetrahedron itself. Only a degenerate,
+  non-expandable seed yields \c converged == false.
 - For two analytic primitives with a closed-form penetration (sphere-sphere,
   AABB-AABB), prefer that: it is exact and cheaper. EPA is for general convex
   shapes, especially [[file:convex_hull.org][hulls]].
