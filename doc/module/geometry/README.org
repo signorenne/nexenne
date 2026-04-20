@@ -116,8 +116,11 @@ spans both is a single template aliased per dimension (=ray2= / =ray3=).
   =bounding_aabb=.
 - [[file:gjk.org][gjk]] : the Gilbert-Johnson-Keerthi convex overlap test. Builds a simplex inside
   the Minkowski difference of two =convex_shape= shapes and reports whether it
-  encloses the origin; returns the terminal simplex for EPA. The EPA penetration
-  solver that consumes it is in progress.
+  encloses the origin; returns the terminal simplex for EPA.
+- [[file:epa.org][epa]] : the Expanding Polytope Algorithm. Consumes GJK's terminal simplex and
+  expands it to the nearest surface of the Minkowski difference, recovering the
+  penetration depth, the contact normal, and per-shape contact points. The one
+  allocating routine in the module.
 
 ** Headers without an article
 

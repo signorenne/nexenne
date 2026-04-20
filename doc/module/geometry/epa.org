@@ -1,0 +1,139 @@
+#+TITLE: EPA, penetration depth and normal
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=epa(a, b, simplex)= recovers how deep two overlapping convex shapes penetrate
+and along which direction, picking up where [[file:gjk.org][GJK]] leaves off. Given GJK's terminal
+tetrahedron (a simplex enclosing the origin of the Minkowski difference), the
+Expanding Polytope Algorithm returns an =epa_result3<Real>=: the penetration
+=normal= (unit, from B's surface toward A's), the =penetration_depth= (the
+smallest translation that separates them), per-shape =contact_point_a= and
+=contact_point_b=, and a =converged= flag. =Real= is deduced from the simplex.
+Unlike the rest of the module it allocates, growing the polytope in a
+=std::vector=; it is =noexcept=, so allocation failure terminates.
+
+* The idea
+
+GJK answers whether the origin is inside the Minkowski difference =A (-) B=. When
+it is, the penetration depth is the distance from the origin to the *nearest
+point on the boundary* of =A (-) B=, and the normal is the direction to it: that
+is the shortest push that moves the origin out, hence the shortest translation
+that separates the shapes. EPA finds that nearest boundary point by growing a
+polytope inside =A (-) B=, starting from GJK's tetrahedron, always expanding the
+face closest to the origin, until the closest face reaches the true surface.
+
+#+BEGIN_EXAMPLE
+   boundary of A (-) B                 EPA expands the closest face outward
+        ____                           toward the surface, step by step:
+      /'    '\                            *  origin
+     |   *o   |   o = origin             / \
+      \ _   _/    nearest boundary      /   \   <- closest face, pushed out
+        '--'      point => depth         \. ./      until it meets the surface
+#+END_EXAMPLE
+
+* How it works
+
+** The expanding polytope
+
+EPA stores the polytope as a shared vertex list plus triangular faces indexing
+into it. Each face caches its outward unit normal and its distance from the
+origin. Seeded with GJK's four tetrahedron vertices and four faces, the loop:
+
+1. Picks the face nearest the origin (smallest distance).
+2. Asks the shapes for a support point along that face's normal: the furthest
+   point of =A (-) B= that way.
+3. If the support point is no further out than the face (within a tolerance), the
+   face is on the true surface: *converged*. Its normal is the penetration normal
+   and its distance the depth.
+4. Otherwise the surface is further out, so it *expands*: it adds the new vertex,
+   deletes every face the vertex can see, and stitches the resulting hole (the
+   horizon) to the new vertex with fresh faces. Then it repeats.
+
+** Orienting faces, and why the origin cannot do it
+
+Every face normal must point *outward* (away from the polytope interior) for the
+closest-face search and the visibility test to mean what they say. The natural
+trick, "flip the normal so it points away from the origin", fails exactly when
+the penetration is shallow or the contact is symmetric, because then the origin
+lies *on* a seed face and cannot say which side is out. Two axis-aligned cubes
+meeting flush are the textbook case: GJK's tetrahedron has the origin sitting on
+one of its edges, so two seed faces pass through the origin.
+
+EPA here orients against the *centroid* of the seed tetrahedron instead. The
+centroid is strictly inside the polytope and stays inside as the polytope only
+grows, so it always resolves "which way is out", origin on a face or not.
+
+** The winding invariant the horizon depends on
+
+The horizon (the boundary of the deleted region) is found by walking the edges of
+every visible face and cancelling each directed edge =(i, j)= against its reverse
+=(j, i)=: an edge interior to the visible region appears once each way and
+cancels, leaving only the true silhouette. This cancellation is correct *only if
+every face winds the same way around its outward normal*. So when a face's normal
+is flipped to point outward, two of its vertex indices are swapped as well, to
+keep the winding consistent. Skipping that swap silently corrupts the polytope
+and EPA never converges, which is the subtle failure mode this implementation
+fixes.
+
+** Contact points
+
+On convergence, the origin's projection onto the closest face is expressed in
+that face's [[file:triangle.org][barycentric coordinates]] (a Gram-matrix solve). Those same weights blend
+the three stored per-shape support points into the world-space contact points on
+A and on B, the deepest points of the contact.
+
+* Complexity
+
+| quantity          | cost                                                      |
+|-------------------+-----------------------------------------------------------|
+| support queries   | one per iteration, default cap 32                         |
+| per iteration     | linear in the current face count (closest-face scan)      |
+| memory            | the polytope, in std::vector (the one allocating routine) |
+
+* When to use it
+
+- After [[file:gjk.org][GJK]] reports an overlap, to turn the yes/no answer into the contact data a
+  solver needs: depth, normal, and contact points. GJK and EPA are the standard
+  pair for convex penetration.
+- Pass GJK's terminal simplex straight through. EPA needs a 4-vertex tetrahedron
+  enclosing the origin; given anything else it returns \c converged == false.
+- For two analytic primitives with a closed-form penetration (sphere-sphere,
+  AABB-AABB), prefer that: it is exact and cheaper. EPA is for general convex
+  shapes, especially [[file:convex_hull.org][hulls]].
+- The \c converged flag is part of the contract: on a degenerate input or if the
+  iteration cap is hit, the best-known face is still returned but \c converged is
+  \c false, so the caller can fall back.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+
+auto const g = geo::gjk(a, b, center_b - center_a);
+if (g.overlap) {
+  auto const e = geo::epa(a, b, g.simplex);
+  if (e.converged) {
+    // Separate the shapes: move b by e.penetration_depth along e.normal.
+    // e.contact_point_a / e.contact_point_b are the world-space contacts.
+  }
+}
+#+END_SRC
+
+* See also
+
+- [[file:gjk.org][gjk]] : produces the overlap and the terminal simplex EPA expands.
+- [[file:convex_hull.org][convex_hull]] : the support function both algorithms probe.
+- [[file:triangle.org][triangle]] : the barycentric coordinates used for the contact points.
+
+* Further reading
+
+- Gino van den Bergen, "Proximity Queries and Penetration Depth Computation on 3D
+  Game Objects", Game Developers Conference, 2001: the paper that introduced EPA.
+- Christer Ericson, "Real-Time Collision Detection", chapters 9.5 (GJK) and 5.4
+  (penetration), Morgan Kaufmann, 2004.
+- "Implementing GJK and EPA" practical walkthroughs, e.g. the dyn4j blog series by
+  William Bittle. https://dyn4j.org/2010/05/epa-expanding-polytope-algorithm/
+- "Expanding polytope algorithm", Wikipedia, for the polytope-expansion picture.
+  https://en.wikipedia.org/wiki/Expanding_polytope_algorithm
