@@ -190,6 +190,146 @@ template <std::floating_point Real>
   return nexenne::math::vector<Real, 3>{alpha, beta, gamma};
 }
 
+/**
+ * @brief Grows a GJK terminal simplex into a non-degenerate seed tetrahedron.
+ *
+ * The signed-volumes GJK reports overlap with whatever simplex carries the origin
+ * (a point, edge, triangle, or tetrahedron), but EPA needs a full tetrahedron to
+ * expand. This adds support points to bring the simplex up to four affinely
+ * independent vertices: a distinct second vertex along the world axes, a third
+ * perpendicular to the resulting edge, and a fourth along the triangle normal
+ * (whichever side reaches further off the plane). The origin, which lay on the
+ * original lower simplex, ends up on a face or edge of the seed, which
+ * \c build_face handles by orienting against the seed centroid. A simplex that
+ * cannot be grown to a non-degenerate tetrahedron (coincident or collinear
+ * supports) yields an empty result, on which EPA reports non-convergence.
+ *
+ * @tparam Real Component type, deduced from \p initial.
+ * @tparam ShapeA First shape type; must satisfy \c convex_shape.
+ * @tparam ShapeB Second shape type; must satisfy \c convex_shape.
+ * @param a First convex shape.
+ * @param b Second convex shape.
+ * @param initial GJK terminal simplex (1 to 4 vertices carrying the origin).
+ *
+ * @return Four Minkowski-difference vertices forming a non-degenerate
+ *         tetrahedron, or an empty vector when one cannot be built.
+ *
+ * @pre \p a and \p b overlap and \c initial.count is 1 to 4.
+ * @post On success the result has four vertices with non-zero enclosed volume.
+ */
+template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real> ShapeB>
+[[nodiscard]] auto seed_tetrahedron(
+  ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& initial
+) noexcept -> std::vector<gjk_minkowski_point3<Real>> {
+  using point_type = nexenne::math::vector<Real, 3>;
+  auto const eps{static_cast<Real>(1e-12)};
+
+  auto verts{std::vector<gjk_minkowski_point3<Real>>{}};
+  verts.reserve(32);
+  for (auto i{std::size_t{0}}; i < initial.count; ++i) {
+    verts.push_back(initial.points[i]);
+  }
+
+  auto const ms{[&](point_type const& d) noexcept -> gjk_minkowski_point3<Real> {
+    auto const pa{support(a, d)};
+    auto const pb{support(b, -d)};
+    return gjk_minkowski_point3<Real>{pa - pb, pa, pb};
+  }};
+  auto const distinct{[&](point_type const& p) noexcept -> bool {
+    for (auto const& v : verts) {
+      if (nexenne::math::length_squared(p - v.difference) <= eps) {
+        return false;
+      }
+    }
+    return true;
+  }};
+
+  // Grow to a second vertex: probe the world axes for a support distinct from the
+  // first (a one-vertex simplex means the shapes touch at a single point).
+  if (verts.size() < 2) {
+    auto const axes{std::array<point_type, 6>{
+      point_type{Real{1}, Real{0}, Real{0}},
+      point_type{Real{-1}, Real{0}, Real{0}},
+      point_type{Real{0}, Real{1}, Real{0}},
+      point_type{Real{0}, Real{-1}, Real{0}},
+      point_type{Real{0}, Real{0}, Real{1}},
+      point_type{Real{0}, Real{0}, Real{-1}},
+    }};
+    for (auto const& d : axes) {
+      auto const w{ms(d)};
+      if (distinct(w.difference)) {
+        verts.push_back(w);
+        break;
+      }
+    }
+    if (verts.size() < 2) {
+      return {};
+    }
+  }
+
+  // Grow to a triangle: search perpendicular to the edge, crossing it with the
+  // least-aligned world axis so the two operands are well clear of parallel.
+  if (verts.size() < 3) {
+    auto const edge{verts[1].difference - verts[0].difference};
+    auto const ax{nexenne::math::abs(edge.x())};
+    auto const ay{nexenne::math::abs(edge.y())};
+    auto const az{nexenne::math::abs(edge.z())};
+    auto const axis{
+      (ax <= ay && ax <= az) ? point_type{Real{1}, Real{0}, Real{0}}
+      : (ay <= az)           ? point_type{Real{0}, Real{1}, Real{0}}
+                             : point_type{Real{0}, Real{0}, Real{1}}
+    };
+    auto const dir{nexenne::math::cross(edge, axis)};
+    if (nexenne::math::length_squared(dir) <= eps) {
+      return {};
+    }
+    auto w{ms(dir)};
+    if (!distinct(w.difference)) {
+      w = ms(-dir);
+    }
+    if (!distinct(w.difference)) {
+      return {};
+    }
+    verts.push_back(w);
+  }
+
+  // Grow to a tetrahedron: probe both sides of the triangle along its normal and
+  // take the apex that reaches further off the plane.
+  if (verts.size() < 4) {
+    auto const normal{nexenne::math::cross(
+      verts[1].difference - verts[0].difference, verts[2].difference - verts[0].difference
+    )};
+    if (nexenne::math::length_squared(normal) <= eps) {
+      return {};
+    }
+    auto const wp{ms(normal)};
+    auto const wn{ms(-normal)};
+    auto const reach_p{
+      nexenne::math::abs(nexenne::math::dot(wp.difference - verts[0].difference, normal))
+    };
+    auto const reach_n{
+      nexenne::math::abs(nexenne::math::dot(wn.difference - verts[0].difference, normal))
+    };
+    auto const w{reach_p >= reach_n ? wp : wn};
+    if (!distinct(w.difference)) {
+      return {};
+    }
+    verts.push_back(w);
+  }
+
+  // Reject a flat (zero-volume) tetrahedron: EPA cannot expand a degenerate seed.
+  auto const volume{nexenne::math::dot(
+    verts[1].difference - verts[0].difference,
+    nexenne::math::cross(
+      verts[2].difference - verts[0].difference, verts[3].difference - verts[0].difference
+    )
+  )};
+  if (nexenne::math::abs(volume) <= eps) {
+    return {};
+  }
+  return verts;
+}
+
 }  // namespace detail
 
 /**
@@ -235,16 +375,18 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   using point_type = nexenne::math::vector<Real, 3>;
 
   auto result{epa_result3<Real>{}};
-  if (initial.count != 4) {
-    return result;  // GJK did not terminate on a tetrahedron: nothing to expand.
+  if (initial.count == 0) {
+    return result;  // no simplex to seed from.
   }
 
-  // The polytope: a shared vertex list plus triangular faces indexing into it.
-  auto vertices{std::vector<gjk_minkowski_point3<Real>>{}};
-  vertices.reserve(32);
-  for (auto i{std::size_t{0}}; i < 4; ++i) {
-    vertices.push_back(initial.points[i]);
+  // The polytope starts from a seed tetrahedron grown out of the GJK simplex (a
+  // shared vertex list plus triangular faces indexing into it). A simplex that
+  // cannot grow to a non-degenerate tetrahedron leaves EPA non-converged.
+  auto vertices{detail::seed_tetrahedron<Real>(a, b, initial)};
+  if (vertices.size() < 4) {
+    return result;
   }
+  vertices.reserve(32);
 
   // Centroid of the seed tetrahedron: a point strictly inside the polytope,
   // used to orient every face outward. It stays interior as the polytope only
