@@ -7,4 +7,5 @@ nexenne_add_module_tests(geometry
         test_support.cpp
         test_aabb_tree.cpp
         test_transform.cpp
+        test_algorithms.cpp
 )
