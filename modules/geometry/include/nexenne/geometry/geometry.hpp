@@ -16,6 +16,7 @@
 #include <nexenne/geometry/closest_point.hpp>
 #include <nexenne/geometry/concepts.hpp>
 #include <nexenne/geometry/convex_hull.hpp>
+#include <nexenne/geometry/epa.hpp>
 #include <nexenne/geometry/error.hpp>
 #include <nexenne/geometry/frustum.hpp>
 #include <nexenne/geometry/gjk.hpp>
