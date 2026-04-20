@@ -15,6 +15,8 @@
 #include <nexenne/geometry/convex_hull.hpp>
 #include <nexenne/geometry/epa.hpp>
 #include <nexenne/geometry/gjk.hpp>
+#include <nexenne/geometry/sphere.hpp>
+#include <nexenne/geometry/support.hpp>
 #include <nexenne/math/vector.hpp>
 #include <nexenne/math/vector_algorithms.hpp>
 
@@ -130,15 +132,22 @@ TEST_CASE("gjk: touching cubes report overlap") {
   CHECK(geo::gjk(a, b, vec3{1, 0, 0}).overlap);
 }
 
-TEST_CASE("gjk: overlapping cubes report overlap and a terminal tetrahedron") {
+TEST_CASE("gjk: overlapping cubes report overlap and a usable terminal simplex") {
   auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
   auto const vb{cube_vertices(vec3{0.5f, 0, 0}, 0.5f)};  // half overlap on x
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
   geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
   auto const r{geo::gjk(a, b, vec3{1, 0, 0})};
   CHECK(r.overlap);
-  CHECK(r.simplex.count == 4);  // overlap terminates on an enclosing tetrahedron
+  // The signed-volumes GJK reports overlap with whatever simplex carries the
+  // origin (the origin can lie on an edge or face), which EPA grows to a
+  // tetrahedron; the terminal simplex just has to be a valid carrier.
+  CHECK(r.simplex.count >= 1);
+  CHECK(r.simplex.count <= 4);
   CHECK(r.iterations >= 1);
+  // The seed must still be expandable into a converged EPA result.
+  auto const e{geo::epa(a, b, r.simplex)};
+  CHECK(e.converged);
 }
 
 TEST_CASE("gjk: deep concentric overlap is found regardless of seed direction") {
@@ -271,11 +280,14 @@ TEST_CASE("epa: depth tracks the overlap amount across offsets") {
   }
 }
 
-TEST_CASE("epa: a non-tetrahedron simplex does not converge") {
+TEST_CASE("epa: a degenerate seed simplex does not converge") {
+  // A lower-dimensional simplex is normally grown to a tetrahedron, but a
+  // degenerate one (here two coincident origin vertices) cannot be expanded, so
+  // EPA reports non-convergence rather than inventing a result.
   auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
   geo::gjk_simplex3<float> partial{};
-  partial.count = 2;  // a line, not the tetrahedron EPA requires
+  partial.count = 2;  // two coincident default (zero) vertices: not expandable.
   auto const e{geo::epa(a, a, partial)};
   CHECK_FALSE(e.converged);
 }
@@ -323,6 +335,40 @@ TEST_CASE("epa: differential against exact box penetration over random overlaps"
     ++checked;
   }
   CHECK(checked > 350);
+}
+
+TEST_CASE("gjk: separation distance of two spheres matches the analytic value") {
+  // Spheres need support overloads; the signed-volumes GJK reports the distance
+  // and the closest point on each surface for a separated pair.
+  geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
+  geo::sphere3_f const b{vec3{5, 0, 0}, 2.0f};
+  auto const r{geo::gjk<float>(a, b, vec3{1, 0, 0})};
+  CHECK_FALSE(r.overlap);
+  CHECK(r.distance == doctest::Approx(5.0f - 1.0f - 2.0f).epsilon(1e-4));  // |c| - rA - rB.
+  // Closest points lie on each surface, on the line of centers.
+  CHECK(r.closest_a.x() == doctest::Approx(1.0f).epsilon(1e-3));
+  CHECK(r.closest_b.x() == doctest::Approx(3.0f).epsilon(1e-3));
+  CHECK(nm::length(r.closest_b - r.closest_a) == doctest::Approx(r.distance).epsilon(1e-3));
+}
+
+TEST_CASE("gjk: separation distance of two boxes matches the axis gap") {
+  auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};  // x in [-0.5, 0.5]
+  auto const vb{cube_vertices(vec3{3, 0, 0}, 0.5f)};  // x in [2.5, 3.5]
+  geo::convex_hull3_f const a{std::span<vec3 const>{va}};
+  geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
+  auto const r{geo::gjk(a, b, vec3{1, 0, 0})};
+  CHECK_FALSE(r.overlap);
+  CHECK(r.distance == doctest::Approx(2.0f).epsilon(1e-4));  // gap between 0.5 and 2.5.
+}
+
+TEST_CASE("gjk: distance is found regardless of the seed direction") {
+  geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
+  geo::sphere3_f const b{vec3{0, 4, 0}, 1.0f};
+  for (auto const& seed : {vec3{1, 0, 0}, vec3{0, 1, 0}, vec3{-1, -1, -1}, vec3{0, 0, 1}}) {
+    auto const r{geo::gjk<float>(a, b, seed)};
+    CHECK_FALSE(r.overlap);
+    CHECK(r.distance == doctest::Approx(2.0f).epsilon(1e-3));  // 4 - 1 - 1.
+  }
 }
 
 }  // namespace
