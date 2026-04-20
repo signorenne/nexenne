@@ -12,6 +12,8 @@
 #include <nexenne/can/byte_field.hpp>
 #include <nexenne/can/byte_order.hpp>
 #include <nexenne/can/codec.hpp>
+#include <nexenne/can/database.hpp>
+#include <nexenne/can/database_builder.hpp>
 #include <nexenne/can/dlc.hpp>
 #include <nexenne/can/error.hpp>
 #include <nexenne/can/frame.hpp>
