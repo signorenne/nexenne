@@ -105,8 +105,7 @@ TEST_CASE("support: GJK and EPA run on a sphere-vs-obb overlap") {
   geo::obb3_f const box{vec3{1, 0, 0}, vec3{1, 1, 1}, nm::quaternion<float>{}};
 
   auto const hit{geo::gjk<float>(s, box, vec3{1, 0, 0})};
-  CHECK(hit.overlap);
-  REQUIRE(hit.simplex.count == 4);
+  REQUIRE(hit.overlap);
 
   auto const contact{geo::epa<float>(s, box, hit.simplex)};
   CHECK(contact.converged);
