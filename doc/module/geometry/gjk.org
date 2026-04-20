@@ -1,0 +1,188 @@
+#+TITLE: GJK, the convex overlap test
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=gjk(a, b, direction)= reports whether two convex shapes overlap, asking each
+shape only for its [[file:convex_hull.org][support]] function. It returns a =gjk_result3<Real>=: an
+=overlap= flag, the terminal =simplex= (which [[file:epa.org][EPA]] consumes to recover penetration
+depth and normal), and the =iterations= used. It allocates nothing (the simplex
+is a fixed four-vertex array) and is =constexpr= and =noexcept=. =Real= is
+deduced from the seed direction, so you write =gjk(a, b, dir)=, not
+=gjk<float>(a, b, dir)=.
+
+* The idea
+
+Two shapes A and B overlap if and only if they share a point, that is, if some
+=pa in A= equals some =pb in B=, i.e. =pa - pb = 0=. The set of all differences
+=pa - pb= is the *Minkowski difference* =A (-) B=. So the whole overlap question
+collapses to a single test:
+
+#+BEGIN_EXAMPLE
+  A and B overlap   <=>   the origin lies inside  A (-) B
+#+END_EXAMPLE
+
+=A (-) B= is itself convex, and we never build it explicitly. We only need to
+probe it, and one probe suffices: its support function is
+=support(A (-) B, d) = support(A, d) - support(B, -d)=. GJK uses that probe to
+grow a small simplex (1 to 4 vertices) inside =A (-) B=, steering it toward the
+origin until either it encloses the origin (overlap) or a probe proves the origin
+is outside (separated). This is the insight of Gilbert, Johnson, and Keerthi
+(1988): collision needs no faces, no edges, only the support mapping.
+
+* How it works
+
+** The Minkowski difference and the origin
+
+If A and B touch, their difference set straddles the origin; if they are apart,
+the whole difference set sits off to one side, and some direction =d= has every
+point of =A (-) B= on the far side of the origin from =d=.
+
+#+BEGIN_EXAMPLE
+   two disks, apart            their Minkowski difference A (-) B
+
+      A     B                         . . .
+    (   ) (   )                     .       .         origin x is OUTSIDE
+                          ===>     .    o    .        the difference set, so
+                                    .   x   .         a separating direction
+                                     . . .            exists: no overlap
+
+   two disks overlapping       A (-) B contains the origin
+
+      A                              . . .
+    (  X  )  B                     .       .          origin x is INSIDE
+       (  )            ===>       .    x    .         => the shapes overlap
+                                   .       .
+                                     . . .
+#+END_EXAMPLE
+
+** Growing the simplex toward the origin
+
+A *simplex* in 3D is a point, a segment, a triangle, or a tetrahedron (1 to 4
+vertices). GJK keeps a simplex whose vertices are Minkowski-difference points,
+stored newest-first (=points[0]= is the most recent), and repeats:
+
+1. Ask for a support point of =A (-) B= along the current search =direction=.
+2. If that point did not pass the origin (=dot(point, direction) < 0=), then the
+   whole difference set lies short of the origin along =direction=: *separated*,
+   stop.
+3. Otherwise add it to the simplex and run =do_simplex=, which discards the
+   vertices that cannot help enclose the origin and picks the next search
+   direction toward it. If the simplex is a tetrahedron that contains the origin,
+   *overlap*, stop.
+
+** do_simplex: keeping only the nearest Voronoi feature
+
+=do_simplex= asks: of the simplex just extended by the new vertex =a=, which
+feature (vertex, edge, or face) is closest to the origin? It keeps that feature
+and aims the next search at the origin from it. The cases:
+
+#+BEGIN_EXAMPLE
+  line [a, b]      origin beside the segment -> search perpendicular to ab,
+                   toward the origin: dir = (ab x ao) x ab
+                   origin behind a          -> drop b, keep [a], dir = ao
+
+  triangle [a,b,c] origin past edge ab or ac -> drop the far vertex, recurse as
+                   a line; origin above/below the face -> keep the triangle and
+                   search along its normal (flip the winding if the origin is
+                   on the far side)
+
+  tetra [a,b,c,d]  test the three faces touching the newest vertex a; if the
+                   origin is outside one, drop the opposite vertex and recurse on
+                   that face; if it is inside all three, the origin is ENCLOSED
+#+END_EXAMPLE
+
+The line reduction (perpendicular-toward-origin, or fall back to the vertex) is
+shared by the line case and both triangle-edge cases through one =reduce_to_edge=
+helper, so the Voronoi logic lives in exactly one place.
+
+** The on-edge degeneracy
+
+When the origin lies exactly on a simplex edge =ap=, the usual search direction
+=(ap x ao) x ap= evaluates to zero (=ao= is parallel to =ap=), leaving no
+direction to search. GJK then needs *any* vector perpendicular to =ap=. The naive
+"cross =ap= with a fixed axis" can itself be near-zero when =ap= happens to align
+with that axis. =any_orthogonal= avoids this by crossing =ap= with whichever world
+axis is *least* aligned with it (the axis of =ap='s smallest component), keeping
+the two operands far from parallel so the result is robustly non-zero. (This is
+the same least-aligned-axis trick used to build an orthonormal basis from a
+vector; see Hughes and Moller, 1999.)
+
+** Termination
+
+GJK stops on one of three conditions: a support point fails to pass the origin
+(separated); =do_simplex= encloses the origin in a tetrahedron (overlap); or the
+search direction collapses to near-zero, meaning the origin sits on the current
+simplex boundary, which is a touching contact and counts as overlap. A hard
+iteration cap (default 32) guards against non-termination on degenerate input;
+hitting it conservatively reports "separated".
+
+* Complexity
+
+| quantity           | cost                                                   |
+|--------------------+--------------------------------------------------------|
+| support queries    | up to 2 per iteration, default cap 32 iterations       |
+| per support query  | the shape's support cost: O(N) for a convex_hull3 of N |
+| memory             | O(1): a four-vertex simplex, no allocation             |
+
+In practice GJK converges in a handful of iterations for well-separated or
+clearly-overlapping inputs; the cap only matters for near-degenerate contact.
+
+* When to use it
+
+- The general convex-versus-convex overlap test, when at least one shape is an
+  arbitrary polytope ([[file:convex_hull.org][convex_hull3]]) with no closed-form pair test. Any shape
+  with a =support= overload works, and the two shapes need not be the same type.
+- For a yes/no overlap between two analytic primitives that already have a direct
+  test (sphere-sphere, AABB-AABB, sphere-AABB), prefer that test: it is cheaper
+  and exact. GJK earns its keep on general hulls and mixed shapes.
+- When you also need penetration depth and a contact normal (not just yes/no),
+  run GJK to get the overlap and its terminal tetrahedron, then hand that simplex
+  to [[file:epa.org][EPA]].
+- The result's =simplex= is only meaningful as EPA input when =overlap= is true
+  (it is then a tetrahedron enclosing the origin).
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+// Caller owns each shape's vertices; the hulls are views over them.
+std::array<nm::vector3_f, 8> va = /* cube at the origin   */;
+std::array<nm::vector3_f, 8> vb = /* cube shifted on +x   */;
+geo::convex_hull3_f a{std::span<nm::vector3_f const>{va}};
+geo::convex_hull3_f b{std::span<nm::vector3_f const>{vb}};
+
+auto const r = geo::gjk(a, b, vb_center - va_center);  // seed = center to center
+if (r.overlap) {
+  // r.simplex is a tetrahedron enclosing the origin: ready for EPA.
+}
+#+END_SRC
+
+* See also
+
+- [[file:convex_hull.org][convex_hull]] : the support function GJK probes, and the convex_shape concept.
+- [[file:epa.org][epa]] : recovers penetration depth and normal from GJK's terminal simplex.
+- [[file:aabb.org][aabb]] : the broad-phase box test that culls pairs before GJK runs.
+
+* Further reading
+
+- Elmer G. Gilbert, Daniel W. Johnson, S. Sathiya Keerthi, "A fast procedure for
+  computing the distance between complex objects in three-dimensional space",
+  IEEE Journal of Robotics and Automation, vol. 4, no. 2, 1988, pp. 193-203: the
+  original algorithm. https://ieeexplore.ieee.org/document/2083
+- Casey Muratori, "Implementing GJK" (2006): the newest-vertex-first simplex
+  formulation this implementation follows.
+  https://www.youtube.com/watch?v=Qupqu1xe7Io
+- Gino van den Bergen, "A Fast and Robust GJK Implementation for Collision
+  Detection of Convex Objects", Journal of Graphics Tools 4(2), 1999.
+- Christer Ericson, "Real-Time Collision Detection", chapter 9.5 (the GJK
+  algorithm), Morgan Kaufmann, 2004.
+- J. F. Hughes and T. Moller, "Building an Orthonormal Basis from a Unit Vector",
+  Journal of Graphics Tools 4(4), 1999: the least-aligned-axis idea behind
+  =any_orthogonal=.
+- "Gilbert-Johnson-Keerthi distance algorithm", Wikipedia, for the Minkowski
+  difference and support mapping with figures.
+  https://en.wikipedia.org/wiki/Gilbert%E2%80%93Johnson%E2%80%93Keerthi_distance_algorithm
