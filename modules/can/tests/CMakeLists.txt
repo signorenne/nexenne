@@ -6,6 +6,7 @@ nexenne_add_module_tests(can
         test_frame.cpp
         test_packing_plan.cpp
         test_codec.cpp
+        test_database.cpp
         test_byte_field.cpp
         test_signal.cpp
 )
