@@ -139,4 +139,50 @@ TEST_CASE("OBB3 SAT accounts for rotation, not just identity axes") {
   CHECK(geo::intersects(a, geo::obb3_d{vec3{2.2, 0, 0}, vec3{1, 1, 1}, rot}));
 }
 
+TEST_CASE("closest_point: triangle projects interior, edge, and vertex regions") {
+  geo::triangle3_d const t{vec3{0, 0, 0}, vec3{2, 0, 0}, vec3{0, 2, 0}};  // in z = 0
+  // A point above the interior projects straight down to the face.
+  CHECK(geo::closest_point(t, vec3{0.5, 0.5, 3.0}) == vec3{0.5, 0.5, 0.0});
+  // A point beyond vertex a returns a itself.
+  CHECK(geo::closest_point(t, vec3{-1, -1, 0}) == vec3{0, 0, 0});
+  // A point outside edge ab projects onto that edge.
+  auto const on_ab{geo::closest_point(t, vec3{1, -1, 0})};
+  CHECK(on_ab.x() == doctest::Approx(1.0));
+  CHECK(on_ab.y() == doctest::Approx(0.0));
+}
+
+TEST_CASE("closest_point: an obb clamps an outside point onto its surface") {
+  geo::obb3_d const box{vec3{0, 0, 0}, vec3{1, 1, 1}, nm::quaternion<double>{}};
+  CHECK(geo::closest_point(box, vec3{5, 0, 0}) == vec3{1, 0, 0});
+  CHECK(geo::closest_point(box, vec3{0.5, 0.5, 0.5}) == vec3{0.5, 0.5, 0.5});  // inside stays put
+
+  // A 90-degree turn about z: a point far on +x clamps to the rotated +y face.
+  auto const rot{*nm::from_axis_angle(vec3{0, 0, 1}, nm::radians<double>{nm::half_pi_v<double>})};
+  geo::obb3_d const turned{vec3{0, 0, 0}, vec3{2, 1, 1}, rot};
+  auto const q{geo::closest_point(turned, vec3{0, 5, 0})};
+  CHECK(q.y() == doctest::Approx(2.0));  // local +x (half 2) now points along +y
+}
+
+TEST_CASE("closest_point: a 2D obb clamps an outside point") {
+  geo::obb2_d const box{vec2{0, 0}, vec2{1, 1}, nm::radians<double>{0.0}};
+  CHECK(geo::closest_point(box, vec2{5, 0}).x() == doctest::Approx(1.0));
+}
+
+TEST_CASE("closest_points: a segment piercing a triangle has zero distance") {
+  geo::triangle3_d const t{vec3{-1, -1, 0}, vec3{1, -1, 0}, vec3{0, 1, 0}};  // z = 0
+  geo::segment3_d const through{vec3{0, 0, -1}, vec3{0, 0, 1}};              // crosses the face
+  auto const r{geo::closest_points(through, t)};
+  CHECK(nm::length(r.second - r.first) == doctest::Approx(0.0).epsilon(1e-6));
+  CHECK(r.first.z() == doctest::Approx(0.0).epsilon(1e-6));
+}
+
+TEST_CASE("closest_points: a segment above a triangle projects onto the face") {
+  geo::triangle3_d const t{vec3{-2, -2, 0}, vec3{2, -2, 0}, vec3{0, 2, 0}};
+  geo::segment3_d const above{vec3{0, 0, 2}, vec3{0, 0, 5}};  // parallel, hovering over center
+  auto const r{geo::closest_points(above, t)};
+  CHECK(r.first.z() == doctest::Approx(2.0));   // nearest segment end
+  CHECK(r.second.z() == doctest::Approx(0.0));  // its projection on the face
+  CHECK(nm::length(r.second - r.first) == doctest::Approx(2.0));
+}
+
 }  // namespace
