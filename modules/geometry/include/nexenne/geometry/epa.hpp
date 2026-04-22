@@ -521,4 +521,262 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   return result;
 }
 
+/**
+ * @brief A contact manifold: the small set of contact points shared by two
+ *        overlapping shapes, with the shared normal.
+ *
+ * EPA alone yields one deepest contact point, which is enough to push two shapes
+ * apart but not to keep a face-to-face contact (a box resting on the ground) from
+ * rocking. A manifold is the polygon where the two contact faces meet: up to a
+ * handful of points on the contact plane that a solver applies impulses at. A
+ * curved contact (sphere, capsule) has no face, so the manifold collapses to the
+ * single EPA point.
+ *
+ * @tparam Real Floating-point component type.
+ */
+template <std::floating_point Real>
+struct contact_manifold3 {
+  using value_type = Real;
+  using point_type = nexenne::math::vector<Real, 3>;
+
+  std::array<point_type, 8> points{};  ///< Contact points on the contact plane.
+  std::size_t count{0};                ///< Number of valid points, 1 to 8.
+  point_type normal{};                 ///< Shared contact normal, from B toward A.
+};
+
+namespace detail {
+
+/**
+ * @brief A tangent basis (t1, t2) spanning the plane perpendicular to \p n.
+ *
+ * Crosses \p n with whichever world axis is least aligned with it, so the two
+ * operands stay well clear of parallel and the basis is well-conditioned.
+ *
+ * @tparam Real Component type.
+ * @param n Unit normal.
+ * @param t1 Receives the first tangent (unit length).
+ * @param t2 Receives the second tangent (unit length, completing a right-handed
+ *        frame with \p n).
+ *
+ * @pre \p n has unit length.
+ * @post \p t1 and \p t2 are unit length and orthogonal to \p n and each other.
+ */
+template <std::floating_point Real>
+constexpr auto tangent_basis(
+  nexenne::math::vector<Real, 3> const& n,
+  nexenne::math::vector<Real, 3>& t1,
+  nexenne::math::vector<Real, 3>& t2
+) noexcept -> void {
+  using vector_type = nexenne::math::vector<Real, 3>;
+  auto const ax{nexenne::math::abs(n.x())};
+  auto const ay{nexenne::math::abs(n.y())};
+  auto const az{nexenne::math::abs(n.z())};
+  auto const axis{
+    (ax <= ay && ax <= az) ? vector_type{Real{1}, Real{0}, Real{0}}
+    : (ay <= az)           ? vector_type{Real{0}, Real{1}, Real{0}}
+                           : vector_type{Real{0}, Real{0}, Real{1}}
+  };
+  t1 = nexenne::math::normalize_or(
+    nexenne::math::cross(n, axis), vector_type{Real{1}, Real{0}, Real{0}}
+  );
+  t2 = nexenne::math::cross(n, t1);
+}
+
+/**
+ * @brief Extracts a shape's contact face by ring-sampling supports around \p dir.
+ *
+ * A support shape exposes no faces, so the contact face is recovered by tilting
+ * the search direction a little toward eight points around the tangent circle and
+ * collecting the distinct support points. A flat face yields its corners in
+ * winding order; a curved surface yields (nearly) one point, which the caller
+ * treats as a single contact.
+ *
+ * @tparam Real Component type.
+ * @tparam Shape Convex shape type.
+ * @param shape Shape to sample.
+ * @param dir Face direction (the contact normal pointing out of \p shape).
+ * @param t1 First plane tangent.
+ * @param t2 Second plane tangent.
+ * @param out Receives up to eight distinct face points in ring order.
+ *
+ * @return The number of distinct points written to \p out.
+ *
+ * @pre \p dir, \p t1, \p t2 form an orthonormal frame.
+ * @post The result is between 1 and 8.
+ */
+template <std::floating_point Real, typename Shape>
+[[nodiscard]] auto sample_contact_face(
+  Shape const& shape,
+  nexenne::math::vector<Real, 3> const& dir,
+  nexenne::math::vector<Real, 3> const& t1,
+  nexenne::math::vector<Real, 3> const& t2,
+  std::array<nexenne::math::vector<Real, 3>, 8>& out
+) noexcept -> std::size_t {
+  // A small tangential tilt keeps the probe on the face perpendicular to dir while
+  // steering it toward each corner; pre-tabulated cos/sin of k*45 degrees keep the
+  // routine constexpr-friendly and trig-free.
+  auto const diag{static_cast<Real>(0.70710678)};  // cos/sin of 45 degrees.
+  auto const ring{std::array<std::array<Real, 2>, 8>{
+    std::array<Real, 2>{Real{1}, Real{0}},
+    std::array<Real, 2>{diag, diag},
+    std::array<Real, 2>{Real{0}, Real{1}},
+    std::array<Real, 2>{-diag, diag},
+    std::array<Real, 2>{Real{-1}, Real{0}},
+    std::array<Real, 2>{-diag, -diag},
+    std::array<Real, 2>{Real{0}, Real{-1}},
+    std::array<Real, 2>{diag, -diag},
+  }};
+  auto const tilt{static_cast<Real>(0.08)};
+  auto const eps{static_cast<Real>(1e-8)};
+  auto count{std::size_t{0}};
+  for (auto const& cs : ring) {
+    auto const probe{dir + (t1 * cs[0] + t2 * cs[1]) * tilt};
+    auto const p{support(shape, probe)};
+    auto duplicate{false};
+    for (auto i{std::size_t{0}}; i < count; ++i) {
+      if (nexenne::math::length_squared(p - out[i]) <= eps) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (!duplicate) {
+      out[count] = p;
+      ++count;
+    }
+  }
+  return count;
+}
+
+}  // namespace detail
+
+/**
+ * @brief Builds a contact manifold for two overlapping shapes from an EPA result.
+ *
+ * Recovers the contact face of each shape (by ring-sampling its support function
+ * around the EPA normal), projects both onto the contact plane, and clips one
+ * against the other with the Sutherland-Hodgman algorithm: the clipped polygon is
+ * the region where the faces actually meet. When either contact is a single point
+ * (a curved surface, or a vertex/edge contact) the manifold is just the EPA
+ * contact point, so the result always has at least one point.
+ *
+ * @tparam Real Floating-point component type.
+ * @tparam ShapeA First shape type; must satisfy \c convex_shape.
+ * @tparam ShapeB Second shape type; must satisfy \c convex_shape.
+ * @param a First convex shape.
+ * @param b Second convex shape.
+ * @param hit A converged EPA result for \p a and \p b.
+ *
+ * @return The manifold: contact points on the contact plane and the shared
+ *         normal (from B toward A).
+ *
+ * @pre \p hit came from \c epa on \p a and \p b and \c hit.converged is true.
+ * @post \c count is between 1 and 8 and \c normal equals \c hit.normal.
+ */
+template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real> ShapeB>
+[[nodiscard]] auto contact_manifold(
+  ShapeA const& a, ShapeB const& b, epa_result3<Real> const& hit
+) noexcept -> contact_manifold3<Real> {
+  using point_type = nexenne::math::vector<Real, 3>;
+  using planar = nexenne::math::vector<Real, 2>;
+
+  auto result{contact_manifold3<Real>{}};
+  result.normal = hit.normal;
+  // The single deepest point is always a valid fallback manifold.
+  result.points[0] = (hit.contact_point_a + hit.contact_point_b) * Real{0.5};
+  result.count = 1;
+
+  auto t1{point_type{}};
+  auto t2{point_type{}};
+  detail::tangent_basis(hit.normal, t1, t2);
+
+  // A's contact face points along -normal (toward B); B's along +normal.
+  auto face_a{std::array<point_type, 8>{}};
+  auto face_b{std::array<point_type, 8>{}};
+  auto const na{detail::sample_contact_face<Real>(a, -hit.normal, t1, t2, face_a)};
+  auto const nb{detail::sample_contact_face<Real>(b, hit.normal, t1, t2, face_b)};
+  // A flat face repeats its few corners across the eight probes (3 to ~6 distinct
+  // points); a smooth surface returns a fresh point for every probe (all eight
+  // distinct). Treat fewer than three or all-eight as "no usable flat face" and
+  // keep the single contact point.
+  if (na < 3 || na >= std::size_t{8} || nb < 3 || nb >= std::size_t{8}) {
+    return result;
+  }
+
+  // Project both faces onto the contact plane, using the fallback point as origin.
+  auto const origin{result.points[0]};
+  auto const to_plane{[&](point_type const& p) noexcept -> planar {
+    return planar{nexenne::math::dot(p - origin, t1), nexenne::math::dot(p - origin, t2)};
+  }};
+  auto subject{std::array<planar, 8>{}};
+  auto clip{std::array<planar, 8>{}};
+  for (auto i{std::size_t{0}}; i < na; ++i) {
+    subject[i] = to_plane(face_a[i]);
+  }
+  for (auto i{std::size_t{0}}; i < nb; ++i) {
+    clip[i] = to_plane(face_b[i]);
+  }
+
+  // The clip polygon's winding sets the inside half-plane sign; sample its signed
+  // area so the edge test keeps the correct side regardless of sample order.
+  auto signed_area{Real{0}};
+  for (auto i{std::size_t{0}}; i < nb; ++i) {
+    auto const& p{clip[i]};
+    auto const& q{clip[(i + 1) % nb]};
+    signed_area += p.x() * q.y() - q.x() * p.y();
+  }
+  auto const inside_sign{signed_area >= Real{0} ? Real{1} : Real{-1}};
+
+  // Sutherland-Hodgman: clip the subject polygon by each edge of the clip polygon.
+  auto poly{std::array<planar, 16>{}};
+  auto poly_n{std::size_t{0}};
+  for (auto i{std::size_t{0}}; i < na; ++i) {
+    poly[poly_n++] = subject[i];
+  }
+  auto const edge_inside{[&](planar const& e0, planar const& e1, planar const& p) noexcept -> Real {
+    // Signed side of point p w.r.t. directed edge e0->e1, oriented so inside is >= 0.
+    auto const s{(e1.x() - e0.x()) * (p.y() - e0.y()) - (e1.y() - e0.y()) * (p.x() - e0.x())};
+    return s * inside_sign;
+  }};
+  for (auto c{std::size_t{0}}; c < nb && poly_n > 0; ++c) {
+    auto const e0{clip[c]};
+    auto const e1{clip[(c + 1) % nb]};
+    auto next{std::array<planar, 16>{}};
+    auto next_n{std::size_t{0}};
+    for (auto i{std::size_t{0}}; i < poly_n; ++i) {
+      auto const cur{poly[i]};
+      auto const prv{poly[(i + poly_n - 1) % poly_n]};
+      auto const cur_in{edge_inside(e0, e1, cur) >= Real{0}};
+      auto const prv_in{edge_inside(e0, e1, prv) >= Real{0}};
+      if (cur_in != prv_in) {
+        // The edge prv->cur crosses the clip line: add the intersection.
+        auto const dp{edge_inside(e0, e1, prv)};
+        auto const dc{edge_inside(e0, e1, cur)};
+        auto const tt{dp / (dp - dc)};
+        if (next_n < next.size()) {
+          next[next_n++] = prv + (cur - prv) * tt;
+        }
+      }
+      if (cur_in && next_n < next.size()) {
+        next[next_n++] = cur;
+      }
+    }
+    poly = next;
+    poly_n = next_n;
+  }
+
+  if (poly_n < 3) {
+    return result;  // degenerate overlap: keep the single point.
+  }
+
+  // Lift the clipped polygon back onto the contact plane in world space, capping
+  // at eight points (decimating evenly if the clip produced more).
+  auto const out_n{poly_n <= result.points.size() ? poly_n : result.points.size()};
+  result.count = out_n;
+  for (auto i{std::size_t{0}}; i < out_n; ++i) {
+    auto const& uv{poly[(i * poly_n) / out_n]};
+    result.points[i] = origin + t1 * uv.x() + t2 * uv.y();
+  }
+  return result;
+}
+
 }  // namespace nexenne::geometry
