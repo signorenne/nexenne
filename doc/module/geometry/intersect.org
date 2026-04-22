@@ -194,6 +194,31 @@ rotation) and is runtime only. =intersects(ray3, obb3)= uses
 [[file:../math/quaternion.org][math/quaternion]]), and is =constexpr=. Both then call the ray-vs-aabb overload,
 so they inherit its =nullopt=-on-miss and clamp-to-zero-when-inside behaviour.
 
+** Ray hit records: point and surface normal
+
+The =intersects(ray, shape)= overloads return only the distance =t=. For shading,
+decals, reflection, or sliding a character along a wall you also want the *hit
+point* and the *surface normal* there, so each 3D ray cast has a companion
+=raycast(ray, shape)= returning =std::optional<ray_hit3>= with ={t, point,
+normal}=. Covered: =plane3=, =aabb3=, =sphere3=, =triangle3=, =obb3=.
+
+The normal is the unit outward surface normal at the hit, flipped to *face the
+incoming ray* (=dot(normal, direction) <= 0=), which is what lighting and
+reflection want. The faces recover their normal cheaply from the same math the
+=t= query already does:
+
+#+BEGIN_EXAMPLE
+  plane     -> the plane normal (flipped toward the ray)
+  sphere    -> normalize(point - center)            (or -direction if started inside)
+  triangle  -> normalize(cross(b - a, c - a))       (flipped toward the ray)
+  aabb      -> the entry slab's axis and side: the slab method tracks which axis
+               last bounded the entry and from which side, giving +/- e_k
+  obb       -> the local aabb normal, rotated back by the box orientation
+#+END_EXAMPLE
+
+A ray that starts inside reports =t == 0= with the normal facing back along the
+ray. The =t=-only =intersects= overloads stay for callers that need nothing more.
+
 * When to use it
 
 - Ray casts (=ray3= vs =plane3=, =aabb3=, =sphere3=, =triangle3=, =obb3=, and the
