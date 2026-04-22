@@ -214,6 +214,40 @@ contains_point(obb2<Real> const& box, nexenne::math::vector<Real, 2> const& p) n
 }
 
 /**
+ * @brief Closest point on or inside a 2D oriented box to \p p.
+ *
+ * Rotates \p p into the box's local frame by the inverse angle, clamps it to the
+ * half-size on each axis, and rotates the clamped point back into world space.
+ *
+ * @tparam Real Component type.
+ * @param box Oriented box.
+ * @param p Query point.
+ *
+ * @return Closest point on or in \p box.
+ *
+ * @pre None.
+ * @post The result lies in the closed box (\c contains_point is true up to
+ *       rounding).
+ *
+ * @note Runtime only: depends on \c std::sin / \c std::cos.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto closest_point(
+  obb2<Real> const& box, nexenne::math::vector<Real, 2> const& p
+) noexcept -> nexenne::math::vector<Real, 2> {
+  auto const c{std::cos(box.rotation().value())};
+  auto const s{std::sin(box.rotation().value())};
+  auto const offset{p - box.center()};
+  // Rotate the offset by -rotation into the box's local frame.
+  auto const lx{c * offset.x() + s * offset.y()};
+  auto const ly{-s * offset.x() + c * offset.y()};
+  auto const clx{nexenne::math::clamp(lx, -box.half_size().x(), box.half_size().x())};
+  auto const cly{nexenne::math::clamp(ly, -box.half_size().y(), box.half_size().y())};
+  // Rotate the clamped local point back by +rotation into world space.
+  return box.center() + nexenne::math::vector<Real, 2>{c * clx - s * cly, s * clx + c * cly};
+}
+
+/**
  * @brief Smallest axis-aligned box containing a rotated 2D oriented box.
  *
  * @tparam Real Component type.
@@ -403,6 +437,37 @@ contains_point(obb3<Real> const& box, nexenne::math::vector<Real, 3> const& p) n
   return nexenne::math::abs(local.x()) <= box.half_size().x()
          && nexenne::math::abs(local.y()) <= box.half_size().y()
          && nexenne::math::abs(local.z()) <= box.half_size().z();
+}
+
+/**
+ * @brief Closest point on or inside a 3D oriented box to \p p.
+ *
+ * Rotates \p p into the box's local frame (the conjugate rotation), clamps it to
+ * the half-size on each axis, and rotates the clamped point back into world space.
+ *
+ * @tparam Real Component type.
+ * @param box Oriented box.
+ * @param p Query point.
+ *
+ * @return Closest point on or in \p box.
+ *
+ * @pre \c box.rotation() has unit length.
+ * @post The result lies in the closed box (\c contains_point is true up to
+ *       rounding).
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto closest_point(
+  obb3<Real> const& box, nexenne::math::vector<Real, 3> const& p
+) noexcept -> nexenne::math::vector<Real, 3> {
+  auto const local{nexenne::math::rotate(nexenne::math::conjugate(box.rotation()), p - box.center())
+  };
+  auto const h{box.half_size()};
+  auto const clamped{nexenne::math::vector<Real, 3>{
+    nexenne::math::clamp(local.x(), -h.x(), h.x()),
+    nexenne::math::clamp(local.y(), -h.y(), h.y()),
+    nexenne::math::clamp(local.z(), -h.z(), h.z()),
+  }};
+  return box.center() + nexenne::math::rotate(box.rotation(), clamped);
 }
 
 /**

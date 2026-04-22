@@ -275,6 +275,70 @@ template <std::floating_point Real>
 }
 
 /**
+ * @brief Closest point on or inside the triangle to \p p.
+ *
+ * Walks the triangle's vertex, edge, and face Voronoi regions with the orientation
+ * test of Ericson's closest-point-on-triangle routine (RTCD section 5.1.5): three
+ * edge-direction dot products place \p p against each feature, returning the first
+ * matching vertex, edge projection, or the interior barycentric blend. Works in
+ * 2D and 3D since it only uses dot products. A degenerate (collinear) triangle
+ * still returns a point on one of its edges.
+ *
+ * See Christer Ericson, "Real-Time Collision Detection", section 5.1.5.
+ *
+ * @tparam Real Component type.
+ * @tparam N Dimension (2 or 3).
+ * @param t Triangle.
+ * @param p Query point.
+ *
+ * @return Closest point on or in the triangle.
+ *
+ * @pre None. Degenerate triangles are handled.
+ * @post The result lies in the closed triangle.
+ */
+template <std::floating_point Real, std::size_t N>
+[[nodiscard]] constexpr auto closest_point(
+  triangle<Real, N> const& t, nexenne::math::vector<Real, N> const& p
+) noexcept -> nexenne::math::vector<Real, N> {
+  using nexenne::math::dot;
+  auto const& a{t.a()};
+  auto const& b{t.b()};
+  auto const& c{t.c()};
+  auto const ab{b - a};
+  auto const ac{c - a};
+
+  auto const d1{dot(ab, p - a)};
+  auto const d2{dot(ac, p - a)};
+  if (d1 <= Real{0} && d2 <= Real{0}) {
+    return a;  // vertex region of a.
+  }
+  auto const d3{dot(ab, p - b)};
+  auto const d4{dot(ac, p - b)};
+  if (d3 >= Real{0} && d4 <= d3) {
+    return b;  // vertex region of b.
+  }
+  auto const vc{d1 * d4 - d3 * d2};
+  if (vc <= Real{0} && d1 >= Real{0} && d3 <= Real{0}) {
+    return a + ab * (d1 / (d1 - d3));  // edge region ab.
+  }
+  auto const d5{dot(ab, p - c)};
+  auto const d6{dot(ac, p - c)};
+  if (d6 >= Real{0} && d5 <= d6) {
+    return c;  // vertex region of c.
+  }
+  auto const vb{d5 * d2 - d1 * d6};
+  if (vb <= Real{0} && d2 >= Real{0} && d6 <= Real{0}) {
+    return a + ac * (d2 / (d2 - d6));  // edge region ac.
+  }
+  auto const va{d3 * d6 - d5 * d4};
+  if (va <= Real{0} && (d4 - d3) >= Real{0} && (d5 - d6) >= Real{0}) {
+    return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)));  // edge region bc.
+  }
+  auto const denom{Real{1} / (va + vb + vc)};  // face interior.
+  return a + ab * (vb * denom) + ac * (vc * denom);
+}
+
+/**
  * @brief Smallest axis-aligned box around a triangle.
  *
  * @tparam Real Component type.
