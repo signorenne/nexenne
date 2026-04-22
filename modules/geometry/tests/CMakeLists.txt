@@ -8,4 +8,5 @@ nexenne_add_module_tests(geometry
         test_aabb_tree.cpp
         test_transform.cpp
         test_algorithms.cpp
+        test_raycast.cpp
 )

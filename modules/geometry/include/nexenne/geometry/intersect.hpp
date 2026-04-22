@@ -674,6 +674,212 @@ intersects(ray<Real, 3> const& r, obb3<Real> const& box) noexcept -> std::option
 }
 
 /**
+ * @brief A ray cast hit: the distance, the world hit point, and the surface
+ *        normal there.
+ *
+ * The richer companion to the \c intersects(ray, shape) overloads that return
+ * only the \c t parameter. The normal is the unit outward surface normal at the
+ * hit, oriented to face the incoming ray (so \c dot(normal, ray.direction()) is
+ * non-positive). When the ray origin starts inside the shape the hit is at the
+ * origin with \c t == 0 and the normal faces back along the ray.
+ *
+ * @tparam Real Floating-point component type.
+ */
+template <std::floating_point Real>
+struct ray_hit3 {
+  using value_type = Real;
+  using point_type = nexenne::math::vector<Real, 3>;
+
+  Real t{};             ///< Hit distance along the ray (parametric, unit direction).
+  point_type point{};   ///< World-space hit point: \c origin + t * direction.
+  point_type normal{};  ///< Unit surface normal at the hit, facing the ray.
+};
+
+/**
+ * @brief Ray cast against a plane, returning the hit point and normal.
+ *
+ * @tparam Real Component type.
+ * @param r 3D ray.
+ * @param pl Plane.
+ *
+ * @return The hit record, or \c nullopt when the ray misses (parallel or behind).
+ *
+ * @pre \c r.direction() and \c pl.normal() have unit length.
+ * @post On a hit \c normal faces the ray and \c point lies on the plane.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+raycast(ray<Real, 3> const& r, plane3<Real> const& pl) noexcept -> std::optional<ray_hit3<Real>> {
+  auto const t{intersects(r, pl)};
+  if (!t) {
+    return std::nullopt;
+  }
+  auto normal{pl.normal()};
+  if (nexenne::math::dot(normal, r.direction()) > Real{0}) {
+    normal = -normal;  // face the incoming ray.
+  }
+  return ray_hit3<Real>{*t, r.origin() + r.direction() * *t, normal};
+}
+
+/**
+ * @brief Ray cast against a sphere, returning the hit point and normal.
+ *
+ * @tparam Real Component type.
+ * @param r 3D ray.
+ * @param s Sphere.
+ *
+ * @return The hit record, or \c nullopt on a miss.
+ *
+ * @pre \c r.direction() has unit length.
+ * @post On a hit \c normal is the outward surface normal (or \c -direction when
+ *       the origin is inside) and \c point lies on the sphere.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+raycast(ray<Real, 3> const& r, sphere3<Real> const& s) noexcept -> std::optional<ray_hit3<Real>> {
+  auto const t{intersects(r, s)};
+  if (!t) {
+    return std::nullopt;
+  }
+  auto const point{r.origin() + r.direction() * *t};
+  // A t of zero means the origin is inside, where the surface normal is not
+  // defined, so the normal faces back along the ray.
+  auto const normal{
+    *t <= Real{0} ? -r.direction() : nexenne::math::normalize_or(point - s.center(), -r.direction())
+  };
+  return ray_hit3<Real>{*t, point, normal};
+}
+
+/**
+ * @brief Ray cast against a triangle, returning the hit point and normal.
+ *
+ * @tparam Real Component type.
+ * @param r 3D ray.
+ * @param tri 3D triangle.
+ *
+ * @return The hit record, or \c nullopt on a miss.
+ *
+ * @pre \c r.direction() has unit length and \p tri is non-degenerate.
+ * @post On a hit \c normal is the triangle's unit normal facing the ray and
+ *       \c point lies in the triangle.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto raycast(ray<Real, 3> const& r, triangle<Real, 3> const& tri) noexcept
+  -> std::optional<ray_hit3<Real>> {
+  auto const t{intersects(r, tri)};
+  if (!t) {
+    return std::nullopt;
+  }
+  auto normal{nexenne::math::normalize_or(
+    nexenne::math::cross(tri.b() - tri.a(), tri.c() - tri.a()), -r.direction()
+  )};
+  if (nexenne::math::dot(normal, r.direction()) > Real{0}) {
+    normal = -normal;  // face the incoming ray regardless of winding.
+  }
+  return ray_hit3<Real>{*t, r.origin() + r.direction() * *t, normal};
+}
+
+/**
+ * @brief Ray cast against an axis-aligned box, returning the hit point and normal.
+ *
+ * The slab method, tracking which slab last bounded the entry: that axis and the
+ * side entered from give the face normal. An origin already inside the box hits at
+ * \c t == 0 with the normal facing back along the ray.
+ *
+ * @tparam Real Component type.
+ * @param r 3D ray.
+ * @param box Axis-aligned box.
+ *
+ * @return The hit record, or \c nullopt on a miss.
+ *
+ * @pre \c r.direction() has unit length.
+ * @post On a hit \c normal is an axis-aligned unit face normal facing the ray.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+raycast(ray<Real, 3> const& r, aabb<Real, 3> const& box) noexcept -> std::optional<ray_hit3<Real>> {
+  auto t_near{-std::numeric_limits<Real>::infinity()};
+  auto t_far{std::numeric_limits<Real>::infinity()};
+  auto hit_axis{std::size_t{0}};
+  auto hit_negative{false};  // true when the entry face is the box's max side.
+  for (auto i{std::size_t{0}}; i < 3; ++i) {
+    auto const o{r.origin()[i]};
+    auto const d{r.direction()[i]};
+    if (d == Real{0}) {
+      if (o < box.min()[i] || o > box.max()[i]) {
+        return std::nullopt;
+      }
+      continue;
+    }
+    auto const inv{Real{1} / d};
+    auto t1{(box.min()[i] - o) * inv};
+    auto t2{(box.max()[i] - o) * inv};
+    auto from_max{d < Real{0}};  // entering through the max plane when moving in -d.
+    if (t1 > t2) {
+      auto const tmp{t1};
+      t1 = t2;
+      t2 = tmp;
+    }
+    if (t1 > t_near) {
+      t_near = t1;
+      hit_axis = i;
+      hit_negative = from_max;
+    }
+    t_far = nexenne::math::min(t_far, t2);
+    if (t_near > t_far) {
+      return std::nullopt;
+    }
+  }
+  if (t_far < Real{0}) {
+    return std::nullopt;
+  }
+  auto const t{nexenne::math::max(t_near, Real{0})};
+  auto const point{r.origin() + r.direction() * t};
+  auto normal{nexenne::math::vector<Real, 3>{}};
+  if (t_near < Real{0}) {
+    normal = -r.direction();  // origin inside: no entry face, face back.
+  } else {
+    normal[hit_axis] = hit_negative ? Real{1} : Real{-1};
+  }
+  return ray_hit3<Real>{t, point, normal};
+}
+
+/**
+ * @brief Ray cast against a 3D oriented box, returning the hit point and normal.
+ *
+ * Brings the ray into the box's local frame (the inverse rotation), casts against
+ * the axis-aligned box there, then rotates the hit point and normal back to world
+ * space.
+ *
+ * @tparam Real Component type.
+ * @param r 3D ray.
+ * @param box 3D oriented box.
+ *
+ * @return The hit record, or \c nullopt on a miss.
+ *
+ * @pre \c r.direction() and \c box.rotation() have unit length.
+ * @post On a hit \c normal is a unit face normal of the oriented box, facing the
+ *       ray.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+raycast(ray<Real, 3> const& r, obb3<Real> const& box) noexcept -> std::optional<ray_hit3<Real>> {
+  auto const inv_rot{nexenne::math::conjugate(box.rotation())};
+  auto const local_origin{nexenne::math::rotate(inv_rot, r.origin() - box.center())};
+  auto const local_direction{nexenne::math::rotate(inv_rot, r.direction())};
+  auto const local_box{aabb<Real, 3>{-box.half_size(), box.half_size()}};
+  auto const hit{raycast(ray<Real, 3>{local_origin, local_direction}, local_box)};
+  if (!hit) {
+    return std::nullopt;
+  }
+  return ray_hit3<Real>{
+    hit->t,
+    box.center() + nexenne::math::rotate(box.rotation(), hit->point),
+    nexenne::math::rotate(box.rotation(), hit->normal),
+  };
+}
+
+/**
  * @brief Capsule vs sphere overlap.
  *
  * @tparam Real Component type.
