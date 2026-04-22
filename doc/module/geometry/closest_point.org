@@ -70,6 +70,18 @@ only one is a point, the other reduces to a point-to-segment projection.
 from the distance between the returned points gives the signed capsule gap, which
 is exactly what =intersects(capsule, capsule)= in [[file:intersect.org][intersect]] tests.
 
+** Segment versus triangle
+
+=closest_points(segment, triangle)= first checks whether the segment *pierces*
+the triangle: if its endpoints straddle the triangle plane and the crossing lands
+inside the face, the two closest points coincide there (zero distance). Otherwise
+the minimum lives on a feature, so it takes the nearest of the three
+segment-versus-edge closest pairs (the kernel above) and the two segment endpoints
+projected onto the face (=closest_point(triangle, .)= from [[file:triangle.org][triangle]]). The
+point-to-primitive helpers it builds on, =closest_point(triangle, p)= and
+=closest_point(obb, p)=, live with their primitives ([[file:triangle.org][triangle]], [[file:obb.org][obb]]) per the
+module convention; this header owns only the two-extended-primitive pairs.
+
 * When to use it
 
 - Capsule-capsule and capsule-sphere collision (the spine distance is the whole

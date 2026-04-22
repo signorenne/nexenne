@@ -78,6 +78,15 @@ that edge"). Concretely the code rejects only when it has seen both a strictly
 negative and a strictly positive sign, so a point dead on an edge or vertex still
 counts as contained.
 
+** Closest point
+
+=closest_point(t, p)= returns the point of the closed triangle nearest =p=, using
+Ericson's vertex/edge/face Voronoi-region test (RTCD 5.1.5): three edge-direction
+dot products place =p= against each feature and return the matching vertex, edge
+projection, or interior barycentric blend. It is dimension-agnostic (2D and 3D),
+=constexpr=, and the same reduction the [[file:gjk.org][GJK]] and [[file:closest_point.org][segment-vs-triangle]] queries lean
+on.
+
 ** Centroid and bound
 
 =centroid= is the plain vertex average =(a + b + c) / 3= (for a triangle the

@@ -69,6 +69,15 @@ In 3D the same idea uses the *conjugate* quaternion as the inverse rotation
 p - center)=, then =|local.x|<=hx=, =|local.y|<=hy=, =|local.z|<=hz=. The test is
 boundary-inclusive (=<==).
 
+** Closest point
+
+=closest_point(box, p)= reuses the same rotate-into-local trick: it rotates =p=
+into the box frame, *clamps* each local coordinate to =[-half, +half]= instead of
+testing it, then rotates the clamped point back out and adds the center. The
+result is the nearest point on or in the box, the building block for OBB distance
+and OBB-vs-sphere / OBB-vs-capsule proximity. As with containment, the 3D form is
+=constexpr= and the 2D form is runtime-only (it needs the angle's sine/cosine).
+
 ** Corners
 
 The 2D box emits its four corners counter-clockwise from the local sign pattern
