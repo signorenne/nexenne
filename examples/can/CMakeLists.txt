@@ -3,6 +3,7 @@
 set(_can_examples
     database
     fields
+    filters
     frame
     signal
 )
