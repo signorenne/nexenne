@@ -11,4 +11,5 @@ nexenne_add_module_tests(geometry
         test_raycast.cpp
         test_manifold.cpp
         test_hash.cpp
+        test_format.cpp
 )
