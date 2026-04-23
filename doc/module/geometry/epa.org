@@ -97,12 +97,36 @@ that face's [[file:triangle.org][barycentric coordinates]] (a Gram-matrix solve)
 the three stored per-shape support points into the world-space contact points on
 A and on B, the deepest points of the contact.
 
+** Contact manifolds
+
+EPA returns one deepest contact point, enough to push two shapes apart but not to
+hold a resting face-to-face contact steady (a box on the ground would rock on a
+single point). =contact_manifold(a, b, epa_result)= builds the small polygon where
+the two contact faces actually meet:
+
+1. Recover each shape's contact face. A support shape exposes no faces, so each
+   face is *sampled*: the contact normal is tilted a little toward eight points
+   around the tangent circle and the distinct support points are collected. A flat
+   face returns its few corners (each repeated across several probes); a smooth
+   surface returns a fresh point for every probe (all eight distinct), which is the
+   signal to fall back to the single EPA point.
+2. Project both faces onto the contact plane and clip one against the other with
+   the Sutherland-Hodgman algorithm (the clip polygon's signed area fixes the
+   inside half-plane sign, so sample order does not matter).
+3. Lift the clipped polygon back onto the contact plane, capped at eight points.
+
+The result is a =contact_manifold3= with the points, their count (1 to 8), and
+the shared normal. A curved contact, or a vertex/edge contact, yields the single
+EPA point. It is a separate call so the common =epa= path stays cheap; existing
+callers are unaffected.
+
 * Complexity
 
 | quantity          | cost                                                      |
 |-------------------+-----------------------------------------------------------|
 | support queries   | one per iteration, default cap 32                         |
 | per iteration     | linear in the current face count (closest-face scan)      |
+| manifold          | 16 support probes plus a fixed Sutherland-Hodgman clip    |
 | memory            | the polytope, in std::vector (the one allocating routine) |
 
 * When to use it
