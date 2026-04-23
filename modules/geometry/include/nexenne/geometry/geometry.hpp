@@ -18,6 +18,7 @@
 #include <nexenne/geometry/convex_hull.hpp>
 #include <nexenne/geometry/epa.hpp>
 #include <nexenne/geometry/error.hpp>
+#include <nexenne/geometry/format.hpp>
 #include <nexenne/geometry/frustum.hpp>
 #include <nexenne/geometry/gjk.hpp>
 #include <nexenne/geometry/hash.hpp>
