@@ -1,0 +1,103 @@
+#+TITLE: hashing the geometry types
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=hash.hpp= adds the =std::hash= specializations that let every concrete,
+trivially-copyable geometry value be a key in =std::unordered_map= /
+=std::unordered_set=. It covers =aabb=, =circle2=, =sphere3=, =ray=, =segment=,
+=plane3=, =triangle=, =capsule=, =obb2= / =obb3=, and the =transform2d= /
+=transform3d= poses. Include the header and the shapes just work as keys; nothing
+else is needed. =polygon2= and =convex_hull3= are deliberately left out (see
+below).
+
+* The idea
+
+A hash specialization needs two things: equal values must hash equal, and the
+hash should mix all the fields so distinct shapes rarely collide. Rather than
+each type rolling its own bit-mixing, every specialization here folds the shape's
+fields through one shared recipe, [[file:../utility/hash.org][utility::hash_combine]] (the Boost mix), seeded
+from zero. Because the field hashes bottom out on the [[file:../math/vector.org][math vector hash]], a
+vector's hash is the single source of truth: two shapes built from equal vectors
+hash equal by construction.
+
+The types that are *views*, not values, are intentionally not hashable.
+=polygon2= and =convex_hull3= hold a =std::span= over caller-owned vertices, so
+their identity is the backing storage, not a self-contained value. Hashing the
+span address would be wrong and hashing the pointed-to range silently is
+surprising, so the header leaves them out; a caller who wants such a hash folds
+the vertex range itself.
+
+* How it works
+
+Each specialization seeds a =std::size_t= at zero and calls =hash_combine= once
+per field, in a fixed order, then returns the seed:
+
+#+BEGIN_EXAMPLE
+  std::hash<sphere3<Real>>{}(s):
+      seed = 0
+      hash_combine(seed, s.center())   // folds the math vector hash
+      hash_combine(seed, s.radius())   // folds the scalar hash
+      return seed
+#+END_EXAMPLE
+
+The field list per type is just its defining data: =aabb= folds =min= and =max=;
+=ray= folds =origin= and =direction=; =plane3= folds =normal= and =d=;
+=triangle= folds its three vertices in order; =capsule= folds both endpoints and
+the radius; =obb2= folds the center, half-size, and the angle =rotation().value()=
+while =obb3= folds the center, half-size, and the rotation quaternion; the poses
+fold position, rotation, and scale. The order is fixed so the hash is stable
+across runs.
+
+A note on floating-point keys: like any float-keyed hash, two shapes are equal
+keys only when their components are bit-for-bit equal. Values that are
+mathematically equal but reached by different arithmetic (and so differ in the
+last bit) hash differently. That is the standard contract for hashing floats, not
+a quirk of this module: use exact, canonical values as keys, or quantize first.
+
+* Complexity
+
+Every hash is =O(k)= in the field count (a small constant: 2 to 4 fields, each a
+vector of 2 or 3 components), with no allocation. The specializations are
+zero-overhead beyond the field hashes themselves.
+
+* When to use it
+
+- Whenever a geometry value is a map or set key, or feeds a hashing algorithm
+  (memoization, dedup, spatial hashing buckets): include the header and use the
+  shape directly.
+- Prefer quantizing or snapping float coordinates before using a shape as a key
+  if your values come from arithmetic and you need mathematically-equal shapes to
+  collide.
+- For a =polygon2= or =convex_hull3=, hash the underlying vertex range yourself;
+  the view types are intentionally not specialized.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+#include <nexenne/geometry/hash.hpp>   // enables all the specializations
+
+std::unordered_map<geo::aabb2_f, int> cells;
+cells[geo::aabb2_f{nm::vector2_f{0, 0}, nm::vector2_f{1, 1}}] = 42;
+
+std::unordered_set<geo::sphere3_f> seen;
+seen.insert(geo::sphere3_f{nm::vector3_f{0, 0, 0}, 1.0f});
+#+END_SRC
+
+* See also
+
+- [[file:../utility/hash.org][utility/hash]] : the =hash_combine= recipe every specialization folds through.
+- [[file:../math/vector.org][math/vector]] : the vector hash that is the single source of truth here.
+- [[file:format.org][format]] : the matching per-type formatters, the other module-wide aggregator.
+
+* Further reading
+
+- The Boost =hash_combine= mixing function, the basis of the seed fold.
+  https://www.boost.org/doc/libs/release/libs/container_hash/
+- cppreference on specializing =std::hash= for user types and the
+  equal-implies-equal-hash requirement.
+  https://en.cppreference.com/w/cpp/utility/hash

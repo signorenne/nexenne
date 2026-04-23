@@ -122,6 +122,12 @@ spans both is a single template aliased per dimension (=ray2= / =ray3=).
   penetration depth, the contact normal, and per-shape contact points. The one
   allocating routine in the module.
 
+** Aggregators
+
+- [[file:hash.org][hash]] : the =std::hash= specializations for every concrete shape and the two
+  poses, so they work as =std::unordered_map= / =std::unordered_set= keys. The
+  view types (=polygon2=, =convex_hull3=) are intentionally not hashable.
+
 ** Headers without an article
 
 - =geometry.hpp= : the umbrella header; includes the whole module. For finer
