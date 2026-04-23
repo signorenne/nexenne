@@ -20,6 +20,7 @@
 #include <nexenne/geometry/error.hpp>
 #include <nexenne/geometry/frustum.hpp>
 #include <nexenne/geometry/gjk.hpp>
+#include <nexenne/geometry/hash.hpp>
 #include <nexenne/geometry/intersect.hpp>
 #include <nexenne/geometry/obb.hpp>
 #include <nexenne/geometry/plane.hpp>
