@@ -76,15 +76,18 @@ spans both is a single template aliased per dimension (=ray2= / =ray3=).
   primitives fold into via component-wise min / max.
 - [[file:obb.org][obb]] : the oriented bounding box.
 - [[file:capsule.org][capsule]] : a segment swept by a radius.
-- =frustum.hpp= : the six-plane view frustum (article pending).
+- [[file:frustum.org][frustum]] : =frustum3=, the six-plane view volume, with point and box
+  containment for culling.
 
-** Queries coming
+** Cross-type queries
 
-- =intersect= : the cross-type intersection queries (ray-triangle via
-  Moller-Trumbore, the 3D segment skew-line closest pair, and the rest) live in
-  their own header so each primitive stays focused on the queries intrinsic to
-  it. The within-type queries (closest point, distance, containment) ship with
-  their primitive.
+The within-type queries (closest point, distance, containment) ship with their
+primitive; the cross-type queries between mixed primitives live in their own
+headers so each primitive stays focused.
+
+- [[file:intersect.org][intersect]] : ray casts and overlap tests across mixed pairs (ray-triangle via
+  Moller-Trumbore, ray-vs-box, the OBB separating-axis test, and the rest).
+- [[file:closest_point.org][closest_point]] : closest-point queries between mixed primitive pairs.
 
 ** Support mappings
 
