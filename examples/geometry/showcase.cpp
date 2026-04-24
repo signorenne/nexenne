@@ -11,8 +11,12 @@
  *                         query and raycast it (aabb_tree.hpp).
  *   3. Cull            -> build a camera frustum and keep only what it sees
  *                         (frustum.hpp).
- *   4. Narrow phase    -> GJK overlap then EPA penetration on a real pair, via
- *                         the analytic support mappings (support/gjk/epa.hpp).
+ *   4. Narrow phase    -> GJK overlap, EPA penetration, and the contact manifold
+ *                         on a real pair, via the support mappings (gjk/epa.hpp).
+ *   5. Distance        -> GJK separation distance and nearest points for a pair
+ *                         that does not overlap (gjk.hpp).
+ *   6. Ray hit         -> a ray cast that returns the hit point and surface
+ *                         normal (intersect.hpp).
  *
  * Every value is printed through format.hpp, so we never hand-roll a printer.
  * Read it top to bottom.
@@ -27,6 +31,7 @@
 #include <nexenne/geometry/format.hpp>
 #include <nexenne/geometry/frustum.hpp>
 #include <nexenne/geometry/gjk.hpp>
+#include <nexenne/geometry/intersect.hpp>
 #include <nexenne/geometry/obb.hpp>
 #include <nexenne/geometry/sphere.hpp>
 #include <nexenne/geometry/support.hpp>
@@ -85,16 +90,35 @@ auto main() -> int {
   }
 
   // 4. Narrow phase. The broad phase flagged crate and ball as a candidate pair;
-  // confirm the overlap with GJK, then recover the push-out with EPA. Both run on
-  // the analytic primitives directly through their support mappings.
+  // confirm the overlap with GJK, then recover the push-out with EPA and the
+  // contact manifold. Both run on the analytic primitives directly through their
+  // support mappings.
   std::println("\n== 4. Narrow phase (GJK + EPA) ==");
   auto const hit{geo::gjk<float>(ball, crate, crate.center() - ball.center())};
   std::println("  ball vs crate overlap: {}", hit.overlap);
-  if (hit.overlap && hit.simplex.count == 4) {
+  if (hit.overlap) {
     auto const contact{geo::epa<float>(ball, crate, hit.simplex)};
     std::println("  converged:   {}", contact.converged);
     std::println("  normal:      {}", contact.normal);
     std::println("  penetration: {:.3f}", contact.penetration_depth);
+    auto const manifold{geo::contact_manifold<float>(ball, crate, contact)};
+    std::println("  manifold points: {}", manifold.count);
+  }
+
+  // 5. Distance. For a separated pair GJK reports the gap and the nearest point on
+  // each shape, not just a yes/no.
+  std::println("\n== 5. Distance (GJK) ==");
+  auto const gap{geo::gjk<float>(ball, far_ball, far_ball.center() - ball.center())};
+  std::println("  ball vs far_ball overlap: {}", gap.overlap);
+  std::println("  distance:  {:.3f}", gap.distance);
+  std::println("  nearest on ball:     {}", gap.closest_a);
+  std::println("  nearest on far_ball: {}", gap.closest_b);
+
+  // 6. Ray hit. A ray cast returns the hit point and the surface normal there.
+  std::println("\n== 6. Ray hit point and normal ==");
+  auto const beam{geo::ray3_f{vec3{-5, 0, 0}, vec3{1, 0, 0}}};
+  if (auto const rh{raycast(beam, crate)}) {
+    std::println("  hit t={:.3f} point={} normal={}", rh->t, rh->point, rh->normal);
   }
 
   return 0;
