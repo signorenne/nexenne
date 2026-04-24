@@ -127,6 +127,9 @@ spans both is a single template aliased per dimension (=ray2= / =ray3=).
 - [[file:hash.org][hash]] : the =std::hash= specializations for every concrete shape and the two
   poses, so they work as =std::unordered_map= / =std::unordered_set= keys. The
   view types (=polygon2=, =convex_hull3=) are intentionally not hashable.
+- [[file:format.org][format]] : =to_string=, =operator<<=, and =std::formatter= for every public
+  type and the =geometry_error= enum (the formatter-per-type rule), each layer
+  funneling through one canonical rendering per type.
 
 ** Headers without an article
 

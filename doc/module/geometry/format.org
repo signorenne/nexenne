@@ -1,0 +1,124 @@
+#+TITLE: formatting the geometry types
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=format.hpp= gives every public geometry value type and the =geometry_error=
+enum the same three-layer text support the rest of nexenne uses: a =to_string(x)=
+that returns a readable string, an =operator<<(std::ostream&, x)= for stream
+output, and a =std::formatter= specialization so =std::format("{}", x)= works.
+It covers =aabb=, =circle2=, =sphere3=, =ray=, =segment=, =plane3=, =triangle=,
+=capsule=, =obb2= / =obb3=, =polygon2=, =convex_hull3=, =frustum3=, the
+=transform2d= / =transform3d= poses, and the =geometry_error= enum. This is the
+formatter-per-type rule the whole library follows: every public type ships its
+formatter here, and the module never wraps a standard type's formatting.
+
+* The idea
+
+Debug output and logging need one obvious way to render a value. Rather than each
+call site hand-assembling a string, every type gets a =to_string= that produces a
+canonical, round-trippable-by-eye form like =sphere3(center=vector3(0, 0, 0), r=1.5)=,
+and the stream operator and =std::formatter= both funnel through it. So the three
+layers never drift: there is a single rendering per type.
+
+The field rendering reuses the [[file:../math/format.org][math formatters]] (=math::to_string= for
+=vector=, =quaternion=), so a geometry value prints with the same vector and
+quaternion style as everything else. The error enum reuses its =to_string= from
+error.hpp, which is why that header can stay free of =\<format\>=.
+
+The transient GJK and EPA working aggregates (=gjk_simplex3=, =gjk_result3=,
+=epa_result3=) are deliberately not formatted: like the standard library's
+=*_result= aggregates they are read through their fields, and the math module
+likewise leaves its result aggregates (=sin_cos=, =axis_angle=) unformatted. The
+line is "value types and the error, yes; transient algorithm state, no".
+
+* How it works
+
+** to_string and operator<<
+
+Each =to_string= builds the string with =std::format=, embedding the fields
+through the math formatters:
+
+#+BEGIN_EXAMPLE
+  to_string(sphere3) -> "sphere3(center=vector3(0, 0, 0), r=1.5)"
+  to_string(obb3)    -> "obb3(center=..., half=..., rot=quaternion(...))"
+  to_string(plane3)  -> "plane3(n=vector3(0, 0, 1), d=5)"
+#+END_EXAMPLE
+
+The view types list their vertices: =polygon2(3 vertices: v0, v1, v2)= and
+=convex_hull3(2 vertices: v0, v1)=, with an empty view printing just the count.
+=frustum3= lists its six planes. Each =operator<<= simply writes =to_string(x)=
+to the stream, so stream output and =to_string= are identical by construction.
+
+** The std::formatter
+
+Every formatter inherits =std::formatter<std::string_view>= and overrides only
+=format=, forwarding the type's =to_string= through the inherited string
+formatter:
+
+#+BEGIN_SRC cpp
+template <std::floating_point Real>
+struct std::formatter<nexenne::geometry::sphere3<Real>> : std::formatter<std::string_view> {
+  template <typename FormatContext>
+  auto format(nexenne::geometry::sphere3<Real> const& s, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::geometry::to_string(s), ctx);
+  }
+};
+#+END_SRC
+
+Inheriting the string formatter has two payoffs: =parse= is inherited (no
+boilerplate), and a width or alignment spec applies to the whole rendered string,
+so =std::format("{:>40}", s)= right-aligns it. The =geometry_error= formatter
+works the same way over its name, so =std::format("{}", err)= prints the error a
+=result<T>= carries with no manual =to_string= call.
+
+* Complexity
+
+Each =to_string= is linear in the value's field count (constant for the fixed
+shapes; linear in the vertex count for =polygon2= / =convex_hull3= and in the six
+planes for =frustum3=). It allocates the result string, as any string formatting
+does; the stream and =std::formatter= paths add no allocation of their own beyond
+that string.
+
+* When to use it
+
+- Logging, assertions, test failure messages, and any debug dump of a geometry
+  value: include the header and use =std::format=, =operator<<=, or =to_string=.
+- The rendering is for humans, not a serialization format: it is stable and
+  readable but not a parser-backed wire format. Use the serialization module for
+  round-tripping.
+- For a =result<T>= that failed, =std::format("{}", r.error())= names the
+  =geometry_error= directly.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace geo = nexenne::geometry;
+namespace nm = nexenne::math;
+
+#include <nexenne/geometry/format.hpp>
+
+geo::sphere3_f const s{nm::vector3_f{0, 0, 0}, 1.5f};
+auto const text{geo::to_string(s)};            // "sphere3(center=vector3(0, 0, 0), r=1.5)"
+std::cout << s << '\n';                         // same text
+auto const line{std::format("hit {}", s)};     // via std::formatter
+
+auto const r{geo::plane_from_three_points(/* collinear */)};
+if (!r) {
+  std::cerr << std::format("plane build failed: {}\n", r.error());  // "... parallel"
+}
+#+END_SRC
+
+* See also
+
+- [[file:../math/format.org][math/format]] : the vector and quaternion formatters this layer embeds, and the
+  =math_error= formatter it mirrors.
+- [[file:hash.org][hash]] : the matching per-type hashing, the module's other aggregator.
+- =error.hpp= : the home of =to_string(geometry_error)=, kept free of =\<format\>=.
+
+* Further reading
+
+- cppreference on =std::formatter= and specializing it for user types, including
+  inheriting =std::formatter<std::string_view>= to reuse its spec parsing.
+  https://en.cppreference.com/w/cpp/utility/format/formatter
