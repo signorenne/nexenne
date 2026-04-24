@@ -19,6 +19,7 @@ endif()
 # to this one, not here. External libraries go in LINK_PUBLIC / LINK_PRIVATE.
 nexenne_add_module(can
     HEADERS
+        include/nexenne/can/bus.hpp
         include/nexenne/can/byte_field.hpp
         include/nexenne/can/byte_order.hpp
         include/nexenne/can/can.hpp
@@ -27,15 +28,18 @@ nexenne_add_module(can
         include/nexenne/can/database_builder.hpp
         include/nexenne/can/dlc.hpp
         include/nexenne/can/error.hpp
+        include/nexenne/can/error_frame.hpp
         include/nexenne/can/filter.hpp
         include/nexenne/can/frame.hpp
         include/nexenne/can/id.hpp
+        include/nexenne/can/io/loopback_bus.hpp
         include/nexenne/can/message.hpp
         include/nexenne/can/message_builder.hpp
         include/nexenne/can/packing_plan.hpp
         include/nexenne/can/registry.hpp
         include/nexenne/can/signal.hpp
         include/nexenne/can/signal_builder.hpp
+        include/nexenne/can/socket_options.hpp
 )
 
 if(NEXENNE_BUILD_TESTS)
