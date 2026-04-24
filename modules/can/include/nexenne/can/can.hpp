@@ -22,6 +22,7 @@
 #include <nexenne/can/message.hpp>
 #include <nexenne/can/message_builder.hpp>
 #include <nexenne/can/packing_plan.hpp>
+#include <nexenne/can/registry.hpp>
 #include <nexenne/can/signal.hpp>
 #include <nexenne/can/signal_builder.hpp>
 
