@@ -204,6 +204,5 @@ Current module indexes:
 
 * Known docs gaps
 
-- =modules/geometry/= has a module index and component guides, but
-  =examples/geometry/= does not yet exist. Add runnable examples before growing
-  the public usage surface further.
+- None currently. =modules/geometry/= has its module index, a component guide per
+  public header, and a runnable =examples/geometry/showcase.cpp=.
