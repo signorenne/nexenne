@@ -280,6 +280,21 @@ TEST_CASE("epa: depth tracks the overlap amount across offsets") {
   }
 }
 
+TEST_CASE("epa: the normal is the B push-out direction (out of A toward B)") {
+  // Convention lock: with A at the origin and B to its +x, the normal must point
+  // along +x, so B + depth*normal moves B away from A. Guards the documented
+  // direction against a silent sign flip.
+  auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
+  auto const vb{cube_vertices(vec3{0.6f, 0, 0}, 0.5f)};  // B is to the +x of A
+  geo::convex_hull3_f const a{std::span<vec3 const>{va}};
+  geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
+  auto const g{geo::gjk(a, b, vec3{1, 0, 0})};
+  REQUIRE(g.overlap);
+  auto const e{geo::epa(a, b, g.simplex)};
+  REQUIRE(e.converged);
+  CHECK(e.normal.x() == doctest::Approx(1.0f).epsilon(1e-3));  // points A -> B (+x).
+}
+
 TEST_CASE("epa: a degenerate seed simplex does not converge") {
   // A lower-dimensional simplex is normally grown to a tetrahedron, but a
   // degenerate one (here two coincident origin vertices) cannot be expanded, so
