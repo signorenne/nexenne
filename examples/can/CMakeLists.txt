@@ -5,6 +5,7 @@ set(_can_examples
     fields
     filters
     frame
+    loopback
     signal
 )
 
