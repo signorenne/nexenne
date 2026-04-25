@@ -12,10 +12,11 @@
  * distance to the origin are the penetration normal and depth, the smallest
  * translation that separates the two shapes.
  *
- * Output is a separation normal pointing from B's surface toward A's (the
- * Bullet/Jolt convention), the penetration depth, and per-shape contact points
- * reconstructed from the closest face via barycentric weights on the original
- * support pairs.
+ * Output is the contact normal, the penetration depth, and per-shape contact
+ * points reconstructed from the closest face via barycentric weights on the
+ * original support pairs. The normal is the minimum-translation direction:
+ * translating B by \c penetration_depth * normal (or A by its negative) just
+ * separates the shapes, so it points out of A toward B.
  *
  * Unlike the rest of the module, EPA allocates: the polytope (vertices and
  * triangular faces) grows during expansion, so it is held in \c std::vector. It
@@ -51,7 +52,7 @@ struct epa_result3 {
   using point_type = nexenne::math::vector<Real, 3>;
 
   bool converged{false};         ///< True when expansion converged on a closest face.
-  point_type normal{};           ///< Unit penetration normal, from B toward A.
+  point_type normal{};           ///< Unit MTV direction, out of A toward B.
   Real penetration_depth{};      ///< Depth to separate the shapes along normal.
   point_type contact_point_a{};  ///< Best-guess contact point on A (world space).
   point_type contact_point_b{};  ///< Best-guess contact point on B (world space).
@@ -354,7 +355,8 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
  * @param max_iterations Hard cap on expansion steps.
  * @param tolerance Convergence threshold on per-step face-distance improvement.
  *
- * @return Result with the normal (B toward A), penetration depth, and contact
+ * @return Result with the normal (the MTV direction, out of A toward B),
+ *         penetration depth, and contact
  *         points; \c converged is \c false when \p initial was not a tetrahedron
  *         or the iteration cap was hit (the best-known face is still returned).
  *
@@ -451,8 +453,9 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
         vertices[face.indices[1]].support_b,
         vertices[face.indices[2]].support_b
       );
-      // The outward face normal of the Minkowski difference at the closest point
-      // is exactly the B-toward-A separation direction the contact solver wants.
+      // The outward face normal of the Minkowski difference A (-) B at the closest
+      // point is exactly the minimum-translation direction (out of A toward B): move
+      // B by depth * normal, or A by its negative, to separate them.
       result.normal = direction;
       result.penetration_depth = closest_distance;
       result.converged = true;
@@ -541,7 +544,7 @@ struct contact_manifold3 {
 
   std::array<point_type, 8> points{};  ///< Contact points on the contact plane.
   std::size_t count{0};                ///< Number of valid points, 1 to 8.
-  point_type normal{};                 ///< Shared contact normal, from B toward A.
+  point_type normal{};  ///< Shared contact normal (the MTV direction, out of A toward B).
 };
 
 namespace detail {
@@ -667,7 +670,7 @@ template <std::floating_point Real, typename Shape>
  * @param hit A converged EPA result for \p a and \p b.
  *
  * @return The manifold: contact points on the contact plane and the shared
- *         normal (from B toward A).
+ *         normal (the MTV direction, out of A toward B).
  *
  * @pre \p hit came from \c epa on \p a and \p b and \c hit.converged is true.
  * @post \c count is between 1 and 8 and \c normal equals \c hit.normal.
