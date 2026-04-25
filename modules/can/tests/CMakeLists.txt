@@ -9,6 +9,8 @@ nexenne_add_module_tests(can
         test_filter.cpp
         test_database.cpp
         test_registry.cpp
+        test_loopback_bus.cpp
+        test_error_frame.cpp
         test_byte_field.cpp
         test_signal.cpp
 )
