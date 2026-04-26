@@ -11,6 +11,7 @@ nexenne_add_module_tests(can
         test_registry.cpp
         test_loopback_bus.cpp
         test_error_frame.cpp
+        test_j1939_id.cpp
         test_byte_field.cpp
         test_signal.cpp
 )
