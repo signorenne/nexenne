@@ -97,6 +97,19 @@ static_assert(!std::is_constructible_v<util::function_ref<int*(int)>, decltype(&
 // signature_type is exposed.
 static_assert(std::is_same_v<util::function_ref<int(int)>::signature_type, int(int)>);
 
+// Assigning an arbitrary callable is deleted (it would dangle immediately,
+// matching the C++26 std::function_ref deleted assignment).
+static_assert(!std::is_assignable_v<util::function_ref<int(int)>&, stateful_functor>);
+static_assert(!std::is_assignable_v<util::function_ref<int(int)>&, stateful_functor&>);
+static_assert(!std::is_assignable_v<util::function_ref<int(int)>&, decltype([](int x) {
+                                      return x;
+                                    })>);
+// nullptr assignment is deleted too (mirrors P0792R14).
+static_assert(!std::is_assignable_v<util::function_ref<int(int)>&, std::nullptr_t>);
+// Assignment from another function_ref and from a function pointer stays legal.
+static_assert(std::is_assignable_v<util::function_ref<int(int)>&, util::function_ref<int(int)>>);
+static_assert(std::is_assignable_v<util::function_ref<int(int)>&, int (*)(int)>);
+
 TEST_CASE("nexenne::utility::function_ref binds lambdas and function pointers") {
   std::array<int, 5> const data{1, 12, 3, 20, 5};
   CHECK(count_if(data, [](int x) { return x > 10; }) == 2);
@@ -257,9 +270,11 @@ TEST_CASE("nexenne::utility::function_ref operator bool is usable in constant ex
   CHECK_FALSE(static_cast<bool>(empty));
 }
 
-TEST_CASE("nexenne::utility::function_ref binds a non-capturing lambda by value passing") {
-  // Non-capturing lambda lives at the call site; bound as an rvalue F&&.
-  util::function_ref<int(int)> const fr{[](int x) { return x - 1; }};
+TEST_CASE("nexenne::utility::function_ref binds a named non-capturing lambda") {
+  // The lambda is a named local so it outlives the view; binding a temporary
+  // to a named function_ref would dangle as soon as the statement ends.
+  auto const decrement{[](int x) { return x - 1; }};
+  util::function_ref<int(int)> const fr{decrement};
   CHECK(fr(10) == 9);
 }
 
@@ -271,6 +286,51 @@ TEST_CASE("nexenne::utility::function_ref binds a mutable lambda and mutates it"
   util::function_ref<int(int)> const fr{mut};
   CHECK(fr(2) == 2);
   CHECK(fr(3) == 5);  // mutable state of the referenced lambda persists
+}
+
+TEST_CASE("nexenne::utility::function_ref void signature discards the callable's return") {
+  int calls{0};
+  // The callable returns int; the view's void signature discards it (invoke_r).
+  auto counter{[&calls](int x) {
+    ++calls;
+    return x;
+  }};
+  util::function_ref<void(int)> const fr{counter};
+  fr(1);
+  fr(2);
+  CHECK(calls == 2);
+
+  // Same through a free function pointer with a non-void return: the generic
+  // constructor binds the named pointer object, and invoke_r drops the int.
+  auto fp{&triple};
+  util::function_ref<void(int)> const drop{fp};
+  drop(3);
+  CHECK(calls == 2);  // no effect expected beyond not crashing
+}
+
+TEST_CASE("nexenne::utility::function_ref binds a pointer to member function") {
+  struct widget {
+    int value{7};
+
+    [[nodiscard]] auto get() const -> int {
+      return value;
+    }
+  };
+
+  // The pointer to member is a named local, so it outlives the view.
+  auto pmf{&widget::get};
+  util::function_ref<int(widget const&)> const fr{pmf};
+  widget const w{};
+  CHECK(fr(w) == 7);
+}
+
+TEST_CASE("nexenne::utility::function_ref constructed from a null function pointer is empty") {
+  util::function_ref<int(int)> const fr{nullptr};
+  CHECK_FALSE(static_cast<bool>(fr));
+
+  int (*null_fp)(int){nullptr};
+  util::function_ref<int(int)> const fr2{null_fp};
+  CHECK_FALSE(static_cast<bool>(fr2));
 }
 
 }  // namespace
