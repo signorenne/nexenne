@@ -8,6 +8,7 @@ set(_can_examples
     j1939
     loopback
     signal
+    socketcan
 )
 
 foreach(_example IN LISTS _can_examples)
