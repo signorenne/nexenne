@@ -8,6 +8,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -68,6 +69,35 @@ static_assert(!std::is_constructible_v<util::in_place_function<void(), 256>, ove
 
 // A non-invocable type is rejected.
 static_assert(!std::is_constructible_v<callback, int>);
+
+// A callable whose return type does not convert to R is rejected.
+struct returns_pointer {
+  auto operator()(int) const -> char const* {
+    return "x";
+  }
+};
+
+static_assert(!std::is_constructible_v<callback, returns_pointer>);
+
+// A callable with a throwing move constructor is rejected: the vtable's move
+// entry is noexcept, so only nothrow-movable callables may live in the buffer
+// (the same requirement std::move_only_function places on its SBO path).
+struct throwing_move {
+  throwing_move() = default;
+
+  throwing_move(throwing_move&&) noexcept(false) {}
+
+  throwing_move(throwing_move const&) = default;
+  auto operator=(throwing_move&&) -> throwing_move& = delete;
+  auto operator=(throwing_move const&) -> throwing_move& = delete;
+  ~throwing_move() = default;
+
+  auto operator()(int) const -> int {
+    return 0;
+  }
+};
+
+static_assert(!std::is_constructible_v<callback, throwing_move>);
 
 // COMPILE-ERROR DOCUMENTATION: the following would fail to compile because the
 // target exceeds the inline capacity; we do NOT instantiate it, only assert the
@@ -338,6 +368,40 @@ TEST_CASE("nexenne::utility::in_place_function reassign from empty back to fille
   cb = [](int y) { return y * 5; };
   CHECK(static_cast<bool>(cb));
   CHECK(cb(2) == 10);
+}
+
+TEST_CASE("nexenne::utility::in_place_function void signature discards the callable's return") {
+  int calls{0};
+  // The stored lambda returns int; the void signature discards it (invoke_r).
+  util::in_place_function<void(int), 32> cb{[&calls](int x) {
+    ++calls;
+    return x;
+  }};
+  cb(1);
+  cb(2);
+  CHECK(calls == 2);
+}
+
+TEST_CASE("nexenne::utility::in_place_function propagates exceptions from the callable") {
+  util::in_place_function<int(int), 32> cb{[](int x) -> int {
+    if (x < 0) {
+      throw std::runtime_error{"negative"};
+    }
+    return x;
+  }};
+  CHECK(cb(3) == 3);
+  CHECK_THROWS_AS(cb(-1), std::runtime_error);
+  CHECK(static_cast<bool>(cb));  // still usable after the throw
+  CHECK(cb(4) == 4);
+}
+
+TEST_CASE("nexenne::utility::in_place_function const-defined wrapper runs a mutable lambda") {
+  // The storage is mutable, so shallow-const invocation is well-defined even
+  // when the wrapper object itself is defined const.
+  auto const cb{util::in_place_function<int(), 32>{[n = 0]() mutable { return ++n; }}};
+  CHECK(cb() == 1);
+  CHECK(cb() == 2);
+  CHECK(cb() == 3);
 }
 
 }  // namespace
