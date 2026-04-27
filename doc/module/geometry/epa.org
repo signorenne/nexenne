@@ -9,7 +9,9 @@ and along which direction, picking up where [[file:gjk.org][GJK]] leaves off. Gi
 simplex (the vertices carrying the origin of the Minkowski difference, which EPA
 grows into a seed tetrahedron), the
 Expanding Polytope Algorithm returns an =epa_result3<Real>=: the penetration
-=normal= (unit, from B's surface toward A's), the =penetration_depth= (the
+=normal= (unit; the minimum-translation direction, so moving B by
+=penetration_depth * normal= or A by its negative just separates them, pointing
+out of A toward B), the =penetration_depth= (the
 smallest translation that separates them), per-shape =contact_point_a= and
 =contact_point_b=, and a =converged= flag. =Real= is deduced from the simplex.
 Unlike the rest of the module it allocates, growing the polytope in a
