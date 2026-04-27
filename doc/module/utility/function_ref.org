@@ -7,63 +7,98 @@
 =nexenne::utility::function_ref= is a non-owning, type-erased view over a
 callable with a given signature: like =std::function= but it refers to the
 callable instead of owning it, so it never allocates and copies as two
-pointers.
+pointers. It is the right parameter type for "accept any callable" functions
+that should not become templates.
 
-* The idea
+* The problem it solves
 
-Reach for it to accept "any callable" as a parameter without templating the
-whole function, avoiding one instantiation per call site. The crucial contract
-is lifetime: =function_ref= stores only the callable's address, so the
-referenced callable must outlive the view. Bind a named local or pass a
-temporary directly as a call argument; never store a =function_ref= to a
-temporary in a variable that outlives the full expression. To /store/ a callable
-for later invocation, use =nexenne::utility::in_place_function= instead.
+A function that takes a callback has three classic options, each with a cost:
+
+- A template parameter (=template <typename F> void run(F&& f)=) accepts
+  anything but instantiates the whole function once per call site and forces
+  the implementation into a header.
+- =std::function= type-erases, but it owns a copy of the callable, may
+  allocate, and its copy is not cheap.
+- A raw function pointer is cheap but rejects capturing lambdas and stateful
+  functors.
+
+=function_ref= keeps the good parts: one non-template function, any callable
+including capturing lambdas, no allocation, trivially copyable. The price is
+the ownership model: it borrows, so the callable must outlive the view.
 
 * How it works
 
-A =function_ref<R(Args...)>= is two pointers: the address of the referenced
-callable (as =void const*=) and a thunk, a function pointer that knows the
-callable's concrete type and forwards the call to it. The converting constructor
-captures the callable's address and synthesises the thunk; nothing is copied and
-nothing is allocated, which is why passing a =function_ref= by value is as cheap
-as passing two pointers. A free function pointer binds through a dedicated
-constructor that stores the function pointer itself rather than its address, so a
-=function_ref= to a plain function carries no dangling risk.
+** The two-pointer view layout
 
-A default-constructed view is empty: =explicit operator bool= reports =false= and
-the view must not be called (the stored thunk is null, so calling it is undefined
-behaviour). The converting constructor is constrained to reject other
-=function_ref= arguments (so it never wraps itself) and any callable not invocable
-as =R(Args...)=.
-
-The bound callable is held by reference, so a =function_ref= taken from a non-const
-lambda can still invoke a mutating =operator()=; the view does not itself
-propagate const to the referent.
-
-* When to use it
-
-Reach for =function_ref= as a parameter type when a function wants to accept any
-callable but should not be a template, for example a visitor, a predicate, or a
-callback that fires before the call returns. It keeps the function in a single
-translation unit and out of every caller's header.
-
-The one rule that bites people is lifetime. =function_ref= is *non-owning*: it
-holds only the callable's address, so the referenced callable must outlive the
-view. Passing a temporary lambda directly as a call argument is safe (the
-temporary lives for the whole call expression), but binding a =function_ref= to a
-temporary and *storing* it dangles the moment the full expression ends:
+A =function_ref<R(Args...)>= is exactly two words: the address of the
+referenced callable (stored as =void const*=) and a thunk, a plain function
+pointer that remembers the callable's concrete type and forwards the call.
 
 #+BEGIN_EXAMPLE
-  function_ref<bool(int)> p{[](int x) { return x > 0; }};  // BUG: lambda is gone
-  p(3);                                                    // dangling call
+auto pred = [limit](int x) { return x > limit; };   // lives on the stack
+function_ref<bool(int)> view{pred};
+
+  view (16 bytes on a 64-bit target)          the referenced callable
+  +---------------------+                     +------------------+
+  | m_obj   void const* | ------------------> | pred: [limit]    |
+  +---------------------+                     +------------------+
+  | m_thunk R(*)(...)   | --> thunk<decltype(pred)>:
+  +---------------------+       casts m_obj back to the lambda type
+                                and invokes it with the arguments
 #+END_EXAMPLE
 
-If you need to *store* a callable and invoke it later (a member, a queued task, a
-deferred handler), reach for [[file:in_place_function.org][in_place_function]]
-instead: it owns the callable in inline storage. =function_ref= is the read-only,
-borrow-it-now counterpart; =in_place_function= is the owning one. Prefer
-=function_ref= over =std::function= for the parameter-passing case, since it never
-allocates and never copies the callable.
+The converting constructor captures =std::addressof(f)= and instantiates one
+thunk per callable type; the thunk casts the =void const*= back to the real
+type and calls through =std::invoke_r<R>=, which discards the result for
+=void= signatures and supports pointers to member functions. Nothing is copied
+and nothing is allocated, which is why passing a =function_ref= by value costs
+the same as passing two pointers.
+
+A free function pointer binds through a dedicated constructor that stores the
+function pointer itself (reinterpreted into =m_obj=) rather than the address
+of a pointer variable, so a =function_ref= to a plain function carries no
+dangling risk at all. A null function pointer produces the empty state instead
+of a view that claims to be callable.
+
+A default-constructed view is empty: =explicit operator bool= reports =false=
+and the view must not be called (the thunk is null, so calling it is undefined
+behaviour). The converting constructor rejects other =function_ref= arguments
+(so it never wraps itself) and any callable not invocable as =R(Args...)=.
+
+** Why assignment from a callable is deleted
+
+=view = some_lambda;= would construct a temporary =function_ref= from the
+converting constructor and copy it, leaving the view pointing at a lambda that
+died at the end of the statement. The class therefore deletes
+=operator=(T)= for arbitrary callables, mirroring the C++26 =std::function_ref=
+(P0792R14). Copy assignment from another =function_ref= stays available, and
+so does rebinding through an explicit temporary,
+=view = function_ref<R(Args...)>{named_callable};=, which makes the lifetime
+decision visible at the call site. Function pointers are also exempt because
+they are stored by value.
+
+** Const and mutation
+
+The bound callable is held by reference and invoked as non-const, so a view
+over a =mutable= lambda or a stateful functor mutates the original object; the
+view does not propagate const to the referent.
+
+* API tour
+
+- =function_ref()= : empty view; =operator bool= is =false=.
+- =function_ref(F&& f)= : binds any callable invocable as =R(Args...)=; the
+  callable must outlive the view.
+- =function_ref(R (*fn)(Args...))= : binds a free function by value; a null
+  pointer yields the empty state.
+- =operator()(Args...) -> R= : invokes the referent; undefined on an empty
+  view.
+- =explicit operator bool()= : =true= when a callable is bound.
+- =signature_type= : the =R(Args...)= signature.
+- =operator=(T)= is deleted for arbitrary callables (see above); copies of the
+  view itself assign freely.
+
+Only plain =R(Args...)= signatures are supported; cv-qualified or noexcept
+signatures such as =R(Args...) const= are not.
 
 * Usage
 
@@ -80,12 +115,54 @@ auto count_if(
   return n;
 }
 
-// A named lambda outlives the view bound inside count_if.
+// Safe: a named lambda outlives the view bound inside count_if.
 auto const big{[](int x) { return x > 10; }};
 auto const over_ten{count_if(values, big)};
 
-// A temporary is fine too: it lives for the whole call expression.
+// Safe: a temporary lives for the whole call expression.
 auto const even{count_if(values, [](int x) { return x % 2 == 0; })};
+
+// Safe: free functions are stored by value inside the view.
+auto const odd{count_if(values, is_odd)};
 #+END_SRC
+
+* Pitfalls
+
+The one rule that bites people is lifetime. =function_ref= is *non-owning*: it
+holds only the callable's address, so the referenced callable must outlive the
+view. Passing a temporary lambda directly as a call argument is safe (the
+temporary lives for the whole call expression), but binding one to a *named*
+=function_ref= dangles the moment the statement ends:
+
+#+BEGIN_EXAMPLE
+  function_ref<bool(int)> p{[](int x) { return x > 0; }};  // BUG: lambda is gone
+  p(3);                                                    // dangling call
+#+END_EXAMPLE
+
+Corollaries:
+
+- Do not store a =function_ref= as a class member or in a container unless
+  something else guarantees the callable outlives it; to *store* a callable,
+  use [[file:in_place_function.org][in_place_function]] instead.
+- Assignment from a callable does not compile (deleted on purpose); name the
+  callable and rebind with an explicit =function_ref{...}= temporary.
+- Calling an empty view is undefined behaviour; check =operator bool= when
+  emptiness is possible.
+
+* Comparison with the standard library
+
+| type                     | ownership | allocation | copyable    | since |
+|--------------------------+-----------+------------+-------------+-------|
+| =function_ref= (this)    | borrows   | never      | trivially   | now   |
+| =std::function_ref=      | borrows   | never      | trivially   | C++26 |
+| =std::function=          | owns copy | may heap   | deep copy   | C++11 |
+| =std::move_only_function= | owns      | may heap   | move only   | C++23 |
+
+This type is a pre-standard stand-in for C++26 =std::function_ref= and follows
+its deleted-assignment design. It omits =std::nontype= bindings and qualified
+signatures (=const=, =noexcept=), and adds an empty state with
+=operator bool=, which the standard type does not have (a std
+=function_ref= is never empty). When the toolchain ships C++26, migrating is
+mostly a rename for code that never relied on the empty state.
 
 Runnable: [[file:../../../examples/utility/function_ref.cpp][examples/utility/function_ref.cpp]]
