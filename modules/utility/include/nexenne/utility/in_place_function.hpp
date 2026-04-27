@@ -6,10 +6,11 @@
  *
  * \c in_place_function<R(Args...), Capacity> stores any callable (lambda,
  * function pointer, functor) that fits within \p Capacity bytes of inline
- * storage; a callable that is too large is rejected by the converting
- * constructor's \c requires clause at compile time, with no silent heap
- * fallback. Use it instead of \c std::function on embedded targets or in hot
- * paths where allocation is unacceptable.
+ * storage; a callable that is too large, over-aligned, or not
+ * nothrow-move-constructible is rejected by the converting constructor's
+ * \c requires clause at compile time, with no silent heap fallback. Use it
+ * instead of \c std::function on embedded targets or in hot paths where
+ * allocation is unacceptable.
  *
  * It is move-only (a moved-from instance is empty), calling an empty instance
  * asserts in debug, \c explicit \c operator \c bool tests for non-empty, and
@@ -22,9 +23,13 @@
  * \endcode
  */
 
+#include <array>
 #include <cassert>
+#include <concepts>
 #include <cstddef>
+#include <functional>
 #include <memory>
+#include <new>
 #include <type_traits>
 #include <utility>
 
@@ -47,18 +52,27 @@ class in_place_function;
  *
  * Stores any callable that fits in \p Capacity bytes of inline,
  * \c max_align_t-aligned storage and dispatches through a small vtable.
- * Callables that are too large or over-aligned are rejected by the converting
- * constructor's \c requires clause. Move-only: a moved-from instance is empty.
+ * Callables that are too large, over-aligned, or not nothrow-move-constructible
+ * are rejected by the converting constructor's \c requires clause. Move-only:
+ * a moved-from instance is empty.
  *
  * @tparam R Return type of the call.
  * @tparam Args Argument types of the call.
- * @tparam Capacity Inline storage in bytes.
+ * @tparam Capacity Inline storage in bytes; must be greater than zero.
  *
- * @pre None.
+ * @pre \p Capacity is greater than zero.
  * @post A default-constructed instance is empty; \c operator \c bool is \c false.
+ *
+ * @note Const propagation is shallow, mirroring \c std::function: \c operator()
+ *       is \c const yet invokes the stored callable as non-const, so a
+ *       \c const \c in_place_function can still run a mutable lambda that
+ *       changes its own captures. The inline storage is \c mutable to make that
+ *       well-defined even for a const-defined object.
  */
 template <typename R, typename... Args, std::size_t Capacity>
 class in_place_function<R(Args...), Capacity> {
+  static_assert(Capacity > 0, "in_place_function: Capacity must be greater than zero");
+
 public:
   using result_type = R;
   static constexpr std::size_t capacity{Capacity};
@@ -74,19 +88,28 @@ private:
     move_fn move;
   };
 
-  alignas(std::max_align_t) std::byte m_storage[Capacity]{};
+  // mutable enables the shallow-const call semantics documented on the class:
+  // the const operator() reaches the bytes without a const_cast, which would be
+  // undefined behaviour for a const-defined object.
+  alignas(std::max_align_t) mutable std::array<std::byte, Capacity> m_storage{};
   vtable const* m_vt{nullptr};
 
+  // Every vtable entry recomputes the F* from the raw storage address. That
+  // pointer is not pointer-interconvertible with the F object living inside
+  // the bytes, so std::launder is required at each read/destroy site.
   template <typename F>
   static constexpr vtable const s_vtable{
     .invoke = [](void* p, Args... args) -> R {
-      return (*static_cast<F*>(p))(std::forward<Args>(args)...);
+      // invoke_r matches the is_invocable_r_v constraint: it discards the
+      // result for void signatures and supports pointers to members.
+      return std::invoke_r<R>(*std::launder(static_cast<F*>(p)), std::forward<Args>(args)...);
     },
-    .destroy = [](void* p) noexcept { std::destroy_at(static_cast<F*>(p)); },
+    .destroy = [](void* p) noexcept { std::destroy_at(std::launder(static_cast<F*>(p))); },
     .move =
       [](void* dst, void* src) noexcept {
-        std::construct_at(static_cast<F*>(dst), std::move(*static_cast<F*>(src)));
-        std::destroy_at(static_cast<F*>(src));
+        auto* const from{std::launder(static_cast<F*>(src))};
+        std::construct_at(static_cast<F*>(dst), std::move(*from));
+        std::destroy_at(from);
       },
   };
 
@@ -112,8 +135,11 @@ public:
    * @brief Constructs from any callable that fits in the inline storage.
    *
    * Constructs a decayed copy of \p f in place and wires up the vtable. The
-   * \c requires clause rejects callables that exceed \p Capacity bytes or are
-   * more strictly aligned than \c std::max_align_t.
+   * \c requires clause rejects callables that are not invocable as
+   * \c R(Args...), exceed \p Capacity bytes, are more strictly aligned than
+   * \c std::max_align_t, or are not nothrow-move-constructible. The last
+   * requirement exists because the vtable's move entry is \c noexcept, the
+   * same reason \c std::move_only_function demands it for small-buffer storage.
    *
    * @tparam F Callable type invocable as \c R(Args...).
    * @param f Callable to store; decayed and moved into inline storage.
@@ -127,12 +153,15 @@ public:
    */
   template <typename F>
     requires(!std::same_as<std::decay_t<F>, in_place_function>)
-            && std::invocable<std::decay_t<F>&, Args...> && (sizeof(std::decay_t<F>) <= Capacity)
+            && std::is_invocable_r_v<R, std::decay_t<F>&, Args...>
+            && std::constructible_from<std::decay_t<F>, F&&>
+            && std::is_nothrow_move_constructible_v<std::decay_t<F>>
+            && (sizeof(std::decay_t<F>) <= Capacity)
             && (alignof(std::decay_t<F>) <= alignof(std::max_align_t))
   // NOLINTNEXTLINE(hicpp-explicit-conversions): a callable wrapper binds implicitly
   in_place_function(F&& f) noexcept(std::is_nothrow_constructible_v<std::decay_t<F>, F&&>) {
     using fn = std::decay_t<F>;
-    std::construct_at(reinterpret_cast<fn*>(m_storage), std::forward<F>(f));
+    std::construct_at(reinterpret_cast<fn*>(m_storage.data()), std::forward<F>(f));
     m_vt = &s_vtable<fn>;
   }
 
@@ -144,7 +173,7 @@ public:
    */
   ~in_place_function() noexcept {
     if (m_vt != nullptr) {
-      m_vt->destroy(m_storage);
+      m_vt->destroy(m_storage.data());
     }
   }
 
@@ -158,7 +187,7 @@ public:
    */
   in_place_function(in_place_function&& other) noexcept {
     if (other.m_vt != nullptr) {
-      other.m_vt->move(m_storage, other.m_storage);
+      other.m_vt->move(m_storage.data(), other.m_storage.data());
       m_vt = other.m_vt;
       other.m_vt = nullptr;
     }
@@ -181,11 +210,11 @@ public:
   auto operator=(in_place_function&& other) noexcept -> in_place_function& {
     if (this != &other) {
       if (m_vt != nullptr) {
-        m_vt->destroy(m_storage);
+        m_vt->destroy(m_storage.data());
       }
       m_vt = nullptr;
       if (other.m_vt != nullptr) {
-        other.m_vt->move(m_storage, other.m_storage);
+        other.m_vt->move(m_storage.data(), other.m_storage.data());
         m_vt = other.m_vt;
         other.m_vt = nullptr;
       }
@@ -199,27 +228,11 @@ public:
   /**
    * @brief Invokes the stored callable.
    *
-   * @param args Arguments forwarded to the stored callable.
-   *
-   * @return Whatever the stored callable returns.
-   *
-   * @pre \c operator \c bool is \c true; calling an empty function asserts in
-   *      debug and is undefined behaviour in release.
-   * @post None.
-   *
-   * @throws Anything the stored callable throws.
-   */
-  auto operator()(Args... args) -> R {
-    assert(m_vt != nullptr && "in_place_function: calling an empty function");
-    return m_vt->invoke(m_storage, std::forward<Args>(args)...);
-  }
-
-  /**
-   * @brief Invokes the stored callable through a \c const wrapper.
-   *
-   * Mirrors \c std::function, whose \c operator() is \c const even though the
-   * stored callable may mutate its own captures; the storage is the invocation
-   * target, not part of the wrapper's observable \c const state.
+   * Const propagation is shallow, exactly as in \c std::function: this
+   * \c operator() is \c const yet invokes the stored callable as non-const, so
+   * a mutable lambda still mutates its own captures. The storage member is
+   * \c mutable, which makes this well-defined even when the wrapper object
+   * itself is defined \c const.
    *
    * @param args Arguments forwarded to the stored callable.
    *
@@ -233,7 +246,7 @@ public:
    */
   auto operator()(Args... args) const -> R {
     assert(m_vt != nullptr && "in_place_function: calling an empty function");
-    return m_vt->invoke(const_cast<std::byte*>(m_storage), std::forward<Args>(args)...);
+    return m_vt->invoke(m_storage.data(), std::forward<Args>(args)...);
   }
 
   /**
@@ -256,7 +269,7 @@ public:
    */
   auto reset() noexcept -> void {
     if (m_vt != nullptr) {
-      m_vt->destroy(m_storage);
+      m_vt->destroy(m_storage.data());
       m_vt = nullptr;
     }
   }
