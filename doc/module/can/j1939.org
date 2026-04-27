@@ -1,0 +1,154 @@
+#+TITLE: SAE J1939 identifiers and parameter group numbers
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+This guide is the J1939 layer of [[file:README.org][nexenne::can]]: how the SAE J1939 protocol gives a
+29-bit CAN identifier a fixed meaning, and how =j1939_id= decodes and builds it.
+It is written to teach the identifier structure in depth, since that structure is
+the foundation every other J1939 concept rests on. The header is [[file:../../../modules/can/include/nexenne/can/j1939_id.hpp][j1939_id.hpp]].
+
+* What J1939 is
+
+SAE J1939 is the higher-layer protocol used on heavy vehicles (trucks, buses,
+agricultural and construction equipment) and it runs on extended (29-bit) CAN.
+Where plain CAN leaves the meaning of an identifier to the system designer, J1939
+standardises it: every message is named by a /Parameter Group Number/ (PGN), every
+node has an /address/, and the identifier itself encodes the priority, the PGN,
+and the addresses. A receiver does not need a private database to know who sent a
+frame and roughly what it is; the identifier says so.
+
+This layer models the identifier. The multi-packet /transport protocol/ (for data
+longer than 8 bytes) and /address claiming/ (how nodes negotiate addresses) are
+larger stateful protocols left to a later layer.
+
+* The identifier structure
+
+A J1939 29-bit identifier is divided into fixed fields:
+
+#+BEGIN_EXAMPLE
+  bit: 28 27 26 | 25  | 24 | 23 ........ 16 | 15 ......... 8 | 7 .......... 0
+       priority | EDP | DP |  PDU format   | PDU specific  | source address
+        (3 bits)  (1)   (1)    (PF, 8)         (PS, 8)          (SA, 8)
+#+END_EXAMPLE
+
+- *Priority* (3 bits): bus arbitration priority, 0 highest, 7 lowest. Lower
+  numeric identifiers win arbitration, so a lower priority value is more urgent.
+- *EDP and DP* (the page bits): select among parameter group "pages". Almost all
+  current messages use page 0 (both bits zero).
+- *PDU format* (PF, 8 bits): together with the page bits it largely determines
+  the PGN, and its value decides the addressing mode (below).
+- *PDU specific* (PS, 8 bits): its meaning depends on the PDU format.
+- *Source address* (SA, 8 bits): the address of the sending node.
+
+* PDU1 versus PDU2
+
+The PDU format value splits messages into two addressing modes at the threshold
+240 (0xF0):
+
+- *PDU1*, when PF is below 240: the message is /destination-specific/. The PDU
+  specific byte is the *destination address*. These are point-to-point messages
+  such as requests and acknowledgements.
+- *PDU2*, when PF is 240 or above: the message is /broadcast/. The PDU specific
+  byte is a *group extension* that is part of the PGN, and there is no destination
+  field; the message goes to every node.
+
+So the same eight-bit PS field is a destination address in one mode and part of
+the message name in the other, decided entirely by the PDU format value.
+
+* The Parameter Group Number
+
+The PGN is the 18-bit number that names the message. It is assembled from the page
+bits, the PDU format, and, for PDU2 only, the PDU specific byte:
+
+#+BEGIN_EXAMPLE
+  PGN = EDP (1) | DP (1) | PDU format (8) | PDU specific (8 for PDU2, else 0)
+#+END_EXAMPLE
+
+For a PDU1 message the low byte of the PGN is zero, because the PDU specific byte
+is a destination address, not part of the name. Two worked examples:
+
+#+BEGIN_EXAMPLE
+  CCVS, identifier 0x18FEF100:
+    priority 6, PF 0xFE (>=240 -> PDU2), PS 0xF1, SA 0x00
+    PGN = 0xFE * 256 + 0xF1 = 0xFEF1 (65265), broadcast
+
+  Request, identifier 0x18EA2101:
+    priority 6, PF 0xEA (<240 -> PDU1), PS 0x21 = destination, SA 0x01
+    PGN = 0xEA * 256 + 0x00 = 0xEA00 (59904), to node 0x21
+#+END_EXAMPLE
+
+* Using j1939_id
+
+=j1939_id= wraps a =can_id= and exposes the fields and the PGN. Decode an extended
+identifier, or build one from components.
+
+#+BEGIN_SRC C++
+namespace nc = nexenne::can;
+
+// Decode a received identifier.
+if (auto const id = nc::j1939_id::decode(nc::can_id::extended(0x18FEF100))) {
+  id->priority();             // 6
+  id->pgn();                  // 0xFEF1
+  id->source_address();       // 0x00
+  id->is_broadcast();         // true
+}
+
+// Build one: priority 6, PGN 0xFEF1, source 0x10.
+auto const built = nc::j1939_id::make(6, 0xFEF1, 0x10);
+built.identifier();           // can_id::extended(0x18FEF110)
+#+END_SRC
+
+=decode= returns =std::nullopt= for a standard identifier, since J1939 uses only
+extended ones. =make= takes a destination address for PDU1 PGNs and ignores it for
+PDU2, where the group extension comes from the PGN. The global address 0xFF is the
+broadcast destination. See [[file:../../../examples/can/j1939.cpp][examples/can/j1939.cpp]] for a runnable version.
+
+* The transport protocol
+
+A parameter group larger than the 8 bytes of one frame is carried by the J1939
+transport protocol (J1939-21), in [[file:../../../modules/can/include/nexenne/can/j1939_transport.hpp][j1939_transport.hpp]]. The sender announces the
+message with a TP.CM frame and then streams the payload as TP.DT frames of 7 data
+bytes each, up to 1785 bytes. Two modes exist:
+
+- *BAM* (broadcast announce message): the announce frame is sent to the global
+  address and the data frames follow with no handshake. This is the broadcast
+  case, and it is fully supported in both directions.
+- *CMDT* (connection mode): adds an RTS/CTS flow-control handshake for
+  point-to-point transfers.
+
+#+BEGIN_EXAMPLE
+  TP.CM (BAM): control=32 | size (2 bytes) | packets | 0xFF | PGN (3 bytes)
+  TP.DT      : sequence (1 byte) | 7 data bytes  (repeated, last padded with 0xFF)
+#+END_EXAMPLE
+
+=segment_bam= splits a payload into the BAM frames to send. A
+=transport_reassembler= consumes received frames and returns a =transport_message=
+when a transfer completes; it rebuilds BAM transfers and any CMDT data it
+observes. Generating the CMDT CTS flow control (a live-bus timing concern) is left
+to a higher layer.
+
+#+BEGIN_SRC C++
+namespace nc = nexenne::can;
+
+auto const frames = nc::segment_bam(7, 0xFECA, 0x11, payload);   // PGN, source, data
+
+nc::transport_reassembler reassembler;
+for (nc::frame const& f : *frames) {
+  if (auto const m = reassembler.accept(f); m && m->has_value()) {
+    // (*m)->pgn(), (*m)->source(), (*m)->data()
+  }
+}
+#+END_SRC
+
+See [[file:../../../examples/can/j1939_transport.cpp][examples/can/j1939_transport.cpp]] for the segment-then-reassemble round trip.
+
+* See also
+
+- [[file:frame.org][frame]] : the extended identifier J1939 builds on.
+- [[file:database.org][database]] : naming and decoding the signals a J1939 message carries.
+
+* Further reading
+
+- SAE J1939-21, Data Link Layer (the identifier, PGN, and transport protocol).
+- SAE J1939-71, Vehicle Application Layer (the standard parameter groups).
+- SAE J1939-81, Network Management (address claiming).
