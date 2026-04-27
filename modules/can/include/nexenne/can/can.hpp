@@ -24,6 +24,7 @@
 #include <nexenne/can/io/loopback_bus.hpp>
 #include <nexenne/can/io/socketcan_bus.hpp>
 #include <nexenne/can/j1939_id.hpp>
+#include <nexenne/can/j1939_transport.hpp>
 #include <nexenne/can/message.hpp>
 #include <nexenne/can/message_builder.hpp>
 #include <nexenne/can/packing_plan.hpp>
