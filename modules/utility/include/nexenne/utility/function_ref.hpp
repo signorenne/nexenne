@@ -28,6 +28,7 @@
  * \endcode
  */
 
+#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -57,6 +58,13 @@ class function_ref;
  *
  * @pre None.
  * @post A default-constructed view is empty; \c operator \c bool is \c false.
+ *
+ * @note Only plain \c R(Args...) signatures are supported: cv-qualified or
+ *       \c noexcept-qualified signatures (such as \c R(Args...) \c const or
+ *       \c R(Args...) \c noexcept) are not. Binding a temporary callable as a
+ *       constructor argument is only safe while that temporary is alive, for
+ *       example for the duration of the full call expression the view is
+ *       passed to; the callable must outlive every use of the view.
  */
 template <typename R, typename... Args>
 class function_ref<R(Args...)> {
@@ -77,7 +85,9 @@ private:
       // const-stripped pointer in the void const*.
       using bare = std::remove_reference_t<F>;
       auto& f{*const_cast<bare*>(static_cast<bare const*>(p))};
-      return f(std::forward<Args>(args)...);
+      // invoke_r matches the is_invocable_r_v constraint: it discards the
+      // result for void signatures and supports pointers to members.
+      return std::invoke_r<R>(f, std::forward<Args>(args)...);
     };
   }
 
@@ -112,17 +122,48 @@ public:
   /**
    * @brief Binds the view to a free function pointer.
    *
-   * @param fn Function pointer with signature \c R(Args...).
+   * The function pointer itself is stored (not its address), so this view
+   * carries no dangling risk. A null \p fn yields an empty view.
    *
-   * @pre \p fn is non-null and remains valid for the lifetime of the view.
-   * @post \c operator \c bool is \c true; calling the view invokes \p fn.
+   * @param fn Function pointer with signature \c R(Args...), or null.
+   *
+   * @pre None.
+   * @post When \p fn is non-null, \c operator \c bool is \c true and calling
+   *       the view invokes \p fn; when \p fn is null the view is empty and
+   *       \c operator \c bool is \c false.
    */
   // NOLINTNEXTLINE(hicpp-explicit-conversions): a callable view binds implicitly
-  function_ref(function_ptr fn) noexcept
-      : m_obj{reinterpret_cast<void const*>(fn)}, m_thunk{[](void const* p, Args... args) -> R {
+  function_ref(function_ptr fn) noexcept {
+    if (fn != nullptr) {
+      m_obj = reinterpret_cast<void const*>(fn);
+      m_thunk = [](void const* p, Args... args) -> R {
         auto const fp{reinterpret_cast<function_ptr>(const_cast<void*>(p))};
-        return fp(std::forward<Args>(args)...);
-      }} {}
+        return std::invoke_r<R>(fp, std::forward<Args>(args)...);
+      };
+    }
+  }
+
+  /**
+   * @brief Rejects assignment from an arbitrary callable.
+   *
+   * Without this deleted overload, assigning a callable would construct a
+   * temporary \c function_ref through the converting constructor and leave the
+   * view dangling as soon as the statement ends. Mirrors the C++26
+   * \c std::function_ref (P0792R14) deleted assignment. Assignment from
+   * another \c function_ref (defaulted copy assignment) and rebinding through
+   * an explicit \c function_ref temporary remain available, and a function
+   * pointer is excluded because the dedicated constructor stores the pointer
+   * by value with no lifetime hazard.
+   *
+   * @tparam T Callable type being rejected.
+   *
+   * @pre None.
+   * @post None.
+   */
+  template <typename T>
+    requires(!std::is_same_v<std::remove_cvref_t<T>, function_ref>
+             && !(std::is_pointer_v<T> && std::is_function_v<std::remove_pointer_t<T>>))
+  auto operator=(T) -> function_ref& = delete;
 
   /**
    * @brief Reports whether the view refers to a callable.
