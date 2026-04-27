@@ -14,5 +14,6 @@ nexenne_add_module_tests(can
         test_j1939_id.cpp
         test_socketcan_bus.cpp
         test_byte_field.cpp
+        test_j1939_transport.cpp
         test_signal.cpp
 )
