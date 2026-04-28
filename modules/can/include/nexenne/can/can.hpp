@@ -15,6 +15,7 @@
 #include <nexenne/can/codec.hpp>
 #include <nexenne/can/database.hpp>
 #include <nexenne/can/database_builder.hpp>
+#include <nexenne/can/dbc.hpp>
 #include <nexenne/can/dlc.hpp>
 #include <nexenne/can/error.hpp>
 #include <nexenne/can/error_frame.hpp>
