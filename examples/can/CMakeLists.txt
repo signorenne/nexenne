@@ -6,6 +6,7 @@ set(_can_examples
     filters
     frame
     j1939
+    j1939_transport
     loopback
     signal
     socketcan
