@@ -22,6 +22,11 @@ namespace nexenne::utility {
  *      intended argument type.
  * @post None.
  *
+ * @note Every merged callable must be a class type (lambda or functor),
+ *       because \c overloaded inherits from each one. A free function pointer
+ *       is not a class type and cannot be a base, so wrap it in a lambda to
+ *       include it in the set.
+ *
  * @par Example
  * \code
  * using payload = std::variant<int, std::string>;
