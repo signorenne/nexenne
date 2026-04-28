@@ -4,70 +4,110 @@
 
 * Purpose
 
-=nexenne::utility::in_place_function= stores any callable (lambda, function
-pointer, functor) inside a fixed amount of inline storage, with no heap
-allocation. It is the heap-free replacement for =std::function= on embedded
-targets and in hot paths.
+=nexenne::utility::in_place_function<R(Args...), Capacity>= stores any callable
+(lambda, function pointer, functor) inside a fixed amount of inline storage,
+with no heap allocation, and invokes it later through one signature. It is the
+heap-free replacement for =std::function= on embedded targets and in hot
+paths.
 
-* The idea
+* The problem it solves
 
-A callable that does not fit within =Capacity= bytes is rejected by the
-converting constructor's =requires= clause at compile time, with no silent heap
-fallback. The type is move-only: a moved-from instance is empty, =explicit
-operator bool= tests for non-empty, and calling an empty instance asserts in
-debug. Unlike =nexenne::utility::function_ref=, it /owns/ the callable, so it is
-the right choice when the callable must be stored and invoked later.
+Storing a callback for later (a timer callback, a signal slot, a queued
+command) needs an owning, type-erased wrapper. =std::function= does that but
+may heap-allocate whenever the callable outgrows its small-buffer
+optimisation, and the threshold is implementation-defined, so a capture added
+during maintenance can silently turn a store into an allocation.
+=in_place_function= makes the budget explicit and compile-time: the callable
+either fits in =Capacity= bytes or the construction does not compile. There is
+no silent fallback, which is exactly what allocation-free code wants.
 
 * How it works
 
-The signature and a byte budget are template parameters:
-=in_place_function<R(Args...), Capacity>= (the default =Capacity= is 64). The
-object holds an inline =Capacity=-byte buffer aligned to =std::max_align_t= and a
-pointer to a small vtable. The converting constructor decay-copies the callable
-into the buffer and points the vtable at a per-type instance carrying three
-function pointers: =invoke= (forwards the call), =destroy= (runs the callable's
-destructor), and =move= (relocates the callable into another buffer). The static
-=capacity= member exposes the budget.
+** Memory layout
 
-The =requires= clause admits the callable only when
-=sizeof(std::decay_t<F>) <= Capacity= and its alignment is at most
-=alignof(std::max_align_t)=; otherwise the construction is a compile error, never
-a heap fallback. A default-constructed (or =nullptr=-constructed) instance is
-empty: its vtable pointer is null, =explicit operator bool= reports =false=, and
-calling it asserts in debug (undefined behaviour under =NDEBUG=). =reset= destroys
-the stored callable and returns to the empty state.
+The object is one inline buffer plus one pointer, laid out directly inside
+whatever owns it; there is no heap block anywhere.
 
-Move construction and move assignment use the vtable's =move= to relocate the
-callable, then null out the source, so a moved-from instance is empty; copying is
-deleted. =operator()= comes in a non-const and a const overload (the const one
-mirrors =std::function=, invoking through the buffer even though the wrapper is
-const), so a =const in_place_function= can still call a mutating stored callable.
+#+BEGIN_EXAMPLE
+in_place_function<int(int), 32> holding [x = 42](int y) { return x + y; }
 
-* When to use it
+  the wrapper object (40 bytes here)
+  +--------------------------------------+
+  | m_storage: 32 bytes,                 |   the lambda is constructed
+  |   alignas(std::max_align_t)          |   in place in these bytes:
+  |   +---------------+ - - - - - - - +  |   [ int x = 42 ][ padding ]
+  |   | stored lambda |  unused tail  |  |
+  |   +---------------+ - - - - - - - +  |
+  +--------------------------------------+       static vtable<decltype(lambda)>
+  | m_vt: vtable const*                  | --->  +---------------------------+
+  +--------------------------------------+       | invoke  : call the lambda |
+                                                 | destroy : run its dtor    |
+   m_vt == nullptr  <=>  empty                   | move    : relocate it     |
+#+END_EXAMPLE
 
-Reach for =in_place_function= when you must *store* a type-erased callable and
-invoke it later: a callback member, a command in a queue, a deferred handler, an
-event sink. It is the heap-free stand-in for =std::function= on embedded targets
-and in hot paths, where an allocation per assignment is unacceptable.
+The converting constructor decay-copies the callable into the buffer with
+=std::construct_at= and points =m_vt= at a =static constexpr= per-type vtable
+with three entries: =invoke= forwards a call through =std::invoke_r<R>= (so a
+=void= signature discards the callable's result), =destroy= runs the
+callable's destructor, and =move= relocates it into another buffer during move
+construction or assignment. Each entry recomputes the callable's address from
+the raw storage bytes through =std::launder=, which is what makes the
+recomputed pointer valid.
 
-The gotchas come from the fixed budget. The capacity is a *compile-time* ceiling
-on =sizeof= of the decayed callable, so a lambda that captures too much (by value)
-will not compile against a small =Capacity=; raise =Capacity= or capture less (for
-instance by reference or by =shared_ptr=, minding the lifetimes). Capacity counts
-bytes of the callable, not its arguments, and over-aligned callables are rejected
-too. Remember it is *move-only*: assigning or returning transfers ownership and
-leaves the source empty, and calling that emptied source asserts.
+** The compile-time admission test
 
-If instead you only need to *borrow* a callable for the duration of a single call
-(a predicate or visitor passed as a parameter), use the non-owning, never-failing
-[[file:function_ref.org][function_ref]]: it stores no callable and has no size
-budget, but must not outlive the callable it refers to. =in_place_function= owns;
-=function_ref= borrows.
+The converting constructor's =requires= clause admits a callable =F= only
+when, with =D = std::decay_t<F>=:
+
+- =D= is invocable as =R(Args...)= (return convertibility included),
+- =D= is constructible from the argument,
+- =sizeof(D) <= Capacity=,
+- =alignof(D) <= alignof(std::max_align_t)= (the buffer's alignment bound;
+  over-aligned callables are rejected rather than invoking undefined
+  behaviour),
+- =D= is nothrow-move-constructible, because the vtable's =move= entry is
+  =noexcept=; this is the same requirement =std::move_only_function= places on
+  callables in its small-buffer path.
+
+Failing any test is a compile error at the construction site, never a heap
+fallback. =Capacity= itself must be greater than zero (checked by a
+=static_assert=), and the default is 64 bytes.
+
+** Ownership and the empty state
+
+The type is move-only: moving relocates the callable via the vtable and nulls
+the source's vtable pointer, so a moved-from instance is empty. Copying is
+deleted. A default-constructed or =nullptr=-constructed instance is empty,
+=explicit operator bool= reports =false=, and calling an empty instance
+asserts in debug (undefined behaviour under =NDEBUG=). =reset()= destroys the
+stored callable and returns to the empty state.
+
+** Shallow const
+
+=operator()= is =const= yet invokes the stored callable as non-const, exactly
+like =std::function=: a =mutable= lambda still mutates its own captures. The
+storage member is declared =mutable=, which makes this well-defined even when
+the wrapper object itself is defined =const=. Treat the constness of the
+wrapper as protecting the binding, not the callable's internal state.
+
+* API tour
+
+- =in_place_function()= / =in_place_function(std::nullptr_t)= : empty.
+- =in_place_function(F&& f)= : stores a decayed copy of =f= inline; subject to
+  the admission test above.
+- move constructor / move assignment : relocate the callable and empty the
+  source; self-move-assignment is a no-op.
+- =operator()(Args...) -> R= : invokes the stored callable; asserts on empty
+  in debug.
+- =explicit operator bool()= : =true= when a callable is stored.
+- =reset()= : destroys the callable, returns to empty.
+- =capacity= (static) and =result_type= : the byte budget and =R=.
 
 * Usage
 
 #+BEGIN_SRC cpp
 using discount = nexenne::utility::in_place_function<int(int), 32>;
+static_assert(discount::capacity == 32);
 
 int const member_off{15};
 auto rule{discount{[member_off](int price) { return price - member_off; }}};
@@ -78,6 +118,51 @@ int const net{rule(100)};                   // 85
 // Move-only: ownership transfers, leaving the source empty.
 auto moved{std::move(rule)};
 int const again{moved(80)};  // 65
+
+moved = [](int price) { return price / 2; };  // reassign in place
+moved.reset();                                // back to empty
 #+END_SRC
+
+* Pitfalls
+
+The gotchas come from the fixed budget and the admission test:
+
+- *Capacity is a ceiling on the callable, not the arguments.* A lambda that
+  captures too much by value will not compile against a small =Capacity=;
+  raise =Capacity= or capture less (by reference or via a =shared_ptr=,
+  minding lifetimes). Every unused byte is still occupied by the wrapper, so
+  do not over-provision either.
+- *Over-aligned callables are rejected.* The buffer is aligned to
+  =std::max_align_t=; a callable declaring a stricter =alignas= fails the
+  =requires= clause by design.
+- *The callable must be nothrow-move-constructible.* A throwing move
+  constructor fails the admission test because moves of the wrapper are
+  =noexcept=.
+- *Move-only.* Assigning or returning transfers ownership and leaves the
+  source empty; calling the emptied source asserts in debug.
+- *Shallow const.* A =const in_place_function= still runs a mutating callable;
+  do not rely on the wrapper's constness to freeze the callable's state.
+
+If you only need to *borrow* a callable for the duration of one call (a
+predicate or visitor parameter), use the non-owning
+[[file:function_ref.org][function_ref]] instead: it has no size budget and
+never fails to bind, but must not outlive the callable. =in_place_function=
+owns; =function_ref= borrows.
+
+* Comparison with the standard library
+
+| type                      | storage           | too-big callable | copyable  |
+|---------------------------+-------------------+------------------+-----------|
+| =in_place_function= (this) | inline, fixed     | compile error    | move only |
+| =std::function=           | SBO, then heap    | heap allocates   | deep copy |
+| =std::move_only_function= | SBO, then heap    | heap allocates   | move only |
+| =std::function_ref= (C++26) | none (borrows)  | n/a              | trivially |
+
+Relative to =std::move_only_function= (C++23), this type shares the move-only
+model and the nothrow-move requirement for inline storage, but replaces the
+heap fallback with a compile error and exposes the budget as a template
+parameter. It supports only plain =R(Args...)= signatures (no =const=, ref, or
+=noexcept= qualifiers) and keeps an assert-guarded empty state instead of
+undefined behaviour hidden behind an allowed-but-UB call.
 
 Runnable: [[file:../../../examples/utility/in_place_function.cpp][examples/utility/in_place_function.cpp]]
