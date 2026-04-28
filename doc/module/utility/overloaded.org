@@ -4,65 +4,165 @@
 
 * Purpose
 
-=nexenne::utility::overloaded= merges several callables into a single overload
-set, so one object can dispatch a =std::variant= by alternative without a
-handwritten visitor struct.
+=nexenne::utility::overloaded= merges several callables into a single
+overload set, so one object dispatches a =std::variant= by alternative
+without a handwritten visitor struct. It is the P0051-style helper,
+standardised in spirit but never shipped in the standard library.
 
-* The idea
+* The problem it solves
 
-A =std::visit= over a variant needs a callable that handles every alternative.
-Writing a struct with one =operator()= per type is verbose, so =overloaded=
-inherits from a pack of lambdas and pulls each =operator()= into the merged type
-with =using Ts::operator()...=. It is a stateless aggregate with a deduction
-guide, so there is zero runtime overhead; the one tradeoff is that the overload
-set must be unambiguous for every intended argument type, or the visit fails to
-compile.
+=std::visit= needs one callable whose call operator accepts every alternative
+of the variant. The classic options each cost something:
+
+- A handwritten visitor struct with one =operator()= per alternative is
+  correct and exhaustive, but verbose: a named type, member declarations, and
+  distance between the visit and the handling code.
+- A single generic lambda =[](auto const& x) { ... }= is terse but handles
+  every alternative the same way, pushing the per-type logic into =if
+  constexpr= chains inside the body.
+- A chain of =std::holds_alternative= / =std::get_if= checks is runtime
+  dispatch with no exhaustiveness guarantee: a newly added alternative falls
+  through silently.
+
+=overloaded= keeps the visit and its arms together: a brace of small lambdas,
+one per alternative, checked for exhaustiveness at compile time and dispatched
+with zero runtime overhead.
 
 * How it works
 
-=overloaded<Ts...>= publicly inherits from every callable in the pack
-(=struct overloaded : Ts...=), so the merged object literally is all of the
-lambdas at once. The =using Ts::operator()...= pack-expansion brings each base's
-=operator()= into the derived class's overload set, and ordinary overload
-resolution then picks the right one per call. The deduction guide
-=overloaded(Ts...) -> overloaded<Ts...>= lets brace-init deduce the lambda types,
-so you write =overloaded{lambda_a, lambda_b}= without spelling them out. Because
-the lambdas are base subobjects (not stored members or =std::function=), nothing
-is type-erased, captures stay inline, and an empty-capture =overloaded= is itself
-empty.
+** The inherit-and-using trick
 
-* When to use it
+=overloaded<Ts...>= publicly inherits from every callable in the pack and
+pulls each base's call operator into one overload set:
 
-Reach for =overloaded= whenever a =std::visit= would otherwise need a
-handwritten visitor struct: dispatching a =std::variant= of events, messages, or
-AST nodes by alternative, where each arm is a short lambda. It also pairs well
-with a generic catch-all arm written as =[](auto const&) { ... }=, which matches
-any alternative not covered by a more specific lambda.
+#+BEGIN_EXAMPLE
+template <typename... Ts>
+struct overloaded : Ts... {      // the object IS all the lambdas at once
+  using Ts::operator()...;       // merge every operator() into one set
+};
 
-Alternatives: a single generic lambda =[](auto&& x){ ... }= suffices when every
-alternative is handled the same way; a named visitor class is clearer when the
-arms are long or share helper state; an =if=/=else= chain on
-=std::holds_alternative= is fine for one or two cases.
+overloaded{ [](click const&) {...}, [](key_press const&) {...} }
 
-GOTCHAS. The overload set must be unambiguous and exhaustive for the variant:
-a missing alternative or an ambiguous match is a compile error at the visit, not
-a runtime fallthrough. When you do add a generic =auto= arm to handle the rest,
-the compiler stops warning about newly added alternatives, so you lose the
-exhaustiveness check, prefer explicit arms when you want that safety net. The
-helper is stateless: it captures only what its lambdas capture, and a captured
-reference must outlive the visit.
+  +---------------------------------------------+
+  | base 1: lambda with operator()(click)       |
+  | base 2: lambda with operator()(key_press)   |
+  |                                             |
+  | merged overload set:                        |
+  |   operator()(click const&)                  |
+  |   operator()(key_press const&)              |
+  +---------------------------------------------+
+#+END_EXAMPLE
+
+Without the =using= pack-expansion, call operators inherited from different
+bases would hide each other and any call would be ambiguous; the =using=
+declarations place them all in the derived class, where ordinary overload
+resolution picks the best match per argument. Because the lambdas are base
+subobjects rather than stored members or =std::function= slots, nothing is
+type-erased, captures stay inline, and an =overloaded= of capture-less
+lambdas is an empty type. There is no runtime machinery at all: the visit
+compiles down to the same dispatch a handwritten visitor struct would.
+
+** Class template argument deduction
+
+Lambda types cannot be spelled, so =overloaded<Ts...>= is only writable
+through deduction. The explicit deduction guide
+=overloaded(Ts...) -> overloaded<Ts...>= lets brace initialisation deduce the
+pack from the constructor arguments, so =overloaded{a, b}= names
+=overloaded<decltype(a), decltype(b)>= without spelling either closure type.
+(C++20 aggregates can often deduce this without a guide; the explicit guide
+keeps the deduction unambiguous and documented.)
+
+** The function-pointer limitation
+
+Every merged callable must be a *class type*, because =overloaded= inherits
+from each one. A free function pointer is not a class type and cannot be a
+base, so including a plain function in the set requires wrapping it in a
+lambda:
+
+#+BEGIN_EXAMPLE
+auto handle_click(click const&) -> void;
+
+overloaded{
+  &handle_click,                                   // ERROR: cannot inherit
+  [](click const& c) { handle_click(c); },         // OK: wrap in a lambda
+  [](key_press const& k) { ... },
+}
+#+END_EXAMPLE
+
+* API tour
+
+- =overloaded{callables...}= : aggregate construction; each argument becomes
+  a base subobject and its =operator()= joins the merged set.
+- =operator()(args...)= : ordinary overload resolution over the merged set;
+  an ambiguous or missing match is a compile error at the call (or at the
+  =std::visit=).
+- Deduction guide =overloaded(Ts...) -> overloaded<Ts...>= : deduces the pack
+  from brace-init arguments.
+
+The type has no members, no state of its own, and no runtime cost beyond what
+its lambdas capture.
 
 * Usage
 
 #+BEGIN_SRC cpp
-using event = std::variant<click, key_press>;
-std::visit(
-  nexenne::utility::overloaded{
-    [](click const& c)     { handle_click(c); },
-    [](key_press const& k) { handle_key(k); },
-  },
-  e
-);
+using event = std::variant<click, key_press, resize>;
+
+// Exhaustive: one arm per alternative. Adding a new alternative to event
+// makes this visit fail to compile until an arm is added.
+auto describe(event const& e) -> std::string {
+  return std::visit(
+    nexenne::utility::overloaded{
+      [](click const& c) { return std::format("click at ({}, {})", c.x, c.y); },
+      [](key_press const& k) { return std::format("key '{}' pressed", k.key); },
+      [](resize const& r) { return std::format("resized to {}x{}", r.width, r.height); },
+    },
+    e
+  );
+}
+
+// Selective: one typed arm plus a generic catch-all. The typed overload is
+// more specialised, so it wins for resize; everything else falls through.
+auto only_resizes(event const& e) -> std::string {
+  return std::visit(
+    nexenne::utility::overloaded{
+      [](resize const& r) { return std::format("RESIZE {}x{}", r.width, r.height); },
+      [](auto const&) { return std::string{"(ignored)"}; },
+    },
+    e
+  );
+}
 #+END_SRC
+
+* Pitfalls
+
+- *The set must be unambiguous and exhaustive.* A missing alternative or an
+  ambiguous match is a compile error at the visit, not a runtime
+  fallthrough. Implicit conversions participate in resolution, so an
+  =[](int)= arm can also capture a =bool= or =char= alternative unless a more
+  specific arm exists.
+- *A generic arm trades away the exhaustiveness check.* Once an
+  =[](auto const&)= catch-all is present, newly added alternatives silently
+  route to it; prefer explicit arms when the compile-time safety net matters.
+- *Function pointers need a lambda wrapper.* Bases must be class types (see
+  above).
+- *Captures follow lambda lifetime rules.* The helper is stateless beyond
+  what its lambdas capture, and a captured reference must outlive the visit.
+- *Every arm must agree on the result type* when the visit returns a value;
+  mixed return types fail to compile at the =std::visit=.
+
+* Comparison with the alternatives
+
+| approach                     | exhaustiveness check | per-type arms | boilerplate |
+|------------------------------+----------------------+---------------+-------------|
+| =overloaded= (this)          | compile time         | yes           | one brace   |
+| handwritten visitor struct   | compile time         | yes           | named type  |
+| single generic lambda        | n/a (one arm)        | =if constexpr= | low        |
+| =holds_alternative= chain    | none                 | yes           | per check   |
+
+The struct and =overloaded= generate identical dispatch; =overloaded= is the
+same visitor written inline. The equivalent helper was proposed for the
+standard library (P0051) and appears as the canonical example in the
+=std::visit= documentation, but was never adopted, so every codebase carries
+its own copy; this is nexenne's.
 
 Runnable: [[file:../../../examples/utility/overloaded.cpp][examples/utility/overloaded.cpp]]
