@@ -5,70 +5,134 @@
 * Purpose
 
 =nexenne::utility::scope_guard= is an RAII scope-exit guard that runs its
-callable on destruction unless it has been dismissed, making it ideal for
-rollback logic that should fire only when an operation does not complete.
+callable on destruction unless it has been dismissed. It is the commit-or-roll-
+back tool: arm a cleanup, do work that might fail, and cancel the cleanup once
+success is certain.
 
-* The idea
+* The problem it solves
 
-The classic use is the "commit or roll back" pattern: arm a cleanup, do work
-that might fail, and =dismiss= the guard once success is certain. =scope_guard=
-holds the callable by type rather than type-erasing it, so captured lambdas
-inline without indirection; =dismiss= and =engage= toggle an active flag, and
-=is_active= reports it. Use =nexenne::utility::defer= when cleanup always runs;
-the tradeoff here is the extra =bool= of state in exchange for cancellable
-cleanup. It is non-copyable, non-movable, and =[[nodiscard]]=.
+Many operations build up partial state that must be undone if a later step
+fails: rows appended to a log, bytes written to a device, a half-registered
+handler, a reservation that has to be returned. Written by hand, the rollback
+is duplicated at every failure =return= and skipped on the success path, which
+is exactly the shape that rots as the function grows. The usual options each
+fall short:
+
+- Rollback code at each failure exit is repeated and easy to forget on a new
+  path.
+- A success flag checked in a =try= / =catch= handles the throwing path but not
+  early returns, and scatters the undo logic.
+- [[file:defer.org][defer]] runs cleanup unconditionally, so it cannot express
+  "undo only on failure".
+
+=scope_guard= inverts the default: the undo is armed up front and runs on every
+exit, and you call =dismiss= at the one point where the work has committed. The
+failure paths need no rollback code at all.
 
 * How it works
 
-The guard stores the callable by value (=function_type m_fn=, where =Fn= is
-deduced from the constructor argument) plus a =bool m_active= that starts
+** The active flag
+
+The guard stores the callable by value plus a =bool m_active= that starts
 =true=. The destructor runs the callable only while the guard is active:
 
 #+BEGIN_EXAMPLE
-~scope_guard() { if (m_active) m_fn(); }
+~scope_guard() noexcept(noexcept(m_fn())) { if (m_active) m_fn(); }
 #+END_EXAMPLE
 
 =dismiss()= sets the flag to =false= so the destructor skips the callable;
 =engage()= sets it back to =true= to re-arm a previously dismissed guard;
-=is_active()= reads the flag. Because cleanup is keyed off a plain flag and not
-ownership of a handle, you can dismiss and re-engage as many times as you like
-before scope exit. The deduction guide =scope_guard(Fn) -> scope_guard<Fn>= lets
-you write =scope_guard{[...]{...}}= without naming the lambda type. The type is
-=[[nodiscard]]= so a discarded temporary (which would run cleanup immediately, at
-the end of the full expression) is a compile-time warning.
+=is_active()= reads it. Because cleanup is keyed off a plain flag and not
+ownership of a handle, you can toggle it any number of times before scope exit.
+The callable is stored by type, not type-erased, so captured lambdas inline
+with no =std::function= indirection. The deduction guide
+=scope_guard(Fn) -> scope_guard<Fn>= lets you write =scope_guard{[...]{...}}=
+without naming the closure.
 
-* When to use it
+** Non-copyable, non-movable, and [[nodiscard]]
 
-Reach for =scope_guard= when a cleanup should run on every exit path *unless* the
-operation succeeds: the commit-or-rollback pattern. Acquire, install a guard that
-undoes the acquisition, do the fallible work, then =dismiss= once success is
-certain so the undo does not fire. The cancellable flag is the whole point; if
-the cleanup always runs, prefer [[file:defer.org][defer]], which is the same idea
-without the flag.
+The guard deletes its copy operations, which also suppresses moves, so it is
+bound to the scope where it is declared and cannot be returned or stored. It is
+=[[nodiscard]]= so a discarded temporary (which would run cleanup at the end of
+the full expression, not at scope exit) is a compile-time warning: name it.
 
-Contrast the three siblings. =scope_guard= runs an *action* on scope exit and can
-be cancelled (=dismiss=) or re-armed (=engage=). [[file:defer.org][defer]] also
-runs an action on scope exit but unconditionally, with no flag.
-[[file:unique_resource.org][unique_resource]] is different in kind: it *owns a
-handle* and runs a deleter on that handle, is move-only so ownership transfers,
-and surrenders the handle with =release= rather than toggling a flag. Use
-=unique_resource= when there is a value to hand off or transfer, =scope_guard= or
-=defer= when there is only an action to run.
+** The construction leak guard
 
-GOTCHAS. The guard is non-copyable and non-movable, so it cannot be returned from
-a factory or stored in a container; for a movable, transferable cleanup own a
-handle with =unique_resource= instead. If the callable throws while the
-destructor runs during stack unwinding, the program terminates (the usual
-destructor-throws rule), so keep the cleanup =noexcept= in practice. The action
-fires at the end of the enclosing scope, not at any earlier statement, so a guard
-declared in an =if= block runs when that block ends.
+Following P0052, if moving the callable into the member throws, the freshly
+armed cleanup must not be lost: the private =guarded_move= invokes it
+immediately through the still-intact argument and rethrows, so no guard is left
+half-built. The catch path is compiled only when the move can throw.
+
+** The conditionally-noexcept destructor
+
+The destructor is =noexcept(noexcept(m_fn()))=. On a normal scope exit a
+throwing cleanup propagates to the caller; if it throws while the destructor
+runs during stack unwinding, the program terminates, per the standard
+destructor-throws rule. Keep the cleanup non-throwing.
+
+* API tour
+
+- =scope_guard(Fn fn)= : moves =fn= in; the guard starts active.
+- =dismiss()= : cancel, so the callable will not run at destruction.
+- =engage()= : re-arm a dismissed guard.
+- =is_active()= : =true= while armed, =false= after =dismiss=.
+- =~scope_guard()= : runs the callable if still active; conditionally =noexcept=.
+- =function_type= : the stored callable type =Fn=.
 
 * Usage
 
+Arm the rollback next to the acquisition, run the fallible work, and =dismiss=
+only once the operation has committed. Every failure path, early =return= or
+exception, runs the rollback for free:
+
 #+BEGIN_SRC cpp
-auto guard{nexenne::utility::scope_guard{[&] { release(handle); }}};
-// ... work that might return early or throw ...
-guard.dismiss();  // cancel cleanup once the resource is handed off
+auto const mark{log.size()};
+auto rollback{nexenne::utility::scope_guard{[&] { log.resize(mark); }}};
+
+for (int const value : batch) {
+  if (value < 0) {
+    return false;  // rollback fires here: log shrinks back to mark
+  }
+  log.push_back(value);
+}
+
+rollback.dismiss();  // success: keep the appended rows
+return true;
 #+END_SRC
+
+* Pitfalls
+
+- *Dismiss on the commit, not before.* If you =dismiss= too early, a later
+  failure will not roll back. Call it at the single point where success is
+  certain.
+- *Throwing cleanup during unwinding terminates.* Same rule as any destructor;
+  keep the rollback =noexcept= in practice.
+- *Non-copyable and non-movable.* It cannot be returned from a factory or stored
+  in a container. To hand off or transfer a cleanup, own a handle with
+  [[file:unique_resource.org][unique_resource]] instead.
+- *Watch dangling captures.* A =[&]= rollback must only touch state that
+  outlives the guard; the guard shares its enclosing scope, so a local captured
+  by reference is fine as long as it is declared before the guard.
+- *Scope, not statement.* The action fires at the end of the enclosing block, so
+  a guard declared inside an =if= runs when that block ends, not sooner.
+
+* Comparison with the standard library
+
+| facility                        | cancel      | owns a value | since   |
+|---------------------------------+-------------+--------------+---------|
+| =scope_guard= (this)            | yes         | no           | now     |
+| =std::experimental::scope_exit= | yes         | no           | LFS v3  |
+| [[file:defer.org][defer]] (sibling) | no      | no           | now     |
+| [[file:unique_resource.org][unique_resource]] (sibling) | via release | yes | now |
+
+=scope_guard= is the cancellable member of the P0052 scope-guard family and
+mirrors =std::experimental::scope_exit=, whose =release()= is spelled =dismiss=
+here (with an added =engage= to re-arm). Choose the three siblings by kind:
+=scope_guard= runs a cancellable *action* at scope exit, [[file:defer.org][defer]]
+runs an *unconditional* action, and [[file:unique_resource.org][unique_resource]]
+*owns a handle* and runs a deleter on it, is move-only, and surrenders the
+handle with =release=. Rule of thumb: a value to hand off means
+=unique_resource=; only code to run at scope exit means =defer= (always) or
+=scope_guard= (cancellable).
 
 Runnable: [[file:../../../examples/utility/scope_guard.cpp][examples/utility/scope_guard.cpp]]
