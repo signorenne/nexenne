@@ -7,86 +7,163 @@
 =nexenne::utility::unique_resource= ties an opaque resource handle (a file
 descriptor, a socket, a hardware register handle, a pointer) to a deleter
 callable and runs that deleter exactly once at the end of the owner's lifetime.
+It is =std::unique_ptr= generalised to handles that are not pointers, with no
+heap allocation.
 
-* The idea
+* The problem it solves
 
-It is the heap-free embedded analogue of P0052 /
-=std::experimental::unique_resource=, behaving like =std::unique_ptr=
-generalised to non-pointer handles. The type is move-only: ownership transfers
-on move and the source is left non-owning, so the deleter never fires twice (no
-double free or close). =release()= hands the handle off without running the
-deleter; =reset()= runs it early. The =make_unique_resource_checked= helper
-takes an invalid sentinel and immediately releases ownership when the acquired
-handle matches it, so the deleter never runs for a failed acquisition.
+Plenty of resources are released through a non-=delete= path: a descriptor
+closed with =close=, a =FILE*= with =fclose=, a mapping with =munmap=, a C
+library handle with its own destroy call. =std::unique_ptr= only manages
+pointers freed by a deleter, so a raw =int= descriptor does not fit it. Writing
+the RAII wrapper by hand for each handle is repetitive and gets the corner cases
+wrong: releasing twice after a move, releasing a sentinel from a failed
+acquisition, or leaking when an exception interrupts construction.
+
+=unique_resource= is the reusable version. It owns any movable handle, runs a
+supplied deleter once, transfers ownership by move without ever double-releasing,
+and follows P0052 exception safety so an acquired handle is never leaked even
+when a step throws. It costs one handle, one deleter (=[[no_unique_address]]=,
+so a stateless deleter adds no size), and one =bool=.
 
 * How it works
 
-The owner stores three things: the handle (=resource_type m_resource=), the
-deleter (=[[no_unique_address]] deleter_type m_deleter=, so an empty/stateless
-deleter adds no size), and a =bool m_owns= ownership flag. While =m_owns= is
-=true=, both the destructor and =reset()= call =m_deleter(m_resource)= exactly
-once and then clear the flag, so a release can never happen twice. The flag is the
-key to every operation:
+** The owns flag and its state machine
 
-- =release()= sets =m_owns= to =false= and moves the handle out, the deleter is
-  *not* run, so the caller now owns the raw handle.
-- =reset()= runs the deleter now (if owning) and goes non-owning, releasing early.
-- =reset(r)= releases the current handle, then adopts =r= with the existing
-  deleter.
-- move sets the source's flag to =false= after stealing its handle and deleter,
-  so only the destination ever runs the deleter (the type is move-only:
-  copy is deleted). Move-assignment rebuilds the deleter with
-  =destroy_at=/=construct_at= rather than assignment, which is what lets a
-  capturing-lambda deleter (no assignment operator) work.
+The owner stores the handle, the deleter, and a =bool m_owns=. Every operation
+is a transition of that flag, and the deleter runs on exactly one edge out of
+the owning state:
 
-For pointer handles, =operator->= and =operator*= forward to the owned pointer.
-=make_unique_resource_checked(resource, invalid, deleter)= constructs an owning
-instance and, if =resource == invalid=, immediately =release=s it, so a failed
-acquisition (for example =-1= from =open=) never gets a spurious =close=.
+#+BEGIN_EXAMPLE
+  states:
+    non-owning : owns == false, destructor runs no deleter
+    owning     : owns == true,  destructor / reset() run deleter(handle) once
 
-* When to use it
+  transitions:
+    default ctor .................> non-owning
+    unique_resource{r, d} ........> owning
+    make_unique_resource_checked:
+      r == invalid ...............> non-owning     (deleter never armed)
+      r != invalid ...............> owning
+    reset() ......: owning ------> non-owning       (deleter runs now)
+    reset(r2) ....: owning ------> owning           (old deleter runs, adopt r2)
+                    non-owning --> owning           (adopt r2)
+    release() ....: owning ------> non-owning       (deleter suppressed; caller
+                                                     now owns the raw handle)
+    move-out .....: owning ------> non-owning       (source, after transfer)
+    move-in ......: non-owning --> owning           (destination steals handle)
+    destructor ...: owning ------> runs deleter;  non-owning -> nothing
+#+END_EXAMPLE
 
-Reach for =unique_resource= whenever you own a *handle* that must be released
-through a non-trivial, non-=delete= path: a POSIX file descriptor (=close=), a
-socket, a =FILE*= (=fclose=), a C library handle, a mmap region (=munmap=), a
-hardware register or DMA channel. It gives that handle =unique_ptr=-style RAII
-without forcing it to be a pointer and without a heap allocation, which is why it
-suits embedded and hot-path code. Prefer =make_unique_resource_checked= at the
-acquisition site so a failed call does not arm the deleter on a junk handle.
+While =m_owns= is =true=, both the destructor and =reset= call
+=m_deleter(m_resource)= exactly once and clear the flag, so a release can never
+happen twice. Move sets the source flag to =false= after stealing the handle and
+deleter, so only the destination ever runs the deleter (the type is move-only;
+copy is deleted). Move-assignment rebuilds a non-assignable deleter (a capturing
+lambda has no assignment operator) with =std::destroy_at= plus
+=std::construct_at= rather than assigning, which is what lets a lambda deleter
+work.
 
-Contrast the siblings. [[file:scope_guard.org][scope_guard]] and
-[[file:defer.org][defer]] run an *action* on scope exit, =defer= unconditionally,
-=scope_guard= with a cancellable flag (=dismiss=/=engage=); neither owns a value.
-=unique_resource= *owns a handle* and runs a deleter *on that handle*, is
-move-only so ownership can be transferred or returned from a factory, and
-surrenders the handle with =release=. Rule of thumb: if there is a value to hand
-off, transfer, or store, use =unique_resource=; if there is only code to run at
-scope exit, use =defer= (always) or =scope_guard= (cancellable).
+** Exception safety, P0052 style
 
-GOTCHAS. =release()= hands the handle to *you* and suppresses the deleter, so you
-become responsible for releasing it, forgetting to leaks. It is =[[nodiscard]]=
-for that reason. =reset()= releases immediately, not at scope exit, so do not
-keep using a handle after resetting. The deleter runs only while =owns()= is
-=true=: a default-constructed, moved-from, or released instance runs nothing, so
-check =owns()= before relying on =get()=. Because the type is move-only it cannot
-be copied; pass it by move or by reference. And the deleter must itself be safe
-to run at destruction, a throwing deleter during stack unwinding terminates, as
-with any destructor.
+Every operation that has a live handle in flight disposes of it through the
+deleter before letting an exception escape, so a resource is never silently
+leaked:
+
+- *Owning constructor.* If moving the handle into its member throws, the deleter
+  is invoked on the still-intact handle first. If moving the deleter throws
+  after the handle is stored, the deleter is invoked on the stored handle.
+- *Move constructor.* The handle is taken with =std::move_if_noexcept=, so a
+  throwing handle transfer leaves the source fully intact. If initialising the
+  deleter throws after the handle was genuinely moved out, the moved handle is
+  disposed of via the source's deleter and the source is disarmed, so it is
+  neither leaked nor double-owned.
+- =reset(r2)=. If storing the new handle throws, the deleter is invoked on it
+  before rethrowing, and =*this= is left valid and non-owning.
+
+The private =guarded_resource_move=, =guarded_deleter_move=,
+=guarded_deleter_steal=, and =transfer_member= helpers implement these edges;
+each throwing catch path is compiled only when the corresponding move can throw.
+
+** Pointer handles
+
+When =Resource= is a pointer, =operator->= and =operator*= forward to the owned
+pointer so the owner reads like a smart pointer.
+
+* API tour
+
+- =unique_resource()= : non-owning; the destructor runs no deleter.
+- =unique_resource(resource, deleter)= : owning; runs =deleter(resource)= at
+  destruction or =reset=.
+- move constructor / move assignment : transfer ownership; the source becomes
+  non-owning. Copy is deleted.
+- =reset()= : run the deleter now and go non-owning.
+- =reset(r)= : release the current handle, then adopt =r= with the same deleter.
+- =release()= : =[[nodiscard]]=; surrender the handle without running the
+  deleter, so the caller must release it.
+- =get()= : const reference to the handle; =get_deleter()= : the deleter.
+- =owns()= : whether a resource is currently owned.
+- =operator->= / =operator*= : for pointer handles.
+- =make_unique_resource_checked(resource, invalid, deleter)= : construct owning,
+  but immediately release when =resource == invalid= so the deleter never runs
+  for a failed acquisition (for example =-1= from =open=).
+- =value_type= / =resource_type= : the handle type; =deleter_type= : the deleter.
 
 * Usage
+
+Construct at the acquisition site and let the deleter fire at scope exit. Guard
+a failed acquisition by releasing the sentinel so the deleter is not run on a
+junk handle:
 
 #+BEGIN_SRC cpp
 auto const closer{[](int const fd) noexcept { fake_close(fd); }};
 
-// -1 is the invalid sentinel of a failed open().
-auto file{nexenne::utility::make_unique_resource_checked(
-  fake_open("/dev/sensor"), -1, closer
-)};
-
+auto file{nexenne::utility::unique_resource{fake_open("/dev/sensor"), closer}};
+if (file.get() == -1) {
+  nexenne::utility::discard(file.release());  // failed open: do not close -1
+}
 if (file.owns()) {
   int const fd{file.get()};  // use the descriptor
 }
-// closer fires once at scope exit, unless release() was called first.
+// closer(fd) fires once at scope exit, unless release() was called first.
 #+END_SRC
+
+=make_unique_resource_checked(fake_open("/dev/sensor"), -1, closer)= packages
+that same sentinel guard into one call.
+
+* Pitfalls
+
+- *release() makes cleanup your job.* It hands you the handle and suppresses the
+  deleter, so forgetting to release the returned handle leaks. It is
+  =[[nodiscard]]= for that reason.
+- *reset() releases immediately*, not at scope exit. Do not keep using a handle
+  after resetting.
+- *Check owns() before get().* A default-constructed, moved-from, or released
+  instance owns nothing and runs no deleter; after =release= the stored value is
+  moved-from and should not be trusted.
+- *The deleter must not throw.* The destructor and =reset= are =noexcept=, so a
+  deleter that throws when invoked there terminates the program. Keep deleters
+  non-throwing.
+- *Move-only.* It cannot be copied; pass by move or by reference. A moved-from
+  source is left non-owning.
+
+* Comparison with the standard library
+
+| facility                                | handle kind    | heap  | since   |
+|-----------------------------------------+----------------+-------+---------|
+| =unique_resource= (this)                | any movable    | no    | now     |
+| =std::experimental::unique_resource=    | any movable    | no    | LFS v3  |
+| =std::unique_ptr<T, D>=                 | pointer only   | no    | C++11   |
+| [[file:scope_guard.org][scope_guard]] / [[file:defer.org][defer]] | none (action) | no | now |
+
+This type is the heap-free analogue of P0052 /
+=std::experimental::unique_resource=, including =make_unique_resource_checked=
+with the same meaning. Relative to =std::unique_ptr= it removes the
+pointer-only restriction: the handle can be an =int=, a struct, or any movable
+value, and the deleter is invoked as =deleter(handle)= rather than
+=deleter(pointer)=. Against the scope-guard siblings the difference is kind:
+[[file:scope_guard.org][scope_guard]] and [[file:defer.org][defer]] run an
+*action* at scope exit and own no value, while =unique_resource= *owns a handle*,
+can transfer it by move, and surrenders it with =release=.
 
 Runnable: [[file:../../../examples/utility/unique_resource.cpp][examples/utility/unique_resource.cpp]]
