@@ -2,6 +2,7 @@
 # self-contained program demonstrating part of the nexenne::can module.
 set(_can_examples
     database
+    dbc
     fields
     filters
     frame
