@@ -22,7 +22,7 @@ namespace nexenne::utility {
  * \c [[nodiscard]] so a discarded temporary (which would run the cleanup
  * immediately) is a compile-time warning.
  *
- * @tparam Fn Callable invocable with no arguments.
+ * @tparam Fn Callable invocable as an lvalue with no arguments.
  *
  * @pre None.
  * @post A freshly constructed guard is active.
@@ -35,7 +35,8 @@ namespace nexenne::utility {
  * guard.dismiss(); // cancel cleanup once the resource is handed off
  * \endcode
  */
-template <std::invocable Fn>
+template <typename Fn>
+  requires std::invocable<Fn&>
 class [[nodiscard]] scope_guard final {
 public:
   using function_type = Fn;
@@ -44,18 +45,44 @@ private:
   function_type m_fn;
   bool m_active{true};
 
+  // P0052 scope_exit semantics: if moving the callable into the member throws,
+  // the cleanup must not be silently lost, so it runs immediately (via the
+  // still-intact argument) before the exception propagates. The return object
+  // is the member itself (guaranteed elision), so the catch sees the real move.
+  // The catch path exists only when the move can actually throw, so the
+  // noexcept instantiation contains no unreachable rethrow.
+  [[nodiscard]] static auto guarded_move(function_type& fn
+  ) noexcept(std::is_nothrow_move_constructible_v<function_type>) -> function_type {
+    if constexpr (std::is_nothrow_move_constructible_v<function_type>) {
+      return std::move(fn);
+    } else {
+      try {
+        return std::move(fn);
+      } catch (...) {
+        fn();
+        throw;
+      }
+    }
+  }
+
 public:
   /**
    * @brief Constructs an active guard, taking ownership of \p fn.
+   *
+   * Matches P0052 \c scope_exit: if moving \p fn into the guard throws, \p fn
+   * is invoked immediately (the freshly armed cleanup is never silently lost)
+   * and the exception then propagates; no guard is constructed in that case.
    *
    * @param fn Callable to run at scope exit while active, moved into the guard.
    *
    * @pre None.
    * @post The guard is active and holds \p fn.
+   *
+   * @throws Anything the move of \p fn throws, after \p fn has been invoked.
    */
   explicit scope_guard(function_type fn
   ) noexcept(std::is_nothrow_move_constructible_v<function_type>)
-      : m_fn{std::move(fn)} {}
+      : m_fn{guarded_move(fn)} {}
 
   scope_guard(scope_guard const&) = delete;
   auto operator=(scope_guard const&) -> scope_guard& = delete;
@@ -67,7 +94,9 @@ public:
    * @post The callable has run exactly once if the guard was active, and not
    *       at all if it was dismissed.
    *
-   * @warning If the callable throws while the destructor runs during stack
+   * @warning The destructor is conditionally \c noexcept: on a normal scope
+   *          exit a throwing callable propagates its exception to the caller,
+   *          but if it throws while the destructor runs during stack
    *          unwinding, the program terminates, per the usual
    *          destructor-throws rule.
    */
