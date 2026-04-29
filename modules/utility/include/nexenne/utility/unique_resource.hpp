@@ -15,6 +15,9 @@
  * The type is move-only: ownership transfers on move and the source is left
  * non-owning, so the deleter never fires twice (no double free or close). A
  * moved-from or released instance holds no resource and runs no deleter.
+ * Exception safety follows P0052: if storing the resource or the deleter
+ * throws during construction, the deleter is invoked on the handle before the
+ * exception propagates, so an acquired resource never leaks.
  *
  * \code
  * extern auto posix_open(char const*) noexcept -> int;  // returns -1 on error
@@ -46,7 +49,10 @@ namespace nexenne::utility {
  * While owning, the destructor and \c reset invoke \c deleter(resource) exactly
  * once. Ownership transfers by move and is surrendered by \c release; in both
  * cases the deleter is suppressed for the surrendered value so it can never run
- * twice.
+ * twice. Following P0052, every operation that can fail while a live handle is
+ * in flight (the owning constructor, the move operations, \c reset with a new
+ * handle) disposes of that handle through the deleter before rethrowing, so a
+ * resource is never silently leaked.
  *
  * @tparam Resource The owned handle type (pointer, integer, or any movable
  *                  value identifying the resource).
@@ -54,17 +60,111 @@ namespace nexenne::utility {
  *
  * @pre \p Deleter is invocable with an lvalue \p Resource.
  * @post A default-constructed instance owns nothing; \c owns() is \c false.
+ *
+ * @warning The deleter is invoked from the destructor and from \c reset, both
+ *          of which are \c noexcept: a deleter that throws when invoked there
+ *          terminates the program. Keep deleters non-throwing.
  */
 template <typename Resource, typename Deleter>
 class unique_resource {
 public:
-  using resource_type = Resource;
+  using value_type = Resource;
+  using resource_type = value_type;
   using deleter_type = Deleter;
 
 private:
   resource_type m_resource{};
   [[no_unique_address]] deleter_type m_deleter{};
   bool m_owns{false};
+
+  // P0052 leak guard for the owning constructor: the return object is the
+  // member itself (guaranteed elision), so a throwing move into m_resource is
+  // caught here and the still-intact handle is disposed before rethrowing. The
+  // catch path exists only when the move can actually throw, so the noexcept
+  // instantiation contains no unreachable rethrow.
+  [[nodiscard]] static auto guarded_resource_move(resource_type& resource, deleter_type& deleter
+  ) noexcept(std::is_nothrow_move_constructible_v<resource_type>) -> resource_type {
+    if constexpr (std::is_nothrow_move_constructible_v<resource_type>) {
+      discard(deleter);
+      return std::move(resource);
+    } else {
+      try {
+        return std::move(resource);
+      } catch (...) {
+        deleter(resource);
+        throw;
+      }
+    }
+  }
+
+  // P0052 leak guard for the owning constructor: m_resource already holds the
+  // handle, so a throwing move into m_deleter disposes it via the still-valid
+  // deleter argument before rethrowing.
+  [[nodiscard]] static auto guarded_deleter_move(deleter_type& deleter, resource_type& resource
+  ) noexcept(std::is_nothrow_move_constructible_v<deleter_type>) -> deleter_type {
+    if constexpr (std::is_nothrow_move_constructible_v<deleter_type>) {
+      discard(resource);
+      return std::move(deleter);
+    } else {
+      try {
+        return std::move(deleter);
+      } catch (...) {
+        deleter(resource);
+        throw;
+      }
+    }
+  }
+
+  // P0052 leak guard for the move constructor. The resource member was
+  // initialised with move_if_noexcept: when that was a genuine move, other no
+  // longer holds the handle, so a throwing deleter initialisation must dispose
+  // the moved handle via other's deleter and disarm other. When the resource
+  // was copied instead, other still owns its handle and nothing is lost. The
+  // catch path exists only when the deleter move can actually throw, so the
+  // noexcept instantiation contains no unreachable rethrow.
+  [[nodiscard]] static auto guarded_deleter_steal(
+    unique_resource& other, [[maybe_unused]] resource_type& resource
+  ) noexcept(std::is_nothrow_move_constructible_v<deleter_type>) -> deleter_type {
+    if constexpr (std::is_nothrow_move_constructible_v<deleter_type>) {
+      return std::move_if_noexcept(other.m_deleter);
+    } else {
+      try {
+        return std::move_if_noexcept(other.m_deleter);
+      } catch (...) {
+        if constexpr (std::is_nothrow_move_constructible_v<resource_type>) {
+          if (other.m_owns) {
+            other.m_deleter(resource);
+            other.m_owns = false;
+          }
+        }
+        throw;
+      }
+    }
+  }
+
+  // Move assignment transfers an assignable member by assignment; a
+  // non-assignable member (a capturing lambda deleter) is destroyed and
+  // re-created in place, which is only safe because that construction cannot
+  // throw.
+  template <typename Member>
+  static constexpr bool nothrow_transfer_v{
+    std::is_move_assignable_v<Member> ? std::is_nothrow_move_assignable_v<Member>
+                                      : std::is_nothrow_move_constructible_v<Member>};
+
+  template <typename Member>
+  static auto transfer_member(Member& dst, Member& src) noexcept(nothrow_transfer_v<Member>)
+    -> void {
+    if constexpr (std::is_move_assignable_v<Member>) {
+      dst = std::move(src);
+    } else {
+      static_assert(
+        std::is_nothrow_move_constructible_v<Member>,
+        "unique_resource: a non-assignable resource or deleter must be nothrow move constructible"
+      );
+      std::destroy_at(std::addressof(dst));
+      std::construct_at(std::addressof(dst), std::move(src));
+    }
+  }
 
 public:
   /**
@@ -80,35 +180,52 @@ public:
    *
    * Both arguments are moved in. After construction the instance owns the
    * resource and invokes \p deleter on it at destruction or \c reset, unless
-   * ownership is first transferred or released.
+   * ownership is first transferred or released. Following P0052, the
+   * construction never leaks: if moving \p resource into the member throws,
+   * \p deleter is invoked on \p resource; if moving \p deleter into the member
+   * throws after the resource was stored, \p deleter is invoked on the stored
+   * resource. In both cases the exception then propagates.
    *
    * @param resource Handle to take ownership of, moved into the owner.
    * @param deleter Callable that releases \p resource, moved into the owner.
    *
    * @pre \p deleter is a valid releaser for \p resource.
    * @post \c owns() is \c true; \c get() returns the stored resource.
+   *
+   * @throws Anything the move of \p resource or \p deleter throws, after the
+   *         handle has been disposed of via \p deleter.
    */
   unique_resource(
     resource_type resource, deleter_type deleter
   ) noexcept(std::is_nothrow_move_constructible_v<resource_type> && std::is_nothrow_move_constructible_v<deleter_type>)
-      : m_resource{std::move(resource)}, m_deleter{std::move(deleter)}, m_owns{true} {}
+      : m_resource{guarded_resource_move(resource, deleter)}
+      , m_deleter{guarded_deleter_move(deleter, m_resource)}
+      , m_owns{true} {}
 
   /**
    * @brief Move-constructs from \p other, transferring ownership.
    *
-   * @param other Source owner, left non-owning by the move.
+   * Following P0052, the resource is moved only when its move constructor is
+   * \c noexcept and copied otherwise, so a throwing resource transfer leaves
+   * \p other fully intact. If initialising the deleter throws after the
+   * resource was genuinely moved out of \p other, the moved handle is disposed
+   * of via \p other's deleter and \p other is disarmed, so the resource is
+   * neither leaked nor double-owned; the exception then propagates.
+   *
+   * @param other Source owner, left non-owning by a successful move.
    *
    * @pre None.
    * @post This holds \p other's previous resource and ownership state;
    *       \p other's \c owns() is \c false.
+   *
+   * @throws Anything the transfer of the resource or deleter throws; ownership
+   *         stays consistent (exactly one live owner, or a disposed handle).
    */
   unique_resource(unique_resource&& other
   ) noexcept(std::is_nothrow_move_constructible_v<resource_type> && std::is_nothrow_move_constructible_v<deleter_type>)
-      : m_resource{std::move(other.m_resource)}
-      , m_deleter{std::move(other.m_deleter)}
-      , m_owns{other.m_owns} {
-    other.m_owns = false;
-  }
+      : m_resource{std::move_if_noexcept(other.m_resource)}
+      , m_deleter{guarded_deleter_steal(other, m_resource)}
+      , m_owns{std::exchange(other.m_owns, false)} {}
 
   /**
    * @brief Move-assigns from \p other, transferring ownership.
@@ -117,29 +234,54 @@ public:
    * then takes over \p other's resource, deleter, and ownership flag and clears
    * \p other's ownership. A self-move is a no-op.
    *
-   * The deleter is re-established by move-construction (\c destroy_at +
-   * \c construct_at) rather than move-assignment, so a capturing-lambda deleter
-   * (which has no assignment operator) is supported.
+   * The members are transferred in the P0052 order: whichever of the two can
+   * throw is transferred first, by copy, so a failure leaves \p other still
+   * owning an intact resource and deleter pair and leaves \c *this non-owning
+   * and valid; no handle is leaked or double-owned. A member that is not
+   * assignable (a capturing lambda deleter) is destroyed and re-created in
+   * place instead, which requires its move construction to be \c noexcept.
    *
    * @param other Source owner, left non-owning unless it is \c *this.
    *
    * @return Reference to \c *this.
    *
-   * @pre None.
+   * @pre \p Resource and \p Deleter are move-assignable (or copy-assignable
+   *      when the move can throw), or non-assignable and nothrow move
+   *      constructible.
    * @post This holds \p other's previous resource and ownership state; the
    *       resource previously owned by \c *this has been released; \p other's
    *       \c owns() is \c false unless \p other is \c *this.
+   *
+   * @throws Anything the assignment of the resource or deleter throws; on a
+   *         throw \c *this owns nothing and \p other still owns its resource.
    */
   auto operator=(unique_resource&& other
-  ) noexcept(std::is_nothrow_move_assignable_v<resource_type> && std::is_nothrow_move_constructible_v<deleter_type>)
+  ) noexcept(nothrow_transfer_v<resource_type> && nothrow_transfer_v<deleter_type>)
     -> unique_resource& {
     if (this != &other) {
       reset();
-      m_resource = std::move(other.m_resource);
-      std::destroy_at(std::addressof(m_deleter));
-      std::construct_at(std::addressof(m_deleter), std::move(other.m_deleter));
-      m_owns = other.m_owns;
-      other.m_owns = false;
+      if constexpr (nothrow_transfer_v<resource_type>) {
+        if constexpr (nothrow_transfer_v<deleter_type>) {
+          transfer_member(m_resource, other.m_resource);
+          transfer_member(m_deleter, other.m_deleter);
+        } else {
+          // The deleter assignment can throw: do it first, by copy, so a
+          // failure leaves other's resource and deleter pair untouched.
+          m_deleter = std::as_const(other.m_deleter);
+          transfer_member(m_resource, other.m_resource);
+        }
+      } else {
+        if constexpr (nothrow_transfer_v<deleter_type>) {
+          // The resource assignment can throw: do it first, by copy, so a
+          // failure leaves other still owning its intact resource.
+          m_resource = std::as_const(other.m_resource);
+          transfer_member(m_deleter, other.m_deleter);
+        } else {
+          m_resource = std::as_const(other.m_resource);
+          m_deleter = std::as_const(other.m_deleter);
+        }
+      }
+      m_owns = std::exchange(other.m_owns, false);
     }
     return *this;
   }
@@ -150,7 +292,8 @@ public:
   /**
    * @brief Releases the owned resource, running the deleter if owning.
    *
-   * @pre None.
+   * @pre The deleter does not throw when invoked (the destructor is
+   *      \c noexcept, so a throwing deleter terminates the program).
    * @post \c owns() is \c false; any previously owned resource has had its
    *       deleter run exactly once.
    */
@@ -165,7 +308,8 @@ public:
    * non-owning. Does nothing when already non-owning, so repeated calls never
    * double-release.
    *
-   * @pre None.
+   * @pre The deleter does not throw when invoked (this function is
+   *      \c noexcept, so a throwing deleter terminates the program).
    * @post \c owns() is \c false; the deleter ran exactly once for any resource
    *       owned on entry.
    */
@@ -180,17 +324,36 @@ public:
    * @brief Releases the current resource and takes ownership of a new one.
    *
    * Runs the deleter on any currently owned resource, then stores \p resource
-   * (moved in) and resumes owning with the existing deleter.
+   * (moved in when the move cannot throw, copied otherwise, per P0052) and
+   * resumes owning with the existing deleter. If storing \p resource throws,
+   * the deleter is invoked on \p resource before the exception propagates, so
+   * the incoming handle never leaks; \c *this is left valid and non-owning.
    *
    * @param resource New handle to take ownership of, moved into the owner.
    *
    * @pre The stored deleter is a valid releaser for \p resource.
-   * @post \c owns() is \c true; \c get() returns \p resource; the previously
-   *       owned resource has had its deleter run.
+   * @post \c owns() is \c true and \c get() returns \p resource; the
+   *       previously owned resource has had its deleter run. On a throw,
+   *       \c owns() is \c false and \p resource has been disposed of.
+   *
+   * @throws Anything the assignment of \p resource throws, after \p resource
+   *         has been disposed of via the deleter.
    */
-  auto reset(resource_type resource) -> void {
+  auto reset(resource_type resource
+  ) noexcept(std::is_nothrow_move_assignable_v<resource_type>) -> void {
     reset();
-    m_resource = std::move(resource);
+    if constexpr (std::is_nothrow_move_assignable_v<resource_type>) {
+      m_resource = std::move(resource);
+    } else {
+      // P0052: assign from a const lvalue so the incoming handle is still
+      // intact and can be disposed of when the assignment throws.
+      try {
+        m_resource = std::as_const(resource);
+      } catch (...) {
+        m_deleter(resource);
+        throw;
+      }
+    }
     m_owns = true;
   }
 
@@ -205,7 +368,9 @@ public:
    *
    * @pre None.
    * @post \c owns() is \c false; the deleter will not run for the returned
-   *       resource.
+   *       resource; \c get() refers to the moved-from stored value, which for
+   *       a move-only \p Resource is its valid but unspecified moved-from
+   *       state (a trivially copyable handle keeps its value).
    */
   [[nodiscard]] auto release() noexcept -> resource_type {
     m_owns = false;
@@ -219,6 +384,9 @@ public:
    *
    * @pre None.
    * @post None.
+   *
+   * @note After \c release() the stored value is moved-from; check \c owns()
+   *       before relying on \c get().
    */
   [[nodiscard]] auto get() const noexcept -> resource_type const& {
     return m_resource;
