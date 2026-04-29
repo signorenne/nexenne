@@ -5,54 +5,136 @@
 * Purpose
 
 =nexenne::utility::defer= is an RAII scope-exit guard that stores a no-argument
-callable and invokes it exactly once on destruction, so cleanup runs no matter
-how the scope is left.
+callable and invokes it exactly once when it leaves scope. The cleanup always
+runs, on a normal fall-through, an early =return=, a =break=, or an exception,
+so a resource with no destructor of its own still gets released on every path.
 
-* The idea
+* The problem it solves
 
-Cleanup that must always happen, paired with C-style APIs that lack RAII, is
-error-prone when written by hand at every return path. =defer= binds the cleanup
-to the scope: the callable runs unconditionally at scope exit, including on early
-returns and exceptions. Unlike =nexenne::utility::scope_guard= there is no
-=dismiss=, which keeps it minimal; the cost is that the guard is non-copyable,
-non-movable, and =[[nodiscard]]= so a discarded temporary (which would fire
-immediately) warns.
+C-style APIs hand back a resource with no RAII wrapper: a file descriptor from
+=open=, a lock taken by hand, a flag that must be restored, a buffer from
+=malloc=. Releasing it correctly means repeating the cleanup at every exit of
+the scope, and one forgotten =return= leaks. The alternatives cost more than
+they save:
+
+- A hand-written cleanup at each =return= is duplicated and drifts out of sync
+  as the function grows a new exit path.
+- A =try= / =catch= that runs cleanup and rethrows handles the throwing path
+  but not the early returns, and buries the logic.
+- A bespoke RAII class per resource is correct but heavy for a one-off handle.
+
+=defer= collapses this to one line placed next to the acquisition: write the
+cleanup once, bind it to the scope, and every exit runs it. The price is that
+it is deliberately unconditional. When the cleanup must sometimes be cancelled,
+use [[file:scope_guard.org][scope_guard]] instead.
 
 * How it works
 
-=defer= is a tiny RAII wrapper: it moves a no-argument callable into a member and
-its destructor invokes it exactly once. The class template argument deduction
-guide lets =defer{lambda}= deduce =Fn=, so you never spell the type. It is
-non-copyable and non-movable, so each guard is tied to the exact scope where it is
-declared, and =[[nodiscard]]= so writing =defer{...};= as a bare temporary (which
-would construct and immediately destroy, firing the cleanup on the spot) is a
-compile-time warning: always name it (=auto const guard{defer{...}};=). The
-destructor is =noexcept(noexcept(m_fn()))=, mirroring whether the callable throws.
+** The wrapper
 
-* When to use it
+=defer= moves the callable into a member and runs it from its destructor:
 
-Reach for =defer= when a scope must run cleanup on *every* exit path and the thing
-being cleaned up has no RAII wrapper of its own: closing a C file handle or
-socket, releasing a locked resource, restoring a flag, freeing a C allocation.
-When you need to *cancel* the cleanup conditionally (commit-or-rollback patterns)
-use =nexenne::utility::scope_guard=, which has =dismiss=; =defer= deliberately
-always fires. When the resource already has a destructor, prefer a real RAII type
-(=std::unique_ptr= with a deleter, =std::lock_guard=) over a manual =defer=.
+#+BEGIN_EXAMPLE
+template <typename Fn> class defer {
+  Fn m_fn;
+public:
+  ~defer() noexcept(noexcept(m_fn())) { m_fn(); }
+};
+#+END_EXAMPLE
 
-Gotchas. The cleanup runs on the exception path too, during stack unwinding: if
-the callable itself throws while a destructor runs during unwinding, the program
-terminates (the standard destructor-throws rule), so keep the cleanup
-non-throwing. The guard fires at the end of its enclosing scope, not the
-function, so place it in the scope whose exit you mean. Because it is =[[nodiscard]]=
-and non-movable, you must bind it to a named local; you cannot return it from a
-factory or store it in a container.
+Class template argument deduction (the guide =defer(Fn) -> defer<Fn>=) lets you
+write =defer{lambda}= without naming the closure type. The callable is stored
+by value, not type-erased, so a capturing lambda inlines with no
+=std::function= indirection. The guard is =[[nodiscard]]= so a bare temporary
+=defer{...};= (which would construct and immediately destruct, firing the
+cleanup on the spot) is a compile-time warning: always name it, as in
+=auto const guard{defer{...}};=.
+
+** Non-copyable and non-movable
+
+The guard is tied to the exact scope where it is declared: it deletes its copy
+operations, which also suppresses the move operations. That is what makes "runs
+once, at this scope's exit" a guarantee rather than a hope, and it is why a
+=defer= cannot be returned from a factory or stored in a container.
+
+** The construction leak guard
+
+Following P0052, if moving the callable into the member throws, the cleanup
+must not be silently lost. The private =guarded_move= invokes the callable
+immediately through the still-intact argument and then lets the exception
+propagate, so no guard is left half-built and no cleanup vanishes. The catch
+path is compiled only when the move can actually throw, so a nothrow callable
+pays nothing.
+
+** The conditionally-noexcept destructor
+
+The destructor is =noexcept(noexcept(m_fn()))=: it is =noexcept= exactly when
+the callable is. On a normal scope exit a throwing cleanup propagates its
+exception to the caller. If the same cleanup throws while the destructor runs
+during stack unwinding (an exception is already in flight), the program
+terminates, per the standard destructor-throws rule. Keep the cleanup
+non-throwing.
+
+* API tour
+
+- =defer(Fn fn)= : moves =fn= in; the guard will invoke it at scope exit.
+- =~defer()= : runs the callable exactly once; conditionally =noexcept=.
+- deduction guide =defer(Fn) -> defer<Fn>= : write =defer{lambda}= directly.
+- =function_type= : the stored callable type =Fn=.
+
+There is no =dismiss=, no =release=, and no way to query state: =defer= does one
+thing. For cancellable cleanup, reach for [[file:scope_guard.org][scope_guard]].
 
 * Usage
 
+Place the guard on the line right after the acquisition, so no exit path can
+forget it. Guards run in reverse order of declaration, matching the natural
+unwind of nested resources:
+
 #+BEGIN_SRC cpp
-auto* const handle{acquire()};
-auto const guard{nexenne::utility::defer{[&] { release(handle); }}};
-// release(handle) runs at scope exit, even on an early return.
+int const fd{open_connection(host)};
+auto const closer{nexenne::utility::defer{[&] { close_connection(fd); }}};
+
+lock_region();
+auto const unlocker{nexenne::utility::defer{[&] { unlock_region(); }}};
+
+// ... work that may return early or throw ...
+// On every exit: unlock_region() runs, then close_connection(fd).
 #+END_SRC
+
+* Pitfalls
+
+- *It always fires.* There is no way to cancel the cleanup. If you need
+  commit-or-rollback (run only on failure), use
+  [[file:scope_guard.org][scope_guard]] and =dismiss= it on success.
+- *Throwing cleanup during unwinding terminates.* A cleanup that throws while an
+  exception is already propagating ends the program. Keep it =noexcept= in
+  practice.
+- *Bind it to a name.* The guard is =[[nodiscard]]= and non-movable. A discarded
+  temporary fires at the end of the full expression, not at scope exit, and
+  warns; you cannot return it or store it.
+- *Watch dangling captures.* A =[&]= capture must outlive the scope, which it
+  does here since the guard shares that scope. Do not capture by reference a
+  local that is destroyed before the guard, and do not move a =defer= out to a
+  wider scope (it cannot be moved anyway).
+- *Scope, not function.* The guard fires at the end of its enclosing block. A
+  guard in an =if= body runs when that body ends, which is usually what you
+  want, but place it deliberately.
+
+* Comparison with the standard library
+
+| facility                        | cancel   | owns a value | since        |
+|---------------------------------+----------+--------------+--------------|
+| =defer= (this)                  | no       | no           | now          |
+| =scope_guard= (sibling)         | yes      | no           | now          |
+| =std::experimental::scope_exit= | yes      | no           | LFS v3       |
+| =unique_resource= (sibling)     | via release | yes       | now          |
+
+=defer= is the always-run member of the P0052 scope-guard family. It matches
+=std::experimental::scope_exit= in intent but drops the =release= (dismiss)
+call, so it is strictly the unconditional case: choose it when the cleanup has
+no reason to be cancelled, and choose [[file:scope_guard.org][scope_guard]] when
+it does. Neither owns a value; to own a handle and run a deleter on it, use
+[[file:unique_resource.org][unique_resource]].
 
 Runnable: [[file:../../../examples/utility/defer.cpp][examples/utility/defer.cpp]]
