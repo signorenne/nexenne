@@ -16,4 +16,5 @@ nexenne_add_module_tests(can
         test_byte_field.cpp
         test_j1939_transport.cpp
         test_signal.cpp
+        test_dbc.cpp
 )
