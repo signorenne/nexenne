@@ -68,7 +68,10 @@ TEST_CASE("nexenne::utility::unique_resource double release is safe and idempote
   auto const first{r.release()};
   auto const second{r.release()};  // already non-owning
   CHECK(first == 7);
-  CHECK(second == 7);  // resource value still readable, deleter disarmed
+  // The stored value is moved-from after release; an int handle is trivially
+  // copyable, so its moved-from state happens to keep the value. A move-only
+  // resource would NOT still be readable here (see the unique_ptr release test).
+  CHECK(second == 7);
   CHECK_FALSE(r.owns());
   CHECK(closes == 0);
 }
@@ -212,6 +215,63 @@ TEST_CASE("nexenne::utility::unique_resource owns a unique_ptr as a move-only re
   CHECK(observed == 3);  // deleter saw the live resource before reset cleared owns
 }
 
+TEST_CASE(
+  "nexenne::utility::unique_resource move-construct transfers a move-only resource faithfully"
+) {
+  int observed{0};
+  {
+    auto a{util::unique_resource{std::make_unique<int>(5), [&](std::unique_ptr<int>& p) {
+                                   if (p) {
+                                     observed = *p;
+                                   }
+                                 }}};
+    auto b{std::move(a)};
+    CHECK_FALSE(a.owns());
+    CHECK(a.get() == nullptr);  // the moved-from unique_ptr resource is null
+    CHECK(b.owns());
+    REQUIRE(b.get() != nullptr);
+    CHECK(*b.get() == 5);
+    CHECK(observed == 0);
+  }
+  CHECK(observed == 5);  // only the destination's deleter saw the live pointer
+}
+
+TEST_CASE("nexenne::utility::unique_resource move-assign transfers a move-only resource") {
+  std::vector<int> observed;
+  using owner =
+    util::unique_resource<std::unique_ptr<int>, std::function<void(std::unique_ptr<int>&)>>;
+  {
+    owner a{std::make_unique<int>(1), [&](std::unique_ptr<int>& p) {
+              if (p) {
+                observed.push_back(*p);
+              }
+            }};
+    owner b{std::make_unique<int>(2), [&](std::unique_ptr<int>& p) {
+              if (p) {
+                observed.push_back(100 + *p);
+              }
+            }};
+    a = std::move(b);
+    CHECK(observed == std::vector{1});  // a's old resource released on assignment
+    CHECK(a.owns());
+    REQUIRE(a.get() != nullptr);
+    CHECK(*a.get() == 2);
+    CHECK_FALSE(b.owns());
+  }
+  CHECK(observed == std::vector{1, 102});  // b's deleter travelled with b's resource
+}
+
+TEST_CASE(
+  "nexenne::utility::unique_resource release on a move-only resource leaves get() moved-from"
+) {
+  auto r{util::unique_resource{std::make_unique<int>(9), [](std::unique_ptr<int>&) {}}};
+  auto const held{r.release()};
+  REQUIRE(held != nullptr);
+  CHECK(*held == 9);
+  CHECK_FALSE(r.owns());
+  CHECK(r.get() == nullptr);  // moved-from unique_ptr: null, not the old value
+}
+
 TEST_CASE("nexenne::utility::unique_resource move-assign releases the old resource") {
   int closes_a{0};
   int closes_b{0};
@@ -241,6 +301,30 @@ TEST_CASE("nexenne::utility::unique_resource move-assign from a non-owning sourc
   CHECK(closes_b == 0);
 }
 
+TEST_CASE("nexenne::utility::unique_resource move-assign rebuilds a non-assignable lambda deleter"
+) {
+  // A capturing lambda has no assignment operator, so the assignment must
+  // transfer it by destroy-and-reconstruct (transfer_member); that transfer is
+  // nothrow because the lambda's move constructor is.
+  std::vector<int> closed;
+  auto const make{[&closed](int const v) {
+    return util::unique_resource{v, [&closed](int const x) { closed.push_back(x); }};
+  }};
+
+  auto a{make(1)};
+  auto b{make(2)};
+  static_assert(std::is_nothrow_move_assignable_v<decltype(a)>);
+  static_assert(std::is_nothrow_move_constructible_v<decltype(a)>);
+
+  a = std::move(b);
+  CHECK(closed == std::vector{1});  // a's old resource released on assignment
+  CHECK(a.owns());
+  CHECK(a.get() == 2);
+  CHECK_FALSE(b.owns());
+  a.reset();
+  CHECK(closed == std::vector{1, 2});  // the transferred deleter still records into closed
+}
+
 TEST_CASE("nexenne::utility::unique_resource self-move and double-reset are safe") {
   int closes{0};
   auto r{util::unique_resource{1, [&](int) { ++closes; }}};
@@ -265,6 +349,49 @@ TEST_CASE("nexenne::utility::unique_resource deleter observes the current resour
   r.reset();  // deletes 30
   CHECK(closed == std::vector{10, 20, 30});
 }
+
+// A deleter whose special members can throw, for the conditional-noexcept
+// static assertions below. Declarations suffice: the traits never call them.
+struct throwing_move_deleter {
+  throwing_move_deleter() = default;
+  throwing_move_deleter(throwing_move_deleter&&) noexcept(false);
+  throwing_move_deleter(throwing_move_deleter const&) = default;
+  auto operator=(throwing_move_deleter&&) noexcept(false) -> throwing_move_deleter&;
+  auto operator=(throwing_move_deleter const&) -> throwing_move_deleter& = default;
+  ~throwing_move_deleter() = default;
+
+  auto operator()(int) const -> void;
+};
+
+// The moves are conditionally noexcept: nothrow members give nothrow moves,
+// and a member with throwing special members surfaces in the specification.
+static_assert(
+  std::is_nothrow_move_constructible_v<util::unique_resource<int, void (*)(int)>>,
+  "nothrow-movable members give a noexcept move constructor"
+);
+static_assert(
+  std::is_nothrow_move_assignable_v<util::unique_resource<int, void (*)(int)>>,
+  "nothrow-assignable members give a noexcept move assignment"
+);
+static_assert(
+  !std::is_nothrow_move_constructible_v<util::unique_resource<int, throwing_move_deleter>>,
+  "a throwing-move deleter gives a potentially-throwing move constructor"
+);
+static_assert(
+  !std::is_nothrow_move_assignable_v<util::unique_resource<int, throwing_move_deleter>>,
+  "a throwing-assign deleter gives a potentially-throwing move assignment"
+);
+
+// The owning constructor is likewise conditionally noexcept, per P0052.
+static_assert(
+  std::is_nothrow_constructible_v<util::unique_resource<int, void (*)(int)>, int, void (*)(int)>,
+  "nothrow-movable members give a noexcept owning constructor"
+);
+static_assert(
+  !std::is_nothrow_constructible_v<
+    util::unique_resource<int, throwing_move_deleter>, int, throwing_move_deleter>,
+  "a throwing-move deleter gives a potentially-throwing owning constructor"
+);
 
 // unique_resource is move-only, never copyable.
 static_assert(
