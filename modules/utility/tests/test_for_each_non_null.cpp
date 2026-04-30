@@ -15,6 +15,14 @@ namespace {
 
 using nexenne::utility::for_each_non_null;
 
+// Detection wrapped in named concepts: GCC reports a bare
+// !requires { for_each_non_null(...); } whose only candidate is removed by an
+// unsatisfied constraint as a hard error rather than an unsatisfied
+// requirement, so the negative checks below go through a concept where the
+// removal soft-fails cleanly.
+template <typename Range, typename Fn>
+concept applies_to = requires(Range range, Fn fn) { for_each_non_null(range, fn); };
+
 }  // namespace
 
 TEST_CASE("nexenne::utility::for_each_non_null skips null raw pointers") {
@@ -55,3 +63,38 @@ TEST_CASE("nexenne::utility::for_each_non_null on an all-null range calls nothin
   for_each_non_null(ptrs, [&calls](int&) { ++calls; });
   CHECK(calls == 0);
 }
+
+TEST_CASE("nexenne::utility::for_each_non_null invokes a pointer to member via std::invoke") {
+  struct sink {
+    int flushes{0};
+
+    auto flush() -> void {
+      ++flushes;
+    }
+  };
+
+  sink a;
+  sink b;
+  auto const ptrs{std::array<sink*, 3>{&a, nullptr, &b}};
+
+  // The callable goes through std::invoke, so a pointer to member of the
+  // pointee type works directly.
+  for_each_non_null(ptrs, &sink::flush);
+  CHECK(a.flushes == 1);
+  CHECK(b.flushes == 1);
+}
+
+// The constraint has two legs: the elements must compare to nullptr, and the
+// callable must accept the dereferenced element.
+static_assert(
+  applies_to<std::vector<int*>, void (*)(int&)>,
+  "a pointer range with a matching callable is accepted"
+);
+static_assert(
+  !applies_to<std::vector<int>, void (*)(int&)>,
+  "a range of non-pointer values is rejected: no nullptr comparison"
+);
+static_assert(
+  !applies_to<std::vector<int*>, void (*)(std::vector<int>&)>,
+  "a callable that cannot take the pointee is rejected"
+);
