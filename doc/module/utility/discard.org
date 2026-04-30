@@ -4,54 +4,92 @@
 
 * Purpose
 
-=nexenne::utility::discard= evaluates its arguments and throws the results away,
-giving an explicit, greppable replacement for the C-style =(void)expr= and
-=static_cast<void>(expr)= idioms, which the style guide bans.
+=nexenne::utility::discard= evaluates its arguments and throws the results away.
+It is the explicit, greppable replacement for the =(void)expr= and
+=static_cast<void>(expr)= idioms, both of which the style guide bans.
 
-* The idea
+* The problem it solves
 
-Code sometimes needs to evaluate something only for its side effects, or to
-deliberately ignore a =[[nodiscard]]= return, or to mark a variable as
-intentionally touched. The traditional spelling is a void cast, which is a
-cast smell and easy to skim past. =discard= turns that into a named function
-call that reads as a verb: the intent is in the name, not hidden in a cast.
+Sometimes a value must be computed but not used: a =[[nodiscard]]= result the
+caller genuinely does not need, an expression evaluated only for its side
+effect, or a variable kept alive on purpose whose name a reader might otherwise
+delete as dead code. The C and C++ tradition is to write =(void)x= or
+=static_cast<void>(x)=. This repo bans both, for two reasons:
+
+- A cast is a smell. =(void)x= and =static_cast<void>(x)= read as type
+  surgery, not as intent, and they are easy to skim past in review. A named call
+  says what is happening: this value is deliberately dropped.
+- Casts to =void= are hard to search for and easy to overload with other
+  meanings. A single named function is one thing to grep, one thing to audit,
+  and one place to hang a comment.
+
+=discard= turns the drop into a verb: the intent lives in the name, not hidden
+in a cast.
 
 * How it works
 
-=discard= is a single variadic function template,
-=template <typename... Ts> constexpr void discard(Ts&&...) noexcept {}=. Each
-argument is evaluated at the call site (so side effects happen and any exception
-thrown while computing an argument still propagates), bound to a forwarding
-reference, and then ignored because the body is empty. Passing a value as a
-function argument counts as a use, so a =[[nodiscard]]= result is consumed
-without a warning. It is =constexpr= and =noexcept=, and because the body does
-nothing the compiler inlines it to nothing.
+=discard= is a single variadic function template:
 
-For a *named* declaration that may go unused, prefer the standard
-=[[maybe_unused]]= attribute on the declaration; =discard= is for an unnamed
-result or for marking an existing variable as deliberately used.
+#+BEGIN_EXAMPLE
+template <typename... Ts>
+constexpr auto discard(Ts&&... args) noexcept -> void {}
+#+END_EXAMPLE
 
-* When to use it
+Each argument is evaluated at the call site, so side effects happen and any
+exception thrown while computing an argument still propagates. Each is bound to
+a forwarding reference and then ignored because the body is empty. Passing a
+value as a function argument counts as a use, so a =[[nodiscard]]= result is
+consumed without a warning. It is =constexpr= and =noexcept=, and because the
+body does nothing the compiler inlines it away to nothing.
 
-Reach for =discard= to drop a =[[nodiscard]]= return you genuinely do not need
-(=discard(resource.release())=), to keep a RAII variable alive while saying so
-out loud (=discard(connection)=), or to evaluate something purely for its side
-effect. Anywhere you would once have written =(void)x= or =static_cast<void>(x)=.
+For a *named* declaration that merely might go unused, the standard
+=[[maybe_unused]]= attribute on the declaration is the right tool; =discard= is
+for an *unnamed* result, or for marking an existing variable as deliberately
+touched.
 
-Alternatives: =[[maybe_unused]]= on the declaration when the entity is named and
-simply might not be read; an actual use of the value when one exists.
+* API tour
 
-GOTCHAS. =discard= does not suppress evaluation, it forces it: every argument is
-computed. It is not a way to silence "this could be const" or similar lints, only
-to discard a value. Do not use it to discard a =volatile= read that must stay
-observable (for example a benchmark sink): binding to a reference does not
-perform the read.
+- =discard(args...)= : evaluates every argument, in order, and discards the
+  results. =constexpr=, =noexcept=, variadic.
+
+That is the whole surface. There is no return, no state, and no configuration.
 
 * Usage
 
 #+BEGIN_SRC cpp
-auto const guard{make_scope_guard()};
-nexenne::utility::discard(guard);              // kept alive on purpose
+// Drop a [[nodiscard]] result we do not need.
+nexenne::utility::discard(try_reserve(buffer, 1024));
 
-nexenne::utility::discard(resource.release()); // drop a [[nodiscard]] result
+// Evaluate several side-effecting calls and drop all their results at once.
+nexenne::utility::discard(bump(), bump());
+
+// For a named declaration that might be unused, prefer the attribute:
+[[maybe_unused]] std::size_t const cap{buffer.capacity()};
 #+END_SRC
+
+* Pitfalls
+
+- *It forces evaluation, it does not suppress it.* Every argument is computed;
+  =discard= only drops the value afterwards.
+- *It is not a lint silencer beyond unused results.* It does not quiet "this
+  could be =const=" or similar diagnostics, only the unused-value and
+  =[[nodiscard]]= warnings.
+- *Not for a volatile read that must stay observable.* Binding to a reference
+  does not perform a =volatile= load, so =discard= is the wrong tool for a
+  benchmark sink that must force a memory read.
+
+* Comparison with the standard library
+
+| technique                         | greppable | evaluates | style-guide status |
+|-----------------------------------+-----------+-----------+--------------------|
+| =discard(x)= (this)               | yes       | yes       | required           |
+| =(void)x=                         | no        | yes       | banned             |
+| =static_cast<void>(x)=            | no        | yes       | banned             |
+| =[[maybe_unused]]= on a name      | n/a       | n/a       | preferred for names |
+
+The standard library has no equivalent named helper: the closest tools are the
+two void casts this type replaces, and the =[[maybe_unused]]= attribute for
+named declarations. Reach for =discard= to drop an unnamed value, and for
+=[[maybe_unused]]= when the entity has a name and simply might not be read.
+
+Runnable: [[file:../../../examples/utility/discard.cpp][examples/utility/discard.cpp]]
