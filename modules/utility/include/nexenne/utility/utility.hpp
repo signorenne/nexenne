@@ -7,10 +7,14 @@
 
 #include <nexenne/utility/align.hpp>
 #include <nexenne/utility/bit.hpp>
+#include <nexenne/utility/buffer_cursor.hpp>
 #include <nexenne/utility/defer.hpp>
+#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/endian.hpp>
 #include <nexenne/utility/enum_to_string.hpp>
 #include <nexenne/utility/expected_utils.hpp>
 #include <nexenne/utility/flags.hpp>
+#include <nexenne/utility/for_each_non_null.hpp>
 #include <nexenne/utility/function_ref.hpp>
 #include <nexenne/utility/hash.hpp>
 #include <nexenne/utility/in_place_function.hpp>
