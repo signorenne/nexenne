@@ -49,7 +49,7 @@ namespace {
 //
 // A device id and a firmware slot are both just integers, but mixing them is a
 // real bug (provisioning device 7 into slot 3, say). strong_typedef brands each
-// with its own tag, so the compiler rejects `dev == slot` and `dev + slot`.
+// with its own tag, so the compiler rejects dev == slot and dev + slot.
 //
 //   - identifier<Tag, T>: comparable and hashable, but NO arithmetic - exactly
 //     what an opaque handle wants (you never "add two device ids").
@@ -109,7 +109,7 @@ struct device_record {
 // The core operation. It validates a request, leases hardware, edits the
 // registry, and either commits or rolls everything back - all without throwing.
 //
-// 7. `registry` is non_null: a provisioner with no registry is nonsense, so we
+// 7. registry is non_null: a provisioner with no registry is nonsense, so we
 //    encode "must be present" in the type. Passing nullptr will not compile, and
 //    the body needs no defensive null check.
 auto provision(
@@ -174,7 +174,7 @@ auto provision(
 
   rollback.dismiss();  // success: keep the appended record
   report("committed");
-  // `programmer`'s releaser fires here, exactly once, as the scope unwinds.
+  // the programmer resource releaser fires here, exactly once, as the scope unwinds.
   return {};
 }
 
