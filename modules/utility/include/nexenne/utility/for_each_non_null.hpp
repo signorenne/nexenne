@@ -5,6 +5,7 @@
  * @brief Apply a callable to every non-null element of a range.
  */
 
+#include <concepts>
 #include <functional>
 #include <ranges>
 
@@ -20,9 +21,10 @@ namespace nexenne::utility {
  * and passed to \p fn by reference, so the callback never sees a null and never
  * has to dereference by hand.
  *
- * @tparam Range Input range whose elements are comparable to \c nullptr and
- *               dereferenceable.
- * @tparam Fn Callable invocable with \c *element.
+ * @tparam Range Input range whose elements are equality-comparable to
+ *               \c nullptr and dereferenceable.
+ * @tparam Fn Callable invocable via \c std::invoke with \c *element, so a
+ *            pointer to member of the pointee type also works.
  * @param range Range of pointer-like elements to scan.
  * @param fn Callable applied to each non-null element's pointee.
  *
@@ -37,7 +39,10 @@ namespace nexenne::utility {
  * \endcode
  */
 template <std::ranges::input_range Range, typename Fn>
-  requires requires(Fn& fn, std::ranges::range_reference_t<Range> element) { fn(*element); }
+  requires requires(Fn& fn, std::ranges::range_reference_t<Range> element) {
+    { element != nullptr } -> std::convertible_to<bool>;
+    std::invoke(fn, *element);
+  }
 constexpr auto for_each_non_null(Range&& range, Fn fn) -> void {
   for (auto&& element : range) {
     if (element != nullptr) {
