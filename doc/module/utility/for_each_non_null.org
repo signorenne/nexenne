@@ -5,48 +5,110 @@
 * Purpose
 
 =nexenne::utility::for_each_non_null= applies a callable to the pointee of every
-element of a range that is not null, replacing the ubiquitous "iterate, skip the
-nulls, dereference the rest" loop over a container of pointer-like handles.
+element of a range that is not null, replacing the "iterate, skip the nulls,
+dereference the rest" loop over a container of pointer-like handles.
 
-* The idea
+* The problem it solves
 
 Collections of optional handles are everywhere: a list of sinks, a slot table of
-=shared_ptr=, an array of raw back-pointers. Acting on them always means the same
-three-line dance: loop, test against =nullptr=, dereference. Written out at every
-call site the null check is easy to forget and the dereference is done by hand.
-This helper does the check once and hands the callback a guaranteed-live
-reference.
+=std::shared_ptr=, an array of raw back-pointers, a span of =non_null= that some
+entries left empty. Acting on them always means the same three-line dance: loop,
+test against =nullptr=, dereference. Written out at every call site the null
+check is easy to forget, and the dereference is done by hand on every branch.
+The repetition is exactly where a stray =sink->write= slips past a null.
+
+=for_each_non_null= does the check once and hands the callback a
+guaranteed-live reference, so the callback reads as an operation on the thing,
+never on the pointer.
 
 * How it works
 
-=for_each_non_null= is a function template over an =std::ranges::input_range= and
-a callable. It iterates the range, compares each element to =nullptr=, and for
-the survivors calls =std::invoke(fn, *element)=, passing the *pointee* by
-reference, so the callback never sees a null and never dereferences. A
-=requires= clause checks that =fn(*element)= is well formed, so a mismatched
-callback fails with a clear error at the call. It works for any pointer-like
-element (raw pointer, =shared_ptr=, =unique_ptr=, =non_null=) and inlines to the
-same loop you would have written.
+** The traversal
 
-* When to use it
+=for_each_non_null= iterates the range, compares each element to =nullptr=, and
+for the survivors calls =std::invoke(fn, *element)=, passing the *pointee* by
+reference. The callback never sees a null and never dereferences by hand. The
+body is the loop you would have written, so it inlines to the same code:
 
-Use it to run an action over a container of optional handles: dispatch a record
-to every live sink, flush every open file, notify every connected observer.
-The callback takes the dereferenced element, so it reads as an operation on the
-thing rather than on the pointer.
+#+BEGIN_EXAMPLE
+for (auto&& element : range) {
+  if (element != nullptr) {
+    std::invoke(fn, *element);
+  }
+}
+#+END_EXAMPLE
 
-Alternatives: =range | std::views::filter(...)= when you want a lazy view to
-compose further rather than an eager action; a plain loop when you also need the
-index, the pointer itself, or early exit.
+** The constraint design
 
-GOTCHAS. The callback receives =*element=, not the pointer, so write
-=[](sink& s){ s.write(r); }=, not =s->write(r)=. The traversal is eager and runs
-to completion; it has no break, so use a plain loop when you need to stop early.
-Nulls are skipped silently, which is the point, but it means an all-null range
-simply calls nothing.
+The signature is constrained so a mismatched call fails clearly at the call site
+rather than deep inside the loop body. The =requires= clause, over an
+=std::ranges::input_range= and a callable =Fn=, asserts two things about a range
+element:
+
+- =element != nullptr= is well formed and convertible to =bool=, so the element
+  is nullable. This admits raw pointers, =std::shared_ptr=, =std::unique_ptr=,
+  and [[file:non_null.org][non_null]] alike.
+- =std::invoke(fn, *element)= is well formed, so the callback actually accepts
+  the dereferenced element.
+
+Because the invocation goes through =std::invoke= rather than a plain =fn(...)=
+call, the callable is not limited to a function object.
+
+** Pointer-to-member support
+
+=std::invoke= is what makes a pointer to member a valid callable: passing
+=&type::method= turns =std::invoke(&type::method, *element)= into
+=(*element).method()=, and =&type::field= reads the member. So
+=for_each_non_null(handles, &sink::flush)= calls =flush()= on every live sink
+with no wrapping lambda. The same mechanism accepts a free function, a lambda,
+or any other callable.
+
+* API tour
+
+- =for_each_non_null(range, fn)= : invoke =fn= on the pointee of each non-null
+  element of =range=, in order. Returns =void=; the traversal is eager and
+  cannot break early.
+
+Complexity is =O(n)= in the size of =range=, plus the cost of =fn=.
 
 * Usage
 
 #+BEGIN_SRC cpp
-nexenne::utility::for_each_non_null(m_sinks, [&](auto& sink) { sink.write(r); });
+// A slot table where some entries are empty (null).
+std::array<sink*, 5> const sinks{&a, nullptr, &b, nullptr, &c};
+
+// The callback only ever sees a live sink.
+nexenne::utility::for_each_non_null(sinks, [&](sink& s) { s.write(record); });
+
+// A pointer to member is a callable: flush() runs on each non-null element.
+nexenne::utility::for_each_non_null(owned, &sink::flush);
 #+END_SRC
+
+* Pitfalls
+
+- *The callback receives =*element=, not the pointer.* Write
+  =[](sink& s){ s.write(r); }= or =&sink::write=, not =s->write(r)=.
+- *No early exit.* The traversal is eager and runs to completion. When you need
+  to stop early, or you also want the index or the pointer itself, use a plain
+  loop.
+- *Nulls are skipped silently.* That is the point, but it means an all-null
+  range simply calls nothing; do not rely on the callback to observe emptiness.
+
+* Comparison with the standard library
+
+| approach                                    | skips null | eager | early exit |
+|---------------------------------------------+------------+-------+------------|
+| =for_each_non_null= (this)                  | yes        | yes   | no         |
+| =std::ranges::for_each=                     | no         | yes   | no         |
+| =std::views::filter(...)=                   | you write it | lazy | via the consumer |
+| raw =for= loop                              | you write it | yes | yes        |
+
+The standard =std::ranges::for_each= visits every element, so you still write
+the null test and the dereference inside the callback. =std::views::filter=
+gives a lazy view you can compose further, but you supply the predicate and the
+callback still receives the pointer, not the pointee. =for_each_non_null= is the
+eager, act-now shorthand for the common case: skip the nulls, hand the callback
+a live reference. Reach for a filter view when you want to keep composing, and a
+plain loop when you need the index or an early break.
+
+Runnable: [[file:../../../examples/utility/for_each_non_null.cpp][examples/utility/for_each_non_null.cpp]]
