@@ -5,62 +5,102 @@
 * Purpose
 
 =nexenne::utility::lazy= defers an expensive computation until the value is
-actually needed, then caches it. The factory runs at most once and later
-accesses return the cached value.
+first used, runs the factory at most once (even under concurrent first access),
+and caches the result for every later access.
 
-* The idea
+* The problem it solves
 
-It is thread-safe: the factory is synchronised with =std::call_once=, so under
-concurrent first access it still runs exactly once. Because the synchronisation
-primitive (=std::once_flag=) is neither movable nor resettable, =lazy= is
-itself non-movable and offers no =reset()=, so a factory that has already
-succeeded cannot be re-run. If the factory throws, nothing is cached and
-the next access retries. Construct it in place with class template argument
-deduction; do not try to move or reset it.
+Some values are costly to build and not always needed: a parsed configuration,
+a compiled regex, a big lookup table, a connection. Building them eagerly at
+startup wastes work when the value is never touched; building them by hand on
+first use invites the classic bugs. A plain "if empty then build" check is a
+data race when two threads reach it at once, and a mutex around every read is
+slower than it needs to be once the value exists.
+
+=lazy= packages the correct version once: the factory runs on first access,
+exactly one thread runs it even in a race, the result is memoised, and later
+reads take a lock-free fast path. You get pay-on-first-use semantics without
+writing the synchronisation yourself.
 
 * How it works
 
-A =lazy= stores the factory callable, an empty =std::optional<value_type>=, a
-=std::once_flag=, and an atomic =ready= flag (=value_type= is deduced as the
-factory's result type). Every accessor, =get=, =operator*=, and =operator->=,
-routes through one private =materialise= step that calls =std::call_once=: the
-first caller runs the factory, emplaces its result into the optional, and
-publishes the =ready= flag with release ordering; every later caller skips
-straight to the cached value. The cache, factory, and flags are =mutable=, so a
-=const lazy= still materialises on first access and a const accessor hands back a
-=value_type const&=.
+** Layout
 
-=has_value()= reads the atomic =ready= flag with acquire ordering, so it is safe to
-poll from another thread while a first access is in flight and only reports =true=
-once the cached value is fully visible. It does *not* trigger the factory: it
-observes, the dereferencing accessors compute.
+A =lazy= holds the factory, the cache, and two synchronisation members. The
+value type is deduced as the factory's result type.
 
-Construct with CTAD, =lazy{factory}=, which the deduction guide resolves to
-=lazy<Factory>=. The factory is stored by value (templated, so a captureless or
-capturing lambda inlines with no =std::function= indirection) rather than type
-erased.
+#+BEGIN_EXAMPLE
+lazy<Factory> holding [] { return load_config(); }
 
-* When to use it
+  +--------------------------------------------------+
+  | m_once   : std::once_flag        one-shot guard  |
+  | m_ready  : std::atomic<bool>{false}   fast path  |
+  | m_value  : std::optional<value_type>{}   cache   |
+  | m_factory: Factory        stored by value        |
+  +--------------------------------------------------+
+#+END_EXAMPLE
 
-Reach for =lazy= for a value that is expensive to build and might not be needed:
-a parsed config, a compiled regex, a connection, a big lookup table. It pays the
-cost on first touch, memoises the result, and is safe to share across threads.
+The factory is stored by value, not type-erased, so a captureless or capturing
+lambda inlines with no =std::function= indirection. All four members are
+=mutable=, so a =const lazy= can still materialise on first access.
 
-The gotchas:
+** call_once and the release/acquire fast path
 
-- It is *non-movable* and *non-copyable*, and there is deliberately no =reset()=.
-  Once the factory has succeeded the value is fixed for the object's lifetime, so
-  =lazy= cannot live in a container that relocates its elements, nor be reseated;
-  hold it behind a stable address (a member, a =unique_ptr=) if you need to move
-  the owner.
-- The factory runs *at most once on success*. If you need a value that can be
-  invalidated and recomputed, =lazy= is the wrong tool.
-- On a throwing factory nothing is cached and the *next* access retries, so a
-  factory with side effects may run its prefix more than once across failed
-  attempts; keep the factory's failure path clean.
-- Every accessor (including the const ones and =operator->=) can run the factory
-  on first call, so the first dereference of even a =const lazy= is where the work
-  and any exception actually happen.
+Every accessor (=get=, =operator*=, =operator->=) routes through one private
+=materialise= step:
+
+#+BEGIN_EXAMPLE
+value_type& materialise() const {
+  std::call_once(m_once, [&] {
+    m_value.emplace(std::invoke(m_factory));   // build once
+    m_ready.store(true, std::memory_order_release);
+  });
+  return *m_value;
+}
+#+END_EXAMPLE
+
+=std::call_once= guarantees the lambda runs exactly once across all threads:
+the first caller runs the factory and emplaces the result, and any thread that
+races on the first access blocks until that completes, then observes the same
+cached value. Concurrent first access is therefore safe and never double-builds.
+
+Separately, =has_value()= is a lock-free query that does not touch
+=std::call_once= at all:
+
+#+BEGIN_EXAMPLE
+bool has_value() const noexcept {
+  return m_ready.load(std::memory_order_acquire);
+}
+#+END_EXAMPLE
+
+The factory publishes =m_ready= with =memory_order_release= after the value is
+fully constructed, and =has_value= reads it with =memory_order_acquire=. That
+release/acquire pair means a thread which sees =m_ready == true= is guaranteed
+to also see the fully built value: there is no window where readiness is visible
+but the value is not. So another thread can poll =has_value= while a first
+access is in flight without locking, and only ever observes =true= once the
+value is safe to read. =has_value= observes; the dereferencing accessors
+compute.
+
+** Non-movable, no reset
+
+=std::once_flag= is neither movable nor resettable, so =lazy= is itself
+non-movable and non-copyable and offers no =reset=. Once the factory has
+succeeded the value is fixed for the object's lifetime. If the factory throws,
+nothing is cached, =m_ready= stays =false=, and the next access retries.
+
+Construct with class template argument deduction, =lazy{factory}=, which the
+guide resolves to =lazy<Factory>=.
+
+* API tour
+
+- =lazy(Factory f)= : moves the factory in; does not run it yet.
+- =get()= / =get() const= : the cached value, running the factory on first call.
+- =operator*()= : same, as a dereference.
+- =operator->()= : member access on the cached value, running it on first call.
+- =has_value()= : lock-free query, =true= once the value is materialised;
+  never triggers the factory.
+- =value_type= : the factory's result type; =factory_type= : the factory type.
 
 * Usage
 
@@ -69,13 +109,43 @@ auto config{nexenne::utility::lazy{[] { return load_config(); }}};
 
 bool const before{config.has_value()};  // false: factory not yet run
 
-std::string const& cfg{*config};        // factory fires here, once
+std::string const& cfg{*config};        // factory fires here, exactly once
 bool const after{config.has_value()};   // true
 
 std::size_t const len{config->size()};  // cached: no re-run
 #+END_SRC
 
-Access via =operator*=, =get()= or =operator->=; query readiness with
-=has_value()=.
+Under concurrent first access the factory still runs once. Several threads that
+all dereference for the first time will block on =std::call_once=, run the
+factory a single time, and read the same value.
+
+* Pitfalls
+
+- *Non-movable, non-copyable, no reset.* Once built, the value is fixed. A
+  =lazy= cannot live in a container that relocates its elements; hold it behind
+  a stable address (a class member, a =std::unique_ptr=) if the owner must move.
+- *At most once on success.* If you need a value that can be invalidated and
+  recomputed, =lazy= is the wrong tool.
+- *A throwing factory retries.* On failure nothing is cached and the next access
+  runs the factory again, so a factory with side effects may run its prefix more
+  than once across failed attempts. Keep the failure path clean.
+- *Even the const accessors and =operator->= can build.* The first dereference
+  of a =const lazy= is where the work and any exception actually happen.
+
+* Comparison with the standard library
+
+| approach                          | thread-safe first build | caches value | re-runnable |
+|-----------------------------------+-------------------------+--------------+-------------|
+| =lazy= (this)                     | yes (=call_once=)       | yes          | no          |
+| raw =std::call_once= + a member   | yes                     | you write it | no          |
+| =static= local (Meyers singleton) | yes                     | yes          | no          |
+| =std::optional= + manual check    | no (racy)               | yes          | yes         |
+
+=lazy= is =std::call_once= plus a cache and a lock-free ready flag, packaged as
+a value you can hold as a member. A function-local =static= gives the same
+thread-safe once-only initialisation but only at namespace or block scope and
+cannot be reset or queried; =lazy= makes the memoised value a first-class object
+with a =has_value= query. A hand-rolled =std::optional= with an "if empty build"
+check is the racy version =lazy= exists to replace.
 
 Runnable: [[file:../../../examples/utility/lazy.cpp][examples/utility/lazy.cpp]]
