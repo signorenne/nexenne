@@ -21,6 +21,14 @@ namespace {
 
 namespace util = nexenne::utility;
 
+// Detection wrapped in a named concept: GCC reports a bare
+// !requires { typename util::lazy<F>; } whose specialisation is removed by an
+// unsatisfied constraint as a hard error rather than an unsatisfied
+// requirement, so the negative constraint checks go through this concept where
+// the removal soft-fails cleanly.
+template <typename Factory>
+concept caches_factory = requires { typename util::lazy<Factory>; };
+
 static_assert(
   !std::is_move_constructible_v<util::lazy<int (*)()>>, "lazy is non-movable (std::once_flag)"
 );
@@ -34,6 +42,27 @@ static_assert(!std::is_copy_assignable_v<util::lazy<int (*)()>>, "lazy is non-co
 static_assert(
   std::is_same_v<decltype(util::lazy{[] { return 0; }})::value_type, int>,
   "value_type deduces from the factory's return"
+);
+
+// The class constraint accepts only factories whose result can live in the
+// std::optional cache: an lvalue-invocable callable returning a non-void,
+// non-reference object type.
+static_assert(caches_factory<int (*)()>, "a value-returning factory satisfies the constraint");
+static_assert(
+  !caches_factory<void (*)()>, "a void-returning factory is rejected: there is nothing to cache"
+);
+static_assert(
+  !caches_factory<int& (*)()>,
+  "a reference-returning factory is rejected: the cache stores objects, not references"
+);
+struct rvalue_only_factory {
+  auto operator()() && -> int {
+    return 1;
+  }
+};
+static_assert(
+  !caches_factory<rvalue_only_factory>,
+  "a factory invocable only as an rvalue is rejected: materialise calls the stored lvalue"
 );
 
 TEST_CASE("nexenne::utility::lazy runs the factory once on first access") {
@@ -263,6 +292,20 @@ TEST_CASE("nexenne::utility::lazy retries multiple times until the factory succe
   // Once latched, no further attempts even after the earlier throws.
   CHECK(value.get() == 500);
   CHECK(attempts == 3);
+}
+
+TEST_CASE("nexenne::utility::lazy operator-> survives a value type with a hijacked operator&") {
+  struct hostile {
+    int v{5};
+
+    auto operator&() const -> hostile const* = delete;
+  };
+
+  // operator-> uses std::addressof, so the deleted overload is never chosen.
+  auto value{util::lazy{[] { return hostile{}; }}};
+  CHECK(value->v == 5);
+  value->v = 6;
+  CHECK(std::as_const(value)->v == 6);
 }
 
 TEST_CASE("nexenne::utility::lazy materialises exactly once under concurrent first access") {
