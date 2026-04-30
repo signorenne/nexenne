@@ -28,6 +28,8 @@
 
 #include <atomic>
 #include <concepts>
+#include <functional>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <type_traits>
@@ -44,13 +46,15 @@ namespace nexenne::utility {
  * reference; later accesses return the cached value without re-running the
  * factory. Concurrent first accesses are safe and run the factory exactly once.
  *
- * @tparam Factory Callable invocable with no arguments, returning the wrapped
- *                 value.
+ * @tparam Factory Callable invocable as an lvalue with no arguments, returning
+ *                 a non-void, non-reference object type (so it can be cached
+ *                 in a \c std::optional).
  *
  * @pre None.
  * @post A freshly constructed \c lazy has not yet run its factory.
  */
-template <std::invocable Factory>
+template <typename Factory>
+  requires std::invocable<Factory&> && std::is_object_v<std::invoke_result_t<Factory&>>
 class lazy {
 public:
   using value_type = std::invoke_result_t<Factory&>;
@@ -64,7 +68,7 @@ private:
 
   auto materialise() const -> value_type& {
     std::call_once(m_once, [this] {
-      m_value.emplace(m_factory());
+      m_value.emplace(std::invoke(m_factory));
       m_ready.store(true, std::memory_order_release);
     });
     return *m_value;
@@ -154,7 +158,7 @@ public:
    * @throws Anything the factory throws on the first call.
    */
   [[nodiscard]] auto operator->() -> value_type* {
-    return &materialise();
+    return std::addressof(materialise());
   }
 
   /**
@@ -168,7 +172,7 @@ public:
    * @throws Anything the factory throws on the first call.
    */
   [[nodiscard]] auto operator->() const -> value_type const* {
-    return &materialise();
+    return std::addressof(materialise());
   }
 
   /**
