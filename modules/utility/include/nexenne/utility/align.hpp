@@ -10,7 +10,10 @@
  * \c align_up, \c align_down, and \c is_aligned in an integral flavour (for
  * sizes and offsets) and a pointer flavour (for addresses). Every alignment
  * must be a non-zero power of two, asserted in debug; the mask trick the
- * formulas rely on is only correct for power-of-two alignments. The integral
+ * formulas rely on is only correct for power-of-two alignments. \c align_up
+ * additionally asserts in debug that \c value+(alignment-1) does not wrap, so a
+ * value above the last representable aligned boundary aborts instead of
+ * silently rounding to zero. The integral
  * overloads are \c constexpr; the pointer overloads are not, because they
  * round-trip through \c std::uintptr_t with \c reinterpret_cast, which a
  * constant expression forbids.
@@ -21,6 +24,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 namespace nexenne::utility {
 
@@ -37,7 +41,9 @@ namespace nexenne::utility {
  * @return The smallest multiple of \p alignment at least \p value.
  *
  * @pre \p alignment is a non-zero power of two (asserted in debug).
- * @pre \c value+(alignment-1) does not overflow \p Int.
+ * @pre \c value+(alignment-1) does not overflow \p Int, that is, \p value is at
+ *      most the largest multiple of \p alignment representable in \p Int
+ *      (asserted in debug).
  * @post The result is a multiple of \p alignment and at least \p value.
  *
  * @complexity \c O(1).
@@ -46,6 +52,11 @@ template <std::unsigned_integral Int>
 [[nodiscard]] constexpr auto align_up(Int const value, Int const alignment) noexcept -> Int {
   assert(
     alignment != 0 && std::has_single_bit(alignment) && "align: alignment must be a power of two"
+  );
+  // Written as a subtraction from max so the check itself cannot wrap.
+  assert(
+    value <= static_cast<Int>(std::numeric_limits<Int>::max() - (alignment - 1))
+    && "align: align_up overflows the value type"
   );
   return static_cast<Int>((value + (alignment - 1)) & ~(alignment - 1));
 }
@@ -111,7 +122,8 @@ template <std::unsigned_integral Int>
  *         address of \p ptr.
  *
  * @pre \p alignment is a non-zero power of two (asserted in debug).
- * @pre The rounded-up address does not overflow \c std::uintptr_t.
+ * @pre The rounded-up address does not overflow \c std::uintptr_t (asserted in
+ *      debug).
  * @post \c is_aligned on the result with the same \p alignment is \c true.
  *
  * @complexity \c O(1).
@@ -119,6 +131,15 @@ template <std::unsigned_integral Int>
 template <typename T>
 [[nodiscard]] auto align_up(T* const ptr, std::size_t const alignment) noexcept -> T* {
   auto const address{reinterpret_cast<std::uintptr_t>(ptr)};
+  assert(
+    alignment != 0 && std::has_single_bit(alignment) && "align: alignment must be a power of two"
+  );
+  // Written as a subtraction from max so the check itself cannot wrap.
+  assert(
+    address <= std::numeric_limits<std::uintptr_t>::max()
+                 - (static_cast<std::uintptr_t>(alignment) - 1)
+    && "align: align_up overflows the address space"
+  );
   return reinterpret_cast<T*>(align_up(address, static_cast<std::uintptr_t>(alignment)));
 }
 
