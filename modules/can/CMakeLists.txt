@@ -31,6 +31,7 @@ nexenne_add_module(can
         include/nexenne/can/error.hpp
         include/nexenne/can/error_frame.hpp
         include/nexenne/can/filter.hpp
+        include/nexenne/can/format.hpp
         include/nexenne/can/frame.hpp
         include/nexenne/can/id.hpp
         include/nexenne/can/io/loopback_bus.hpp
