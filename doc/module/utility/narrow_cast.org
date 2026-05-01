@@ -5,58 +5,117 @@
 * Purpose
 
 =nexenne::utility::narrow_cast= is a narrowing conversion that, in debug builds,
-asserts the value is preserved and the sign does not flip; under =NDEBUG= it
-compiles to exactly the underlying =static_cast=.
+asserts the value survives the conversion and the sign does not flip. Under
+=NDEBUG= it compiles to exactly the underlying =static_cast=.
 
-* The idea
+* The problem it solves
 
-A bare =static_cast= to a smaller type silently truncates, and the resulting
-bugs are hard to trace. =narrow_cast= casts, then asserts that casting the
-result back to the source type reproduces the original; it also rejects sign
-flips, since a round trip alone would accept =narrow_cast<unsigned>(-1)=. The
-tradeoff is that the safety net is debug-only: it documents intent and catches
-mistakes in testing at zero release-build cost, but it does not throw or clamp in
-production.
+A bare =static_cast= to a smaller type silently truncates, and the resulting bugs
+are hard to trace: a length stored into an =int=, a wide counter packed into a
+smaller wire type, an index believed to fit. =narrow_cast= makes the intent
+explicit and, during testing, turns a silent truncation into a loud abort. It
+casts, then asserts that casting the result back reproduces the original and that
+the sign did not change, so a value that does not fit fires an assert at the
+conversion site instead of corrupting data downstream. The safety net is
+debug-only by design: it documents intent and catches mistakes in testing at zero
+release-build cost, and it never throws or clamps in production.
 
 * How it works
 
-=narrow_cast<To>(from)= performs =static_cast<To>(from)= and, in debug builds,
-runs two checks before returning the result:
+** The round-trip and sign checks
+
+=narrow_cast<To>(from)= performs =static_cast<To>(from)= and, in debug, runs up
+to two checks before returning:
 
 1. A *round-trip* check: =static_cast<From>(result) == from=. If narrowing lost
-   information, casting back will not reproduce the original, and the assert
-   fires.
+   information, casting back cannot reproduce the original, and the assert fires.
+   This catches the common case (=narrow_cast<std::int16_t>(70000)=).
 2. A *sign* check, only when exactly one of =To= and =From= is signed and neither
-   is floating point: the result and the source must have the same sign. This
-   catches the case the round trip alone would wave through, for example
-   =narrow_cast<unsigned>(-1)=, which round-trips cleanly through the maximum value
-   yet is almost always a bug.
+   is floating point: the result and the source must share a sign. The round trip
+   alone would wave through =narrow_cast<unsigned>(-1)=, which maps to the maximum
+   value and back unchanged yet is almost always a bug; the sign check rejects it.
 
-Both operands must be arithmetic (a =requires= clause enforces it), the function
-is =constexpr= and =noexcept=, and the result is =[[nodiscard]]=. Under =NDEBUG=
-the asserts vanish and the call compiles to exactly the underlying =static_cast=,
-so there is no release-build cost.
+Both operands must be arithmetic (a =requires= clause enforces it). The function
+is =constexpr=, so a violation in a constant expression is a compile error rather
+than a runtime abort, and it is =[[nodiscard]]=. Under =NDEBUG= the asserts
+vanish and the call is exactly the =static_cast=.
 
-* When to use it
+** The float-to-integer pre-check, and NaN
 
-Reach for =narrow_cast= at a deliberate narrowing: storing a =std::size_t= length
-in an =int= field, packing a wide counter into a smaller wire type, indexing with
-a value you believe fits. It documents that the narrowing is intentional and turns
-a silent truncation into a loud failure during testing.
+A floating-point source narrowing to an integral target needs one extra step
+*before* the cast. A =static_cast= of a floating-point value that is out of the
+target's range (or is NaN) is itself undefined behaviour, so the round-trip check
+could never run: the undefined cast happens first. =narrow_cast= therefore
+range-checks the source in the floating-point domain before casting, and only
+then performs the conversion.
 
-The gotcha that surprises people is that the guarantee is *debug-only*. Under
-=NDEBUG= a value that does not fit is *silently* truncated exactly as a plain
-=static_cast= would, with no throw and no clamp. So =narrow_cast= is for values you
-*expect* to fit and want verified in testing, not for validating untrusted input:
-when an out-of-range value is genuinely possible at runtime, range-check it
-yourself and handle the failure (clamp, reject, or report), then narrow. It is
-also arithmetic-only and does not narrow pointers, enums, or class types.
+The range check compares against exact power-of-two bounds rather than the
+target's integer limits cast to float. The reason is representability: the true
+maximum of a 64-bit integer, =2^63 - 1=, rounds *up* to =2^63= when converted to
+=float=, so a naive comparison against the cast maximum would admit an
+out-of-range value. Comparing against =2^digits= (which is the target maximum
+plus one, and is exactly representable) classifies the boundary correctly. A NaN
+source is never representable: it compares false against both bounds, so the
+pre-check reports out of range for an integral target, and for a floating-point
+target the round-trip check catches it because =NaN != NaN=. Either way a NaN
+asserts in debug and is a caller error under =NDEBUG=.
+
+* API tour
+
+=narrow_cast<To>(from)= is the whole surface: one function template, =To= given
+explicitly and =From= deduced, both constrained to arithmetic types. It returns
+=from= converted to =To=. There is no throwing or clamping variant; when a value
+may genuinely be out of range at runtime, validate it yourself first (see
+Pitfalls).
 
 * Usage
 
+Narrow trusted-but-wide config values into a compact runtime settings struct,
+letting =narrow_cast= verify the fit during testing:
+
 #+BEGIN_SRC cpp
-auto const wide{std::int32_t{300}};
-auto const narrow{nexenne::utility::narrow_cast<std::int16_t>(wide)};
+using nexenne::utility::narrow_cast;
+
+// The parser already validated ranges; narrow_cast turns that trust into a
+// debug assert. port = 70000 or retry_count = -1 would abort here in debug.
+return settings{
+  .port = narrow_cast<std::uint16_t>(config.port),          // std::int64_t -> std::uint16_t
+  .retry_count = narrow_cast<std::uint8_t>(config.retry_count),
+  // Float to integral is range-checked before the cast, so an absurd or NaN
+  // timeout cannot reach an undefined float-to-int conversion.
+  .timeout_ms = narrow_cast<std::uint32_t>(config.timeout_seconds * 1000.0),
+};
+
+// The checks run in constant expressions too: a violation is a compile error.
+static_assert(narrow_cast<std::uint16_t>(std::int64_t{8080}) == 8080);
 #+END_SRC
+
+* Pitfalls
+
+- *The guarantee is debug-only.* Under =NDEBUG= a value that does not fit is
+  silently truncated exactly as a plain =static_cast= would be, with no throw and
+  no clamp. Use =narrow_cast= for values you *expect* to fit and want verified in
+  testing, not to validate untrusted input.
+- *Validate genuinely-variable input yourself.* When an out-of-range value is
+  really possible at runtime, range-check it and handle the failure (clamp,
+  reject, or report), then narrow the value you have proven fits.
+- *NaN is never representable.* A NaN source asserts in debug (out of range for an
+  integral target, or round-trip failure for a floating-point one) and is a
+  caller error under =NDEBUG=.
+- *Arithmetic types only.* It does not narrow pointers, enums, or class types; a
+  =requires= clause rejects them at compile time.
+
+* Comparison with the standard library
+
+The standard library has no checked narrowing cast; a bare =static_cast= is the
+alternative, and it truncates silently in every build. The C++ Core Guidelines
+Support Library offers =gsl::narrow_cast= (an annotated =static_cast= with no
+check) and =gsl::narrow= (which *throws* on a lossy conversion in every build).
+This =narrow_cast= sits between them: it is the cheap =static_cast= in release
+like =gsl::narrow_cast=, but adds =gsl::narrow='s value check as a debug-only
+assert plus a sign-flip check and a defined float-to-integer pre-check that
+neither GSL variant performs. Choose a throwing checker or explicit validation
+when an out-of-range value is a normal runtime possibility rather than a bug to
+catch in testing.
 
 Runnable: [[file:../../../examples/utility/narrow_cast.cpp][examples/utility/narrow_cast.cpp]]
