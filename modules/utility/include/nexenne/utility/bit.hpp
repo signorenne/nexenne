@@ -197,8 +197,8 @@ constexpr auto for_each_set_bit(T x, F&& fn) -> void {
  *
  * @return Copy of \p dest with the field at \p offset replaced.
  *
- * @pre \p width is at least one and \c offset+width is at most the bit width of
- *      \p T; violations assert in debug.
+ * @pre \p width is between one and the bit width of \p T, and \p offset is at
+ *      most the bit width minus \p width; violations assert in debug.
  * @post \c extract_bits(result, offset, width) equals the low \p width bits of
  *       \p src.
  */
@@ -207,7 +207,10 @@ template <std::unsigned_integral T>
   T const dest, T const src, std::size_t const offset, std::size_t const width
 ) noexcept -> T {
   assert(width >= 1 && "pack_bits: width must be at least one");
-  assert(offset + width <= sizeof(T) * 8 && "pack_bits: field exceeds type width");
+  // Stated as width <= W and offset <= W - width so the guard itself cannot
+  // wrap for a huge offset, unlike the naive offset + width <= W.
+  assert(width <= sizeof(T) * 8 && "pack_bits: width exceeds type width");
+  assert(offset <= sizeof(T) * 8 - width && "pack_bits: field exceeds type width");
   auto const mask{set_bits_mask<T>(offset, offset + width - 1)};
   auto const value{static_cast<T>((src << offset) & mask)};
   return static_cast<T>((dest & ~mask) | value);
@@ -224,15 +227,18 @@ template <std::unsigned_integral T>
  * @return The \p width bits at \p offset of \p x, shifted down to bit zero and
  *         zero-extended.
  *
- * @pre \p width is at least one and \c offset+width is at most the bit width of
- *      \p T; violations assert in debug.
+ * @pre \p width is between one and the bit width of \p T, and \p offset is at
+ *      most the bit width minus \p width; violations assert in debug.
  * @post Bits above position \c width-1 of the result are zero.
  */
 template <std::unsigned_integral T>
 [[nodiscard]] constexpr auto
 extract_bits(T const x, std::size_t const offset, std::size_t const width) noexcept -> T {
   assert(width >= 1 && "extract_bits: width must be at least one");
-  assert(offset + width <= sizeof(T) * 8 && "extract_bits: field exceeds type width");
+  // Stated as width <= W and offset <= W - width so the guard itself cannot
+  // wrap for a huge offset, unlike the naive offset + width <= W.
+  assert(width <= sizeof(T) * 8 && "extract_bits: width exceeds type width");
+  assert(offset <= sizeof(T) * 8 - width && "extract_bits: field exceeds type width");
   auto const mask{static_cast<T>(width >= sizeof(T) * 8 ? ~T{0} : (T{1} << width) - 1)};
   return static_cast<T>((x >> offset) & mask);
 }
