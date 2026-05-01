@@ -77,6 +77,7 @@ static_assert(util::set_bits_mask<std::uint16_t>(0, 15) == 0xFFFF);
 static_assert(util::set_bits_mask<std::uint32_t>(0, 31) == 0xFFFFFFFFU);
 static_assert(util::set_bits_mask<std::uint64_t>(0, 63) == ~std::uint64_t{0});
 static_assert(util::set_bits_mask<std::uint64_t>(32, 63) == (~std::uint64_t{0} << 32));
+static_assert(util::set_bits_mask<std::uint64_t>(63, 63) == (std::uint64_t{1} << 63));
 
 static_assert(util::extract_bits<std::uint16_t>(0xABCD, 4, 8) == 0xBC);
 static_assert(util::extract_bits<std::uint8_t>(0xFF, 0, 8) == 0xFF);  // full-width branch
@@ -91,6 +92,23 @@ static_assert(util::pack_bits<std::uint8_t>(0xFF, 0, 0, 8) == 0);             //
 static_assert(
   util::extract_bits<std::uint16_t>(util::pack_bits<std::uint16_t>(0, 0xABCD, 4, 8), 4, 8) == 0xCD
 );  // pack/extract round-trip in constexpr
+
+// Fields ending exactly at the top of a 64-bit word (offset + width == 64 with a
+// non-zero offset) exercise the overflow-free precondition guard and the
+// full-width mask branches without shifting by the type width.
+static_assert(
+  util::pack_bits<std::uint64_t>(0, 0xFFFFFFFFULL, 32, 32) == (0xFFFFFFFFULL << 32)
+);
+static_assert(
+  util::extract_bits<std::uint64_t>(0xABCD'0000'0000'0000ULL, 48, 16) == 0xABCD
+);
+static_assert(
+  util::pack_bits<std::uint64_t>(~std::uint64_t{0}, 0, 56, 8) == 0x00FF'FFFF'FFFF'FFFFULL
+);
+// The single top bit: offset 63, width 1.
+static_assert(util::pack_bits<std::uint64_t>(0, 1, 63, 1) == (std::uint64_t{1} << 63));
+static_assert(util::extract_bits<std::uint64_t>(std::uint64_t{1} << 63, 63, 1) == 1);
+static_assert(util::extract_bits<std::uint64_t>(~std::uint64_t{0} >> 1, 63, 1) == 0);
 
 TEST_CASE("nexenne::utility::reverse_bits matches a reference per-bit reversal") {
   auto const reference{[](std::uint32_t v) {
@@ -173,6 +191,7 @@ TEST_CASE("nexenne::utility::set_bits_mask covers ranges and boundaries") {
   CHECK(util::set_bits_mask<std::uint32_t>(0, 31) == 0xFFFFFFFFU);
   CHECK(util::set_bits_mask<std::uint64_t>(0, 63) == ~std::uint64_t{0});
   CHECK(util::set_bits_mask<std::uint64_t>(32, 63) == (~std::uint64_t{0} << 32));
+  CHECK(util::set_bits_mask<std::uint64_t>(63, 63) == (std::uint64_t{1} << 63));  // top single bit
 
   // Popcount of any single-range mask equals the inclusive span.
   for (std::size_t lo{0}; lo < 8; ++lo) {
@@ -191,6 +210,8 @@ TEST_CASE("nexenne::utility::extract_bits reads right-aligned fields") {
   CHECK(util::extract_bits<std::uint8_t>(0x80, 7, 1) == 1);        // single top bit
   CHECK(util::extract_bits<std::uint64_t>(~std::uint64_t{0}, 0, 64) == ~std::uint64_t{0});
   CHECK(util::extract_bits<std::uint64_t>(~std::uint64_t{0}, 32, 32) == 0xFFFFFFFFU);
+  CHECK(util::extract_bits<std::uint64_t>(0xABCD'0000'0000'0000ULL, 48, 16) == 0xABCD);
+  CHECK(util::extract_bits<std::uint64_t>(std::uint64_t{1} << 63, 63, 1) == 1);  // top single bit
 }
 
 TEST_CASE("nexenne::utility::pack_bits replaces a field and preserves the rest") {
@@ -210,6 +231,24 @@ TEST_CASE("nexenne::utility::pack_bits replaces a field and preserves the rest")
 TEST_CASE("nexenne::utility::pack_bits round-trips with extract_bits") {
   auto const packed{util::pack_bits<std::uint16_t>(0, 0xABCD, 4, 8)};
   CHECK(util::extract_bits<std::uint16_t>(packed, 4, 8) == 0xCD);
+}
+
+TEST_CASE("nexenne::utility::pack_bits handles fields ending at the top of the word") {
+  // offset + width == 64 with a non-zero offset: the highest legal placement.
+  auto const high{util::pack_bits<std::uint64_t>(0, 0xDEADBEEFULL, 32, 32)};
+  CHECK(high == (0xDEADBEEFULL << 32));
+  CHECK(util::extract_bits<std::uint64_t>(high, 32, 32) == 0xDEADBEEFULL);
+  CHECK(util::extract_bits<std::uint64_t>(high, 0, 32) == 0);  // low half untouched
+
+  // A one-bit field in the sign position: offset 63, width 1.
+  auto const top{util::pack_bits<std::uint64_t>(0, 1, 63, 1)};
+  CHECK(top == (std::uint64_t{1} << 63));
+  CHECK(util::pack_bits<std::uint64_t>(top, 0, 63, 1) == 0);  // clearing it again
+
+  // Writing the top byte of an all-ones word preserves the 56 bits below.
+  auto const stamped{util::pack_bits<std::uint64_t>(~std::uint64_t{0}, 0xA5, 56, 8)};
+  CHECK(util::extract_bits<std::uint64_t>(stamped, 56, 8) == 0xA5);
+  CHECK(util::extract_bits<std::uint64_t>(stamped, 0, 56) == 0x00FF'FFFF'FFFF'FFFFULL);
 }
 
 TEST_CASE("nexenne::utility::for_each_set_bit visits set bits low to high") {
