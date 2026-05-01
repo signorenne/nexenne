@@ -1,6 +1,7 @@
 # One executable per example, named nexenne_example_can_<name>. Each is a
 # self-contained program demonstrating part of the nexenne::can module.
 set(_can_examples
+    console
     database
     dbc
     fields
@@ -9,6 +10,9 @@ set(_can_examples
     j1939
     j1939_transport
     loopback
+    monitor
+    quickstart
+    reactor
     signal
     socketcan
 )
