@@ -8,7 +8,9 @@
  * in-range surface exhaustively: the type matrix, exact boundary values, the
  * widening / same-type identity, cross-sign positive values, and floating
  * point, both at compile time (\c static_assert, the real guarantee) and at
- * run time (so the path is executed under the sanitizers).
+ * run time (so the path is executed under the sanitizers). The reject side of
+ * the float-to-integral range check is covered by probing the detail
+ * classifier directly, which returns instead of asserting.
  */
 
 #include <doctest/doctest.h>
@@ -44,6 +46,54 @@ static_assert(narrow_cast<std::uint16_t>(65535) == 65535u);
 static_assert(narrow_cast<unsigned>(5) == 5u);
 static_assert(narrow_cast<int>(5u) == 5);
 static_assert(narrow_cast<std::uint32_t>(std::int64_t{0}) == 0u);
+
+// Float-to-integral narrowing at the exact target boundaries: the range check
+// runs before the cast, so these are well-defined even in a constant
+// expression (where any UB would be a compile error, making these
+// static_asserts the strongest possible no-UB witness).
+static_assert(narrow_cast<std::int8_t>(127.0) == 127);
+static_assert(narrow_cast<std::int8_t>(-128.0) == -128);
+static_assert(narrow_cast<std::uint8_t>(255.0) == 255u);
+static_assert(narrow_cast<std::uint8_t>(0.0) == 0u);
+static_assert(narrow_cast<std::int32_t>(2147483647.0) == 2147483647);
+static_assert(narrow_cast<std::int32_t>(-2147483648.0) == -2147483648);
+static_assert(narrow_cast<std::uint32_t>(4294967295.0) == 4294967295u);
+// The largest float below 2^31 (2^31 - 128, exactly representable).
+static_assert(narrow_cast<std::int32_t>(2147483520.0F) == 2147483520);
+
+// The classifier behind the pre-cast range check, probed directly so the
+// reject side (which would assert inside narrow_cast) is covered too. The
+// bounds are exact powers of two, so the first out-of-range integer on either
+// side must classify as false.
+namespace detail = nexenne::utility::detail;
+
+static_assert(detail::float_in_integral_range<std::int8_t>(127.0));
+static_assert(!detail::float_in_integral_range<std::int8_t>(128.0));
+static_assert(detail::float_in_integral_range<std::int8_t>(-128.0));
+static_assert(!detail::float_in_integral_range<std::int8_t>(-129.0));
+static_assert(detail::float_in_integral_range<std::uint8_t>(255.0));
+static_assert(!detail::float_in_integral_range<std::uint8_t>(256.0));
+static_assert(!detail::float_in_integral_range<std::uint8_t>(-1.0));
+// (-1, 0) truncates to zero, so the range check admits it; the round-trip
+// assert inside narrow_cast is what rejects the value change afterwards.
+static_assert(detail::float_in_integral_range<std::uint8_t>(-0.5));
+// 2^63 rounds to itself as a double, one past the signed maximum.
+static_assert(!detail::float_in_integral_range<std::int64_t>(9223372036854775808.0));
+static_assert(detail::float_in_integral_range<std::int64_t>(-9223372036854775808.0));
+// 2^64 - 2048 is the largest double below 2^64.
+static_assert(detail::float_in_integral_range<std::uint64_t>(18446744073709549568.0));
+static_assert(!detail::float_in_integral_range<std::uint64_t>(18446744073709551616.0));
+
+// NaN compares false against both bounds, so it is classified out of range for
+// every integral target (the documented NaN behaviour: assert in debug).
+static_assert(!detail::float_in_integral_range<std::int32_t>(std::numeric_limits<double>::quiet_NaN()
+));
+static_assert(!detail::float_in_integral_range<std::uint32_t>(std::numeric_limits<float>::quiet_NaN()
+));
+static_assert(!detail::float_in_integral_range<std::int8_t>(std::numeric_limits<double>::infinity())
+);
+static_assert(!detail::float_in_integral_range<std::int8_t>(-std::numeric_limits<double>::infinity()
+));
 
 TEST_CASE("narrow_cast preserves in-range integer values at run time") {
   CHECK(narrow_cast<std::int16_t>(std::int32_t{300}) == 300);
@@ -92,6 +142,30 @@ TEST_CASE("narrow_cast on floating point: exactly representable values") {
     narrow_cast<double>(std::numeric_limits<float>::max())
     == static_cast<double>(std::numeric_limits<float>::max())
   );
+}
+
+TEST_CASE("narrow_cast on floating point: integral targets at their boundaries") {
+  // Executed at run time so the pre-cast range check runs under the
+  // sanitizers: none of these may reach an out-of-range float-to-int cast.
+  CHECK(narrow_cast<std::int8_t>(127.0) == 127);
+  CHECK(narrow_cast<std::int8_t>(-128.0) == -128);
+  CHECK(narrow_cast<std::uint8_t>(255.0) == 255);
+  CHECK(narrow_cast<std::int32_t>(2147483647.0) == std::numeric_limits<std::int32_t>::max());
+  CHECK(narrow_cast<std::int32_t>(-2147483648.0) == std::numeric_limits<std::int32_t>::min());
+  CHECK(narrow_cast<std::uint32_t>(4294967295.0) == std::numeric_limits<std::uint32_t>::max());
+  CHECK(narrow_cast<std::int32_t>(2147483520.0F) == 2147483520);
+  CHECK(narrow_cast<std::int64_t>(-9223372036854775808.0) == std::numeric_limits<std::int64_t>::min());
+}
+
+TEST_CASE("narrow_cast float range classifier rejects the first value past each bound") {
+  namespace detail = nexenne::utility::detail;
+  CHECK(detail::float_in_integral_range<std::int16_t>(32767.0));
+  CHECK_FALSE(detail::float_in_integral_range<std::int16_t>(32768.0));
+  CHECK(detail::float_in_integral_range<std::int16_t>(-32768.0));
+  CHECK_FALSE(detail::float_in_integral_range<std::int16_t>(-32769.0));
+  CHECK_FALSE(detail::float_in_integral_range<std::uint16_t>(-1.0));
+  CHECK_FALSE(detail::float_in_integral_range<int>(std::numeric_limits<double>::quiet_NaN()));
+  CHECK_FALSE(detail::float_in_integral_range<int>(std::numeric_limits<double>::infinity()));
 }
 
 TEST_CASE("narrow_cast preserves char and bool round-trips") {
