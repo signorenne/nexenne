@@ -4,69 +4,140 @@
 
 * Purpose
 
-=nexenne::utility::bit= adds the bit-manipulation operations =<bit>= omits:
-=reverse_bits=, single-bit =test_bit= / =set_bit= / =clear_bit= / =toggle_bit=,
-contiguous =set_bits_mask=, bitfield =pack_bits= / =extract_bits=, and
-=for_each_set_bit= iteration.
+=nexenne::utility::bit= adds the bit-manipulation operations that =<bit>= leaves
+out: =reverse_bits=, the single-bit =test_bit= / =set_bit= / =clear_bit= /
+=toggle_bit=, the contiguous =set_bits_mask=, the bitfield =pack_bits= /
+=extract_bits=, and =for_each_set_bit= iteration. Everything is =constexpr= over
+any =std::unsigned_integral=.
 
-* The idea
+* The problem it solves
 
-The standard library already covers popcount, leading/trailing zeros, and
-rotation, so this header fills the gaps useful for register-level code, hardware
-bitfields, and bitset traversal. Everything is =constexpr= over any
-=std::unsigned_integral=, so masks and field layouts can be computed at compile
-time. The single-bit and field operations carry debug bounds-check assertions,
-and =for_each_set_bit= visits set bits in ascending order at a cost proportional
-to the popcount, not the type width.
+Register-level code, hardware bitfields, and bitset traversal all reach for a
+handful of operations the standard =<bit>= header does not provide. =<bit>=
+covers population count, leading and trailing zeros, =bit_width=, =bit_floor=,
+=bit_ceil=, =has_single_bit=, =rotl=, =rotr=, and =bit_cast=, but it has no
+bitfield pack or extract, no bounds-checked single-bit set or clear, no
+contiguous-mask builder, and no set-bit iteration. Those get hand-rolled once per
+driver, with shift-by-width undefined behaviour and off-by-one field boundaries
+lurking in the open-coded versions. This header supplies them once, each with a
+debug bounds check and a =constexpr= body so masks and field layouts fold at
+compile time.
 
 * How it works
 
-The single-bit ops are the obvious shift-and-mask: =set_bit= ORs in =1 << i=,
-=clear_bit= ANDs with its complement, =toggle_bit= XORs it, =test_bit= shifts the
-bit down and masks. =set_bits_mask(low, high)= builds =high - low + 1= ones and
-shifts them up by =low=, with a guard so a full-width count does not shift by the
-type width (which is undefined). =pack_bits= clears the target field with that
-mask then ORs in the shifted source; =extract_bits= masks and shifts the field
-down to bit zero. =reverse_bits= is a divide-and-conquer butterfly: it swaps
-halves, then quarters, down to adjacent bits, so it is =O(log W)= in the width
-rather than a per-bit loop. =for_each_set_bit= reads the lowest set bit with
-=std::countr_zero=, calls =fn= with its index, then clears it via =x & (x - 1)=,
-so it costs one iteration per set bit (=O(popcount)=), not one per bit of width.
+** Single-bit operations
 
-* When to use it
+The four single-bit ops are the textbook shift-and-mask over a one-bit selector
+=T{1} << i=: =set_bit= ORs it in, =clear_bit= ANDs with its complement,
+=toggle_bit= XORs it, and =test_bit= shifts the target bit down to position zero
+and masks. Each asserts =i < sizeof(T) * 8= in debug, because a shift by the type
+width or beyond is undefined; in release the index is the caller's contract.
 
-Reach for these when you are working at the bit level: decoding a hardware
-register, packing several small fields into one word, building a contiguous mask,
-or walking the set bits of a bitset. For the operations the standard already
-offers (popcount, leading/trailing zeros, =bit_width=, =bit_floor=, =bit_ceil=,
-=has_single_bit=, =rotl=, =rotr=, =bit_cast=) include =<bit>= directly; this
-header deliberately does not duplicate them. For a *named* type-safe set of flags
-over an enum prefer [[file:flags.org][flags]] rather than raw single-bit ops.
+** Building a contiguous mask, and the full-width edge
 
-Gotchas. Bit indices must stay within the type width: =i < sizeof(T) * 8=. An
-out-of-range index only asserts in debug and is undefined behaviour in release
-(it shifts by the width or beyond). =pack_bits= and =extract_bits= require
-=width >= 1= and =offset + width= within the width, also debug-only checks.
-=pack_bits= writes only the low =width= bits of =src=; higher bits of =src= are
-ignored, not an error. Everything is on =unsigned= types only (the
-=std::unsigned_integral= constraint), so shifts stay well-defined and there is no
-sign extension.
+=set_bits_mask(low, high)= builds a mask with bits =low= through =high= inclusive
+set. It computes =count = high - low + 1= ones, then shifts them up by =low=. The
+ones are built as =(T{1} << count) - 1=, which is the clean way to get =count=
+low bits, but it breaks at exactly one input: when =count= equals the full type
+width, =T{1} << count= shifts by the width and is undefined. The mask builder
+guards that edge explicitly:
+
+#+BEGIN_EXAMPLE
+  count >= W ? ~T{0} : (T{1} << count) - 1        // W is sizeof(T) * 8
+#+END_EXAMPLE
+
+so a full-width request yields all-ones directly instead of shifting off the end.
+=extract_bits= carries the same =width >= W ? ~T{0} : ...= guard for the same
+reason: a field as wide as the type must not build its mask by shifting by the
+width.
+
+** Packing and extracting a field, overflow-free
+
+=pack_bits(dest, src, offset, width)= writes the low =width= bits of =src= into
+the field at =offset= in =dest=. It builds the field mask with =set_bits_mask=,
+clears those bits of =dest= with =dest & ~mask=, and ORs in the shifted, masked
+source =(src << offset) & mask=; bits of =dest= outside the field are preserved,
+and any bits of =src= above =width= are dropped rather than treated as an error.
+=extract_bits(x, offset, width)= is the inverse: shift the field down to bit zero
+and mask off the width.
+
+Both check that the field fits, and both phrase the guard so it cannot itself
+wrap. The naive test =offset + width <= W= can overflow for a huge =offset=, so
+the header splits it into two safe comparisons:
+
+#+BEGIN_EXAMPLE
+  width <= W  &&  offset <= W - width
+#+END_EXAMPLE
+
+The right-hand side is a subtraction from the width, computed only after =width <=
+W= is known, so it never wraps even for an absurd offset.
+
+** Reversing bits and visiting set bits
+
+=reverse_bits= is a divide-and-conquer butterfly: it swaps the two halves of the
+word, then the quarters within each half, down to adjacent bits, so it is
+=O(log W)= in the width instead of a per-bit loop, and stays generic over every
+unsigned width. =for_each_set_bit= reads the lowest set bit with
+=std::countr_zero=, calls =fn= with that index, then clears it with =x & (x - 1)=;
+the cost is one iteration per set bit (=O(popcount)=), not one per bit of width.
+
+* API tour
+
+- =reverse_bits(x)= : =x= with its bit order reversed across the full width.
+- =test_bit(x, i)= / =set_bit(x, i)= / =clear_bit(x, i)= / =toggle_bit(x, i)= :
+  read or return a copy with bit =i= changed; assert =i < width= in debug.
+- =set_bits_mask<T>(low, high)= : a mask with bits =[low, high]= set.
+- =pack_bits(dest, src, offset, width)= : a copy of =dest= with the field at
+  =offset= replaced by the low =width= bits of =src=.
+- =extract_bits(x, offset, width)= : the =width= bits at =offset=, right-aligned.
+- =for_each_set_bit(x, fn)= : call =fn= with each set-bit index, lowest first.
 
 * Usage
 
+Pack and unpack a hardware control register, then walk its set bits:
+
 #+BEGIN_SRC cpp
 auto reg{std::uint16_t{0}};
-reg = nexenne::utility::pack_bits<std::uint16_t>(reg, 5, 0, 4);  // write a 4-bit field
-reg = nexenne::utility::set_bit<std::uint16_t>(reg, 10);         // enable flag
+reg = nexenne::utility::pack_bits<std::uint16_t>(reg, 5, 0, 4);   // 4-bit channel field
+reg = nexenne::utility::pack_bits<std::uint16_t>(reg, 42, 4, 6);  // 6-bit threshold field
+reg = nexenne::utility::set_bit<std::uint16_t>(reg, 10);          // enable flag
 
-auto const field{nexenne::utility::extract_bits<std::uint16_t>(reg, 0, 4)};
+auto const channel{nexenne::utility::extract_bits<std::uint16_t>(reg, 0, 4)};
 static_assert(nexenne::utility::set_bits_mask<std::uint8_t>(2, 4) == 0b0001'1100);
 
-nexenne::utility::for_each_set_bit(reg, [](std::size_t i) { /* visit bit i */ });
+// pack_bits clears then rewrites only the named field, so neighbouring bits survive.
+reg = nexenne::utility::pack_bits<std::uint16_t>(reg, 63, 4, 6);
+
+nexenne::utility::for_each_set_bit(reg, [](std::size_t const i) { /* visit bit i */ });
 #+END_SRC
 
-=pack_bits= clears then writes a field while preserving surrounding bits;
-=extract_bits= returns it right-aligned. Bit indices must stay within the type
-width.
+* Pitfalls
+
+- *Bit indices must stay within the type width.* =i < sizeof(T) * 8=. An
+  out-of-range index only asserts in debug and is undefined behaviour in release,
+  because it shifts by the width or beyond.
+- *Field bounds are debug-only checks.* =pack_bits= and =extract_bits= require
+  =width >= 1= and the field within the type, asserted in debug. Under =NDEBUG= a
+  bad field is the caller's contract.
+- *=pack_bits= ignores the high bits of =src=.* Only the low =width= bits are
+  written; higher bits are dropped, not diagnosed.
+- *Unsigned only.* The =std::unsigned_integral= constraint keeps shifts
+  well-defined and rules out sign extension; convert a signed value to its
+  unsigned counterpart at the boundary.
+- For a *named*, type-safe set of flags over an enum, prefer [[file:flags.org][flags]] over raw
+  single-bit ops.
+
+* Comparison with the standard library
+
+Include =<bit>= directly for what the standard already provides:
+=std::popcount=, =std::countl_zero=, =std::countr_zero=, =std::bit_width=,
+=std::bit_floor=, =std::bit_ceil=, =std::has_single_bit=, =std::rotl=,
+=std::rotr=, and =std::bit_cast=. This header does not duplicate any of them; it
+adds the missing bitfield, single-bit, mask, and iteration operations and builds
+on the standard ones where useful (=for_each_set_bit= uses =std::countr_zero=).
+=std::bit_cast= is the standard answer to reinterpreting the bytes of a value as
+another type; reach for it rather than a manual =reverse_bits= or shift when you
+only need a type-punned copy. For a whole-word swap of byte order, use
+=std::byteswap= (see [[file:endian.org][endian]]).
 
 Runnable: [[file:../../../examples/utility/bit.cpp][examples/utility/bit.cpp]]
