@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 #include <nexenne/utility/align.hpp>
 
@@ -65,6 +66,17 @@ static_assert(util::align_up<std::uint16_t>(0x1001, 0x1000) == 0x2000);
 static_assert(util::align_down<std::uint32_t>(0xDEADBEEF, 0x10000) == 0xDEAD0000);
 static_assert(util::align_up<std::uint64_t>(0x1, 0x8000000000000000ULL) == 0x8000000000000000ULL);
 
+// The documented align_up overflow boundary: the largest valid input is the
+// last aligned value of the type (max - (alignment - 1)); anything above it
+// would wrap and now asserts in debug (a failed assert in a constant
+// expression does not compile, so the boundary here is the proof it holds).
+static_assert(util::align_up<std::uint8_t>(0xC0, 0x40) == 0xC0);  // 192 is the last 64-multiple
+static_assert(util::align_up<std::uint8_t>(0xBF, 0x40) == 0xC0);  // largest value that rounds up
+static_assert(
+  util::align_up(std::numeric_limits<std::size_t>::max() - 63, std::size_t{64})
+  == std::numeric_limits<std::size_t>::max() - 63
+);
+
 TEST_CASE("nexenne::utility::align_up / align_down on integrals") {
   CHECK(util::align_up(std::size_t{200}, std::size_t{64}) == 256);
   CHECK(util::align_up(std::size_t{256}, std::size_t{64}) == 256);  // already aligned
@@ -76,6 +88,16 @@ TEST_CASE("nexenne::utility::align_up / align_down on integrals") {
   CHECK(util::align_down(std::size_t{256}, std::size_t{64}) == 256);  // already aligned
   CHECK(util::align_down(std::size_t{63}, std::size_t{64}) == 0);     // value < alignment
   CHECK(util::align_down(std::size_t{0}, std::size_t{64}) == 0);
+}
+
+TEST_CASE("nexenne::utility::align_up accepts the last aligned value of the type") {
+  // The overflow precondition boundary at run time: the maximum representable
+  // aligned value must pass the debug assert and round to itself.
+  auto const last_aligned{std::numeric_limits<std::size_t>::max() - 63};
+  CHECK(util::align_up(last_aligned, std::size_t{64}) == last_aligned);
+  CHECK(util::align_up(last_aligned - 1, std::size_t{64}) == last_aligned);
+  CHECK(util::align_up<std::uint8_t>(0xC0, 0x40) == 0xC0);
+  CHECK(util::align_up<std::uint8_t>(0xBF, 0x40) == 0xC0);
 }
 
 TEST_CASE("nexenne::utility::align_up / align_down are mutually consistent") {
