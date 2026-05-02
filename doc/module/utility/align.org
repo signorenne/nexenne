@@ -4,63 +4,134 @@
 
 * Purpose
 
-=nexenne::utility::align= provides three power-of-two alignment helpers,
-=align_up=, =align_down=, and =is_aligned=, each in an integral flavour for
-sizes and offsets and a pointer flavour for addresses.
+=nexenne::utility::align= rounds sizes, offsets, and addresses to a power-of-two
+boundary. It offers =align_up=, =align_down=, and =is_aligned=, each in an
+integral flavour (for sizes and offsets) and a pointer flavour (for addresses).
 
-* The idea
+* The problem it solves
 
-Rounding a size or address to a power-of-two boundary is the bread and butter of
-bare-metal allocators (DMA buffers on a cache line, a bump allocator advancing
-its cursor). The mask trick the formulas rely on is correct only for
-power-of-two alignments, so every alignment must be a non-zero power of two,
-asserted in debug. The integral overloads are =constexpr=; the pointer overloads
-are not, because they round-trip through =std::uintptr_t= with =reinterpret_cast=,
-which a constant expression forbids.
+Bare-metal and performance code places objects on hardware or cache boundaries:
+a DMA buffer on a cache line, an MMIO table on a natural boundary, a bump
+allocator advancing its cursor. The arithmetic is a two-line mask trick, but
+hand-rolling it in every allocator invites three recurring bugs: using an
+alignment that is not a power of two (which makes the mask wrong), letting
+=align_up= overflow near the top of the type (which wraps a large value to a
+small one), and duplicating the same shift-and-mask across the codebase. These
+helpers state the operation by name, assert both preconditions in debug, and
+compile down to the couple of instructions you would have written by hand.
 
 * How it works
 
-For a power-of-two =alignment=, =alignment - 1= is a mask of the low bits below
-the boundary (8 gives the mask =0b111=). =align_down= clears those bits with
-=value & ~(alignment - 1)=; =align_up= first nudges the value past the next
-boundary with =value + (alignment - 1)= then clears the low bits the same way;
-=is_aligned= just checks =value & (alignment - 1)= is zero. The pointer overloads
-cast the address to =std::uintptr_t=, run the integral version, and cast back, so
-they accept =T = void= and any pointee type. Each operation is a couple of
-machine instructions, =O(1)=.
+** The power-of-two mask trick
 
-* When to use it
+For a power-of-two =alignment=, the value =alignment - 1= is a mask of exactly
+the low bits below the boundary: =8= gives =0b111=, =16= gives =0b1111=. Every
+multiple of the boundary has those low bits clear, so the three operations
+reduce to masking:
 
-Reach for these when you are placing objects or sizing blocks on a hardware or
-performance boundary: aligning an allocation cursor, padding a struct size up to
-a cache line, checking a DMA buffer sits on its required boundary. For the
-*alignment of a type* prefer =alignof= and =std::align= from the standard
-library; these helpers are for raw sizes, offsets, and addresses where you
-already know the boundary.
+- =align_down(value)= clears the low bits with =value & ~(alignment - 1)=, which
+  drops any remainder and lands on the boundary at or below =value=.
+- =align_up(value)= first nudges the value up by =alignment - 1= so any nonzero
+  remainder crosses into the next block, then clears the low bits the same way:
+  =(value + (alignment - 1)) & ~(alignment - 1)=. A value already on a boundary
+  is returned unchanged.
+- =is_aligned(value)= checks =value & (alignment - 1)= is zero.
 
-Gotchas. The alignment must be a non-zero power of two: anything else makes the
-mask wrong and only asserts in debug, so it is silent undefined behaviour in
-release. =align_up= can overflow if =value + (alignment - 1)= exceeds the type's
-range (a value near the top of =std::size_t=), wrapping to a small result. The
-integral overloads need unsigned, same-typed arguments, so write the alignment as
-a typed literal (=std::size_t{16}=) to avoid a deduction mismatch; the pointer
-overloads take the alignment as a plain =std::size_t=. The pointer overloads are
-not =constexpr= (the =reinterpret_cast= forbids it), so they cannot run in a
-constant expression.
+The trick is only correct for a power-of-two alignment, because only then is
+=alignment - 1= a clean low-bit mask. A non-power-of-two alignment (=alignment ==
+24=) makes =alignment - 1= a mask with holes, and the result is meaningless.
+Every overload therefore asserts =alignment != 0 && std::has_single_bit(alignment)=
+in debug; in release a bad alignment is silent undefined behaviour, the caller's
+contract to uphold.
+
+** The overflow boundary
+
+=align_up= adds =alignment - 1= before masking, and that addition can overflow.
+A =value= within =alignment - 1= of the type maximum would wrap and =align_up=
+would return a small result instead of aborting. The header guards this with a
+debug assert phrased so the check itself cannot wrap:
+
+#+BEGIN_EXAMPLE
+  value <= std::numeric_limits<Int>::max() - (alignment - 1)
+#+END_EXAMPLE
+
+Written as a subtraction from the maximum rather than the naive
+=value + (alignment - 1) >= value=, so the guard is exact even at the boundary.
+The largest value =align_up= accepts is the largest multiple of =alignment= the
+type can hold; anything above that aborts in debug rather than rounding to zero.
+
+** Integral versus pointer flavour
+
+The integral overloads are =constexpr=, so a struct layout or block size can be
+computed at compile time. The pointer overloads convert the address to
+=std::uintptr_t= with =reinterpret_cast=, run the integral version, and convert
+back, so they accept any pointee type including =void=. That =reinterpret_cast=
+is forbidden in a constant expression, so the pointer overloads are not
+=constexpr=; they carry the same power-of-two and overflow asserts.
+
+* API tour
+
+- =align_up(value, alignment)= : smallest multiple of =alignment= at least
+  =value= (integral, =constexpr=).
+- =align_down(value, alignment)= : largest multiple of =alignment= at most
+  =value= (integral, =constexpr=).
+- =is_aligned(value, alignment)= : whether =value= is a multiple of =alignment=
+  (integral, =constexpr=).
+- =align_up(ptr, alignment)= / =align_down(ptr, alignment)= : the same for a
+  =T*= address, =T= may be =void= (not =constexpr=).
+- =is_aligned(ptr, alignment)= : whether the address of =ptr= is aligned (not
+  =constexpr=).
+
+The integral overloads take unsigned, same-typed arguments, so write the
+alignment as a typed literal (=std::size_t{16}=). The pointer overloads take the
+alignment as a plain =std::size_t=.
 
 * Usage
 
-#+BEGIN_SRC cpp
-// Integral: round a cursor up before each allocation.
-cursor = nexenne::utility::align_up(cursor, std::size_t{16});
-static_assert(nexenne::utility::align_down(std::size_t{17}, std::size_t{8}) == 16);
+A bump allocator rounds its cursor up before each hand-out and confirms the
+returned address sits on the boundary:
 
-// Pointer: confirm an address sits on its boundary (works for void* too).
-std::byte* const block{arena.data() + cursor};
-auto const ok{nexenne::utility::is_aligned(block, 16)};
+#+BEGIN_SRC cpp
+// Round the cursor up, then check the padded request still fits the arena.
+auto const aligned{nexenne::utility::align_up(cursor, alignment)};
+if (aligned > arena.size() || size > arena.size() - aligned) {
+  return nullptr;
+}
+cursor = aligned + size;
+std::byte* const block{arena.data() + aligned};
+auto const ok{nexenne::utility::is_aligned(block, alignment)};  // works for void* too
+
+// align_down flushes the used region back to whole cache lines.
+auto const whole_lines{nexenne::utility::align_down(cursor, std::size_t{64}) / 64};
+
+// Integral overloads are constexpr, so a layout can be proven at compile time.
+static_assert(nexenne::utility::align_up(std::size_t{17}, std::size_t{8}) == 24);
 #+END_SRC
 
-The integral overloads take unsigned, same-typed arguments (use =std::size_t{...}=
-literals); the pointer overloads take the alignment as a plain =std::size_t=.
+* Pitfalls
+
+- *The alignment must be a non-zero power of two.* Anything else only asserts in
+  debug and is silent undefined behaviour in release, because the mask is wrong.
+- *=align_up= can overflow.* A value within =alignment - 1= of the type maximum
+  aborts in debug; under =NDEBUG= it wraps to a small result. Keep the value
+  below the largest multiple of =alignment= the type can hold.
+- *Argument types must match.* The integral overloads need unsigned, same-typed
+  arguments, so pass the alignment as a typed literal (=std::size_t{16}=) to
+  avoid a deduction mismatch. The pointer overloads take a plain =std::size_t=.
+- *The pointer overloads are not =constexpr=.* The =reinterpret_cast= they use is
+  forbidden in a constant expression, so they cannot run at compile time; use the
+  integral overloads when you need =constexpr=.
+
+* Comparison with the standard library
+
+For the alignment requirement of a *type*, prefer =alignof= and =std::align= from
+the standard library. =std::align= advances a pointer within a given buffer and
+reports the remaining space, which is the right tool when you are managing a
+single buffer and want the leftover size back. These helpers are lower level:
+they answer "round this raw size, offset, or address to this boundary" with no
+buffer bookkeeping, add a =constexpr= integral flavour =std::align= does not
+have, and assert the power-of-two and overflow preconditions in debug.
+=std::assume_aligned= is a related but different tool: it promises the optimiser
+an existing pointer is aligned rather than computing a new aligned one.
 
 Runnable: [[file:../../../examples/utility/align.cpp][examples/utility/align.cpp]]
