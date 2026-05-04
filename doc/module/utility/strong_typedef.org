@@ -4,100 +4,232 @@
 
 * Purpose
 
-=nexenne::utility::strong_typedef= wraps a value of type =T= and brands it with
-a unique =Tag=, so logically distinct quantities that share a primitive
-representation (meters vs. seconds, a device id vs. a counter) cannot be mixed
-by accident.
+=nexenne::utility::strong_typedef<Tag, T, Ops>= wraps a value of type =T= and
+brands it with a unique =Tag=, so logically distinct quantities that share a
+primitive representation (meters versus seconds, a device id versus a counter, a
+byte count versus an element count) cannot be mixed by accident. Every operator
+is opt-in through the =Ops= bitmask, so the type grants exactly the arithmetic,
+comparison and bitwise operations that make sense for the quantity and nothing
+more.
 
-* The idea
+* The problem it solves
 
-Unlike a bare =typedef=, every capability is opt-in: a fresh wrapper supports
-only construction, value access, hashing and formatting. Arithmetic, comparison
-and bitwise operators are enabled individually (or in groups) through the
-=ability= bitmask, so an identifier never silently gains the ability to be
-multiplied. The flag set is a compile-time constant, so unsupported operators
-are removed from overload resolution rather than failing at the call site, and
-the wrapper stays trivially copyable when =T= is.
+A bare =using meters = double;= documents intent but changes nothing: the
+compiler still treats =meters= as =double=, so =meters + seconds= compiles, a
+raw =2.0= slides into a =meters= parameter, and an identifier can be multiplied.
+The two classic fixes both overshoot:
+
+- A hand-written wrapper struct per quantity is correct but tedious, and it
+  either forwards every operator (re-granting nonsense like multiplying two ids)
+  or forwards none (forcing =.value= everywhere).
+- A macro such as Boost's =BOOST_STRONG_TYPEDEF= stamps out a wrapper but fixes
+  one capability set for all uses and hides the generated code from tooling.
+
+=strong_typedef= keeps the distinct type and makes the capability set a
+parameter: a fresh wrapper supports only construction, value access, hashing and
+formatting, and each operator family is added by naming its flag. The type stays
+trivially copyable when =T= is, pulls in no stream headers, and every operator is
+=constexpr=.
 
 * How it works
 
-A =strong_typedef<Tag, T, Ops>= stores a single =T m_value= (declared
-=[[no_unique_address]]=, so an empty =T= adds no size) and nothing else: the
-=Tag= and the =Ops= bitmask live only in the type, not in the object. Two
-specialisations with the same =T= but different =Tag= are unrelated types, which
-is what blocks accidental mixing. Construction from =T= is always =explicit=, and
-the conversion back to =T= is =explicit= too, so a wrapper neither springs into
-existence from a bare value nor silently decays into one inside an expression.
+** Tag type and the ability bitmask
 
-=Ops= is an =enum class ability : std::uint32_t= used as a bitmask: each flag
-names one operator family (=add=, =scale=, =equality=, =ordered=, =bit_and=,
-=shift=, =bitops=, and so on), combined with =|=. Every operator is constrained
-with =requires(has(Ops, ability::X))=, so a capability you did not request is
-removed from overload resolution rather than producing an error deep inside the
-call, attempting it just reports "no matching operator". The convenience groups
-(=arithmetic=, =comparable=, =bitwise=) are simply unions of flags, and the
-ready-made aliases (=quantity=, =identifier=, =counter=, =bitfield=) bind common
-combinations to a tag and underlying type.
+Two things brand the wrapper, and both live in the /type/, not the object:
 
-Same-tag binary operations rebind to a common type: adding a =strong_typedef= over
-=std::int16_t= to one over =std::int32_t= (same tag) yields the
-=std::int32_t= wrapper, with the two ability sets unioned and then =sanitized= for
-the new underlying. Scalar =scale= operations (=value * scalar=, =value / scalar=)
-keep the original strong type by folding the result back into =T=, whereas =ratio=
-(=value / value=, same tag) yields a *bare* dimensionless scalar. Free functions
-cover the rest: =abs=, =sat_add=/=sat_sub=, =popcount=/=rotl=/=rotr= and the bit
-counts, plus =to_underlying= for explicit unwrapping. The header also specialises
-=std::hash=, =std::formatter= (format specs pass straight through to =T=), and
-=std::common_type= for two same-tag wrappers.
+- The =Tag= is any type, usually an incomplete tag struct declared inline, as in
+  =strong_typedef<struct meters_tag, double, ...>=. Two specialisations that
+  share =T= but differ in =Tag= are unrelated types, which is what blocks
+  accidental mixing. Reusing one tag for two quantities silently reunites them,
+  so each quantity needs its own tag.
+- =Ops= is a non-type template parameter of type =enum class ability :
+  std::uint32_t=, used as a bitmask. Each flag names one operator family, and
+  flags combine with =|=. Because =Ops= is a compile-time constant, the whole
+  capability decision is made at instantiation with no runtime cost.
 
-* When to use it
+The object itself is just the underlying value:
 
-Reach for =strong_typedef= whenever two quantities share a primitive
-representation but must not be interchanged: meters versus seconds, a user id
-versus an account id, a byte count versus an element count, a hardware register
-versus a raw integer. The opt-in abilities let you grant exactly the operations
-that make sense, an =identifier= that compares and hashes but cannot be added, a
-=quantity= that does arithmetic, a =bitfield= that shifts and counts bits, so the
-type system rejects the operations that would be nonsense for that quantity.
+#+BEGIN_EXAMPLE
+strong_typedef<meters_tag, double, arithmetic | comparable>
 
-Pick a profile to stay terse: =quantity= (arithmetic plus comparison),
-=identifier= (comparison and hashing only), =counter= (comparison plus
-increment/decrement), =bitfield= (bitwise, shifts, bit-counting, comparison). Drop
-to the raw =strong_typedef<Tag, T, ability::...>= form when you need a custom mix.
+  the type carries the brand and the capabilities (no runtime cost):
+      Tag = meters_tag                  distinguishes it from seconds
+      Ops = arithmetic | comparable     a compile-time integer bitmask
 
-GOTCHAS. Each distinct =Tag= must be a unique type, so the idiom is
-=strong_typedef<struct meters_tag, double, ...>=: reusing the same tag for two
-logically different quantities silently makes them the *same* type and reunites
-them. Construction and the conversion to =T= are both =explicit=, by design, so
-you write =meters{10.0}= and =x.get()= (or =to_underlying(x)=), not implicit
-conversions. =ratio= breaks the strong type on purpose: dividing two same-tag
-values returns a bare scalar, not a wrapper. =scale= and the arithmetic operators
-fold back into =T=, so multiplying a narrow =T= can overflow or truncate just as
-the underlying would, convert to a wider strong type first if you need headroom.
-Finally, =shift= and =bitops= require an unsigned integral underlying: requesting
-them on any other =T= is a hard =static_assert=, and when a binary op rebinds to a
-signed or floating common type those flags are dropped from the result.
+  the object holds only the value:
+  +------------------------+
+  | m_value : double       |   [[no_unique_address]], so an empty T adds no size
+  +------------------------+
+   sizeof(wrapper) == sizeof(T); trivially copyable when T is (passes in registers)
+#+END_EXAMPLE
+
+Construction from =T= is always =explicit=, and the conversion back to =T= is
+=explicit= too, so a wrapper neither springs into existence from a bare value nor
+silently decays into one inside an expression. You write =meters{10.0}= and
+=x.get()= (or =to_underlying(x)=).
+
+** The mixin constraint
+
+Every operator is constrained with a =requires= clause that tests both the
+capability flag and the underlying operation, for example
+=requires(has(Ops, ability::add)) && requires(T& a, T const& b) { a + b; }=. A
+capability you did not request is /removed from overload resolution/ rather than
+producing an error deep in the body: attempting it reports "no matching
+operator", the same as any other type that does not support it. The second half
+of the clause also means a flag whose underlying operation does not exist (asking
+for =add= on a =T= with no =operator+=) simply stays inert instead of hard
+failing.
+
+** Rebinding a result: sanitized and common_strong_t
+
+Same-tag binary operations rebind to a common type. Adding a wrapper over
+=std::uint16_t= to one over =std::uint32_t= (same tag) yields the =std::uint32_t=
+wrapper, with the two ability sets unioned. That union is then passed through
+=sanitized<U>=, which clears the unsigned-only flags (=shift=, =bitops=) when the
+new underlying =U= is not an unsigned integral type. The helper
+=detail::common_strong_t<A, B>= names this result: the common tag, the common
+underlying =std::common_type_t=, and the sanitised, unioned abilities. The same
+rebinding is exposed as a =std::common_type= specialisation for two same-tag
+wrappers.
+
+Scalar =scale= operations (=value * scalar=, =value / scalar=) keep the original
+strong type by folding the result back into =T=, mirroring =operator*=. A =ratio=
+(=value / value=, same tag) instead yields a /bare/ dimensionless scalar of the
+common underlying, on purpose: the units cancel. Free functions cover the rest:
+=abs=, =sat_add= / =sat_sub=, =popcount= / =rotl= / =rotr= and the bit counts,
+plus =to_underlying= for explicit unwrapping. The header also specialises
+=std::hash= and =std::formatter= (format specs pass straight through to =T=).
+
+* Ability reference
+
+Each flag enables one operator family; the convenience groups are unions.
+Same-tag means both operands share the =Tag=.
+
+| flag         | enables                                                     |
+|--------------+-------------------------------------------------------------|
+| none         | construction, get, hashing, formatting only                 |
+| add          | a + b and a += b (same tag)                                 |
+| subtract     | a - b and a -= b (same tag)                                 |
+| unary_minus  | -a                                                          |
+| unary_plus   | +a                                                          |
+| scale        | a * s, s * a, a / s and *=, /= (s a scalar)                 |
+| ratio        | a / b (same tag), yielding a bare scalar                    |
+| modulo       | a % b and a %= b (same tag, integral)                       |
+| increment    | ++a and a++                                                 |
+| decrement    | --a and a--                                                 |
+| absolute     | abs(a)                                                      |
+| equality     | == and != (same tag)                                        |
+| ordered      | <=> and the relational operators (same tag)                 |
+| bit_and      | bitwise AND and AND-assign (same tag)                       |
+| bit_or       | bitwise OR and OR-assign (same tag)                         |
+| bit_xor      | bitwise XOR and XOR-assign (same tag)                       |
+| bit_not      | bitwise NOT: ~a                                             |
+| shift        | <<, >>, <<=, >>= (unsigned T only)                          |
+| bitops       | popcount, rotl, rotr, countl/r, bit_width (unsigned T only) |
+| saturating   | sat_add and sat_sub                                         |
+| boolean      | explicit operator bool                                      |
+
+Three groups bundle the common cases: =arithmetic= (add, subtract, unary minus
+and plus, scale, ratio, increment, decrement, absolute), =comparable= (equality
+and ordered), and =bitwise= (the four integral bitwise operators). The ready-made
+aliases bind those to a tag and underlying: =quantity= (arithmetic plus
+comparison), =identifier= (comparison and hashing only), =counter= (comparison
+plus increment and decrement), and =bitfield= (bitwise, shift, bitops, comparison
+on an unsigned underlying).
+
+The enum itself is usable at compile time and prints: =has(set, flag)= tests
+membership, =sanitized<U>(set)= clears unsigned-only flags, =to_string(flag)=
+names a single flag or group, and =std::formatter<ability>= makes
+=std::format("{}", ability::scale)= yield ="scale"=.
+
+* API tour
+
+- =strong_typedef()= : value-initialises the underlying.
+- =strong_typedef(T value)= : explicit; the only way to brand a bare value.
+- =strong_typedef(other_same_tag)= : explicit conversion from another same-tag
+  wrapper, whether it differs in underlying (widen or narrow) or only in its
+  ability set (grant or drop capabilities).
+- =get() const& / & / && / const&&= : the underlying value, ref-qualified so an
+  rvalue wrapper can be moved from with =std::move(w).get()=.
+- =explicit operator T const&()= and =to_underlying(w)= : explicit unwrapping.
+- =explicit operator bool()= : with =ability::boolean= (suppressed when =T= is
+  already =bool=).
+- opt-in operators and free functions per the ability table above.
+- =is_strong_typedef<X>= and the =strong_typedef_like= concept : detect wrappers
+  (the concept also accepts cv-qualified and reference candidates).
+- =std::hash=, =std::formatter= and =std::common_type= specialisations.
 
 * Usage
 
-Ready-made profiles keep the common cases short: =quantity= (arithmetic plus
-comparison), =identifier= (comparison and hashing only), =counter= and
-=bitfield=.
+Pick a profile to stay terse, or drop to the raw
+=strong_typedef<Tag, T, ability::...>= form for a custom mix.
 
 #+BEGIN_SRC cpp
 using namespace nexenne::utility;
 
 using meters = quantity<struct meters_tag, double>;
+using bytes = quantity<struct bytes_tag, std::uint32_t>;
+using pages = quantity<struct pages_tag, std::uint32_t>;
 using device_id = identifier<struct device_id_tag, std::uint16_t>;
 
-auto const total{meters{150.0} + meters{50.0}};  // ok: same tag
-auto const doubled{meters{150.0} * 2.0};         // ok: scalar scale
-auto const ratio{meters{10.0} / meters{2.0}};    // dimensionless double
+auto const distance{meters{150.0} + meters{50.0}};  // ok: same tag adds
+auto const doubled{distance * 2.0};                 // ok: scalar scale, stays meters
+
+// A ratio cancels the unit into a bare scalar; wrap it to name a new unit.
+auto const span{pages{bytes{4096} / bytes{512}}};   // 8 pages
 
 auto const a{device_id{0x10}};
 auto const b{device_id{0x20}};
-bool const same{a == b};  // ok: comparable
-// a + b;                 // ERROR: identifiers have no arithmetic
+bool const before{a < b};   // ok: identifiers compare
+// a + b;                   // ERROR: identifiers have no arithmetic
+// distance + span;         // ERROR: meters and pages are unrelated types
 #+END_SRC
+
+* Pitfalls
+
+- *Compound assignment does not widen.* The free =operator+= rebinds mixed
+  underlyings to their common type, but =+== (and the other compound operators)
+  accept only the /exact same specialisation/: the destination underlying cannot
+  change under assignment, so a mixed-underlying right-hand side is rejected by
+  design. Assign into the wider type, or convert first.
+- *Division and modulo carry a nonzero precondition.* =/=, =%=, =%=, scalar =/=
+  and the =ratio= =/= document =@pre= that the divisor is nonzero for an integral
+  underlying: integer division or modulo by zero is undefined behaviour, exactly
+  as for the raw type.
+- *Shift counts must be in range.* The plain shift operators (=<<=, =>>=, =<<==,
+  =>>==) require a non-negative count strictly less than the bit width of =T=,
+  checked with =assert= in debug builds; an out-of-range count is undefined
+  behaviour, just like shifting the underlying integer. Rotations are different:
+  =rotl= and =rotr= normalise the count modulo the width and accept negative
+  counts (rotating the other way), because that is well defined for a rotate.
+- *shift and bitops are not silently inert on the wrong type.* Requesting
+  =ability::shift= or =ability::bitops= on a wrapper whose primary underlying is
+  not an unsigned integral type is a /compile error/ (a =static_assert=), not a
+  no-op. Those flags are cleared silently only for a rebound /result/ type, when
+  a mixed operation promotes to a signed or floating common underlying, through
+  =sanitized=.
+- *scale folds back into T.* Multiplying a narrow =T= can overflow or truncate
+  just as the underlying would; convert to a wider strong type first when you
+  need headroom.
+
+* Comparison with the alternatives
+
+| approach              | distinct type | operators        | mixed-type safety      |
+|-----------------------+---------------+------------------+------------------------|
+| strong_typedef (this) | yes           | opt-in per flag  | unrelated tags reject  |
+| BOOST_STRONG_TYPEDEF  | yes           | fixed by macro   | forwards most, coarse  |
+| type_safe strong_typedef | yes        | opt-in via mixins | mixin-based, verbose  |
+| plain enum class      | yes           | none but compare  | no arithmetic, no hash |
+| bare using / typedef  | no            | all of T          | none (an alias of T)   |
+
+Against =BOOST_STRONG_TYPEDEF=, this type replaces a one-size macro with a
+per-use capability bitmask, keeps the code visible to =clang-tidy= and Doxygen,
+and rebinds mixed-underlying operations to a common type instead of forwarding
+blindly. Against Foonathan's =type_safe=, it trades a policy-class mixin design
+for a single scoped-enum parameter, which keeps template instantiation cheap and
+the type list flat. A =enum class= gives distinctness and comparison for a small
+fixed set of named values, but no arithmetic, no free underlying, and no hashing
+of an open value range; reach for =strong_typedef= when the quantity is an open
+range of an arithmetic or integral type rather than a closed set of names.
 
 Runnable: [[file:../../../examples/utility/strong_typedef.cpp][examples/utility/strong_typedef.cpp]]
