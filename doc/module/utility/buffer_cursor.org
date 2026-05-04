@@ -5,57 +5,149 @@
 * Purpose
 
 =nexenne::utility::buffer_cursor= tracks a read or write position within a byte
-span and answers bounds questions, bundling the "span plus offset plus is-there-
-room check" trio that every hand-rolled serializer or parser repeats.
+span and answers bounds questions, bundling the "span plus current offset plus
+is-there-room check" trio that every hand-rolled serializer or parser repeats.
 
-* The idea
+* The problem it solves
 
-A codec almost always carries three things together: the buffer, how far into it
-it has got, and a check for whether the next N bytes are available. Spelled out
-by hand in every reader and writer, those three drift apart and the bounds check
-gets copy-pasted. =buffer_cursor= packages them into one small value so the
-position can never be read without its buffer and the room check is written once.
+A byte codec almost always carries three things together: the buffer, how far
+into it it has advanced, and a check for whether the next N bytes are available.
+Spelled out by hand in every reader and writer, those three drift apart: the
+offset lives in a loose =std::size_t=, the bounds check is copy-pasted and
+occasionally wrong, and a mistake surfaces as a silent over-read rather than a
+diagnostic. =buffer_cursor= packages the three into one small value so the
+position can never be read without its buffer, the room check is written once,
+and every documented precondition is asserted in debug so an overshoot aborts at
+the fault instead of corrupting the read.
 
 * How it works
 
-The cursor stores an =std::span<Byte>= and a =std::size_t= offset, nothing more,
-so it is trivially copyable and owns no storage. Use a =const Byte= for a read
-cursor and a mutable =Byte= for a write cursor; a deduction guide picks =Byte=
-from a span of any extent. =remaining()= is =size() - position()=, and the single
-=has(n)= query answers both "are there =n= more bytes to read" and "do =n= more
-fit", because both reduce to =n <= remaining()=. =advance(n)= moves the offset,
-=retreat(n)= steps it back (for ungetting a peeked element), and =seek(pos)= jumps
-to an absolute one; =peek(n)= returns the next =n= bytes as a
-sub-span without moving and =take(n)= returns them and advances; =next()= reads a
-single element and advances, =put(b)= writes one and advances (write cursors
-only), and =consumed()= returns the prefix =[0, position())= already read or
-written. Every member is =constexpr= and trivial, so the cursor compiles away to
-the same index arithmetic you would have written by hand.
+** The position <= size invariant
 
-* When to use it
+The cursor stores exactly two things: a =std::span<Byte>= and a =std::size_t=
+offset. Its single invariant is =position() <= size()=: the offset may sit
+anywhere from the start to one past the last element (the end), and never beyond.
+Every mutator preserves it by asserting its precondition first. =advance(n)=,
+=take(n)=, =peek(n)=, and =next()= assert =has(n)= (that =n <= remaining()=);
+=seek(pos)= asserts =pos <= size()=; =retreat(n)= asserts =n <= position()=. So
+the position walks from left to right, guarded at each step:
 
-Use a =buffer_cursor= as the state of a byte-stream reader or writer: a binary
-decoder walking a packet, an encoder filling a buffer, a parser scanning a
-fixed-layout record. Query =has(n)= before reading or writing =n= bytes, then
-=take(n)= to consume them. It pairs naturally with the [[file:endian.org][endian]] helpers, which
-take the fixed-extent span that =take= hands back.
+#+BEGIN_EXAMPLE
+  buffer of size 8, cursor after reading 3 bytes
 
-Alternatives: a raw =std::span= and a loop when there is no running position to
-track; a full streaming abstraction when you also need growth, ownership, or
-backing-store management, which the cursor deliberately does not provide.
+  index:     0    1    2    3    4    5    6    7    8
+           +----+----+----+----+----+----+----+----+
+   bytes   | A5 | 03 | 02 | 00 | 04 | 00 | FF | FF |
+           +----+----+----+----+----+----+----+----+
+                            ^                        ^
+                            position() == 3          size() == 8
 
-GOTCHAS. The cursor borrows the span; the underlying bytes must outlive it. It
-does not enforce its own preconditions: =advance=, =peek=, and =take= assume
-=has(n)= is true, so check first (an over-run is undefined, exactly as with the
-hand-written code it replaces). =remaining()= underflows if the position is
-pushed past the end, so never advance beyond =size()=.
+           |<-- consumed() -->|<------ remaining() == 5 ------>|
+             [0, position())            has(5) is true, has(6) is false
+#+END_EXAMPLE
+
+=consumed()= is the prefix =[0, position())= already read or written;
+=remaining()= is =size() - position()=; =exhausted()= is =position() >= size()=.
+Because the invariant holds, =remaining()= never underflows and =has(n)= never
+lies. The single =has(n)= query answers both "are there =n= more bytes to read"
+and "do =n= more bytes fit", since both reduce to =n <= remaining()=.
+
+** Read cursor and write cursor from one template
+
+The =Byte= parameter selects the mode. A =std::byte const= cursor is a read
+cursor; a mutable =std::byte= cursor is a write cursor and additionally exposes
+=put(value)= (constrained with =requires(!std::is_const_v<B>)= so it does not
+exist on a read cursor). A deduction guide picks =Byte= from a span of any
+extent, so =buffer_cursor{std::span{buf}}= just works. The type owns no storage
+and every member is =constexpr= and trivial, so a cursor compiles away to the
+same index arithmetic you would have written by hand, and copying it is copying a
+pointer, a length, and an offset.
+
+** Peek versus take, advance versus retreat
+
+=peek(n)= returns the next =n= bytes as a sub-span without moving the position;
+=take(n)= returns the same span and advances past it. =next()= reads one element
+and advances; =put(value)= writes one and advances (write cursors only).
+=advance(n)= skips forward, =retreat(n)= steps back (for ungetting a peeked or
+consumed element, defaulting to one), =seek(pos)= jumps to an absolute offset,
+and =rewind()= returns to the start. Peeking before committing lets a parser
+inspect a tag and back out without consuming it.
+
+* API tour
+
+- Construction: =buffer_cursor{span}= (deduction guide), positioned at zero.
+- Bounds: =size()=, =position()=, =remaining()=, =exhausted()=, =has(n)=.
+- Read without moving: =peek(n)=, =data()=.
+- Consume: =take(n)=, =next()=.
+- Write (mutable =Byte= only): =put(value)=.
+- Move: =advance(n)=, =retreat(n = 1)=, =seek(pos)=, =rewind()=.
+- Views: =buffer()= (the whole span), =consumed()= (the prefix =[0, position())=).
 
 * Usage
 
+Encode a message with a write cursor, then parse it with a read cursor, guarding
+every step with =has()= so neither side runs off the end:
+
 #+BEGIN_SRC cpp
-auto cur{nexenne::utility::buffer_cursor{std::span{buf}}};
-while (cur.has(4)) {
-  auto const value{nexenne::utility::read_be<std::uint32_t>(cur.take(4).first<4>())};
-  consume(value);
+namespace util = nexenne::utility;
+
+// Write: put single bytes, take a fixed slice for a multi-byte field.
+auto writer{util::buffer_cursor{storage}};
+writer.put(magic);
+writer.put(static_cast<std::byte>(readings.size()));
+for (auto const reading : readings) {
+  if (!writer.has(2)) {
+    break;  // buffer full: stop cleanly instead of overrunning
+  }
+  util::write_be(writer.take(2).first<2>(), reading);  // take hands back a span
+}
+auto const message{writer.consumed()};
+
+// Read: peek the tag without committing, then walk the body guarded by has().
+auto reader{util::buffer_cursor{message}};
+if (reader.peek(1)[0] != magic) {
+  return;  // wrong magic consumed nothing
+}
+reader.advance(1);
+auto const count{std::to_integer<std::size_t>(reader.next())};
+for (auto i{std::size_t{0}}; i < count; ++i) {
+  if (!reader.has(2)) {
+    break;  // truncated message: stop before the missing field
+  }
+  auto const value{util::read_be<std::uint16_t>(reader.take(2).first<2>())};
 }
 #+END_SRC
+
+It pairs naturally with the [[file:endian.org][endian]] helpers, which take the fixed-extent span
+=take= and =peek= hand back (recover the extent with =first<N>()=).
+
+* Pitfalls
+
+- *The cursor borrows the span.* It owns no storage, so the underlying bytes must
+  outlive the cursor.
+- *The bounds checks are debug asserts, not runtime validation.* =take=, =peek=,
+  =advance=, =next=, and =put= assert =has(n)= in debug; under =NDEBUG= an
+  overshoot is undefined behaviour, the caller's contract. Guard with =has(n)=
+  (or =remaining()=) before consuming =n= bytes when the count comes from the
+  data rather than a fixed layout, exactly as the example does with an
+  attacker-supplied reading count.
+- *=take= and =peek= return a dynamic-extent span.* Restore a static extent with
+  =first<N>()= before handing it to an endian helper.
+- Not a streaming abstraction: it tracks a position over a fixed view and does
+  not grow, own, or manage a backing store. When you need growth or ownership,
+  wrap it around a container you resize yourself.
+
+* Comparison with the standard library
+
+The standard library has no bounds-tracked cursor; the closest pieces are a raw
+=std::span= plus a hand-kept offset. A plain =std::span= and a loop suffice when
+there is no running position to track, but the moment you carry an offset and a
+"is there room" check you are re-implementing this type without its asserts.
+=std::span::subspan= is what =take= and =peek= call underneath, so a cursor is
+that call plus the offset bookkeeping and the invariant. C++23 =std::spanstream=
+offers a stream interface over a fixed buffer, but it brings the =iostream=
+formatting machinery and exception or failbit error model; =buffer_cursor= stays
+at the byte level with an assert-guarded contract and no formatting dependency,
+which is what a binary codec on a small target wants.
+
+Runnable: [[file:../../../examples/utility/buffer_cursor.cpp][examples/utility/buffer_cursor.cpp]]
