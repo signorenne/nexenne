@@ -4,55 +4,111 @@
 
 * Purpose
 
-=nexenne::utility= endian helpers read and write unsigned integers to byte
+The =nexenne::utility= endian helpers read and write unsigned integers to byte
 spans in a fixed byte order: =write_be= / =read_be= for big-endian (network
 order) and =write_le= / =read_le= for little-endian. They are the building block
-for any wire format, file header, or hardware register layout.
+for any wire format, file header, or memory-mapped register layout.
 
-* The idea
+* The problem it solves
 
-Serializers repeatedly hand-roll the same "shift the bytes out in the right
-order" (or "byteswap unless the host already matches") logic, once per codec.
-That logic is easy to get subtly wrong and clutters every encode/decode path.
-These four functions state the byte order in the name, take a fixed-extent span
-so the byte count is part of the type, and leave no temporary behind.
+Every serializer repeats the same "shift the bytes out in the right order" (or
+"byteswap unless the host already matches") logic once per codec. That logic is
+easy to get subtly wrong: an off-by-one over-read past the end of the buffer, a
+swap keyed on the wrong host endianness, a signed shift that sign-extends. These
+four functions state the byte order in the name, take a fixed-extent span so the
+byte count is part of the type, and are pure shifts with no branch on the host
+order, so the same source produces the same bytes on every target.
 
 * How it works
 
-Each function is a function template over an =std::unsigned_integral U=. The
-destination or source is an =std::span<std::byte, sizeof(U)>= (mutable for
-=write=, =const= for =read=): the static extent means the span is exactly the
-right size by construction, so there is no separate length argument and no way to
-under-run the buffer. =write_be= deduces =U= from the value; =read_be= takes =U=
-explicitly since there is no value to deduce from.
+** Byte-by-byte shifts, no host branch
 
-The body is plain shifts and =std::to_integer=, which is portable (it does not
-branch on =std::endian::native=) and =constexpr=, so the helpers also run at
-compile time. At run time every compiler recognises the pattern and lowers it to
-a single load/store plus a =BSWAP= / =REV= when the host order differs, so the
-abstraction costs nothing.
+Each function is a template over an =std::unsigned_integral U=. The body is a
+loop of shifts and masks: =write_be= places byte =i= (counting from the least
+significant) at span index =sizeof(U) - 1 - i=, so the most significant byte
+lands first; =write_le= places it at index =i=. Reading mirrors that: =read_be=
+folds each byte in as =value = (value << 8) | byte=, most significant first;
+=read_le= ORs each byte in at its shifted position.
 
-* When to use it
+The code never inspects =std::endian::native=. It manipulates the *value* by
+arithmetic (shifting a number right by eight bits extracts a byte regardless of
+how the host stores that number in memory), so the result is defined purely by
+the requested order, not the host. It is also =constexpr=, so a layout can be
+checked with a =static_assert=. At run time every compiler recognises the loop
+and lowers it to a single load or store, plus a =BSWAP= or =REV= instruction when
+the host order differs from the requested one, so the abstraction costs nothing.
 
-Use these wherever bytes cross a boundary that fixes their order: a binary
-protocol, an on-disk format, a checksum over a canonical byte layout, or a
-memory-mapped peripheral register. Pick =_be= or =_le= to match the format you
-are speaking, not the host you are running on.
+** Why a fixed-extent span makes over-reads a compile error
 
-Alternatives: =std::byteswap= alone when you already have the integer in the
-right place and only need to flip it; for the host's own order a plain copy is
-enough and no helper is needed.
+The destination or source is a =std::span<std::byte, sizeof(U)>= (mutable for
+=write=, =const= for =read=), a span whose extent is a compile-time constant
+equal to =sizeof(U)=. Because the extent is part of the type, the span is exactly
+the right size by construction: there is no separate length argument to get
+wrong, and a caller cannot pass a two-byte span to a four-byte read. A
+dynamic-extent =std::span<std::byte>= does not convert to a fixed-extent one
+implicitly, so the mismatch is caught at the call site at compile time rather
+than as a runtime over-read or under-read. Passing the wrong sub-span
+(=out.subspan<0, 2>()= to a =std::uint32_t= write) fails to compile for the same
+reason.
 
-GOTCHAS. The span extent must equal =sizeof(U)= exactly, so a dynamic-extent
-span does not bind, take a fixed sub-span (=buf.first<4>()=) first. Only unsigned
-integer types are accepted; convert a signed value with a =static_cast= to its
-unsigned counterpart at the boundary, where the bit pattern is what matters.
+* API tour
+
+- =write_be(out, value)= : encode =value= big-endian into =out=; =U= is deduced
+  from =value=, =out= is exactly =sizeof(U)= bytes.
+- =read_be<U>(in)= : decode a big-endian =U= from =in=; =U= is given explicitly
+  since there is no value to deduce from.
+- =write_le(out, value)= / =read_le<U>(in)= : the little-endian mirror.
+
+All four are =constexpr= and =noexcept=, and take unsigned integer types only.
 
 * Usage
 
+Serialize a fixed-layout packet header, then read it back through the same
+fixed sub-spans so the offsets live in one place:
+
 #+BEGIN_SRC cpp
-std::array<std::byte, 4> buf{};
-nexenne::utility::write_be(std::span{buf}, std::uint32_t{0x01020304});
-// buf == {0x01, 0x02, 0x03, 0x04}
-auto const value{nexenne::utility::read_be<std::uint32_t>(std::span{buf})};
+namespace util = nexenne::utility;
+
+auto wire{std::array<std::byte, 8>{}};
+auto const out{std::span{wire}};
+util::write_be(out.subspan<0, 2>(), message.type);            // 2-byte field
+util::write_be(out.subspan<2, 2>(), message.sequence);        // 2-byte field
+util::write_be(out.subspan<4, 4>(), message.payload_length);  // 4-byte field
+
+auto const type{util::read_be<std::uint16_t>(out.subspan<0, 2>())};
+auto const length{util::read_be<std::uint32_t>(out.subspan<4, 4>())};
+
+// constexpr: a layout can be proven at compile time.
+static_assert([] {
+  auto buf{std::array<std::byte, 2>{}};
+  util::write_be(std::span{buf}, std::uint16_t{0x0107});
+  return buf[0] == std::byte{0x01} && buf[1] == std::byte{0x07};
+}());
 #+END_SRC
+
+* Pitfalls
+
+- *The span extent must equal =sizeof(U)= exactly.* A dynamic-extent span does
+  not bind; take a fixed sub-span (=buf.first<4>()= or =span.subspan<4, 4>()=)
+  first. This is the safety feature, not a limitation.
+- *Unsigned only.* Only unsigned integer types are accepted. Convert a signed
+  value with a =static_cast= to its unsigned counterpart at the boundary, where
+  the bit pattern is what matters.
+- *Order names the format, not the host.* Pick =_be= or =_le= to match the
+  protocol or file you are speaking, never the machine you happen to run on.
+
+* Comparison with the standard library
+
+=std::byteswap= (C++23) reverses the bytes of an integer you already hold, but it
+does not read or write memory and it leaves the "swap only if the host differs"
+decision to you. These helpers do the read or write and fix the order regardless
+of host, which is what a codec actually needs; using =std::byteswap= directly
+means pairing it with =std::endian::native= checks and a manual load or store,
+the exact boilerplate these functions remove. Under the hood a good compiler
+emits the same =BSWAP= these helpers do. When you genuinely only need to flip an
+in-register value and already know the host order, =std::byteswap= is the smaller
+tool. For reinterpreting a value's bytes as another type, see =std::bit_cast=
+(and [[file:bit.org][bit]]); for walking a byte buffer with a running position, see
+[[file:buffer_cursor.org][buffer_cursor]], which hands back the fixed-extent spans these functions take.
+
+Runnable: [[file:../../../examples/utility/endian.cpp][examples/utility/endian.cpp]]
