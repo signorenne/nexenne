@@ -5,6 +5,7 @@
  * @brief A bounds-aware read/write position within a contiguous buffer.
  */
 
+#include <cassert>
 #include <cstddef>
 #include <span>
 #include <type_traits>
@@ -18,7 +19,10 @@ namespace nexenne::utility {
  * every hand-rolled serializer or parser repeats. Use \c const \c Byte for a
  * read cursor and a mutable \c Byte for a write cursor; the same \c has query
  * answers both "are there \p n more bytes to read" and "does \p n more fit".
- * It owns no storage, only a view and an index, so copying is trivial.
+ * It owns no storage, only a view and an index, so copying is trivial. Every
+ * documented precondition is asserted in debug builds, so an overshoot aborts
+ * there instead of leaving \c remaining() underflowed and \c has() lying; in
+ * release the precondition is the caller's to uphold.
  *
  * @tparam Byte Element type, typically \c std::byte or \c std::byte \c const.
  *
@@ -39,6 +43,11 @@ public:
   using value_type = Byte;
   using size_type = std::size_t;
 
+private:
+  std::span<value_type> m_buf;
+  size_type m_pos{0};
+
+public:
   /**
    * @brief Constructs a cursor over \p buffer, positioned at offset zero.
    *
@@ -114,10 +123,11 @@ public:
    *
    * @return A span over \c [position(), position() + n).
    *
-   * @pre \c has(n) is \c true.
+   * @pre \c has(n) is \c true; violations assert in debug.
    * @post The position is unchanged.
    */
   [[nodiscard]] constexpr auto peek(size_type const n) const noexcept -> std::span<Byte> {
+    assert(has(n) && "buffer_cursor: peek past the end of the buffer");
     return m_buf.subspan(m_pos, n);
   }
 
@@ -126,10 +136,11 @@ public:
    *
    * @param n Element count to skip.
    *
-   * @pre \c has(n) is \c true.
+   * @pre \c has(n) is \c true; violations assert in debug.
    * @post \c position() has grown by \p n.
    */
   constexpr auto advance(size_type const n) noexcept -> void {
+    assert(has(n) && "buffer_cursor: advance past the end of the buffer");
     m_pos += n;
   }
 
@@ -138,10 +149,11 @@ public:
    *
    * @param pos New offset from the start of the buffer.
    *
-   * @pre \p pos is at or below \c size().
+   * @pre \p pos is at or below \c size(); violations assert in debug.
    * @post \c position() equals \p pos.
    */
   constexpr auto seek(size_type const pos) noexcept -> void {
+    assert(pos <= size() && "buffer_cursor: seek past the end of the buffer");
     m_pos = pos;
   }
 
@@ -153,10 +165,11 @@ public:
    *
    * @param n Element count to move back. Defaults to one.
    *
-   * @pre \p n is at or below \c position().
+   * @pre \p n is at or below \c position(); violations assert in debug.
    * @post \c position() has shrunk by \p n.
    */
   constexpr auto retreat(size_type const n = 1) noexcept -> void {
+    assert(n <= position() && "buffer_cursor: retreat before the start of the buffer");
     m_pos -= n;
   }
 
@@ -167,10 +180,11 @@ public:
    *
    * @return A span over the consumed range.
    *
-   * @pre \c has(n) is \c true.
+   * @pre \c has(n) is \c true; violations assert in debug.
    * @post \c position() has grown by \p n.
    */
   [[nodiscard]] constexpr auto take(size_type const n) noexcept -> std::span<Byte> {
+    assert(has(n) && "buffer_cursor: take past the end of the buffer");
     auto const out{m_buf.subspan(m_pos, n)};
     m_pos += n;
     return out;
@@ -181,10 +195,11 @@ public:
    *
    * @return The element value.
    *
-   * @pre \c has(1) is \c true.
+   * @pre \c has(1) is \c true; violations assert in debug.
    * @post \c position() has grown by one.
    */
   [[nodiscard]] constexpr auto next() noexcept -> std::remove_const_t<Byte> {
+    assert(has(1) && "buffer_cursor: next past the end of the buffer");
     auto const value{m_buf[m_pos]};
     ++m_pos;
     return value;
@@ -199,12 +214,13 @@ public:
    *           mutable (write) cursor.
    * @param value Element to store.
    *
-   * @pre \c has(1) is \c true.
+   * @pre \c has(1) is \c true; violations assert in debug.
    * @post \c position() has grown by one.
    */
   template <typename B = Byte>
     requires(!std::is_const_v<B>)
   constexpr auto put(std::remove_const_t<Byte> const value) noexcept -> void {
+    assert(has(1) && "buffer_cursor: put past the end of the buffer");
     m_buf[m_pos] = value;
     ++m_pos;
   }
@@ -238,10 +254,6 @@ public:
   [[nodiscard]] constexpr auto consumed() const noexcept -> std::span<Byte> {
     return m_buf.first(m_pos);
   }
-
-private:
-  std::span<Byte> m_buf;
-  size_type m_pos{0};
 };
 
 /**
