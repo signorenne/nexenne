@@ -102,6 +102,61 @@ TEST_CASE("nexenne::utility::buffer_cursor seek moves to an absolute offset") {
   CHECK(cur.position() == 0);
 }
 
+TEST_CASE("nexenne::utility::buffer_cursor over an empty buffer is exhausted from the start") {
+  auto cur{buffer_cursor{std::span<std::byte>{}}};
+  CHECK(cur.size() == 0);
+  CHECK(cur.position() == 0);
+  CHECK(cur.remaining() == 0);
+  CHECK(cur.exhausted());
+  CHECK(cur.has(0));  // zero more elements always fit
+  CHECK_FALSE(cur.has(1));
+  CHECK(cur.data() == nullptr);  // one past the end of an empty span
+  CHECK(cur.buffer().empty());
+  CHECK(cur.consumed().empty());
+  cur.seek(0);  // the only valid seek target
+  cur.advance(0);
+  cur.rewind();
+  CHECK(cur.position() == 0);
+}
+
+TEST_CASE("nexenne::utility::buffer_cursor peek(0) and take(0) are empty and do not move") {
+  auto storage{std::array<std::byte, 2>{std::byte{0x01}, std::byte{0x02}}};
+  auto cur{buffer_cursor{std::span{storage}}};
+
+  CHECK(cur.peek(0).empty());
+  CHECK(cur.take(0).empty());
+  CHECK(cur.position() == 0);  // a zero-length take does not advance
+
+  cur.advance(2);  // exhausted: zero-length views are still valid
+  CHECK(cur.peek(0).empty());
+  CHECK(cur.take(0).empty());
+  CHECK(cur.position() == 2);
+}
+
+TEST_CASE("nexenne::utility::buffer_cursor take returns the exact underlying bytes") {
+  auto storage{std::array<std::byte, 5>{
+    std::byte{0xDE}, std::byte{0xAD}, std::byte{0xBE}, std::byte{0xEF}, std::byte{0x42}
+  }};
+  auto cur{buffer_cursor{std::span{storage}}};
+  cur.advance(1);
+
+  auto const taken{cur.take(3)};  // must alias storage[1..3], not just have size 3
+  REQUIRE(taken.size() == 3);
+  CHECK(taken.data() == storage.data() + 1);
+  CHECK(std::to_integer<int>(taken[0]) == 0xAD);
+  CHECK(std::to_integer<int>(taken[1]) == 0xBE);
+  CHECK(std::to_integer<int>(taken[2]) == 0xEF);
+
+  // Writing through the taken span writes the underlying storage.
+  taken[0] = std::byte{0x77};
+  CHECK(std::to_integer<int>(storage[1]) == 0x77);
+
+  // peek at the new position views the same byte take would return.
+  auto const peeked{cur.peek(1)};
+  CHECK(peeked.data() == storage.data() + 4);
+  CHECK(std::to_integer<int>(peeked[0]) == 0x42);
+}
+
 TEST_CASE("nexenne::utility::buffer_cursor over a const span is a read cursor") {
   auto const storage{std::array<std::byte, 2>{std::byte{0xAB}, std::byte{0xCD}}};
   auto cur{buffer_cursor{std::span{storage}}};
