@@ -7,8 +7,10 @@
 
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <list>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <nexenne/utility/hash.hpp>
@@ -26,10 +28,62 @@ struct not_hashable {};
 
 static_assert(!util::hashable<not_hashable>);
 
+struct throwing_key {
+  int id{};
+};
+
 // The width-tuned mixer only admits a 4- or 8-byte std::size_t; the active
 // specialisation must expose its constants.
 static_assert(util::detail::hash_mix<>::magic != 0);
 static_assert(sizeof(std::size_t) == 4 || sizeof(std::size_t) == 8);
+
+}  // namespace
+
+/// @brief A usable but potentially-throwing hash, to probe conditional noexcept.
+template <>
+struct std::hash<throwing_key> {
+  /**
+   * @brief Hashes the wrapped id; deliberately not \c noexcept.
+   *
+   * @param key Key to hash.
+   *
+   * @return The hash of the wrapped id.
+   *
+   * @pre None.
+   * @post None.
+   */
+  auto operator()(throwing_key const& key) const -> std::size_t {
+    return std::hash<int>{}(key.id);
+  }
+};
+
+namespace {
+
+// A throwing std::hash still satisfies hashable, but every combiner loses its
+// noexcept: the combiners are conditionally noexcept, propagating exactly
+// whether the underlying std::hash call can throw.
+static_assert(util::hashable<throwing_key>);
+static_assert(!util::detail::nothrow_hashable_v<throwing_key>);
+static_assert(!noexcept(util::hash_combine(std::declval<std::size_t&>(), std::declval<throwing_key const&>())));
+static_assert(!noexcept(util::hash_combine_each(
+  std::declval<std::size_t&>(), std::declval<int const&>(), std::declval<throwing_key const&>()
+)));
+static_assert(!noexcept(util::hash_args(std::declval<throwing_key const&>())));
+static_assert(!noexcept(util::hash_range(std::declval<std::vector<throwing_key> const&>())));
+
+// The noexcept of each combiner tracks the std::hash call exactly, so for a
+// nothrow-hashable type (int on every mainstream library) it is preserved.
+static_assert(
+  noexcept(util::hash_combine(std::declval<std::size_t&>(), std::declval<int const&>()))
+  == util::detail::nothrow_hashable_v<int>
+);
+static_assert(
+  noexcept(util::hash_args(std::declval<int const&>())) == util::detail::nothrow_hashable_v<int>
+);
+static_assert(
+  noexcept(util::hash_range(std::declval<std::vector<int> const&>()))
+  == util::detail::nothrow_hashable_v<int>
+);
 
 TEST_CASE("nexenne::utility::hash_args is deterministic and order-sensitive") {
   auto const same_a{util::hash_args(1, 2, 3)};
@@ -121,6 +175,15 @@ TEST_CASE("nexenne::utility::hash of empty input is zero") {
   std::size_t seed{0};
   util::hash_combine_each(seed);  // empty pack leaves the seed unchanged
   CHECK(seed == 0);
+}
+
+TEST_CASE("nexenne::utility combiners accept a type whose std::hash may throw") {
+  // The value path is identical to the nothrow one; only the noexcept differs.
+  auto const direct{util::hash_args(throwing_key{7})};
+  std::size_t seed{0};
+  util::hash_combine(seed, throwing_key{7});
+  CHECK(direct == seed);
+  CHECK(util::hash_args(throwing_key{7}) == util::hash_args(7));  // forwards to hash<int>
 }
 
 TEST_CASE("nexenne::utility::hash_range reflects element multiplicity") {
