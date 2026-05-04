@@ -5,6 +5,7 @@
 
 #include <doctest/doctest.h>
 
+#include <cmath>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -178,7 +179,7 @@ TEST_CASE("nexenne::utility::strong_typedef bitwise compound-assign and bit coun
   r >>= 2;
   CHECK(r.get() == 0b0011);
 
-  CHECK((reg{1} << 8).get() == 1);  // shift count normalised modulo width
+  CHECK((reg{1} << 7).get() == 0x80);  // width-1 is the largest valid shift count
   CHECK(util::rotr(reg{0b0000'0011}, 1).get() == 0b1000'0001);
   CHECK(util::countl_zero(reg{0b0000'0001}) == 7);
   CHECK(util::countl_one(reg{0b1111'1111}) == 8);
@@ -445,12 +446,12 @@ TEST_CASE("nexenne::utility::strong_typedef compound assignment chains and retur
 
 // unsigned bitops edge cases
 
-TEST_CASE("nexenne::utility::strong_typedef shift normalisation and bit-counting edges") {
-  // Shift by exactly the width is normalised to 0 (no UB).
-  CHECK((reg{0xAB} << 8).get() == 0xAB);
-  CHECK((reg{0xAB} >> 8).get() == 0xAB);
-  // Shift by width+1 == shift by 1.
-  CHECK((reg{1} << 9).get() == 2);
+TEST_CASE("nexenne::utility::strong_typedef shift boundary counts and bit-counting edges") {
+  // Boundary shift counts: 0 is a no-op and width-1 is the largest valid count.
+  CHECK((reg{0xAB} << 0).get() == 0xAB);
+  CHECK((reg{0xAB} >> 0).get() == 0xAB);
+  CHECK((reg{1} << 7).get() == 0x80);
+  CHECK((reg{0x80} >> 7).get() == 1);
 
   // bit_width of zero is 0; popcount of all-ones is the width.
   CHECK(util::bit_width(reg{0}) == 0);
@@ -577,6 +578,176 @@ TEST_CASE("nexenne::utility::strong_typedef is fully usable at compile time") {
     return a.get();
   }()};
   static_assert(swapped == 2);
+}
+
+// throwing underlying: conditional noexcept on the mixin operators
+
+// A strong type over std::string with ability::add: concatenation is enabled,
+// but string concatenation may allocate, so the operators must be potentially
+// throwing rather than terminating on a failed allocation.
+using strval =
+  util::strong_typedef<struct strval_tag, std::string, ability::add | ability::comparable>;
+
+TEST_CASE("nexenne::utility::strong_typedef over a throwing underlying is conditionally noexcept") {
+  // += concatenates, and because std::string concatenation can throw, the
+  // compound assignment is NOT noexcept (an unconditional noexcept would turn a
+  // bad_alloc into std::terminate).
+  static_assert(!noexcept(std::declval<strval&>() += std::declval<strval const&>()));
+  // Trivial underlyings keep their noexcept operators.
+  static_assert(noexcept(std::declval<meters&>() += std::declval<meters const&>()));
+
+  strval a{std::string{"foo"}};
+  a += strval{std::string{"bar"}};
+  CHECK(a.get() == "foobar");
+
+  // The free operator+ concatenates too and returns the same strong type.
+  auto const joined{strval{std::string{"ab"}} + strval{std::string{"cd"}}};
+  static_assert(std::is_same_v<std::remove_cvref_t<decltype(joined)>, strval>);
+  CHECK(joined.get() == "abcd");
+  CHECK(strval{std::string{"x"}} != strval{std::string{"y"}});
+}
+
+// rotate direction with negative counts (rotations keep modulo normalisation)
+
+TEST_CASE("nexenne::utility::strong_typedef rotate accepts negative counts") {
+  // A negative rotate count rotates the other way: rotl by -1 == rotr by 1.
+  CHECK(util::rotl(reg{0b0110'1001}, -1).get() == util::rotr(reg{0b0110'1001}, 1).get());
+  CHECK(util::rotr(reg{0b0110'1001}, -1).get() == util::rotl(reg{0b0110'1001}, 1).get());
+}
+
+// same-tag conversions: narrowing underlying and changing the ability set
+
+struct conv_tag;
+using conv_lean = util::strong_typedef<conv_tag, int, ability::comparable>;
+using conv_rich = util::strong_typedef<conv_tag, int, ability::arithmetic | ability::comparable>;
+
+TEST_CASE("nexenne::utility::strong_typedef same-tag conversions narrow and reshape abilities") {
+  // Same tag, different underlying: an explicit narrowing conversion.
+  id16 const narrow{id32{70000}};
+  CHECK(narrow.get() == static_cast<std::uint16_t>(70000));
+
+  // Same tag, same underlying, DIFFERENT ability set: now explicitly convertible.
+  conv_rich const rich{42};
+  conv_lean const lean{rich};
+  CHECK(lean.get() == 42);
+  static_assert(std::is_constructible_v<conv_lean, conv_rich>);
+  static_assert(std::is_constructible_v<conv_rich, conv_lean>);
+  static_assert(!std::is_convertible_v<conv_rich, conv_lean>);  // still explicit
+}
+
+// capability granularity: ordered alone does not grant equality
+
+using eq_only = util::strong_typedef<struct eq_only_tag, int, ability::equality>;
+using ord_only = util::strong_typedef<struct ord_only_tag, int, ability::ordered>;
+
+TEST_CASE("nexenne::utility::strong_typedef equality and ordering are independent capabilities") {
+  auto const has_eq{[]<typename U>(U) { return requires(U x) { x == x; }; }};
+  auto const has_lt{[]<typename U>(U) { return requires(U x) { x < x; }; }};
+
+  // equality-only: has ==, but no relational operators.
+  CHECK(has_eq(eq_only{0}));
+  CHECK_FALSE(has_lt(eq_only{0}));
+
+  // ordered-only: has the relational operators, but NOT == (it is a separate
+  // capability, never synthesised from operator<=>).
+  CHECK(has_lt(ord_only{0}));
+  CHECK_FALSE(has_eq(ord_only{0}));
+
+  CHECK(eq_only{1} == eq_only{1});
+  CHECK(ord_only{1} < ord_only{2});
+}
+
+// abs of negative zero clears the sign (std::abs path for floating point)
+
+TEST_CASE("nexenne::utility::strong_typedef abs clears the sign of negative zero") {
+  auto const zero{util::abs(meters{-0.0})};
+  CHECK(std::signbit(zero.get()) == false);
+  CHECK(zero.get() == doctest::Approx(0.0));
+  // Ordinary magnitudes are unchanged.
+  CHECK(util::abs(meters{-2.5}).get() == doctest::Approx(2.5));
+}
+
+// moving the underlying out of an rvalue wrapper via get() &&
+
+TEST_CASE("nexenne::utility::strong_typedef get on an rvalue moves the underlying out") {
+  static_assert(std::is_same_v<decltype(std::declval<name>().get()), std::string&&>);
+  static_assert(std::is_same_v<decltype(std::declval<name const>().get()), std::string const&&>);
+
+  name src{std::string(64, 'x')};  // long enough to be heap-allocated
+  std::string const moved{std::move(src).get()};
+  CHECK(moved.size() == 64);
+  CHECK(src.get().empty());  // libstdc++ leaves a moved-from string empty
+}
+
+// saturating across mixed underlyings promotes to the common strong type
+
+TEST_CASE("nexenne::utility::strong_typedef saturating promotes mixed underlyings") {
+  struct smix_tag;
+  using s16 = util::strong_typedef<smix_tag, std::uint16_t, ability::saturating>;
+  using s32 = util::strong_typedef<smix_tag, std::uint32_t, ability::saturating>;
+
+  auto const summed{util::sat_add(s16{60000}, s32{10000})};
+  // The common underlying is uint32, so the sum does not saturate at 16 bits.
+  static_assert(std::is_same_v<decltype(summed)::value_type, std::uint32_t>);
+  CHECK(summed.get() == 70000U);
+
+  auto const diff{util::sat_sub(s16{5}, s32{9})};
+  static_assert(std::is_same_v<decltype(diff)::value_type, std::uint32_t>);
+  CHECK(diff.get() == 0U);  // clamps to zero
+}
+
+// a mixed operator that rebinds to a signed common type drops shift and bitops
+
+TEST_CASE("nexenne::utility::strong_typedef sanitized drops unsigned-only ops on a mixed result") {
+  struct mix_tag;
+  using u32reg = util::
+    strong_typedef<mix_tag, std::uint32_t, ability::add | ability::shift | ability::bitops>;
+  using i64q = util::strong_typedef<mix_tag, std::int64_t, ability::add>;
+
+  using sum_t = decltype(u32reg{5} + i64q{7});
+  // The common underlying is signed, so the unsigned-only flags are sanitised away.
+  static_assert(std::is_same_v<sum_t::value_type, std::int64_t>);
+  static_assert(util::detail::has_op<sum_t, ability::add>);
+  static_assert(!util::detail::has_op<sum_t, ability::shift>);
+  static_assert(!util::detail::has_op<sum_t, ability::bitops>);
+  CHECK((u32reg{5} + i64q{7}).get() == 12);
+}
+
+// formatter coverage: wide character contexts and the ability enum
+
+TEST_CASE("nexenne::utility::strong_typedef formats in a wide context") {
+  CHECK(std::format(L"{}", chip_id{42}) == L"42");
+  CHECK(std::format(L"{:>4}", chip_id{7}) == L"   7");
+}
+
+TEST_CASE("nexenne::utility::ability names and formats each flag") {
+  CHECK(util::to_string(ability::none) == "none");
+  CHECK(util::to_string(ability::add) == "add");
+  CHECK(util::to_string(ability::scale) == "scale");
+  CHECK(util::to_string(ability::shift) == "shift");
+  CHECK(util::to_string(ability::arithmetic) == "arithmetic");
+  CHECK(util::to_string(ability::comparable) == "comparable");
+  CHECK(util::to_string(ability::bitwise) == "bitwise");
+  // An ad-hoc union with no dedicated name reports unknown.
+  CHECK(util::to_string(ability::add | ability::scale) == "unknown");
+
+  // The formatter forwards to to_string and honours a string spec.
+  CHECK(std::format("{}", ability::ratio) == "ratio");
+  CHECK(std::format("{:>10}", ability::add) == "       add");
+
+  // The new operator^ toggles a flag.
+  CHECK((ability::arithmetic ^ ability::scale) == (ability::arithmetic & ~ability::scale));
+  CHECK((ability::add ^ ability::add) == ability::none);
+}
+
+// is_strong_typedef is a usable public trait
+
+TEST_CASE("nexenne::utility::is_strong_typedef reports wrapper types") {
+  static_assert(util::is_strong_typedef<meters>::value);
+  static_assert(util::is_strong_typedef<chip_id>::value);
+  static_assert(!util::is_strong_typedef<double>::value);
+  static_assert(!util::is_strong_typedef<int>::value);
+  CHECK(true);
 }
 
 }  // namespace
