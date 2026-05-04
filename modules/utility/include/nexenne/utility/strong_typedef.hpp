@@ -32,6 +32,8 @@
  */
 
 #include <bit>
+#include <cassert>
+#include <cmath>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -39,6 +41,7 @@
 #include <format>
 #include <functional>
 #include <limits>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -52,8 +55,12 @@ namespace nexenne::utility {
  * of a wrapper is a compile-time constant, so unsupported operators are removed
  * from overload resolution rather than failing at the call site.
  *
- * @note \c shift and \c bitops only take effect when \p T is an unsigned
- *       integral type; on any other underlying they remain inert.
+ * @note \c shift and \c bitops require an unsigned integral underlying:
+ *       requesting either on a wrapper whose primary underlying is not an
+ *       unsigned integral type is a compile error (a \c static_assert). They
+ *       are cleared silently only for a rebound result type, when a mixed
+ *       operation promotes to a signed or floating common underlying, through
+ *       \c sanitized.
  */
 enum class ability : std::uint32_t {
   none = 0U,
@@ -122,6 +129,21 @@ enum class ability : std::uint32_t {
 }
 
 /**
+ * @brief Symmetric difference of two capability sets.
+ *
+ * @param a Left set.
+ * @param b Right set.
+ *
+ * @return The set holding flags present in exactly one of \p a and \p b.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] constexpr auto operator^(ability a, ability b) noexcept -> ability {
+  return static_cast<ability>(std::to_underlying(a) ^ std::to_underlying(b));
+}
+
+/**
  * @brief Complement of a capability set.
  *
  * @param a Set to complement.
@@ -148,6 +170,74 @@ enum class ability : std::uint32_t {
  */
 [[nodiscard]] constexpr auto has(ability set, ability flag) noexcept -> bool {
   return (std::to_underlying(set) & std::to_underlying(flag)) == std::to_underlying(flag);
+}
+
+/**
+ * @brief Human-readable name of a single \c ability flag or named group.
+ *
+ * Recognises every individual flag, the three convenience groups
+ * (\c arithmetic, \c comparable, \c bitwise) and \c none. Any other value
+ * (an ad-hoc union of flags with no dedicated name) reports \c "unknown".
+ *
+ * @param flag Flag, named group or \c none to describe.
+ *
+ * @return A static string view naming \p flag.
+ *
+ * @pre None.
+ * @post The returned view refers to a string with program lifetime.
+ */
+[[nodiscard]] constexpr auto to_string(ability flag) noexcept -> std::string_view {
+  switch (flag) {
+    case ability::none:
+      return "none";
+    case ability::add:
+      return "add";
+    case ability::subtract:
+      return "subtract";
+    case ability::unary_minus:
+      return "unary_minus";
+    case ability::scale:
+      return "scale";
+    case ability::ratio:
+      return "ratio";
+    case ability::modulo:
+      return "modulo";
+    case ability::increment:
+      return "increment";
+    case ability::decrement:
+      return "decrement";
+    case ability::equality:
+      return "equality";
+    case ability::ordered:
+      return "ordered";
+    case ability::bit_and:
+      return "bit_and";
+    case ability::bit_or:
+      return "bit_or";
+    case ability::bit_xor:
+      return "bit_xor";
+    case ability::bit_not:
+      return "bit_not";
+    case ability::shift:
+      return "shift";
+    case ability::bitops:
+      return "bitops";
+    case ability::unary_plus:
+      return "unary_plus";
+    case ability::saturating:
+      return "saturating";
+    case ability::boolean:
+      return "boolean";
+    case ability::absolute:
+      return "absolute";
+    case ability::arithmetic:
+      return "arithmetic";
+    case ability::comparable:
+      return "comparable";
+    case ability::bitwise:
+      return "bitwise";
+  }
+  return "unknown";
 }
 
 /**
@@ -188,13 +278,23 @@ template <typename X>
 using tag_t = typename std::remove_cvref_t<X>::tag_type;
 
 }  // namespace detail
+/// @endcond
 
-template <typename>
+/**
+ * @brief Trait whose \c value member is \c true when \p X is a \c strong_typedef.
+ *
+ * The primary template inherits \c std::false_type; a partial specialisation
+ * over \c strong_typedef inherits \c std::true_type. Use the \c strong_typedef_like
+ * concept for cv-qualified or reference candidates.
+ *
+ * @tparam X Candidate type (expected without cv or reference qualifiers).
+ */
+template <typename X>
 struct is_strong_typedef : std::false_type {};
 
+/// @cond INTERNAL
 template <typename Tag, typename T, ability Ops>
 struct is_strong_typedef<strong_typedef<Tag, T, Ops>> : std::true_type {};
-
 /// @endcond
 
 /**
@@ -355,12 +455,15 @@ public:
       : m_value{std::move(value)} {}
 
   /**
-   * @brief Explicitly converts from a same-tag wrapper over a different underlying.
+   * @brief Explicitly converts from another same-tag wrapper.
    *
-   * Enables intentional widening or narrowing between, for example, a 16-bit
-   * and a 32-bit representation of the same quantity.
+   * Enables intentional conversions between wrappers that share \p Tag but
+   * differ in their underlying type (a 16-bit and a 32-bit representation of
+   * the same quantity) or differ only in their ability set (granting or
+   * dropping capabilities on the same underlying). The only excluded source is
+   * the exact same specialisation, which is handled by the copy constructor.
    *
-   * @tparam U Other underlying type.
+   * @tparam U Other underlying type (may equal \p T).
    * @tparam Ops2 Other capability set (ignored).
    * @param other Source wrapper carrying the same \p Tag.
    *
@@ -368,33 +471,58 @@ public:
    * @post \c get() equals \c static_cast<T>(other.get()).
    */
   template <typename U, ability Ops2>
-    requires(!std::same_as<U, T>) && std::constructible_from<T, U const&>
+    requires(!std::same_as<strong_typedef<Tag, U, Ops2>, strong_typedef>)
+              && std::constructible_from<T, U const&>
   constexpr explicit strong_typedef(strong_typedef<Tag, U, Ops2> const& other
   ) noexcept(std::is_nothrow_constructible_v<T, U const&>)
       : m_value{static_cast<T>(other.get())} {}
 
   /**
-   * @brief The underlying value (read-only).
+   * @brief The underlying value of a const lvalue (read-only).
    *
    * @return Const reference to the wrapped value.
    *
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto get() const noexcept -> T const& {
+  [[nodiscard]] constexpr auto get() const& noexcept -> T const& {
     return m_value;
   }
 
   /**
-   * @brief The underlying value (mutable).
+   * @brief The underlying value of a mutable lvalue.
    *
    * @return Mutable reference to the wrapped value.
    *
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto get() noexcept -> T& {
+  [[nodiscard]] constexpr auto get() & noexcept -> T& {
     return m_value;
+  }
+
+  /**
+   * @brief The underlying value of an rvalue, ready to be moved from.
+   *
+   * @return Rvalue reference to the wrapped value.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto get() && noexcept -> T&& {
+    return std::move(m_value);
+  }
+
+  /**
+   * @brief The underlying value of a const rvalue.
+   *
+   * @return Const rvalue reference to the wrapped value.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto get() const&& noexcept -> T const&& {
+    return std::move(m_value);
   }
 
   /**
@@ -436,10 +564,13 @@ public:
    *
    * @pre None.
    * @post \c get() holds the previous value plus \p o.
+   *
+   * @note Unlike the free \c operator+, compound assignment accepts only the
+   *       exact same specialisation: the destination underlying cannot widen,
+   *       so a mixed-underlying right-hand side is rejected by design.
    */
-  constexpr auto operator+=(strong_typedef const& o
-  ) noexcept -> strong_typedef& requires(has(Ops, ability::add))
-                  && requires(T& a, T const& b) { a + b; } {
+  constexpr auto operator+=(strong_typedef const& o) noexcept(noexcept(m_value + o.m_value))
+    -> strong_typedef& requires(has(Ops, ability::add)) && requires(T& a, T const& b) { a + b; } {
     m_value = detail::convert<T>(m_value + o.m_value);
     return *this;
   }
@@ -453,10 +584,14 @@ public:
    *
    * @pre None.
    * @post \c get() holds the previous value minus \p o.
+   *
+   * @note Unlike the free \c operator-, compound assignment accepts only the
+   *       exact same specialisation: the destination underlying cannot widen,
+   *       so a mixed-underlying right-hand side is rejected by design.
    */
-  constexpr auto operator-=(strong_typedef const& o
-  ) noexcept -> strong_typedef& requires(has(Ops, ability::subtract))
-                  && requires(T& a, T const& b) { a - b; } {
+  constexpr auto operator-=(strong_typedef const& o) noexcept(noexcept(m_value - o.m_value))
+    -> strong_typedef&
+    requires(has(Ops, ability::subtract)) && requires(T& a, T const& b) { a - b; } {
     m_value = detail::convert<T>(m_value - o.m_value);
     return *this;
   }
@@ -475,7 +610,7 @@ public:
   template <typename S>
     requires(has(Ops, ability::scale)) && (!strong_typedef_like<S>)
               && requires(T& a, S const& b) { a* b; }
-  constexpr auto operator*=(S const& s) noexcept -> strong_typedef& {
+  constexpr auto operator*=(S const& s) noexcept(noexcept(m_value* s)) -> strong_typedef& {
     m_value = detail::convert<T>(m_value * s);
     return *this;
   }
@@ -488,13 +623,14 @@ public:
    *
    * @return Reference to \c *this.
    *
-   * @pre None.
+   * @pre \p s is nonzero when \p T is an integral type (integer division by
+   *      zero is undefined behaviour).
    * @post \c get() holds the previous value divided by \p s.
    */
   template <typename S>
     requires(has(Ops, ability::scale)) && (!strong_typedef_like<S>)
               && requires(T& a, S const& b) { a / b; }
-  constexpr auto operator/=(S const& s) noexcept -> strong_typedef& {
+  constexpr auto operator/=(S const& s) noexcept(noexcept(m_value / s)) -> strong_typedef& {
     m_value = detail::convert<T>(m_value / s);
     return *this;
   }
@@ -506,12 +642,16 @@ public:
    *
    * @return Reference to \c *this.
    *
-   * @pre None.
+   * @pre \p o is nonzero (integer modulo by zero is undefined behaviour).
    * @post \c get() holds the previous value modulo \p o.
+   *
+   * @note Unlike the free \c operator%, compound assignment accepts only the
+   *       exact same specialisation: the destination underlying cannot widen,
+   *       so a mixed-underlying right-hand side is rejected by design.
    */
-  constexpr auto operator%=(strong_typedef const& o
-  ) noexcept -> strong_typedef& requires(has(Ops, ability::modulo))
-                  && requires(T& a, T const& b) { a % b; } {
+  constexpr auto operator%=(strong_typedef const& o) noexcept(noexcept(m_value % o.m_value))
+    -> strong_typedef&
+    requires(has(Ops, ability::modulo)) && requires(T& a, T const& b) { a % b; } {
     m_value = detail::convert<T>(m_value % o.m_value);
     return *this;
   }
@@ -525,10 +665,14 @@ public:
    *
    * @pre None.
    * @post \c get() holds the bitwise AND of its previous value and \p o.
+   *
+   * @note Unlike the free \c operator&, compound assignment accepts only the
+   *       exact same specialisation: the destination underlying cannot widen,
+   *       so a mixed-underlying right-hand side is rejected by design.
    */
-  constexpr auto operator&=(strong_typedef const& o
-  ) noexcept -> strong_typedef& requires(has(Ops, ability::bit_and))
-                  && requires(T& a, T const& b) { a & b; } {
+  constexpr auto operator&=(strong_typedef const& o) noexcept(noexcept(m_value & o.m_value))
+    -> strong_typedef&
+    requires(has(Ops, ability::bit_and)) && requires(T& a, T const& b) { a & b; } {
     m_value = detail::convert<T>(m_value & o.m_value);
     return *this;
   }
@@ -542,10 +686,14 @@ public:
    *
    * @pre None.
    * @post \c get() holds the bitwise OR of its previous value and \p o.
+   *
+   * @note Unlike the free \c operator|, compound assignment accepts only the
+   *       exact same specialisation: the destination underlying cannot widen,
+   *       so a mixed-underlying right-hand side is rejected by design.
    */
-  constexpr auto operator|=(strong_typedef const& o
-  ) noexcept -> strong_typedef& requires(has(Ops, ability::bit_or))
-                  && requires(T& a, T const& b) { a | b; } {
+  constexpr auto operator|=(strong_typedef const& o) noexcept(noexcept(m_value | o.m_value))
+    -> strong_typedef&
+    requires(has(Ops, ability::bit_or)) && requires(T& a, T const& b) { a | b; } {
     m_value = detail::convert<T>(m_value | o.m_value);
     return *this;
   }
@@ -559,10 +707,14 @@ public:
    *
    * @pre None.
    * @post \c get() holds the bitwise XOR of its previous value and \p o.
+   *
+   * @note Unlike the free \c operator^, compound assignment accepts only the
+   *       exact same specialisation: the destination underlying cannot widen,
+   *       so a mixed-underlying right-hand side is rejected by design.
    */
-  constexpr auto operator^=(strong_typedef const& o
-  ) noexcept -> strong_typedef& requires(has(Ops, ability::bit_xor))
-                  && requires(T& a, T const& b) { a ^ b; } {
+  constexpr auto operator^=(strong_typedef const& o) noexcept(noexcept(m_value ^ o.m_value))
+    -> strong_typedef&
+    requires(has(Ops, ability::bit_xor)) && requires(T& a, T const& b) { a ^ b; } {
     m_value = detail::convert<T>(m_value ^ o.m_value);
     return *this;
   }
@@ -571,18 +723,24 @@ public:
    * @brief Left-shifts in place (requires \c ability::shift, unsigned \p T).
    *
    * @tparam S Integral shift-count type.
-   * @param s Shift amount, normalised into the value width.
+   * @param s Shift amount in the range [0, bit width of \p T).
    *
    * @return Reference to \c *this.
    *
-   * @pre None.
+   * @pre \p s is non-negative and less than the bit width of \p T; a negative
+   *      or out-of-range count is undefined behaviour (checked by \c assert in
+   *      debug builds).
    * @post \c get() holds the previous value shifted left by \p s.
    */
   template <typename S>
     requires(has(Ops, ability::shift)) && std::unsigned_integral<T>
               && std::integral<std::remove_cvref_t<S>> && (!strong_typedef_like<S>)
-  constexpr auto operator<<=(S s) noexcept -> strong_typedef& {
-    m_value = detail::convert<T>(m_value << detail::normalize_shift<T>(s));
+  constexpr auto operator<<=(S s) noexcept(noexcept(m_value << s)) -> strong_typedef& {
+    assert(
+      std::cmp_greater_equal(s, 0) && std::cmp_less(s, std::numeric_limits<T>::digits)
+      && "shift count out of range"
+    );
+    m_value = detail::convert<T>(m_value << s);
     return *this;
   }
 
@@ -590,18 +748,24 @@ public:
    * @brief Right-shifts in place (requires \c ability::shift, unsigned \p T).
    *
    * @tparam S Integral shift-count type.
-   * @param s Shift amount, normalised into the value width.
+   * @param s Shift amount in the range [0, bit width of \p T).
    *
    * @return Reference to \c *this.
    *
-   * @pre None.
+   * @pre \p s is non-negative and less than the bit width of \p T; a negative
+   *      or out-of-range count is undefined behaviour (checked by \c assert in
+   *      debug builds).
    * @post \c get() holds the previous value shifted right by \p s.
    */
   template <typename S>
     requires(has(Ops, ability::shift)) && std::unsigned_integral<T>
               && std::integral<std::remove_cvref_t<S>> && (!strong_typedef_like<S>)
-  constexpr auto operator>>=(S s) noexcept -> strong_typedef& {
-    m_value = detail::convert<T>(m_value >> detail::normalize_shift<T>(s));
+  constexpr auto operator>>=(S s) noexcept(noexcept(m_value >> s)) -> strong_typedef& {
+    assert(
+      std::cmp_greater_equal(s, 0) && std::cmp_less(s, std::numeric_limits<T>::digits)
+      && "shift count out of range"
+    );
+    m_value = detail::convert<T>(m_value >> s);
     return *this;
   }
 
@@ -613,8 +777,8 @@ public:
    * @pre None.
    * @post \c get() is one greater than before.
    */
-  constexpr auto operator++() noexcept -> strong_typedef& requires(has(Ops, ability::increment))
-                                            && requires(T& v) { ++v; } {
+  constexpr auto operator++() noexcept(noexcept(++m_value))
+    -> strong_typedef& requires(has(Ops, ability::increment)) && requires(T& v) { ++v; } {
     ++m_value;
     return *this;
   }
@@ -627,8 +791,8 @@ public:
    * @pre None.
    * @post \c get() is one less than before.
    */
-  constexpr auto operator--() noexcept -> strong_typedef& requires(has(Ops, ability::decrement))
-                                            && requires(T& v) { --v; } {
+  constexpr auto operator--() noexcept(noexcept(--m_value))
+    -> strong_typedef& requires(has(Ops, ability::decrement)) && requires(T& v) { --v; } {
     --m_value;
     return *this;
   }
@@ -641,7 +805,8 @@ public:
    * @pre None.
    * @post \c get() is one greater than the returned value.
    */
-  constexpr auto operator++(int) noexcept -> strong_typedef
+  constexpr auto operator++(int
+  ) noexcept(std::is_nothrow_copy_constructible_v<T> && noexcept(++m_value)) -> strong_typedef
     requires(has(Ops, ability::increment)) && requires(T& v) { v++; }
   {
     auto tmp{*this};
@@ -657,7 +822,8 @@ public:
    * @pre None.
    * @post \c get() is one less than the returned value.
    */
-  constexpr auto operator--(int) noexcept -> strong_typedef
+  constexpr auto operator--(int
+  ) noexcept(std::is_nothrow_copy_constructible_v<T> && noexcept(--m_value)) -> strong_typedef
     requires(has(Ops, ability::decrement)) && requires(T& v) { v--; }
   {
     auto tmp{*this};
@@ -758,8 +924,8 @@ using common_strong_t = strong_typedef<
 template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::add> && detail::has_op<B, ability::add>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u + v; }
-[[nodiscard]] constexpr auto
-operator+(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
+[[nodiscard]] constexpr auto operator+(A const& a, B const& b) noexcept(noexcept(a.get() + b.get()))
+  -> detail::common_strong_t<A, B> {
   using ret = detail::common_strong_t<A, B>;
   using r = typename ret::value_type;
   return ret{detail::convert<r>(detail::convert<r>(a.get()) + detail::convert<r>(b.get()))};
@@ -782,8 +948,8 @@ template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::subtract>
              && detail::has_op<B, ability::subtract>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u - v; }
-[[nodiscard]] constexpr auto
-operator-(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
+[[nodiscard]] constexpr auto operator-(A const& a, B const& b) noexcept(noexcept(a.get() - b.get()))
+  -> detail::common_strong_t<A, B> {
   using ret = detail::common_strong_t<A, B>;
   using r = typename ret::value_type;
   return ret{detail::convert<r>(detail::convert<r>(a.get()) - detail::convert<r>(b.get()))};
@@ -802,7 +968,8 @@ operator-(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
  */
 template <strong_typedef_like X>
   requires detail::has_op<X, ability::unary_minus> && requires(detail::value_t<X> v) { -v; }
-[[nodiscard]] constexpr auto operator-(X const& x) noexcept -> std::remove_cvref_t<X> {
+[[nodiscard]] constexpr auto operator-(X const& x) noexcept(noexcept(-x.get()))
+  -> std::remove_cvref_t<X> {
   using s = std::remove_cvref_t<X>;
   return s{detail::convert<typename s::value_type>(-x.get())};
 }
@@ -820,7 +987,8 @@ template <strong_typedef_like X>
  */
 template <strong_typedef_like X>
   requires detail::has_op<X, ability::unary_plus> && requires(detail::value_t<X> v) { +v; }
-[[nodiscard]] constexpr auto operator+(X const& x) noexcept -> std::remove_cvref_t<X> {
+[[nodiscard]] constexpr auto operator+(X const& x) noexcept(noexcept(+x.get()))
+  -> std::remove_cvref_t<X> {
   using s = std::remove_cvref_t<X>;
   return s{detail::convert<typename s::value_type>(+x.get())};
 }
@@ -828,24 +996,28 @@ template <strong_typedef_like X>
 /**
  * @brief Absolute value (requires \c ability::absolute).
  *
- * For an unsigned underlying this is the identity. For a signed underlying it
- * mirrors \c std::abs, including its undefined behaviour on the most negative
- * value.
+ * For an unsigned underlying this is the identity. For a floating-point
+ * underlying it forwards to \c std::abs (constexpr in C++23), which handles the
+ * sign of negative zero and of NaN correctly. For a signed integral underlying
+ * it negates the value when it is negative.
  *
  * @tparam X Strong type.
  * @param x Operand.
  *
  * @return A wrapper holding \c |x|.
  *
- * @pre None.
+ * @pre For a signed integral \p T, \p x is not the most negative value:
+ *      negating \c INT_MIN and its analogues is undefined behaviour.
  * @post None.
  */
 template <strong_typedef_like X>
   requires detail::has_op<X, ability::absolute> && requires(detail::value_t<X> v) { -v; }
-[[nodiscard]] constexpr auto abs(X const& x) noexcept -> std::remove_cvref_t<X> {
+[[nodiscard]] constexpr auto abs(X const& x) noexcept(noexcept(-x.get())) -> std::remove_cvref_t<X> {
   using s = std::remove_cvref_t<X>;
   using t = typename s::value_type;
-  if constexpr (std::is_signed_v<t>) {
+  if constexpr (std::floating_point<t>) {
+    return s{std::abs(x.get())};
+  } else if constexpr (std::is_signed_v<t>) {
     return s{x.get() < t{0} ? detail::convert<t>(-x.get()) : x.get()};
   } else {
     return s{x.get()};
@@ -862,15 +1034,15 @@ template <strong_typedef_like X>
  *
  * @return The remainder as the common strong type.
  *
- * @pre None.
+ * @pre \p b is nonzero (integer modulo by zero is undefined behaviour).
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::modulo>
              && detail::has_op<B, ability::modulo>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u % v; }
-[[nodiscard]] constexpr auto
-operator%(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
+[[nodiscard]] constexpr auto operator%(A const& a, B const& b) noexcept(noexcept(a.get() % b.get()))
+  -> detail::common_strong_t<A, B> {
   using ret = detail::common_strong_t<A, B>;
   using r = typename ret::value_type;
   return ret{detail::convert<r>(detail::convert<r>(a.get()) % detail::convert<r>(b.get()))};
@@ -896,7 +1068,8 @@ operator%(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
 template <strong_typedef_like X, typename S>
   requires(!strong_typedef_like<S>) && detail::has_op<X, ability::scale>
             && requires(detail::value_t<X> u, S const& v) { u* v; }
-[[nodiscard]] constexpr auto operator*(X const& x, S const& s) noexcept -> std::remove_cvref_t<X> {
+[[nodiscard]] constexpr auto operator*(X const& x, S const& s) noexcept(noexcept(x.get() * s))
+  -> std::remove_cvref_t<X> {
   using st = std::remove_cvref_t<X>;
   return st{detail::convert<typename st::value_type>(x.get() * s)};
 }
@@ -917,7 +1090,8 @@ template <strong_typedef_like X, typename S>
 template <typename S, strong_typedef_like X>
   requires(!strong_typedef_like<S>) && detail::has_op<X, ability::scale>
             && requires(S const& v, detail::value_t<X> u) { v* u; }
-[[nodiscard]] constexpr auto operator*(S const& s, X const& x) noexcept -> std::remove_cvref_t<X> {
+[[nodiscard]] constexpr auto operator*(S const& s, X const& x) noexcept(noexcept(s * x.get()))
+  -> std::remove_cvref_t<X> {
   using st = std::remove_cvref_t<X>;
   return st{detail::convert<typename st::value_type>(s * x.get())};
 }
@@ -934,13 +1108,15 @@ template <typename S, strong_typedef_like X>
  *
  * @return A wrapper holding \c x/s.
  *
- * @pre None.
+ * @pre \p s is nonzero when \p T is an integral type (integer division by zero
+ *      is undefined behaviour).
  * @post None.
  */
 template <strong_typedef_like X, typename S>
   requires(!strong_typedef_like<S>) && detail::has_op<X, ability::scale>
             && requires(detail::value_t<X> u, S const& v) { u / v; }
-[[nodiscard]] constexpr auto operator/(X const& x, S const& s) noexcept -> std::remove_cvref_t<X> {
+[[nodiscard]] constexpr auto operator/(X const& x, S const& s) noexcept(noexcept(x.get() / s))
+  -> std::remove_cvref_t<X> {
   using st = std::remove_cvref_t<X>;
   return st{detail::convert<typename st::value_type>(x.get() / s)};
 }
@@ -958,15 +1134,16 @@ template <strong_typedef_like X, typename S>
  *
  * @return \c a.get()/b.get() as a bare value.
  *
- * @pre None.
+ * @pre \p b is nonzero when the common underlying is an integral type (integer
+ *      division by zero is undefined behaviour).
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::ratio>
              && detail::has_op<B, ability::ratio>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u / v; }
-[[nodiscard]] constexpr auto
-operator/(A const& a, B const& b) noexcept -> detail::common_value_t<A, B> {
+[[nodiscard]] constexpr auto operator/(A const& a, B const& b) noexcept(noexcept(a.get() / b.get()))
+  -> detail::common_value_t<A, B> {
   using r = detail::common_value_t<A, B>;
   return detail::convert<r>(a.get()) / detail::convert<r>(b.get());
 }
@@ -988,8 +1165,8 @@ template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::bit_and>
              && detail::has_op<B, ability::bit_and>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u & v; }
-[[nodiscard]] constexpr auto
-operator&(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
+[[nodiscard]] constexpr auto operator&(A const& a, B const& b) noexcept(noexcept(a.get() & b.get()))
+  -> detail::common_strong_t<A, B> {
   using ret = detail::common_strong_t<A, B>;
   using r = typename ret::value_type;
   return ret{detail::convert<r>(detail::convert<r>(a.get()) & detail::convert<r>(b.get()))};
@@ -1012,8 +1189,8 @@ template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::bit_or>
              && detail::has_op<B, ability::bit_or>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u | v; }
-[[nodiscard]] constexpr auto
-operator|(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
+[[nodiscard]] constexpr auto operator|(A const& a, B const& b) noexcept(noexcept(a.get() | b.get()))
+  -> detail::common_strong_t<A, B> {
   using ret = detail::common_strong_t<A, B>;
   using r = typename ret::value_type;
   return ret{detail::convert<r>(detail::convert<r>(a.get()) | detail::convert<r>(b.get()))};
@@ -1036,8 +1213,8 @@ template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::bit_xor>
              && detail::has_op<B, ability::bit_xor>
              && requires(detail::value_t<A> u, detail::value_t<B> v) { u ^ v; }
-[[nodiscard]] constexpr auto
-operator^(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
+[[nodiscard]] constexpr auto operator^(A const& a, B const& b) noexcept(noexcept(a.get() ^ b.get()))
+  -> detail::common_strong_t<A, B> {
   using ret = detail::common_strong_t<A, B>;
   using r = typename ret::value_type;
   return ret{detail::convert<r>(detail::convert<r>(a.get()) ^ detail::convert<r>(b.get()))};
@@ -1056,7 +1233,8 @@ operator^(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
  */
 template <strong_typedef_like X>
   requires detail::has_op<X, ability::bit_not> && requires(detail::value_t<X> v) { ~v; }
-[[nodiscard]] constexpr auto operator~(X const& x) noexcept -> std::remove_cvref_t<X> {
+[[nodiscard]] constexpr auto operator~(X const& x) noexcept(noexcept(~x.get()))
+  -> std::remove_cvref_t<X> {
   using s = std::remove_cvref_t<X>;
   return s{detail::convert<typename s::value_type>(~x.get())};
 }
@@ -1067,20 +1245,27 @@ template <strong_typedef_like X>
  * @tparam X Strong type.
  * @tparam S Integral shift-count type.
  * @param x Operand.
- * @param s Shift amount, normalised into the value width.
+ * @param s Shift amount in the range [0, bit width of the underlying).
  *
  * @return A wrapper holding \p x shifted left by \p s.
  *
- * @pre None.
+ * @pre \p s is non-negative and less than the bit width of the underlying; a
+ *      negative or out-of-range count is undefined behaviour (checked by
+ *      \c assert in debug builds).
  * @post None.
  */
 template <strong_typedef_like X, typename S>
   requires(!strong_typedef_like<S>) && detail::has_op<X, ability::shift>
             && std::integral<std::remove_cvref_t<S>> && std::unsigned_integral<detail::value_t<X>>
-[[nodiscard]] constexpr auto operator<<(X const& x, S s) noexcept -> std::remove_cvref_t<X> {
+[[nodiscard]] constexpr auto operator<<(X const& x, S s) noexcept(noexcept(x.get() << s))
+  -> std::remove_cvref_t<X> {
   using st = std::remove_cvref_t<X>;
   using u = typename st::value_type;
-  return st{detail::convert<u>(x.get() << detail::normalize_shift<u>(s))};
+  assert(
+    std::cmp_greater_equal(s, 0) && std::cmp_less(s, std::numeric_limits<u>::digits)
+    && "shift count out of range"
+  );
+  return st{detail::convert<u>(x.get() << s)};
 }
 
 /**
@@ -1089,20 +1274,27 @@ template <strong_typedef_like X, typename S>
  * @tparam X Strong type.
  * @tparam S Integral shift-count type.
  * @param x Operand.
- * @param s Shift amount, normalised into the value width.
+ * @param s Shift amount in the range [0, bit width of the underlying).
  *
  * @return A wrapper holding \p x shifted right by \p s.
  *
- * @pre None.
+ * @pre \p s is non-negative and less than the bit width of the underlying; a
+ *      negative or out-of-range count is undefined behaviour (checked by
+ *      \c assert in debug builds).
  * @post None.
  */
 template <strong_typedef_like X, typename S>
   requires(!strong_typedef_like<S>) && detail::has_op<X, ability::shift>
             && std::integral<std::remove_cvref_t<S>> && std::unsigned_integral<detail::value_t<X>>
-[[nodiscard]] constexpr auto operator>>(X const& x, S s) noexcept -> std::remove_cvref_t<X> {
+[[nodiscard]] constexpr auto operator>>(X const& x, S s) noexcept(noexcept(x.get() >> s))
+  -> std::remove_cvref_t<X> {
   using st = std::remove_cvref_t<X>;
   using u = typename st::value_type;
-  return st{detail::convert<u>(x.get() >> detail::normalize_shift<u>(s))};
+  assert(
+    std::cmp_greater_equal(s, 0) && std::cmp_less(s, std::numeric_limits<u>::digits)
+    && "shift count out of range"
+  );
+  return st{detail::convert<u>(x.get() >> s)};
 }
 
 /**
@@ -1121,7 +1313,9 @@ template <strong_typedef_like X, typename S>
 template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::equality>
              && detail::has_op<B, ability::equality>
-[[nodiscard]] constexpr auto operator==(A const& a, B const& b) noexcept -> bool {
+             && requires(detail::value_t<A> u, detail::value_t<B> v) { u == v; }
+[[nodiscard]] constexpr auto operator==(A const& a, B const& b) noexcept(noexcept(a.get() == b.get())
+) -> bool {
   using r = detail::common_value_t<A, B>;
   return detail::convert<r>(a.get()) == detail::convert<r>(b.get());
 }
@@ -1142,8 +1336,9 @@ template <strong_typedef_like A, strong_typedef_like B>
 template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::ordered>
              && detail::has_op<B, ability::ordered>
-[[nodiscard]] constexpr auto operator<=>(A const& a, B const& b) noexcept
-  -> std::compare_three_way_result_t<detail::common_value_t<A, B>, detail::common_value_t<A, B>> {
+             && requires(detail::value_t<A> u, detail::value_t<B> v) { u <=> v; }
+[[nodiscard]] constexpr auto operator<=>(A const& a, B const& b) noexcept(noexcept(a.get() <=> b.get())
+) -> std::compare_three_way_result_t<detail::common_value_t<A, B>, detail::common_value_t<A, B>> {
   using r = detail::common_value_t<A, B>;
   return detail::convert<r>(a.get()) <=> detail::convert<r>(b.get());
 }
@@ -1309,8 +1504,8 @@ template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::saturating>
              && detail::has_op<B, ability::saturating>
              && std::integral<detail::common_value_t<A, B>>
-[[nodiscard]] constexpr auto
-sat_add(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
+[[nodiscard]] constexpr auto sat_add(A const& a, B const& b) noexcept(noexcept(a.get() + b.get()))
+  -> detail::common_strong_t<A, B> {
   using ret = detail::common_strong_t<A, B>;
   using r = typename ret::value_type;
   return ret{detail::sat_add_impl<r>(detail::convert<r>(a.get()), detail::convert<r>(b.get()))};
@@ -1334,8 +1529,8 @@ template <strong_typedef_like A, strong_typedef_like B>
   requires same_tag_as<A, B> && detail::has_op<A, ability::saturating>
              && detail::has_op<B, ability::saturating>
              && std::integral<detail::common_value_t<A, B>>
-[[nodiscard]] constexpr auto
-sat_sub(A const& a, B const& b) noexcept -> detail::common_strong_t<A, B> {
+[[nodiscard]] constexpr auto sat_sub(A const& a, B const& b) noexcept(noexcept(a.get() - b.get()))
+  -> detail::common_strong_t<A, B> {
   using ret = detail::common_strong_t<A, B>;
   using r = typename ret::value_type;
   return ret{detail::sat_sub_impl<r>(detail::convert<r>(a.get()), detail::convert<r>(b.get()))};
@@ -1461,5 +1656,31 @@ struct std::formatter<nexenne::utility::strong_typedef<Tag, T, Ops>, CharT>
   template <typename Context>
   auto format(nexenne::utility::strong_typedef<Tag, T, Ops> const& value, Context& ctx) const {
     return std::formatter<T, CharT>::format(value.get(), ctx);
+  }
+};
+
+/**
+ * @brief \c std::formatter specialisation printing an \c ability by its name.
+ *
+ * Forwards to \c to_string, so \c std::format("{}", ability::scale) yields
+ * \c "scale" and a string spec such as "{:>10}" pads the name.
+ */
+template <>
+struct std::formatter<nexenne::utility::ability> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats \p flag by writing its name.
+   *
+   * @tparam Context Formatting context type.
+   * @param flag Flag, named group or \c none to format.
+   * @param ctx Format context to write into.
+   *
+   * @return The output iterator past the formatted text.
+   *
+   * @pre None.
+   * @post None.
+   */
+  template <typename Context>
+  auto format(nexenne::utility::ability flag, Context& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::utility::to_string(flag), ctx);
   }
 };
