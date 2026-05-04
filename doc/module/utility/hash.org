@@ -4,91 +4,149 @@
 
 * Purpose
 
-=nexenne::utility::hash= centralises the hash-combining primitives
-(=hash_combine=, =hash_combine_each=, =hash_args=, =hash_range=) so every module
-builds composite =std::hash= values from one consistent recipe.
+=nexenne::utility::hash= centralises the hash-combining primitives =hash_combine=,
+=hash_combine_each=, =hash_args=, and =hash_range=, so every module builds a
+composite =std::hash= from one consistent recipe.
 
-* The idea
+* The problem it solves
 
-Writing a =std::hash= for an aggregate means folding its fields together, and
-doing that inconsistently across modules invites subtle collisions; this header
-offers the Boost-popularised FNV-style mixer once. The mixing constant and
-shifts are chosen at compile time for the width of =std::size_t=, so a 32-bit
-target is tuned correctly rather than truncating a 64-bit constant. The mixing
-is order-sensitive, so =[1, 2]= and =[2, 1]= hash differently; these are runtime
-functions because =std::hash= is not =constexpr=.
+Writing a =std::hash= for an aggregate means folding its fields into a single
+value, and hand-rolling that fold in every module invites two problems:
+inconsistent mixing (so equal logical keys hashed in different modules land in
+different buckets) and a naive combine (=a ^ b=) that collides badly on
+structured input. This header offers one seed-and-mix combiner, in the style of
+=boost::hash_combine=, so composite hashes across nexenne stay mutually
+consistent and mix well.
 
 * How it works
 
+** The seed-and-mix step
+
 =hash_combine(seed, value)= hashes =value= with =std::hash= and folds the result
-into =seed= with the width-tuned magic constant and shifts; it updates =seed= in
-place. The width is picked at compile time from =sizeof(std::size_t)=: an 8-byte
-target uses the 64-bit golden-ratio constant and one shift pair, a 4-byte target
-the 32-bit constant and another; any other width is a =static_assert=.
+into =seed= with a magic constant and two shifts:
 
-The other three primitives build on =hash_combine=:
+#+BEGIN_EXAMPLE
+  seed ^= hash(value) + magic + (seed << left) + (seed >> right)
+#+END_EXAMPLE
 
-- =hash_combine_each(seed, args...)= folds the pack into an existing =seed= left to
-  right (an empty pack leaves =seed= unchanged).
-- =hash_args(args...)= starts from a zero seed, folds the pack in, and returns the
-  result, the usual building block for a =std::hash= specialisation of an
-  aggregate.
-- =hash_range(range)= starts from a zero seed and folds every element in iteration
-  order (an empty range hashes to zero).
+The magic constant is the golden ratio scaled to the width of =std::size_t=, and
+the =(seed << left) + (seed >> right)= term stirs the existing seed so each new
+value depends on the whole accumulated state, not just an XOR of independent
+hashes. This is the shape =boost::hash_combine= popularised.
 
-Every component type must satisfy the =hashable= concept, that is, have a
-=std::hash= specialisation whose result converts to =std::size_t=.
+** Width tuning, and honest provenance
 
-* Complexity
+The constant and the two shifts are chosen at compile time from
+=sizeof(std::size_t)=. An 8-byte target uses the 64-bit golden-ratio constant
+=0x9e3779b97f4a7c15= with one shift pair; a 4-byte target (common on the embedded
+boards nexenne runs on) uses the 32-bit constant =0x9e3779b9= with a different
+shift pair, rather than truncating the 64-bit values. Any other width is a
+=static_assert=.
 
-| operation                  | cost                        |
-|----------------------------+-----------------------------|
-| hash_combine               | O(1) plus the std::hash call |
-| hash_combine_each          | O(k) for k arguments        |
-| hash_args                  | O(k) for k arguments        |
-| hash_range                 | O(M) for M elements         |
+Provenance, stated honestly: this recipe is *inspired by* =boost::hash_combine=
+and Boost's width-specialised =hash_mix=, but it is *not bit-compatible* with any
+Boost release. Do not expect a value hashed here to match a Boost hash of the
+same input. It is a combiner for in-memory hash tables, nothing more.
+
+** The four primitives and conditional noexcept
+
+- =hash_combine(seed, value)= : the step above, updating =seed= in place.
+- =hash_combine_each(seed, args...)= : folds a pack into an existing =seed= left
+  to right; an empty pack leaves =seed= unchanged.
+- =hash_args(args...)= : starts from a zero seed, folds the pack in, and returns
+  the result, the usual body of a =std::hash= specialisation for an aggregate.
+- =hash_range(range)= : starts from a zero seed and folds every element in
+  iteration order; an empty range hashes to zero.
+
+Every component must satisfy the =hashable= concept: a =std::hash= specialisation
+whose result converts to =std::size_t=. Each combiner is *conditionally
+=noexcept=*: it is =noexcept= exactly when the underlying =std::hash= calls are,
+because a user-provided =std::hash= is allowed to throw and the combiner
+propagates that rather than hiding it.
+
+** Order sensitivity
+
+Because each value is mixed into the running seed, the fold is order-sensitive:
+=hash_args(1, 2)= and =hash_args(2, 1)= differ, and =hash_range([1, 2])= differs
+from =hash_range([2, 1])=. That is the correct default for an ordered composite
+key (a coordinate, a tuple), but it means an *unordered* set of components must be
+canonicalised before hashing (see Pitfalls).
+
+* API tour
+
+- =hash_combine(seed, value) -> void= : fold one value into a seed in place.
+- =hash_combine_each(seed, args...) -> void= : fold a pack into a seed in place.
+- =hash_args(args...) -> std::size_t= : combined hash of a fixed set of values.
+- =hash_range(range) -> std::size_t= : combined hash of a range, in order.
+- =hashable<T>= : the concept every component must satisfy.
+
+** Complexity
+
+| operation          | cost                         |
+|--------------------+------------------------------|
+| hash_combine       | O(1) plus the std::hash call |
+| hash_combine_each  | O(k) for k arguments         |
+| hash_args          | O(k) for k arguments         |
+| hash_range         | O(M) for M elements          |
 
 The =std::hash= call per component dominates for variable-length keys (a
-=std::string= hash is itself linear in the string), so the bounds above count
-component hashes, not bytes.
-
-* When to use it
-
-Reach for =hash_args= when writing a =std::hash= specialisation for an aggregate
-or composite key, and =hash_range= when the key is a sequence. Use =hash_combine= /
-=hash_combine_each= when you already hold a seed and want to fold more into it.
-This keeps every module on the same recipe, which matters when hashes cross module
-boundaries.
-
-The gotchas:
-
-- The mix is *order-sensitive* by design, so for an unordered set of components
-  (where =[1, 2]= and =[2, 1]= should hash alike) you must canonicalise the order
-  first; do not feed an unordered container's iteration order directly.
-- The result is *not* a stable, portable digest: it is tuned per =std::size_t=
-  width and depends on the platform's =std::hash=, so a value hashed on a 64-bit
-  host will not match the same value on a 32-bit target. Use it for in-memory hash
-  tables, not for persistence, wire formats, or cross-host consistency.
-- It is a hash combiner, not a cryptographic hash; never use it where collision
-  resistance against an adversary matters.
+=std::string= hash is itself linear in the string), so the bounds count component
+hashes, not bytes.
 
 * Usage
 
+Give an aggregate a =std::hash= by folding its fields with =hash_args=, so it can
+key an =std::unordered_map=:
+
 #+BEGIN_SRC cpp
-struct cell { std::int32_t x, y, z; };
+namespace util = nexenne::utility;
+
+struct cell {
+  std::int32_t x{}, y{}, z{};
+  auto operator==(cell const&) const -> bool = default;
+};
 
 template <>
 struct std::hash<cell> {
   auto operator()(cell const& c) const noexcept -> std::size_t {
-    return nexenne::utility::hash_args(c.x, c.y, c.z);
+    return util::hash_args(c.x, c.y, c.z);
   }
 };
 
-auto const h{nexenne::utility::hash_range(std::array{1, 2, 3})};
+std::unordered_map<cell, char const*> grid{};
+grid[cell{1, 2, 3}] = "spawn";
+
+// hash_range for a sequence key; hash_combine_each to fold into an existing seed.
+auto seed{util::hash_args(1)};
+util::hash_combine_each(seed, 2, 3);          // seed now equals hash_args(1, 2, 3)
+auto const h{util::hash_range(std::array{1, 2, 3})};
 #+END_SRC
 
-Use =hash_args= for a fixed set of components, =hash_range= for any input range,
-or =hash_combine= / =hash_combine_each= to fold values into an existing seed.
-Component types must satisfy the =hashable= concept.
+* Pitfalls
+
+- *The mix is order-sensitive by design.* For an unordered set of components
+  (where =[1, 2]= and =[2, 1]= should hash alike) canonicalise the order first;
+  do not feed an unordered container's iteration order directly.
+- *The result is not a stable, portable digest.* It is tuned per =std::size_t=
+  width and depends on the platform's =std::hash=, so a value hashed on a 64-bit
+  host will not match the same value on a 32-bit target. Use it for in-memory
+  hash tables, not for persistence, wire formats, or cross-host consistency.
+- *Not cryptographic.* It is a hash combiner, never use it where collision
+  resistance against an adversary matters.
+- *Consistency with equality.* Keep the hash and =operator=== in step: equal keys
+  must feed the same components in the same order, or the map contract breaks.
+
+* Comparison with the standard library
+
+The standard library provides =std::hash<T>= for individual scalar and standard
+types but has no way to *combine* several hashes into one; every composite key
+needs a combiner written by hand. =boost::hash_combine= is the well-known answer,
+and this header follows its seed-and-mix shape while width-tuning the constants
+for =std::size_t= and exposing pack and range front ends (=hash_args=,
+=hash_range=). It is deliberately not bit-compatible with Boost, so treat it as
+an internal combiner, not a drop-in Boost replacement. When the standard library
+eventually ships a hash-combining facility (=std::hash_combine= has been
+proposed), migrating is a rename for callers that never relied on the exact bit
+pattern.
 
 Runnable: [[file:../../../examples/utility/hash.cpp][examples/utility/hash.cpp]]
