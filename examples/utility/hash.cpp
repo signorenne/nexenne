@@ -39,6 +39,18 @@ auto main() -> int {
   std::println("cells stored: {}", grid.size());
   std::println("cell(1,2,3) -> {}", grid.at(cell{1, 2, 3}));
 
+  // Equal keys hash equal (the map contract) and the field mixing is
+  // order-sensitive, so transposed coordinates land in different buckets.
+  auto const same{util::hash_args(1, 2, 3) == util::hash_args(1, 2, 3)};
+  auto const transposed{util::hash_args(1, 2, 3) != util::hash_args(3, 2, 1)};
+  std::println("hash(1,2,3) == hash(1,2,3): {}", same);
+  std::println("hash(1,2,3) != hash(3,2,1): {}", transposed);
+
+  // To fold more state into an existing seed, use hash_combine_each.
+  auto seed{util::hash_args(cell{1, 2, 3}.x)};
+  util::hash_combine_each(seed, cell{1, 2, 3}.y, cell{1, 2, 3}.z);
+  std::println("incremental fold matches hash_args: {}", seed == util::hash_args(1, 2, 3));
+
   auto const forward{std::array<int, 3>{1, 2, 3}};
   auto const reversed{std::array<int, 3>{3, 2, 1}};
   std::println(
