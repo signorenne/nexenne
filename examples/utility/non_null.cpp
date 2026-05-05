@@ -11,6 +11,7 @@
 #include <memory>
 #include <print>
 #include <string>
+#include <utility>
 
 #include <nexenne/utility/non_null.hpp>
 
@@ -26,8 +27,9 @@ struct logger {
   }
 };
 
-// The signature documents that a logger is mandatory: passing nullptr will not
-// compile, and the body needs no defensive null check before using it.
+// The API boundary: the signature documents that a logger is mandatory.
+// Passing nullptr will not compile, a runtime null asserts here (in debug) at
+// the call site, and the body needs no defensive null check before using it.
 auto run_job(util::non_null<logger const*> log, int const items) -> void {
   log->write(std::format("starting job with {} items", items));
   for (int i{0}; i < items; ++i) {
@@ -42,6 +44,12 @@ auto greet(util::non_null<std::shared_ptr<logger>> log) -> void {
   log->write("hello from a shared_ptr the wrapper merely guarantees is set");
 }
 
+// A sink that takes ownership: non_null<unique_ptr> says "hand me a live
+// logger", so even an ownership transfer never needs a null check inside.
+auto adopt(util::non_null<std::unique_ptr<logger>> log) -> void {
+  log->write("ownership received, still guaranteed non-null");
+}
+
 }  // namespace
 
 auto main() -> int {
@@ -52,11 +60,24 @@ auto main() -> int {
   greet(shared);  // a mandatory, never-null shared dependency
   std::println("refcount intact: {}", shared.use_count());
 
-  // The non-null contract is also a fact you can compare against: a non_null is
-  // never equal to nullptr, by definition.
+  // WARNING: the moved-from hole. Moving a non_null over a move-only handle
+  // (unique_ptr here) leaves the source wrapper holding null. The invariant is
+  // suspended: the accessors (get, ->, *, the conversion) assert in debug from
+  // this point, and the only valid operations left are destruction and
+  // reassignment. Comparing against nullptr is the one honest, non-asserting
+  // probe of that state.
+  util::non_null<std::unique_ptr<logger>> owner{std::make_unique<logger>(logger{"owned"})};
+  adopt(std::move(owner));
+  std::println("owner moved from: {}", owner == nullptr);  // true: do not touch it
+  owner = std::make_unique<logger>(logger{"replacement"});  // reassignment restores it
+  owner->write("reassigned, the invariant holds again");
+
+  // The non-null contract is also a fact you can compare against: a live
+  // non_null is never equal to nullptr, and it compares directly with a plain
+  // pointer of the wrapped type.
   util::non_null<logger const*> const dep{&log};
   std::println("dep == nullptr: {}", dep == nullptr);
-  std::println("dep aliases &log: {}", dep.get() == &log);
+  std::println("dep aliases &log: {}", dep == &log);
 
   // util::non_null<logger const*>{nullptr};  // ERROR: deleted nullptr ctor
   return 0;
