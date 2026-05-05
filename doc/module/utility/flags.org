@@ -4,54 +4,110 @@
 
 * Purpose
 
-=nexenne::utility::flags= is a type-safe bitfield wrapper over a scoped enum
-whose enumerators are power-of-two bit values, offering named operations and
-bitwise operators without implicit =int= promotion.
+=nexenne::utility::flags<E>= is a type-safe bitfield over a scoped enum whose
+enumerators are power-of-two bit values. It offers named operations (=set= /
+=clear= / =toggle= / =has=), the bitwise operators with correct return types,
+counting, and a =std::formatter=, so bitmask code never leaks into raw =int=
+arithmetic or mixes unrelated enums.
 
-* The idea
+* The problem it solves
 
-Raw scoped-enum bitmasks force casts because =operator|= is not defined for them,
-and unscoped enums leak into =int= and silently mix with unrelated masks. =flags<E>=
-keeps the enum type in the operator return types, so a =flags<perm>= can never be
-combined with a =flags<other>=. It provides =set= / =clear= / =toggle= (chainable),
-predicates =has= / =has_all= / =has_any= / =any= / =none=, the operators =| & ^ ~=,
-and =raw= / =from_raw= for serialisation. Note the predicates take a single
-=enum_type=, so test combined masks by adding a combined enumerator.
+C++ gives two bad defaults for bitmasks:
+
+- An *unscoped* enum has built-in bitwise operators via integer promotion,
+  but that is exactly the problem: the result is an =int=, unrelated masks
+  combine silently, and any integer compares or assigns without complaint.
+- A *scoped* enum (=enum class=) blocks the promotion and the mixing, but has
+  no bitwise operators at all, so every combination and test degenerates into
+  a wall of =static_cast= noise, or into hand-rolled operator overloads
+  repeated per enum.
+
+=flags<E>= keeps the scoped enum's type safety and restores the ergonomics:
+=flags<perm>= combines with =perm= enumerators on either side of =|=, =&=,
+and =^=, never with a =flags<other>=, and every result stays a =flags<perm>=.
 
 * How it works
 
-=flags<E>= stores one =std::underlying_type_t<E>= and does plain bitwise work on
-it. The =scoped_enum= concept (=std::is_scoped_enum_v=) restricts =E= to a scoped
-enum, so it never decays to =int=. =set= / =clear= / =toggle= OR / AND-NOT / XOR
-the enumerator's bits and return =*this= for chaining; =has= and =has_all= test
-that *every* bit of the argument is set (=(m_bits & mask) == mask=), while
-=has_any= tests that *at least one* is (=(m_bits & mask) != 0=). A single-argument
-implicit constructor turns an enumerator into a =flags=, which is what lets
-=flags{perm::read} | perm::write= and the mixed =flags=/enumerator operators work
-while still keeping the result a =flags<perm>=. =raw= and =from_raw= move the bits
-across the boundary to a register or wire format, and =operator=== compares the
-raw bits, so everything stays =constexpr=. There is no storage beyond the one
-integer.
+** The underlying-mask representation
 
-* When to use it
+A =flags<E>= stores exactly one =std::underlying_type_t<E>= and does plain
+bitwise work on it; there is no storage beyond that integer, and every
+operation is =constexpr= and =noexcept=.
 
-Reach for =flags= whenever you have a set of independent on/off options that you
-want to combine and test by name without manual casts or =int= leakage:
-permission bits, feature toggles, hardware control-register fields, parser
-options. For a single multi-bit register field (a value, not a set of independent
-bits) use the field helpers in [[file:bit.org][bit]] (=pack_bits= / =extract_bits=)
-instead. For a large dynamic set of bits not tied to named enumerators use
-=std::bitset= or a vector of bits.
+#+BEGIN_EXAMPLE
+enum class perm : std::uint8_t { read = 1, write = 2, exec = 4 };
 
-Gotchas. The enumerators must be distinct powers of two (=1 << 0=, =1 << 1=, ...)
-for the bitwise model to hold; this is a convention the type does not enforce. The
-predicates take one =enum_type=, so to test a *combination* define a combined
-enumerator (=rwx = read | write | exec=) and pass that, or test the parts
-individually, and mind the all-versus-any distinction: =has= / =has_all= require
-all bits, =has_any= requires one. =operator~= flips *every* bit of the underlying
-type, including bits with no corresponding enumerator, so a complemented value can
-carry undefined bits, mask it back down if that matters. =from_raw= trusts its
-input and does no validation, so a stray raw value can set undefined bits too.
+flags<perm> f = flags{perm::read} | perm::exec;
+
+  f (1 byte here: the enum's underlying type)
+  +---+---+---+---+---+---+---+---+
+  | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 1 |   m_bits = 0b101
+  +---+---+---+---+---+---+---+---+
+                        ^       ^
+                        exec    read
+#+END_EXAMPLE
+
+The =scoped_enum= concept (=std::is_scoped_enum_v=) restricts =E= to scoped
+enums, so the raw-int escape hatch never reopens. The enumerators are
+expected to be distinct powers of two; combined enumerators such as
+=rwx = read | write | exec= are useful as named masks for the predicates.
+
+** Named operations and predicates
+
+=set= / =clear= / =toggle= OR, AND-NOT, and XOR the enumerator's bits and
+return =*this= for chaining. The queries split along all-versus-any:
+
+- =has(e)= and =has_all(e)= are true when *every* bit of the argument is set
+  (=(m_bits & mask) == mask=); =has_all= is the explicit spelling for call
+  sites where the distinction matters.
+- =has_any(e)= is true when *at least one* bit of the argument is set.
+- =any()= / =none()= test whether the whole set is non-empty or empty, and
+  the =explicit operator bool= is exactly =any()=, so an intersection drops
+  straight into an =if= condition.
+- =count()= returns the number of set bits via =std::popcount= over the value
+  converted to the unsigned counterpart of the underlying type, so a signed
+  underlying type counts its two's-complement pattern instead of rejecting
+  the sign.
+
+** Operators and symmetry
+
+The binary operators come in three shapes so composition reads naturally:
+=flags op flags=, =flags op enum=, and =enum op flags= for each of =|=, =&=,
+and =^=, plus the compound assignments =|== / =&== / =^== for both operand
+kinds. The implicit single-enumerator constructor is what seeds a =flags=
+from a plain enumerator; from there every mixed expression stays a
+=flags<E>=. =operator~= flips every bit of the underlying type, including
+bits with no corresponding enumerator, and =operator=== compares the raw
+bits.
+
+** Serialisation and formatting
+
+=raw()= exposes the underlying integer for a register write or a wire
+format, and =from_raw= rebuilds a =flags= from one without validation. The
+=std::formatter= specialisation formats the raw bits converted to the
+unsigned counterpart of the underlying type and inherits that integer
+formatter, so format specs pass straight through: ={}= prints the mask in
+decimal, ={:#b}= in binary, ={:#x}= in hex, with no hand-cast of =raw()= at
+the call site. A signed underlying type prints its two's-complement bit
+pattern rather than a sign.
+
+* API tour
+
+- =flags()= : empty set; =none()= is true.
+- =flags(E e)= : implicit; the bits of one enumerator.
+- =set(e)= / =clear(e)= / =toggle(e)= : mutate and return =*this= for
+  chaining.
+- =has(e)= / =has_all(e)= : true when all bits of =e= are set.
+- =has_any(e)= : true when at least one bit of =e= is set.
+- =any()= / =none()= / =explicit operator bool= : whole-set emptiness tests.
+- =count()= : number of set bits.
+- =clear_all()= : back to empty.
+- =raw()= / =from_raw(value)= : the underlying integer, out and in.
+- =| & ^ ~= and =|= &= ^== : bitwise algebra over =flags= and =E= operands.
+- =value_type= / =enum_type= / =underlying_type= / =unsigned_type= : the enum
+  and its integer types.
+- =std::formatter<flags<E>>= : prints the raw mask; integer format specs pass
+  through.
 
 * Usage
 
@@ -60,14 +116,59 @@ enum class perm : std::uint8_t {
   read = 1U << 0U, write = 1U << 1U, exec = 1U << 2U,
   rwx = read | write | exec,
 };
+using perms = nexenne::utility::flags<perm>;
 
-auto f{nexenne::utility::flags<perm>{}};
-f.set(perm::read).set(perm::write);          // chainable
-auto const full{f | perm::exec};             // operator| with an enumerator
+auto owner{perms{}};
+owner.set(perm::read).set(perm::write);      // chainable
+auto const full{perm::exec | owner};         // enum on either side
 
 bool const w{full.has(perm::write)};         // single-bit test
-bool const all{full.has_all(perm::rwx)};     // combined-mask test
-auto const wire{full.raw()};                 // round-trip via from_raw
+bool const all{full.has_all(perm::rwx)};     // combined-mask test: all bits
+bool const some{full.has_any(perm::rwx)};    // combined-mask test: any bit
+auto const n{full.count()};                  // 3 set bits
+
+if (auto const elevated{full & perm::exec}) {  // explicit bool == any()
+  // ...
+}
+
+std::println("mask: {:#b}", full);           // formatter, no raw() cast
+auto const restored{perms::from_raw(full.raw())};  // serialisation round-trip
 #+END_SRC
+
+* Pitfalls
+
+- *Powers of two are a convention, not a check.* The type does not verify
+  that enumerators are distinct single bits; overlapping values silently
+  break the set/clear/test model.
+- *The predicates take one =enum_type=.* To test a combination, define a
+  combined enumerator (=rwx=) and pass that, or test the parts individually,
+  and mind all-versus-any: =has= / =has_all= require every bit, =has_any=
+  requires one.
+- *=operator~= sets undefined bits.* It flips the whole underlying type,
+  including bits with no enumerator; mask a complement back down (for example
+  =~f & perm::rwx=) when only defined bits may travel further.
+- *=from_raw= trusts its input.* No validation is performed, so a stray raw
+  value can carry undefined bits into the set.
+- *The formatter prints numbers, not names.* It shows the raw mask through
+  the integer formatter; it does not decode bits back into enumerator names.
+
+* Comparison with the standard library and Qt
+
+| type                 | bit names        | type safety across masks | size                | since |
+|----------------------+------------------+--------------------------+---------------------+-------|
+| =flags<E>= (this)    | enumerators      | yes, per enum            | =underlying_type=   | now   |
+| scoped enum + casts  | enumerators      | yes, but cast noise      | =underlying_type=   | C++11 |
+| unscoped enum / int  | enumerators      | no, promotes to =int=    | =int=               | C     |
+| =std::bitset<N>=     | indices only     | no, any =bitset<N>= mixes | =N= bits rounded up | C++98 |
+| =QFlags<E>=          | enumerators      | yes, per enum            | =int=               | Qt    |
+
+=std::bitset= addresses bits by index rather than by name and offers no
+per-enum type safety, so it suits large or dynamic bit sets, not named option
+masks. =QFlags= is the closest prior art and follows the same model; this
+type is its standard-library-only equivalent with no macro registration
+(=Q_DECLARE_FLAGS=), a =constexpr= API throughout, and a =std::formatter=
+instead of =QDebug= streaming. For a multi-bit *field* (a value packed at an
+offset, not independent bits), use =pack_bits= / =extract_bits= from
+[[file:bit.org][bit]] instead.
 
 Runnable: [[file:../../../examples/utility/flags.cpp][examples/utility/flags.cpp]]
