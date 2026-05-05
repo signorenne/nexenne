@@ -7,11 +7,12 @@
  * Wraps a scoped enum whose enumerators are power-of-two bit values and offers
  * \c set / \c clear / \c toggle / \c has plus bitwise operators with correct
  * return types, so there is no implicit \c int promotion and no accidental
- * mixing of unrelated enums.
+ * mixing of unrelated enums. A \c std::formatter prints the raw mask.
  */
 
-#include <concepts>
+#include <bit>
 #include <cstddef>
+#include <format>
 #include <type_traits>
 
 namespace nexenne::utility {
@@ -48,8 +49,10 @@ concept scoped_enum = std::is_scoped_enum_v<E>;
 template <scoped_enum E>
 class flags {
 public:
+  using value_type = E;
   using enum_type = E;
   using underlying_type = std::underlying_type_t<E>;
+  using unsigned_type = std::make_unsigned_t<underlying_type>;
 
 private:
   underlying_type m_bits{0};
@@ -185,6 +188,37 @@ public:
    */
   [[nodiscard]] constexpr auto none() const noexcept -> bool {
     return m_bits == underlying_type{0};
+  }
+
+  /**
+   * @brief Boolean test, \c true when any bit is set.
+   *
+   * An explicit conversion so a flag set drops straight into an \c if
+   * condition; it is exactly \c any().
+   *
+   * @return \c true when at least one bit is set.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] explicit constexpr operator bool() const noexcept {
+    return any();
+  }
+
+  /**
+   * @brief The number of set bits.
+   *
+   * Counts with \c std::popcount over the value converted to \c unsigned_type,
+   * so a signed underlying type counts the bits of its two's-complement
+   * pattern rather than rejecting the sign.
+   *
+   * @return The number of bits set in the underlying value.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto count() const noexcept -> std::size_t {
+    return static_cast<std::size_t>(std::popcount(static_cast<unsigned_type>(m_bits)));
   }
 
   /**
@@ -393,6 +427,70 @@ public:
   }
 
   /**
+   * @brief Bitwise AND of a flag set and an enumerator.
+   *
+   * @param f Flag set operand.
+   * @param e Enumerator to AND in.
+   *
+   * @return A flag set holding the intersection of \p f and \p e.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto operator&(flags f, enum_type const e) noexcept -> flags {
+    f &= e;
+    return f;
+  }
+
+  /**
+   * @brief Bitwise AND of an enumerator and a flag set.
+   *
+   * @param e Enumerator to AND in.
+   * @param f Flag set operand.
+   *
+   * @return A flag set holding the intersection of \p e and \p f.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto operator&(enum_type const e, flags f) noexcept -> flags {
+    f &= e;
+    return f;
+  }
+
+  /**
+   * @brief Bitwise XOR of a flag set and an enumerator.
+   *
+   * @param f Flag set operand.
+   * @param e Enumerator to XOR in.
+   *
+   * @return A flag set holding the symmetric difference of \p f and \p e.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto operator^(flags f, enum_type const e) noexcept -> flags {
+    f ^= e;
+    return f;
+  }
+
+  /**
+   * @brief Bitwise XOR of an enumerator and a flag set.
+   *
+   * @param e Enumerator to XOR in.
+   * @param f Flag set operand.
+   *
+   * @return A flag set holding the symmetric difference of \p e and \p f.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto operator^(enum_type const e, flags f) noexcept -> flags {
+    f ^= e;
+    return f;
+  }
+
+  /**
    * @brief Bitwise complement of this flag set.
    *
    * @return A flag set with every bit of the underlying type inverted.
@@ -424,3 +522,39 @@ public:
 };
 
 }  // namespace nexenne::utility
+
+/**
+ * @brief \c std::formatter specialisation printing the raw mask.
+ *
+ * Formats the raw bits converted to the unsigned counterpart of the underlying
+ * type and inherits that integer formatter, so format specs pass straight
+ * through: \c {} prints the mask in decimal, \c {:\#b} in binary, \c {:\#x} in
+ * hex. A signed underlying type prints its two's-complement bit pattern
+ * rather than a sign.
+ *
+ * @tparam E Scoped enum type of the flag set.
+ * @tparam CharT Character type of the format context.
+ */
+template <nexenne::utility::scoped_enum E, typename CharT>
+struct std::formatter<nexenne::utility::flags<E>, CharT>
+    : std::formatter<typename nexenne::utility::flags<E>::unsigned_type, CharT> {
+  /**
+   * @brief Formats \p value by formatting its raw bits as an unsigned integer.
+   *
+   * @tparam Context Formatting context type.
+   * @param value Flag set to format.
+   * @param ctx Format context to write into.
+   *
+   * @return The output iterator past the formatted text.
+   *
+   * @pre None.
+   * @post None.
+   */
+  template <typename Context>
+  auto format(nexenne::utility::flags<E> const value, Context& ctx) const {
+    using unsigned_type = typename nexenne::utility::flags<E>::unsigned_type;
+    return std::formatter<unsigned_type, CharT>::format(
+      static_cast<unsigned_type>(value.raw()), ctx
+    );
+  }
+};
