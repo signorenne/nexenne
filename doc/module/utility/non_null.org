@@ -5,69 +5,171 @@
 * Purpose
 
 =nexenne::utility::non_null= is a thin pointer wrapper that documents and, in
-debug, enforces that a pointer is never null, surfacing contract violations at
-the API boundary instead of deep in a call chain.
+debug, enforces that a pointer is never null. The contract is checked where
+the pointer enters, so a violation surfaces at the API boundary instead of
+deep in a call chain, and in release builds the wrapper costs nothing.
 
-* The idea
+* The problem it solves
 
-A function taking a raw pointer cannot say "this must not be null", so callers
-guess and callees add defensive checks. =non_null= encodes the contract in the
-type: constructing or assigning from =nullptr= is a compile error, a runtime null
-asserts in debug at the construction site, and it implicitly converts back to the
-underlying pointer so it drops into existing APIs. It works with raw and smart
-pointers (=get= returns by reference to avoid refcount churn). The tradeoff is
-that the runtime guarantee is debug-only; in release it is a zero-overhead
-wrapper that trusts the contract.
+A function taking a raw pointer cannot say "this must not be null" in its
+type. The alternatives all have costs:
+
+- A comment or a =@pre= line documents the contract but enforces nothing.
+- A hand-written null check at the top of every function duplicates the check
+  at each callee and fires at the use site, far from the caller that produced
+  the null.
+- A reference parameter cannot be rebound, cannot be stored in containers of
+  pointers, and cannot wrap a smart pointer that carries ownership.
+
+=non_null<T>= encodes the contract in the type: the obvious mistake does not
+compile, a runtime null fails loudly at the construction site in debug, and
+the callee body uses the pointer with no defensive check. It accepts raw and
+smart pointers alike and converts implicitly back to =T=, so it drops into
+existing APIs with no call-site churn.
 
 * How it works
 
-=non_null<T>= wraps a single pointer of type =T=, constrained by the
-=pointer_like= concept (dereferenceable and comparable to =nullptr=), so =T= may
-be a raw pointer or a smart pointer such as =std::unique_ptr= or
-=std::shared_ptr=. The contract is enforced at two levels:
+** Where the contract is checked
+
+The wrapper stores a single pointer of type =T=, constrained by the
+=pointer_like= concept (dereferenceable and comparable to =nullptr=), so =T=
+may be a raw pointer, =std::unique_ptr=, =std::shared_ptr=, or any similar
+handle. The non-null contract is enforced in layers:
 
 - *Compile time*: the =nullptr_t= constructor and the =nullptr_t= assignment
-  operator are deleted, so writing =non_null<widget*> p{nullptr}= or =p = nullptr=
-  does not compile.
-- *Run time, debug only*: the converting constructor asserts =m_ptr != nullptr= at
-  the construction site, so a pointer that happens to be null at runtime fails
-  loudly there rather than at some later dereference. Under =NDEBUG= the assert is
-  gone and the wrapper is a thin pass-through that trusts the contract.
+  are deleted, so =non_null<widget*> p{nullptr}= and =p = nullptr= are
+  compile errors.
+- *Constant evaluation*: the constructor's assert is constexpr-compatible. A
+  null pointer during constant evaluation makes the failed assert a
+  non-constant expression, so a =constexpr= construction from null is a
+  compile error, not a silent pass.
+- *Debug run time*: the converting constructor asserts =ptr != nullptr= at
+  the construction site, so a pointer that happens to be null at run time
+  fails where the bad value was produced, not at some later dereference.
+- *Debug access*: =get()=, =operator->=, =operator*=, and the implicit
+  conversion each assert the stored pointer is still non-null, which catches
+  use after a move (see below).
 
-Access mirrors a pointer: =operator*= dereferences, =operator->= and =get()=
-return the stored pointer *by reference* (so a =shared_ptr= is observed without a
-refcount bump and a =unique_ptr= without a copy), and an implicit conversion yields
-the wrapped pointer so =non_null<T>= plugs straight into an API expecting =T=. Two
-=non_null= compare equal when they wrap the same pointer, and comparison against
-=nullptr= is always =false= by contract.
+Under =NDEBUG= every assert compiles away and the wrapper is a zero-overhead
+pass-through that trusts the contract.
 
-* When to use it
+** Smart pointers and by-reference access
 
-Reach for =non_null= on a parameter or member that genuinely must not be null:
-the implicit conversion and =operator->= let it stand in for a raw pointer with no
-call-site churn, while the type itself documents the precondition and the deleted
-=nullptr= overloads stop the obvious mistake at compile time. Prefer it to a
-comment or a hand-written assert at the top of every function.
+=get()= and =operator->= return the stored pointer *by reference*
+(=pointer_type const&=), so a =std::shared_ptr= is observed without a
+refcount bump and a =std::unique_ptr= without a copy; =operator->= chains
+through the smart pointer's own =operator->=. =operator*= dereferences to
+=element_type&=, derived through =std::pointer_traits=, and the implicit
+conversion to =T= lets a =non_null<T>= plug straight into an API expecting
+=T=. The nested aliases =value_type= and =pointer_type= name =T= itself and
+=element_type= names the pointee.
 
-The gotchas:
+** The moved-from hole
 
-- The runtime guarantee is *debug-only*. Under =NDEBUG= a null that slips past the
-  compile-time checks (for instance a raw pointer that is null at runtime) is *not*
-  caught; dereferencing it is undefined behaviour. =non_null= states and checks a
-  contract, it does not validate untrusted input, so range/null-check external
-  pointers before wrapping.
-- It guards *null*, not lifetime or validity. =non_null= can still wrap a dangling
-  or freed pointer; it only promises non-null, not that the pointee is alive.
-- =get()= and =operator->= return *by reference* to the stored handle. That avoids
-  refcount churn on a smart pointer but means the reference is only valid while the
-  =non_null= lives; do not hold it past the wrapper's lifetime.
+There is exactly one way a =non_null= can hold null: moving from it when =T=
+is a move-only smart pointer such as =std::unique_ptr=. The move transfers
+the handle and leaves the source holding null, so the invariant is suspended
+on the moved-from wrapper.
+
+#+BEGIN_EXAMPLE
+non_null<std::unique_ptr<logger>> owner{std::make_unique<logger>()};
+adopt(std::move(owner));      // ownership leaves; owner now holds null
+
+owner->write("...");          // asserts in debug: accessed after move
+bool gone = owner == nullptr; // true; the one honest, non-asserting probe
+owner = std::make_unique<logger>();  // reassignment restores the invariant
+#+END_EXAMPLE
+
+The only valid operations on a moved-from =non_null= are destruction and
+reassignment. The debug access asserts turn accidental use into a loud
+failure, and =operator==(nullptr_t)= reports the stored pointer honestly
+rather than hardcoding =false=, precisely so this state can be probed without
+tripping an assert.
+
+** Equality and hashing
+
+Two =non_null= compare equal when they wrap the same pointer. A dedicated
+mixed overload compares a =non_null= with a plain pointer of the wrapped
+type: without it the comparison would be ambiguous between converting either
+side, and one of those routes would send a null raw pointer through the
+asserting constructor. The reversed and negated forms are rewritten from the
+same operator. A =std::hash= specialisation forwards to the hash of the
+wrapped pointer, so a =non_null= keys unordered containers and hashes
+identically to the pointer it wraps.
+
+* API tour
+
+- =non_null(pointer_type ptr)= : implicit converting constructor; asserts
+  non-null in debug, compile error in constant evaluation when null.
+- =non_null(std::nullptr_t)= and =operator=(std::nullptr_t)= : deleted, the
+  literal =nullptr= is rejected at compile time.
+- =get() -> pointer_type const&= : the stored pointer, by reference; asserts
+  not moved-from in debug.
+- =operator->= / =operator*= : member access and dereference; same debug
+  assert.
+- =operator pointer_type()= : implicit conversion back to =T=; same debug
+  assert.
+- =operator==(non_null, non_null)= / =(non_null, pointer_type)= /
+  =(non_null, nullptr_t)= : pointer equality; the =nullptr= form is true only
+  for a moved-from wrapper and never asserts.
+- =value_type= / =pointer_type= / =element_type= : =T=, =T=, and the pointee
+  type.
+- =std::hash<non_null<T>>= : hashes the wrapped pointer, available when =T=
+  is hashable.
 
 * Usage
 
 #+BEGIN_SRC cpp
-auto draw(nexenne::utility::non_null<widget*> target) -> void {
-  target->paint();  // no null check: the contract guarantees it
+// The API boundary: the signature documents that a logger is mandatory, and
+// the body needs no defensive null check.
+auto run_job(nexenne::utility::non_null<logger const*> log, int items) -> void {
+  log->write("starting");  // no null check: the contract guarantees it
 }
+
+logger const log{"worker"};
+run_job(&log, 2);  // implicit conversion from logger const*
+
+// Smart pointers work too; operator-> forwards without refcount churn.
+auto greet(nexenne::utility::non_null<std::shared_ptr<logger>> log) -> void;
+
+// Ownership transfer suspends the invariant on the source:
+nexenne::utility::non_null<std::unique_ptr<logger>> owner{std::make_unique<logger>()};
+adopt(std::move(owner));
+bool const moved{owner == nullptr};   // true; do not access, only reassign
+owner = std::make_unique<logger>();   // valid again
 #+END_SRC
+
+* Pitfalls
+
+- *The runtime guarantee is debug-only.* Under =NDEBUG= a null that slips
+  past the compile-time checks is not caught, and dereferencing it is
+  undefined behaviour. =non_null= states and checks a contract; it does not
+  validate untrusted input, so null-check external pointers before wrapping.
+- *It guards null, not lifetime.* =non_null= can wrap a dangling or freed
+  pointer; it promises non-null, not that the pointee is alive.
+- *Mind the moved-from state.* After moving a move-only handle out, the
+  wrapper holds null: accessors assert in debug and are undefined in release.
+  Destroy it or reassign it; probe it only with =owner == nullptr=.
+- *References from =get()= live as long as the wrapper.* The by-reference
+  return avoids refcount churn but must not be held past the =non_null='s
+  lifetime.
+
+* Comparison with the standard and guideline libraries
+
+| type                  | null rejected      | violation response         | smart pointers    |
+|-----------------------+--------------------+----------------------------+-------------------|
+| =non_null= (this)     | compile + debug    | assert (debug), UB (release) | yes, by reference |
+| =gsl::not_null=       | compile + always   | =Expects=, terminate by default | yes           |
+| raw pointer =T*=      | no                 | none                       | n/a               |
+| reference =T&=        | by construction    | n/a                        | no rebinding      |
+
+Relative to =gsl::not_null= from the C++ Core Guidelines support library,
+this type trades the always-on check for a debug assert plus a zero-cost
+release build, keeps by-reference access for smart pointers, and documents
+the moved-from state honestly with a non-asserting =nullptr= comparison and
+debug access asserts instead of leaving it unspecified. Use a plain reference
+when the dependency never rebinds and is never a smart pointer; use
+=non_null= when pointer semantics (rebinding, storage, ownership handles)
+are needed with the same non-null guarantee.
 
 Runnable: [[file:../../../examples/utility/non_null.cpp][examples/utility/non_null.cpp]]
