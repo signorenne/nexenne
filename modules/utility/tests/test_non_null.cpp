@@ -7,8 +7,10 @@
 
 #include <compare>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 
 #include <nexenne/utility/non_null.hpp>
@@ -42,7 +44,7 @@ TEST_CASE("nexenne::utility::non_null wraps and forwards a raw pointer") {
   CHECK(raw == &w);
 }
 
-TEST_CASE("nexenne::utility::non_null compares by pointer, never equals nullptr") {
+TEST_CASE("nexenne::utility::non_null compares by pointer, unequal to nullptr while valid") {
   widget a{};
   widget b{};
   non_null<widget*> const first{&a};
@@ -56,6 +58,25 @@ TEST_CASE("nexenne::utility::non_null compares by pointer, never equals nullptr"
   CHECK_FALSE(nullptr == first);  // reversed candidate
   CHECK(first != nullptr);        // synthesized from ==
   CHECK(nullptr != first);        // reversed + synthesized
+}
+
+TEST_CASE("nexenne::utility::non_null compares against a raw pointer in both directions") {
+  widget a{};
+  widget b{};
+  non_null<widget*> const nn{&a};
+
+  // The exact-match overload resolves what used to be an ambiguous comparison
+  // and never routes the raw pointer through the asserting constructor.
+  CHECK(nn == &a);
+  CHECK(&a == nn);  // rewritten candidate: raw == wrapper
+  CHECK_FALSE(nn == &b);
+  CHECK_FALSE(&b == nn);
+  CHECK(nn != &b);  // synthesized from ==
+  CHECK(&b != nn);
+
+  widget* const null_raw{nullptr};
+  CHECK_FALSE(nn == null_raw);  // a null raw pointer compares safely: no assert
+  CHECK(null_raw != nn);
 }
 
 TEST_CASE("nexenne::utility::non_null inequality is synthesized from equality") {
@@ -147,6 +168,33 @@ TEST_CASE("nexenne::utility::non_null is movable, moving a unique_ptr through it
   non_null<std::unique_ptr<widget>> const moved{std::move(source)};
   CHECK(moved.get().get() == raw);  // ownership transferred to the new wrapper
   CHECK(moved->value == 55);
+
+  // Contract: the moved-from wrapper holds null; its invariant is suspended
+  // and the only valid operations are destruction and reassignment. The
+  // nullptr comparison is the one honest, non-asserting probe of that state
+  // (every accessor asserts in debug builds when used after a move).
+  CHECK(source == nullptr);  // NOLINT(bugprone-use-after-move): the contract under test
+  CHECK(nullptr == source);
+
+  // Reassignment restores the invariant and makes the wrapper usable again.
+  source = std::make_unique<widget>(7);
+  CHECK(source != nullptr);
+  CHECK(source->value == 7);
+}
+
+TEST_CASE("nexenne::utility::non_null hashes like the pointer it wraps") {
+  widget a{};
+  widget b{};
+  non_null<widget*> const nn{&a};
+
+  // std::hash<non_null<T>> forwards to std::hash<T>, so a wrapper and its raw
+  // pointer land in the same bucket.
+  CHECK(std::hash<non_null<widget*>>{}(nn) == std::hash<widget*>{}(&a));
+
+  // And that makes non_null usable directly as an unordered key.
+  std::unordered_set<non_null<widget*>> const watched{nn};
+  CHECK(watched.contains(nn));
+  CHECK_FALSE(watched.contains(non_null<widget*>{&b}));
 }
 
 TEST_CASE("nexenne::utility::non_null wraps a pointer to const-qualified data round-trip") {
@@ -173,13 +221,17 @@ TEST_CASE("nexenne::utility::non_null is usable in a constexpr context") {
   constexpr non_null<int const*> nn{&storage};
   static_assert(*nn == 42);
   static_assert(nn.get() == &storage);
-  static_assert(!(nn == nullptr));
   constexpr int const* raw{nn};
   static_assert(raw == &storage);
+  // nn == nullptr compares the pointer, which the undefined-behavior sanitizer
+  // instruments into a non-constant form, so this leg is checked at runtime.
+  CHECK(!(nn == nullptr));
 }
 
 // compile-time properties
 
+static_assert(std::is_same_v<non_null<widget*>::value_type, widget*>);
+static_assert(std::is_same_v<non_null<std::unique_ptr<widget>>::value_type, std::unique_ptr<widget>>);
 static_assert(std::is_same_v<non_null<std::shared_ptr<widget>>::element_type, widget>);
 static_assert(std::is_same_v<non_null<widget*>::element_type, widget>);
 static_assert(std::is_same_v<non_null<widget*>::pointer_type, widget*>);
