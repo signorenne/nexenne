@@ -27,9 +27,11 @@ namespace nexenne::utility {
  * @brief Compile-time fixed-length string usable as a non-type template parameter.
  *
  * Stores the characters (including the null terminator) in a public
- * \c std::array, making the type structural so it can be an NTTP. Size queries
- * report the length excluding the terminator. \p N is the buffer size
- * including the terminator.
+ * \c std::array, making the type structural so it can be an NTTP. \p N is only
+ * the capacity bound (the buffer size including the terminator); \c size() and
+ * every query built on it report the content length, the number of characters
+ * before the first NUL. The class invariant, established by every constructor,
+ * is that the buffer contains at least one NUL byte.
  *
  * @tparam N Buffer size including the null terminator.
  *
@@ -48,7 +50,9 @@ namespace nexenne::utility {
 template <std::size_t N>
   requires(N >= 1)
 struct static_string {
-  std::array<char, N> data{};
+  using value_type = char;
+
+  std::array<value_type, N> data{};
 
   /**
    * @brief Constructs the empty string (an all-zero buffer).
@@ -59,36 +63,45 @@ struct static_string {
   constexpr static_string() noexcept = default;
 
   /**
-   * @brief Constructs from a string literal, copying all \p N bytes.
+   * @brief Constructs from a null-terminated array, copying all \p N bytes.
    *
-   * The literal's length \p N (including the terminator) fixes the template
-   * parameter via CTAD.
+   * A string literal's length \p N (including the terminator) fixes the
+   * template parameter via CTAD.
    *
-   * @param str Source string literal of length \p N including its terminator.
+   * @param str Source array of length \p N ending in a null terminator.
    *
-   * @pre None.
+   * @pre The last byte, \c str[N - 1], is the null terminator; a string
+   *      literal always satisfies this.
    * @post \c data holds a copy of \p str including its terminator.
    */
   constexpr static_string(char const (&str)[N]) noexcept {  // NOLINT(hicpp-explicit-conversions)
+    assert(str[N - 1] == '\0' && "static_string: source array must be null-terminated");
     std::copy_n(static_cast<char const*>(str), N, data.begin());
   }
 
   /**
-   * @brief The string length excluding the null terminator.
+   * @brief The content length: the number of characters before the first NUL.
    *
-   * @return \c N - 1.
+   * \p N is only the capacity bound; a partially filled buffer reports the
+   * shorter content length, and a default-constructed instance reports zero.
+   *
+   * @return The index of the first NUL byte in the buffer.
    *
    * @pre None.
-   * @post None.
+   * @post The result is at most \c N - 1.
    */
   [[nodiscard]] constexpr auto size() const noexcept -> std::size_t {
-    return N - 1;
+    // The invariant guarantees a terminator inside the buffer (the default
+    // constructor zero-fills, the array constructor asserts str[N - 1] is
+    // NUL), so this constexpr scan is bounded and safe.
+    return std::char_traits<value_type>::length(data.data());
   }
 
   /**
-   * @brief Reports whether the string body is empty.
+   * @brief Reports whether the string content is empty.
    *
-   * @return \c true when the length excluding the terminator is zero.
+   * @return \c true when the content length is zero, that is, when the buffer
+   *         starts with a NUL byte.
    *
    * @pre None.
    * @post None.
@@ -98,15 +111,15 @@ struct static_string {
   }
 
   /**
-   * @brief A view over the string body (without the null terminator).
+   * @brief A view over the string content (without the null terminator).
    *
-   * @return A \c std::string_view spanning the first \c N - 1 bytes.
+   * @return A \c std::string_view spanning the first \c size() bytes.
    *
    * @pre None.
    * @post The view is valid as long as this object is alive.
    */
   [[nodiscard]] constexpr auto view() const noexcept -> std::string_view {
-    return std::string_view{data.data(), N - 1};
+    return std::string_view{data.data(), size()};
   }
 
   /**
@@ -132,33 +145,33 @@ struct static_string {
    *      of bounds in release.
    * @post None.
    */
-  [[nodiscard]] constexpr auto operator[](std::size_t const i) const noexcept -> char {
+  [[nodiscard]] constexpr auto operator[](std::size_t const i) const noexcept -> value_type {
     assert(i < N && "static_string: index out of range");
     return data[i];
   }
 
   /**
-   * @brief Iterator to the first character of the body.
+   * @brief Iterator to the first character of the content.
    *
    * @return Pointer to the first character.
    *
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto begin() const noexcept -> char const* {
+  [[nodiscard]] constexpr auto begin() const noexcept -> value_type const* {
     return data.data();
   }
 
   /**
-   * @brief Iterator one past the last body character.
+   * @brief Iterator one past the last content character.
    *
-   * @return Pointer to the null terminator (one past the body).
+   * @return Pointer to the first NUL byte (one past the content).
    *
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto end() const noexcept -> char const* {
-    return data.data() + (N - 1);
+  [[nodiscard]] constexpr auto end() const noexcept -> value_type const* {
+    return data.data() + size();
   }
 
   /// @brief Equality of two equally sized static strings (compares buffers).
@@ -173,8 +186,9 @@ struct static_string {
    * @brief Compile-time concatenation of two static strings.
    *
    * Concatenating \c "ab" with \c "cd" yields a \c static_string<5> holding
-   * \c "abcd"; the result length is \c N + M - 1 (both bodies plus one
-   * terminator).
+   * \c "abcd"; the result capacity is \c N + M - 1 (both buffers minus one
+   * shared terminator). The contents concatenate, so partially filled operands
+   * produce a result whose \c size() is the sum of the operand sizes.
    *
    * @tparam M Buffer size (including terminator) of the right operand.
    * @param a Left operand.
@@ -183,15 +197,18 @@ struct static_string {
    * @return A \c static_string<N + M - 1> holding \p a followed by \p b.
    *
    * @pre None.
-   * @post The result body is the two bodies concatenated and null-terminated.
+   * @post The result content is the two contents concatenated and
+   *       null-terminated; its \c size() is \c a.size() + b.size().
    */
   template <std::size_t M>
   [[nodiscard]] friend constexpr auto operator+(
     static_string const& a, static_string<M> const& b
   ) noexcept -> static_string<N + M - 1> {
     static_string<N + M - 1> out{};
-    std::copy_n(a.data.begin(), N - 1, out.data.begin());
-    std::copy_n(b.data.begin(), M, out.data.begin() + (N - 1));
+    // Copy the content runs, not the raw buffers: a partially filled left
+    // operand must not push NUL padding between the two contents.
+    std::copy_n(a.data.begin(), a.size(), out.data.begin());
+    std::copy_n(b.data.begin(), b.size(), out.data.begin() + a.size());
     return out;
   }
 };
@@ -213,8 +230,8 @@ static_string(char const (&str)[N]) -> static_string<N>;
 /**
  * @brief \c std::hash specialisation for \c static_string.
  *
- * Hashes the body through \c std::hash<std::string_view> so a \c static_string
- * can key an unordered container.
+ * Hashes the content through \c std::hash<std::string_view> so a
+ * \c static_string can key an unordered container.
  *
  * @tparam N Buffer size of the static string.
  *
@@ -224,7 +241,7 @@ static_string(char const (&str)[N]) -> static_string<N>;
 template <std::size_t N>
 struct std::hash<nexenne::utility::static_string<N>> {
   /**
-   * @brief Hashes \p s by hashing its body as a \c string_view.
+   * @brief Hashes \p s by hashing its content as a \c string_view.
    *
    * @param s Static string to hash.
    *
@@ -256,6 +273,7 @@ struct std::formatter<nexenne::utility::static_string<N>, char>
   /**
    * @brief Formats \p s by formatting its body as a \c string_view.
    *
+   * @tparam Context Formatting context type.
    * @param s Static string to format.
    * @param ctx Format context to write into.
    *
@@ -264,7 +282,9 @@ struct std::formatter<nexenne::utility::static_string<N>, char>
    * @pre None.
    * @post The body has been written into \p ctx using the inherited spec.
    */
-  auto format(nexenne::utility::static_string<N> const& s, std::format_context& ctx) const {
+  template <typename Context>
+  auto format(nexenne::utility::static_string<N> const& s, Context& ctx) const
+    -> decltype(ctx.out()) {
     return std::formatter<std::string_view, char>::format(s.view(), ctx);
   }
 };
