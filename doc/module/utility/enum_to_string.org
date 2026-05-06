@@ -4,81 +4,167 @@
 
 * Purpose
 
-=nexenne::utility::enum_to_string= and its companions provide forward (value to
-name) and inverse (name to value) enum reflection with no hand-written tables,
-working at compile time where possible.
+=nexenne::utility::enum_to_string= and its companions give forward (value to
+name) and inverse (name to value) enum reflection with no hand-written table:
+=enum_name=, =enum_to_string=, =enum_count=, =enum_values=, and =enum_cast=. The
+name of every enumerator comes straight from the source spelling the compiler
+already knows.
 
-* The idea
+* The problem it solves
 
-Names are recovered by parsing =__PRETTY_FUNCTION__=, so the facility requires GCC
-or Clang; other compilers see no named enumerators. The runtime and census entry
-points scan a bounded window of underlying values, defaulting to =[0, 256)=; widen
-or shift it with the =Range= and =Min= template parameters for enums whose
-enumerators fall outside that window (including signed ones). Scoped enums used
-with the census helpers should have a fixed underlying type and enumerators within
-the scanned range. Holes and aliases are simply skipped.
+An enum has names in the source but not at runtime: the compiler lowers each
+enumerator to its underlying integer and throws the spelling away. Printing,
+logging, serialising, or parsing an enum therefore usually means a hand-written
+=switch= or table that maps each enumerator to a string. That table is a second
+source of truth: add an enumerator and forget the table entry and the value
+prints as a bare integer, silently.
+
+=enum_to_string= removes the table by recovering the names the compiler still
+has internally, through the text of =__PRETTY_FUNCTION__=. The census helpers
+build on that to iterate an enum's named values, and =enum_cast= inverts the map
+for config and CLI parsing. Nothing to maintain, nothing to drift.
 
 * How it works
 
-For a single literal enumerator =V=, =enum_name<V>()= stamps =V= into a templated
-function whose =__PRETTY_FUNCTION__= the compiler fills in as something like
-=... [with auto V = color::green]=. The code finds the =V = = marker, takes the
-trailing token, strips any =Namespace::Enum::= qualifier, and rejects compiler
-placeholders for unnamed values (which render as =(color)5= and so carry a
-parenthesis, a leading digit, or a minus). That gives a pure compile-time
-value-to-name with no table.
+** Recovering one name from =__PRETTY_FUNCTION__=
 
-The runtime and census helpers build that up across a range. They expand a fold
-over =[Min, Min + Range)=, instantiating =enum_name= for each integer cast to the
-enum: =enum_to_string= returns the name whose value matches, =enum_cast= returns
-the value whose name matches, =enum_count= counts the non-empty names, and
-=enum_values= gathers them into a =std::array= sized exactly to that count. The
-fold is built over =int=, not the underlying type, so a narrow underlying type
-(say =std::uint8_t= with =Range = 256=) does not overflow the sequence.
+GCC and Clang expand =__PRETTY_FUNCTION__= to the full signature of the enclosing
+function, /with template arguments substituted in/. Instantiate a helper
+=template <auto V> enum_value_name()= with a literal enumerator and the compiler
+writes that enumerator's spelled name into the signature string:
 
-* Complexity
+#+BEGIN_EXAMPLE
+GCC:   ... enum_value_name() [with auto V = color::green]
+Clang: auto detail::enum_value_name() [V = color::green]
+                                       ^^^^^^^^^^^^^
+                              both share the "V = " marker
+#+END_EXAMPLE
 
-| operation                           | cost                          |
-|-------------------------------------+-------------------------------|
-| enum_name<V>()                      | O(1), pure compile time       |
-| enum_to_string / enum_cast          | O(Range) comparisons          |
-| enum_count / enum_values            | O(Range) parses, compile time |
+The parser finds the ="V = "= marker, takes the token up to the next =,=, =;=, or
+=]=, and strips any =Namespace::Enum::= qualifier to leave the trailing name.
+When =V= is not a named enumerator the compiler renders a cast placeholder like
+=(color)5= or =((anonymous namespace)::color)5=, so the qualifier is stripped
+first (the prefix can itself contain parentheses) and then a token that still
+carries a parenthesis, or starts with a digit or a minus, is rejected as
+"no name". The whole thing is =constexpr=, so a single lookup is pure
+compile time with no runtime cost.
 
-* When to use it
+** Scanning a bounded window of values
 
-Reach for this to log, serialise, or parse enum names without hand-maintaining a
-table that drifts from the enum: debug printing, config or CLI parsing back to an
-enumerator, iterating all enumerators of an enum. For a hand-curated mapping
-(names that differ from the source spelling, or a guaranteed-stable wire format)
-use a hand-built lookup table instead.
+=enum_value_name= names one /literal/ value. To name a runtime value, or to list
+an enum, the range helpers instantiate it for every integer in a window
+=[Min, Min + Range)=, defaulting to =[0, 256)=. =enum_to_string= returns the name
+whose value matches the argument, =enum_cast= returns the value whose name
+matches, =enum_count= counts the non-empty names, and =enum_values= gathers them
+into a =std::array= sized exactly to that count, in ascending order.
 
-Gotchas. GCC or Clang only: on any other compiler every name comes back empty and
-every cast =std::nullopt=, silently. The runtime and census helpers scan a fixed
-window of underlying values, =[0, 256)= by default: enumerators outside it are
-invisible, so widen =Range= and shift =Min= for large, sparse, or signed
-enumerators (a negative enumerator needs a negative =Min=). A wide =Range=
-multiplies template instantiations and compile time, so keep it just large enough.
-Use a fixed underlying type (=enum class color : std::uint8_t=) so the scanned
-casts are well-defined. Holes, alias enumerators, and unnamed placeholder values
-are skipped, not counted; duplicate-valued aliases collapse to one underlying
-value, so only one name is recoverable for it.
+The window is expanded as an =int= integer sequence, not the underlying type, so
+a narrow underlying type does not overflow the sequence (a
+=std::make_integer_sequence<std::uint8_t, 256>= would silently produce zero
+elements). The per-element work is a flat braced-init-list expansion rather than
+a fold, because a fold nests one operator per element and blows past Clang's
+256-deep expression-nesting limit on a wide window.
+
+** Clamping the window to the underlying type
+
+A requested window can run past what the underlying type can represent. If it
+did, the =int=-to-underlying cast would /wrap/:
+=static_cast<std::uint8_t>(256)= is =0=, which would re-scan values already
+seen, double-count enumerators, and break the ascending order of =enum_values=.
+So =clamped_window= cuts the requested =[Min, Min + Range)= down to the values
+representable by the underlying type before scanning. When the underlying type
+is at least as wide as =int= the cast is injective over the window and no
+clamping is needed. The upshot: an oversized =Range= is safe, it just does not
+scan past the type's real range.
+
+** The fixed-underlying-type requirement
+
+Scanning casts each =int= in the window to =E=. That cast is only well defined
+when =E= has a /fixed underlying type/. Every scoped enum has one (an
+=enum class= without an explicit base defaults to =int=); an unscoped enum needs
+an explicit enum-base such as =enum e : std::uint8_t=. Without a fixed underlying
+type, casting an integer outside the enum's own range of values is undefined
+behaviour, and Clang rejects it with a hard error during constant evaluation. No
+trait can detect a missing enum-base, so this cannot be checked in the header; it
+is a precondition you uphold. In practice: reflect scoped enums, or give an
+unscoped enum an explicit base.
+
+** Compiler support matrix
+
+| compiler          | mechanism                | result                     |
+|-------------------+--------------------------+----------------------------|
+| GCC               | =__PRETTY_FUNCTION__=    | names recovered            |
+| Clang             | =__PRETTY_FUNCTION__=    | names recovered            |
+| MSVC / other      | not implemented          | every name empty, silently |
+
+On an unsupported compiler every name comes back as an empty view and every cast
+as =std::nullopt=; there is no error, so guard for it if you must be portable.
+
+* API tour
+
+- =enum_name<V>()= : compile-time name of a single literal enumerator, or an
+  empty view when =V= is unnamed.
+- =enum_to_string(value)= : runtime value to name over =[Min, Min + Range)=.
+- =enum_cast<E>(name)= : runtime name to value, returning =std::optional<E>=.
+- =enum_count<E>()= : compile-time count of named enumerators in the window.
+- =enum_values<E>()= : compile-time =std::array= of the named enumerators, sized
+  to =enum_count=.
+- =enumeration= : the concept constraining every entry point to an enum type.
+
+Every range helper takes optional =Range= (default 256) and =Min= (default 0)
+parameters to retune or shift the scanned window; =enum_cast= puts =E= first so
+call sites read =enum_cast<color>("red")=.
 
 * Usage
 
 #+BEGIN_SRC cpp
-enum class color : std::uint8_t { red = 0, green = 1, blue = 2 };
+enum class connection : std::uint8_t { idle, connecting, connected, closing, closed };
 
 namespace nu = nexenne::utility;
 
-static_assert(nu::enum_name<color::green>() == "green");   // compile-time
-static_assert(nu::enum_count<color>() == 3);
+static_assert(nu::enum_name<connection::connected>() == "connected");   // compile time
+static_assert(nu::enum_count<connection>() == 5);
 
-auto const name{nu::enum_to_string(color::blue)};          // runtime value -> name
-auto const all{nu::enum_values<color>()};                  // std::array<color, 3>
-auto const back{nu::enum_cast<color>("red")};              // std::optional<color>
+for (auto const s : nu::enum_values<connection>()) {          // iterate every state
+  std::println("{} = {}", std::to_underlying(s), nu::enum_to_string(s));
+}
+
+if (auto const parsed{nu::enum_cast<connection>("closing")}) {  // name back to value
+  handle(*parsed);
+}
 #+END_SRC
 
-=enum_to_string=, =enum_count=, =enum_values=, and =enum_cast= each accept optional
-=Range= and =Min= parameters to retune the scanned window.
+* Pitfalls
+
+- *GCC or Clang only.* On any other compiler every name is empty and every cast
+  is =std::nullopt=, with no diagnostic.
+- *The window is bounded.* Enumerators outside =[Min, Min + Range)= are invisible.
+  Widen =Range= for large enums and shift =Min= (negative for enums with negative
+  enumerators). A wide =Range= multiplies template instantiations and compile
+  time, so keep it just large enough.
+- *Fixed underlying type required.* Reflect scoped enums, or give an unscoped
+  enum an explicit base; casting a scanned value for an enum without one is
+  undefined behaviour and a hard error on Clang.
+- *Holes and aliases are skipped.* Unnamed placeholder values are not counted,
+  and two enumerators sharing one underlying value collapse to a single value,
+  so only one name is recoverable for it.
+- *The spelling is the source spelling.* You cannot rename in the output; for a
+  display name that differs from the identifier, keep a small hand-built map.
+
+* Comparison with alternatives
+
+| approach                 | table to maintain | compiler support   | ranges     |
+|--------------------------+-------------------+--------------------+------------|
+| =enum_to_string= (this)  | none              | GCC / Clang        | bounded    |
+| hand-written =switch=    | yes, drifts       | all                | full       |
+| =magic_enum=             | none              | GCC / Clang / MSVC | bounded    |
+
+This facility uses the same =__PRETTY_FUNCTION__= trick as Neargye's
+=magic_enum=, kept small and dependency-free and scoped to what nexenne needs.
+=magic_enum= additionally supports MSVC and offers flag enums and containers; if
+you need MSVC reflection reach for it. When you control a stable wire format or
+want display names that differ from the source spelling, a hand-built table is
+still the right tool, at the cost of maintaining it.
 
 Runnable: [[file:../../../examples/utility/enum_to_string.cpp][examples/utility/enum_to_string.cpp]]
+</content>

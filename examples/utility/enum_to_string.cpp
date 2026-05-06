@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <print>
 #include <string_view>
+#include <utility>
 
 #include <nexenne/utility/enum_to_string.hpp>
 
@@ -31,9 +32,7 @@ auto main() -> int {
   std::println("connection has {} states:", nexenne::utility::enum_count<connection>());
   for (auto const state : nexenne::utility::enum_values<connection>()) {
     std::println(
-      "  {} = {}",
-      static_cast<unsigned>(static_cast<std::uint8_t>(state)),
-      nexenne::utility::enum_to_string(state)
+      "  {} = {}", std::to_underlying(state), nexenne::utility::enum_to_string(state)
     );
   }
 
@@ -44,9 +43,7 @@ auto main() -> int {
   // Runtime name -> value, with a miss for good measure.
   for (auto const name : {std::string_view{"connected"}, std::string_view{"frobnicate"}}) {
     if (auto const parsed{nexenne::utility::enum_cast<connection>(name)}; parsed.has_value()) {
-      std::println(
-        "parsed '{}' -> {}", name, static_cast<unsigned>(static_cast<std::uint8_t>(*parsed))
-      );
+      std::println("parsed '{}' -> {}", name, std::to_underlying(*parsed));
     } else {
       std::println("parsed '{}' -> <invalid>", name);
     }
