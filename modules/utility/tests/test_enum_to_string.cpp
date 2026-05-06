@@ -65,6 +65,30 @@ static_assert(util::enum_to_string<512>(big_e::large) == "large");
 // Unscoped enums reflect too.
 static_assert(util::enumeration<unscoped_e>);
 
+// A Range wider than a narrow underlying type is clamped to the representable
+// values instead of wrapping: uint8_t holds [0, 256), so a 512-wide window
+// must not revisit (and double-count) values 0 and 2.
+static_assert(util::enum_count<gap_e, 512>() == 2);
+static_assert(util::enum_values<gap_e, 512>() == std::array{gap_e::a, gap_e::c});
+static_assert(util::enum_count<color, 512>() == 3);
+static_assert(util::enum_values<color, 512>() == std::array{color::red, color::green, color::blue});
+static_assert(util::enum_to_string<512>(color::blue) == "blue");
+static_assert(util::enum_cast<color, 512>("green") == color::green);
+// A signed narrow underlying type clamps at both ends: int8_t is [-128, 128).
+enum class narrow_signed_e : std::int8_t {
+  low = -2,
+  mid = 0,
+  high = 3
+};
+
+static_assert((util::enum_count<narrow_signed_e, 1024, -512>()) == 3);
+static_assert(
+  util::enum_values<narrow_signed_e, 1024, -512>()
+  == std::array{narrow_signed_e::low, narrow_signed_e::mid, narrow_signed_e::high}
+);
+static_assert(util::enum_to_string<1024, -512>(narrow_signed_e::low) == "low");
+static_assert((util::enum_cast<narrow_signed_e, 1024, -512>("high")) == narrow_signed_e::high);
+
 static_assert(util::enumeration<color>);
 static_assert(util::enumeration<signed_e>);
 static_assert(!util::enumeration<int>);
@@ -175,6 +199,17 @@ TEST_CASE("nexenne::utility enum round-trips through name and back") {
     CHECK_FALSE(name.empty());
     CHECK(util::enum_cast<color>(name) == value);
   }
+}
+
+TEST_CASE("nexenne::utility enum census clamps an oversized window at runtime") {
+  // The 512-wide window over a uint8_t enum is clamped to [0, 256): every
+  // enumerator appears exactly once and the ascending order is preserved.
+  auto const values{util::enum_values<gap_e, 512>()};
+  REQUIRE(values.size() == 2);
+  CHECK(values[0] == gap_e::a);
+  CHECK(values[1] == gap_e::c);
+  CHECK(util::enum_to_string<512>(gap_e::c) == "c");
+  CHECK(util::enum_cast<gap_e, 512>("a") == gap_e::a);
 }
 
 TEST_CASE("nexenne::utility::enum_values is sized and ordered at runtime") {
