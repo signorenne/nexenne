@@ -4,76 +4,105 @@
 
 * Purpose
 
-=nexenne::utility::static_string= is a compile-time fixed-length string that is
-structural, so unlike =std::string_view= or =std::string= it can be passed as a
-non-type template parameter (NTTP).
+=nexenne::utility::static_string<N>= is a compile-time fixed-length string that
+is a /structural type/, so unlike =std::string_view= or =std::string= it can be
+passed as a non-type template parameter (NTTP). It lets a string literal tag a
+type, key a compile-time table, or be concatenated during constant evaluation.
 
-* The idea
+* The problem it solves
 
-C++20 allows NTTPs of structural type, and a class storing its characters in a
-public =std::array= qualifies, whereas =std::string_view= does not. So
-=template <static_string Name>= becomes legal and a string literal can tag a type.
-The buffer size =N= includes the null terminator, while =size()= reports the body
-length =N - 1=. It supports compile-time =operator+= concatenation and ships with
-=std::hash= and =std::formatter= specialisations, so it doubles as a map key and a
-=std::format= argument. Strings of different length are distinct types.
+C++20 lets a class be a non-type template parameter when it is a structural
+type: all bases and non-static data members public, and every member itself
+structural. =std::string= owns a heap pointer and =std::string_view= is a view
+into memory that need not exist at compile time, so neither qualifies, and
+=template <std::string_view S>= is ill-formed. Yet code often wants to
+parametrise a type on a name: a strong-typed unit on its symbol, a field on its
+JSON key, a test case on its label.
+
+=static_string= closes the gap by storing the characters inline in a public
+=std::array<char, N>=, which is structural. =static_string{"m/s"}= is then a
+valid template argument, and two instantiations with the same characters name
+the same type, which is exactly what lets a literal parametrise a class.
 
 * How it works
 
-The only data member is a public =std::array<char, N> data=, which is what makes
-the type *structural* and so usable as an NTTP. The literal constructor
-=static_string(char const (&str)[N])= copies all =N= bytes (the terminator
-included) with =std::copy_n=, and the deduction guide fixes =N= from the literal
-length, so =static_string{"abc"}= is a =static_string<4>=. The accessors read
-straight from =data=: =view()= spans the first =N - 1= bytes (no terminator),
-=c_str()= returns the null-terminated pointer, =size()= is =N - 1=, =begin()=/=end()=
-iterate the body, and =operator[]= indexes the raw buffer (an out-of-range index
-asserts in debug, reads out of bounds in release). =operator+= is the interesting
-one: concatenating an =N= with an =M= produces a =static_string<N + M - 1>= (both
-bodies plus one terminator), built at compile time. =operator===/=operator<=>= are
-defaulted and compare the buffers, so two static strings are comparable only when
-they are the *same length*, that is, the same type. The =std::hash= and
-=std::formatter= specialisations both delegate to the =std::string_view= versions
-over =view()=, which is why it keys an unordered map and accepts the full string
-format spec.
+** Buffer layout: capacity bound versus scanned length
 
-* Complexity
+The only data member is a public =std::array<char, N> data=. =N= is the
+/capacity bound/: the full buffer size including a terminator. It is not the
+content length. =size()= scans the buffer with =std::char_traits::length= and
+returns the number of characters /before the first NUL/, so a partially filled
+buffer reports the shorter content length and a default-constructed instance
+reports zero.
 
-| operation                     | cost                          |
-|-------------------------------+-------------------------------|
-| construct from literal        | O(N), compile time            |
-| size / empty / view / c_str   | O(1)                          |
-| operator[] / begin / end      | O(1)                          |
-| operator+ (concatenate)       | O(N + M), compile time        |
-| operator== / operator<=>      | O(N)                          |
-| std::hash                     | O(N) (hashes the body)        |
+#+BEGIN_EXAMPLE
+static_string<6> built from the literal "ab\0cd" (an interior NUL)
 
-The capacity is fixed by the type: a =static_string<N>= always carries exactly
-=N= bytes of storage whether or not the body fills it.
+  data: std::array<char, 6>              N = 6 is the capacity bound
+  index    0     1     2     3     4     5
+        +-----+-----+-----+-----+-----+-----+
+        |  a  |  b  | \0  |  c  |  d  | \0  |
+        +-----+-----+-----+-----+-----+-----+
+                       ^
+                       first NUL: size() == 2, view() == "ab"
 
-* When to use it
+  A default-constructed static_string<6> is all zeros:
+        +-----+-----+-----+-----+-----+-----+
+        | \0  | \0  | \0  | \0  | \0  | \0  |   size() == 0, empty() == true
+        +-----+-----+-----+-----+-----+-----+
+#+END_EXAMPLE
 
-Reach for =static_string= when you need string text as a *template argument* or
-other compile-time constant: tagging a type with a name (=template <static_string
-Name>=), building a compile-time lookup table keyed by name, or assembling
-identifiers with =operator+= during constant evaluation. Because it is structural,
-two instantiations with the same characters name the same type, which is what lets
-it parametrise a class.
+The class invariant, established by every constructor, is that the buffer holds
+at least one NUL byte, so the =size()= scan is always bounded and safe even at
+compile time. For the common case of a string literal, the content fills the
+buffer up to the terminator, so =size()= equals =N - 1=. That equality is a
+consequence of a full buffer, not a definition: do not read =N= as the length.
 
-Alternatives: for an ordinary runtime string prefer =std::string=; for a non-owning
-window over existing characters prefer =std::string_view=; for a growable
-fixed-capacity buffer used at runtime reach for a small-string type rather than
-this. =static_string= is specifically the compile-time, fixed-capacity, structural
-case.
+** Constructors and deduction
 
-GOTCHAS. The capacity is baked into the type, so =static_string<4>= and
-=static_string<5>= are *different types*: you cannot reassign one to the other,
-store mixed lengths in one container, or compare across lengths (the defaulted
-comparisons only apply between equal =N=). =size()= reports =N - 1= because =N=
-counts the null terminator, an off-by-one trap if you read =N= directly. There is
-no bounds-checked element access: =operator[]= only asserts in debug and reads out
-of bounds in release. Concatenation grows the type: =a + b= is a
-=static_string<N + M - 1>=, so a chain of =+= produces a new type at each step.
+The literal constructor =static_string(char const (&str)[N])= copies all =N=
+bytes, terminator included, with =std::copy_n=. It asserts =str[N - 1] == '\0'=
+in debug, which a string literal always satisfies. The deduction guide fixes =N=
+from the literal length, so =static_string{"abc"}= deduces =static_string<4>=
+(three characters plus the terminator). The default constructor zero-fills the
+buffer, giving the empty string.
+
+** Accessors and concatenation
+
+The accessors read straight from =data=: =view()= spans the first =size()= bytes
+with no terminator, =c_str()= returns the null-terminated pointer, =begin()= and
+=end()= iterate the content, and =operator[]= indexes the raw buffer (an
+out-of-range index asserts in debug and reads out of bounds in release).
+
+=operator+= concatenates at compile time: an =N= joined with an =M= yields a
+=static_string<N + M - 1>= (both buffers minus one shared terminator). It copies
+the /content runs/ of each operand, not the raw buffers, so a partially filled
+left operand does not push NUL padding between the two contents; the result
+=size()= is the sum of the operand sizes.
+
+=operator===/=operator<=>= are defaulted and compare the whole buffer, so two
+static strings compare only when they have the same =N=, that is, the same type.
+The =std::hash= and =std::formatter= specialisations both delegate to the
+=std::string_view= versions over =view()=, so a =static_string= keys an
+unordered container and accepts the full string format spec (for example
+="{:>8}"=). The formatter uses a templated context so it composes with any
+output iterator.
+
+* API tour
+
+- =static_string()= : the empty string; every byte is NUL.
+- =static_string(char const (&)[N])= : copies a null-terminated literal; =N= is
+  deduced from the literal length.
+- =size()= / =empty()= : content length up to the first NUL, and whether it is
+  zero.
+- =view()= : a =std::string_view= over the content, without the terminator.
+- =c_str()= : a null-terminated pointer to the buffer.
+- =operator[](i)= : the byte at index =i= (asserts =i < N= in debug).
+- =begin()= / =end()= : iterators over the content.
+- =operator+= : compile-time concatenation to a =static_string<N + M - 1>=.
+- =operator===/=operator<=>= : defaulted, buffer-wise, same-=N= only.
+- =std::hash= / =std::formatter= specialisations : map key and format argument.
+- =value_type= : =char=.
 
 * Usage
 
@@ -83,16 +112,50 @@ struct tagged {
   static constexpr auto name() noexcept { return Name.view(); }
 };
 
-static_assert(tagged<"hello">::name() == "hello");
+static_assert(tagged<"hello">::name() == "hello");   // literal as a type tag
 
-constexpr auto greet{nexenne::utility::static_string{"hi "}
-                     + nexenne::utility::static_string{"there"}};
-static_assert(greet.view() == "hi there");   // static_string<8>
-static_assert(greet.size() == 7);
+constexpr auto speed{nexenne::utility::static_string{"m"}
+                     + nexenne::utility::static_string{"/s"}};
+static_assert(speed.view() == "m/s");                // static_string<4>
+static_assert(speed.size() == 3);
+
+// N is a ceiling, not the length: size() scans to the first NUL.
+constexpr auto blank{nexenne::utility::static_string<16>{}};
+static_assert(blank.empty() && blank.size() == 0);
 #+END_SRC
 
-Access the contents with =view()=, =c_str()=, =operator[]=, or iteration; the
-=std::formatter= specialisation accepts the full string format spec, e.g.
-=std::format("{:>8}", greet)=.
+* Pitfalls
+
+- *Capacity is baked into the type.* =static_string<4>= and =static_string<5>=
+  are different types: you cannot reassign one to the other, store mixed lengths
+  in one container, or compare across lengths (the defaulted comparisons apply
+  only between equal =N=).
+- *=size()= is not =N=.* =N= counts the terminator and bounds the buffer;
+  =size()= scans to the first NUL. They coincide only when the content fills the
+  buffer, as it does for a plain literal. A default-constructed or
+  partially filled instance is shorter, so never read =N= as the length.
+- *No bounds-checked element access.* =operator[]= asserts in debug only and
+  reads out of bounds in release; use =view()= or =size()= to stay in range.
+- *Concatenation grows the type.* =a + b= is a =static_string<N + M - 1>=, so a
+  chain of =+= produces a new type at every step; that is fine at compile time
+  but means the result type depends on both operands.
+
+* Comparison with alternatives
+
+| type                     | storage        | NTTP-usable | when                       |
+|--------------------------+----------------+-------------+----------------------------|
+| =static_string= (this)   | inline array   | yes         | literal as a template arg  |
+| =std::string=            | heap           | no          | runtime, growable text     |
+| =std::string_view=       | borrows        | no          | non-owning window          |
+| =std::array<char, N>=    | inline array   | yes         | raw bytes, no string API   |
+
+=static_string= is the compile-time, fixed-capacity, structural case. For
+ordinary runtime text use =std::string=; for a non-owning window over existing
+characters use =std::string_view=; for raw fixed bytes with no string API a
+=std::array<char, N>= is enough. C++26 relaxes some NTTP rules further, but a
+purpose-built wrapper like this stays the clearest way to carry a literal as a
+type argument today.
 
 Runnable: [[file:../../../examples/utility/static_string.cpp][examples/utility/static_string.cpp]]
+</content>
+</invoke>

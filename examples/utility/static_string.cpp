@@ -32,6 +32,16 @@ auto main() -> int {
   static_assert(speed_sym.view() == "m/s");
   static_assert(speed_sym.size() == 3);
 
+  // N is the capacity bound, not the length. size() scans to the first NUL, so
+  // a buffer with an interior terminator reports the shorter content length: a
+  // static_string<6> built from "ab\0cd" holds capacity 6 but size() 2. A
+  // default-constructed instance is EMPTY, whatever N is.
+  constexpr auto padded{nexenne::utility::static_string{"ab\0cd"}};  // static_string<6>
+  static_assert(padded.size() == 2);
+  static_assert(padded.view() == "ab");
+  constexpr auto blank{nexenne::utility::static_string<16>{}};
+  static_assert(blank.empty() && blank.size() == 0);
+
   auto const distance{quantity<"m">{42.0}};
   auto const mass{quantity<"kg">{7.5}};
 
