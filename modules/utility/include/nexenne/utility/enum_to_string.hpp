@@ -12,12 +12,19 @@
  * points scan a bounded window of underlying values, defaulting to
  * \c [0, 256); widen or shift it with the \c Range and \c Min parameters for
  * enums (including signed ones) whose enumerators fall outside that window.
- * Requires GCC or Clang; other compilers see no named enumerators.
+ * The window is clamped to the values representable by the enum's underlying
+ * type, so an oversized \c Range never wraps a narrow underlying type and
+ * never scans a value twice. The scanned enum must have a fixed underlying
+ * type (every scoped enum does; an unscoped enum needs an explicit enum-base):
+ * without one, casting a scanned value outside the enum's range of values is
+ * undefined behaviour, and Clang rejects it with a hard error during constant
+ * evaluation. Requires GCC or Clang; other compilers see no named enumerators.
  */
 
 #include <array>
 #include <cstddef>
 #include <initializer_list>
+#include <limits>
 #include <optional>
 #include <string_view>
 #include <type_traits>
@@ -79,6 +86,39 @@ template <auto V>
 [[nodiscard]] constexpr auto enum_name_matches(std::string_view const name) noexcept -> bool {
   auto const candidate{enum_value_name<V>()};
   return !candidate.empty() && candidate == name;
+}
+
+// A scan window [min, min + range) of underlying values, produced by
+// clamped_window below and consumed by every range-scanning entry point.
+struct scan_window {
+  int min;
+  int range;
+};
+
+// Clamps the requested window [min, min + range) to the values representable
+// by E's underlying type. When the underlying type is at least as wide as int,
+// the int-to-underlying conversion is injective over the whole window, so no
+// clamping is needed. For a narrower type the excess values would wrap
+// (static_cast<std::uint8_t>(256) is 0) and re-visit underlying values already
+// scanned, double-counting enumerators and breaking the ascending order of
+// enum_values, so the window is cut to the representable range instead.
+template <typename E>
+[[nodiscard]] consteval auto clamped_window(int const min, int const range) noexcept
+  -> scan_window {
+  using underlying = std::underlying_type_t<E>;
+  if constexpr (sizeof(underlying) >= sizeof(int)) {
+    return {min, range};
+  } else {
+    auto const type_lo{static_cast<int>(std::numeric_limits<underlying>::min())};
+    auto const type_hi{static_cast<int>(std::numeric_limits<underlying>::max())};
+    auto const lo{min < type_lo ? type_lo : min};
+    // 64-bit arithmetic: min + range can overflow int when both are large.
+    auto const requested_end{static_cast<long long>(min) + range};
+    auto const end{
+      requested_end > type_hi + 1LL ? type_hi + 1 : static_cast<int>(requested_end)
+    };
+    return {lo, end > lo ? end - lo : 0};
+  }
 }
 
 // The integer sequences below are built over int, not the underlying type, to
@@ -169,7 +209,9 @@ template <auto V>
  * @brief Runtime enumerator-to-string lookup over a bounded value range.
  *
  * Linearly searches the underlying values \c [Min, Min + Range) for \p value
- * and returns its enumerator name.
+ * and returns its enumerator name. The window is clamped to the values
+ * representable by \p E's underlying type, so an oversized \p Range never
+ * wraps a narrow underlying type or scans a value twice.
  *
  * @tparam Range Number of underlying values to scan. Defaults to 256.
  * @tparam Min First underlying value to scan. Defaults to 0.
@@ -179,17 +221,23 @@ template <auto V>
  * @return The matching enumerator name, or an empty view when none in range
  *         matches.
  *
- * @pre None.
+ * @pre \p E has a fixed underlying type (every scoped enum does; an unscoped
+ *      enum needs an explicit enum-base).
  * @post None.
  *
  * @complexity \c O(Range) comparisons.
  *
+ * @warning For an enum without a fixed underlying type, casting a scanned
+ *          value outside its range of values is undefined behaviour and Clang
+ *          rejects the constant evaluation with a hard error; no trait can
+ *          detect the missing enum-base, so this cannot be checked here.
  * @warning Requires GCC or Clang; other compilers return an empty view.
  */
 template <int Range = 256, int Min = 0, enumeration E>
 [[nodiscard]] constexpr auto enum_to_string(E const value) noexcept -> std::string_view {
-  return detail::enum_search<E, Min>(
-    static_cast<std::underlying_type_t<E>>(value), std::make_integer_sequence<int, Range>{}
+  constexpr auto window{detail::clamped_window<E>(Min, Range)};
+  return detail::enum_search<E, window.min>(
+    static_cast<std::underlying_type_t<E>>(value), std::make_integer_sequence<int, window.range>{}
   );
 }
 
@@ -198,6 +246,9 @@ template <int Range = 256, int Min = 0, enumeration E>
  *
  * Counts how many underlying values in \c [Min, Min + Range) name a real
  * enumerator. Holes, aliases, and unnamed placeholder values are not counted.
+ * The window is clamped to the values representable by \p E's underlying type,
+ * so an oversized \p Range never wraps a narrow underlying type and never
+ * counts an enumerator twice.
  *
  * @tparam E Enum type to reflect.
  * @tparam Range Number of underlying values to scan. Defaults to 256.
@@ -205,25 +256,34 @@ template <int Range = 256, int Min = 0, enumeration E>
  *
  * @return The number of named enumerators in \c [Min, Min + Range).
  *
- * @pre None.
+ * @pre \p E has a fixed underlying type (every scoped enum does; an unscoped
+ *      enum needs an explicit enum-base).
  * @post The result is at most \p Range.
  *
  * @complexity \c O(Range) signature parses, all at compile time.
  *
+ * @warning For an enum without a fixed underlying type, casting a scanned
+ *          value outside its range of values is undefined behaviour and Clang
+ *          rejects the constant evaluation with a hard error; no trait can
+ *          detect the missing enum-base, so this cannot be checked here.
  * @warning Requires GCC or Clang. Range-bounded: enumerators outside
  *          \c [Min, Min + Range) are ignored; widen \p Range and \p Min for
  *          enums beyond the default window.
  */
 template <enumeration E, int Range = 256, int Min = 0>
 [[nodiscard]] constexpr auto enum_count() noexcept -> std::size_t {
-  return detail::enum_count_impl<E, Min>(std::make_integer_sequence<int, Range>{});
+  constexpr auto window{detail::clamped_window<E>(Min, Range)};
+  return detail::enum_count_impl<E, window.min>(std::make_integer_sequence<int, window.range>{});
 }
 
 /**
  * @brief Compile-time array of the named enumerators in a bounded range.
  *
  * Gathers every named enumerator in \c [Min, Min + Range) into a \c std::array
- * sized exactly to \c enum_count, in ascending underlying-value order.
+ * sized exactly to \c enum_count, in ascending underlying-value order. The
+ * window is clamped to the values representable by \p E's underlying type, so
+ * an oversized \p Range never wraps a narrow underlying type and never emits
+ * an enumerator twice.
  *
  * @tparam E Enum type to reflect.
  * @tparam Range Number of underlying values to scan. Defaults to 256.
@@ -231,18 +291,24 @@ template <enumeration E, int Range = 256, int Min = 0>
  *
  * @return A \c std::array of the named enumerators in ascending order.
  *
- * @pre None.
+ * @pre \p E has a fixed underlying type (every scoped enum does; an unscoped
+ *      enum needs an explicit enum-base).
  * @post The result holds exactly \c enum_count<E, Range, Min>() elements.
  *
  * @complexity \c O(Range) signature parses, all at compile time.
  *
+ * @warning For an enum without a fixed underlying type, casting a scanned
+ *          value outside its range of values is undefined behaviour and Clang
+ *          rejects the constant evaluation with a hard error; no trait can
+ *          detect the missing enum-base, so this cannot be checked here.
  * @warning Requires GCC or Clang. Range-bounded: enumerators outside the
  *          window are omitted.
  */
 template <enumeration E, int Range = 256, int Min = 0>
 [[nodiscard]] constexpr auto enum_values() noexcept -> std::array<E, enum_count<E, Range, Min>()> {
+  constexpr auto window{detail::clamped_window<E>(Min, Range)};
   auto out{std::array<E, enum_count<E, Range, Min>()>{}};
-  detail::enum_values_impl<E, Min>(out, std::make_integer_sequence<int, Range>{});
+  detail::enum_values_impl<E, window.min>(out, std::make_integer_sequence<int, window.range>{});
   return out;
 }
 
@@ -250,7 +316,9 @@ template <enumeration E, int Range = 256, int Min = 0>
  * @brief Runtime string-to-enumerator lookup over a bounded value range.
  *
  * Returns the first enumerator in \c [Min, Min + Range) whose name equals
- * \p name, or \c std::nullopt when none matches.
+ * \p name, or \c std::nullopt when none matches. The window is clamped to the
+ * values representable by \p E's underlying type, so an oversized \p Range
+ * never wraps a narrow underlying type or scans a value twice.
  *
  * @tparam E Enum type to produce (named first, so call sites read
  *           \c enum_cast<color>("red")).
@@ -260,17 +328,25 @@ template <enumeration E, int Range = 256, int Min = 0>
  *
  * @return The matching enumerator, or \c std::nullopt when none matches.
  *
- * @pre None.
+ * @pre \p E has a fixed underlying type (every scoped enum does; an unscoped
+ *      enum needs an explicit enum-base).
  * @post None.
  *
  * @complexity \c O(Range) comparisons.
  *
+ * @warning For an enum without a fixed underlying type, casting a scanned
+ *          value outside its range of values is undefined behaviour and Clang
+ *          rejects the constant evaluation with a hard error; no trait can
+ *          detect the missing enum-base, so this cannot be checked here.
  * @warning Requires GCC or Clang. Range-bounded: enumerators outside the
  *          window are never matched.
  */
 template <enumeration E, int Range = 256, int Min = 0>
 [[nodiscard]] constexpr auto enum_cast(std::string_view const name) noexcept -> std::optional<E> {
-  return detail::enum_cast_impl<E, Min>(name, std::make_integer_sequence<int, Range>{});
+  constexpr auto window{detail::clamped_window<E>(Min, Range)};
+  return detail::enum_cast_impl<E, window.min>(
+    name, std::make_integer_sequence<int, window.range>{}
+  );
 }
 
 }  // namespace nexenne::utility
