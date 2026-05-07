@@ -241,26 +241,39 @@ public:
    *       the cursor is unchanged.
    *
    * @throws None. Returns \c error::buffer_underrun when fewer than
-   *         \c sizeof(T) bytes remain.
+   *         \c sizeof(T) bytes remain, or \c error::invalid_input when
+   *         \c T is \c bool and the wire byte is neither 0 nor 1.
    */
   template <typename T>
     requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
   [[nodiscard]] auto read() noexcept -> std::expected<T, error> {
     if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
-    auto value{T{}};
-    if constexpr (std::endian::native == std::endian::little) {
-      std::memcpy(&value, m_cursor.data(), sizeof(T));
+    if constexpr (std::is_same_v<T, bool>) {
+      // Decode a bool through std::uint8_t: a memcpy of an attacker-controlled
+      // byte outside {0, 1} into a bool object forms an invalid value whose
+      // first load is undefined behaviour. Reject strictly rather than
+      // normalize, matching the module's hostile-input contract.
+      auto const raw{static_cast<std::uint8_t>(m_cursor.data()[0])};
+      if (raw > 1u) [[unlikely]]
+        return std::unexpected{error::invalid_input};
+      m_cursor.advance(sizeof(T));
+      return raw != 0u;
     } else {
-      // Cold path, every supported MCU target is little-endian.
-      auto bytes{std::array<byte_type, sizeof(T)>{}};
-      for (size_type i{0}; i < sizeof(T); ++i) {
-        bytes[sizeof(T) - 1 - i] = m_cursor.data()[i];
+      auto value{T{}};
+      if constexpr (std::endian::native == std::endian::little) {
+        std::memcpy(&value, m_cursor.data(), sizeof(T));
+      } else {
+        // Cold path, every supported MCU target is little-endian.
+        auto bytes{std::array<byte_type, sizeof(T)>{}};
+        for (size_type i{0}; i < sizeof(T); ++i) {
+          bytes[sizeof(T) - 1 - i] = m_cursor.data()[i];
+        }
+        std::memcpy(&value, bytes.data(), sizeof(T));
       }
-      std::memcpy(&value, bytes.data(), sizeof(T));
+      m_cursor.advance(sizeof(T));
+      return value;
     }
-    m_cursor.advance(sizeof(T));
-    return value;
   }
 
   /**
@@ -278,24 +291,33 @@ public:
    * @post The cursor is unchanged.
    *
    * @throws None. Returns \c error::buffer_underrun when fewer than
-   *         \c sizeof(T) bytes remain.
+   *         \c sizeof(T) bytes remain, or \c error::invalid_input when
+   *         \c T is \c bool and the wire byte is neither 0 nor 1.
    */
   template <typename T>
     requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
   [[nodiscard]] auto peek() const noexcept -> std::expected<T, error> {
     if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
-    auto value{T{}};
-    if constexpr (std::endian::native == std::endian::little) {
-      std::memcpy(&value, m_cursor.data(), sizeof(T));
+    if constexpr (std::is_same_v<T, bool>) {
+      // See read<bool>: a wire byte outside {0, 1} would form an invalid bool.
+      auto const raw{static_cast<std::uint8_t>(m_cursor.data()[0])};
+      if (raw > 1u) [[unlikely]]
+        return std::unexpected{error::invalid_input};
+      return raw != 0u;
     } else {
-      auto bytes{std::array<byte_type, sizeof(T)>{}};
-      for (size_type i{0}; i < sizeof(T); ++i) {
-        bytes[sizeof(T) - 1 - i] = m_cursor.data()[i];
+      auto value{T{}};
+      if constexpr (std::endian::native == std::endian::little) {
+        std::memcpy(&value, m_cursor.data(), sizeof(T));
+      } else {
+        auto bytes{std::array<byte_type, sizeof(T)>{}};
+        for (size_type i{0}; i < sizeof(T); ++i) {
+          bytes[sizeof(T) - 1 - i] = m_cursor.data()[i];
+        }
+        std::memcpy(&value, bytes.data(), sizeof(T));
       }
-      std::memcpy(&value, bytes.data(), sizeof(T));
+      return value;
     }
-    return value;
   }
 
   /**
@@ -343,7 +365,8 @@ public:
    *       cursor is unchanged.
    *
    * @throws None. Returns \c error::buffer_underrun when fewer than
-   *         \c out.size()*sizeof(T) bytes remain.
+   *         \c out.size()*sizeof(T) bytes remain, or \c error::invalid_input
+   *         when \c T is \c bool and a wire byte is neither 0 nor 1.
    */
   template <typename T>
     requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
@@ -355,7 +378,19 @@ public:
       return std::unexpected{error::buffer_underrun};
     }
     auto const n{out.size() * sizeof(T)};
-    if constexpr (std::endian::native == std::endian::little || sizeof(T) == 1) {
+    if constexpr (std::is_same_v<T, bool>) {
+      // A bulk memcpy of hostile bytes into a span<bool> forms invalid bool
+      // objects (UB on load), so validate each wire byte and only advance once
+      // the whole run is known good, keeping the cursor unchanged on failure.
+      auto const* const p{m_cursor.data()};
+      for (size_type i{0}; i < n; ++i) {
+        auto const raw{static_cast<std::uint8_t>(p[i])};
+        if (raw > 1u) [[unlikely]]
+          return std::unexpected{error::invalid_input};
+        out[i] = raw != 0u;
+      }
+      m_cursor.advance(n);
+    } else if constexpr (std::endian::native == std::endian::little || sizeof(T) == 1) {
       if (n != 0) {  // memcpy with a null/empty destination is UB even for size 0
         std::memcpy(out.data(), m_cursor.data(), n);
       }
