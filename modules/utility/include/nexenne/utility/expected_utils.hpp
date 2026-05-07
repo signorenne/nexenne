@@ -10,7 +10,10 @@
  * real code but the standard left out: \c into_optional (drop the error),
  * \c try_or (call a fallback with the error), \c flatten (collapse a nested
  * \c expected), and \c first_error (fold N results to the first error). All
- * operations are header-only and \c noexcept where the callables are.
+ * helpers are header-only and conditionally \c noexcept: \c into_optional,
+ * \c flatten, and \c first_error are \c noexcept when the value and error
+ * types they copy or move are nothrow-constructible, and \c try_or is
+ * additionally conditional on the fallback invocation being nothrow.
  */
 
 #include <concepts>
@@ -36,7 +39,8 @@ namespace nexenne::utility {
  */
 template <typename T, typename E>
   requires(!std::is_void_v<T>)
-[[nodiscard]] constexpr auto into_optional(std::expected<T, E> const& e) -> std::optional<T> {
+[[nodiscard]] constexpr auto into_optional(std::expected<T, E> const& e
+) noexcept(std::is_nothrow_copy_constructible_v<T>) -> std::optional<T> {
   if (e) {
     return *e;
   }
@@ -58,7 +62,8 @@ template <typename T, typename E>
  */
 template <typename T, typename E>
   requires(!std::is_void_v<T>)
-[[nodiscard]] constexpr auto into_optional(std::expected<T, E>&& e) -> std::optional<T> {
+[[nodiscard]] constexpr auto into_optional(std::expected<T, E>&& e
+) noexcept(std::is_nothrow_move_constructible_v<T>) -> std::optional<T> {
   if (e) {
     return std::optional<T>{std::move(*e)};
   }
@@ -98,10 +103,13 @@ template <typename E>
  * @post The result holds an error if and only if either nesting level did.
  */
 template <typename T, typename E>
-[[nodiscard]] constexpr auto flatten(std::expected<std::expected<T, E>, E> const& e
+[[nodiscard]] constexpr auto flatten(std::expected<std::expected<T, E>, E> const& e) noexcept(
+  std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_constructible_v<E>
 ) -> std::expected<T, E> {
   if (!e) {
-    return std::unexpected{e.error()};
+    // In-place error construction: one copy of E, so the noexcept condition
+    // above is exact (std::unexpected would copy and then move the error).
+    return std::expected<T, E>{std::unexpect, e.error()};
   }
   return *e;
 }
@@ -120,10 +128,13 @@ template <typename T, typename E>
  * @post The result holds an error if and only if either nesting level did.
  */
 template <typename T, typename E>
-[[nodiscard]] constexpr auto flatten(std::expected<std::expected<T, E>, E>&& e
+[[nodiscard]] constexpr auto flatten(std::expected<std::expected<T, E>, E>&& e) noexcept(
+  std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_constructible_v<E>
 ) -> std::expected<T, E> {
   if (!e) {
-    return std::unexpected{std::move(e).error()};
+    // In-place error construction: one move of E, so the noexcept condition
+    // above is exact.
+    return std::expected<T, E>{std::unexpect, std::move(e).error()};
   }
   return std::move(*e);
 }
@@ -158,9 +169,12 @@ template <typename T, typename E>
 template <typename E, typename... Args>
   requires(std::same_as<std::remove_cvref_t<Args>, std::expected<void, E>> && ...)
 [[nodiscard]] constexpr auto
-first_error(std::expected<void, E> const& first, Args const&... rest) -> std::expected<void, E> {
+first_error(std::expected<void, E> const& first, Args const&... rest
+) noexcept(std::is_nothrow_copy_constructible_v<E>) -> std::expected<void, E> {
   if (!first) {
-    return std::unexpected{first.error()};
+    // In-place error construction: one copy of E, so the noexcept condition
+    // above is exact.
+    return std::expected<void, E>{std::unexpect, first.error()};
   }
   if constexpr (sizeof...(rest) > 0) {
     return first_error<E>(rest...);
@@ -198,7 +212,9 @@ first_error(std::expected<void, E> const& first, Args const&... rest) -> std::ex
  */
 template <typename T, typename E, typename Fn>
   requires std::is_invocable_r_v<T, Fn, E const&>
-[[nodiscard]] constexpr auto try_or(std::expected<T, E> const& e, Fn&& fn) -> T {
+[[nodiscard]] constexpr auto try_or(std::expected<T, E> const& e, Fn&& fn) noexcept(
+  std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_invocable_r_v<T, Fn, E const&>
+) -> T {
   if (e) {
     return *e;
   }
@@ -223,7 +239,9 @@ template <typename T, typename E, typename Fn>
  */
 template <typename T, typename E, typename Fn>
   requires std::is_invocable_r_v<T, Fn, E&&>
-[[nodiscard]] constexpr auto try_or(std::expected<T, E>&& e, Fn&& fn) -> T {
+[[nodiscard]] constexpr auto try_or(std::expected<T, E>&& e, Fn&& fn) noexcept(
+  std::is_nothrow_move_constructible_v<T> && std::is_nothrow_invocable_r_v<T, Fn, E&&>
+) -> T {
   if (e) {
     return std::move(*e);
   }
