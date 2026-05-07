@@ -2,11 +2,11 @@
  * @file
  * @brief Ergonomic helpers over std::expected, via nexenne::utility::expected_utils.
  *
- * A device boot sequence runs several fallible steps. We thread their errors
- * through without a single throw, showing each helper in the header:
+ * A service reads its configuration and validates it without a single throw,
+ * showing each helper in the header:
  *   - into_optional: drop the error channel when only success/value matters.
  *   - try_or:        supply a fallback computed from the error.
- *   - first_error:   fold a series of void-returning steps to the first failure.
+ *   - first_error:   fold independent validation results to the first failure.
  *   - flatten:       collapse a nested expected<expected<T, E>, E>.
  */
 
@@ -14,6 +14,7 @@
 #include <optional>
 #include <print>
 #include <string>
+#include <string_view>
 
 #include <nexenne/utility/expected_utils.hpp>
 
@@ -22,7 +23,7 @@ namespace util = nexenne::utility;
 namespace {
 
 using result = std::expected<int, std::string>;
-using step = std::expected<void, std::string>;  // a fallible action with no value
+using check = std::expected<void, std::string>;  // a validation with no value
 
 auto parse_port(int raw) -> result {
   if (raw < 0 || raw > 65535) {
@@ -31,16 +32,30 @@ auto parse_port(int raw) -> result {
   return raw;
 }
 
-// Three boot steps; the middle one fails so we can see first_error short-circuit.
-auto open_bus() -> step {
+// Three independent validations over an already-loaded config. They are safe
+// to run eagerly and in any order: each only inspects data, none has a side
+// effect that would be wrong to perform after another check failed.
+auto check_name(std::string_view name, int* ran) -> check {
+  ++*ran;
+  if (name.empty()) {
+    return std::unexpected{std::string{"name is empty"}};
+  }
   return {};
 }
 
-auto configure_clock() -> step {
-  return std::unexpected{std::string{"clock PLL did not lock"}};
+auto check_port(int port, int* ran) -> check {
+  ++*ran;
+  if (port < 1024) {
+    return std::unexpected{std::string{"port is privileged"}};
+  }
+  return {};
 }
 
-auto reset_chip() -> step {
+auto check_threads(int threads, int* ran) -> check {
+  ++*ran;
+  if (threads < 1) {
+    return std::unexpected{std::string{"thread count must be positive"}};
+  }
   return {};
 }
 
@@ -66,13 +81,20 @@ auto main() -> int {
   })};
   std::println("resolved port: {}", port);
 
-  // first_error: run a sequence of void steps and stop at the first failure,
-  // exactly like chaining `if (auto r = step(); !r) return r;` but as one call.
-  if (auto const boot{util::first_error(open_bus(), configure_clock(), reset_chip())}; !boot) {
-    std::println("boot failed at: {}", boot.error());
-  } else {
-    std::println("boot ok");
+  // first_error: fold several independent validation results to the first
+  // failure. Every argument is an ordinary function argument, so ALL of the
+  // checks run before first_error even starts; the fold only selects among
+  // the already-built results. That is why the inputs must be independent
+  // checks like these, never steps that would be unsafe to run after an
+  // earlier failure. For stop-on-first-error sequencing, chain and_then.
+  int ran{0};
+  auto const validated{util::first_error(
+    check_name("api-server", &ran), check_port(80, &ran), check_threads(4, &ran)
+  )};
+  if (!validated) {
+    std::println("config rejected: {}", validated.error());
   }
+  std::println("checks run: {} (all three, despite the failure at the second)", ran);
 
   // flatten: an expected<expected<T, E>, E> becomes a flat expected<T, E>; an
   // error at either nesting level surfaces as the single error.
