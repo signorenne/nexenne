@@ -4,83 +4,137 @@
 
 * Purpose
 
-=nexenne::utility::meta= bundles small compile-time helpers: =always_false_v=
-for dependent static assertions, =type_name= for a diagnostic type spelling, and
-=function_traits= for introspecting a callable's signature.
+=nexenne::utility::meta= bundles three small compile-time helpers:
+=always_false_v= for dependent static assertions, =type_name= for a diagnostic
+type spelling, and =function_traits= (with =function_*= aliases) for
+introspecting a callable's signature.
 
-* The idea
+* The problem it solves
 
-Generic code often needs a callable's shape (its return type, arity, argument
-types, and =noexcept=-ness) without the caller spelling them out.
-=function_traits= recovers all of these for plain functions, function pointers,
-member function pointers, and concrete-=operator()= functors, and the
-=function_*= aliases (=function_return_t=, =function_arity_v=, =function_arg_t=,
-=function_is_noexcept_v=, =function_args_t=) keep call sites terse.
-=always_false_v= gives the unreachable branch of an =if constexpr= chain a
-value-dependent =false=, so the diagnostic fires only for unhandled types. The
-tradeoff: =type_name<T>()= relies on =__PRETTY_FUNCTION__= and returns an empty
-view outside GCC/Clang, and a generic or overloaded =operator()= has no single
-signature to introspect.
+Generic code often needs a callable's /shape/, its return type, arity, argument
+types, and =noexcept=-ness, without the caller spelling them out: to build a
+tuple of its argument types, check its arity, dispatch on its return type, or
+propagate its =noexcept=. Writing that trait by hand means enumerating the whole
+cv- / ref- / =noexcept=-qualifier matrix of member function pointers, which is
+easy to get wrong and tedious to repeat.
+
+Two smaller needs travel with it. A =static_assert= in the unreachable =else= of
+an =if constexpr= chain must depend on a template parameter, or it fires at parse
+time for every instantiation. And diagnostics sometimes want a type's name as
+text. =meta= covers all three.
 
 * How it works
 
-The three helpers are independent:
+** =function_traits=: the qualifier matrix
 
-- =always_false_v<Ts...>= is a variable template that is always =false= but whose
-  value formally depends on =Ts=. That dependency is what makes
-  =static_assert(always_false_v<T>, "...")= fire only when its =if constexpr=
-  branch is actually instantiated, rather than at parse time.
-- =type_name<T>()= reads the compiler's =__PRETTY_FUNCTION__= for this very
-  function and slices out the spelling of =T= between a =T = = marker and the
-  bounding bracket, coping with spaces, =::= qualifiers, commas inside template
-  arguments, array types, and GCC's trailing =; = signature entries. It runs at
-  compile time with no runtime cost.
-- =function_traits<F>= is a trait whose specialisations cover plain function types,
-  function pointers, and every cv- / ref- / =noexcept=-qualified member function
-  pointer; the primary template handles a functor or lambda by delegating to the
-  traits of its =operator()=. Each specialisation exposes a =return_type=, an
-  =arguments= =type_list=, an =arity=, an indexed =arg_t=, and an =is_noexcept=
-  flag. The =function_*= aliases are thin wrappers that strip a reference from =F=
-  and read those members, so prefer the aliases over touching =function_traits=
-  directly.
+=function_traits<F>= is a trait whose specialisations cover every callable
+spelling, each deriving from a shared =detail::function_traits_base= that exposes
+the same members. The primary template handles a functor or lambda by delegating
+to the traits of its =operator()=.
 
-* When to use it
+| =F= is                              | handled by             |
+|-------------------------------------+------------------------|
+| =R(Args...)= / =... noexcept=       | function-type spec     |
+| =R(*)(Args...)= / =... noexcept=    | function-pointer spec  |
+| =R(C::*)(Args...) cv ref noexcept=  | member-pointer specs   |
+| a class with one =operator()=       | primary, via delegation|
 
-Reach for =function_traits= and the =function_*= aliases in generic code that must
-adapt to a callable's signature: building a tuple of its argument types, checking
-its arity, dispatching on its return type, or propagating its =noexcept=. Use
-=always_false_v= to make the =else= of an =if constexpr= chain reject unsupported
-types with a readable message, and =type_name<T>()= for diagnostic logging or test
-output, never as a key or stable identifier.
+The member-pointer specialisations are generated across the full matrix of
+=const=/=volatile=/=const volatile= times unqualified/=&=/=&&= times
+=noexcept=/not, so a pointer to any member function introspects. Each
+specialisation exposes, through =function_traits_base=:
 
-The gotchas:
+- =return_type= : =R=,
+- =arguments= : a =type_list<Args...>= (see [[file:type_list.org][type_list]]),
+- =arity= : =sizeof...(Args)=,
+- =arg_t<I>= : the =I=-th parameter type,
+- =is_noexcept= : whether the callable type is =noexcept=.
 
-- =function_traits= needs *one concrete* =operator()=. A generic lambda (one with
-  =auto= parameters) or any class with an overloaded or templated =operator()= has
-  no single signature, so it does not introspect; give it a concrete signature
-  first, for example by wrapping in a non-generic lambda.
-- =type_name<T>()= is a *diagnostic label, not a stable name*. The spelling is
-  compiler-dependent (it may carry an elaborated =struct= / =class= keyword,
-  differ in qualification or whitespace) and on compilers other than GCC/Clang it
-  returns an empty view, so never parse it or compare it for identity.
-- =function_arg_t<F, I>= triggers a =static_assert= when =I= is out of range, so
-  index within =function_arity_v<F>=.
+The =function_*= aliases are thin wrappers that strip a reference from =F= and
+read those members: =function_return_t=, =function_args_t=, =function_arity_v=,
+=function_arg_t=, =function_is_noexcept_v=. Prefer the aliases; touch
+=function_traits= directly only to add a specialisation.
+
+** =type_name=: parse the pretty-function signature
+
+=type_name<T>()= reads =__PRETTY_FUNCTION__= for its own instantiation and slices
+out the spelling of =T= between a ="T = "= marker and the bounding =]=. It copes
+with spaces, =::= qualifiers, commas inside template argument lists, array types
+whose own =]= precede the closing bracket, and GCC's trailing ="; "= signature
+entries (which, when present, are the tighter, correct end). It runs at compile
+time with no runtime cost. The spelling is compiler-dependent, so it is a
+diagnostic label, not a stable identifier, and other compilers return an empty
+view.
+
+** =always_false_v=: a dependent false
+
+=always_false_v<Ts...>= is a variable template that is always =false= but whose
+value formally depends on =Ts=. That dependency delays evaluation until the
+enclosing template is instantiated, so
+=static_assert(always_false_v<T>, "...")= in the =else= of an =if constexpr=
+chain fires only when that branch is actually selected. Since C++23 a bare
+=static_assert(false)= is permitted in an uninstantiated branch too;
+=always_false_v= remains as an explicit, self-documenting marker.
+
+* API tour
+
+- =always_false_v<Ts...>= : a value-dependent =false= for the dead branch of an
+  =if constexpr= chain.
+- =type_name<T>()= : the compiler's spelling of =T= as a =std::string_view=, or
+  empty off GCC / Clang.
+- =function_return_t<F>= : the return type of callable =F=.
+- =function_args_t<F>= : the parameter types of =F= as a =type_list=.
+- =function_arity_v<F>= : the number of parameters.
+- =function_arg_t<F, I>= : the =I=-th parameter type (a =static_assert= fires
+  when =I= is out of range).
+- =function_is_noexcept_v<F>= : whether =F='s type is =noexcept=.
 
 * Usage
 
 #+BEGIN_SRC cpp
+namespace nu = nexenne::utility;
+
 auto compute(int a, double b) noexcept -> double;
 using fn = decltype(&compute);
 
-static_assert(nexenne::utility::function_arity_v<fn> == 2);
-static_assert(std::is_same_v<nexenne::utility::function_return_t<fn>, double>);
-static_assert(std::is_same_v<nexenne::utility::function_arg_t<fn, 0>, int>);
-static_assert(nexenne::utility::function_is_noexcept_v<fn>);
+static_assert(nu::function_arity_v<fn> == 2);
+static_assert(std::is_same_v<nu::function_return_t<fn>, double>);
+static_assert(std::is_same_v<nu::function_arg_t<fn, 0>, int>);
+static_assert(nu::function_is_noexcept_v<fn>);
 
-constexpr auto label{nexenne::utility::type_name<double>()};  // contains "double"
+// A concrete (non-generic) lambda introspects through its operator().
+auto const scale{[](float x, int n) { return x * static_cast<float>(n); }};
+static_assert(nu::function_arity_v<decltype(scale)> == 2);
+
+constexpr auto label{nu::type_name<double>()};   // contains "double", diagnostic only
 #+END_SRC
 
 Reach for =always_false_v<T>= in the =else= of an =if constexpr= chain to reject
 unsupported types with a readable message.
 
+* Pitfalls
+
+- *=function_traits= needs one concrete =operator()=.* A generic lambda (with
+  =auto= parameters) or any class with an overloaded or templated =operator()=
+  has no single signature and does not introspect; give it a concrete signature
+  first, for example by wrapping in a non-generic lambda.
+- *=type_name<T>()= is a label, not a name.* The spelling is compiler-dependent
+  (elaborated =struct= / =class= keyword, different qualification or whitespace)
+  and empty off GCC / Clang, so never parse it or compare it for identity.
+- *=function_arg_t<F, I>= fires a =static_assert= when =I= is out of range*, so
+  index within =function_arity_v<F>=.
+
+* Comparison with the standard library
+
+The standard library has =std::is_invocable= / =std::invoke_result= and, in
+C++26, reflection, but no ready-made "decompose a callable's signature" trait, so
+=function_traits= fills a real gap for pre-reflection code. =type_name= is the
+=__PRETTY_FUNCTION__= idiom used by =boost::core::demangle= and =magic_enum='s
+type-name utility, kept dependency-free and =constexpr=. =always_false_v= is the
+standard workaround now partly subsumed by C++23's =static_assert(false)= in an
+uninstantiated branch; it stays as an explicit marker. When C++26 static
+reflection lands, =function_traits= and =type_name= become thin shims over the
+reflection API.
+
 Runnable: [[file:../../../examples/utility/meta.cpp][examples/utility/meta.cpp]]
+</content>
