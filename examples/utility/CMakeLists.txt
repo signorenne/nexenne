@@ -5,10 +5,14 @@ find_package(Threads REQUIRED)  # lazy uses std::call_once
 set(_utility_examples
     align
     bit
+    buffer_cursor
     defer
+    discard
+    endian
     enum_to_string
     expected_utils
     flags
+    for_each_non_null
     function_ref
     hash
     in_place_function
