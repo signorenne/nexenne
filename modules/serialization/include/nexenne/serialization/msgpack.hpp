@@ -21,8 +21,9 @@
  *   - fixarray / array16 / array32 (length only, elements follow)
  *   - fixmap / map16 / map32   (length only, key/value pairs follow)
  *
- * Not covered (skipped on read with an error): ext types, timestamp
- * extensions. They can be added without source breakage.
+ * Not covered (rejected on read with \c error::invalid_input): ext
+ * types, timestamp extensions. They can be added without source
+ * breakage.
  *
  * Both reader and writer are heap-free, exception-free, \c noexcept,
  * and operate on caller-provided spans. Output is always big-endian
@@ -47,6 +48,7 @@
 #include <cstdint>
 #include <cstring>
 #include <expected>
+#include <limits>
 #include <span>
 #include <string_view>
 
@@ -589,6 +591,37 @@ private:
     return m_cursor.take(n);
   }
 
+  // Add to the pending-item counter of skip_value, rejecting an overflow the
+  // buffer could never hold anyway as a truncation.
+  [[nodiscard]] static auto
+  add_pending(std::uint64_t& pending, std::uint64_t const add) noexcept -> bool {
+    if (add > std::numeric_limits<std::uint64_t>::max() - pending)
+      return false;
+    pending += add;
+    return true;
+  }
+
+  // Step over n body bytes, false when fewer remain.
+  [[nodiscard]] auto skip_fixed(size_type const n) noexcept -> bool {
+    if (!m_cursor.has(n))
+      return false;
+    m_cursor.advance(n);
+    return true;
+  }
+
+  // Read an n-byte big-endian length / count (n is 1, 2, or 4) and advance.
+  [[nodiscard]] auto read_len(size_type const n
+  ) noexcept -> std::expected<std::uint64_t, error> {
+    auto p{take(n)};
+    if (!p)
+      return std::unexpected{p.error()};
+    if (n == 1)
+      return static_cast<std::uint64_t>(static_cast<std::uint8_t>((*p)[0]));
+    if (n == 2)
+      return static_cast<std::uint64_t>(detail::load_be16(p->data()));
+    return static_cast<std::uint64_t>(detail::load_be32(p->data()));
+  }
+
 public:
   /**
    * @brief Construct a reader over the immutable byte span \p buf.
@@ -757,14 +790,15 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the item; on failure it is
-   *       unchanged or rewound to before the prefix byte.
+   *       unchanged, or advanced past the head byte on a mid-item
+   *       truncation.
    *
-   * @throws None. Returns \c error::buffer_underrun on truncation, or
-   *         \c error::type_mismatch when the next item is not an integer.
+   * @throws None. Returns \c error::buffer_underrun on truncation,
+   *         \c error::type_mismatch when the next item is not an integer,
+   *         or \c error::type_mismatch when a uint64 (0xCF) exceeds
+   *         \c INT64_MAX and cannot be held as a signed value.
    *
-   * @warning A uint64 above \c INT64_MAX wraps to a negative
-   *          \c int64_t; this reader does not widen to an unsigned
-   *          result.
+   * @see read_uint for decoding the full unsigned 64-bit range.
    */
   [[nodiscard]] auto read_int() noexcept -> std::expected<std::int64_t, error> {
     if (!m_cursor.has(1))
@@ -802,7 +836,12 @@ public:
         auto p{take(8)};
         if (!p)
           return std::unexpected{p.error()};
-        return static_cast<std::int64_t>(detail::load_be64(p->data()));
+        auto const v{detail::load_be64(p->data())};
+        // A uint64 past INT64_MAX cannot be held signed without wrapping to a
+        // negative value; reject it here and let the caller reach for read_uint.
+        if (v > static_cast<std::uint64_t>(0x7FFFFFFFFFFFFFFFLL))
+          return std::unexpected{error::type_mismatch};
+        return static_cast<std::int64_t>(v);
       }
       case 0xD0: {
         auto p{take(1)};
@@ -836,6 +875,67 @@ public:
   }
 
   /**
+   * @brief Read an unsigned integer over the full 64-bit range.
+   *
+   * Accepts positive fixint and the uint 8/16/32/64 forms; the signed
+   * fixint and int forms are rejected because they are not unsigned. This
+   * is the counterpart to \c read_int for values a peer wrote with
+   * \c write_uint that may exceed \c INT64_MAX.
+   *
+   * @return The decoded value on success.
+   *
+   * @pre None.
+   * @post On success the cursor advances past the item; on failure it is
+   *       unchanged, or advanced past the head byte on a mid-item
+   *       truncation.
+   *
+   * @throws None. Returns \c error::buffer_underrun on truncation, or
+   *         \c error::type_mismatch when the next item is not an unsigned
+   *         integer form.
+   *
+   * @see read_int for the signed decode.
+   */
+  [[nodiscard]] auto read_uint() noexcept -> std::expected<std::uint64_t, error> {
+    if (!m_cursor.has(1))
+      return std::unexpected{error::buffer_underrun};
+    auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
+    if (b <= 0x7F) {  // positive fixint
+      m_cursor.advance(1);
+      return static_cast<std::uint64_t>(b);
+    }
+    m_cursor.advance(1);
+    switch (b) {
+      case 0xCC: {
+        auto p{take(1)};
+        if (!p)
+          return std::unexpected{p.error()};
+        return static_cast<std::uint64_t>(static_cast<std::uint8_t>((*p)[0]));
+      }
+      case 0xCD: {
+        auto p{take(2)};
+        if (!p)
+          return std::unexpected{p.error()};
+        return static_cast<std::uint64_t>(detail::load_be16(p->data()));
+      }
+      case 0xCE: {
+        auto p{take(4)};
+        if (!p)
+          return std::unexpected{p.error()};
+        return static_cast<std::uint64_t>(detail::load_be32(p->data()));
+      }
+      case 0xCF: {
+        auto p{take(8)};
+        if (!p)
+          return std::unexpected{p.error()};
+        return detail::load_be64(p->data());
+      }
+      default:
+        m_cursor.retreat();
+        return std::unexpected{error::type_mismatch};
+    }
+  }
+
+  /**
    * @brief Read a floating-point value as a \c double.
    *
    * Accepts float32 (0xCA) and float64 (0xCB); the single-precision form
@@ -845,7 +945,8 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the item; on failure it is
-   *       unchanged.
+   *       unchanged, or advanced past the head byte on a mid-item
+   *       truncation.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
    *         \c error::type_mismatch when the next item is not a float.
@@ -880,7 +981,8 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header and body; on
-   *       failure it is unchanged or rewound to before the prefix byte.
+   *       failure it is unchanged, or advanced past the head byte on a
+   *       mid-item truncation.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
    *         \c error::type_mismatch when the next item is not a string.
@@ -929,7 +1031,8 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header and body; on
-   *       failure it is unchanged or rewound to before the prefix byte.
+   *       failure it is unchanged, or advanced past the head byte on a
+   *       mid-item truncation.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
    *         \c error::type_mismatch when the next item is not a binary
@@ -974,7 +1077,8 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header; on failure it
-   *       is unchanged or rewound to before the prefix byte.
+   *       is unchanged, or advanced past the head byte on a mid-item
+   *       truncation.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
    *         \c error::type_mismatch when the next item is not an array
@@ -1011,7 +1115,8 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header; on failure it
-   *       is unchanged or rewound to before the prefix byte.
+   *       is unchanged, or advanced past the head byte on a mid-item
+   *       truncation.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
    *         \c error::type_mismatch when the next item is not a map
@@ -1037,6 +1142,151 @@ public:
     }
     m_cursor.retreat();
     return std::unexpected{error::type_mismatch};
+  }
+
+  /**
+   * @brief Skip exactly one complete item of any supported type.
+   *
+   * Advances past the next item, consuming arrays and maps whole (their
+   * elements and pairs included). The walk is iterative (a pending-item
+   * counter, not call recursion), so a hostile deeply nested stream cannot
+   * overflow the stack. Extension and reserved prefixes are rejected.
+   *
+   * @return Empty on success.
+   *
+   * @pre None.
+   * @post On success the cursor sits just past the skipped item; on
+   *       failure it may have advanced over part of the item.
+   *
+   * @throws None. Returns \c error::buffer_underrun on truncation, or
+   *         \c error::invalid_input for an unsupported prefix (ext or
+   *         reserved bytes).
+   *
+   * @complexity \c O(size of the skipped item).
+   */
+  [[nodiscard]] auto skip_value() noexcept -> std::expected<void, error> {
+    auto pending{std::uint64_t{1}};
+    while (pending > 0) {
+      if (!m_cursor.has(1))
+        return std::unexpected{error::buffer_underrun};
+      auto const b{static_cast<std::uint8_t>(m_cursor.next())};
+      --pending;
+
+      // Positive or negative fixint: the whole value lives in the head byte.
+      if (b <= 0x7F || b >= 0xE0)
+        continue;
+      // fixstr: the low 5 bits are the body length.
+      if ((b & 0xE0) == 0xA0) {
+        if (!skip_fixed(static_cast<size_type>(b & 0x1F)))
+          return std::unexpected{error::buffer_underrun};
+        continue;
+      }
+      // fixarray: the low 4 bits are the element count.
+      if ((b & 0xF0) == 0x90) {
+        if (!add_pending(pending, static_cast<std::uint64_t>(b & 0x0F)))
+          return std::unexpected{error::buffer_underrun};
+        continue;
+      }
+      // fixmap: the low 4 bits are the pair count (two items each).
+      if ((b & 0xF0) == 0x80) {
+        if (!add_pending(pending, static_cast<std::uint64_t>(b & 0x0F) * 2))
+          return std::unexpected{error::buffer_underrun};
+        continue;
+      }
+
+      switch (b) {
+        case 0xC0:  // nil
+        case 0xC2:  // false
+        case 0xC3:  // true
+          break;
+        case 0xCC:  // uint8
+        case 0xD0:  // int8
+          if (!skip_fixed(1))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        case 0xCD:  // uint16
+        case 0xD1:  // int16
+          if (!skip_fixed(2))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        case 0xCA:  // float32
+        case 0xCE:  // uint32
+        case 0xD2:  // int32
+          if (!skip_fixed(4))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        case 0xCB:  // float64
+        case 0xCF:  // uint64
+        case 0xD3:  // int64
+          if (!skip_fixed(8))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        case 0xD9:    // str8
+        case 0xC4: {  // bin8
+          auto const n{read_len(1)};
+          if (!n)
+            return std::unexpected{n.error()};
+          if (!skip_fixed(static_cast<size_type>(*n)))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        }
+        case 0xDA:    // str16
+        case 0xC5: {  // bin16
+          auto const n{read_len(2)};
+          if (!n)
+            return std::unexpected{n.error()};
+          if (!skip_fixed(static_cast<size_type>(*n)))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        }
+        case 0xDB:    // str32
+        case 0xC6: {  // bin32
+          auto const n{read_len(4)};
+          if (!n)
+            return std::unexpected{n.error()};
+          if (!skip_fixed(static_cast<size_type>(*n)))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        }
+        case 0xDC: {  // array16
+          auto const cnt{read_len(2)};
+          if (!cnt)
+            return std::unexpected{cnt.error()};
+          if (!add_pending(pending, *cnt))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        }
+        case 0xDD: {  // array32
+          auto const cnt{read_len(4)};
+          if (!cnt)
+            return std::unexpected{cnt.error()};
+          if (!add_pending(pending, *cnt))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        }
+        case 0xDE: {  // map16
+          auto const cnt{read_len(2)};
+          if (!cnt)
+            return std::unexpected{cnt.error()};
+          if (*cnt > std::numeric_limits<std::uint64_t>::max() / 2
+              || !add_pending(pending, *cnt * 2))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        }
+        case 0xDF: {  // map32
+          auto const cnt{read_len(4)};
+          if (!cnt)
+            return std::unexpected{cnt.error()};
+          if (*cnt > std::numeric_limits<std::uint64_t>::max() / 2
+              || !add_pending(pending, *cnt * 2))
+            return std::unexpected{error::buffer_underrun};
+          break;
+        }
+        default:  // 0xC1 reserved, ext / fixext, timestamp: unsupported
+          return std::unexpected{error::invalid_input};
+      }
+    }
+    return {};
   }
 };
 
