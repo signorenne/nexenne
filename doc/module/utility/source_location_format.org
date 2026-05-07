@@ -4,51 +4,72 @@
 
 * Purpose
 
-=source_location_format= formats a =std::source_location= into a
-caller-supplied fixed-size buffer with no allocation, returning a
-=std::string_view= into that buffer. The helpers live in =nexenne::utility=.
+=source_location_format= formats a =std::source_location= into a caller-supplied
+fixed-size buffer with no allocation, returning a =std::string_view= into that
+buffer. =format_short= writes a short "file.cpp:42" tag; =format_long= appends
+the enclosing function name. Both live in =nexenne::utility=.
 
-* The idea
+* The problem it solves
 
-The standard library exposes =file_name()=, =line()=, =column()= and
-=function_name()= but no formatter. Loggers usually want a short
-"file.cpp:42" tag (=format_short=) or a longer "file.cpp:42 in function"
-(=format_long=); both reduce the path to its basename, write into a
-=std::array<char, N>= via =snprintf=, and return a view truncated to fit when
-the buffer is too small. The buffer must outlive the returned view.
+=std::source_location= exposes =file_name()=, =line()=, =column()=, and
+=function_name()=, but the standard library ships no formatter for it. A logger
+or assertion macro usually wants a compact tag like "file.cpp:42" for a line
+prefix, and would rather not drag =std::format= and a heap allocation into a hot
+path, an embedded target, or a signal-safe-ish context.
+
+These two helpers build that tag with a bounded copy into an array the caller
+owns: no allocation, nothing thrown, and the result is just a view into your
+buffer.
 
 * How it works
 
-Both helpers take the location and a reference to a caller-owned
-=std::array<char, N>= (=N >= 1= is required). The path from =loc.file_name()= is
-first reduced to its basename by =detail::basename_of=, which finds the last
-=/= or =\\= and keeps what follows, so a long compiler-supplied path collapses to
-just the file name. The text is then written with =std::snprintf=:
-=format_short= writes ="basename:line"=, =format_long= appends =" in function"=
-from =loc.function_name()=. =snprintf= returns the length it *would* have
-written, so =detail::view_of_snprintf= turns that into a =std::string_view= over
-the buffer: a non-positive return becomes an empty view, and a return at or past
-=N= means the output was clipped to =N - 1= usable characters. No heap is
-touched, nothing throws (both are =noexcept=), and the result is just a view into
-your array.
+** Bounded copy into a caller-owned array
 
-* When to use it
+Both helpers take the location and a reference to a =std::array<char, N>=
+(=N >= 1= is required), and write into it byte by byte through a small
+=detail::append= helper. =append= copies only as much of each piece as still
+fits: it advances a =pos= cursor and never writes past =cap=, the buffer size
+minus one. That reserved last slot is always available to hold a terminating
+=\0=, which also means a one-byte buffer yields an empty result. Because every
+copy is bounded, the output is always a valid prefix of the full text, truncated
+when the buffer is too small; it never overruns.
 
-Reach for these in a logging or assertion macro, or anywhere you want a compact
-=file:line= tag without dragging in =std::format= or a heap allocation: hot paths,
-embedded targets, and signal-safe-ish contexts. =format_short= is the everyday
-choice for a prefix like =[file.cpp:42]=; =format_long= adds the enclosing
-function when you want a fuller trace line. Capture the location as a defaulted
-=std::source_location::current()= parameter at the logging boundary so it records
-the *caller's* position, not the logger's.
+#+BEGIN_EXAMPLE
+format_short(loc, buf), buf is std::array<char, N>
 
-GOTCHAS. The returned =string_view= points into your =buf=, so the buffer must
-outlive every use of the view: a view returned from a function over a local array
-dangles. Size the buffer for your longest expected tag, =format_long= in
-particular can be long because =function_name()= is the full signature on many
-compilers, and an undersized buffer silently truncates (it does not error). The
-exact spelling of the file path and function name is implementation-defined, so
-treat the output as a human-readable tag, not a stable key.
+  basename_of(file_name())   ":"   to_chars(line())        '\0'
+        |                     |          |                   |
+        v                     v          v                   v
+      +---+---+---+---+---+---+---+---+---+---+ - - - +------+
+      | m | a | i | n | . | c | : | 4 | 2 | \0|       | free |
+      +---+---+---+---+---+---+---+---+---+---+ - - - +------+
+       \___________ pos bytes ___________/            ^
+                                            cap = N - 1 reserves this slot
+       returned view: string_view{buf.data(), pos}
+#+END_EXAMPLE
+
+** The pieces
+
+The path from =loc.file_name()= is first reduced to its basename by
+=detail::basename_of=, which finds the last =/= or =\= and keeps what follows, so
+a long compiler-supplied path collapses to just the file name, short and
+grep-friendly. =format_short= then appends the basename, a =:=, and the decimal
+line number. The line number is rendered with =std::to_chars= into a small local
+digit buffer (ten digits is enough for a 32-bit value) and appended through the
+same bounded copy. =format_long= does all of that and then appends =" in "= and
+=loc.function_name()=. Finally =buf[pos]= is set to =\0= (=pos <= cap < N=, so it
+is always in range) and a =std::string_view{buf.data(), pos}= over the written
+bytes is returned. Both helpers are =noexcept= and touch no heap.
+
+* API tour
+
+- =format_short(loc, buf)= : writes "basename:line" into =buf=, returns a view
+  over the written bytes (empty when =buf= is too small to write anything).
+- =format_long(loc, buf)= : writes "basename:line in function", otherwise
+  identical.
+
+Both are templated on the buffer size =N= (with =N >= 1= required) and take the
+buffer by reference; the returned view aliases that buffer.
 
 * Usage
 
@@ -59,14 +80,44 @@ auto log_here(
 ) -> void {
   std::array<char, 128> buf{};
   auto const tag{nexenne::utility::format_short(loc, buf)};
-  std::println("[{}] {}", tag, msg);  // [file.cpp:42] msg
+  std::println("[{}] {}", tag, msg);          // [file.cpp:42] msg
 }
 
 // The long form also appends the enclosing function name.
 std::array<char, 256> buf{};
 auto const detailed{
-  nexenne::utility::format_long(std::source_location::current(), buf)
-};
+  nexenne::utility::format_long(std::source_location::current(), buf)};
 #+END_SRC
 
+Capture the location as a defaulted =std::source_location::current()= parameter
+at the logging boundary so it records the /caller's/ position, not the logger's.
+
+* Pitfalls
+
+- *The view aliases your buffer.* The returned =string_view= points into =buf=,
+  so the buffer must outlive every use of the view; a view returned from a
+  function over a local array dangles.
+- *Truncation is silent.* An undersized buffer clips the output to a prefix and
+  does not error. =format_long= in particular can be long, because
+  =function_name()= is the full signature on many compilers, so size the buffer
+  for your longest expected tag.
+- *The spelling is implementation-defined.* The exact file path and function
+  name depend on the compiler, so treat the output as a human-readable tag, not
+  a stable key.
+
+* Comparison with alternatives
+
+| approach                       | allocation | throws | needs =<format>= |
+|--------------------------------+------------+--------+------------------|
+| =format_short= / =format_long= | none       | no     | no               |
+| =std::format= with the fields  | heap       | yes    | yes              |
+| hand-rolled =std::string=      | heap       | yes    | no               |
+
+C++26 is expected to add a =std::formatter= for =std::source_location=, but it
+formats into an allocating string and pulls in =<format>=. These helpers stay the
+right choice when you want a =file:line= tag with no allocation and no exception,
+for a logging or assertion macro on a hot or constrained path. When you already
+build log lines with =std::format=, formatting the fields directly is fine.
+
 Runnable: [[file:../../../examples/utility/source_location_format.cpp][examples/utility/source_location_format.cpp]]
+</content>
