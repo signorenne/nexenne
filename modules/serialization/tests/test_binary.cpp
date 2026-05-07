@@ -885,4 +885,60 @@ TEST_CASE("nexenne::serialization::binary - mixed schema round trip end to end")
   CHECK(r.at_end());
 }
 
+TEST_CASE("nexenne::serialization::binary - read<bool> accepts 0 and 1") {
+  auto const buf{
+    std::array<std::byte, 2>{std::byte{0x00}, std::byte{0x01}}
+  };
+  auto r{binary::reader{std::span<std::byte const>{buf}}};
+  CHECK(*r.read<bool>() == false);
+  CHECK(*r.read<bool>() == true);
+  CHECK(r.at_end());
+}
+
+TEST_CASE("nexenne::serialization::binary - read<bool> rejects a byte outside {0, 1}") {
+  // A hostile / corrupt frame byte of 0x02 memcpy'd into a bool would form an
+  // invalid bool object (UB on load, caught by -fsanitize=bool). The reader must
+  // reject it with error::invalid_input rather than construct it.
+  auto const buf{std::array<std::byte, 1>{std::byte{0x02}}};
+  auto r{binary::reader{std::span<std::byte const>{buf}}};
+
+  SUBCASE("read<bool>") {
+    auto const v{r.read<bool>()};
+    REQUIRE_FALSE(v.has_value());
+    CHECK(v.error() == error::invalid_input);
+    CHECK(r.position() == 0);  // cursor unchanged on failure
+  }
+  SUBCASE("peek<bool>") {
+    auto const v{r.peek<bool>()};
+    REQUIRE_FALSE(v.has_value());
+    CHECK(v.error() == error::invalid_input);
+    CHECK(r.position() == 0);
+  }
+}
+
+TEST_CASE("nexenne::serialization::binary - read_array<bool> validates every wire byte") {
+  SUBCASE("all valid") {
+    auto const buf{
+      std::array<std::byte, 3>{std::byte{0x01}, std::byte{0x00}, std::byte{0x01}}
+    };
+    auto r{binary::reader{std::span<std::byte const>{buf}}};
+    auto out{std::array<bool, 3>{}};
+    REQUIRE(r.read_array(std::span<bool>{out}).has_value());
+    CHECK(out[0] == true);
+    CHECK(out[1] == false);
+    CHECK(out[2] == true);
+  }
+  SUBCASE("a byte outside {0, 1} is rejected and leaves the cursor put") {
+    auto const buf{
+      std::array<std::byte, 3>{std::byte{0x01}, std::byte{0x02}, std::byte{0x00}}
+    };
+    auto r{binary::reader{std::span<std::byte const>{buf}}};
+    auto out{std::array<bool, 3>{}};
+    auto const v{r.read_array(std::span<bool>{out})};
+    REQUIRE_FALSE(v.has_value());
+    CHECK(v.error() == error::invalid_input);
+    CHECK(r.position() == 0);
+  }
+}
+
 }  // namespace
