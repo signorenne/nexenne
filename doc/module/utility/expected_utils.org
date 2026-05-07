@@ -4,51 +4,95 @@
 
 * Purpose
 
-=expected_utils= adds the small ergonomic helpers that real code wants over
-=std::expected= but the standard left out: =into_optional=, =try_or=,
-=flatten= and =first_error=, all in =nexenne::utility=.
+=expected_utils= adds the small ergonomic helpers over =std::expected= that real
+code reaches for but the standard library left out: =into_optional=, =flatten=,
+=try_or=, and =first_error=, all free functions in =nexenne::utility=.
 
-* The idea
+* The problem it solves
 
 C++23's =std::expected= already ships the monadic chain primitives (=and_then=,
-=or_else=, =transform=, =transform_error=, =value_or=, =error_or=). These free
-functions fill the gaps: =into_optional= drops the error channel to a
-=std::optional= (a =bool= for the =void= value type), =try_or= calls a fallback
-with the error (unlike =value_or=, which takes a plain value), =flatten=
-collapses a nested =expected<expected<T, E>, E>=, and =first_error= folds a pack
-of =expected<void, E>= results to the first failure. Everything is header-only
-and =noexcept= where the callables are.
+=or_else=, =transform=, =transform_error=, =value_or=, =error_or=). Those cover
+sequencing, but a few common shapes still need a hand-written =if=:
+
+- dropping the error to a plain =std::optional= at an API boundary that only
+  cares whether a value exists,
+- supplying a fallback /computed from/ the error, where =value_or='s eager plain
+  value will not do,
+- collapsing a nested =expected<expected<T, E>, E>= that an =and_then= returning
+  its own =expected= produces,
+- folding several independent results to the first failure.
+
+Each of these is a two-line =if= that gets rewritten at every call site.
+=expected_utils= gives each one a name, with the value-category and =noexcept=
+handling done once and correctly.
 
 * How it works
 
-Each helper is a small free function, with =const&= and =&&= overloads where it
-matters so values move out of a temporary instead of copying. =into_optional=
-returns =*e= or =std::nullopt= (and a plain =bool= for =expected<void, E>=, since
-there is no value to carry). =flatten= passes the outer error through unchanged,
-otherwise unwraps the inner =expected=. =try_or= returns =*e= on success, else
-calls =fn(e.error())= for the fallback, so the callable runs only on the error
-path and its return type must match =T=. =first_error= recurses through its
-argument pack, returning the first error or a value-holding =expected<void, E>= if
-all succeeded; the arguments are ordinary function arguments, so they are *all*
-evaluated at the call before the fold sees them.
+Each helper is a small free function. Where moving out of a temporary matters,
+there is a =const&= overload that copies and an =&&= overload that moves, so a
+value or error is relocated rather than copied when the source is an rvalue. All
+helpers are header-only and conditionally =noexcept=: true exactly when the
+value and error types they touch are nothrow to construct (and, for =try_or=,
+when the fallback invocation is nothrow too).
 
-* When to use it
+** =into_optional=: drop the error channel
 
-Reach for these when you already use =std::expected= and want an ergonomic step
-the standard left out: =into_optional= at a boundary that only cares whether a
-value exists; =try_or= for a fallback computed from the error (logging it, mapping
-it to a default); =flatten= after an =and_then= that itself returns an =expected=;
-=first_error= to run a fixed sequence of fallible steps and report the first that
-failed. For the plain monadic chaining (=and_then=, =or_else=, =transform=,
-=value_or=) use the member functions on =std::expected= directly.
+Returns =*e= in a =std::optional<T>= on success and =std::nullopt= on error. The
+=const&= overload copies the value; the =&&= overload moves it out. The
+=expected<void, E>= overload has no value to carry, so it returns a plain =bool=
+(=true= on success).
 
-Gotchas. =first_error= does *not* short-circuit: every argument is evaluated
-before the call (ordinary argument evaluation), so for lazy, stop-on-first-error
-sequencing chain =and_then= instead. =try_or='s callable must return exactly =T=
-(enforced by =std::is_invocable_r_v=) and may throw, in which case =try_or=
-propagates it; the success path never calls the callable. =flatten= requires the
-*same* error type =E= at both nesting levels. The =&&= overloads move out of the
-argument, so do not read an =expected= after passing it as an rvalue.
+** =flatten=: collapse one level of nesting
+
+Takes =expected<expected<T, E>, E>= and returns =expected<T, E>=. The outer error
+passes through unchanged; otherwise the inner =expected= becomes the result. The
+=&&= overload moves the inner value or the outer error out. Both nesting levels
+must share the /same/ error type =E=; the error is constructed in place, so the
+=noexcept= condition is exact (one copy, or one move).
+
+** =try_or=: fallback computed from the error
+
+Like =value_or=, but the fallback is a callable that receives the error rather
+than a precomputed value. Returns =*e= on success; on error, invokes =fn= with
+the error and returns its result, so =fn= runs only on the error path. The =&&=
+overload passes the moved error, =fn(std::move(e).error())=. The callable must
+return exactly =T= (enforced by =std::is_invocable_r_v=) and may throw, in which
+case =try_or= propagates it.
+
+** =first_error=: fold results, but eagerly
+
+Scans a pack of =expected<void, E>= arguments left to right and returns the first
+that holds an error, or a value-holding =expected<void, E>= when all succeeded.
+
+The key fact: =first_error= does /not/ short-circuit. Its arguments are ordinary
+function arguments, so C++ evaluates /all/ of them, in full, /before/ the call
+even begins. The fold then only /selects/ among results that already exist.
+
+#+BEGIN_EXAMPLE
+  first_error(check_a(), check_b(), check_c())
+              \_______/  \_______/  \_______/
+                 all three run to completion here, unconditionally,
+                 then first_error inspects the three finished results
+#+END_EXAMPLE
+
+This is the opposite of a chained =if (!a) return a; if (!b) return b; ...=,
+which stops at the first failure. Use =first_error= only when every argument is
+an independent, side-effect-free check that is safe to run regardless of whether
+an earlier one failed (validating already-loaded fields, say). It is /not/ safe
+for a sequence of steps where a later step must not run after an earlier one
+failed: a hardware bring-up like =open_bus()=, =configure_clock()=,
+=reset_chip()= must stop on the first error, so chain =and_then= there instead.
+
+* API tour
+
+- =into_optional(e)= : =expected<T, E>= to =optional<T>= (=const&= copies, =&&=
+  moves); the =expected<void, E>= overload returns =bool=.
+- =flatten(e)= : =expected<expected<T, E>, E>= to =expected<T, E>=; same =E= at
+  both levels; =&&= moves.
+- =try_or(e, fn)= : value on success, else =fn(error)=; =fn= must return =T=,
+  runs only on error, may throw; =&&= moves the error into =fn=.
+- =first_error(first, rest...)= : first failing =expected<void, E>=, or success;
+  every argument is evaluated before the call.
 
 * Usage
 
@@ -56,14 +100,53 @@ argument, so do not read an =expected= after passing it as an rvalue.
 using namespace nexenne::utility;
 
 // Drop the error: expected<int, E> -> optional<int>.
-std::optional<int> const ok{into_optional(parse_port(8080))};
-std::optional<int> const bad{into_optional(parse_port(99999))};
+std::optional<int> const port{into_optional(parse_port(8080))};
 
 // Fallback computed from the error, only on the failure path.
-auto const port{try_or(parse_port(70000), [](std::string const& e) {
+auto const resolved{try_or(parse_port(70000), [](std::string const& e) {
   log_warning(e);
   return 8080;
 })};
+
+// Independent field checks folded to the first failure. All three run.
+auto const validated{first_error(
+  check_name(cfg.name), check_port(cfg.port), check_threads(cfg.threads))};
+if (!validated) { report(validated.error()); }
+
+// Collapse a fallible lookup that itself returns a fallible value.
+if (auto const c{flatten(open_config())}) { use(*c); }
 #+END_SRC
 
+* Pitfalls
+
+- *=first_error= evaluates every argument.* It does not short-circuit; all
+  arguments run to completion before the fold sees them. For lazy,
+  stop-on-first-error sequencing (including anything unsafe to run after a prior
+  failure) chain =and_then= instead.
+- *=try_or='s callable must return exactly =T=* (enforced by
+  =std::is_invocable_r_v=) and may throw, in which case =try_or= propagates it;
+  the success path never calls it.
+- *=flatten= requires the same =E= at both levels.* A different inner and outer
+  error type does not match the overload.
+- *The =&&= overloads move out of the argument.* Do not read an =expected= again
+  after passing it as an rvalue to =into_optional=, =flatten=, or =try_or=.
+
+* Comparison with the standard library
+
+| need                          | standard =std::expected= | this header    |
+|-------------------------------+--------------------------+----------------|
+| chain a step returning value  | =and_then= / =transform= | (use std)      |
+| default a plain value         | =value_or=               | (use std)      |
+| fallback from the error       | none                     | =try_or=       |
+| drop error to =optional=      | none                     | =into_optional=|
+| collapse nested =expected=    | none                     | =flatten=      |
+| first of N independent errors | none                     | =first_error=  |
+
+For the monadic chaining (=and_then=, =or_else=, =transform=, =value_or=) use the
+member functions on =std::expected= directly; these helpers do not replace them,
+they fill the gaps the standard left. C++26 adds =std::optional= and
+=std::expected= formatting and further monadic conveniences, but the four
+helpers here stay useful as named, value-category-correct building blocks.
+
 Runnable: [[file:../../../examples/utility/expected_utils.cpp][examples/utility/expected_utils.cpp]]
+</content>
