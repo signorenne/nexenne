@@ -42,9 +42,20 @@ auto main() -> int {
   static_assert(category<int>() == "integral");
   static_assert(category<double>() == "floating");
 
+  // The primary template also introspects a functor by delegating to its
+  // operator(). A concrete (non-generic) lambda has one signature, so it works
+  // exactly like a free function; a generic auto-parameter lambda would not.
+  auto const scale{[](float x, int n) { return x * static_cast<float>(n); }};
+  using scaler = decltype(scale);
+  static_assert(util::function_arity_v<scaler> == 2);
+  static_assert(std::is_same_v<util::function_return_t<scaler>, float>);
+  static_assert(std::is_same_v<util::function_arg_t<scaler, 1>, int>);
+
   std::println("compute arity: {}", util::function_arity_v<fn>);
   std::println("compute is noexcept: {}", util::function_is_noexcept_v<fn>);
   std::println("return type spelled: {}", util::type_name<util::function_return_t<fn>>());
   std::println("arg 0 is {}", category<util::function_arg_t<fn, 0>>());
+  std::println("lambda arity: {}, arg 1 is {}", util::function_arity_v<scaler>,
+               category<util::function_arg_t<scaler, 1>>());
   return 0;
 }
