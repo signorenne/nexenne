@@ -38,7 +38,7 @@ namespace detail {
   return path.substr(pos + 1);
 }
 
-// Appends as much of `text` as still fits, advancing `pos`. `cap` is the usable
+// Appends as much of text as still fits, advancing pos. cap is the usable
 // length: callers pass the buffer size minus one so a trailing slot always stays
 // free to null-terminate, which also makes a one-byte buffer yield an empty
 // result. The copy is bounded, so it never overruns and the output is a prefix.
