@@ -184,6 +184,28 @@ public:
 private:
   nexenne::utility::buffer_cursor<byte_type> m_cursor;
 
+  // True when a head plus a body fit, computed without overflowing size_type
+  // (head + body could wrap on a 32-bit target with a huge body).
+  [[nodiscard]] constexpr auto
+  fits_prefixed(size_type const head, size_type const body) const noexcept -> bool {
+    auto const remaining{m_cursor.remaining()};
+    return head <= remaining && body <= remaining - head;
+  }
+
+  // Number of bytes write_head emits for argument v, mirroring its 1/2/3/5/9
+  // byte forms, so write_bytes / write_string can pre-check head + body.
+  [[nodiscard]] static constexpr auto head_size(std::uint64_t const v) noexcept -> size_type {
+    if (v <= 23)
+      return 1;
+    if (v <= 0xFF)
+      return 2;
+    if (v <= 0xFFFF)
+      return 3;
+    if (v <= 0xFFFFFFFFu)
+      return 5;
+    return 9;
+  }
+
   // Write a major-type byte followed by the length argument in CBOR's compact
   // 0/1/2/4/8-byte encoding.
   auto write_head(std::uint8_t const major, std::uint64_t const v) noexcept
@@ -338,16 +360,18 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header and body; on
-   *       failure it may have advanced past a partially written header.
+   *       failure it is unchanged.
    *
    * @throws None. Returns \c error::buffer_full when the header or body
    *         does not fit.
    */
   auto write_bytes(std::span<byte_type const> const data) noexcept -> std::expected<void, error> {
-    if (auto const r{write_head(2, data.size())}; !r)
-      return r;
-    if (!m_cursor.has(data.size()))
+    // Pre-check head plus body so a failure leaves the cursor untouched rather
+    // than dangling a written header (all-or-nothing, like the other writers).
+    if (!fits_prefixed(head_size(data.size()), data.size()))
       return std::unexpected{error::buffer_full};
+    if (auto const r{write_head(2, data.size())}; !r) [[unlikely]]
+      return r;  // unreachable after the pre-check, kept for defensiveness
     // memcpy with a null pointer is UB even for size 0; an empty span's data()
     // may be null.
     if (data.size() != 0) {
@@ -369,16 +393,18 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header and body; on
-   *       failure it may have advanced past a partially written header.
+   *       failure it is unchanged.
    *
    * @throws None. Returns \c error::buffer_full when the header or body
    *         does not fit.
    */
   auto write_string(std::string_view const s) noexcept -> std::expected<void, error> {
-    if (auto const r{write_head(3, s.size())}; !r)
-      return r;
-    if (!m_cursor.has(s.size()))
+    // Pre-check head plus body so a failure leaves the cursor untouched rather
+    // than dangling a written header (all-or-nothing, like the other writers).
+    if (!fits_prefixed(head_size(s.size()), s.size()))
       return std::unexpected{error::buffer_full};
+    if (auto const r{write_head(3, s.size())}; !r) [[unlikely]]
+      return r;  // unreachable after the pre-check, kept for defensiveness
     // memcpy with a null pointer is UB even for size 0.
     if (!s.empty()) {
       std::memcpy(m_cursor.data(), s.data(), s.size());
@@ -918,6 +944,142 @@ public:
       return std::unexpected{error::type_mismatch};
     }
     m_cursor.advance(1);
+    return {};
+  }
+
+  /**
+   * @brief Consume an \c undefined simple value (0xF7).
+   *
+   * Mirrors \c read_null so a caller can advance past the \c undefined
+   * marker a peer CBOR producer may emit (for example an omitted map
+   * field), which \c read_null rejects.
+   *
+   * @return Empty on success.
+   *
+   * @pre None.
+   * @post On success the cursor advances by one byte; on failure it is
+   *       unchanged.
+   *
+   * @throws None. Returns \c error::type_mismatch when the next byte is
+   *         not 0xF7 (also returned at end of input).
+   */
+  auto read_undefined() noexcept -> std::expected<void, error> {
+    if (!m_cursor.has(1) || static_cast<std::uint8_t>(m_cursor.data()[0]) != 0xF7) {
+      return std::unexpected{error::type_mismatch};
+    }
+    m_cursor.advance(1);
+    return {};
+  }
+
+  /**
+   * @brief Skip exactly one complete item of any supported type.
+   *
+   * Advances past the next data item, recursing conceptually into arrays
+   * and maps so nested containers are consumed whole. The walk is
+   * iterative (a pending-item counter, not call recursion), so a hostile
+   * deeply nested stream cannot overflow the stack.
+   *
+   * @return Empty on success.
+   *
+   * @pre None.
+   * @post On success the cursor sits just past the skipped item; on
+   *       failure it may have advanced over part of the item.
+   *
+   * @throws None. Returns \c error::buffer_underrun on truncation, or
+   *         \c error::invalid_input for an unsupported major type (a tag)
+   *         or an unrecognised simple value.
+   *
+   * @complexity \c O(size of the skipped item).
+   */
+  [[nodiscard]] auto skip_value() noexcept -> std::expected<void, error> {
+    auto pending{std::uint64_t{1}};
+    while (pending > 0) {
+      if (!m_cursor.has(1))
+        return std::unexpected{error::buffer_underrun};
+      auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
+      auto const mt{static_cast<std::uint8_t>(b >> 5)};
+      auto const ai{static_cast<std::uint8_t>(b & 0x1F)};
+      m_cursor.advance(1);
+      --pending;
+      switch (mt) {
+        case 0:
+        case 1: {  // unsigned / negative integer: argument only
+          if (auto const arg{read_argument(ai)}; !arg)
+            return std::unexpected{arg.error()};
+          break;
+        }
+        case 2:
+        case 3: {  // byte string / text string: argument bytes of body follow
+          auto const arg{read_argument(ai)};
+          if (!arg)
+            return std::unexpected{arg.error()};
+          auto const len{detail::length_to_size<size_type>(*arg)};
+          if (!len)
+            return std::unexpected{len.error()};
+          if (!m_cursor.has(*len))
+            return std::unexpected{error::buffer_underrun};
+          m_cursor.advance(*len);
+          break;
+        }
+        case 4: {  // array: argument elements follow
+          auto const arg{read_argument(ai)};
+          if (!arg)
+            return std::unexpected{arg.error()};
+          // A count the buffer cannot hold (each item needs a byte) is an
+          // underrun; overflow of the counter means the same, so treat it so.
+          if (*arg > std::numeric_limits<std::uint64_t>::max() - pending)
+            return std::unexpected{error::buffer_underrun};
+          pending += *arg;
+          break;
+        }
+        case 5: {  // map: argument key/value pairs, i.e. 2 items each, follow
+          auto const arg{read_argument(ai)};
+          if (!arg)
+            return std::unexpected{arg.error()};
+          if (*arg > std::numeric_limits<std::uint64_t>::max() / 2)
+            return std::unexpected{error::buffer_underrun};
+          auto const items{*arg * 2};
+          if (items > std::numeric_limits<std::uint64_t>::max() - pending)
+            return std::unexpected{error::buffer_underrun};
+          pending += items;
+          break;
+        }
+        case 7: {  // simple values and floats
+          switch (ai) {
+            case 20:  // false
+            case 21:  // true
+            case 22:  // null
+            case 23:  // undefined
+              break;
+            case 24:  // simple value with a following byte
+              if (!m_cursor.has(1))
+                return std::unexpected{error::buffer_underrun};
+              m_cursor.advance(1);
+              break;
+            case 25:  // half float
+              if (!m_cursor.has(2))
+                return std::unexpected{error::buffer_underrun};
+              m_cursor.advance(2);
+              break;
+            case 26:  // single float
+              if (!m_cursor.has(4))
+                return std::unexpected{error::buffer_underrun};
+              m_cursor.advance(4);
+              break;
+            case 27:  // double float
+              if (!m_cursor.has(8))
+                return std::unexpected{error::buffer_underrun};
+              m_cursor.advance(8);
+              break;
+            default:
+              return std::unexpected{error::invalid_input};
+          }
+          break;
+        }
+        default:  // major 6 tags are unsupported
+          return std::unexpected{error::invalid_input};
+      }
+    }
     return {};
   }
 
