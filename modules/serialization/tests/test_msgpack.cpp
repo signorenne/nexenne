@@ -259,10 +259,10 @@ TEST_CASE("nexenne::serialization::msgpack unsigned width boundaries pick smalle
       CHECK(static_cast<std::uint8_t>(w.written()[0]) == static_cast<std::uint8_t>(c.prefix));
 
     auto r{msgpack::reader{w.written()}};
-    auto const got{r.read_int()};
+    auto const got{r.read_uint()};
     REQUIRE(got.has_value());
-    // read_int widens to int64; uint64 above INT64_MAX wraps (documented).
-    CHECK(static_cast<std::uint64_t>(*got) == c.value);
+    // read_uint decodes the full unsigned range exactly, uint64 max included.
+    CHECK(*got == c.value);
     CHECK(r.at_end());
   }
 }
@@ -1132,17 +1132,89 @@ TEST_CASE("nexenne::serialization::msgpack read_int sign-extends wide negative e
   }
 }
 
-TEST_CASE("nexenne::serialization::msgpack uint64 above INT64_MAX wraps on read but keeps bits") {
+TEST_CASE("nexenne::serialization::msgpack read_uint decodes uint64 above INT64_MAX exactly") {
   auto buf{std::array<std::byte, 16>{}};
   auto w{msgpack::writer{buf}};
   auto const big{0xFFFFFFFFFFFFFFFFULL};
   REQUIRE(w.write_uint(big).has_value());
   CHECK(static_cast<std::uint8_t>(w.written()[0]) == 0xCF);
 
+  SUBCASE("read_uint returns the full value") {
+    auto r{msgpack::reader{w.written()}};
+    auto const got{r.read_uint()};
+    REQUIRE(got.has_value());
+    CHECK(*got == big);
+    CHECK(r.at_end());
+  }
+  SUBCASE("read_int rejects the value instead of wrapping negative") {
+    auto r{msgpack::reader{w.written()}};
+    auto const got{r.read_int()};
+    REQUIRE_FALSE(got.has_value());
+    CHECK(got.error() == error::type_mismatch);
+  }
+}
+
+TEST_CASE("nexenne::serialization::msgpack read_uint round-trips 2^64-1 and rejects negatives") {
+  auto buf{std::array<std::byte, 16>{}};
+  auto w{msgpack::writer{buf}};
+  auto const big{0xFFFFFFFFFFFFFFFFULL};
+  REQUIRE(w.write_uint(big).has_value());
   auto r{msgpack::reader{w.written()}};
-  auto const got{r.read_int()};
-  REQUIRE(got.has_value());
-  CHECK(static_cast<std::uint64_t>(*got) == big);  // -1 reinterpreted == all ones
+  CHECK(*r.read_uint() == big);
+
+  // A negative fixint and an int8 are not unsigned forms: read_uint refuses them.
+  for (auto const& wire :
+       {bytes({0xFF}), bytes({0xD0, 0xFF}), bytes({0xD3, 0, 0, 0, 0, 0, 0, 0, 0x01})}) {
+    auto rr{msgpack::reader{as_span(wire)}};
+    auto const got{rr.read_uint()};
+    REQUIRE_FALSE(got.has_value());
+    CHECK(got.error() == error::type_mismatch);
+  }
+}
+
+TEST_CASE("nexenne::serialization::msgpack skip_value consumes one complete item") {
+  SUBCASE("scalars and strings") {
+    for (auto const& wire :
+         {bytes({0x2A}),                        // fixint 42
+          bytes({0xCF, 0, 0, 0, 0, 0, 0, 0, 1}),  // uint64
+          bytes({0xCB, 0, 0, 0, 0, 0, 0, 0, 0}),  // float64
+          bytes({0xA3, 'f', 'o', 'o'}),         // fixstr "foo"
+          bytes({0xC4, 0x02, 0x11, 0x22})}) {   // bin8 of 2
+      auto r{msgpack::reader{as_span(wire)}};
+      REQUIRE(r.skip_value().has_value());
+      CHECK(r.at_end());
+    }
+  }
+  SUBCASE("nested array and map are consumed whole") {
+    auto buf{std::array<std::byte, 64>{}};
+    auto w{msgpack::writer{buf}};
+    REQUIRE(w.write_array_header(2).has_value());
+    REQUIRE(w.write_int(7).has_value());
+    REQUIRE(w.write_map_header(1).has_value());
+    REQUIRE(w.write_string("k").has_value());
+    REQUIRE(w.write_string("v").has_value());
+    // A trailing sentinel proves skip stops exactly after the array.
+    REQUIRE(w.write_int(99).has_value());
+
+    auto r{msgpack::reader{w.written()}};
+    REQUIRE(r.skip_value().has_value());
+    CHECK(*r.read_int() == 99);
+    CHECK(r.at_end());
+  }
+  SUBCASE("truncated item reports underrun") {
+    auto const wire{bytes({0xA3, 'a'})};  // fixstr claims 3 bytes, only 1 present
+    auto r{msgpack::reader{as_span(wire)}};
+    auto const got{r.skip_value()};
+    REQUIRE_FALSE(got.has_value());
+    CHECK(got.error() == error::buffer_underrun);
+  }
+  SUBCASE("ext prefix is rejected") {
+    auto const wire{bytes({0xD4, 0x00, 0x00})};  // fixext1
+    auto r{msgpack::reader{as_span(wire)}};
+    auto const got{r.skip_value()};
+    REQUIRE_FALSE(got.has_value());
+    CHECK(got.error() == error::invalid_input);
+  }
 }
 
 }  // namespace
