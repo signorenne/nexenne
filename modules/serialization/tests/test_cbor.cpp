@@ -56,9 +56,6 @@ TEST_CASE("nexenne::serialization::cbor round-trips every major type") {
   REQUIRE(w.write_null().has_value());
   REQUIRE(w.write_float32(3.5F).has_value());
   REQUIRE(w.write_float64(2.718281828459045).has_value());
-  // `undefined` is written LAST: the reader can identify it via peek_type but
-  // has no consuming reader for it (read_null exists, read_undefined does not),
-  // so nothing may follow it in a sequential round-trip.
   REQUIRE(w.write_undefined().has_value());
 
   auto r{cbor::reader{w.written()}};
@@ -81,9 +78,9 @@ TEST_CASE("nexenne::serialization::cbor round-trips every major type") {
   REQUIRE(r.read_null().has_value());
   CHECK(*r.read_float() == doctest::Approx(3.5));
   CHECK(*r.read_float() == doctest::Approx(2.718281828459045));
-  // `undefined` was written last; the reader can identify it but not consume it.
   CHECK(*r.peek_type() == cbor::type::undefined);
-  CHECK(!r.at_end());
+  REQUIRE(r.read_undefined().has_value());
+  CHECK(r.at_end());
 }
 
 TEST_CASE("nexenne::serialization::cbor matches RFC 8949 Appendix A unsigned vectors") {
@@ -826,6 +823,96 @@ TEST_CASE("nexenne::serialization::cbor length prefixes past the size type are r
   };
   auto r{cbor::reader{buf}};
   CHECK(!r.read_bytes().has_value());
+}
+
+TEST_CASE("nexenne::serialization::cbor read_undefined round-trips write_undefined") {
+  auto buf{std::array<std::byte, 4>{}};
+  auto w{cbor::writer{buf}};
+  REQUIRE(w.write_undefined().has_value());
+  CHECK(static_cast<std::uint8_t>(w.written()[0]) == 0xF7);
+
+  auto r{cbor::reader{w.written()}};
+  CHECK(*r.peek_type() == cbor::type::undefined);
+  REQUIRE(r.read_undefined().has_value());
+  CHECK(r.at_end());
+
+  // read_null must still reject 0xF7, and read_undefined rejects a non-0xF7 byte.
+  auto rn{cbor::reader{w.written()}};
+  CHECK(rn.read_null().error() == error::type_mismatch);
+  auto const nul{bytes_of(0xF6)};
+  auto ru{cbor::reader{nul}};
+  CHECK(ru.read_undefined().error() == error::type_mismatch);
+}
+
+TEST_CASE("nexenne::serialization::cbor skip_value advances past exactly one item") {
+  SUBCASE("over an undefined") {
+    auto const buf{bytes_of(0xF7, 0x09)};  // undefined, then uint 9 sentinel
+    auto r{cbor::reader{buf}};
+    REQUIRE(r.skip_value().has_value());
+    CHECK(*r.read_uint() == 9u);
+    CHECK(r.at_end());
+  }
+  SUBCASE("over an int") {
+    auto const buf{bytes_of(0x18, 0x2A, 0x05)};  // uint 42 (1-byte arg), then 5
+    auto r{cbor::reader{buf}};
+    REQUIRE(r.skip_value().has_value());
+    CHECK(*r.read_uint() == 5u);
+    CHECK(r.at_end());
+  }
+  SUBCASE("over a text string") {
+    auto const buf{bytes_of(0x63, 'f', 'o', 'o', 0x05)};  // "foo", then 5
+    auto r{cbor::reader{buf}};
+    REQUIRE(r.skip_value().has_value());
+    CHECK(*r.read_uint() == 5u);
+    CHECK(r.at_end());
+  }
+  SUBCASE("over a nested array") {
+    // [1, [2, 3]] then a sentinel 7.
+    auto const buf{bytes_of(0x82, 0x01, 0x82, 0x02, 0x03, 0x07)};
+    auto r{cbor::reader{buf}};
+    REQUIRE(r.skip_value().has_value());
+    CHECK(*r.read_uint() == 7u);
+    CHECK(r.at_end());
+  }
+  SUBCASE("over a map") {
+    // {1: 2} then a sentinel 7.
+    auto const buf{bytes_of(0xA1, 0x01, 0x02, 0x07)};
+    auto r{cbor::reader{buf}};
+    REQUIRE(r.skip_value().has_value());
+    CHECK(*r.read_uint() == 7u);
+    CHECK(r.at_end());
+  }
+  SUBCASE("a truncated item reports underrun") {
+    auto const buf{bytes_of(0x63, 'f')};  // text string claims 3 bytes, 1 present
+    auto r{cbor::reader{buf}};
+    CHECK(r.skip_value().error() == error::buffer_underrun);
+  }
+  SUBCASE("a tag is rejected") {
+    auto const buf{bytes_of(0xC0, 0x00)};  // major 6 tag
+    auto r{cbor::reader{buf}};
+    CHECK(r.skip_value().error() == error::invalid_input);
+  }
+}
+
+TEST_CASE("nexenne::serialization::cbor write_string leaves bytes_written unchanged on overflow") {
+  // A 2-byte buffer cannot hold the 1-byte head plus the 4-byte body of "abcd";
+  // the pre-check must fail before any byte is emitted (all-or-nothing).
+  auto buf{std::array<std::byte, 2>{}};
+  auto w{cbor::writer{buf}};
+  auto const r{w.write_string("abcd")};
+  REQUIRE_FALSE(r.has_value());
+  CHECK(r.error() == error::buffer_full);
+  CHECK(w.bytes_written() == 0);
+}
+
+TEST_CASE("nexenne::serialization::cbor write_bytes leaves bytes_written unchanged on overflow") {
+  auto buf{std::array<std::byte, 2>{}};
+  auto w{cbor::writer{buf}};
+  auto const payload{std::array<std::byte, 4>{}};
+  auto const r{w.write_bytes(std::span<std::byte const>{payload})};
+  REQUIRE_FALSE(r.has_value());
+  CHECK(r.error() == error::buffer_full);
+  CHECK(w.bytes_written() == 0);
 }
 
 }  // namespace
