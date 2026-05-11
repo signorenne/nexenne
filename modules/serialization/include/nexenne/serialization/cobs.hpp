@@ -12,7 +12,7 @@
  *
  * Both functions write into a caller-provided buffer (no allocation) and return
  * the number of bytes produced, or an \c error. Size your output buffer with
- * \c cobs_max_encoded_size for encoding; a decode never produces more than its
+ * \c max_encoded_size for encoding; a decode never produces more than its
  * input. The encoded form contains no \c 0x00, so append one yourself as the
  * delimiter when framing a stream.
  */
@@ -38,16 +38,38 @@ namespace nexenne::serialization::cobs {
  *
  * @complexity \c O(1).
  */
-[[nodiscard]] constexpr auto cobs_max_encoded_size(std::size_t const payload_len
+[[nodiscard]] constexpr auto max_encoded_size(std::size_t const payload_len
 ) noexcept -> std::size_t {
   return payload_len + payload_len / 254 + 1;
+}
+
+/**
+ * @brief Deprecated spelling of \c max_encoded_size.
+ *
+ * Kept as a thin forwarder during the rename away from the redundant
+ * \c cobs_ prefix inside namespace \c cobs. Prefer \c max_encoded_size.
+ *
+ * @param payload_len  Number of payload bytes to encode.
+ *
+ * @return The maximum number of bytes \c encode can produce.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @deprecated Use \c max_encoded_size instead.
+ *
+ * @complexity \c O(1).
+ */
+[[nodiscard]] constexpr auto cobs_max_encoded_size(std::size_t const payload_len
+) noexcept -> std::size_t {
+  return max_encoded_size(payload_len);
 }
 
 /**
  * @brief COBS-encode \p in into \p out.
  *
  * @param in   Payload bytes (may contain zeros; may be empty).
- * @param out  Destination; size it with \c cobs_max_encoded_size(in.size()).
+ * @param out  Destination; size it with \c max_encoded_size(in.size()).
  *
  * @return Number of bytes written, or \c error::buffer_full if \p out is too
  *         small.
@@ -103,10 +125,18 @@ namespace nexenne::serialization::cobs {
  *
  * @return Number of bytes written, or \c error::invalid_input on a malformed
  *         frame, \c error::buffer_underrun on a truncated frame, or
- *         \c error::buffer_full if \p out is too small.
+ *         \c error::buffer_full if \p out is too small. An empty \p in decodes
+ *         to zero payload bytes and succeeds, even though no COBS encoding
+ *         produces an empty frame (an empty payload encodes to \c {0x01}); a
+ *         framing layer that must tell an idle line apart from a real empty
+ *         packet should reject an empty frame before calling.
  *
  * @pre \p in does not include the \c 0x00 delimiter.
  * @post On success \p out[0..return) is the decoded payload.
+ *
+ * @note \c nexenne::algorithm::cobs_decode is a lenient sibling of this
+ *       decoder (it accepts a \c 0x00 inside a frame instead of rejecting it);
+ *       the two are to be unified in a later cross-module pass.
  *
  * @complexity \c O(in.size()).
  */
