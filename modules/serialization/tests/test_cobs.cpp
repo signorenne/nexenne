@@ -13,7 +13,7 @@ using nexenne::serialization::error;
 
 // Round-trip helper: encode then decode and compare to the original.
 auto round_trip(std::vector<std::byte> const& payload) -> std::vector<std::byte> {
-  std::vector<std::byte> encoded(cobs::cobs_max_encoded_size(payload.size()));
+  std::vector<std::byte> encoded(cobs::max_encoded_size(payload.size()));
   auto const enc{cobs::encode(payload, encoded)};
   REQUIRE(enc);
   encoded.resize(*enc);
@@ -31,7 +31,7 @@ auto round_trip(std::vector<std::byte> const& payload) -> std::vector<std::byte>
 
 // Encode into a max-sized buffer and return the encoded frame on its own.
 auto encode_frame(std::vector<std::byte> const& payload) -> std::vector<std::byte> {
-  std::vector<std::byte> encoded(cobs::cobs_max_encoded_size(payload.size()));
+  std::vector<std::byte> encoded(cobs::max_encoded_size(payload.size()));
   auto const enc{cobs::encode(payload, encoded)};
   REQUIRE(enc);
   encoded.resize(*enc);
@@ -349,6 +349,13 @@ TEST_CASE("cobs: decode of an empty frame yields an empty payload") {
   auto const r{cobs::decode(empty, out)};
   REQUIRE(r);
   CHECK(*r == 0);
+}
+
+TEST_CASE("cobs: cobs_max_encoded_size alias equals max_encoded_size") {
+  for (std::size_t n : {std::size_t{0}, std::size_t{1}, std::size_t{253}, std::size_t{254},
+                        std::size_t{255}, std::size_t{1000}}) {
+    CHECK(cobs::cobs_max_encoded_size(n) == cobs::max_encoded_size(n));
+  }
 }
 
 TEST_CASE("cobs: every random-ish payload round-trips and stays zero-free") {
