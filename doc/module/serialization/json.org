@@ -6,8 +6,9 @@
 
 A complete JSON subsystem: an in-memory =value= DOM, a strict RFC 8259 =parse=
 that turns text into a =value=, =serialize= / =serialize_pretty= that turn a
-=value= back into text, a pull-style =sax= parser for streaming large inputs
-without building a DOM, a =writer= for emitting JSON incrementally, and RFC 6901
+=value= back into text, a push-style (visitor callback) =sax= parser for
+streaming large inputs without building a DOM, a =writer= for emitting JSON
+incrementally, and RFC 6901
 JSON Pointer lookup through =at_path=.
 
 * The idea
@@ -49,20 +50,32 @@ range-checks before the cast: a value like =1e300= cannot be cast to =int64_t=
 =[1-9][0-9]*= (no leading zeros), a fraction needs a digit after the =.=, and an
 exponent needs a digit, so =01=, =1.=, and =1e= are rejected, not quietly
 accepted. A value with no =.= or =e= is stored as =int64_t=; anything else as
-=double=. Strings are decoded: =\\u= escapes are validated, and a surrogate pair
+=double=. A number whose magnitude is too small for a =double= (=1e-999=)
+underflows to a signed zero, which is still a valid JSON value; one too large
+(=1e999=) is rejected as =invalid_number= rather than stored as infinity.
+Strings are decoded: =\\u= escapes are validated, and a surrogate pair
 =\\uD834\\uDD1E= becomes one code point, while a lone low surrogate or a high
 surrogate not followed by a low one is rejected (both would otherwise yield
-invalid UTF-8). Nesting is bounded by =max_depth= (default 128) so an adversarial
-=[[[[...= input is rejected before it can overflow the call stack; the parser
-recurses per level, so the limit is deliberately conservative. Errors carry the
-byte offset, line, and column.
+invalid UTF-8). Raw string bytes at or above =0x20=, on the other hand, are
+*not* validated as UTF-8: they are copied through unchecked, so a string that is
+not well-formed UTF-8 is the caller's responsibility, not the parser's. Nesting
+is bounded by =max_depth= (default 128, counting open arrays and objects only,
+so a top-level scalar sits at depth zero) so an adversarial =[[[[...= input is
+rejected before it can overflow the call stack; the parser recurses per level,
+so the limit is deliberately conservative. Errors carry the byte offset, line,
+and column.
 
 ** Serializing
 
 =serialize= writes compact JSON, =serialize_pretty= an indented form. String
 escaping covers =\"=, =\\=, the named control escapes =\b \f \n \r \t=, and every
-other control byte below =0x20= as =\\uXXXX=, so the output is always valid JSON
-even for a string holding an embedded NUL or newline. Numbers use
+other control byte below =0x20= as =\\uXXXX=, so a string holding an embedded NUL
+or newline stays valid JSON. Bytes at or above =0x20= are copied through
+unvalidated (matching the parser), so serialising a string that is not
+well-formed UTF-8 yields output that is not well-formed UTF-8. The exception is
+=serialize_options::ascii_only=, which decodes each UTF-8 sequence to a
+=\\uXXXX= escape and substitutes U+FFFD for any malformed, overlong, surrogate,
+or beyond-U+10FFFF sequence, so that mode always reparses. Numbers use
 =std::to_chars= shortest, which round-trips exactly; an integer-valued or large
 =double= that =to_chars= renders without a =.= or =e= gets a trailing =.0= so it
 re-parses as a float rather than an overflowing integer. NaN and infinity (which
@@ -73,8 +86,15 @@ JSON cannot represent) are emitted as =null=.
 =sax= drives a caller-supplied handler with begin/key/value/end events as it
 scans, so a multi-megabyte document can be processed without materialising a
 =value= tree. =writer= is the dual: it emits JSON token by token into a buffer,
-bounds-checked, for building output incrementally. Both share the parser's number
-and string rules.
+bounds-checked, for building output incrementally. =sax= shares the parser's
+number rules (including the underflow/overflow policy) and validates the same
+string grammar (the escape set, four-hex =\\u= digits, and surrogate pairing),
+but it delivers string and key payloads as *raw, undecoded* views into the
+source: a visitor that needs the decoded text uses the DOM parser instead. =sax=
+also does not reject duplicate object keys (the DOM parser does), since a
+streaming scanner keeps no per-object state, and it reports a visitor abort
+(a callback returning =false=) with the same =invalid_input= code as malformed
+input, so a filtering visitor must track "found it" on its own side.
 
 ** JSON Pointer
 
@@ -89,10 +109,18 @@ wrapping to the wrong element. A missing key or out-of-range index is
 | operation          | cost                                            |
 |--------------------+-------------------------------------------------|
 | parse              | O(n) in input bytes, O(depth) stack             |
-| serialize          | O(n) in the DOM size                            |
+| serialize          | O(n) in the DOM size, O(depth) heap work stack  |
 | value typed access | O(1)                                            |
 | object lookup      | O(log k) binary search over a sorted flat_map    |
+| object build       | O(k) per key insert, O(k^2) to parse a k-key object |
 | at_path            | O(path length + per-segment lookup)             |
+
+Object construction is quadratic in the key count because each parsed member is
+inserted into the sorted =flat_map=, which shifts the tail vector; this suits
+the small objects the module targets, but a reverse-sorted object with thousands
+of keys pays for it. =serialize= walks the DOM with an explicit heap work stack
+rather than recursion, so it never overflows the call stack even on a hand-built
+DOM far deeper than =max_depth=.
 
 * When to use it
 
