@@ -196,8 +196,10 @@ public:
   /**
    * @brief Advance the cursor by \p n bytes, leaving them untouched.
    *
-   * Reserve room for a length prefix or header to backfill later.
-   * Bounds-checked.
+   * Steps over padding the schema requires; the skipped bytes keep
+   * whatever they already held. The writer exposes no seek or
+   * patch-at-offset, so bytes stepped over here cannot be backfilled
+   * through it. Bounds-checked.
    *
    * @param n  Number of bytes to skip.
    *
