@@ -11,10 +11,17 @@
  *   - \c allow_comments        : line and block (C-style) comments
  *   - \c allow_trailing_commas : after the last array/object element
  *
- * Strings are validated as UTF-8 and \\u-escapes are decoded
- * (including surrogate pairs). Numbers without fractional part
- * or exponent are stored as \c int64_t; everything else as
- * \c double.
+ * Strings are decoded: \\u-escapes (including surrogate pairs)
+ * become UTF-8, but the parser does NOT validate raw string
+ * bytes. Any byte at or above 0x20 is copied through unchecked,
+ * so it is the caller's responsibility to ensure a string is
+ * well-formed UTF-8. Numbers without a fractional part or
+ * exponent are stored as \c int64_t; everything else as
+ * \c double. A number whose magnitude is too small for a
+ * \c double underflows to a signed zero (still a valid JSON
+ * value); one whose magnitude is too large to represent is
+ * rejected with \c error::invalid_number rather than stored as
+ * infinity.
  *
  * Errors carry a position (offset, line, column) so the caller
  * can produce a useful diagnostic.
@@ -48,8 +55,10 @@ struct parse_options {
   /**
    * @brief Maximum container nesting depth.
    *
-   * The parser recurses per level, so a deep limit can overflow a small stack;
-   * the default is conservative.
+   * Counts open arrays and objects only: a top-level scalar has depth zero, so
+   * \c max_depth of \c N admits exactly \c N nested containers. The parser
+   * recurses one call frame per open container, so a deep limit can overflow a
+   * small stack; the default is conservative.
    */
   std::size_t max_depth{128};
 };
@@ -157,10 +166,10 @@ private:
     }
   }
 
+  // depth is the number of arrays and objects already open around this value;
+  // parse_array and parse_object enforce max_depth on entry so the limit counts
+  // open containers exactly (a top-level scalar sits at depth zero).
   [[nodiscard]] auto parse_value(std::size_t const depth) -> std::expected<value, parse_error> {
-    if (depth >= m_opts.max_depth) {
-      return std::unexpected{make_error(error::depth_limit_exceeded)};
-    }
     skip_ws();
     if (m_cursor.exhausted()) {
       return std::unexpected{make_error(error::unexpected_end)};
@@ -168,9 +177,9 @@ private:
     auto const c{m_cursor.data()[0]};
     switch (c) {
       case '{':
-        return parse_object(depth + 1);
+        return parse_object(depth);
       case '[':
-        return parse_array(depth + 1);
+        return parse_array(depth);
       case '"': {
         auto s{parse_string()};
         if (!s)
@@ -222,6 +231,51 @@ private:
     return std::unexpected{make_error(error::unexpected_character)};
   }
 
+  // Decide whether a grammatically valid number literal that std::from_chars
+  // reported as out of double's range is too large (overflow) or too small
+  // (underflow). Such a value is always extreme, never near 1, so the sign of
+  // its decimal order of magnitude separates the two: an order at or above zero
+  // is an overflow, below zero an underflow. \p text is the full number literal.
+  [[nodiscard]] static auto number_overflows(std::string_view text) noexcept -> bool {
+    if (!text.empty() && text.front() == '-') {
+      text.remove_prefix(1);
+    }
+    auto exp10{std::int64_t{0}};
+    auto sig{text};
+    if (auto const e{text.find_first_of("eE")}; e != std::string_view::npos) {
+      sig = text.substr(0, e);
+      auto et{text.substr(e + 1)};
+      auto const neg{!et.empty() && et.front() == '-'};
+      if (!et.empty() && (et.front() == '+' || et.front() == '-')) {
+        et.remove_prefix(1);
+      }
+      for (auto const ch : et) {
+        if (exp10 < 1'000'000) {  // saturate: only the order's sign matters here
+          exp10 = exp10 * 10 + (ch - '0');
+        }
+      }
+      if (neg) {
+        exp10 = -exp10;
+      }
+    }
+    auto ipart{sig};
+    auto fpart{std::string_view{}};
+    if (auto const dot{sig.find('.')}; dot != std::string_view::npos) {
+      ipart = sig.substr(0, dot);
+      fpart = sig.substr(dot + 1);
+    }
+    // A nonzero integer part (JSON forbids leading zeros) puts the leading digit
+    // at power ipart.size() - 1; otherwise it is the first nonzero fraction digit.
+    if (ipart != "0") {
+      return static_cast<std::int64_t>(ipart.size()) - 1 + exp10 >= 0;
+    }
+    auto k{std::size_t{0}};
+    while (k < fpart.size() && fpart[k] == '0') {
+      ++k;
+    }
+    return exp10 - static_cast<std::int64_t>(k + 1) >= 0;
+  }
+
   [[nodiscard]] auto parse_number() -> std::expected<value, parse_error> {
     auto const start{m_cursor.position()};
     auto const is_digit{[this] {
@@ -269,6 +323,16 @@ private:
     if (is_float) {
       auto out{0.0};
       auto const r{std::from_chars(text.data(), text.data() + text.size(), out)};
+      if (r.ec == std::errc::result_out_of_range) {
+        // A grammatically valid number outside double's range: a magnitude too
+        // small to represent underflows to a signed zero (still a valid JSON
+        // value), while one too large to represent is rejected rather than
+        // stored as infinity.
+        if (number_overflows(text)) {
+          return std::unexpected{make_error(error::invalid_number)};
+        }
+        return value{text.front() == '-' ? -0.0 : 0.0};
+      }
       if (r.ec != std::errc{} || r.ptr != text.data() + text.size()) {
         return std::unexpected{make_error(error::invalid_number)};
       }
@@ -415,6 +479,9 @@ private:
   }
 
   [[nodiscard]] auto parse_array(std::size_t const depth) -> std::expected<value, parse_error> {
+    if (depth >= m_opts.max_depth) {
+      return std::unexpected{make_error(error::depth_limit_exceeded)};
+    }
     advance();  // '['
     array arr{};
     skip_ws();
@@ -423,7 +490,7 @@ private:
       return value{std::move(arr)};
     }
     while (true) {
-      auto elem{parse_value(depth)};
+      auto elem{parse_value(depth + 1)};
       if (!elem)
         return std::unexpected{elem.error()};
       arr.push_back(std::move(*elem));
@@ -449,6 +516,9 @@ private:
   }
 
   [[nodiscard]] auto parse_object(std::size_t const depth) -> std::expected<value, parse_error> {
+    if (depth >= m_opts.max_depth) {
+      return std::unexpected{make_error(error::depth_limit_exceeded)};
+    }
     advance();  // '{'
     object obj{};
     skip_ws();
@@ -469,7 +539,7 @@ private:
         return std::unexpected{make_error(error::unexpected_character)};
       }
       advance();
-      auto val{parse_value(depth)};
+      auto val{parse_value(depth + 1)};
       if (!val)
         return std::unexpected{val.error()};
       auto const [it, inserted]{obj.try_emplace(std::move(*key), std::move(*val))};
@@ -503,11 +573,14 @@ private:
 /**
  * @brief Parse \p input as JSON into a DOM \c value.
  *
- * Recursive-descent parse honouring \p opts. Strings are validated as
- * UTF-8 with \\u-escapes (including surrogate pairs) decoded; numbers
- * without a fractional part or exponent become \c int64_t, the rest
- * \c double. The whole input must be consumed, trailing non-whitespace is
- * an error.
+ * Recursive-descent parse honouring \p opts. String \\u-escapes (including
+ * surrogate pairs) are decoded to UTF-8, but raw string bytes are NOT
+ * validated as UTF-8: any byte at or above 0x20 is copied through
+ * unchecked, so the caller owns UTF-8 correctness. Numbers without a
+ * fractional part or exponent become \c int64_t, the rest \c double; a
+ * magnitude too small for a \c double underflows to a signed zero, while
+ * one too large is rejected with \c error::invalid_number. The whole input
+ * must be consumed, trailing non-whitespace is an error.
  *
  * @param input  The JSON text to parse.
  * @param opts   Parsing relaxations and the depth limit; strict by

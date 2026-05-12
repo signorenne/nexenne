@@ -38,10 +38,10 @@
  * \code
  * auto buf{std::array<char, 256>{}};
  * auto w{json::writer{buf}};
- * static_cast<void>(w.begin_object)();
- * static_cast<void>(w.key)("name");  static_cast<void>(w.value)("alice");
- * static_cast<void>(w.key)("age");   static_cast<void>(w.value)(30);
- * static_cast<void>(w.end_object)();
+ * nexenne::utility::discard(w.begin_object());
+ * nexenne::utility::discard(w.key("name"), w.value("alice"));
+ * nexenne::utility::discard(w.key("age"), w.value(30));
+ * nexenne::utility::discard(w.end_object());
  * auto const out{w.view()};   // std::string_view into buf
  * \endcode
  */
@@ -347,10 +347,12 @@ public:
    *         \c error::buffer_full when the brace does not fit.
    */
   auto begin_object() noexcept -> std::expected<void, error> {
-    if (auto r{begin_value_slot()}; !r)
-      return r;
+    // Check depth before begin_value_slot, which would otherwise emit the
+    // separating comma before the rejected open, corrupting the buffer.
     if (m_depth >= MaxDepth) [[unlikely]]
       return std::unexpected{error::depth_limit_exceeded};
+    if (auto r{begin_value_slot()}; !r)
+      return r;
     if (auto r{raw_put('{')}; !r)
       return r;
     m_is_object[m_depth++] = true;
@@ -406,10 +408,12 @@ public:
    *         \c error::buffer_full when the bracket does not fit.
    */
   auto begin_array() noexcept -> std::expected<void, error> {
-    if (auto r{begin_value_slot()}; !r)
-      return r;
+    // Check depth before begin_value_slot, which would otherwise emit the
+    // separating comma before the rejected open, corrupting the buffer.
     if (m_depth >= MaxDepth) [[unlikely]]
       return std::unexpected{error::depth_limit_exceeded};
+    if (auto r{begin_value_slot()}; !r)
+      return r;
     if (auto r{raw_put('[')}; !r)
       return r;
     m_is_object[m_depth++] = false;
