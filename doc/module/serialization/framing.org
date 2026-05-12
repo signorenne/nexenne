@@ -82,7 +82,7 @@ namespace ser = nexenne::serialization;
 
 std::array<std::byte, 4> const payload{
     std::byte{0x11}, std::byte{0x22}, std::byte{0x00}, std::byte{0x33}};
-auto frame{std::array<std::byte, ser::cobs::cobs_max_encoded_size(4)>{}};
+auto frame{std::array<std::byte, ser::cobs::max_encoded_size(4)>{}};
 auto const n{ser::cobs::encode(payload, frame)};   // zero-free frame, append 0x00 to delimit
 #+END_SRC
 

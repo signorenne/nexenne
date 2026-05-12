@@ -89,8 +89,8 @@ namespace ser = nexenne::serialization;
 
 auto buf{std::array<std::byte, 64>{}};
 auto w{ser::cbor::writer{buf}};
-static_cast<void>(w.write_uint(42));
-static_cast<void>(w.write_string("foo"));
+nexenne::utility::discard(w.write_uint(42));
+nexenne::utility::discard(w.write_string("foo"));
 
 auto r{ser::cbor::reader{w.written()}};
 auto const kind{r.peek_type()};   // cbor::type::unsigned_int

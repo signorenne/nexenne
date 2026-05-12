@@ -26,8 +26,9 @@ round-trips across machines; on the common embedded targets (Cortex-M, ESP32,
 RP2040, RISC-V) the host is already little-endian and the write is one =memcpy=,
 with a byte-swap path only on big-endian hosts. A =float= / =double= is moved by
 =std::bit_cast= to its unsigned bit pattern, so NaN, infinity, and negative zero
-round-trip exactly. Signed integers use zig-zag so small magnitudes of either
-sign stay small.
+round-trip exactly. A plain =write= of a signed integer emits fixed-width
+little-endian two's complement; signed integers *may* instead be zig-zag packed
+via =write_zigzag= so small magnitudes of either sign stay small.
 
 ** Strings as LEB128-prefixed bytes
 
@@ -83,8 +84,8 @@ namespace ser = nexenne::serialization;
 
 auto buf{std::array<std::byte, 64>{}};
 auto w{ser::binary::writer{buf}};
-static_cast<void>(w.write(std::uint32_t{42}));
-static_cast<void>(w.write(std::string_view{"hi"}));
+nexenne::utility::discard(w.write(std::uint32_t{42}));
+nexenne::utility::discard(w.write(std::string_view{"hi"}));
 
 auto r{ser::binary::reader{w.written()}};
 auto const n{r.read<std::uint32_t>()};   // 42
