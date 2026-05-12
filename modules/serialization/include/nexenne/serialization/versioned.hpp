@@ -44,6 +44,7 @@
  * \endcode
  */
 
+#include <array>
 #include <bit>
 #include <concepts>
 #include <cstddef>
@@ -59,8 +60,15 @@
 
 namespace nexenne::serialization {
 
-// True when T is a std::expected whose error type is serialization::error,
-// i.e. the shape every codec's decode must return.
+/**
+ * @brief Whether \c T is a \c std::expected whose error type is \c error.
+ *
+ * Models the result shape every codec's \c decode must return: a
+ * \c std::expected carrying \c error as its error type, for some payload
+ * value type. The \c versioned_decoder concept builds on it.
+ *
+ * @tparam T  Candidate result type.
+ */
 template <typename T>
 concept expected_with_error = requires {
   typename T::value_type;
@@ -139,11 +147,11 @@ inline constexpr std::size_t versioned_header_size{8};
 inline auto write_header(
   binary::writer& w, std::uint32_t const magic, std::uint16_t const version
 ) noexcept -> std::expected<void, error> {
-  std::byte hdr[versioned_header_size]{};
-  detail::store_le32(hdr, magic);
-  detail::store_le16(hdr + 4, version);
-  detail::store_le16(hdr + 6, 0);
-  return w.write_bytes(std::span<std::byte const>{hdr, versioned_header_size});
+  auto hdr{std::array<std::byte, versioned_header_size>{}};
+  detail::store_le32(hdr.data(), magic);
+  detail::store_le16(hdr.data() + 4, version);
+  detail::store_le16(hdr.data() + 6, 0);
+  return w.write_bytes(std::span<std::byte const>{hdr});
 }
 
 /**
@@ -182,18 +190,18 @@ struct header {
   if (r.bytes_remaining() < versioned_header_size) {
     return std::unexpected{error::buffer_underrun};
   }
-  std::byte hdr[versioned_header_size]{};
+  auto hdr{std::array<std::byte, versioned_header_size>{}};
   for (std::size_t i{0}; i < versioned_header_size; ++i) {
     auto b{r.template read<std::uint8_t>()};
     if (!b)
       return std::unexpected{b.error()};
     hdr[i] = static_cast<std::byte>(*b);
   }
-  auto const magic{detail::load_le32(hdr)};
+  auto const magic{detail::load_le32(hdr.data())};
   if (magic != expected_magic) {
     return std::unexpected{error::invalid_input};
   }
-  return header{.magic = magic, .version = detail::load_le16(hdr + 4)};
+  return header{.magic = magic, .version = detail::load_le16(hdr.data() + 4)};
 }
 
 /**
