@@ -30,12 +30,16 @@
  *     \c MaxDepth (an NTTP, default 32). Size it to suit the
  *     target's stack budget.
  *   - Strings are returned as \c std::string_view into the
- *     source buffer. Escape sequences are NOT decoded in place
- *     to avoid a scratch buffer; if you need decoded text, pass
- *     a writable scratch span via \c scan_with_scratch.
+ *     source buffer. Escape sequences are validated but NOT
+ *     decoded in place, to avoid a scratch buffer; if you need
+ *     decoded text (or duplicate-key rejection), use the DOM
+ *     parser in parse.hpp instead.
  *
  * Number policy: integers with no fractional/exponent part are
- * delivered to \c on_int; everything else hits \c on_float.
+ * delivered to \c on_int; everything else hits \c on_float. A
+ * magnitude too small for a \c double underflows to a signed
+ * zero, while one too large is rejected with
+ * \c error::invalid_number rather than delivered as infinity.
  *
  * Errors:
  *
@@ -237,10 +241,57 @@ private:
     }
   }
 
-  // Scan a JSON string literal at the cursor starting with '"'
-  // and return a view into the source covering the unescaped raw
-  // body (between the quotes). Does NOT decode escapes, the
-  // visitor handles that, or the caller uses scan_with_scratch.
+  // Read four hex digits at the cursor into \p out, advancing four bytes.
+  // Rejects a non-hex digit or a short run with error::invalid_escape.
+  [[nodiscard]] auto read_hex4(std::uint32_t& out) noexcept -> std::expected<void, error> {
+    if (!m_cursor.has(4))
+      return std::unexpected{error::invalid_escape};
+    auto cp{std::uint32_t{0}};
+    for (auto i{0}; i < 4; ++i) {
+      auto const h{m_cursor.data()[0]};
+      m_cursor.advance(1);
+      cp <<= 4;
+      if (h >= '0' && h <= '9')
+        cp |= static_cast<std::uint32_t>(h - '0');
+      else if (h >= 'a' && h <= 'f')
+        cp |= static_cast<std::uint32_t>(h - 'a' + 10);
+      else if (h >= 'A' && h <= 'F')
+        cp |= static_cast<std::uint32_t>(h - 'A' + 10);
+      else
+        return std::unexpected{error::invalid_escape};
+    }
+    out = cp;
+    return {};
+  }
+
+  // Validate (without decoding) a \u escape whose backslash is at the cursor.
+  // Consumes "\uXXXX", plus a paired "\uYYYY" low surrogate when the first is a
+  // high surrogate, and rejects non-hex digits and unpaired surrogates exactly
+  // as the DOM parser does so both accept the same string grammar.
+  [[nodiscard]] auto validate_u_escape() noexcept -> std::expected<void, error> {
+    m_cursor.advance(2);  // consume the "\u"; the caller confirmed has(2)
+    auto hi{std::uint32_t{0}};
+    if (auto const r{read_hex4(hi)}; !r)
+      return r;
+    if (hi >= 0xD800 && hi <= 0xDBFF) {
+      if (!m_cursor.has(6) || m_cursor.data()[0] != '\\' || m_cursor.data()[1] != 'u')
+        return std::unexpected{error::invalid_escape};
+      m_cursor.advance(2);
+      auto lo{std::uint32_t{0}};
+      if (auto const r{read_hex4(lo)}; !r)
+        return r;
+      if (lo < 0xDC00 || lo > 0xDFFF)
+        return std::unexpected{error::invalid_escape};
+    } else if (hi >= 0xDC00 && hi <= 0xDFFF) {
+      return std::unexpected{error::invalid_escape};  // lone low surrogate
+    }
+    return {};
+  }
+
+  // Scan a JSON string literal at the cursor starting with '"' and return a view
+  // into the source covering the raw body (between the quotes). Escapes are
+  // validated but NOT decoded: the returned view still holds the source bytes,
+  // so a visitor that needs decoded text must decode them, or use the DOM parser.
   [[nodiscard]] auto scan_string_raw() noexcept -> std::expected<std::string_view, error> {
     if (eof() || m_cursor.data()[0] != '"')
       return std::unexpected{error::unexpected_character};
@@ -258,8 +309,25 @@ private:
       if (c == '\\') {
         if (!m_cursor.has(2))
           return std::unexpected{error::invalid_escape};
-        m_cursor.advance(2);
-        continue;
+        auto const esc{m_cursor.data()[1]};
+        switch (esc) {
+          case '"':
+          case '\\':
+          case '/':
+          case 'b':
+          case 'f':
+          case 'n':
+          case 'r':
+          case 't':
+            m_cursor.advance(2);
+            continue;
+          case 'u':
+            if (auto const r{validate_u_escape()}; !r)
+              return std::unexpected{r.error()};
+            continue;
+          default:
+            return std::unexpected{error::invalid_escape};
+        }
       }
       if (static_cast<unsigned char>(c) < 0x20)
         return std::unexpected{error::invalid_string};
@@ -348,6 +416,51 @@ private:
     }
   }
 
+  // Decide whether a grammatically valid number literal that std::from_chars
+  // reported as out of double's range is too large (overflow) or too small
+  // (underflow). Such a value is always extreme, never near 1, so the sign of
+  // its decimal order of magnitude separates the two: an order at or above zero
+  // is an overflow, below zero an underflow. \p text is the full number literal.
+  [[nodiscard]] static auto number_overflows(std::string_view text) noexcept -> bool {
+    if (!text.empty() && text.front() == '-') {
+      text.remove_prefix(1);
+    }
+    auto exp10{std::int64_t{0}};
+    auto sig{text};
+    if (auto const e{text.find_first_of("eE")}; e != std::string_view::npos) {
+      sig = text.substr(0, e);
+      auto et{text.substr(e + 1)};
+      auto const neg{!et.empty() && et.front() == '-'};
+      if (!et.empty() && (et.front() == '+' || et.front() == '-')) {
+        et.remove_prefix(1);
+      }
+      for (auto const ch : et) {
+        if (exp10 < 1'000'000) {  // saturate: only the order's sign matters here
+          exp10 = exp10 * 10 + (ch - '0');
+        }
+      }
+      if (neg) {
+        exp10 = -exp10;
+      }
+    }
+    auto ipart{sig};
+    auto fpart{std::string_view{}};
+    if (auto const dot{sig.find('.')}; dot != std::string_view::npos) {
+      ipart = sig.substr(0, dot);
+      fpart = sig.substr(dot + 1);
+    }
+    // A nonzero integer part (JSON forbids leading zeros) puts the leading digit
+    // at power ipart.size() - 1; otherwise it is the first nonzero fraction digit.
+    if (ipart != "0") {
+      return static_cast<std::int64_t>(ipart.size()) - 1 + exp10 >= 0;
+    }
+    auto k{std::size_t{0}};
+    while (k < fpart.size() && fpart[k] == '0') {
+      ++k;
+    }
+    return exp10 - static_cast<std::int64_t>(k + 1) >= 0;
+  }
+
   template <sax_visitor V>
   [[nodiscard]] auto parse_number(V& v) noexcept -> std::expected<void, error> {
     auto const start{m_cursor.position()};
@@ -391,6 +504,18 @@ private:
     if (is_float) {
       auto out{0.0};
       auto const r{std::from_chars(text.data(), text.data() + text.size(), out)};
+      if (r.ec == std::errc::result_out_of_range) {
+        // A grammatically valid number outside double's range: a magnitude too
+        // small to represent underflows to a signed zero (still a valid JSON
+        // value), while one too large to represent is rejected rather than
+        // delivered as infinity. Matches the DOM parser.
+        if (number_overflows(text)) {
+          return std::unexpected{error::invalid_number};
+        }
+        if (!v.on_float(text.front() == '-' ? -0.0 : 0.0))
+          return std::unexpected{error::invalid_input};
+        return {};
+      }
       if (r.ec != std::errc{} || r.ptr != text.data() + text.size()) {
         return std::unexpected{error::invalid_number};
       }

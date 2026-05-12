@@ -41,8 +41,10 @@
  * \c at_path() walks an RFC 6901 JSON Pointer for deep lookup.
  */
 
+#include <cassert>
 #include <cmath>
 #include <compare>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -93,6 +95,9 @@ using object = nexenne::container::flat_map<std::string, value, std::less<>>;
  */
 class value {
 public:
+  /// @brief Self-referential element type: a JSON value's children are values.
+  using value_type = value;
+
   using null_type = std::monostate;
   using bool_type = bool;
   using int_type = std::int64_t;
@@ -122,6 +127,22 @@ private:
     std::variant<null_type, bool_type, int_type, float_type, string_type, array_type, object_type>;
 
   storage_type m_data{};
+
+  // type() casts the variant index straight to kind, so each enumerator must
+  // name the alternative at its own index. Pin that here: reordering either the
+  // enum or the variant then fails to compile instead of silently breaking
+  // every is_* query.
+  template <kind K, typename Alternative>
+  static constexpr bool kind_matches_v{
+    std::same_as<std::variant_alternative_t<static_cast<std::size_t>(K), storage_type>, Alternative>
+  };
+  static_assert(kind_matches_v<kind::null_kind, null_type>);
+  static_assert(kind_matches_v<kind::boolean_kind, bool_type>);
+  static_assert(kind_matches_v<kind::integer_kind, int_type>);
+  static_assert(kind_matches_v<kind::floating_kind, float_type>);
+  static_assert(kind_matches_v<kind::string_kind, string_type>);
+  static_assert(kind_matches_v<kind::array_kind, array_type>);
+  static_assert(kind_matches_v<kind::object_kind, object_type>);
 
 public:
   /**
@@ -571,11 +592,12 @@ public:
    * @pre \c is_array() is \c true.
    * @post None.
    *
-   * @warning Behaviour is undefined (the underlying variant access
-   *          throws \c std::bad_variant_access) when the value is not an
-   *          array.
+   * @warning \c is_array() must hold. The accessor is \c noexcept, so a
+   *          violation calls \c std::terminate through the failing variant
+   *          access (an \c assert catches it in a debug build).
    */
   [[nodiscard]] auto array_mut() noexcept -> array_type& {
+    assert(is_array() && "array_mut() requires an array value");
     return std::get<array_type>(m_data);
   }
 
@@ -589,11 +611,12 @@ public:
    * @pre \c is_object() is \c true.
    * @post None.
    *
-   * @warning Behaviour is undefined (the underlying variant access
-   *          throws \c std::bad_variant_access) when the value is not an
-   *          object.
+   * @warning \c is_object() must hold. The accessor is \c noexcept, so a
+   *          violation calls \c std::terminate through the failing variant
+   *          access (an \c assert catches it in a debug build).
    */
   [[nodiscard]] auto object_mut() noexcept -> object_type& {
+    assert(is_object() && "object_mut() requires an object value");
     return std::get<object_type>(m_data);
   }
 
@@ -719,11 +742,13 @@ public:
    * @pre The value is an array and \p i is less than its size.
    * @post None.
    *
-   * @warning Behaviour is undefined when the value is not an array (the
-   *          variant access throws \c std::bad_variant_access) or when
-   *          \p i is out of range (the vector access is unchecked).
+   * @warning The value must be an array. The operator is \c noexcept, so a
+   *          non-array value calls \c std::terminate through the failing
+   *          variant access (an \c assert catches it in a debug build); an
+   *          out-of-range \p i is unchecked and undefined.
    */
   [[nodiscard]] auto operator[](std::size_t const i) noexcept -> value& {
+    assert(is_array() && "operator[](size_t) requires an array value");
     return std::get<array_type>(m_data)[i];
   }
 
