@@ -5,13 +5,19 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
+#include <iterator>
+#include <limits>
 #include <memory>
 #include <random>
+#include <ranges>
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <nexenne/container/deque.hpp>
 
@@ -409,6 +415,79 @@ TEST_CASE("nexenne::container::deque differential against std::deque under rando
   for (std::size_t i{0}; i < model.size(); ++i) {
     REQUIRE(subject[i] == model[i]);
   }
+}
+
+// [M2] emplace_back / emplace_front once list-initialized the element on the
+// at-capacity path while the in-capacity path used std::construct_at. A fresh
+// deque has capacity 0, so the very FIRST emplace runs the cold path: it must
+// build the same element as a reserved deque. vector(3, 5) = {5,5,5} (parens),
+// vector{3,5} = {3,5} (braces).
+TEST_CASE("nexenne::container::deque emplace cold path matches construct_at") {
+  cn::deque<std::vector<int>> cold;              // capacity 0: first emplace is cold
+  auto& a{cold.emplace_back(3, 5)};
+  CHECK(a.size() == 3);
+  CHECK(a[0] == 5);
+
+  cn::deque<std::vector<int>> hot(8);            // reserved: emplace is the hot path
+  auto& b{hot.emplace_back(3, 5)};
+  CHECK(b.size() == 3);
+  CHECK(a == b);                                 // both paths agree
+
+  cn::deque<std::vector<int>> cold_front;        // emplace_front cold path too
+  auto& c{cold_front.emplace_front(3, 5)};
+  CHECK(c.size() == 3);
+  CHECK(c[0] == 5);
+}
+
+// [M3] deque previously had no iteration, equality, or checked at().
+TEST_CASE("nexenne::container::deque iteration, equality, and checked at") {
+  static_assert(std::random_access_iterator<cn::deque<int>::iterator>);
+  static_assert(std::random_access_iterator<cn::deque<int>::const_iterator>);
+
+  cn::deque<int> d;
+  d.push_back(1);
+  d.push_back(2);
+  d.push_front(0);  // logical order 0, 1, 2 (straddling the ring is fine)
+
+  std::vector<int> seen;
+  for (auto const x : d) {  // range-for walks front to back
+    seen.push_back(x);
+  }
+  CHECK(seen == std::vector<int>{0, 1, 2});
+  CHECK(std::ranges::equal(d, std::vector<int>{0, 1, 2}));
+
+  cn::deque<int> e;
+  e.push_back(0);
+  e.push_back(1);
+  e.push_back(2);
+  CHECK(d == e);
+  e.push_back(3);
+  CHECK(d != e);
+  CHECK(d < e);
+
+  auto const in{d.at(1)};
+  REQUIRE(in.has_value());
+  CHECK(**in == 1);
+  auto const out{d.at(3)};
+  REQUIRE(!out.has_value());
+  CHECK(out.error() == cn::container_error::out_of_range);
+
+  cn::deque<int> const& cd{d};
+  auto const cin{cd.at(0)};
+  REQUIRE(cin.has_value());
+  CHECK(**cin == 0);
+}
+
+// [m8] max_size() bounds the request so grow() cannot wrap the power-of-two
+// capacity (past 2^63) or the byte count (past SIZE_MAX / sizeof(T)); a request
+// past it terminates rather than under-allocating. Verify the truthful bound.
+TEST_CASE("nexenne::container::deque max_size is a non-wrapping bound") {
+  constexpr auto max_index{std::numeric_limits<std::size_t>::max()};
+  constexpr auto power_of_two_cap{std::size_t{1} << 63};
+  // sizeof == 1: the power-of-two capacity limit wins.
+  CHECK(cn::deque<std::uint8_t>::max_size() == power_of_two_cap);
+  // sizeof == 8: the byte-count limit (SIZE_MAX / 8) wins and is below 2^63.
+  CHECK(cn::deque<std::uint64_t>::max_size() == max_index / sizeof(std::uint64_t));
 }
 
 }  // namespace
