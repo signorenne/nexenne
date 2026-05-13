@@ -20,11 +20,17 @@
  * returns \c result, and allocation failure terminates. It is not thread-safe.
  */
 
+#include <algorithm>
+#include <array>
 #include <bit>
+#include <compare>
 #include <concepts>
 #include <cstddef>
+#include <exception>
 #include <expected>
 #include <initializer_list>
+#include <iterator>
+#include <limits>
 #include <memory>
 #include <new>
 #include <utility>
@@ -67,9 +73,20 @@ private:
   // Grows to hold at least want elements (rounded to a power of two), re-packing
   // with the front at index 0. A no-op when the buffer already fits.
   auto grow(size_type const want) noexcept -> void {
-    auto const new_cap{std::bit_ceil(want)};
-    if (new_cap <= m_cap) {
+    if (want <= m_cap) {
       return;
+    }
+    // std::bit_ceil is undefined when the rounded-up power of two is not
+    // representable (want past 2^63 on a 64-bit size_type), and even a
+    // representable new_cap must satisfy new_cap * sizeof(T) <= SIZE_MAX or the
+    // byte count wraps into an undersized allocation. Both are unsatisfiable
+    // requests, so fail loudly rather than silently corrupt the heap.
+    if (want > max_size()) {
+      std::terminate();
+    }
+    auto const new_cap{std::bit_ceil(want)};
+    if (new_cap > max_size()) {
+      std::terminate();
     }
     auto* const new_data{
       static_cast<T*>(::operator new(sizeof(T) * new_cap, std::align_val_t{alignof(T)}))
@@ -91,7 +108,127 @@ private:
     return cap == 0 ? 8 : cap * 2;
   }
 
+  // Random-access iterator over the logical sequence. It holds the owning deque
+  // plus a logical position (0 is the front) and maps to a physical slot through
+  // slot_of, so it walks the masked ring in front-to-back order. Like the sibling
+  // owner+index iterators it follows the container object: a container move
+  // invalidates outstanding iterators and a swap retargets them.
+  template <bool IsConst>
+  class basic_iterator {
+  public:
+    using value_type = T;
+    using reference = std::conditional_t<IsConst, T const&, T&>;
+    using pointer = std::conditional_t<IsConst, T const*, T*>;
+    using difference_type = std::ptrdiff_t;
+    using iterator_category = std::random_access_iterator_tag;
+    using iterator_concept = std::random_access_iterator_tag;
+
+  private:
+    using owner_ptr = std::conditional_t<IsConst, deque const*, deque*>;
+    owner_ptr m_owner{nullptr};
+    size_type m_pos{0};
+
+    [[nodiscard]] auto element(size_type const pos) const noexcept -> pointer {
+      return m_owner->m_data + m_owner->slot_of(pos);
+    }
+
+  public:
+    basic_iterator() noexcept = default;
+
+    basic_iterator(owner_ptr const owner, size_type const pos) noexcept
+        : m_owner{owner}, m_pos{pos} {}
+
+    template <bool OtherConst>
+      requires(IsConst && !OtherConst)
+    basic_iterator(basic_iterator<OtherConst> const& other) noexcept
+        : m_owner{other.m_owner}, m_pos{other.m_pos} {}
+
+    [[nodiscard]] auto operator*() const noexcept -> reference {
+      return *element(m_pos);
+    }
+
+    [[nodiscard]] auto operator->() const noexcept -> pointer {
+      return element(m_pos);
+    }
+
+    [[nodiscard]] auto operator[](difference_type const n) const noexcept -> reference {
+      return *element(static_cast<size_type>(static_cast<difference_type>(m_pos) + n));
+    }
+
+    auto operator++() noexcept -> basic_iterator& {
+      ++m_pos;
+      return *this;
+    }
+
+    auto operator--() noexcept -> basic_iterator& {
+      --m_pos;
+      return *this;
+    }
+
+    auto operator++(int) noexcept -> basic_iterator {
+      auto previous{*this};
+      ++m_pos;
+      return previous;
+    }
+
+    auto operator--(int) noexcept -> basic_iterator {
+      auto previous{*this};
+      --m_pos;
+      return previous;
+    }
+
+    auto operator+=(difference_type const n) noexcept -> basic_iterator& {
+      m_pos = static_cast<size_type>(static_cast<difference_type>(m_pos) + n);
+      return *this;
+    }
+
+    auto operator-=(difference_type const n) noexcept -> basic_iterator& {
+      return *this += -n;
+    }
+
+    [[nodiscard]] friend auto
+    operator+(basic_iterator it, difference_type const n) noexcept -> basic_iterator {
+      it += n;
+      return it;
+    }
+
+    [[nodiscard]] friend auto
+    operator+(difference_type const n, basic_iterator it) noexcept -> basic_iterator {
+      it += n;
+      return it;
+    }
+
+    [[nodiscard]] friend auto
+    operator-(basic_iterator it, difference_type const n) noexcept -> basic_iterator {
+      it -= n;
+      return it;
+    }
+
+    [[nodiscard]] friend auto
+    operator-(basic_iterator const& a, basic_iterator const& b) noexcept -> difference_type {
+      return static_cast<difference_type>(a.m_pos) - static_cast<difference_type>(b.m_pos);
+    }
+
+    [[nodiscard]] friend auto
+    operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
+      return a.m_pos == b.m_pos;
+    }
+
+    [[nodiscard]] friend auto
+    operator<=>(basic_iterator const& a, basic_iterator const& b) noexcept {
+      return a.m_pos <=> b.m_pos;
+    }
+
+    template <bool>
+    friend class basic_iterator;
+  };
+
 public:
+  using iterator = basic_iterator<false>;
+  using const_iterator = basic_iterator<true>;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
   /**
    * @brief Constructs an empty deque with no allocated storage.
    *
@@ -161,6 +298,9 @@ public:
    * @pre None.
    * @post This deque owns \p other's former elements; \p other is empty with
    *       zero capacity.
+   *
+   * @note Iterators into \p other are invalidated by the move; they follow the
+   *       deque object, not the elements.
    */
   deque(deque&& other) noexcept
       : m_data{other.m_data}, m_cap{other.m_cap}, m_head{other.m_head}, m_size{other.m_size} {
@@ -208,6 +348,9 @@ public:
    * @pre None.
    * @post This deque and \p other have exchanged elements and storage.
    *
+   * @note Outstanding iterators retarget on swap: they keep their owner and
+   *       logical position, so they now refer to the other deque's contents.
+   *
    * @complexity \c O(1).
    */
   auto swap(deque& other) noexcept -> void {
@@ -253,6 +396,25 @@ public:
    */
   [[nodiscard]] auto capacity() const noexcept -> size_type {
     return m_cap;
+  }
+
+  /**
+   * @brief The largest number of elements the deque can hold.
+   *
+   * The bound is the smaller of the element count an allocation can address
+   * (\c SIZE_MAX / \c sizeof(T)) and the largest power-of-two capacity
+   * \c std::bit_ceil can produce (\c 2^63 on a 64-bit \c size_type), so a
+   * request past it terminates rather than wrapping the byte count.
+   *
+   * @return The maximum element count.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] static constexpr auto max_size() noexcept -> size_type {
+    constexpr auto byte_bound{std::numeric_limits<size_type>::max() / sizeof(T)};
+    constexpr auto ceil_bound{size_type{1} << (std::numeric_limits<size_type>::digits - 1)};
+    return byte_bound < ceil_bound ? byte_bound : ceil_bound;
   }
 
   /**
@@ -343,6 +505,44 @@ public:
   }
 
   /**
+   * @brief Checked indexed access, \c 0 being the front.
+   *
+   * @param i Logical index from the front.
+   *
+   * @return Pointer to the element at logical index \p i, or
+   *         \c container_error::out_of_range when \p i is not less than
+   *         \c size().
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto at(size_type const i) noexcept -> result<T*> {
+    if (i >= m_size) {
+      return std::unexpected{container_error::out_of_range};
+    }
+    return m_data + slot_of(i);
+  }
+
+  /**
+   * @brief Checked indexed access (const overload).
+   *
+   * @param i Logical index from the front.
+   *
+   * @return Const pointer to the element at logical index \p i, or
+   *         \c container_error::out_of_range when \p i is not less than
+   *         \c size().
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto at(size_type const i) const noexcept -> result<T const*> {
+    if (i >= m_size) {
+      return std::unexpected{container_error::out_of_range};
+    }
+    return m_data + slot_of(i);
+  }
+
+  /**
    * @brief Constructs an element in place at the back, growing if needed.
    *
    * @tparam Args Constructor argument types.
@@ -360,12 +560,22 @@ public:
     requires std::constructible_from<T, Args...>
   auto emplace_back(Args&&... args) noexcept -> reference {
     if (m_size >= m_cap) {
-      // Materialize before grow frees the old buffer, so an argument aliasing an
-      // existing element (push_back(d[0])) stays valid across the reallocation.
-      T value{std::forward<Args>(args)...};
+      // Cold grow path. Stage the element in raw storage with the same
+      // direct-initialization semantics as the in-capacity path's
+      // std::construct_at (parenthesized, not braced), so an
+      // initializer_list-greedy or narrowing-convertible argument yields an
+      // identical element on both paths (a fresh deque has capacity 0, so the
+      // very first emplace runs here). Staging before grow frees the old buffer
+      // also keeps an argument aliasing an existing element (push_back(d[0]))
+      // valid across the reallocation.
+      alignas(T) std::array<std::byte, sizeof(T)> staging{};
+      auto* const staged{
+        std::construct_at(reinterpret_cast<T*>(staging.data()), std::forward<Args>(args)...)
+      };
       grow(grown_capacity(m_cap));
       auto* const target{m_data + slot_of(m_size)};
-      std::construct_at(target, std::move(value));
+      std::construct_at(target, std::move(*staged));
+      std::destroy_at(staged);
       ++m_size;
       return *target;
     }
@@ -393,13 +603,18 @@ public:
     requires std::constructible_from<T, Args...>
   auto emplace_front(Args&&... args) noexcept -> reference {
     if (m_size >= m_cap) {
-      // Materialize before grow frees the old buffer, so an argument aliasing an
-      // existing element (push_front(d[0])) stays valid across the reallocation.
-      T value{std::forward<Args>(args)...};
+      // Cold grow path. Stage with std::construct_at semantics (see emplace_back)
+      // so both paths build an identical element, and so an argument aliasing an
+      // existing element (push_front(d[0])) survives the reallocation.
+      alignas(T) std::array<std::byte, sizeof(T)> staging{};
+      auto* const staged{
+        std::construct_at(reinterpret_cast<T*>(staging.data()), std::forward<Args>(args)...)
+      };
       grow(grown_capacity(m_cap));
       m_head = (m_head + m_cap - 1) & (m_cap - 1);
       auto* const target{m_data + m_head};
-      std::construct_at(target, std::move(value));
+      std::construct_at(target, std::move(*staged));
+      std::destroy_at(staged);
       ++m_size;
       return *target;
     }
@@ -525,6 +740,114 @@ public:
     }
     m_size = 0;
     m_head = 0;
+  }
+
+  /**
+   * @brief Iterator to the front element, walking front to back.
+   *
+   * @return Iterator to the front, or \c end() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto begin() noexcept -> iterator {
+    return iterator{this, 0};
+  }
+
+  /**
+   * @brief Iterator one past the back element.
+   *
+   * @return The past-the-end iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto end() noexcept -> iterator {
+    return iterator{this, m_size};
+  }
+
+  /// @copydoc begin()
+  [[nodiscard]] auto begin() const noexcept -> const_iterator {
+    return const_iterator{this, 0};
+  }
+
+  /// @copydoc end()
+  [[nodiscard]] auto end() const noexcept -> const_iterator {
+    return const_iterator{this, m_size};
+  }
+
+  /// @copydoc begin()
+  [[nodiscard]] auto cbegin() const noexcept -> const_iterator {
+    return begin();
+  }
+
+  /// @copydoc end()
+  [[nodiscard]] auto cend() const noexcept -> const_iterator {
+    return end();
+  }
+
+  [[nodiscard]] auto rbegin() noexcept -> reverse_iterator {
+    return reverse_iterator{end()};
+  }
+
+  [[nodiscard]] auto rend() noexcept -> reverse_iterator {
+    return reverse_iterator{begin()};
+  }
+
+  [[nodiscard]] auto rbegin() const noexcept -> const_reverse_iterator {
+    return const_reverse_iterator{end()};
+  }
+
+  [[nodiscard]] auto rend() const noexcept -> const_reverse_iterator {
+    return const_reverse_iterator{begin()};
+  }
+
+  [[nodiscard]] auto crbegin() const noexcept -> const_reverse_iterator {
+    return rbegin();
+  }
+
+  [[nodiscard]] auto crend() const noexcept -> const_reverse_iterator {
+    return rend();
+  }
+
+  /**
+   * @brief Equality: same size and element-wise equal, front to back.
+   *
+   * @param a Left deque.
+   * @param b Right deque.
+   *
+   * @return \c true when both hold equal elements in the same order.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(size).
+   */
+  [[nodiscard]] friend auto operator==(deque const& a, deque const& b) noexcept -> bool
+    requires std::equality_comparable<T>
+  {
+    return a.m_size == b.m_size && std::equal(a.begin(), a.end(), b.begin(), b.end());
+  }
+
+  /**
+   * @brief Lexicographic three-way comparison of the elements, front to back.
+   *
+   * @tparam U Deduced as \p T; keeps the ordering type unevaluated unless \p T
+   *           is three-way comparable.
+   * @param a Left deque.
+   * @param b Right deque.
+   *
+   * @return The lexicographic ordering of the element sequences.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(size).
+   */
+  template <std::three_way_comparable U = T>
+  [[nodiscard]] friend auto operator<=>(deque const& a, deque const& b) noexcept
+    -> std::compare_three_way_result_t<U> {
+    return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
   }
 };
 
