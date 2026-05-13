@@ -71,7 +71,7 @@ auto main() -> int {
     std::array<std::byte, 4> const payload{
       std::byte{0x11}, std::byte{0x00}, std::byte{0x22}, std::byte{0x00}
     };
-    auto frame{std::array<std::byte, ser::cobs::cobs_max_encoded_size(4)>{}};
+    auto frame{std::array<std::byte, ser::cobs::max_encoded_size(4)>{}};
     auto const enc{ser::cobs::encode(payload, frame)};
     auto zero_free{true};
     for (auto i{std::size_t{0}}; i < *enc; ++i) {
