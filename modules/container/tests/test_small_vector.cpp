@@ -710,4 +710,24 @@ TEST_CASE("nexenne::container::small_vector differential vs std::vector model") 
   check_equal();
 }
 
+// [M1] The grow (cold) path once list-initialized the element while the hot
+// path used std::construct_at, so the SAME emplace_back call could yield a
+// different value depending on whether it grew. std::vector<int>(3, 5) is
+// {5, 5, 5} (parens), std::vector<int>{3, 5} is {3, 5} (braces): both paths must
+// agree, using the parenthesized construct_at semantics like std::vector.
+TEST_CASE("nexenne::container::small_vector emplace_back grow path matches construct_at") {
+  cn::small_vector<std::vector<int>, 1> grow;
+  grow.emplace_back(1, 9);  // fills the single inline slot: vector(1, 9) = {9}
+  REQUIRE(grow.size() == 1);
+  auto& grown{grow.emplace_back(3, 5)};  // size == capacity: cold/grow path
+  CHECK(grown.size() == 3);              // vector(3, 5) = {5, 5, 5}, not {3, 5}
+  CHECK(grown[0] == 5);
+  CHECK(grow.back()->size() == 3);
+
+  cn::small_vector<std::vector<int>, 4> hot;
+  auto& warm{hot.emplace_back(3, 5)};  // size < capacity: hot path
+  CHECK(warm.size() == 3);
+  CHECK(warm == grown);  // both paths build the identical element
+}
+
 }  // namespace
