@@ -84,11 +84,27 @@ correctly, and the matching aligned =::operator delete= frees it.
 ** Values returned, errors, and copies
 
 =front()= and =back()= return a pointer that is =nullptr= when the deque is
-empty; =operator[]= is unchecked. =pop_front()= and =pop_back()= return the
-removed element as =result<T>=, or =container_error::empty= when there is
-nothing to remove. =push_*= and =emplace_*= are =noexcept= and terminate only on
-allocation failure. The deque is copyable when =T= is, via a deep copy that
+empty; =operator[]= is unchecked, while =at(i)= is checked and returns
+=result<T*>= (=result<T const*>= on a const deque), yielding a pointer to the
+element or =container_error::out_of_range= past =size()=, matching the
+=result<T*>= idiom of =object_pool= and =linear_arena=. =pop_front()= and
+=pop_back()= return the removed element as =result<T>=, or
+=container_error::empty= when there is nothing to remove. =push_*= and
+=emplace_*= are =noexcept= and terminate only on allocation failure (or on a
+request past =max_size()=, the point where the power-of-two capacity or its byte
+count would overflow). The deque is copyable when =T= is, via a deep copy that
 re-packs from the front, and always movable in =O(1)= by stealing the buffer.
+
+** Iteration and comparison
+
+The deque is range-for iterable: =begin()= / =end()= yield a random-access
+iterator that walks the logical sequence front to back (it holds the owning deque
+plus a logical position and maps through =slot_of=, so it hides the ring wrap).
+=operator=== compares size then elements in order, and =operator<=>= is the
+lexicographic ordering of the two sequences, so a =deque= drops into
+=std::ranges= algorithms and the standard comparisons like the sibling
+sequences. The iterator follows the container object, not the elements: see the
+invalidation notes below.
 
 * Complexity
 
@@ -97,7 +113,9 @@ re-packs from the front, and always movable in =O(1)= by stealing the buffer.
 | push_back / push_front          | O(1) amortised |
 | emplace_back / emplace_front    | O(1) amortised |
 | pop_back / pop_front            | O(1)           |
-| operator[], front, back         | O(1)           |
+| operator[], at, front, back     | O(1)           |
+| iterate (begin to end)          | O(n)           |
+| operator== / operator<=>        | O(n)           |
 | grow (buffer full)              | O(n) amortised |
 | copy construct (deep, re-packs) | O(n)           |
 | move construct / swap           | O(1)           |
@@ -142,7 +160,13 @@ Invalidation and stability:
   ends (no element is relocated, slots are addressed in place).
 - =pop_front= / =pop_back= invalidate only the popped end's reference; the
   others remain valid.
-- =operator[]= is unchecked, =front= / =back= return =nullptr= when empty.
+- =operator[]= is unchecked; =at= is checked (=result<T*>=), and =front= / =back=
+  return =nullptr= when empty.
+- Iterators follow the deque object, not the elements: a container *move*
+  invalidates every outstanding iterator, and a =swap= *retargets* them to the
+  other deque's contents (they keep their owner and logical position). Re-obtain
+  iterators after either. This is the same rule as =stable_vector= and
+  =gap_buffer=.
 
 * Usage
 
