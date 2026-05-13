@@ -448,7 +448,8 @@ public:
    * @param count Number of copies to store.
    * @param value Value to replicate.
    *
-   * @pre None.
+   * @pre \p value does not alias an element of this vector: \c assign clears the
+   *      current contents before copying, so a reference into it would dangle.
    * @post \c size() equals \p count and every element equals \p value; the
    *       prior contents are destroyed.
    */
@@ -530,12 +531,20 @@ public:
     requires std::constructible_from<T, Args...>
   auto emplace_back(Args&&... args) noexcept -> T& {
     if (m_size == m_capacity) {
-      // Cold grow path: materialize the value before grow_to frees the old
-      // block, so an argument aliasing an existing element (push_back(v[i]))
-      // stays valid across the reallocation.
-      T value{std::forward<Args>(args)...};
+      // Cold grow path. Stage the element in raw storage with the exact same
+      // direct-initialization semantics as the hot path's std::construct_at
+      // (parenthesized, not braced): an initializer_list-greedy or a
+      // narrowing-convertible argument then yields an identical element on both
+      // paths, matching std::vector::emplace_back. Staging before grow_to frees
+      // the old block also keeps an argument that aliases an existing element
+      // (push_back(v[i])) valid across the reallocation.
+      alignas(T) std::array<std::byte, sizeof(T)> staging{};
+      auto* const staged{
+        std::construct_at(reinterpret_cast<T*>(staging.data()), std::forward<Args>(args)...)
+      };
       grow_to(next_capacity());
-      std::construct_at(m_data + m_size, std::move(value));
+      std::construct_at(m_data + m_size, std::move(*staged));
+      std::destroy_at(staged);
     } else {
       std::construct_at(m_data + m_size, std::forward<Args>(args)...);
     }
