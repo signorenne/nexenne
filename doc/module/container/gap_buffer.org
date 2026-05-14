@@ -80,8 +80,13 @@ cursor once per edit session and bursting edits there is the intended pattern.
 
 When an insert finds the gap empty (=gap_size() == 0=), =grow_gap= enlarges it.
 It computes the post-region count, picks a new gap width (the larger of the
-request and =gap_size * 2 + initial_gap=), resizes the backing vector, then
-relocates the post region to the new tail. The post elements move *back to front*
+request and =buffer.size() / 2 + initial_gap=), resizes the backing vector, then
+relocates the post region to the new tail. The gap width scales with the buffer
+so a run of cursor-local inserts stays amortised =O(1)=: an insert always reopens
+the gap from empty, so a *constant* reopened width would re-slide the whole post
+region every =initial_gap= inserts (=O(post_count)= per insert, quadratic
+editing); a width proportional to the current size makes those reopens
+geometric. The post elements move *back to front*
 (=j= from =post_count= down to 1) because the destination overlaps and sits
 strictly above the source, so copying high indices first avoids clobbering a
 not-yet-moved element. =gap_end= is then reset to where the post region now
@@ -157,6 +162,11 @@ Invalidation and stability gotchas:
 - A growth reallocates the backing vector, invalidating *all* references,
   pointers, and iterators. =reserve= up front to keep them stable across a known
   number of inserts.
+- A container *move* invalidates every iterator, and a =swap= *retargets* them:
+  an iterator stores the owning buffer plus a logical position, so it follows the
+  buffer object, not the elements. After =swap(a, b)= an iterator obtained from
+  =a= reads =b='s contents; after =b = std::move(a)= an iterator into =a=
+  dereferences a moved-from empty buffer. Do not carry an iterator across either.
 - Even a plain =insert= or =erase= at the cursor shifts where the gap sits, so
   read an =operator[]= or =at= result before the next edit and never hold an
   iterator across one.
@@ -178,7 +188,7 @@ for (char const ch : "hello") { line.insert(ch); }   // O(1) each at the cursor
 if (line.move_cursor_to(2).has_value()) {            // reposition once
   line.insert('!');                                  // O(1) burst of edits here
 }
-static_cast<void>(line.erase_backward());            // backspace, O(1)
+nexenne::utility::discard(line.erase_backward());    // backspace, O(1)
 #+END_SRC
 
 Runnable: [[file:../../../examples/container/gap_buffer.cpp][examples/container/gap_buffer.cpp]]
