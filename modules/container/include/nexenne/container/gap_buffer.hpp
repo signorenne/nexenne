@@ -23,9 +23,10 @@
  * an \c O(distance) cursor move (done once per edit session, not per edit);
  * versus a rope it is far simpler but degrades to \c O(n) when edits scatter.
  *
- * The gap holds default-constructed elements, so \p T must be default
- * constructible as well as movable. Every operation is \c noexcept; allocation
- * failure terminates.
+ * The gap slots are not part of the logical sequence: they start
+ * default-constructed when the gap is reserved and later hold moved-from or
+ * erased objects, so \p T must be default constructible as well as movable.
+ * Every operation is \c noexcept; allocation failure terminates.
  */
 
 #include <algorithm>
@@ -93,6 +94,10 @@ public:
    *
    * @pre None.
    * @post \p other is empty with no gap.
+   *
+   * @note Iterators into \p other are invalidated by the move: they store the
+   *       owning buffer and a logical position, so they follow the buffer
+   *       object, not the elements.
    */
   constexpr gap_buffer(gap_buffer&& other) noexcept
       : m_buffer{std::move(other.m_buffer)}
@@ -111,6 +116,8 @@ public:
    *
    * @pre None.
    * @post \p other is empty with no gap (unless self-assigned).
+   *
+   * @note Iterators into either buffer are invalidated by the move.
    */
   constexpr auto operator=(gap_buffer&& other) noexcept -> gap_buffer& {
     if (this == &other) {
@@ -145,7 +152,13 @@ private:
       return;
     }
     auto const post_count{m_buffer.size() - m_gap_end};
-    auto const want_gap{std::max(min_gap, gap_size() * 2 + initial_gap)};
+    // Scale the reopened gap with the buffer so a run of cursor-local inserts is
+    // amortised O(1): the insert-time caller always arrives with an empty gap
+    // (gap_size() == 0), so a constant reopen would slide the whole post region
+    // every initial_gap inserts, i.e. O(post_count) per insert and quadratic
+    // editing. A gap proportional to the current size makes reopens geometric.
+    auto const geometric_gap{m_buffer.size() / 2 + initial_gap};
+    auto const want_gap{std::max(min_gap, geometric_gap)};
     auto const new_size{m_gap_begin + want_gap + post_count};
     m_buffer.resize(new_size);
     for (size_type j{post_count}; j > 0; --j) {
@@ -396,6 +409,9 @@ public:
    *
    * @pre None.
    * @post This buffer and \p other have exchanged elements and cursors.
+   *
+   * @note Outstanding iterators retarget on swap: they keep their owner and
+   *       logical position, so they now refer to the other buffer's contents.
    */
   constexpr auto swap(gap_buffer& other) noexcept -> void {
     using std::swap;
