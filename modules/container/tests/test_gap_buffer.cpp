@@ -392,4 +392,58 @@ TEST_CASE("nexenne::container::gap_buffer insert accepts an argument aliasing it
   CHECK(*s.at(16) == first);
 }
 
+// Counts only move-ASSIGNMENTS, which is exactly what grow_gap's post-region
+// slide uses (vector reallocation move-CONSTRUCTS, so it is not counted). This
+// isolates the per-insert slide cost from the [M4] amortisation.
+struct slide_counter {
+  static inline long long move_assigns{0};
+  int v{0};
+
+  slide_counter() noexcept = default;
+  slide_counter(int const x) noexcept : v{x} {}
+  slide_counter(slide_counter const&) noexcept = default;
+  slide_counter(slide_counter&&) noexcept = default;
+  auto operator=(slide_counter const&) noexcept -> slide_counter& = default;
+
+  auto operator=(slide_counter&& other) noexcept -> slide_counter& {
+    v = other.v;
+    ++move_assigns;
+    return *this;
+  }
+
+  ~slide_counter() noexcept = default;
+};
+
+// [M4] grow_gap once reopened a constant 16-slot gap, so a mid-buffer insert
+// re-slid the whole post region every 16 inserts: O(post_count) per insert and
+// quadratic editing, despite the documented amortised O(1). The reopened gap now
+// scales with the buffer, so the per-insert slide work must NOT grow with the
+// post-region size.
+TEST_CASE("nexenne::container::gap_buffer mid-buffer insert stays amortised O(1)") {
+  auto const per_insert{[](std::size_t const post_count) -> double {
+    cn::gap_buffer<slide_counter> g;
+    for (std::size_t i{0}; i < post_count; ++i) {
+      g.insert(slide_counter{static_cast<int>(i)});
+    }
+    REQUIRE(g.move_cursor_to(0).has_value());  // park the whole sequence after the cursor
+    slide_counter::move_assigns = 0;
+    slide_counter const value{7};
+    for (std::size_t i{0}; i < post_count; ++i) {
+      g.insert(value);  // insert at the front, sliding the post region on each grow
+    }
+    return static_cast<double>(slide_counter::move_assigns)
+           / static_cast<double>(post_count);
+  }};
+
+  auto const small{per_insert(1000)};
+  auto const large{per_insert(4000)};
+
+  // Under the old constant-gap policy these were ~62 and ~250 (linear in the
+  // post-region size). Amortised O(1) keeps both a small constant, so the 4x
+  // larger post region does not grow the per-insert work.
+  CHECK(small < 20.0);
+  CHECK(large < 20.0);
+  CHECK(large < small * 2.0 + 5.0);
+}
+
 }  // namespace
