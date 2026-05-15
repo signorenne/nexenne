@@ -583,7 +583,8 @@ TEST_CASE("nexenne::container::bitset_dynamic const-correctness of read-only que
 }
 
 TEST_CASE("nexenne::container::bitset_dynamic capacity helpers preserve value") {
-  CHECK(bs::max_size() == std::numeric_limits<std::size_t>::max());
+  // Bounded below SIZE_MAX so the backing word count ceil(size / 64) cannot wrap.
+  CHECK(bs::max_size() == std::numeric_limits<std::size_t>::max() - (bs::bits_per_word - 1));
 
   bs b(5);
   b.set(2);
@@ -611,6 +612,27 @@ TEST_CASE("nexenne::container::bitset_dynamic member swap exchanges state") {
   CHECK(a[64]);
   CHECK(b.size() == 10);
   CHECK(b[1]);
+}
+
+// [m13] the public typedef block leads with value_type = bool (a bit read
+// returns bool by value), matching every sibling container.
+static_assert(std::same_as<cn::bitset_dynamic::value_type, bool>);
+
+// [m12] word_count once wrapped for n past SIZE_MAX - 63, yielding size() == n
+// with ZERO backing words, so a later checked write indexed an empty vector
+// (heap corruption). max_size() is now the truthful non-wrapping bound and a
+// request past it terminates instead of under-allocating.
+TEST_CASE("nexenne::container::bitset_dynamic max_size is a non-wrapping bound") {
+  constexpr auto max_index{std::numeric_limits<std::size_t>::max()};
+  CHECK(cn::bitset_dynamic::max_size() == max_index - (cn::bitset_dynamic::bits_per_word - 1));
+  // The largest safe width still computes a backing word count without wrapping:
+  // ceil(max_size / 64) == SIZE_MAX / 64, not 0.
+  auto const words_at_max{
+    (cn::bitset_dynamic::max_size() + cn::bitset_dynamic::bits_per_word - 1)
+    / cn::bitset_dynamic::bits_per_word
+  };
+  CHECK(words_at_max == max_index / cn::bitset_dynamic::bits_per_word);
+  CHECK(words_at_max != 0);
 }
 
 }  // namespace
