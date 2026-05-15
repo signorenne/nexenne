@@ -135,6 +135,12 @@ Reference, pointer, and iterator rules (the whole point of this container):
 - iterators hold the owner plus a logical position, so a push or pop changes
   =size()= and shifts =end()=; an iterator into the live range stays valid for
   traversal because the chunk it points at never moves.
+- iterators, *unlike pointers and references*, do not survive a container move or
+  =swap=: because an iterator holds the owning vector plus a position, a =swap=
+  retargets it to the other vector's contents, and a move leaves an iterator into
+  the moved-from source dereferencing empty chunk storage. Keep raw =T*= from
+  =at= / =push_back= if you need stability across a move or swap; re-obtain
+  iterators afterward.
 
 * Choosing a vector
 
