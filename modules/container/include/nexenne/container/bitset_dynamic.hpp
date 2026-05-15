@@ -26,6 +26,7 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <expected>
 #include <initializer_list>
 #include <iterator>
@@ -46,6 +47,7 @@ namespace nexenne::container {
  */
 class bitset_dynamic {
 public:
+  using value_type = bool;
   using size_type = std::size_t;
   using word_type = std::uint64_t;
 
@@ -65,6 +67,13 @@ private:
   }
 
   [[nodiscard]] static constexpr auto word_count(size_type const n) noexcept -> size_type {
+    // The round-up (n + bits_per_word - 1) wraps for n past
+    // SIZE_MAX - (bits_per_word - 1), yielding zero backing words for a huge
+    // logical size; a later checked write would then index an empty word vector
+    // (heap corruption). Such a size is unallocatable anyway, so fail loudly.
+    if (n > max_size()) {
+      std::terminate();
+    }
     return (n + bits_per_word - 1) / bits_per_word;
   }
 
@@ -285,13 +294,16 @@ public:
   /**
    * @brief The largest number of bits the bitset can address.
    *
+   * Bounded so the backing word count \c ceil(size / 64) never wraps; a request
+   * past it terminates rather than allocating zero words for a huge size.
+   *
    * @return The maximum bit count.
    *
    * @pre None.
    * @post None.
    */
   [[nodiscard]] static constexpr auto max_size() noexcept -> size_type {
-    return std::numeric_limits<size_type>::max();
+    return std::numeric_limits<size_type>::max() - (bits_per_word - 1);
   }
 
   /**
