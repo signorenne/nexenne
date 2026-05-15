@@ -99,7 +99,11 @@ private:
   }
 
   auto ensure_capacity(size_type const desired) noexcept -> void {
-    auto const needed{(desired + ChunkSize - 1) / ChunkSize};
+    // Compute ceil(desired / ChunkSize) without the additive round-up, which
+    // would wrap for desired near SIZE_MAX and make reserve(huge) a silent
+    // no-op; an unsatisfiable chunk count instead fails loudly when the pointer
+    // vector cannot be reserved.
+    auto const needed{desired / ChunkSize + (desired % ChunkSize == 0 ? size_type{0} : size_type{1})};
     m_chunks.reserve(needed);  // size the pointer vector once, not per chunk
     while (m_chunks.size() < needed) {
       m_chunks.push_back(std::make_unique<chunk>());
@@ -273,6 +277,12 @@ public:
    * @pre None.
    * @post This vector owns \p other's chunks; \p other is empty. Element
    *       addresses are preserved.
+   *
+   * @note Raw pointers and references from \c at, \c operator[], or \c push_back
+   *       stay valid across the move (that is the container's guarantee), but
+   *       iterators into \p other are invalidated: an iterator holds the owning
+   *       vector plus a position, so it follows the container object, not the
+   *       elements.
    */
   stable_vector(stable_vector&& other) noexcept
       : m_chunks{std::move(other.m_chunks)}, m_size{other.m_size} {
@@ -368,6 +378,10 @@ public:
    * @pre None.
    * @post This vector holds \p other's former elements and vice versa; element
    *       addresses are preserved.
+   *
+   * @note Element addresses (raw pointers and references) survive the swap, but
+   *       outstanding iterators retarget: they keep their owner and position, so
+   *       they now refer to the other vector's contents.
    *
    * @complexity \c O(1).
    */
