@@ -46,6 +46,7 @@ class ring_buffer {
 public:
   using value_type = T;
   using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
   using reference = T&;
   using const_reference = T const&;
   using pointer = T*;
