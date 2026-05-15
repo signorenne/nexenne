@@ -55,14 +55,30 @@ length.
 bounds-checked and return =result= (=container_error::out_of_range= past the
 end). =set_bits()= is a sparse-aware forward range over the indices of the set
 bits (and =begin()=/=end()= alias it), so a range-based =for= visits the live
-indices, not every bit. =words()= exposes the raw storage as a =std::span=.
-Everything is =constexpr=, so a bitset can be built and queried at compile time.
+indices, not every bit. Iteration therefore yields =size_type= indices, not the
+=value_type= (=bool=): =value_type= names what a bit read returns, while the
+iterators range over set-bit positions. =words()= exposes the raw storage as a
+=std::span=. Everything is =constexpr=, so a bitset can be built and queried at
+compile time. =max_size()= is =SIZE_MAX - 63= (the largest width whose backing
+word count does not overflow), and a request past it terminates rather than
+silently allocating zero words.
 
 There is no proxy reference: a bit read returns a plain =bool= by value, and a
 bit is written through =set= / =reset= / =flip= (or the whole-set =set_all= /
 =reset_all= / =flip_all=), never through an lvalue =bitset[i] = b=. This is the
 deliberate departure from =std::vector<bool>=, whose proxy reference is the
 source of its interface problems.
+
+Some =std::bitset= spellings are deliberately absent, each with an in-place
+idiom here:
+
+- no unary =operator~=: take a copy and =flip_all= it (=auto n{b}; n.flip_all();=),
+  which complements in place under the same tail-mask invariant.
+- no =set(index, bool)=: branch on the flag with =set= / =reset=, or =flip= when
+  toggling.
+- no =operator<<= / =operator>>=: this is an index set, not a number, so shifts
+  are out of scope; build the shifted set explicitly from =set_bits()= when a
+  mask really needs them.
 
 ** Width-mismatched combination
 
