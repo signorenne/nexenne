@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <concepts>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
@@ -668,5 +669,10 @@ static_assert([] {
   ok = ok && d.size() == 3 && c.empty() && d[0] == 2;
   return ok;
 }());
+
+// [m7] ring_buffer now defines the class-level difference_type typedef that every
+// sibling container exposes, so generic code using Container::difference_type
+// compiles against it too.
+static_assert(std::same_as<cn::ring_buffer<int, 4>::difference_type, std::ptrdiff_t>);
 
 }  // namespace
