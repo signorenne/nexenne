@@ -4,10 +4,14 @@
 
 * Purpose
 
-=nexenne::container::static_vector<T, N>= is a sequence container with the
-interface of =std::vector= but a capacity fixed at compile time to =N=. All
-storage lives inline in the object, so it never touches the heap; an operation
-that would exceed =N= fails with =container_error::full= instead of growing.
+=nexenne::container::static_vector<T, N>= is a sequence container with a
+=std::vector=-style back interface (=push_back=, =emplace_back=, =pop_back=,
+=clear=, =swap=, indexed and iterator access, comparisons) but a capacity fixed
+at compile time to =N=. It intentionally omits the mid-sequence operations
+(=insert=, =erase=, =resize=, =assign=): the fixed-capacity family is a growable
+tail, not a full =std::vector= replacement. All storage lives inline in the
+object, so it never touches the heap; an operation that would exceed =N= fails
+with =container_error::full= instead of growing.
 Construction, mutation, and element access are =constexpr=, so it also works at
 compile time.
 
