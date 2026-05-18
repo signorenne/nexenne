@@ -114,7 +114,17 @@ private:
     // no empty slot would probe forever, so keeping occupied + tombstones below
     // the threshold guarantees a terminating empty slot exists.
     if (desired_entries + m_tombstones > load_threshold()) {
-      rehash(m_slots.size() * 2);
+      // The trigger fires for two very different reasons: a table full of live
+      // entries (genuinely needs to grow) or a table mostly made of tombstones
+      // under insert/erase churn (needs its tombstones reclaimed, not more
+      // slots). Doubling in the churn case grows without bound at constant live
+      // size, so grow only when the live entries themselves are near the limit;
+      // otherwise rehash at the same capacity, which rebuilds without tombstones.
+      if (desired_entries < load_threshold() / 2) {
+        rehash(m_slots.size());
+      } else {
+        rehash(m_slots.size() * 2);
+      }
     }
   }
 
@@ -163,8 +173,11 @@ private:
     }
   }
 
-  // Probes for key and returns its slot, or nullptr on a miss.
-  [[nodiscard]] auto find_slot(Key const& key) const noexcept -> slot const* {
+  // Probes for a key of any type comparable through m_hash and m_eq (the key
+  // itself, or a heterogeneous probe when both functors are transparent) and
+  // returns its slot, or nullptr on a miss.
+  template <typename K>
+  [[nodiscard]] auto probe_slot(K const& key) const noexcept -> slot const* {
     if (m_slots.empty()) {
       return nullptr;
     }
@@ -181,6 +194,30 @@ private:
       }
       index = (index + 1) & (m_slots.size() - 1);
     }
+  }
+
+  // Probes for key and returns its slot, or nullptr on a miss.
+  [[nodiscard]] auto find_slot(Key const& key) const noexcept -> slot const* {
+    return probe_slot(key);
+  }
+
+  // A heterogeneous probe type is admitted only when both functors opt into it.
+  template <typename H, typename E>
+  static constexpr bool transparent_functors{
+    requires { typename H::is_transparent; } && requires { typename E::is_transparent; }};
+
+  // Tombstones the slot found by a probe (nullptr means a miss), shared by every
+  // erase overload so they stay in lockstep.
+  auto erase_slot(slot const* const found) noexcept -> bool {
+    if (found == nullptr) {
+      return false;
+    }
+    auto& target{m_slots[static_cast<size_type>(found - m_slots.data())]};
+    target.state = slot_state::tombstone;
+    target.entry.reset();
+    --m_size;
+    ++m_tombstones;
+    return true;
   }
 
   template <bool IsConst>
@@ -384,7 +421,9 @@ public:
       return;
     }
     auto const target{next_pow2(m_size * 8 / 7 + 1)};
-    if (target < m_slots.size()) {
+    // Rehash to shrink, but also when only tombstones remain at the same target
+    // capacity, so the @post that tombstones are cleared holds on every path.
+    if (target < m_slots.size() || m_tombstones > 0) {
       rehash(target);
     }
   }
@@ -438,6 +477,11 @@ public:
    * @complexity Amortised \c O(1).
    */
   auto insert(Key key, Value value) noexcept -> bool {
+    // Probe before reserving: an insert of an already-present key must not grow
+    // the table, so a false return never invalidates a reference to any element.
+    if (find_slot(key) != nullptr) {
+      return false;
+    }
     ensure_capacity_for(m_size + 1);
     auto const h{m_hash(key)};
     return place(h, std::move(key), std::move(value), false);
@@ -458,6 +502,12 @@ public:
    * @complexity Amortised \c O(1).
    */
   auto insert_or_assign(Key key, Value value) noexcept -> bool {
+    // Overwrite an existing value in place without reserving, so an assignment
+    // never triggers a rehash that would invalidate references to other entries.
+    if (auto* const existing{find(key)}) {
+      *existing = std::move(value);
+      return false;
+    }
     ensure_capacity_for(m_size + 1);
     auto const h{m_hash(key)};
     return place(h, std::move(key), std::move(value), true);
@@ -482,7 +532,45 @@ public:
   template <typename... Args>
     requires std::constructible_from<Value, Args...>
   auto emplace(Key key, Args&&... args) noexcept -> bool {
-    return insert(std::move(key), Value(std::forward<Args>(args)...));
+    // Probe first: an existing key must neither construct a discarded value nor
+    // trigger a rehash (see insert). The value is built only on a real insertion.
+    if (find_slot(key) != nullptr) {
+      return false;
+    }
+    ensure_capacity_for(m_size + 1);
+    auto const h{m_hash(key)};
+    return place(h, std::move(key), Value(std::forward<Args>(args)...), false);
+  }
+
+  /**
+   * @brief Inserts an entry for \p key with a value built from \p args, only when
+   *        \p key is absent.
+   *
+   * The value is constructed only on a fresh insertion, so an existing entry is
+   * left untouched, its \p args unused, and no rehash is triggered.
+   *
+   * @tparam Args Constructor argument types for \p Value.
+   * @param key Key to insert under.
+   * @param args Arguments forwarded to \p Value's constructor on insertion.
+   *
+   * @return \c true on a fresh insertion, \c false when \p key was already
+   *         present.
+   *
+   * @pre None.
+   * @post \p key is present; on a fresh insertion \c size() grew by one and a
+   *       rehash may have invalidated iterators and references.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename... Args>
+    requires std::constructible_from<Value, Args...>
+  auto try_emplace(Key key, Args&&... args) noexcept -> bool {
+    if (find_slot(key) != nullptr) {
+      return false;
+    }
+    ensure_capacity_for(m_size + 1);
+    auto const h{m_hash(key)};
+    return place(h, std::move(key), Value(std::forward<Args>(args)...), false);
   }
 
   /**
@@ -499,16 +587,28 @@ public:
    * @complexity Amortised \c O(1).
    */
   auto erase(Key const& key) noexcept -> bool {
-    auto const* const found{find_slot(key)};
-    if (found == nullptr) {
-      return false;
-    }
-    auto& target{m_slots[static_cast<size_type>(found - m_slots.data())]};
-    target.state = slot_state::tombstone;
-    target.entry.reset();
-    --m_size;
-    ++m_tombstones;
-    return true;
+    return erase_slot(find_slot(key));
+  }
+
+  /**
+   * @brief Heterogeneous erase of the entry for a probe \p key.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to remove.
+   *
+   * @return \c true on a removal, \c false when \p key was absent.
+   *
+   * @pre None.
+   * @post \p key is absent; on a removal \c size() shrank by one and a tombstone
+   *       is left in place.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires transparent_functors<Hash, KeyEq>
+  auto erase(K const& key) noexcept -> bool {
+    return erase_slot(probe_slot(key));
   }
 
   /**
@@ -584,6 +684,97 @@ public:
   }
 
   /**
+   * @brief Heterogeneous lookup: pointer to the value for a probe \p key.
+   *
+   * Enabled only when both \c Hash and \c KeyEq are transparent (each exposes
+   * \c is_transparent), so a compatible probe type (for example a
+   * \c std::string_view against \c std::string keys) is hashed and compared
+   * without constructing a \c Key.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to look up.
+   *
+   * @return A pointer to the mapped value, or \c nullptr; invalidated by a
+   *         rehash.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires transparent_functors<Hash, KeyEq>
+  [[nodiscard]] auto find(K const& key) noexcept -> Value* {
+    auto const* const found{probe_slot(key)};
+    if (found == nullptr) {
+      return nullptr;
+    }
+    return std::addressof(m_slots[static_cast<size_type>(found - m_slots.data())].entry->second);
+  }
+
+  /**
+   * @brief Heterogeneous lookup for a probe \p key, returning a const pointer.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to look up.
+   *
+   * @return Pointer to the mapped value, or \c nullptr when \p key is absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires transparent_functors<Hash, KeyEq>
+  [[nodiscard]] auto find(K const& key) const noexcept -> Value const* {
+    auto const* const found{probe_slot(key)};
+    return found == nullptr ? nullptr : std::addressof(found->entry->second);
+  }
+
+  /**
+   * @brief Heterogeneous membership test for a probe \p key.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to test.
+   *
+   * @return \c true when \p key is present.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires transparent_functors<Hash, KeyEq>
+  [[nodiscard]] auto contains(K const& key) const noexcept -> bool {
+    return probe_slot(key) != nullptr;
+  }
+
+  /**
+   * @brief Heterogeneous count for a probe \p key, always \c 0 or \c 1.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to count.
+   *
+   * @return \c 1 when \p key is present, otherwise \c 0.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires transparent_functors<Hash, KeyEq>
+  [[nodiscard]] auto count(K const& key) const noexcept -> size_type {
+    return contains(key) ? size_type{1} : size_type{0};
+  }
+
+  /**
    * @brief Checked access to the value for \p key (an alias for \c find).
    *
    * @param key Key to look up.
@@ -612,6 +803,47 @@ public:
    * @complexity Amortised \c O(1).
    */
   [[nodiscard]] auto at(Key const& key) const noexcept -> Value const* {
+    return find(key);
+  }
+
+  /**
+   * @brief Heterogeneous checked access for a probe \p key (an alias for
+   *        \c find).
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to look up.
+   *
+   * @return A pointer to the mapped value, or \c nullptr on a miss.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires transparent_functors<Hash, KeyEq>
+  [[nodiscard]] auto at(K const& key) noexcept -> Value* {
+    return find(key);
+  }
+
+  /**
+   * @brief Heterogeneous \c at for a probe \p key, returning a const pointer.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to look up.
+   *
+   * @return Pointer to the mapped value, or \c nullptr when \p key is absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires transparent_functors<Hash, KeyEq>
+  [[nodiscard]] auto at(K const& key) const noexcept -> Value const* {
     return find(key);
   }
 
