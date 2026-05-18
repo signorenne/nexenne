@@ -96,6 +96,9 @@ public:
    *
    * @pre None.
    * @post Entries are stored sorted by key, each distinct key once.
+   *
+   * @complexity \c O(N^2) worst case: each entry is inserted with an \c O(N) tail
+   *             shift, so prefer building once from a mostly key-sorted list.
    */
   constexpr flat_map(std::initializer_list<value_type> const init) noexcept {
     m_data.reserve(init.size());
@@ -367,6 +370,46 @@ public:
       m_data.end(),
       key,
       [this](Key const& probe, value_type const& slot) { return m_cmp(probe, slot.first); }
+    );
+  }
+
+  /**
+   * @brief Heterogeneous \c upper_bound for a key-comparable type \p K.
+   *
+   * Enabled only when \c Compare is transparent (see the heterogeneous
+   * \c lower_bound), so a lookup type like \c std::string_view is searched
+   * without constructing a \c Key.
+   *
+   * @tparam K Lookup type comparable with the keys through \c Compare.
+   * @param key Key to search for.
+   *
+   * @return An iterator to the first entry whose key is ordered after \p key.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  [[nodiscard]] constexpr auto upper_bound(K const& key) noexcept -> iterator {
+    return std::upper_bound(
+      m_data.begin(),
+      m_data.end(),
+      key,
+      [this](K const& probe, value_type const& slot) { return m_cmp(probe, slot.first); }
+    );
+  }
+
+  /// @copydoc upper_bound(K const&)
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  [[nodiscard]] constexpr auto upper_bound(K const& key) const noexcept -> const_iterator {
+    return std::upper_bound(
+      m_data.begin(),
+      m_data.end(),
+      key,
+      [this](K const& probe, value_type const& slot) { return m_cmp(probe, slot.first); }
     );
   }
 
@@ -683,6 +726,33 @@ public:
   }
 
   /**
+   * @brief Assigns \p value to \p key, moving a movable key in on insertion.
+   *
+   * The rvalue-key overload of \c insert_or_assign: a heavy key (a
+   * \c std::string) is moved rather than copied into the new entry.
+   *
+   * @param key Key to assign or insert, moved in on a new insertion.
+   * @param value Mapped value to store, moved in.
+   *
+   * @return A pair of an iterator to the entry and \c true when a new entry was
+   *         inserted, or \c false when an existing value was overwritten.
+   *
+   * @pre None.
+   * @post The entry for \p key maps to \p value; on insertion \c size() grew by
+   *       one and iterators are invalidated.
+   *
+   * @complexity \c O(N) on insertion, \c O(log N) on assignment.
+   */
+  constexpr auto insert_or_assign(Key&& key, Value value) noexcept -> std::pair<iterator, bool> {
+    auto const pos{lower_bound(key)};
+    if (pos != m_data.end() && !m_cmp(key, pos->first)) {
+      pos->second = std::move(value);
+      return {pos, false};
+    }
+    return {m_data.insert(pos, value_type{std::move(key), std::move(value)}), true};
+  }
+
+  /**
    * @brief Constructs an entry from \p args and inserts it unless its key is
    *        present.
    *
@@ -733,6 +803,38 @@ public:
   }
 
   /**
+   * @brief Inserts an entry for a movable \p key with a value built from
+   *        \p args, only if \p key is absent.
+   *
+   * The rvalue-key overload of \c try_emplace: on insertion the key is moved
+   * into the new entry rather than copied. The value is constructed only on
+   * insertion, so an existing entry is left untouched.
+   *
+   * @tparam Args Constructor argument types for \p Value.
+   * @param key Key to insert under, moved in on insertion.
+   * @param args Arguments forwarded to \p Value's constructor on insertion.
+   *
+   * @return A pair of an iterator to the entry and \c true on insertion, or an
+   *         iterator to the existing entry and \c false.
+   *
+   * @pre None.
+   * @post An entry for \p key exists; on insertion \c size() grew by one.
+   *
+   * @complexity \c O(N) on insertion, \c O(log N) otherwise.
+   */
+  template <typename... Args>
+    requires std::constructible_from<Value, Args...>
+  constexpr auto try_emplace(Key&& key, Args&&... args) noexcept -> std::pair<iterator, bool> {
+    auto const pos{lower_bound(key)};
+    if (pos != m_data.end() && !m_cmp(key, pos->first)) {
+      return {pos, false};
+    }
+    return {
+      m_data.insert(pos, value_type{std::move(key), Value(std::forward<Args>(args)...)}), true
+    };
+  }
+
+  /**
    * @brief Removes the entry for \p key, if present.
    *
    * @param key Key to remove.
@@ -746,6 +848,34 @@ public:
    * @complexity \c O(N) for the element shift.
    */
   constexpr auto erase(Key const& key) noexcept -> size_type {
+    auto const pos{find(key)};
+    if (pos == m_data.end()) {
+      return 0;
+    }
+    m_data.erase(pos);
+    return 1;
+  }
+
+  /**
+   * @brief Heterogeneous erase of the entry whose key equals \p key.
+   *
+   * Enabled only when \c Compare is transparent, so the entry is located from a
+   * compatible probe type without constructing a \c Key.
+   *
+   * @tparam K Lookup type comparable with the keys through \c Compare.
+   * @param key Key to remove.
+   *
+   * @return \c 1 when an entry was removed, otherwise \c 0.
+   *
+   * @pre None.
+   * @post \p key is absent; on a removal \c size() shrank by one and iterators
+   *       are invalidated.
+   *
+   * @complexity \c O(N) for the element shift.
+   */
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  constexpr auto erase(K const& key) noexcept -> size_type {
     auto const pos{find(key)};
     if (pos == m_data.end()) {
       return 0;
