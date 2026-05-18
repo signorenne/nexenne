@@ -83,6 +83,9 @@ public:
    *
    * @pre None.
    * @post Every distinct value of \p init is present, in sorted order.
+   *
+   * @complexity \c O(N^2) worst case: each element is inserted with an \c O(N)
+   *             tail shift, so prefer building once from a mostly-sorted list.
    */
   constexpr flat_set(std::initializer_list<T> const init) noexcept {
     m_data.reserve(init.size());
@@ -309,6 +312,167 @@ public:
   }
 
   /**
+   * @brief The pair of bounds enclosing every element equal to \p key.
+   *
+   * For a set the range holds at most one element, so it is empty (both
+   * iterators equal) on a miss and a single element wide on a hit.
+   *
+   * @param key Value to search for.
+   *
+   * @return A pair of \c lower_bound(key) and \c upper_bound(key).
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  [[nodiscard]] constexpr auto equal_range(T const& key
+  ) const noexcept -> std::pair<const_iterator, const_iterator> {
+    return {lower_bound(key), upper_bound(key)};
+  }
+
+  /**
+   * @brief The stored comparator.
+   *
+   * @return A copy of the comparator ordering the set.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto key_comp() const noexcept -> key_compare {
+    return m_cmp;
+  }
+
+  /**
+   * @brief Heterogeneous \c lower_bound for a key-comparable type \p K.
+   *
+   * Enabled only when \c Compare is transparent (exposes \c is_transparent, as
+   * \c std::less<> does), so a compatible lookup type (for example a
+   * \c std::string_view against \c std::string elements) is searched without
+   * constructing a \p T.
+   *
+   * @tparam K Lookup type comparable with the elements through \c Compare.
+   * @param key Value to search for.
+   *
+   * @return A const iterator to the first element not ordered before \p key.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto lower_bound(K const& key) const noexcept -> const_iterator {
+    return std::lower_bound(m_data.begin(), m_data.end(), key, m_cmp);
+  }
+
+  /**
+   * @brief Heterogeneous \c upper_bound for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the elements through a transparent
+   *           \c Compare.
+   * @param key Value to search for.
+   *
+   * @return A const iterator to the first element ordered after \p key.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto upper_bound(K const& key) const noexcept -> const_iterator {
+    return std::upper_bound(m_data.begin(), m_data.end(), key, m_cmp);
+  }
+
+  /**
+   * @brief Heterogeneous \c find for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the elements through a transparent
+   *           \c Compare.
+   * @param key Value to search for.
+   *
+   * @return A const iterator to the matching element, or \c end() when absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto find(K const& key) const noexcept -> const_iterator {
+    auto const pos{lower_bound(key)};
+    if (pos != m_data.end() && !m_cmp(key, *pos)) {
+      return pos;
+    }
+    return m_data.end();
+  }
+
+  /**
+   * @brief Heterogeneous membership test for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the elements through a transparent
+   *           \c Compare.
+   * @param key Value to test.
+   *
+   * @return \c true when \p key is present.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto contains(K const& key) const noexcept -> bool {
+    return find(key) != m_data.end();
+  }
+
+  /**
+   * @brief Heterogeneous \c count for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the elements through a transparent
+   *           \c Compare.
+   * @param key Value to count.
+   *
+   * @return \c 1 when \p key is present, otherwise \c 0.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto count(K const& key) const noexcept -> size_type {
+    return contains(key) ? size_type{1} : size_type{0};
+  }
+
+  /**
+   * @brief Heterogeneous \c equal_range for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the elements through a transparent
+   *           \c Compare.
+   * @param key Value to search for.
+   *
+   * @return A pair of \c lower_bound(key) and \c upper_bound(key).
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto equal_range(K const& key
+  ) const noexcept -> std::pair<const_iterator, const_iterator> {
+    return {lower_bound(key), upper_bound(key)};
+  }
+
+  /**
    * @brief Inserts a copy of \p value if no equal element exists.
    *
    * @param value Value to copy in.
@@ -389,6 +553,34 @@ public:
    * @complexity \c O(N) for the element shift.
    */
   constexpr auto erase(T const& key) noexcept -> size_type {
+    auto const pos{find(key)};
+    if (pos == m_data.end()) {
+      return 0;
+    }
+    m_data.erase(pos);
+    return 1;
+  }
+
+  /**
+   * @brief Heterogeneous erase of the element equal to \p key.
+   *
+   * Enabled only when \c Compare is transparent, so an equal element is located
+   * from a compatible probe type without constructing a \p T.
+   *
+   * @tparam K Lookup type comparable with the elements through \c Compare.
+   * @param key Value to remove.
+   *
+   * @return \c 1 when an element was removed, otherwise \c 0.
+   *
+   * @pre None.
+   * @post \p key is absent; on a removal \c size() shrank by one and iterators
+   *       are invalidated.
+   *
+   * @complexity \c O(N) for the element shift.
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  constexpr auto erase(K const& key) noexcept -> size_type {
     auto const pos{find(key)};
     if (pos == m_data.end()) {
       return 0;
