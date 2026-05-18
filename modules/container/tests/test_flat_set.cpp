@@ -11,6 +11,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -238,6 +239,38 @@ TEST_CASE("nexenne::container::flat_set differential against std::set with strin
     CHECK(flat.size() == ref.size());
   }
   CHECK(std::equal(flat.begin(), flat.end(), ref.begin(), ref.end()));
+}
+
+TEST_CASE("nexenne::container::flat_set heterogeneous lookup avoids constructing a key") {
+  // [M1] With a transparent comparator, string_view probes find string elements
+  // without materialising a std::string; equal_range and key_comp are exercised
+  // too (both added alongside the heterogeneous overloads).
+  cn::flat_set<std::string, std::less<>> s{"alpha", "beta", "gamma"};
+
+  CHECK(s.contains(std::string_view{"beta"}));
+  CHECK(s.count(std::string_view{"beta"}) == 1);
+  CHECK_FALSE(s.contains(std::string_view{"delta"}));
+  REQUIRE(s.find(std::string_view{"gamma"}) != s.end());
+  CHECK(s.lower_bound(std::string_view{"beta"})->compare("beta") == 0);
+  CHECK(s.upper_bound(std::string_view{"beta"})->compare("gamma") == 0);
+
+  auto const [lo, hi]{s.equal_range(std::string_view{"beta"})};
+  CHECK(std::distance(lo, hi) == 1);
+  auto const [nlo, nhi]{s.equal_range(std::string_view{"delta"})};
+  CHECK(nlo == nhi);  // empty range on a miss
+
+  CHECK(s.erase(std::string_view{"beta"}) == 1);
+  CHECK_FALSE(s.contains(std::string_view{"beta"}));
+  CHECK(s.size() == 2);
+
+  // key_comp observes the stored comparator.
+  auto const cmp{s.key_comp()};
+  CHECK(cmp(std::string{"alpha"}, std::string{"gamma"}));
+
+  // equal_range also works on the homogeneous path.
+  cn::flat_set<int> ints{1, 3, 5};
+  auto const [ilo, ihi]{ints.equal_range(3)};
+  CHECK(std::distance(ilo, ihi) == 1);
 }
 
 }  // namespace
