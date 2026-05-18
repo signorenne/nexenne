@@ -110,7 +110,7 @@ Invalidation and stability:
 nexenne::container::bag<entity_id> active;
 
 active.insert(id);                 // O(1), order not preserved
-active.erase_first(dead_id);       // O(1) swap-pop, returns bool
+active.erase_first(dead_id);       // find is O(size), removal is O(1) swap-pop
 active.erase_all(stale_id);        // remove every match, returns the count
 
 for (auto const id : active) {     // contiguous, cache-friendly
