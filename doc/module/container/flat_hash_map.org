@@ -81,7 +81,7 @@ tombstones is tracked because they, too, lengthen probe chains.
 
 ** Growth and rehash
 
-Storage is lazy: the first insert allocates 16 slots, and the table doubles
+Storage is lazy: the first insert allocates 16 slots, and the load trigger fires
 whenever the occupied-plus-tombstone count reaches *7/8* of the slots. Counting
 tombstones in that limit is essential: a table full of tombstones with no empty
 slot would make a lookup probe forever, so the 7/8 rule guarantees a terminating
@@ -89,6 +89,15 @@ empty slot always exists. A rehash allocates the new array, then re-inserts ever
 *occupied* entry (dropping all tombstones, reusing each entry's cached hash so no
 key is re-hashed). Because every entry moves, a rehash invalidates all iterators,
 pointers, and references.
+
+The trigger fires for two different reasons, and the table responds to each on
+its own terms. When the live entries themselves fill the load window, it *grows*
+(doubles). When the window is mostly tombstones left by churn (the live count is
+well under half the limit), it instead *rehashes at the same capacity* to reclaim
+those tombstones. That distinction is what keeps a rolling workload bounded: a
+session table or dedup window that inserts new keys and erases old ones at a
+constant live size reclaims its tombstones in place rather than doubling forever,
+so its memory tracks the live size, not the total churn.
 
 * Complexity
 
