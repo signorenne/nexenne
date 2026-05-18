@@ -10,6 +10,7 @@
 #include <memory>
 #include <random>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -21,6 +22,17 @@ namespace {
 
 namespace cn = nexenne::container;
 using map_t = cn::flat_hash_map<int, int>;
+
+// A transparent hasher: it advertises is_transparent and hashes any type
+// convertible to string_view, so heterogeneous lookup can probe without building
+// a std::string. std::hash is used so a std::string key and its view agree.
+struct transparent_string_hash {
+  using is_transparent = void;
+
+  [[nodiscard]] auto operator()(std::string_view const s) const noexcept -> std::size_t {
+    return std::hash<std::string_view>{}(s);
+  }
+};
 
 // A pathological hash that funnels every key into the same bucket, forcing the
 // probe sequence, tombstone handling, and rehash logic to do real work.
@@ -414,6 +426,70 @@ TEST_CASE("nexenne::container::flat_hash_map differential against std::unordered
     ++flat_count;
   }
   CHECK(flat_count == ref.size());
+}
+
+TEST_CASE("nexenne::container::flat_hash_map churn at constant live size keeps capacity bounded") {
+  // [C1] Insert then erase at a constant live size for many iterations. Before
+  // the fix the load trigger always doubled, so accumulating tombstones grew the
+  // table without bound; now the trigger rehashes in place at the same capacity
+  // to reclaim tombstones when the live count is small. Sequential int keys are
+  // the worst case: std::hash is the identity, so a tombstone is never reused.
+  map_t m;
+  CHECK(m.insert(-1, -1));  // one permanent live entry
+  for (int i{0}; i < 100000; ++i) {
+    CHECK(m.insert(i, i));
+    CHECK(m.erase(i));
+  }
+  CHECK(m.size() == 1);
+  CHECK(m.contains(-1));
+  CHECK(m.capacity() <= 64);  // bounded, not the millions the doubling produced
+}
+
+TEST_CASE("nexenne::container::flat_hash_map inserting an existing key does not rehash or invalidate") {
+  // [M3] Fill the initial 16-slot table to its 7/8 threshold, then insert an
+  // already-present key: it must return false, leave the table the same size,
+  // and keep a reference to another element valid and unchanged.
+  map_t m;
+  for (int i{0}; i < 14; ++i) {
+    CHECK(m.insert(i, i * 10));
+  }
+  auto const cap_before{m.capacity()};
+  int const* const pinned{m.find(3)};
+  REQUIRE(pinned != nullptr);
+
+  CHECK_FALSE(m.insert(3, 999));
+  CHECK(m.capacity() == cap_before);
+  CHECK(m.find(3) == pinned);  // same address: no rehash occurred
+  CHECK(*pinned == 30);        // the failed insert left the value untouched
+
+  CHECK_FALSE(m.insert_or_assign(3, 31));
+  CHECK(m.capacity() == cap_before);
+  CHECK(m.find(3) == pinned);
+  CHECK(*pinned == 31);
+
+  CHECK_FALSE(m.emplace(3, 40));
+  CHECK(m.capacity() == cap_before);
+  CHECK(m.find(3) == pinned);
+
+  CHECK_FALSE(m.try_emplace(3, 50));
+  CHECK(m.capacity() == cap_before);
+  CHECK(m.find(3) == pinned);
+}
+
+TEST_CASE("nexenne::container::flat_hash_map heterogeneous lookup with transparent functors") {
+  // [m13] A transparent hash and equality admit a probe type (string_view) that
+  // is hashed and compared without constructing a std::string key.
+  cn::flat_hash_map<std::string, int, transparent_string_hash, std::equal_to<>> m;
+  CHECK(m.insert("alpha", 1));
+  CHECK(m.insert("beta", 2));
+  CHECK(m.contains(std::string_view{"alpha"}));
+  CHECK(m.count(std::string_view{"beta"}) == 1);
+  CHECK_FALSE(m.contains(std::string_view{"gamma"}));
+  REQUIRE(m.find(std::string_view{"beta"}) != nullptr);
+  CHECK(*m.find(std::string_view{"beta"}) == 2);
+  CHECK(m.at(std::string_view{"alpha"}) != nullptr);
+  CHECK(m.erase(std::string_view{"alpha"}));
+  CHECK_FALSE(m.contains(std::string_view{"alpha"}));
 }
 
 }  // namespace
