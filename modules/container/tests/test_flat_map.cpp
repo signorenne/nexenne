@@ -352,4 +352,31 @@ TEST_CASE("nexenne::container::flat_map differential against std::map with strin
   CHECK(flat_entries == ref_entries);
 }
 
+TEST_CASE("nexenne::container::flat_map heterogeneous upper_bound and erase") {
+  // [m3] The heterogeneous overloads were missing for upper_bound and erase; a
+  // string_view probe now works for both without building a std::string.
+  cn::flat_map<std::string, int, std::less<>> m;
+  m.insert({"a", 1});
+  m.insert({"b", 2});
+  m.insert({"c", 3});
+  CHECK(m.upper_bound(std::string_view{"a"})->first == "b");
+  CHECK(m.erase(std::string_view{"b"}) == 1);
+  CHECK_FALSE(m.contains(std::string_view{"b"}));
+  CHECK(m.size() == 2);
+}
+
+TEST_CASE("nexenne::container::flat_map rvalue-key overloads move the key in") {
+  // [m6] insert_or_assign and try_emplace gained Key&& overloads so a movable key
+  // is moved rather than copied on insertion.
+  cn::flat_map<std::string, int> m;
+  std::string k1{"a movable key long enough to dodge SSO"};
+  CHECK(m.insert_or_assign(std::move(k1), 1).second);
+  CHECK(k1.empty());  // moved from
+
+  std::string k2{"another movable key long enough to dodge SSO"};
+  CHECK(m.try_emplace(std::move(k2), 2).second);
+  CHECK(k2.empty());  // moved from
+  CHECK(m.size() == 2);
+}
+
 }  // namespace
