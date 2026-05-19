@@ -114,13 +114,15 @@ values *are* the keys, and mutating one would desync its =sparse= entry, so
 
 * Complexity
 
-| operation                          | cost        |
-|------------------------------------+-------------|
-| insert / erase / contains          | O(1)        |
-| index_of / find / count            | O(1)        |
-| iterate keys() / begin .. end      | O(size)     |
-| clear                              | O(size)     |
-| reserve / shrink_to_fit / swap     | O(1) amort. |
+| operation                          | cost              |
+|------------------------------------+-------------------|
+| insert / erase / contains          | O(1)              |
+| index_of / find / count            | O(1)              |
+| iterate keys() / begin .. end      | O(size)           |
+| clear                              | O(size)           |
+| swap                               | O(1)              |
+| reserve                            | O(key_count)      |
+| shrink_to_fit                      | O(max_key + size) |
 
 Memory is =O(max_key + size)=: =dense= is one key per live element, but =sparse=
 grows to the largest key ever inserted, so a single key of one million reserves a
