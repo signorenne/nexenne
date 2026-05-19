@@ -6,10 +6,12 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <functional>
 #include <map>
 #include <memory>
 #include <random>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -370,6 +372,42 @@ TEST_CASE("nexenne::container::static_flat_map differential against std::map wit
   std::vector<std::pair<int, int>> flat_entries{flat.begin(), flat.end()};
   std::vector<std::pair<int, int>> ref_entries{ref.begin(), ref.end()};
   CHECK(flat_entries == ref_entries);
+}
+
+TEST_CASE("nexenne::container::static_flat_map try_emplace does not read a moved-from aliased arg") {
+  // [M2] Insert under a smaller key using an existing entry's value as the
+  // argument. Key 1 sorts before key 5, so the slot shift moves key 5's value;
+  // before the fix the argument was read after that slot had been moved from and
+  // the new entry came out empty.
+  cn::static_flat_map<int, std::string, 8> m;
+  std::string const payload{"a long string that will not fit in any SSO buffer"};
+  REQUIRE(m.try_emplace(5, payload).has_value());
+  REQUIRE(m.try_emplace(1, *m.at(5)).has_value());
+  CHECK(*m.at(1) == payload);
+  CHECK(*m.at(5) == payload);
+
+  // insert_or_assign shares the materialise-before-shift guard.
+  cn::static_flat_map<int, std::string, 8> n;
+  REQUIRE(n.insert_or_assign(5, payload).has_value());
+  REQUIRE(n.insert_or_assign(1, *n.at(5)).has_value());
+  CHECK(*n.at(1) == payload);
+  CHECK(*n.at(5) == payload);
+}
+
+TEST_CASE("nexenne::container::static_flat_map heterogeneous lookup avoids constructing a key") {
+  // [M1] A transparent comparator admits a string_view probe against string keys.
+  cn::static_flat_map<std::string, int, 8, std::less<>> m;
+  REQUIRE(m.insert({"alpha", 1}).has_value());
+  REQUIRE(m.insert({"gamma", 3}).has_value());
+  CHECK(m.contains(std::string_view{"alpha"}));
+  CHECK(m.count(std::string_view{"gamma"}) == 1);
+  CHECK_FALSE(m.contains(std::string_view{"beta"}));
+  REQUIRE(m.find(std::string_view{"gamma"}) != m.end());
+  CHECK(m.find(std::string_view{"gamma"})->second == 3);
+  REQUIRE(m.at(std::string_view{"alpha"}) != nullptr);
+  CHECK(*m.at(std::string_view{"alpha"}) == 1);
+  CHECK(m.lower_bound(std::string_view{"alpha"})->first == "alpha");
+  CHECK(m.upper_bound(std::string_view{"alpha"})->first == "gamma");
 }
 
 }  // namespace
