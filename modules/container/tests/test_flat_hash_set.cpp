@@ -197,7 +197,7 @@ TEST_CASE("nexenne::container::flat_hash_set load_factor and the expected-entrie
   CHECK(empty.load_factor() == doctest::Approx(0.0));
   CHECK(empty.max_size() > 0);
 
-  set_t sized{100};  // reserve up front
+  set_t sized(100);  // reserve up front (parens: brace-init would build a one-element set)
   CHECK(sized.capacity() >= 100);
   auto const reserved{sized.capacity()};
   for (int i{0}; i < 50; ++i) {
