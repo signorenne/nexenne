@@ -22,11 +22,13 @@
 
 #include <cstddef>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <utility>
 
 #include <nexenne/container/flat_hash_map.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::container {
 
@@ -84,6 +86,20 @@ public:
    * @post \c empty() is \c true and \c capacity() admits \p expected_entries.
    */
   explicit flat_hash_set(size_type const expected_entries) noexcept : m_map{expected_entries} {}
+
+  /**
+   * @brief Constructs from an initializer list, ignoring duplicate values.
+   *
+   * @param init Values to insert; later duplicates are ignored.
+   *
+   * @pre None.
+   * @post Every distinct value of \p init is present.
+   */
+  flat_hash_set(std::initializer_list<T> const init) noexcept : m_map{init.size()} {
+    for (auto const& value : init) {
+      nexenne::utility::discard(m_map.insert(value, detail::empty_value{}));
+    }
+  }
 
   /**
    * @brief Number of elements currently stored.
@@ -266,6 +282,50 @@ public:
    * @complexity Amortised \c O(1).
    */
   [[nodiscard]] auto count(T const& value) const noexcept -> size_type {
+    return m_map.count(value);
+  }
+
+  /**
+   * @brief Heterogeneous membership test for a probe \p value.
+   *
+   * Enabled only when both \c Hash and \c KeyEq are transparent, so a compatible
+   * probe type (for example a \c std::string_view against \c std::string
+   * elements) is tested without constructing a \p T.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param value Value to test for membership.
+   *
+   * @return \c true when \p value is present.
+   *
+   * @pre None.
+   * @post None. The set is not modified.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires requires { typename Hash::is_transparent; typename KeyEq::is_transparent; }
+  [[nodiscard]] auto contains(K const& value) const noexcept -> bool {
+    return m_map.contains(value);
+  }
+
+  /**
+   * @brief Heterogeneous count for a probe \p value, always \c 0 or \c 1.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param value Value to count.
+   *
+   * @return \c 1 when \p value is present, otherwise \c 0.
+   *
+   * @pre None.
+   * @post None. The set is not modified.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires requires { typename Hash::is_transparent; typename KeyEq::is_transparent; }
+  [[nodiscard]] auto count(K const& value) const noexcept -> size_type {
     return m_map.count(value);
   }
 
