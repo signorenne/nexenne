@@ -22,9 +22,11 @@
  * \c noexcept; allocation failure terminates.
  */
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <type_traits>
@@ -273,13 +275,17 @@ public:
   /**
    * @brief Largest number of slots the map can ever hold.
    *
-   * @return The maximum size of the backing vector.
+   * Capped by \c index_type, not by the backing vector: a key encodes its slot
+   * as an \c index_type, so a slot at index \c 2^32 or beyond could not be
+   * addressed without truncating the index and aliasing another slot.
+   *
+   * @return The maximum addressable slot count.
    *
    * @pre None.
    * @post None. The map is not modified.
    */
   [[nodiscard]] constexpr auto max_size() const noexcept -> size_type {
-    return m_values.max_size();
+    return static_cast<size_type>(std::numeric_limits<index_type>::max());
   }
 
   /**
@@ -287,7 +293,8 @@ public:
    *
    * @pre None.
    * @post \c size() is unchanged; capacity may shrink. Existing keys remain
-   *       valid.
+   *       valid, but the reallocation invalidates outstanding pointers and
+   *       iterators; the key is the durable handle.
    */
   constexpr auto shrink_to_fit() noexcept -> void {
     m_values.shrink_to_fit();
@@ -332,7 +339,8 @@ public:
    *
    * @pre None.
    * @post \c capacity() is at least \p n; \c size() is unchanged and existing
-   *       keys remain valid.
+   *       keys remain valid. A reallocation invalidates outstanding pointers and
+   *       iterators; the key is the durable handle.
    */
   auto reserve(size_type const n) noexcept -> void {
     m_values.reserve(n);
@@ -372,7 +380,9 @@ public:
    *
    * @pre None.
    * @post \c size() grew by one and the returned key refers to a live element
-   *       holding \p value. Existing keys remain valid.
+   *       holding \p value. Existing keys remain valid, but growth may
+   *       reallocate and invalidate outstanding pointers and iterators; the key
+   *       is the durable handle.
    *
    * @complexity Amortised \c O(1).
    */
@@ -389,7 +399,9 @@ public:
    *
    * @pre None.
    * @post \c size() grew by one and the returned key refers to a live element
-   *       holding \p value. Existing keys remain valid.
+   *       holding \p value. Existing keys remain valid, but growth may
+   *       reallocate and invalidate outstanding pointers and iterators; the key
+   *       is the durable handle.
    *
    * @complexity Amortised \c O(1).
    */
@@ -407,13 +419,17 @@ public:
    *
    * @pre None.
    * @post \c size() grew by one and the returned key refers to the new element.
-   *       Existing keys remain valid.
+   *       Existing keys remain valid, but growth may reallocate and invalidate
+   *       outstanding pointers and iterators; the key is the durable handle.
    *
    * @complexity Amortised \c O(1).
    */
   template <typename... Args>
   auto emplace(Args&&... args) noexcept -> key {
     if (m_free_list.empty()) {
+      // A fresh slot index is the current slot count cast to index_type; it must
+      // still be representable, or the cast would truncate and alias slot 0.
+      assert(m_values.size() < max_size() && "slot_map slot count exceeds index_type range");
       auto const index{static_cast<index_type>(m_values.size())};
       m_values.emplace_back(std::in_place, std::forward<Args>(args)...);
       // Fresh slots start at generation 1; generation 0 is the null sentinel.
