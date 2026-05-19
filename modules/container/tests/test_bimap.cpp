@@ -262,4 +262,21 @@ TEST_CASE("nexenne::container::bimap with non-trivial types on both sides") {
   CHECK(b.empty());
 }
 
+TEST_CASE("nexenne::container::bimap rolling-registry churn keeps both indexes bounded") {
+  // [M4] The advertised rolling-registry workload (bind new pairs, unbind old
+  // ones at a bounded live size) drove both underlying flat_hash_map indexes to
+  // double forever through inherited [C1]. With C1 fixed, both indexes reclaim
+  // their tombstones in place and capacity stays bounded.
+  cn::bimap<int, int> b;
+  CHECK(b.insert(-1, -1));  // one permanent pair
+  for (int i{0}; i < 100000; ++i) {
+    CHECK(b.insert(i, i));
+    CHECK(b.erase_left(i));
+  }
+  CHECK(b.size() == 1);
+  REQUIRE(b.find_by_left(-1) != nullptr);
+  CHECK(*b.find_by_left(-1) == -1);
+  CHECK(b.capacity() <= 64);  // both indexes stay bounded
+}
+
 }  // namespace
