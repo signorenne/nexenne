@@ -119,6 +119,11 @@ Things to keep in mind:
 - *A rehash invalidates everything*, inherited from [[file:flat_hash_map.org][flat_hash_map]]: any insert
   or replace that grows a side invalidates iterators and =find= pointers;
   =reserve= up front to keep them stable.
+- *Rolling registries stay bounded.* Both sides are =flat_hash_map= instances, so
+  they inherit its churn behaviour: binding new pairs and unbinding old ones at a
+  constant live size reclaims tombstones in place instead of growing without
+  bound, so a two-way registry with rotating ids keeps its memory near the live
+  size.
 - *find returns a pointer into one side's map*; treat it as borrowed and do not
   hold it across a mutation.
 
