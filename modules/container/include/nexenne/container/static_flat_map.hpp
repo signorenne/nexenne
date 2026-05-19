@@ -104,6 +104,10 @@ public:
    * @pre None.
    * @post The first distinct keys of \p init, up to \p Capacity, are present in
    *       sorted order.
+   *
+   * @complexity \c O(Capacity^2) worst case: each entry is inserted with an
+   *             \c O(N) slot shift, which also counts against constexpr step
+   *             limits for large \p Capacity.
    */
   constexpr static_flat_map(std::initializer_list<value_type> const init) noexcept {
     for (auto const& entry : init) {
@@ -363,6 +367,118 @@ public:
   }
 
   /**
+   * @brief Heterogeneous \c lower_bound for a key-comparable type \p K.
+   *
+   * Enabled only when \c Compare is transparent (exposes \c is_transparent, as
+   * \c std::less<> does), so a compatible lookup type (for example a
+   * \c std::string_view against \c std::string keys) is searched without
+   * constructing a \c Key.
+   *
+   * @tparam K Lookup type comparable with the keys through \c Compare.
+   * @param key Key to search for.
+   *
+   * @return An iterator to the first entry not ordered before \p key.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto lower_bound(K const& key) const noexcept -> const_iterator {
+    return std::lower_bound(begin(), end(), key, [this](value_type const& slot, K const& probe) {
+      return m_cmp(slot.first, probe);
+    });
+  }
+
+  /**
+   * @brief Heterogeneous \c upper_bound for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the keys through a transparent
+   *           \c Compare.
+   * @param key Key to search for.
+   *
+   * @return An iterator to the first entry ordered after \p key.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto upper_bound(K const& key) const noexcept -> const_iterator {
+    return std::upper_bound(begin(), end(), key, [this](K const& probe, value_type const& slot) {
+      return m_cmp(probe, slot.first);
+    });
+  }
+
+  /**
+   * @brief Heterogeneous \c find for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the keys through a transparent
+   *           \c Compare.
+   * @param key Key to search for.
+   *
+   * @return A const iterator to the matching entry, or \c end() when absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto find(K const& key) const noexcept -> const_iterator {
+    auto const pos{lower_bound(key)};
+    if (pos != end() && !m_cmp(key, pos->first)) {
+      return pos;
+    }
+    return end();
+  }
+
+  /**
+   * @brief Heterogeneous membership test for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the keys through a transparent
+   *           \c Compare.
+   * @param key Key to test.
+   *
+   * @return \c true when \p key is present.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto contains(K const& key) const noexcept -> bool {
+    return find(key) != end();
+  }
+
+  /**
+   * @brief Heterogeneous \c count for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the keys through a transparent
+   *           \c Compare.
+   * @param key Key to count.
+   *
+   * @return \c 1 when \p key is present, otherwise \c 0.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto count(K const& key) const noexcept -> size_type {
+    return contains(key) ? size_type{1} : size_type{0};
+  }
+
+  /**
    * @brief Checked access to the value for \p key.
    *
    * @param key Key whose value to access.
@@ -381,6 +497,27 @@ public:
 
   /// @copydoc at(Key const&)
   [[nodiscard]] constexpr auto at(Key const& key) const noexcept -> Value const* {
+    auto const pos{find(key)};
+    return pos == end() ? nullptr : std::addressof(pos->second);
+  }
+
+  /**
+   * @brief Heterogeneous checked access for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the keys through a transparent
+   *           \c Compare.
+   * @param key Key whose value to access.
+   *
+   * @return A pointer to the const mapped value, or \c nullptr when absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires requires { typename Compare::is_transparent; }
+  [[nodiscard]] constexpr auto at(K const& key) const noexcept -> Value const* {
     auto const pos{find(key)};
     return pos == end() ? nullptr : std::addressof(pos->second);
   }
@@ -468,8 +605,12 @@ public:
     if (m_size == Capacity) {
       return std::unexpected{container_error::full};
     }
+    // Materialise the entry before shift_right moves the slots: a key that
+    // aliases a mapped value at or past pos would otherwise be read after being
+    // moved from (the try_emplace hazard, guarded here too).
+    auto entry{value_type{key, std::move(value)}};
     shift_right(pos);
-    *pos = value_type{key, std::move(value)};
+    *pos = std::move(entry);
     ++m_size;
     return std::pair<iterator, bool>{pos, true};
   }
@@ -524,8 +665,14 @@ public:
     if (m_size == Capacity) {
       return std::unexpected{container_error::full};
     }
+    // Materialise the entry (key and value) before shift_right moves the active
+    // tail: an argument that references a mapped value stored at or past pos
+    // would otherwise be read after that slot has been moved from. Constructed
+    // only here, on the insertion path, so the construct-only-on-insert contract
+    // holds.
+    auto entry{value_type{key, Value(std::forward<Args>(args)...)}};
     shift_right(pos);
-    *pos = value_type{key, Value(std::forward<Args>(args)...)};
+    *pos = std::move(entry);
     ++m_size;
     return std::pair<iterator, bool>{pos, true};
   }
