@@ -47,6 +47,7 @@ template <
   typename HashRight = std::hash<Right>>
 class bimap {
 public:
+  using value_type = std::pair<Left, Right>;
   using left_type = Left;
   using right_type = Right;
   using size_type = std::size_t;
@@ -103,9 +104,13 @@ public:
   }
 
   /**
-   * @brief Pairs that fit without rehashing.
+   * @brief Slot count of the left-side index.
    *
-   * @return Current capacity of the left-side index.
+   * This is the raw slot count, not a no-rehash budget: a rehash triggers once
+   * occupied plus tombstones exceed 7/8 of the slots, so fewer than \c capacity()
+   * fresh pairs fit before one occurs.
+   *
+   * @return Current slot count of the left-side index.
    *
    * @pre None.
    * @post None. The bimap is not modified.
@@ -193,15 +198,19 @@ public:
    * Fails when either side already has a binding, since a partial insert would
    * break the two-sided uniqueness invariant.
    *
-   * @param left Left-side key, moved into the bimap on success.
-   * @param right Right-side key, moved into the bimap on success.
+   * @param left Left-side key; both arguments are taken by value and are consumed
+   *             even on failure, so a moved-in \p left is gone whatever the
+   *             result.
+   * @param right Right-side key; consumed on failure as well (see \p left).
    *
    * @return \c true on a fresh pair, \c false when either side was already bound
-   *         (no state is changed).
+   *         (the bimap's contents are unchanged, though the arguments are
+   *         consumed).
    *
    * @pre None.
    * @post On \c true both sides are bound and \c size() grew by one; on \c false
-   *       the bimap is unchanged.
+   *       the bimap's contents are unchanged. The by-value arguments are consumed
+   *       in either case.
    *
    * @complexity Amortised \c O(1).
    */
