@@ -46,6 +46,7 @@ namespace nexenne::container {
 template <std::unsigned_integral Key = std::uint32_t>
 class sparse_set {
 public:
+  using value_type = Key;
   using key_type = Key;
   using size_type = std::size_t;
   // The dense values are the keys, and mutating a key would break the sparse
@@ -100,10 +101,18 @@ public:
    *
    * @param k Key to insert.
    *
-   * @return \c true on a new insertion, \c false when \p k was already present.
+   * @return \c true on a new insertion, \c false when \p k was already present or
+   *         when \p k is the maximum representable value (rejected as unindexable,
+   *         see below); in the rejected case \p k remains absent.
    *
    * @pre None.
-   * @post \p k is present; on a new insertion \c size() grew by one.
+   * @post \p k is present unless it was rejected as the maximum representable
+   *       value; on a new insertion \c size() grew by one.
+   *
+   * @note A key equal to \c std::numeric_limits<size_type>::max() cannot be
+   *       indexed (it would need one more sparse slot than is representable) and
+   *       is rejected with \c false while remaining absent. For key types
+   *       narrower than \c size_type this case cannot arise.
    *
    * @complexity Amortised \c O(1).
    */
