@@ -367,4 +367,17 @@ TEST_CASE("nexenne::container::dense_map<Key, void> reserve, index_of, clear, sw
   CHECK(tags.empty());
 }
 
+TEST_CASE("nexenne::container::dense_map find(k)->second compiles via the proxy arrow") {
+  // [m19] The proxy iterator gained operator->, so the idiomatic map expression
+  // it->second now compiles instead of forcing (*it).second.
+  map_t m;
+  m.insert(2, 20);
+  auto it{m.find(2)};
+  REQUIRE(it != m.end());
+  CHECK(it->first == 2);
+  CHECK(it->second == 20);
+  it->second = 21;  // the arrow yields a live reference
+  CHECK(*m.at(2) == 21);
+}
+
 }  // namespace
