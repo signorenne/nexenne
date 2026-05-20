@@ -17,7 +17,9 @@
  * \c sparse_set, \c erase is swap-pop, so dense order shifts on an interior
  * removal (the last entry fills the gap); hold the key, not the index, across an
  * erase. The \c dense_map<Key, void> specialisation degrades to a thin wrapper
- * over \c sparse_set for tag components with no payload. Every operation is
+ * over \c sparse_set for tag components with no payload. \p Value must be movable
+ * (move-constructible and move-assignable), since \c erase and
+ * \c insert_or_assign move values between dense slots. Every operation is
  * \c noexcept; allocation failure terminates.
  */
 
@@ -46,7 +48,7 @@ namespace nexenne::container {
  * @post A default-constructed map is empty with no allocated storage.
  */
 template <std::unsigned_integral Key, typename Value>
-  requires std::is_void_v<Value> || std::move_constructible<Value>
+  requires std::is_void_v<Value> || std::movable<Value>
 class dense_map {
 public:
   using key_type = Key;
@@ -531,6 +533,31 @@ private:
 
     [[nodiscard]] constexpr auto operator*() const noexcept -> value_type {
       return value_type{m_map->m_set.keys()[m_pos], m_map->m_values[m_pos]};
+    }
+
+    /**
+     * @brief Member access to the \c (key, value&) entry.
+     *
+     * The dereferenced entry is a fresh proxy pair, so \c operator-> hands back a
+     * small wrapper that owns that pair and forwards \c -> to its address, the
+     * standard technique for a proxy iterator (letting \c it->second compile).
+     *
+     * @return A proxy whose \c operator-> yields a pointer to the entry.
+     *
+     * @pre The iterator is dereferenceable.
+     * @post None.
+     */
+    [[nodiscard]] constexpr auto operator->() const noexcept {
+      // Own the proxy pair by value so the returned pointer stays valid for the
+      // whole enclosing expression (the standard proxy-iterator arrow).
+      struct arrow_proxy {
+        value_type entry;
+
+        [[nodiscard]] constexpr auto operator->() noexcept -> value_type* {
+          return std::addressof(entry);
+        }
+      };
+      return arrow_proxy{**this};
     }
 
     constexpr auto operator++() noexcept -> basic_iterator& {
