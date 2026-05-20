@@ -5,6 +5,8 @@
 
 #include <doctest/doctest.h>
 
+#include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -310,6 +312,13 @@ TEST_CASE("nexenne::container::slot_map non-trivial string values, recycle keeps
   CHECK(*m.find(b) == std::string(40, 'b'));
   m.clear();  // destroys the rest
   CHECK(m.empty());
+}
+
+TEST_CASE("nexenne::container::slot_map max_size is capped by the index_type range") {
+  // [m20] A key encodes its slot as a 32-bit index, so the addressable slot
+  // count is bounded by index_type, not by the backing vector's max_size.
+  cn::slot_map<char> m;
+  CHECK(m.max_size() == std::numeric_limits<std::uint32_t>::max());
 }
 
 }  // namespace
