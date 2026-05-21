@@ -7,8 +7,10 @@
  * \c binary_tree<T, Compare> stores unique values in an unbalanced binary search
  * tree ordered by \p Compare. Each node owns its children through
  * \c std::unique_ptr and keeps a raw back-pointer to its parent, so the in-order
- * iterator walks to the successor without an auxiliary stack and destruction
- * cascades automatically. The tree is deliberately unbalanced: insert, lookup,
+ * iterator walks to the successor without an auxiliary stack. Teardown and deep
+ * copy run iteratively (over an explicit pending list), so a degenerate n-deep
+ * chain frees and clones without overflowing the call stack. The tree is
+ * deliberately unbalanced: insert, lookup,
  * and erase are \c O(log n) on random input but degrade to \c O(n) on sorted
  * input, so reach for a balanced structure when worst-case bounds matter. Its
  * niche is a simple, transparent BST whose explicit node graph is a feature, for
@@ -16,10 +18,10 @@
  *
  * The in-order iterator models \c std::forward_iterator and visits every element
  * once, ascending under \p Compare, so the standard algorithms and range-for work
- * directly. Child ownership through \c unique_ptr lets the destructor and move
- * operations be cheap (a move steals the whole graph in \c O(1)); only copy is
- * custom (a deep clone). Every operation is \c noexcept; allocation failure
- * terminates. Do not mutate an element's ordering key in place through an
+ * directly. Child ownership through \c unique_ptr lets a move steal the whole
+ * graph in \c O(1); teardown and copy are the two custom, iterative paths.
+ * Every operation is \c noexcept; allocation failure terminates. Do not mutate
+ * an element's ordering key in place through an
  * iterator, as that would break the search invariant.
  */
 
@@ -28,11 +30,13 @@
 #include <concepts>
 #include <cstddef>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace nexenne::container {
 
@@ -62,6 +66,29 @@ private:
 
     template <typename... Args>
     explicit constexpr node(Args&&... args) noexcept : value{std::forward<Args>(args)...} {}
+
+    // Tear descendants down iteratively. The default recursive unique_ptr
+    // destruction would overflow the stack on a degenerate n-deep chain (sorted
+    // input builds exactly such a chain). Every teardown path (the tree
+    // destructor, clear, and both assignments) reseats a node unique_ptr and so
+    // routes through here.
+    constexpr ~node() noexcept {
+      std::vector<std::unique_ptr<node>> pending;
+      auto detach{[&pending](node& n) noexcept {
+        if (n.left != nullptr) {
+          pending.push_back(std::move(n.left));
+        }
+        if (n.right != nullptr) {
+          pending.push_back(std::move(n.right));
+        }
+      }};
+      detach(*this);
+      while (!pending.empty()) {
+        auto victim{std::move(pending.back())};
+        pending.pop_back();
+        detach(*victim);  // victim then destructs with no children, so O(1)
+      }
+    }
   };
 
   using node_ptr = std::unique_ptr<node>;
@@ -162,6 +189,45 @@ public:
    * @post \c empty() is \c true and the stored comparator is \p cmp.
    */
   explicit constexpr binary_tree(Compare cmp) noexcept : m_cmp{std::move(cmp)} {}
+
+  /**
+   * @brief Constructs a tree from an initializer list of values.
+   *
+   * @param init Values to insert; duplicates under \p cmp are ignored.
+   * @param cmp Strict-weak ordering comparator to store.
+   *
+   * @pre None.
+   * @post The tree holds one node per distinct value in \p init.
+   *
+   * @complexity \c O(n h), where \c h is the running tree height.
+   */
+  constexpr binary_tree(std::initializer_list<T> const init, Compare cmp = Compare{}) noexcept
+      : m_cmp{std::move(cmp)} {
+    for (auto const& value : init) {
+      insert(value);
+    }
+  }
+
+  /**
+   * @brief Constructs a tree from the range \c [first, last).
+   *
+   * @tparam It Input iterator type over values convertible to \p T.
+   * @param first Iterator to the first source value.
+   * @param last Iterator one past the last source value.
+   * @param cmp Strict-weak ordering comparator to store.
+   *
+   * @pre \c [first, last) is a valid range.
+   * @post The tree holds one node per distinct value in the range.
+   *
+   * @complexity \c O(n h), where \c h is the running tree height.
+   */
+  template <std::input_iterator It>
+  constexpr binary_tree(It first, It const last, Compare cmp = Compare{}) noexcept
+      : m_cmp{std::move(cmp)} {
+    for (; first != last; ++first) {
+      insert(*first);
+    }
+  }
 
   ~binary_tree() noexcept = default;
 
@@ -370,8 +436,10 @@ public:
    * @complexity \c O(h), where \c h is the tree height.
    */
   template <typename... Args>
+    requires std::constructible_from<T, Args...>
   constexpr auto emplace(Args&&... args) noexcept -> bool {
-    return emplace_impl(T(std::forward<Args>(args)...));
+    T value{std::forward<Args>(args)...};
+    return emplace_impl(std::move(value));
   }
 
   /**
@@ -534,8 +602,10 @@ public:
    *
    * @complexity \c O(n).
    */
-  [[nodiscard]] friend auto
-  operator==(binary_tree const& a, binary_tree const& b) noexcept -> bool {
+  [[nodiscard]] friend constexpr auto
+  operator==(binary_tree const& a, binary_tree const& b) noexcept -> bool
+    requires std::equality_comparable<T>
+  {
     return a.m_size == b.m_size && std::equal(a.begin(), a.end(), b.begin(), b.end());
   }
 
@@ -553,21 +623,22 @@ public:
    *
    * @complexity \c O(n).
    */
-  [[nodiscard]] friend auto operator<=>(binary_tree const& a, binary_tree const& b) noexcept
+  [[nodiscard]] friend constexpr auto
+  operator<=>(binary_tree const& a, binary_tree const& b) noexcept
     requires std::three_way_comparable<T>
   {
     return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
   }
 
 private:
-  static auto leftmost(node* n) noexcept -> node* {
+  static constexpr auto leftmost(node* n) noexcept -> node* {
     while (n != nullptr && n->left != nullptr) {
       n = n->left.get();
     }
     return n;
   }
 
-  static auto leftmost(node const* n) noexcept -> node const* {
+  static constexpr auto leftmost(node const* n) noexcept -> node const* {
     while (n != nullptr && n->left != nullptr) {
       n = n->left.get();
     }
@@ -683,15 +754,33 @@ private:
     transplant(z_slot, z_parent, std::move(y_owned));
   }
 
-  static auto clone_subtree(node const* const src, node* const parent) noexcept -> node_ptr {
+  // Iterative pre-order deep clone over a stack of (source, freshly-made
+  // destination) pairs, so a degenerate n-deep source cannot overflow the stack.
+  // Parent back-pointers are wired as each child is created.
+  static constexpr auto clone_subtree(node const* const src, node* const parent) noexcept
+    -> node_ptr {
     if (src == nullptr) {
       return nullptr;
     }
-    auto fresh{std::make_unique<node>(src->value)};
-    fresh->parent = parent;
-    fresh->left = clone_subtree(src->left.get(), fresh.get());
-    fresh->right = clone_subtree(src->right.get(), fresh.get());
-    return fresh;
+    auto root{std::make_unique<node>(src->value)};
+    root->parent = parent;
+    std::vector<std::pair<node const*, node*>> work;
+    work.emplace_back(src, root.get());
+    while (!work.empty()) {
+      auto const [s, d]{work.back()};
+      work.pop_back();
+      if (s->left != nullptr) {
+        d->left = std::make_unique<node>(s->left->value);
+        d->left->parent = d;
+        work.emplace_back(s->left.get(), d->left.get());
+      }
+      if (s->right != nullptr) {
+        d->right = std::make_unique<node>(s->right->value);
+        d->right->parent = d;
+        work.emplace_back(s->right.get(), d->right.get());
+      }
+    }
+    return root;
   }
 };
 
