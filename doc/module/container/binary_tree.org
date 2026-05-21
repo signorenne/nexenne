@@ -27,10 +27,12 @@ sorted input that grows a degenerate "linked list" tree.
 ** Node layout: owned children, raw parent
 
 Each node holds its value, two =std::unique_ptr= children, and a *raw* pointer
-back to its parent. Owning children through =unique_ptr= means destruction
-cascades automatically and a move steals the whole graph in =O(1)=, while the raw
-parent pointer (non-owning, so no cycle) lets the iterator climb to a successor
-without an auxiliary stack.
+back to its parent. Owning children through =unique_ptr= makes a move steal the
+whole graph in =O(1)=, while the raw parent pointer (non-owning, so no cycle)
+lets the iterator climb to a successor without an auxiliary stack. Teardown and
+deep copy are done *iteratively* (over an explicit pending list), not by the
+recursive =unique_ptr= cascade, so a degenerate n-deep chain frees and clones
+without overflowing the call stack.
 
 #+BEGIN_EXAMPLE
 insert order 5, 2, 8, 1, 3:
@@ -95,10 +97,11 @@ erase 50 (two children); successor is 55, buried as leftmost of the right subtre
 
 ** Copy clones, move steals
 
-A copy deep-clones the source recursively (each node duplicated with fresh parent
-links), so two trees never share nodes. A move transfers the root =unique_ptr= and
-the size in =O(1)=, leaving the source empty. The destructor is defaulted: letting
-the root =unique_ptr= go cascades the whole subtree.
+A copy deep-clones the source iteratively (a work stack of source/destination
+pairs, each node duplicated with fresh parent links), so two trees never share
+nodes. A move transfers the root =unique_ptr= and the size in =O(1)=, leaving the
+source empty. Teardown also runs iteratively: the node destructor hoists each
+child into a pending list and frees it there, so a deep chain never recurses.
 
 * Complexity
 
@@ -134,9 +137,11 @@ Prefer a sibling when:
 
 Things to keep in mind:
 
-- *It is unbalanced.* Inserting already-sorted data builds an O(n)-deep chain;
-  lookups and even destruction then recurse that deep. Shuffle adversarial input
-  or pick a different structure.
+- *It is unbalanced.* Inserting already-sorted data builds an O(n)-deep chain, so
+  insert, lookup, and erase degrade to O(n). Lookup, insertion, erasure, and
+  in-order iteration are all iterative loops, and teardown and deep copy are
+  iterative too, so none of them overflow the stack on a deep chain; the cost is
+  purely the O(n) depth. Shuffle adversarial input or pick a different structure.
 - *Do not mutate an element's ordering key in place* through an iterator: it would
   violate the search invariant and corrupt later lookups. Erase and re-insert
   instead.
