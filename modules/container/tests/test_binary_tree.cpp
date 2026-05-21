@@ -400,4 +400,57 @@ TEST_CASE("nexenne::container::binary_tree differential against std::set under r
   CHECK(to_vector(t) == std::vector<int>(ref.begin(), ref.end()));
 }
 
+TEST_CASE("nexenne::container::binary_tree tears down and clones a deep chain iteratively") {
+  // M1: sorted inserts build an n-deep right chain. A recursive destructor or a
+  // recursive clone_subtree overflows the stack at this depth (a recursive
+  // version SIGSEGVs here); the iterative teardown and clone must not.
+  constexpr int n{100000};
+  auto tree{std::make_unique<tree_t>()};
+  for (int i{0}; i < n; ++i) {
+    tree->insert(i);
+  }
+  CHECK(tree->size() == static_cast<std::size_t>(n));
+
+  tree_t copy{*tree};  // iterative deep clone of an n-deep chain
+  CHECK(copy.size() == static_cast<std::size_t>(n));
+  CHECK(copy == *tree);
+
+  tree.reset();  // iterative teardown of the original
+  CHECK(copy.contains(n - 1));
+  copy.clear();  // iterative teardown again
+  CHECK(copy.empty());
+}
+
+// m8: the advertised constexpr surface must actually be constant-evaluable,
+// including copy, begin(), and a two-child erase.
+consteval auto consteval_binary_tree_probe() -> bool {
+  tree_t t{};
+  t.insert(5);
+  t.insert(3);
+  t.insert(8);
+  t.insert(1);
+  t.insert(4);
+  t.emplace(9);
+  tree_t copy{t};                    // constexpr deep clone
+  auto const first{*copy.begin()};   // constexpr leftmost
+  bool const erased{copy.erase(3)};  // 3 has two children (1 and 4)
+  bool const eq{t == t};
+  return first == 1 && erased && eq && copy.size() == 5 && t.size() == 6;
+}
+static_assert(consteval_binary_tree_probe());
+
+TEST_CASE("nexenne::container::binary_tree constructs from initializer list and range") {
+  // m9: std::set-like initializer_list and (first, last) constructors.
+  tree_t t{5, 3, 8, 1, 4, 3};  // duplicate 3 ignored
+  CHECK(t.size() == 5);
+  CHECK(to_vector(t) == std::vector<int>{1, 3, 4, 5, 8});
+
+  std::vector<int> const src{7, 2, 9};
+  tree_t r(src.begin(), src.end());
+  CHECK(to_vector(r) == std::vector<int>{2, 7, 9});
+}
+
+// m10: emplace is constrained on std::constructible_from<T, Args...>.
+static_assert(requires(tree_t t) { t.emplace(1); });
+
 }  // namespace
