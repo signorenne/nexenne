@@ -21,12 +21,14 @@
  * terminates.
  */
 
+#include <concepts>
 #include <cstddef>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <ranges>
 #include <span>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -35,6 +37,33 @@
 #include <nexenne/utility/discard.hpp>
 
 namespace nexenne::container {
+
+namespace detail {
+
+/// A standard character type for which a trailing NUL terminator is a convention.
+template <typename C>
+concept trie_character = std::same_as<C, char> || std::same_as<C, wchar_t>
+                         || std::same_as<C, char8_t> || std::same_as<C, char16_t>
+                         || std::same_as<C, char32_t>;
+
+/**
+ * @brief A key acceptable to a \c trie<Char, Value>.
+ *
+ * Either a forward range of integral tokens convertible to \p Char, or (when
+ * \p Char is a character type) a raw pointer to \p Char treated as a
+ * null-terminated string. Raw character arrays match the range arm; the trie
+ * drops their trailing terminator so a literal key agrees with the equivalent
+ * \c std::string_view.
+ */
+template <typename R, typename Char>
+concept trie_key =
+  (std::ranges::forward_range<R>
+   && std::integral<std::remove_cvref_t<std::ranges::range_value_t<R>>>
+   && std::convertible_to<std::ranges::range_reference_t<R>, Char>)
+  || (trie_character<Char> && std::is_pointer_v<std::remove_cvref_t<R>>
+      && std::same_as<std::remove_cv_t<std::remove_pointer_t<std::remove_cvref_t<R>>>, Char>);
+
+}  // namespace detail
 
 /**
  * @brief Prefix-keyed map over sequences of \p Char.
@@ -245,7 +274,8 @@ public:
   /**
    * @brief Stores \p value at \p key, replacing any existing value there.
    *
-   * @tparam KeyRange A forward range whose elements convert to \p Char.
+   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+   *         array treated as a null-terminated string.
    * @param key Sequence of characters forming the key.
    * @param value Value to store, moved in.
    *
@@ -258,10 +288,11 @@ public:
    *
    * @complexity \c O(k log a), for key length \c k and per-node alphabet \c a.
    */
-  template <std::ranges::forward_range KeyRange>
+  template <typename KeyRange>
+    requires detail::trie_key<KeyRange, Char>
   constexpr auto insert(KeyRange&& key, Value value) noexcept -> bool {
     auto* cur{m_root.get()};
-    for (auto const& c : key) {
+    for (auto const& c : key_span(std::forward<KeyRange>(key))) {
       auto const uc{static_cast<uchar_type>(c)};
       if (auto* const slot{cur->children.at(uc)}) {
         cur = slot->get();
@@ -283,7 +314,8 @@ public:
   /**
    * @brief Erases the value at \p key, pruning now-empty internal nodes.
    *
-   * @tparam KeyRange A forward range whose elements convert to \p Char.
+   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+   *         array treated as a null-terminated string.
    * @param key Sequence of characters forming the key.
    *
    * @return \c true on a removal, \c false when the key was absent.
@@ -292,15 +324,17 @@ public:
    * @post On \c true the value at \p key is gone, \c size() shrank by one, and
    *       now-empty internal nodes are pruned; otherwise the trie is unchanged.
    *
-   * @complexity \c O(k log a) to find plus \c O(total nodes) to prune.
+   * @complexity \c O(k log a), for key length \c k and per-node alphabet \c a:
+   *             the descent finds the node and pruning walks only its own path.
    */
-  template <std::ranges::forward_range KeyRange>
+  template <typename KeyRange>
+    requires detail::trie_key<KeyRange, Char>
   constexpr auto erase(KeyRange&& key) noexcept -> bool {
     // Record the (parent, edge) pairs along the descent so a removal can prune
     // back up its own path in O(k) instead of rescanning the whole trie.
     std::vector<std::pair<node*, uchar_type>> path;
     auto* cur{m_root.get()};
-    for (auto const& c : key) {
+    for (auto const& c : key_span(std::forward<KeyRange>(key))) {
       auto const uc{static_cast<uchar_type>(c)};
       auto* const slot{cur->children.at(uc)};
       if (slot == nullptr) {
@@ -330,7 +364,8 @@ public:
   /**
    * @brief Whether the trie holds a value at \p key.
    *
-   * @tparam KeyRange A forward range whose elements convert to \p Char.
+   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+   *         array treated as a null-terminated string.
    * @param key Sequence of characters forming the key.
    *
    * @return \c true when a value is stored at \p key.
@@ -340,7 +375,8 @@ public:
    *
    * @complexity \c O(k log a).
    */
-  template <std::ranges::forward_range KeyRange>
+  template <typename KeyRange>
+    requires detail::trie_key<KeyRange, Char>
   [[nodiscard]] constexpr auto contains(KeyRange&& key) const noexcept -> bool {
     auto const* const n{descend(key)};
     return n != nullptr && n->value.has_value();
@@ -349,7 +385,8 @@ public:
   /**
    * @brief Pointer to the value at \p key, or \c nullptr on a miss.
    *
-   * @tparam KeyRange A forward range whose elements convert to \p Char.
+   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+   *         array treated as a null-terminated string.
    * @param key Sequence of characters forming the key.
    *
    * @return Pointer to the stored value, or \c nullptr when \p key is absent.
@@ -360,7 +397,8 @@ public:
    *
    * @complexity \c O(k log a).
    */
-  template <std::ranges::forward_range KeyRange>
+  template <typename KeyRange>
+    requires detail::trie_key<KeyRange, Char>
   [[nodiscard]] constexpr auto find(KeyRange&& key) noexcept -> Value* {
     auto* const n{descend(key)};
     if (n == nullptr || !n->value.has_value()) {
@@ -372,7 +410,8 @@ public:
   /**
    * @brief Pointer to the const value at \p key, or \c nullptr on a miss.
    *
-   * @tparam KeyRange A forward range whose elements convert to \p Char.
+   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+   *         array treated as a null-terminated string.
    * @param key Sequence of characters forming the key.
    *
    * @return Pointer to the stored const value, or \c nullptr when \p key is
@@ -384,7 +423,8 @@ public:
    *
    * @complexity \c O(k log a).
    */
-  template <std::ranges::forward_range KeyRange>
+  template <typename KeyRange>
+    requires detail::trie_key<KeyRange, Char>
   [[nodiscard]] constexpr auto find(KeyRange&& key) const noexcept -> Value const* {
     auto const* const n{descend(key)};
     if (n == nullptr || !n->value.has_value()) {
@@ -396,19 +436,22 @@ public:
   /**
    * @brief Whether at least one stored key begins with \p prefix.
    *
-   * @tparam KeyRange A forward range whose elements convert to \p Char.
+   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+   *         array treated as a null-terminated string.
    * @param prefix Sequence of characters forming the prefix.
    *
-   * @return \c true when some stored key starts with \p prefix.
+   * @return \c true when some stored key starts with \p prefix; always \c false
+   *         on an empty trie, including for an empty prefix.
    *
    * @pre None.
    * @post None. The trie is not modified.
    *
    * @complexity \c O(k log a) in the prefix length.
    */
-  template <std::ranges::forward_range KeyRange>
+  template <typename KeyRange>
+    requires detail::trie_key<KeyRange, Char>
   [[nodiscard]] constexpr auto starts_with(KeyRange&& prefix) const noexcept -> bool {
-    return descend(prefix) != nullptr;
+    return m_size != 0 && descend(std::forward<KeyRange>(prefix)) != nullptr;
   }
 
   /**
@@ -424,6 +467,7 @@ public:
    * @complexity \c O(total nodes).
    */
   template <typename Visitor>
+    requires std::invocable<Visitor&, std::span<Char const>, Value&>
   constexpr auto for_each(Visitor&& visit) -> void {
     std::vector<Char> path;
     for_each_impl(m_root.get(), path, visit);
@@ -442,9 +486,10 @@ public:
    * @complexity \c O(total nodes).
    */
   template <typename Visitor>
+    requires std::invocable<Visitor&, std::span<Char const>, Value const&>
   constexpr auto for_each(Visitor&& visit) const -> void {
     std::vector<Char> path;
-    for_each_impl(m_root.get(), path, visit);
+    for_each_impl(static_cast<node const*>(m_root.get()), path, visit);
   }
 
   /**
@@ -460,7 +505,7 @@ public:
    *
    * @complexity \c O(total nodes).
    */
-  [[nodiscard]] friend auto operator==(trie const& a, trie const& b) noexcept -> bool
+  [[nodiscard]] friend constexpr auto operator==(trie const& a, trie const& b) noexcept -> bool
     requires std::equality_comparable<Value>
   {
     return a.m_size == b.m_size && nodes_equal(a.m_root.get(), b.m_root.get());
@@ -469,16 +514,18 @@ public:
 private:
   // Iterative pre-order DFS. Each frame tracks the next child to descend into and
   // whether it pushed a path character (the root pushes none), so the key path is
-  // unwound correctly without recursing to the trie depth. Both for_each
-  // overloads reach here with a node* (unique_ptr::get is non-const-propagating).
-  template <typename Visitor>
-  static auto for_each_impl(node* const root, std::vector<Char>& path, Visitor& visit) -> void {
+  // unwound correctly without recursing to the trie depth. Templated on the node
+  // pointer type (node* or node const*) so the const for_each overload propagates
+  // constness to the visited value, which unique_ptr::get does not do on its own.
+  template <typename NodePtr, typename Visitor>
+  static constexpr auto
+  for_each_impl(NodePtr const root, std::vector<Char>& path, Visitor& visit) -> void {
     if (root == nullptr) {
       return;
     }
 
     struct frame {
-      node* n;
+      NodePtr n;
       std::size_t idx;
       bool pushed;
     };
@@ -494,7 +541,7 @@ private:
         auto& entry{*(top.n->children.begin() + static_cast<std::ptrdiff_t>(top.idx))};
         ++top.idx;
         path.push_back(static_cast<Char>(entry.first));
-        auto* const child{entry.second.get()};
+        auto* const child{static_cast<NodePtr>(entry.second.get())};
         if (child->value.has_value()) {
           visit(std::span<Char const>{path.data(), path.size()}, *child->value);
         }
@@ -509,7 +556,8 @@ private:
     }
   }
 
-  static auto nodes_equal(node const* const root_a, node const* const root_b) noexcept -> bool {
+  static constexpr auto
+  nodes_equal(node const* const root_a, node const* const root_b) noexcept -> bool {
     // Iterative structural comparison over a stack of node pairs to compare.
     std::vector<std::pair<node const*, node const*>> work;
     work.emplace_back(root_a, root_b);
@@ -542,10 +590,29 @@ private:
     return true;
   }
 
-  template <std::ranges::forward_range KeyRange>
+  // Normalize a key argument into something iterable whose elements are the key
+  // tokens. A character array or pointer is treated as a null-terminated string
+  // (the trailing terminator is dropped), so a string literal agrees with the
+  // equivalent std::string_view; every other range is forwarded unchanged.
+  template <typename KeyRange>
+  [[nodiscard]] static constexpr auto key_span(KeyRange&& key) noexcept -> decltype(auto) {
+    using bare = std::remove_cvref_t<KeyRange>;
+    if constexpr (detail::trie_character<Char> && std::is_bounded_array_v<bare>
+                  && std::same_as<std::remove_cv_t<std::remove_extent_t<bare>>, Char>) {
+      constexpr auto n{std::extent_v<bare>};
+      return std::span<Char const>{std::ranges::data(key), n == 0 ? std::size_t{0} : n - 1};
+    } else if constexpr (detail::trie_character<Char> && std::is_pointer_v<bare>) {
+      return std::basic_string_view<Char>{key};
+    } else {
+      return static_cast<KeyRange&&>(key);
+    }
+  }
+
+  template <typename KeyRange>
+    requires detail::trie_key<KeyRange, Char>
   [[nodiscard]] constexpr auto descend(KeyRange&& key) noexcept -> node* {
     auto* cur{m_root.get()};
-    for (auto const& c : key) {
+    for (auto const& c : key_span(std::forward<KeyRange>(key))) {
       auto const uc{static_cast<uchar_type>(c)};
       auto* const slot{cur->children.at(uc)};
       if (slot == nullptr) {
@@ -556,10 +623,11 @@ private:
     return cur;
   }
 
-  template <std::ranges::forward_range KeyRange>
+  template <typename KeyRange>
+    requires detail::trie_key<KeyRange, Char>
   [[nodiscard]] constexpr auto descend(KeyRange&& key) const noexcept -> node const* {
     auto const* cur{m_root.get()};
-    for (auto const& c : key) {
+    for (auto const& c : key_span(std::forward<KeyRange>(key))) {
       auto const uc{static_cast<uchar_type>(c)};
       auto const* const slot{cur->children.at(uc)};
       if (slot == nullptr) {
@@ -570,7 +638,7 @@ private:
     return cur;
   }
 
-  static auto clone_subtree(node const* const src) noexcept -> std::unique_ptr<node> {
+  static constexpr auto clone_subtree(node const* const src) noexcept -> std::unique_ptr<node> {
     if (src == nullptr) {
       return nullptr;
     }
