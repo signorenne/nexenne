@@ -6,7 +6,7 @@
 
 =nexenne::container::graph<E, Vertex>= is a directed graph stored as an adjacency
 list: vertices are dense integer ids, and each vertex owns a contiguous list of
-outgoing edges, each edge carrying a target vertex and an optional payload \c E
+outgoing edges, each edge carrying a target vertex and an optional payload =E=
 (a weight, a label, or nothing). It stores *topology and payload only*; adding a
 vertex, adding or removing an edge, and querying degree or adjacency are all the
 operations, and the views it exposes (=edges_of=, =neighbors=, =vertices=) plug
@@ -28,8 +28,8 @@ contiguous =std::span= / lazy views so the standard algorithms apply directly.
 
 The graph holds =m_adjacency=, a =vector= indexed by vertex id, where each
 element is the =vector= of that vertex's outgoing edges, plus a running
-=m_edge_count=. An edge record is the target vertex and (unless \c E is \c void) a
-payload; the \c void case specialises the record down to just the target, so a
+=m_edge_count=. An edge record is the target vertex and (unless =E= is =void=) a
+payload; the =void= case specialises the record down to just the target, so a
 payload-free graph carries no per-edge overhead beyond the id.
 
 #+BEGIN_EXAMPLE
@@ -90,7 +90,7 @@ until the next mutation of the underlying list.
 | operator==                             | O(V + E)          |
 
 Memory is =O(V + E)=: the per-vertex vectors plus their edges. A payload-free
-graph (\c E = \c void) stores only a target id per edge. =operator== compares the
+graph (=E= = =void=) stores only a target id per edge. =operator== compares the
 adjacency lists *positionally*, so two graphs are equal only when each vertex's
 edges were added in the same order, not merely as the same set.
 
@@ -125,7 +125,7 @@ Things to keep in mind:
 #+BEGIN_SRC cpp
 nexenne::container::graph<int> g{4};   // 4 vertices, int edge payload
 
-static_cast<void>(g.add_edge(0, 1, 5));   // O(1), out_of_range on a bad id
+nexenne::utility::discard(g.add_edge(0, 1, 5));   // O(1), out_of_range on a bad id
 for (auto const& e : g.edges_of(0)) { visit(e.target, e.data); }  // span
 for (auto const n : g.neighbors(0)) { visit(n); }                 // target ids
 #+END_SRC
