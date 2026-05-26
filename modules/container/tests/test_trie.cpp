@@ -158,7 +158,7 @@ TEST_CASE("nexenne::container::trie the empty trie") {
   CHECK(t.find("x"s) == nullptr);
   CHECK_FALSE(t.contains("x"s));
   CHECK_FALSE(t.erase("x"s));
-  CHECK(t.starts_with(""s));  // empty prefix always matches the root
+  CHECK_FALSE(t.starts_with(""s));  // an empty trie has no key with any prefix
   CHECK_FALSE(t.starts_with("a"s));
   CHECK_FALSE(t.contains(""s));  // no value stored at the empty key
   CHECK(trie_t::max_size() > 0);
@@ -415,5 +415,60 @@ TEST_CASE("nexenne::container::trie deep keys do not overflow the stack") {
     CHECK(copy != t);
   }  // iterative destructors run here
 }
+
+TEST_CASE("nexenne::container::trie string-literal and pointer keys drop the trailing NUL") {
+  // M2: a char[N] literal or char const* key is treated as a null-terminated
+  // string, so it agrees with the equivalent std::string_view rather than
+  // silently including the terminator and splitting the key space.
+  trie_t t;
+  CHECK(t.insert("hello", 1));  // char[6] literal, not "hello"s
+  CHECK(t.size() == 1);
+  CHECK(t.contains(std::string_view{"hello"}));
+  CHECK(t.contains("hello"));
+  CHECK(*t.find("hello") == 1);
+  char const* const p{"hello"};
+  CHECK(t.contains(p));  // char const* key
+  CHECK_FALSE(t.contains(std::string_view{"hell"}));
+}
+
+// M3: the const for_each overload must hand the visitor a Value const&, so a
+// mutating visitor is not callable through a const trie (constness propagates).
+template <typename Trie, typename Visitor>
+concept for_each_callable = requires(Trie t, Visitor v) { t.for_each(v); };
+using mutating_visitor = decltype([](std::span<char const>, int& v) { v += 1; });
+using reading_visitor = decltype([](std::span<char const>, int const&) {});
+static_assert(for_each_callable<trie_t&, mutating_visitor>);
+static_assert(!for_each_callable<trie_t const&, mutating_visitor>);
+static_assert(for_each_callable<trie_t const&, reading_visitor>);
+
+// m15: a key range whose elements are not integral (a range of double) is
+// rejected rather than silently truncated into the trie.
+template <typename Trie, typename Key>
+concept trie_insertable = requires(Trie t, Key k) { t.insert(k, 0); };
+static_assert(trie_insertable<trie_t&, std::string>);
+static_assert(!trie_insertable<trie_t&, std::vector<double>>);
+
+TEST_CASE("nexenne::container::trie const for_each reads values without mutating") {
+  trie_t t;
+  CHECK(t.insert("ab"s, 2));
+  CHECK(t.insert("abc"s, 5));
+  trie_t const& ct{t};
+  int sum{0};
+  ct.for_each([&sum](std::span<char const>, int const& v) { sum += v; });
+  CHECK(sum == 7);
+}
+
+// m14: the advertised constexpr copy and traversal must be constant-evaluable.
+consteval auto consteval_trie_probe() -> bool {
+  trie_t t;
+  t.insert(std::string_view{"ab"}, 1);
+  t.insert(std::string_view{"abc"}, 2);
+  trie_t copy{t};  // constexpr deep clone
+  int sum{0};
+  copy.for_each([&sum](std::span<char const>, int const& v) { sum += v; });
+  bool const eq{t == copy};
+  return sum == 3 && eq && copy.size() == 2;
+}
+static_assert(consteval_trie_probe());
 
 }  // namespace
