@@ -404,4 +404,53 @@ TEST_CASE("nexenne::container::intrusive_list reverse iterator over a populated 
   CHECK(reverse == std::vector{4, 3, 2, 1});
 }
 
+// A hook-carrying element whose comparison is NOT noexcept, to pin m20: the
+// list's operator== / operator<=> must be conditionally noexcept on T's own
+// comparison rather than unconditionally noexcept.
+struct throwing_node : cn::intrusive_list_hook<throwing_node> {
+  int value;
+
+  explicit throwing_node(int v) noexcept : value{v} {}
+
+  friend auto operator==(throwing_node const& a, throwing_node const& b) -> bool {
+    return a.value == b.value;
+  }
+
+  friend auto
+  operator<=>(throwing_node const& a, throwing_node const& b) -> std::strong_ordering {
+    return a.value <=> b.value;
+  }
+};
+
+static_assert(noexcept(std::declval<cn::intrusive_list<node> const&>()
+                       == std::declval<cn::intrusive_list<node> const&>()));
+static_assert(!noexcept(std::declval<cn::intrusive_list<throwing_node> const&>()
+                        == std::declval<cn::intrusive_list<throwing_node> const&>()));
+
+TEST_CASE("nexenne::container::intrusive_list move-assign after detaching preserves the ring") {
+  // M4: the fix is a debug assert against move-assigning onto a still-linked
+  // element (an aborting precondition, not catchable here). The documented
+  // correct usage, detaching first, must keep the ring and size consistent.
+  cn::intrusive_list<node> lst;
+  node a{1};
+  node b{2};
+  node c{3};
+  lst.push_back(a);
+  lst.push_back(c);
+  lst.erase(a);      // detach a before moving onto it
+  a = std::move(b);  // safe: a is unlinked, so the hook precondition holds
+  CHECK(a.value == 2);
+  CHECK_FALSE(a.is_linked());
+  CHECK(lst.size() == 1);
+  REQUIRE(lst.front() != nullptr);
+  CHECK(lst.front()->value == 3);
+  // The ring is still walkable end to end (no null-node corruption).
+  int seen{0};
+  for (auto it{lst.begin()}; it != lst.end(); ++it) {
+    ++seen;
+  }
+  CHECK(seen == 1);
+  lst.clear();
+}
+
 }  // namespace
