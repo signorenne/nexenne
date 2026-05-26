@@ -135,17 +135,21 @@ Gotchas:
 - *Ownership is yours.* The list destroys nothing, not even in its destructor; it
   only detaches. An element must outlive its membership, and you must unlink it
   (or destroy the list) before freeing the element's storage, or the ring points
-  into freed memory.
+  into freed memory. Destroying an element while it is still linked is a checked
+  precondition: the hook destructor asserts =!is_linked()= in debug builds.
 - *One list at a time.* The hook holds a single link pair, so pushing an element
-  that is already linked corrupts both lists (the precondition is "not already
-  linked", and =insert= does not check it). If an element must belong to several
-  lists at once, give it several hooks, one per role, by deriving through distinct
-  hook bases.
-- *Moving an element detaches it.* The list stores the element's *address*. A
-  moved-to element is left unlinked (so it silently drops out of any list you
-  expected it in), and moving a still-linked element leaves the list pointing at
-  the old, now-vacated address, a dangling ring. Detach (=erase=) before moving
-  the element, or simply do not move linked elements.
+  that is already linked would corrupt both lists (it detaches whatever it used to
+  precede and double-counts the size). The precondition is "not already linked",
+  and =insert= now asserts it in debug builds, mirroring =erase=. If an element
+  must belong to several lists at once, give it several hooks, one per role, by
+  deriving through distinct hook bases.
+- *Moving an element detaches the moved-to hook.* The list stores the element's
+  *address*, so after a move-construction the moved-to element is left unlinked
+  (it is in no list). Move-assigning *onto* an element that is still linked is a
+  checked precondition (a debug assert): its neighbours would keep routing through
+  it into now-null links, a corrupt ring the hook cannot repair because it cannot
+  reach the owning list's size counter. Detach (=erase=) before moving, or simply
+  do not move linked elements.
 - *Stable otherwise.* Elements never relocate on insert or erase, so pointers,
   references, and iterators to *other* elements stay valid across any number of
   inserts and erases; only the iterator to the element you erased is invalidated.
