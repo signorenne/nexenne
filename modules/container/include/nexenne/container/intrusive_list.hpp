@@ -35,6 +35,7 @@
 #include <limits>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 #include <nexenne/utility/discard.hpp>
 
@@ -62,6 +63,14 @@ private:
 public:
   constexpr intrusive_list_hook() noexcept = default;
 
+  // Debug guard: destroying an element while it is still linked leaves its
+  // neighbours pointing into freed storage and the owning list's size stale, so
+  // the next traversal or erase is undefined. The hook cannot unlink itself (it
+  // cannot reach the owning list's size counter), so it can only assert.
+  constexpr ~intrusive_list_hook() noexcept {
+    assert(!is_linked() && "destroying an element still linked into a list");
+  }
+
   intrusive_list_hook(intrusive_list_hook const&) = delete;
   auto operator=(intrusive_list_hook const&) -> intrusive_list_hook& = delete;
 
@@ -70,7 +79,12 @@ public:
   // its list before moving the element, or the list dangles at the old address.
   constexpr intrusive_list_hook(intrusive_list_hook&&) noexcept {}
 
+  // Precondition: the target must not itself be linked. Nulling the links of a
+  // still-linked target severs the ring one hop past it (its neighbours still
+  // route through it into now-null links), which the hook cannot repair because
+  // it cannot decrement the owning list's size. Unlink the target first.
   constexpr auto operator=(intrusive_list_hook&&) noexcept -> intrusive_list_hook& {
+    assert(!is_linked() && "move-assigning onto an element still linked into a list");
     m_prev = nullptr;
     m_next = nullptr;
     return *this;
@@ -269,6 +283,11 @@ public:
    */
   constexpr ~intrusive_list() noexcept {
     clear();
+    // The sentinel is deliberately self-linked while the list is alive; null its
+    // links before it is destroyed so the hook's own "still linked" debug guard
+    // (which fires for genuine elements) does not trip on the sentinel.
+    m_sentinel.m_prev = nullptr;
+    m_sentinel.m_next = nullptr;
   }
 
   /**
@@ -373,6 +392,10 @@ public:
    */
   constexpr auto insert(const_iterator const it, T& value) noexcept -> iterator {
     auto* const fresh{static_cast<hook_type*>(std::addressof(value))};
+    assert(
+      fresh->m_prev == nullptr && fresh->m_next == nullptr
+      && "inserting an element already linked into a list"
+    );
     auto* const next{const_cast<hook_type*>(it.m_node)};
     auto* const prev{next->m_prev};
     link(prev, fresh);
@@ -449,6 +472,7 @@ public:
    * @complexity \c O(1).
    */
   constexpr auto erase(const_iterator const it) noexcept -> iterator {
+    assert(it.m_node != sentinel() && "erasing end()");
     auto* const node{const_cast<hook_type*>(it.m_node)};
     auto* const next{node->m_next};
     erase(static_cast<T&>(*node));
@@ -593,7 +617,9 @@ public:
    * @post None.
    */
   [[nodiscard]] friend constexpr auto
-  operator==(intrusive_list const& a, intrusive_list const& b) noexcept -> bool
+  operator==(intrusive_list const& a, intrusive_list const& b) noexcept(
+    noexcept(std::declval<T const&>() == std::declval<T const&>())
+  ) -> bool
     requires std::equality_comparable<T>
   {
     return a.m_size == b.m_size && std::equal(a.begin(), a.end(), b.begin(), b.end());
@@ -611,7 +637,9 @@ public:
    * @post None.
    */
   [[nodiscard]] friend constexpr auto
-  operator<=>(intrusive_list const& a, intrusive_list const& b) noexcept
+  operator<=>(intrusive_list const& a, intrusive_list const& b) noexcept(
+    noexcept(std::declval<T const&>() <=> std::declval<T const&>())
+  )
     requires std::three_way_comparable<T>
   {
     return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
