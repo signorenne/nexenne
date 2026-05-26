@@ -21,6 +21,7 @@
  * path compression, so even a query is a mutating call.
  */
 
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -39,7 +40,11 @@ namespace nexenne::container {
  * @brief Disjoint-set forest over integer node indices.
  *
  * @tparam Index Unsigned integer node-index type; \c std::uint32_t by default. A
- *               smaller type trims memory at the cost of supporting fewer nodes.
+ *               smaller type trims memory at the cost of supporting fewer nodes:
+ *               node indices must stay representable in \p Index, so the
+ *               structure tracks at most \c std::numeric_limits<Index>::max()
+ *               nodes; exceeding that is a checked precondition (an assert in
+ *               debug builds).
  *
  * @pre None.
  * @post A default-constructed structure tracks zero nodes.
@@ -165,6 +170,10 @@ public:
    * @complexity \c O(n).
    */
   constexpr auto reset(size_type const n) noexcept -> void {
+    assert(
+      n <= static_cast<size_type>(std::numeric_limits<index_type>::max())
+      && "node id space exhausted"
+    );
     m_parent.assign(n, index_type{});
     m_set_size.assign(n, size_type{1});
     for (size_type i{0}; i < n; ++i) {
@@ -197,6 +206,10 @@ public:
    * @complexity Amortised \c O(1).
    */
   constexpr auto make_set() noexcept -> index_type {
+    assert(
+      m_parent.size() <= static_cast<size_type>(std::numeric_limits<index_type>::max())
+      && "node id space exhausted"
+    );
     auto const node{static_cast<index_type>(m_parent.size())};
     m_parent.push_back(node);
     m_set_size.push_back(1);
@@ -251,7 +264,7 @@ public:
    *
    * @complexity Amortised \c O(alpha(n)).
    */
-  constexpr auto find(index_type const i) noexcept -> result<index_type> {
+  [[nodiscard]] constexpr auto find(index_type const i) noexcept -> result<index_type> {
     if (static_cast<size_type>(i) >= m_parent.size()) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -279,6 +292,7 @@ public:
    * @complexity \c O(h), for chain length \c h.
    */
   [[nodiscard]] constexpr auto root_of(index_type i) const noexcept -> index_type {
+    assert(static_cast<size_type>(i) < m_parent.size() && "root_of index out of range");
     while (m_parent[i] != i) {
       i = m_parent[i];
     }
@@ -300,7 +314,8 @@ public:
    *
    * @complexity Amortised \c O(alpha(n)).
    */
-  constexpr auto connected(index_type const a, index_type const b) noexcept -> result<bool> {
+  [[nodiscard]] constexpr auto
+  connected(index_type const a, index_type const b) noexcept -> result<bool> {
     auto const root_a{find(a)};
     if (!root_a.has_value()) {
       return std::unexpected{root_a.error()};
@@ -325,7 +340,7 @@ public:
    *
    * @complexity Amortised \c O(alpha(n)).
    */
-  constexpr auto size_of(index_type const i) noexcept -> result<size_type> {
+  [[nodiscard]] constexpr auto size_of(index_type const i) noexcept -> result<size_type> {
     auto const root{find(i)};
     if (!root.has_value()) {
       return std::unexpected{root.error()};
@@ -351,7 +366,8 @@ public:
    *
    * @complexity Amortised \c O(alpha(n)).
    */
-  constexpr auto unite(index_type const a, index_type const b) noexcept -> result<bool> {
+  [[nodiscard]] constexpr auto
+  unite(index_type const a, index_type const b) noexcept -> result<bool> {
     auto const root_a{find(a)};
     if (!root_a.has_value()) {
       return std::unexpected{root_a.error()};
@@ -417,6 +433,10 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto nodes() const noexcept {
+    assert(
+      m_parent.size() <= static_cast<size_type>(std::numeric_limits<index_type>::max())
+      && "node count exceeds the id space"
+    );
     return std::views::iota(index_type{0}, static_cast<index_type>(m_parent.size()));
   }
 
@@ -436,7 +456,9 @@ public:
    * @pre None.
    * @post None.
    *
-   * @complexity \c O(n * alpha(n)).
+   * @complexity \c O(n log n): \c root_of does not compress, so each of the \c n
+   *             lookups costs the uncompressed chain height, which union by size
+   *             bounds at \c log2 n.
    */
   [[nodiscard]] constexpr auto same_partition(union_find const& other) const noexcept -> bool {
     if (m_parent.size() != other.m_parent.size()) {
