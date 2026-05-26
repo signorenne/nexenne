@@ -311,4 +311,28 @@ TEST_CASE("nexenne::container::union_find works with 64-bit indices") {
   CHECK(*u.size_of(0) == 2);
 }
 
+TEST_CASE("nexenne::container::union_find over a small Index keeps node ids in range") {
+  // M7: past 2^N nodes the index cast used to wrap (aliasing low indices and
+  // breaking the partition invariants). Within the representable range a small
+  // Index type must track nodes and merge them correctly. Overflowing the id
+  // space is a debug assert.
+  cn::union_find<std::uint8_t> u{200};  // well inside uint8_t, no wrap
+  CHECK(u.size() == 200);
+  CHECK(u.count() == 200);
+
+  for (int i{1}; i < 200; ++i) {
+    nexenne::utility::discard(u.unite(0, static_cast<std::uint8_t>(i)));
+  }
+  CHECK(u.count() == 1);
+  REQUIRE(u.size_of(0).has_value());
+  CHECK(*u.size_of(0) == 200);
+  REQUIRE(u.connected(0, 199).has_value());
+  CHECK(*u.connected(0, 199));
+  CHECK(u.parents().size() == 200);
+
+  auto const grown{u.make_set()};  // append within range
+  CHECK(static_cast<int>(grown) == 200);
+  CHECK(u.size() == 201);
+}
+
 }  // namespace
