@@ -21,10 +21,12 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <limits>
 #include <ranges>
 #include <span>
 #include <type_traits>
@@ -50,6 +52,15 @@ struct graph_edge<void, Vertex> {
   Vertex target;
 };
 
+/// Whether comparing two edge payloads of type \p E is \c noexcept (vacuously so
+/// for a void, payload-free edge).
+template <typename E>
+struct edge_eq_nothrow
+    : std::bool_constant<noexcept(std::declval<E const&>() == std::declval<E const&>())> {};
+
+template <>
+struct edge_eq_nothrow<void> : std::true_type {};
+
 }  // namespace detail
 
 /**
@@ -57,7 +68,9 @@ struct graph_edge<void, Vertex> {
  *
  * @tparam E Edge payload type; \c void to omit per-edge data.
  * @tparam Vertex Unsigned integer type for vertex IDs; \c std::uint32_t by
- *         default.
+ *         default. Vertex IDs must stay representable in \p Vertex, so the graph
+ *         holds at most \c std::numeric_limits<Vertex>::max() vertices; growing
+ *         past that is a checked precondition (an assert in debug builds).
  *
  * @pre None.
  * @post A default-constructed graph has no vertices and no edges.
@@ -92,7 +105,12 @@ public:
    * @post \c vertex_count() equals \p n, \c edge_count() is zero, and vertex IDs
    *       \c 0 through \c n-1 are valid.
    */
-  explicit constexpr graph(size_type const n) noexcept : m_adjacency(n) {}
+  explicit constexpr graph(size_type const n) noexcept : m_adjacency(n) {
+    assert(
+      n <= static_cast<size_type>(std::numeric_limits<vertex_type>::max())
+      && "vertex id space exhausted"
+    );
+  }
 
   /**
    * @brief Number of vertices in the graph.
@@ -216,6 +234,10 @@ public:
    *       outgoing edges, and previously issued IDs stay valid.
    */
   constexpr auto add_vertex() noexcept -> vertex_type {
+    assert(
+      m_adjacency.size() <= static_cast<size_type>(std::numeric_limits<vertex_type>::max())
+      && "vertex id space exhausted"
+    );
     auto const id{static_cast<vertex_type>(m_adjacency.size())};
     m_adjacency.emplace_back();
     return id;
@@ -257,8 +279,8 @@ public:
    */
   template <typename Edge = E>
     requires(!std::is_void_v<Edge>)
-  constexpr auto add_edge(vertex_type const from, vertex_type const to, Edge data) noexcept
-    -> std::expected<void, container_error> {
+  [[nodiscard]] constexpr auto add_edge(vertex_type const from, vertex_type const to, Edge data
+  ) noexcept -> result<void> {
     if (!contains(from) || !contains(to)) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -288,8 +310,8 @@ public:
    */
   template <typename Edge = E>
     requires std::is_void_v<Edge>
-  constexpr auto add_edge(vertex_type const from, vertex_type const to) noexcept
-    -> std::expected<void, container_error> {
+  [[nodiscard]] constexpr auto add_edge(vertex_type const from, vertex_type const to) noexcept
+    -> result<void> {
     if (!contains(from) || !contains(to)) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -313,8 +335,8 @@ public:
    *
    * @complexity \c O(out_degree(from)).
    */
-  constexpr auto remove_edge(vertex_type const from, vertex_type const to) noexcept
-    -> std::expected<bool, container_error> {
+  [[nodiscard]] constexpr auto remove_edge(vertex_type const from, vertex_type const to) noexcept
+    -> result<bool> {
     if (!contains(from)) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -405,8 +427,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto out_degree(vertex_type const v
-  ) const noexcept -> std::expected<size_type, container_error> {
+  [[nodiscard]] constexpr auto out_degree(vertex_type const v) const noexcept -> result<size_type> {
     if (!contains(v)) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -427,6 +448,10 @@ public:
    * @post None. The graph is not modified.
    */
   [[nodiscard]] constexpr auto vertices() const noexcept {
+    assert(
+      m_adjacency.size() <= static_cast<size_type>(std::numeric_limits<vertex_type>::max())
+      && "vertex count exceeds the id space"
+    );
     return std::views::iota(vertex_type{0}, static_cast<vertex_type>(m_adjacency.size()));
   }
 
@@ -447,7 +472,8 @@ public:
    *
    * @complexity \c O(vertices + edges).
    */
-  [[nodiscard]] friend auto operator==(graph const& a, graph const& b) noexcept -> bool
+  [[nodiscard]] friend constexpr auto
+  operator==(graph const& a, graph const& b) noexcept(detail::edge_eq_nothrow<E>::value) -> bool
     requires(std::is_void_v<E> || std::equality_comparable<E>)
   {
     if (a.m_adjacency.size() != b.m_adjacency.size()) {
