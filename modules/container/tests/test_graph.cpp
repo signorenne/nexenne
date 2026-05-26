@@ -265,4 +265,54 @@ TEST_CASE("nexenne::container::graph add_vertex grows an initially-sized graph")
   CHECK(*g.out_degree(2) == 1);
 }
 
+TEST_CASE("nexenne::container::graph over a small Vertex type keeps ids in range") {
+  // M6: past 2^N vertices the id cast used to wrap (aliasing vertex 0). Within
+  // the representable range a small Vertex type must hand out dense, distinct
+  // ids and enumerate them correctly. Overflowing the id space is a debug assert.
+  cn::graph<void, std::uint8_t> g;
+  constexpr int count{200};  // well inside uint8_t, no wrap
+  for (int i{0}; i < count; ++i) {
+    auto const id{g.add_vertex()};
+    CHECK(static_cast<int>(id) == i);
+  }
+  CHECK(g.vertex_count() == static_cast<std::size_t>(count));
+  CHECK(g.contains(static_cast<std::uint8_t>(count - 1)));
+  CHECK_FALSE(g.contains(static_cast<std::uint8_t>(count)));
+
+  int enumerated{0};
+  std::uint8_t expected{0};
+  for (auto const v : g.vertices()) {
+    CHECK(v == expected);
+    ++expected;
+    ++enumerated;
+  }
+  CHECK(enumerated == count);
+}
+
+// m23: every member is constexpr, so a constant-evaluated build/query/compare,
+// including operator==, must succeed.
+consteval auto consteval_graph_probe() -> bool {
+  cn::graph<int> g{3};
+  if (!g.add_edge(0, 1, 7).has_value()) {
+    return false;
+  }
+  if (!g.add_edge(0, 2, 8).has_value()) {
+    return false;
+  }
+  bool const edge{g.has_edge(0, 1)};
+  auto const od{g.out_degree(0)};
+  if (!od.has_value() || *od != 2) {
+    return false;
+  }
+  if (!g.remove_edge(0, 2).has_value()) {
+    return false;
+  }
+  cn::graph<int> h{3};
+  if (!h.add_edge(0, 1, 7).has_value()) {
+    return false;
+  }
+  return edge && g == h;  // operator== in a constant-evaluated context
+}
+static_assert(consteval_graph_probe());
+
 }  // namespace
