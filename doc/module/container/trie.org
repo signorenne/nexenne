@@ -102,7 +102,7 @@ children.
 |-----------------------------------+-----------------------------------|
 | insert / find / contains          | O(k log a): key length k, alphabet a |
 | starts_with                       | O(k log a) in the prefix length   |
-| erase                             | O(k log a) to find, O(nodes) to prune |
+| erase                             | O(k log a): find, then prune its own path |
 | for_each                          | O(total nodes)                    |
 | copy (deep clone)                 | O(total nodes)                    |
 | move / swap                       | O(1)                              |
