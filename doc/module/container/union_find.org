@@ -109,7 +109,7 @@ finds compress), and =size_of(i)= returns =m_set_size= at =i='s root.
 | root_of (no compression)               | O(h), chain length h   |
 | reset                                  | O(n)                   |
 | clear / swap / parents / set_sizes     | O(1)                   |
-| same_partition                         | O(n * alpha(n))        |
+| same_partition                         | O(n log n)             |
 
 =alpha(n)= is the inverse Ackermann function, below 5 for any =n= that fits in
 memory, so the per-operation cost is effectively constant. Memory is two vectors
@@ -148,8 +148,10 @@ Things to keep in mind:
   bounds, while =root_of= assumes a valid index as a precondition and does not
   check.
 - *Comparison is explicit.* There is no =operator===; =same_partition= compares
-  two structures by classification in =O(n * alpha(n))= regardless of compression
-  history (it uses =root_of=, so it never mutates), and is given a visible name so
+  two structures by classification in =O(n log n)= (=root_of= does not compress,
+  so each of the n lookups pays the uncompressed height, bounded at =log2 n= by
+  union by size) regardless of compression history (it never mutates), and is
+  given a visible name so
   that cost never hides behind a generic comparison in a hot loop. The =parents()=
   and =set_sizes()= spans are read-only and invalidated by any mutating call,
   including a bare =find=.
@@ -160,7 +162,7 @@ Things to keep in mind:
 nexenne::container::union_find_u32 uf{node_count};
 
 for (auto const [a, b] : edges) {
-  static_cast<void>(uf.unite(a, b));   // O(alpha(n))
+  nexenne::utility::discard(uf.unite(a, b));   // O(alpha(n))
 }
 auto const components{uf.count()};     // number of disjoint sets
 if (*uf.connected(x, y)) { ... }       // result<bool>, O(alpha(n))
