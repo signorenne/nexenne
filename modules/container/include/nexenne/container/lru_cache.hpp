@@ -10,10 +10,13 @@
  * new key, the least-recently-used entry is evicted and its storage recycled.
  *
  * It layers two ported containers: an \c intrusive_list orders entries by recency
- * (front is MRU, back is LRU) and a \c flat_hash_map indexes them by key for
- * \c O(1) lookup. The list nodes live in a fixed pool allocated once at
- * construction and never grown, so steady-state \c get / \c put is allocation
- * free, the win over a \c std::unordered_map plus \c std::list. Reach for it for
+ * (front is MRU, back is LRU) and a \c flat_hash_map indexes them for \c O(1)
+ * lookup. The index keys on a pointer into each node's own key storage rather
+ * than a copy, so a key is stored exactly once and no key is allocated on a
+ * steady-state put (a move-only key type is therefore supported). The list nodes
+ * live in a fixed pool allocated once at construction and never grown, so
+ * steady-state \c get / \c put is allocation free, the win over a
+ * \c std::unordered_map plus \c std::list. Reach for it for
  * asset caches (keep the hottest N textures resident), bounded memoisation
  * tables, and recently-used registries. Every operation is \c noexcept;
  * allocation failure terminates. Concurrent reads are not safe, because \c get
@@ -70,12 +73,31 @@ private:
     Value value{};
   };
 
+  // The index keys on a pointer INTO each node's own key storage rather than a
+  // copy of the key, so the key is stored exactly once (in the node), no key is
+  // allocated on a steady-state put, and a move-only Key works. The pool never
+  // moves, so these pointers stay stable; a slot's index entry is always erased
+  // before its key is overwritten.
+  struct key_ptr_hash {
+    [[no_unique_address]] Hash hash{};
+    auto operator()(Key const* const key) const noexcept -> std::size_t {
+      return hash(*key);
+    }
+  };
+
+  struct key_ptr_eq {
+    [[no_unique_address]] KeyEq eq{};
+    auto operator()(Key const* const a, Key const* const b) const noexcept -> bool {
+      return eq(*a, *b);
+    }
+  };
+
   // Stable storage so the list and index pointers stay valid: the pool is sized
   // to capacity at construction and never grows, so node addresses never move.
   std::vector<node> m_pool;
   std::vector<node*> m_free;
   intrusive_list<node> m_lru;
-  flat_hash_map<Key, node*, Hash, KeyEq> m_index;
+  flat_hash_map<Key const*, node*, key_ptr_hash, key_ptr_eq> m_index;
 
   auto acquire_node() noexcept -> node* {
     if (!m_free.empty()) {
@@ -88,7 +110,7 @@ private:
     // which the Capacity >= 1 constraint guarantees.
     auto* const evicted{m_lru.back()};
     m_lru.erase(*evicted);
-    nexenne::utility::discard(m_index.erase(evicted->key));
+    nexenne::utility::discard(m_index.erase(std::addressof(evicted->key)));
     return evicted;
   }
 
@@ -182,13 +204,17 @@ public:
    * @brief Drops every entry, keeping capacity.
    *
    * @pre None.
-   * @post \c empty() is \c true and \c capacity() is unchanged.
+   * @post \c empty() is \c true and \c capacity() is unchanged; every entry's key
+   *       and value are released (reset to a value-initialised state).
    */
   auto clear() noexcept -> void {
     m_lru.clear();
     m_index.clear();
     m_free.clear();
     for (auto& n : m_pool) {
+      // Release each slot's payload so a logically empty cache pins no resources.
+      n.key = Key{};
+      n.value = Value{};
       m_free.push_back(std::addressof(n));
     }
   }
@@ -209,7 +235,7 @@ public:
    * @complexity Amortised \c O(1).
    */
   auto put(Key key, Value value) noexcept -> void {
-    if (auto* const existing{m_index.find(key)}) {
+    if (auto* const existing{m_index.find(std::addressof(key))}) {
       auto* const entry{*existing};
       entry->value = std::move(value);
       m_lru.erase(*entry);
@@ -220,7 +246,7 @@ public:
     entry->key = std::move(key);
     entry->value = std::move(value);
     m_lru.push_front(*entry);
-    nexenne::utility::discard(m_index.insert(entry->key, entry));
+    nexenne::utility::discard(m_index.insert(std::addressof(entry->key), entry));
   }
 
   /**
@@ -237,7 +263,7 @@ public:
    * @complexity Amortised \c O(1).
    */
   [[nodiscard]] auto get(Key const& key) noexcept -> Value* {
-    auto* const slot{m_index.find(key)};
+    auto* const slot{m_index.find(std::addressof(key))};
     if (slot == nullptr) {
       return nullptr;
     }
@@ -260,7 +286,7 @@ public:
    * @complexity Amortised \c O(1).
    */
   [[nodiscard]] auto peek(Key const& key) const noexcept -> Value const* {
-    auto const* const slot{m_index.find(key)};
+    auto const* const slot{m_index.find(std::addressof(key))};
     if (slot == nullptr) {
       return nullptr;
     }
@@ -280,7 +306,7 @@ public:
    * @complexity Amortised \c O(1).
    */
   [[nodiscard]] auto contains(Key const& key) const noexcept -> bool {
-    return m_index.contains(key);
+    return m_index.contains(std::addressof(key));
   }
 
   /**
@@ -291,19 +317,25 @@ public:
    * @return \c true on a removal, \c false when the key was absent.
    *
    * @pre None.
-   * @post \p key is absent. On a removal \c size() shrank by one and the node
-   *       returned to the free pool.
+   * @post \p key is absent. On a removal \c size() shrank by one, the entry's key
+   *       and value are released (reset to a value-initialised state), and the
+   *       node returned to the free pool.
    *
    * @complexity Amortised \c O(1).
    */
   auto erase(Key const& key) noexcept -> bool {
-    auto* const slot{m_index.find(key)};
+    auto* const slot{m_index.find(std::addressof(key))};
     if (slot == nullptr) {
       return false;
     }
     auto* const entry{*slot};
     m_lru.erase(*entry);
-    nexenne::utility::discard(m_index.erase(key));
+    nexenne::utility::discard(m_index.erase(std::addressof(key)));
+    // Release the payload so an erased entry does not pin its resources in the
+    // pool until the slot is next reused (the default-initializable constraint
+    // makes this reset well-formed).
+    entry->key = Key{};
+    entry->value = Value{};
     m_free.push_back(entry);
     return true;
   }
