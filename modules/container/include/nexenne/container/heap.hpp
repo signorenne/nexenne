@@ -106,6 +106,24 @@ public:
   }
 
   /**
+   * @brief Constructs from an initializer list under \p cmp, heapifying in
+   *        \c O(n).
+   *
+   * @param init Elements to copy in.
+   * @param cmp Comparator to store.
+   *
+   * @pre None.
+   * @post \c size() equals \c init.size(), the stored comparator is \p cmp, and
+   *       the heap invariant holds.
+   *
+   * @complexity \c O(n).
+   */
+  constexpr heap(std::initializer_list<T> const init, Compare cmp) noexcept
+      : m_data{init}, m_cmp{std::move(cmp)} {
+    std::make_heap(m_data.begin(), m_data.end(), m_cmp);
+  }
+
+  /**
    * @brief Constructs from the range \c [first, last), heapifying in \c O(n).
    *
    * @tparam It Input iterator type.
@@ -120,6 +138,27 @@ public:
    */
   template <std::input_iterator It>
   constexpr heap(It const first, It const last) noexcept : m_data(first, last) {
+    std::make_heap(m_data.begin(), m_data.end(), m_cmp);
+  }
+
+  /**
+   * @brief Constructs from the range \c [first, last) under \p cmp, heapifying
+   *        in \c O(n).
+   *
+   * @tparam It Input iterator type.
+   * @param first Iterator to the first source element.
+   * @param last Iterator one past the last source element.
+   * @param cmp Comparator to store.
+   *
+   * @pre \c [first, last) is a valid range.
+   * @post \c size() equals \c std::distance(first, last), the stored comparator
+   *       is \p cmp, and the heap invariant holds.
+   *
+   * @complexity \c O(n).
+   */
+  template <std::input_iterator It>
+  constexpr heap(It const first, It const last, Compare cmp) noexcept
+      : m_data(first, last), m_cmp{std::move(cmp)} {
     std::make_heap(m_data.begin(), m_data.end(), m_cmp);
   }
 
@@ -370,6 +409,9 @@ public:
 /// @cond INTERNAL
 template <std::input_iterator It>
 heap(It, It) -> heap<typename std::iterator_traits<It>::value_type>;
+
+template <std::input_iterator It, typename Compare>
+heap(It, It, Compare) -> heap<typename std::iterator_traits<It>::value_type, Compare>;
 /// @endcond
 
 }  // namespace nexenne::container
