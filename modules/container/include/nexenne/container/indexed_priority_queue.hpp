@@ -21,11 +21,13 @@
  * \c noexcept; allocation failure terminates.
  */
 
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <span>
 #include <utility>
@@ -83,6 +85,7 @@ private:
       m_free_list.pop_back();
       return h;
     }
+    assert(m_position.size() < invalid_handle && "handle space exhausted");
     auto const h{static_cast<handle_type>(m_position.size())};
     m_position.push_back(0);
     return h;
@@ -293,6 +296,10 @@ public:
    * @post \c size() grew by one, the heap invariant holds, and the handle refers
    *       to \p value. Existing handles stay valid.
    *
+   * @note At most \c invalid_handle (\c 2^32 - 1) distinct handles can be live at
+   *       once; exhausting the handle space is a checked precondition (an assert
+   *       in debug builds).
+   *
    * @complexity \c O(log n).
    */
   constexpr auto push(T value) noexcept -> handle_type {
@@ -319,10 +326,11 @@ public:
    * @complexity \c O(log n).
    */
   template <typename... Args>
+    requires std::constructible_from<T, Args...>
   constexpr auto emplace(Args&&... args) noexcept -> handle_type {
     auto const h{allocate_handle()};
     auto const pos{m_heap.size()};
-    m_heap.push_back(entry{T(std::forward<Args>(args)...), h});
+    m_heap.push_back(entry{T{std::forward<Args>(args)...}, h});
     m_position[h] = pos;
     sift_up(pos);
     return h;
@@ -341,7 +349,7 @@ public:
    *
    * @complexity \c O(log n).
    */
-  constexpr auto pop() noexcept -> std::expected<T, container_error> {
+  [[nodiscard]] constexpr auto pop() noexcept -> result<T> {
     if (m_heap.empty()) {
       return std::unexpected{container_error::empty};
     }
@@ -375,8 +383,7 @@ public:
    *
    * @complexity \c O(log n).
    */
-  constexpr auto
-  update(handle_type const h, T value) noexcept -> std::expected<void, container_error> {
+  [[nodiscard]] constexpr auto update(handle_type const h, T value) noexcept -> result<void> {
     if (!valid_handle(h)) {
       return std::unexpected{container_error::not_found};
     }
@@ -401,7 +408,7 @@ public:
    *
    * @complexity \c O(log n).
    */
-  constexpr auto erase(handle_type const h) noexcept -> std::expected<void, container_error> {
+  [[nodiscard]] constexpr auto erase(handle_type const h) noexcept -> result<void> {
     if (!valid_handle(h)) {
       return std::unexpected{container_error::not_found};
     }
@@ -441,8 +448,7 @@ public:
    * @pre None.
    * @post None. The queue is not modified.
    */
-  [[nodiscard]] constexpr auto
-  top_handle() const noexcept -> std::expected<handle_type, container_error> {
+  [[nodiscard]] constexpr auto top_handle() const noexcept -> result<handle_type> {
     if (m_heap.empty()) {
       return std::unexpected{container_error::empty};
     }
@@ -462,8 +468,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto value_at(handle_type const h
-  ) const noexcept -> std::expected<T const*, container_error> {
+  [[nodiscard]] constexpr auto value_at(handle_type const h) const noexcept -> result<T const*> {
     if (!valid_handle(h)) {
       return std::unexpected{container_error::not_found};
     }
