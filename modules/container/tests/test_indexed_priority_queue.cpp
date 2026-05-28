@@ -126,7 +126,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue handles stay valid across 
   auto const h1{q.push(1)};
   auto const h2{q.push(2)};
   q.push(3);
-  q.pop();  // removes 3
+  nexenne::utility::discard(q.pop());  // removes 3
   // h1 and h2 still address their values after the pop reorganised the heap
   CHECK(*q.value_at(h1).value() == 1);
   CHECK(*q.value_at(h2).value() == 2);
