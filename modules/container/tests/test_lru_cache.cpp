@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -267,6 +268,94 @@ TEST_CASE("nexenne::container::lru_cache mru_key and lru_key after put updates")
   CHECK(c.mru_key() == nullptr);
   CHECK(c.lru_key() == nullptr);
   CHECK(c.empty());
+}
+
+// A move-only key, to pin M8: the index must not copy the key, so a key that is
+// movable but not copyable (as the class constraint already admits) must work.
+struct mv_key {
+  int v{};
+
+  mv_key() noexcept = default;
+  explicit mv_key(int const x) noexcept : v{x} {}
+  mv_key(mv_key&&) noexcept = default;
+  auto operator=(mv_key&&) noexcept -> mv_key& = default;
+  mv_key(mv_key const&) = delete;
+  auto operator=(mv_key const&) -> mv_key& = delete;
+
+  friend auto operator==(mv_key const& a, mv_key const& b) noexcept -> bool {
+    return a.v == b.v;
+  }
+};
+
+struct mv_key_hash {
+  auto operator()(mv_key const& k) const noexcept -> std::size_t {
+    return std::hash<int>{}(k.v);
+  }
+};
+
+TEST_CASE("nexenne::container::lru_cache supports a move-only key") {
+  cn::lru_cache<mv_key, int, 2, mv_key_hash> c{};
+  c.put(mv_key{1}, 10);
+  c.put(mv_key{2}, 20);
+  CHECK(c.contains(mv_key{1}));
+  REQUIRE(c.get(mv_key{1}) != nullptr);
+  CHECK(*c.get(mv_key{1}) == 10);
+  c.put(mv_key{3}, 30);  // full: evict LRU (2)
+  CHECK_FALSE(c.contains(mv_key{2}));
+  CHECK(c.size() == 2);
+  CHECK(c.erase(mv_key{3}));
+  CHECK_FALSE(c.contains(mv_key{3}));
+}
+
+// A move-only value that owns a counted resource, to pin M9: erase and clear
+// must release the value, not keep it resident in the pool. alive counts the
+// number of owned resources.
+struct resource {
+  static inline int alive{0};
+  bool owns{false};
+
+  resource() noexcept = default;
+  explicit resource(int) noexcept : owns{true} {
+    ++alive;
+  }
+  resource(resource&& other) noexcept : owns{other.owns} {
+    other.owns = false;
+  }
+  auto operator=(resource&& other) noexcept -> resource& {
+    if (this != &other) {
+      if (owns) {
+        --alive;
+      }
+      owns = other.owns;
+      other.owns = false;
+    }
+    return *this;
+  }
+  resource(resource const&) = delete;
+  auto operator=(resource const&) -> resource& = delete;
+  ~resource() noexcept {
+    if (owns) {
+      --alive;
+    }
+  }
+};
+
+TEST_CASE("nexenne::container::lru_cache erase and clear release the stored value") {
+  cn::lru_cache<int, resource, 4> c{};
+  CHECK(resource::alive == 0);  // the pool default-constructs empty resources
+
+  c.put(1, resource{1});
+  CHECK(resource::alive == 1);
+  CHECK(c.erase(1));
+  CHECK(c.size() == 0);
+  CHECK(resource::alive == 0);  // released on erase, not pinned in the pool
+
+  c.put(2, resource{1});
+  c.put(3, resource{1});
+  CHECK(resource::alive == 2);
+  c.clear();
+  CHECK(c.empty());
+  CHECK(resource::alive == 0);  // released on clear
 }
 
 }  // namespace
