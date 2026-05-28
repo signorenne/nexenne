@@ -46,9 +46,10 @@ template <std::size_t N>
   requires(N > 0)
 class linear_arena {
 public:
+  using value_type = std::byte;
   using size_type = std::size_t;
 
-  static constexpr size_type buffer_size{N};
+  static constexpr size_type capacity_value{N};
 
 private:
   alignas(std::max_align_t) std::array<std::byte, N> m_storage{};
@@ -205,10 +206,16 @@ public:
    * @param count Number of objects to reserve space for.
    *
    * @return A pointer to raw storage for \p count objects, or
-   *         \c container_error::full when the arena lacks room.
+   *         \c container_error::full when the arena lacks room or the requested
+   *         byte size would overflow.
    *
    * @pre None.
    * @post On success \c bytes_used() grew; on failure the arena is unchanged.
+   *
+   * @note A \p count so large that \c sizeof(T) times it would wrap
+   *       \c size_type is rejected with \c container_error::full before the
+   *       multiplication, so an out-of-range request can never alias a tiny
+   *       block.
    *
    * @complexity \c O(1).
    */
@@ -218,6 +225,12 @@ public:
       alignof(T) <= alignof(std::max_align_t),
       "T's alignment exceeds the arena buffer's guaranteed alignment"
     );
+    // Reject before multiplying: a count above N / sizeof(T) can never fit and,
+    // for a huge count, sizeof(T) * count would wrap size_type into a small
+    // value that the arena would wrongly accept.
+    if (count > N / sizeof(T)) {
+      return std::unexpected{container_error::full};
+    }
     auto const block{allocate(sizeof(T) * count, alignof(T))};
     if (!block.has_value()) {
       return std::unexpected{block.error()};
