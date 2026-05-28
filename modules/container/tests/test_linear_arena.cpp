@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -18,7 +19,7 @@ namespace cn = nexenne::container;
 using arena = cn::linear_arena<256>;
 
 static_assert(arena::capacity() == 256);
-static_assert(arena::buffer_size == 256);
+static_assert(arena::capacity_value == 256);
 static_assert(arena::max_size() == 256);
 
 // The constructor, observers, reset and rewind_to are constexpr. Allocation is
@@ -323,6 +324,26 @@ TEST_CASE("nexenne::container::linear_arena propagates full through typed and em
   CHECK(built.error() == cn::container_error::full);
   // No partial construction took place on the failure path.
   CHECK(tiny.empty());
+}
+
+TEST_CASE("nexenne::container::linear_arena rejects a count whose byte size overflows") {
+  arena a;
+  // sizeof(T) * count must not wrap size_type into a small value the arena would
+  // wrongly accept: SIZE_MAX / 8 + 2 with sizeof(long long) == 8 would wrap to a
+  // tiny product on an unguarded multiply.
+  auto const overflowing{a.allocate<long long>(std::numeric_limits<std::size_t>::max() / 8 + 2)};
+  REQUIRE_FALSE(overflowing.has_value());
+  CHECK(overflowing.error() == cn::container_error::full);
+  // The arena is untouched: no tiny block was handed out.
+  CHECK(a.empty());
+  CHECK(a.bytes_used() == 0);
+
+  // The exact boundary count (capacity / sizeof(T)) does not overflow and is a
+  // normal capacity decision, still reported as full because it exceeds N.
+  auto const just_over{a.allocate<std::int32_t>(arena::capacity() / sizeof(std::int32_t) + 1)};
+  REQUIRE_FALSE(just_over.has_value());
+  CHECK(just_over.error() == cn::container_error::full);
+  CHECK(a.empty());
 }
 
 TEST_CASE("nexenne::container::linear_arena exposes const observers") {
