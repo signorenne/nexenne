@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <expected>
 #include <functional>
+#include <numbers>
 #include <utility>
 
 #include <nexenne/container/bitset_dynamic.hpp>
@@ -119,7 +120,12 @@ public:
   [[nodiscard]] static auto with_target_false_positive_rate(
     size_type const expected_items, double const target_fpr
   ) noexcept -> bloom_filter {
-    auto const ln2{0.6931471805599453};
+    assert(expected_items > 0 && "with_target_false_positive_rate requires expected_items > 0");
+    assert(
+      target_fpr > 0.0 && target_fpr < 1.0
+      && "with_target_false_positive_rate requires target_fpr in (0, 1)"
+    );
+    auto const ln2{std::numbers::ln2};
     auto const m{static_cast<size_type>(
       std::ceil(-static_cast<double>(expected_items) * std::log(target_fpr) / (ln2 * ln2))
     )};
@@ -302,7 +308,10 @@ public:
    *
    * @complexity \c O(bit_count).
    */
-  auto merge(bloom_filter const& other) noexcept -> std::expected<void, container_error> {
+  auto merge(bloom_filter const& other) noexcept -> result<void> {
+    // A shape mismatch is not literally an index-out-of-range, but the module's
+    // error enum has no dedicated "mismatched shape" code, so out_of_range is
+    // reused as the closest fit.
     if (m_bits.size() != other.m_bits.size() || m_num_hashes != other.m_num_hashes) {
       return std::unexpected{container_error::out_of_range};
     }
