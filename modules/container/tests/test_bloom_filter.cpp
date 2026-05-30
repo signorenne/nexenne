@@ -218,4 +218,21 @@ TEST_CASE("nexenne::container::bloom_filter factory clamps tiny inputs to at lea
   CHECK(f.contains(5));  // still no false negatives at the degenerate size
 }
 
+TEST_CASE("nexenne::container::bloom_filter factory is well-formed across its domain") {
+  // The factory documents "@pre expected_items > 0 and target_fpr in (0, 1)" and
+  // now asserts it. An out-of-domain rate (for example 1.5 for 0.015) previously
+  // cast a negative double to size_type (undefined behavior) and returned a
+  // silently broken filter that could report a false negative; the assert now
+  // catches that misuse in debug. Every in-domain call must build a usable
+  // filter with a positive bit count and at least one hash.
+  for (auto const items : {std::size_t{1}, std::size_t{16}, std::size_t{1000}}) {
+    for (auto const rate : {0.5, 0.1, 0.01, 0.001}) {
+      auto const f{cn::bloom_filter<int>::with_target_false_positive_rate(items, rate)};
+      CHECK(f.bit_count() > 0);
+      CHECK(f.hash_count() >= 1);
+      CHECK(f.empty());
+    }
+  }
+}
+
 }  // namespace
