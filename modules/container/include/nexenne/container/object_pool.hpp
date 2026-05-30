@@ -62,7 +62,7 @@ public:
   using value_type = T;
   using size_type = std::size_t;
 
-  static constexpr size_type capacity_v{N};
+  static constexpr size_type capacity_value{N};
 
 private:
   struct slot {
