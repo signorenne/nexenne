@@ -80,9 +80,10 @@ consumer at head=0 reads slot0.seq==1:  diff = 1 - (0+1) = 0  -> ready
 
 Producers contend for tickets, so reserving the tail needs an atomic
 read-modify-write (the CAS). The single consumer owns head outright, so it just
-loads, takes, and stores, no CAS. Data crosses threads through each slot's =seq=
-(release on the write side, acquire on the read side); the tail CAS itself can be
-relaxed because the =seq= handshake, not the counter, carries the data.
+loads, takes, and stores, no CAS. Data crosses threads through each slot's
+=sequence= (release on the write side, acquire on the read side); the tail CAS
+itself can be relaxed because the =sequence= handshake, not the counter, carries
+the data.
 
 * Complexity
 
@@ -90,7 +91,7 @@ relaxed because the =seq= handshake, not the counter, carries the data.
 |------------------------------------+-------------------------------|
 | push / emplace                     | O(1) plus CAS retries under contention |
 | pop / try_pop                      | O(1)                          |
-| size_approx / empty_approx         | O(1)                          |
+| size_approx / empty_approx / full_approx | O(1)                    |
 
 Memory is =N= slots, each an atomic sequence plus one =T='s storage, on top of two
 cache-line-aligned counters. Capacity is exactly =N= (the sequence numbers
