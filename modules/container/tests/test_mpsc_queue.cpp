@@ -60,6 +60,18 @@ TEST_CASE("nexenne::container::mpsc_queue size_approx and max_size") {
   CHECK_FALSE(q.empty_approx());
 }
 
+TEST_CASE("nexenne::container::mpsc_queue full_approx matches spsc and mpmc") {
+  cn::mpsc_queue<int, 4> q;
+  CHECK_FALSE(q.full_approx());
+  for (int i{0}; i < 4; ++i) {
+    REQUIRE(q.push(i).has_value());
+  }
+  CHECK(q.full_approx());  // best-effort: size_approx() >= capacity
+  CHECK(q.push(99).error() == cn::container_error::full);
+  REQUIRE(q.pop().has_value());
+  CHECK_FALSE(q.full_approx());
+}
+
 TEST_CASE("nexenne::container::mpsc_queue holds non-trivial std::string elements") {
   cn::mpsc_queue<std::string, 4> q;
   CHECK(q.push(std::string(80, 'a')).has_value());
