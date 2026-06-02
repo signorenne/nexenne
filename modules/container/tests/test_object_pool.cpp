@@ -20,7 +20,7 @@ namespace cn = nexenne::container;
 using pool4 = cn::object_pool<int, 4>;
 
 static_assert(pool4::capacity() == 4);
-static_assert(pool4::capacity_v == 4);
+static_assert(pool4::capacity_value == 4);
 // A pool hands out interior pointers, so it is neither copyable nor movable.
 static_assert(!std::is_copy_constructible_v<pool4>);
 static_assert(!std::is_move_constructible_v<pool4>);
