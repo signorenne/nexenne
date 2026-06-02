@@ -25,6 +25,7 @@
 
 #include <array>
 #include <atomic>
+#include <bit>
 #include <concepts>
 #include <cstddef>
 #include <expected>
@@ -47,29 +48,35 @@ namespace nexenne::container {
  * @post A default-constructed queue is empty.
  */
 template <std::move_constructible T, std::size_t N>
-  requires(N >= 2) && ((N & (N - 1)) == 0)
+  requires(N >= 2 && std::has_single_bit(N))
 class mpsc_queue {
 public:
   using value_type = T;
   using size_type = std::size_t;
 
-  static constexpr size_type capacity_value = N;
+  static constexpr size_type capacity_value{N};
 
 private:
   struct slot {
-    std::atomic<size_type> seq{0};
-    alignas(T) std::byte storage[sizeof(T)]{};
+    std::atomic<size_type> sequence{0};
+    alignas(T) std::array<std::byte, sizeof(T)> storage{};
 
-    [[nodiscard]] auto value() noexcept -> T* {
-      return reinterpret_cast<T*>(storage);
+    // The T is constructed in the byte array with std::construct_at, so access
+    // goes through std::launder: the storage bytes are not
+    // pointer-interconvertible with the T living inside them.
+    [[nodiscard]] auto ptr() noexcept -> T* {
+      return std::launder(reinterpret_cast<T*>(storage.data()));
     }
   };
 
-  static constexpr std::size_t cache_line = 64;
+  // Cache-line size on x86-64 and common ARM cores. Hardcoded rather than using
+  // std::hardware_destructive_interference_size, whose value is an ABI-unstable
+  // constant that GCC warns against baking into a class layout.
+  static constexpr std::size_t cache_line_size{64};
 
-  alignas(cache_line) std::array<slot, N> m_slots{};
-  alignas(cache_line) std::atomic<size_type> m_tail{0};  // shared by producers
-  alignas(cache_line) std::atomic<size_type> m_head{0};  // consumer only
+  alignas(cache_line_size) std::array<slot, N> m_slots{};
+  alignas(cache_line_size) std::atomic<size_type> m_tail{0};  // shared by producers
+  alignas(cache_line_size) std::atomic<size_type> m_head{0};  // consumer only
 
   static constexpr auto mask{N - 1};
 
@@ -80,9 +87,9 @@ public:
    * @pre None.
    * @post \c empty_approx() is \c true.
    */
-  constexpr mpsc_queue() noexcept {
+  mpsc_queue() noexcept {
     for (size_type i{0}; i < N; ++i) {
-      m_slots[i].seq.store(i, std::memory_order_relaxed);
+      m_slots[i].sequence.store(i, std::memory_order_relaxed);
     }
   }
 
@@ -147,6 +154,18 @@ public:
   }
 
   /**
+   * @brief Best-effort test for a full queue.
+   *
+   * @return \c true when the queue appeared full at the observation.
+   *
+   * @pre None.
+   * @post None. The queue is not modified.
+   */
+  [[nodiscard]] auto full_approx() const noexcept -> bool {
+    return size_approx() >= capacity_value;
+  }
+
+  /**
    * @brief Pushes a copy of \p value. Safe from any number of producer threads.
    *
    * @param value Element to copy in.
@@ -200,14 +219,14 @@ public:
     auto pos{m_tail.load(std::memory_order_relaxed)};
     while (true) {
       auto& s{m_slots[pos & mask]};
-      auto const seq{s.seq.load(std::memory_order_acquire)};
+      auto const seq{s.sequence.load(std::memory_order_acquire)};
       auto const diff{static_cast<std::ptrdiff_t>(seq) - static_cast<std::ptrdiff_t>(pos)};
       if (diff == 0) {
         if (m_tail.compare_exchange_weak(
               pos, pos + 1, std::memory_order_relaxed, std::memory_order_relaxed
             )) {
-          std::construct_at(s.value(), std::forward<Args>(args)...);
-          s.seq.store(pos + 1, std::memory_order_release);
+          std::construct_at(s.ptr(), std::forward<Args>(args)...);
+          s.sequence.store(pos + 1, std::memory_order_release);
           return {};
         }
         // CAS lost the race; retry with the refreshed pos.
@@ -232,17 +251,17 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto pop() noexcept -> std::expected<T, container_error> {
+  [[nodiscard]] auto pop() noexcept -> std::expected<T, container_error> {
     auto const pos{m_head.load(std::memory_order_relaxed)};
     auto& s{m_slots[pos & mask]};
-    auto const seq{s.seq.load(std::memory_order_acquire)};
+    auto const seq{s.sequence.load(std::memory_order_acquire)};
     auto const diff{static_cast<std::ptrdiff_t>(seq) - static_cast<std::ptrdiff_t>(pos + 1)};
     if (diff < 0) {
       return std::unexpected{container_error::empty};
     }
-    auto value{std::move(*s.value())};
-    std::destroy_at(s.value());
-    s.seq.store(pos + N, std::memory_order_release);
+    auto value{std::move(*s.ptr())};
+    std::destroy_at(s.ptr());
+    s.sequence.store(pos + N, std::memory_order_release);
     m_head.store(pos + 1, std::memory_order_relaxed);
     return value;
   }
@@ -258,17 +277,17 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto try_pop() noexcept -> std::optional<T> {
+  [[nodiscard]] auto try_pop() noexcept -> std::optional<T> {
     auto const pos{m_head.load(std::memory_order_relaxed)};
     auto& s{m_slots[pos & mask]};
-    auto const seq{s.seq.load(std::memory_order_acquire)};
+    auto const seq{s.sequence.load(std::memory_order_acquire)};
     auto const diff{static_cast<std::ptrdiff_t>(seq) - static_cast<std::ptrdiff_t>(pos + 1)};
     if (diff < 0) {
       return std::nullopt;
     }
-    auto value{std::move(*s.value())};
-    std::destroy_at(s.value());
-    s.seq.store(pos + N, std::memory_order_release);
+    auto value{std::move(*s.ptr())};
+    std::destroy_at(s.ptr());
+    s.sequence.store(pos + N, std::memory_order_release);
     m_head.store(pos + 1, std::memory_order_relaxed);
     return value;
   }
