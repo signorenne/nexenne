@@ -25,11 +25,11 @@
  * @tparam N Slot count; a power of two and at least two.
  */
 
+#include <array>
 #include <atomic>
 #include <bit>
 #include <concepts>
 #include <cstddef>
-#include <cstdint>
 #include <expected>
 #include <memory>
 #include <new>
@@ -56,27 +56,34 @@ public:
   using value_type = T;
   using size_type = std::size_t;
 
-  static constexpr size_type capacity_value = N;
+  static constexpr size_type capacity_value{N};
 
 private:
   struct slot {
     std::atomic<std::size_t> sequence{};
-    alignas(T) std::byte storage[sizeof(T)]{};
+    alignas(T) std::array<std::byte, sizeof(T)> storage{};
 
+    // The T is constructed in the byte array with std::construct_at, so access
+    // goes through std::launder: the storage bytes are not
+    // pointer-interconvertible with the T living inside them.
     [[nodiscard]] auto ptr() noexcept -> T* {
-      return reinterpret_cast<T*>(storage);
+      return std::launder(reinterpret_cast<T*>(storage.data()));
     }
 
     [[nodiscard]] auto ptr() const noexcept -> T const* {
-      return reinterpret_cast<T const*>(storage);
+      return std::launder(reinterpret_cast<T const*>(storage.data()));
     }
   };
 
-  // Each counter on its own cache line so producers and consumers do not
-  // ping-pong each other's state.
-  alignas(64) std::atomic<std::size_t> m_enqueue_pos{0};
-  alignas(64) std::atomic<std::size_t> m_dequeue_pos{0};
-  alignas(64) slot m_slots[N]{};
+  // Cache-line size on x86-64 and common ARM cores. Hardcoded rather than using
+  // std::hardware_destructive_interference_size, whose value is an ABI-unstable
+  // constant that GCC warns against baking into a class layout. Each counter on
+  // its own cache line so producers and consumers do not ping-pong state.
+  static constexpr std::size_t cache_line_size{64};
+
+  alignas(cache_line_size) std::atomic<std::size_t> m_enqueue_pos{0};
+  alignas(cache_line_size) std::atomic<std::size_t> m_dequeue_pos{0};
+  alignas(cache_line_size) std::array<slot, N> m_slots{};
 
 public:
   /**
@@ -189,7 +196,7 @@ public:
     while (true) {
       auto& s{m_slots[pos & (N - 1)]};
       auto const seq{s.sequence.load(std::memory_order_acquire)};
-      auto const diff{static_cast<std::intptr_t>(seq) - static_cast<std::intptr_t>(pos)};
+      auto const diff{static_cast<std::ptrdiff_t>(seq) - static_cast<std::ptrdiff_t>(pos)};
       if (diff == 0) {
         if (m_enqueue_pos.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
           std::construct_at(s.ptr(), std::forward<Args>(args)...);
@@ -218,12 +225,12 @@ public:
    *
    * @complexity \c O(1) plus CAS retries under contention.
    */
-  auto pop() noexcept -> std::expected<T, container_error> {
+  [[nodiscard]] auto pop() noexcept -> std::expected<T, container_error> {
     auto pos{m_dequeue_pos.load(std::memory_order_relaxed)};
     while (true) {
       auto& s{m_slots[pos & (N - 1)]};
       auto const seq{s.sequence.load(std::memory_order_acquire)};
-      auto const diff{static_cast<std::intptr_t>(seq) - static_cast<std::intptr_t>(pos + 1)};
+      auto const diff{static_cast<std::ptrdiff_t>(seq) - static_cast<std::ptrdiff_t>(pos + 1)};
       if (diff == 0) {
         if (m_dequeue_pos.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
           auto value{std::move(*s.ptr())};
