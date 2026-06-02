@@ -21,7 +21,11 @@
  * \endcode
  *
  * Any arena exposing \c size_type, \c bytes_used(), and \c rewind_to() works;
- * the \c allocate / \c emplace facade forwards to the arena. It is non-copyable
+ * that is all \c checkpointable_arena requires. The \c allocate / \c emplace
+ * facade forwards to the arena and is additionally constrained to arenas that
+ * provide the matching allocating member, so calling it on a checkpoint-only
+ * arena fails the constraint at the call site rather than deep in a body. It is
+ * non-copyable
  * and non-movable: the checkpoint is tied to one arena state, and copying it
  * would double-rewind. Every operation is \c noexcept, and thread safety is that
  * of the underlying arena (none).
@@ -98,11 +102,15 @@ public:
    * @return The arena's result: a pointer to the block, or
    *         \c container_error::full when the arena lacks room.
    *
-   * @pre \p alignment is a non-zero power of two.
+   * @pre \p alignment satisfies whatever the wrapped arena requires of it; for
+   *      \c linear_arena a non-zero power of two no greater than
+   *      \c alignof(std::max_align_t).
    * @post On success the storage is released when this scratch_pad is
    *       destroyed.
    */
-  [[nodiscard]] auto allocate(size_type const size, size_type const alignment) noexcept {
+  [[nodiscard]] auto allocate(size_type const size, size_type const alignment) noexcept
+    requires requires(Arena& a, size_type n) { a.allocate(n, n); }
+  {
     return m_arena.allocate(size, alignment);
   }
 
@@ -120,6 +128,7 @@ public:
    *       destroyed.
    */
   template <typename T>
+    requires requires(Arena& a, size_type c) { a.template allocate<T>(c); }
   [[nodiscard]] auto allocate(size_type const count = 1) noexcept {
     return m_arena.template allocate<T>(count);
   }
@@ -140,6 +149,9 @@ public:
    *       then for a non-trivial \p T.
    */
   template <typename T, typename... Args>
+    requires requires(Arena& a, Args&&... args) {
+      a.template emplace<T>(std::forward<Args>(args)...);
+    }
   [[nodiscard]] auto emplace(Args&&... args) noexcept {
     return m_arena.template emplace<T>(std::forward<Args>(args)...);
   }
