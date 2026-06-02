@@ -10,6 +10,12 @@
  * is for diagnostics, not serialisation, and is not stable across versions.
  * Sequence-like containers print as \c "[a, b, c]", set-like as \c "{a, b, c}",
  * and map-like as \c "{k: v, ...}". Each element type must itself be formattable.
+ *
+ * Containers whose contents cannot be enumerated safely or at all (the lock-free
+ * queues, the memory tier, the bloom filter, and the iteration-free LRU cache)
+ * print a single-line stats form instead, for example
+ * \c "spsc_queue(size_approx=2, capacity=15)". For the concurrent queues the
+ * counts are approximate, matching \c size_approx.
  */
 
 #include <concepts>
@@ -26,6 +32,7 @@
 #include <nexenne/container/bimap.hpp>
 #include <nexenne/container/binary_tree.hpp>
 #include <nexenne/container/bitset_dynamic.hpp>
+#include <nexenne/container/bloom_filter.hpp>
 #include <nexenne/container/dense_map.hpp>
 #include <nexenne/container/deque.hpp>
 #include <nexenne/container/error.hpp>
@@ -38,10 +45,17 @@
 #include <nexenne/container/heap.hpp>
 #include <nexenne/container/indexed_priority_queue.hpp>
 #include <nexenne/container/intrusive_list.hpp>
+#include <nexenne/container/linear_arena.hpp>
+#include <nexenne/container/lru_cache.hpp>
+#include <nexenne/container/mpmc_queue.hpp>
+#include <nexenne/container/mpsc_queue.hpp>
+#include <nexenne/container/object_pool.hpp>
 #include <nexenne/container/ring_buffer.hpp>
+#include <nexenne/container/scratch_pad.hpp>
 #include <nexenne/container/slot_map.hpp>
 #include <nexenne/container/small_vector.hpp>
 #include <nexenne/container/sparse_set.hpp>
+#include <nexenne/container/spsc_queue.hpp>
 #include <nexenne/container/stable_vector.hpp>
 #include <nexenne/container/static_flat_map.hpp>
 #include <nexenne/container/static_vector.hpp>
@@ -460,6 +474,110 @@ auto operator<<(std::ostream& os, trie<Char, Value> const& t) -> std::ostream& {
   return os << to_string(t);
 }
 
+// The types below expose no safe element enumeration (the lock-free queues are
+// mutated concurrently, the memory tier hands out raw storage, the bloom filter
+// cannot list its members, the LRU cache offers no iteration), so each prints a
+// single-line stats form rather than its elements.
+
+template <typename T, typename Hash>
+[[nodiscard]] auto to_string(bloom_filter<T, Hash> const& f) -> std::string {
+  return std::format(
+    "bloom_filter(bit_count={}, hash_count={}, insertions={}, false_positive_rate={})",
+    f.bit_count(),
+    f.hash_count(),
+    f.insertions(),
+    f.false_positive_rate()
+  );
+}
+
+template <typename T, typename Hash>
+auto operator<<(std::ostream& os, bloom_filter<T, Hash> const& f) -> std::ostream& {
+  return os << to_string(f);
+}
+
+template <typename Key, typename Value, std::size_t Capacity, typename Hash, typename KeyEq>
+[[nodiscard]] auto to_string(lru_cache<Key, Value, Capacity, Hash, KeyEq> const& c) -> std::string {
+  return std::format("lru_cache(size={}, capacity={})", c.size(), c.capacity());
+}
+
+template <typename Key, typename Value, std::size_t Capacity, typename Hash, typename KeyEq>
+auto operator<<(std::ostream& os, lru_cache<Key, Value, Capacity, Hash, KeyEq> const& c)
+  -> std::ostream& {
+  return os << to_string(c);
+}
+
+template <std::move_constructible T, std::size_t N>
+[[nodiscard]] auto to_string(spsc_queue<T, N> const& q) -> std::string {
+  return std::format("spsc_queue(size_approx={}, capacity={})", q.size_approx(), q.capacity());
+}
+
+template <std::move_constructible T, std::size_t N>
+auto operator<<(std::ostream& os, spsc_queue<T, N> const& q) -> std::ostream& {
+  return os << to_string(q);
+}
+
+template <std::move_constructible T, std::size_t N>
+[[nodiscard]] auto to_string(mpsc_queue<T, N> const& q) -> std::string {
+  return std::format("mpsc_queue(size_approx={}, capacity={})", q.size_approx(), q.capacity());
+}
+
+template <std::move_constructible T, std::size_t N>
+auto operator<<(std::ostream& os, mpsc_queue<T, N> const& q) -> std::ostream& {
+  return os << to_string(q);
+}
+
+template <std::move_constructible T, std::size_t N>
+[[nodiscard]] auto to_string(mpmc_queue<T, N> const& q) -> std::string {
+  return std::format("mpmc_queue(size_approx={}, capacity={})", q.size_approx(), q.capacity());
+}
+
+template <std::move_constructible T, std::size_t N>
+auto operator<<(std::ostream& os, mpmc_queue<T, N> const& q) -> std::ostream& {
+  return os << to_string(q);
+}
+
+template <typename T, std::size_t N>
+[[nodiscard]] auto to_string(object_pool<T, N> const& p) -> std::string {
+  return std::format(
+    "object_pool(size={}, capacity={}, high_water_mark={})",
+    p.size(),
+    p.capacity(),
+    p.high_water_mark()
+  );
+}
+
+template <typename T, std::size_t N>
+auto operator<<(std::ostream& os, object_pool<T, N> const& p) -> std::ostream& {
+  return os << to_string(p);
+}
+
+template <std::size_t N>
+[[nodiscard]] auto to_string(linear_arena<N> const& a) -> std::string {
+  return std::format(
+    "linear_arena(bytes_used={}, capacity={}, high_water_mark={})",
+    a.bytes_used(),
+    a.capacity(),
+    a.high_water_mark()
+  );
+}
+
+template <std::size_t N>
+auto operator<<(std::ostream& os, linear_arena<N> const& a) -> std::ostream& {
+  return os << to_string(a);
+}
+
+template <checkpointable_arena Arena>
+[[nodiscard]] auto to_string(scratch_pad<Arena> const& s) -> std::string {
+  return std::format(
+    "scratch_pad(saved_offset={}, bytes_used={})", s.saved_offset(), s.arena().bytes_used()
+  );
+}
+
+template <checkpointable_arena Arena>
+auto operator<<(std::ostream& os, scratch_pad<Arena> const& s) -> std::ostream& {
+  return os << to_string(s);
+}
+
 }  // namespace nexenne::container
 
 /// Formats a \c bitset_dynamic via \c nexenne::container::to_string.
@@ -748,6 +866,103 @@ struct std::formatter<nexenne::container::gap_buffer<T>> {
 
   static auto format(nexenne::container::gap_buffer<T> const& b, auto& ctx) {
     return std::format_to(ctx.out(), "{}", nexenne::container::to_string(b));
+  }
+};
+
+/// Formats a \c bloom_filter stats line via \c nexenne::container::to_string.
+template <typename T, typename Hash>
+struct std::formatter<nexenne::container::bloom_filter<T, Hash>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto format(nexenne::container::bloom_filter<T, Hash> const& f, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(f));
+  }
+};
+
+/// Formats an \c lru_cache stats line via \c nexenne::container::to_string.
+template <typename Key, typename Value, std::size_t Capacity, typename Hash, typename KeyEq>
+struct std::formatter<nexenne::container::lru_cache<Key, Value, Capacity, Hash, KeyEq>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto
+  format(nexenne::container::lru_cache<Key, Value, Capacity, Hash, KeyEq> const& c, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(c));
+  }
+};
+
+/// Formats a \c spsc_queue stats line via \c nexenne::container::to_string.
+template <std::move_constructible T, std::size_t N>
+struct std::formatter<nexenne::container::spsc_queue<T, N>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto format(nexenne::container::spsc_queue<T, N> const& q, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(q));
+  }
+};
+
+/// Formats an \c mpsc_queue stats line via \c nexenne::container::to_string.
+template <std::move_constructible T, std::size_t N>
+struct std::formatter<nexenne::container::mpsc_queue<T, N>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto format(nexenne::container::mpsc_queue<T, N> const& q, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(q));
+  }
+};
+
+/// Formats an \c mpmc_queue stats line via \c nexenne::container::to_string.
+template <std::move_constructible T, std::size_t N>
+struct std::formatter<nexenne::container::mpmc_queue<T, N>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto format(nexenne::container::mpmc_queue<T, N> const& q, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(q));
+  }
+};
+
+/// Formats an \c object_pool stats line via \c nexenne::container::to_string.
+template <typename T, std::size_t N>
+struct std::formatter<nexenne::container::object_pool<T, N>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto format(nexenne::container::object_pool<T, N> const& p, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(p));
+  }
+};
+
+/// Formats a \c linear_arena stats line via \c nexenne::container::to_string.
+template <std::size_t N>
+struct std::formatter<nexenne::container::linear_arena<N>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto format(nexenne::container::linear_arena<N> const& a, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(a));
+  }
+};
+
+/// Formats a \c scratch_pad stats line via \c nexenne::container::to_string.
+template <nexenne::container::checkpointable_arena Arena>
+struct std::formatter<nexenne::container::scratch_pad<Arena>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto format(nexenne::container::scratch_pad<Arena> const& s, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(s));
   }
 };
 
