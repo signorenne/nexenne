@@ -24,7 +24,9 @@
  * @tparam N Slot count; the effective capacity is \p N - 1.
  */
 
+#include <array>
 #include <atomic>
+#include <bit>
 #include <concepts>
 #include <cstddef>
 #include <expected>
@@ -53,28 +55,35 @@ public:
   using value_type = T;
   using size_type = std::size_t;
 
-  static constexpr size_type capacity_value = N - 1;
+  static constexpr size_type capacity_value{N - 1};
 
 private:
-  alignas(T) std::byte m_storage[sizeof(T) * N]{};
+  // Cache-line size on x86-64 and common ARM cores. Hardcoded rather than using
+  // std::hardware_destructive_interference_size, whose value is an ABI-unstable
+  // constant that GCC warns against baking into a class layout.
+  static constexpr std::size_t cache_line_size{64};
+
+  alignas(T) std::array<std::byte, sizeof(T) * N> m_storage{};
 
   // Head and tail on separate cache lines: the producer writing tail must not
   // invalidate the consumer's cache line holding head, and vice versa.
-  static constexpr std::size_t cache_line = 64;
-  alignas(cache_line) std::atomic<size_type> m_head{0};  // consumer advances this
-  alignas(cache_line) std::atomic<size_type> m_tail{0};  // producer advances this
+  alignas(cache_line_size) std::atomic<size_type> m_head{0};  // consumer advances this
+  alignas(cache_line_size) std::atomic<size_type> m_tail{0};  // producer advances this
 
+  // Elements are constructed in the byte array with std::construct_at, so access
+  // goes through std::launder: a std::byte array element is not
+  // pointer-interconvertible with the T living inside it.
   [[nodiscard]] auto buffer() noexcept -> T* {
-    return reinterpret_cast<T*>(m_storage);
+    return std::launder(reinterpret_cast<T*>(m_storage.data()));
   }
 
   [[nodiscard]] auto buffer() const noexcept -> T const* {
-    return reinterpret_cast<T const*>(m_storage);
+    return std::launder(reinterpret_cast<T const*>(m_storage.data()));
   }
 
   // Power-of-two N wraps with a mask (a single AND); any other N uses a modulo.
   [[nodiscard]] static constexpr auto next(size_type const i) noexcept -> size_type {
-    if constexpr ((N & (N - 1)) == 0) {
+    if constexpr (std::has_single_bit(N)) {
       return (i + 1) & (N - 1);
     } else {
       return (i + 1) % N;
@@ -159,6 +168,10 @@ public:
    * @post None. The queue is not modified.
    */
   [[nodiscard]] auto full_approx() const noexcept -> bool {
+    // Tail is loaded relaxed: the producer that most cares about fullness already
+    // owns the freshest tail, and either side only needs the best-effort answer
+    // the approximate contract promises. Head is acquire to pair with the
+    // consumer's release.
     auto const t{m_tail.load(std::memory_order_relaxed)};
     return next(t) == m_head.load(std::memory_order_acquire);
   }
@@ -235,7 +248,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto pop() noexcept -> std::expected<T, container_error> {
+  [[nodiscard]] auto pop() noexcept -> std::expected<T, container_error> {
     auto const h{m_head.load(std::memory_order_relaxed)};
     if (h == m_tail.load(std::memory_order_acquire)) {
       return std::unexpected{container_error::empty};
@@ -257,7 +270,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto try_pop() noexcept -> std::optional<T> {
+  [[nodiscard]] auto try_pop() noexcept -> std::optional<T> {
     auto const h{m_head.load(std::memory_order_relaxed)};
     if (h == m_tail.load(std::memory_order_acquire)) {
       return std::nullopt;
