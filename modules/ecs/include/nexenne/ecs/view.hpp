@@ -46,9 +46,12 @@
  *     construction time and walks its slots: indices \c [0, slot_count()),
  *     skipping tombstoned slots. Because the storage pool is pointer-stable,
  *     this is safe even when the loop body adds or removes components or
- *     destroys entities: live components keep their addresses, and a slot
- *     appended mid-iteration falls beyond the slot count captured at the
- *     start, so it is not visited.
+ *     destroys entities: live components keep their addresses. A component
+ *     added mid-iteration may or may not be visited this pass: a slot
+ *     appended beyond the captured slot count is skipped, but an add that
+ *     reuses a tombstoned slot ahead of the cursor is picked up (so a
+ *     remove then re-add of the same component type can visit one entity
+ *     twice). The header @post is the precise contract.
  *
  *   - The driver is one of several heterogeneous include storages, so its
  *     slot walk (slot count, liveness, key) goes through a small captured
@@ -564,9 +567,12 @@ public:
    * @tparam Func  Callback accepted by \c basic_view::each.
    * @param  f     Callback invoked once per matching entity.
    *
-   * @pre  Same as \c build (at least one include type) and \c each
-   *       (\p f does not structurally modify the viewed storages).
-   * @post Every matching entity at call time was passed to \p f once.
+   * @pre  Same as \c build (at least one include type) and
+   *       \c basic_view::each: \p f may add or remove components and create
+   *       or destroy entities during the loop, since the storages are
+   *       pointer-stable.
+   * @post Every matching entity at call time was passed to \p f once,
+   *       matching \c basic_view::each.
    *
    * @complexity Same as building the view plus iterating it.
    */
