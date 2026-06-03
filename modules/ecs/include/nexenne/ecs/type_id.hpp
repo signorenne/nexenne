@@ -12,9 +12,8 @@
  *     evaluated gets \c 0, the second \c 1, and so on. This makes the
  *     IDs usable directly as indices into a flat vector, which is
  *     what \c registry uses to look up a component storage by type.
- *   - \c constexpr-friendly at the call site (the static-local
- *     initialization runs once per program, then every subsequent
- *     call is a single load).
+ *   - Cheap at the call site: the static-local initialization runs
+ *     once per program, then every subsequent call is a single load.
  *
  * The implementation relies on the C++ "one static-local per
  * instantiation" rule. Each \c type_id<T> instantiation has its own
@@ -30,6 +29,7 @@
  * keyed by user-supplied strings.
  */
 
+#include <atomic>
 #include <cstddef>
 
 namespace nexenne::ecs {
@@ -39,9 +39,11 @@ namespace detail {
 /**
  * @brief Returns the next free dense ID and advances the shared counter.
  *
- * Reads the function-local \c counter, returns its current value, then
- * post-increments it. Called exactly once per distinct \c type_id<T>
- * instantiation, from that instantiation's static-local initializer.
+ * Atomically fetch-adds the function-local \c counter, returning its prior
+ * value. Called exactly once per distinct \c type_id<T> instantiation, from
+ * that instantiation's static-local initializer. The counter is atomic so two
+ * threads first-touching disjoint types concurrently each receive a distinct
+ * ID rather than racing on a plain increment.
  *
  * @return The pre-increment value of the shared counter: \c 0 on the
  *         first call of the program, \c 1 on the second, and so on.
@@ -50,8 +52,8 @@ namespace detail {
  * @post The shared counter is one greater than the returned value.
  */
 [[nodiscard]] inline auto next_type_id() noexcept -> std::size_t {
-  static std::size_t counter{0};
-  return counter++;
+  static std::atomic<std::size_t> counter{0};
+  return counter.fetch_add(1, std::memory_order_relaxed);
 }
 
 }  // namespace detail

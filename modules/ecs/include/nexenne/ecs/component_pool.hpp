@@ -28,9 +28,11 @@
  * container.
  */
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -116,6 +118,9 @@ public:
       m_sparse[key] = static_cast<key_type>(slot) + 1;
     } else {
       auto const slot{m_slots.size()};
+      // The sparse array stores slot + 1 as a key_type, so the slot index must
+      // fit key_type with room for the + 1 sentinel bias.
+      assert(slot < std::numeric_limits<key_type>::max() && "component_pool slot count overflow");
       nexenne::utility::discard(m_slots.push_back(slot_type{entry{key, std::move(value)}}));
       m_sparse[key] = static_cast<key_type>(slot) + 1;
     }
@@ -259,6 +264,7 @@ public:
    * @post None.
    */
   [[nodiscard]] auto is_live(size_type const slot) const noexcept -> bool {
+    assert(slot < slot_count() && "is_live slot out of range");
     return m_slots.at(slot)->has_value();
   }
 
@@ -273,6 +279,7 @@ public:
    * @post None.
    */
   [[nodiscard]] auto key_at(size_type const slot) const noexcept -> key_type {
+    assert(slot < slot_count() && "key_at slot out of range");
     return (**m_slots.at(slot)).key;
   }
 
@@ -287,11 +294,13 @@ public:
    * @post None.
    */
   [[nodiscard]] auto value_at(size_type const slot) noexcept -> value_type& {
+    assert(slot < slot_count() && "value_at slot out of range");
     return (**m_slots.at(slot)).value;
   }
 
   /// @copydoc value_at
   [[nodiscard]] auto value_at(size_type const slot) const noexcept -> value_type const& {
+    assert(slot < slot_count() && "value_at slot out of range");
     return (**m_slots.at(slot)).value;
   }
 };
@@ -334,10 +343,15 @@ public:
   private:
     pool_type* m_pool{nullptr};
     size_type m_slot{0};
+    // Slot count captured at construction. Bounding advance by this fixed value
+    // (rather than a live re-read) keeps a slot appended during iteration out of
+    // range, so the cursor can never pass the end() position and null-deref a
+    // freshly tombstoned slot. This mirrors basic_view::iterator's m_count.
+    size_type m_count{0};
 
-    /// @brief Advances the cursor to the next live slot, or to the slot count.
+    /// @brief Advances the cursor to the next live slot, or to the captured count.
     auto advance_to_live() noexcept -> void {
-      while (m_slot < m_pool->slot_count() && !m_pool->is_live(m_slot)) {
+      while (m_slot < m_count && !m_pool->is_live(m_slot)) {
         ++m_slot;
       }
     }
@@ -363,7 +377,7 @@ public:
      *       slot count when none remain.
      */
     explicit iterator(pool_type& pool, size_type const slot) noexcept
-        : m_pool{&pool}, m_slot{slot} {
+        : m_pool{&pool}, m_slot{slot}, m_count{pool.slot_count()} {
       advance_to_live();
     }
 

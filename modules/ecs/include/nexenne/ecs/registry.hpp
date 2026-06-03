@@ -60,12 +60,14 @@
  * concurrent mutation not.
  */
 
+#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -124,6 +126,7 @@ class typed_query_builder;
  */
 class entity_id {
 public:
+  using value_type = entity_id;           ///< Self-typed, as the handle is its own element type.
   using index_type = std::uint32_t;       ///< Slot index into the registry's per-entity arrays.
   using generation_type = std::uint32_t;  ///< Recycle counter distinguishing reuses of an index.
 
@@ -234,6 +237,7 @@ public:
 template <typename T>
 class component_storage {
 public:
+  using value_type = T;  ///< Component type stored per entity index.
   using pool_type =
     detail::component_pool<T>;  ///< Pointer-stable backing pool keyed by entity index.
   using size_type = typename pool_type::size_type;  ///< Count and slot-index type.
@@ -774,7 +778,10 @@ public:
    *
    * @pre None.
    * @post This registry owns \p other's entities and component
-   *       storages; \p other is left empty and reusable.
+   *       storages; \p other is left empty and reusable. Any \c view,
+   *       sink, or \c storage<T>() reference obtained from \p other before
+   *       the move must not be used: the storages now belong to this
+   *       registry and the views still aim at the hollowed-out source.
    */
   registry(registry&& other) noexcept
       : m_generations{std::move(other.m_generations)}
@@ -793,7 +800,9 @@ public:
    * @pre None. Self-assignment is a no-op.
    * @post This registry owns \p other's entities and component
    *       storages; any previously held storages have been freed and
-   *       \p other is left empty.
+   *       \p other is left empty. Any \c view, sink, or \c storage<T>()
+   *       reference obtained from either registry before the move must not
+   *       be used afterwards.
    */
   auto operator=(registry&& other) noexcept -> registry& {
     if (this != &other) {
@@ -811,6 +820,12 @@ public:
    *
    * @pre None.
    * @post All heap-allocated component storages have been released.
+   *
+   * @note The on-destroy signals are NOT fired for the components still
+   *       live at destruction. Firing listeners while the registry tears
+   *       itself down would expose half-destroyed state, so teardown is
+   *       silent; call \c clear() first when listeners must observe the
+   *       final components.
    */
   ~registry() noexcept {
     destroy_storages();
@@ -839,6 +854,12 @@ public:
       m_alive_indices.insert(idx);
       return entity_id{idx, m_generations[idx]};
     }
+    // Fresh indices come from the size of the generation array cast to
+    // index_type, so the slot count must stay within index_type.
+    assert(
+      m_generations.size() < std::numeric_limits<index_type>::max()
+      && "registry entity index overflow"
+    );
     auto const idx{static_cast<index_type>(m_generations.size())};
     m_generations.push_back(1);
     m_alive_indices.insert(idx);
@@ -860,8 +881,16 @@ public:
    *
    * @pre None. A stale or invalid \p e is handled gracefully.
    * @post On a \c true result, \c valid(e) is \c false, \c alive() has
-   *       decreased by one, and \p e carries no components. On a
-   *       \c false result the registry is unchanged.
+   *       decreased by one, and \p e carries no components. A component
+   *       attached to \p e by a listener during the on-destroy fire is
+   *       erased without its own on-destroy signal. On a \c false result the
+   *       registry is unchanged.
+   *
+   * @warning A listener invoked by the on-destroy fire must not destroy \p e
+   *          again: \p e is marked not-alive before the fire, so a nested
+   *          \c destroy(e) returns \c false rather than re-entering, but a
+   *          listener must still not rely on \p e being live. Destroying or
+   *          mutating other entities from a listener is safe.
    *
    * @complexity \c O(C) where C is the number of registered component
    *             types.
@@ -870,6 +899,12 @@ public:
     if (!valid(e)) {
       return false;
     }
+    // Mark the slot not-alive before firing on_destroy so a listener that calls
+    // destroy(e) again re-enters valid() == false (valid() consults the alive
+    // set) and returns rather than recursing and pushing the index onto the free
+    // list twice. The generation bump and free-list push stay after the fire, so
+    // listeners still receive the live component reference.
+    m_alive_indices.erase(e.index());
     // For every storage that holds \p e, fire on_destroy with the live value,
     // then erase. An on_destroy listener may register a new component type and
     // grow m_storages, reallocating the entry table, so copy this entry's
@@ -910,7 +945,6 @@ public:
       generation = 1;
     }
     m_free_indices.push_back(e.index());
-    m_alive_indices.erase(e.index());
     return true;
   }
 
@@ -918,9 +952,13 @@ public:
    * @brief Reports whether \p e refers to a live entity.
    *
    * A handle is valid when its index is in range, its generation is
-   * non-zero, and that generation matches the registry's current
-   * generation for the slot. This rejects default-constructed handles
-   * and handles to since-destroyed (or recycled) entities.
+   * non-zero, that generation matches the registry's current generation
+   * for the slot, and the slot is currently alive. Checking aliveness (not
+   * just the generation) rejects a forged handle that carries a freed
+   * slot's current generation, which would otherwise pass and let
+   * \c add / \c destroy corrupt the free list. This also rejects
+   * default-constructed handles and handles to since-destroyed (or
+   * recycled) entities.
    *
    * @param e  Handle to test. Any value is accepted.
    *
@@ -933,7 +971,7 @@ public:
    */
   [[nodiscard]] auto valid(entity_id const e) const noexcept -> bool {
     return e.index() < m_generations.size() && e.generation() != 0
-           && m_generations[e.index()] == e.generation();
+           && m_generations[e.index()] == e.generation() && m_alive_indices.contains(e.index());
   }
 
   /**
@@ -993,6 +1031,13 @@ public:
    * @post When \c valid(e), \c has<T>(e) is \c true. A \c true result
    *       means exactly one \c on_construct<T>() fired; a \c false
    *       result with a valid \p e means one \c on_update<T>() fired.
+   *
+   * @note The replace path assigns the new value onto the existing
+   *       component in place, so \c T must be move-assignable to be
+   *       replaced (attaching a \c T with a deleted or non-trivial
+   *       assignment still works, but a second \c add that overwrites it
+   *       does not compile). The construct path needs only move
+   *       construction.
    *
    * @warning A listener invoked by the fired signal must not remove this \c T
    *          from \p e, nor destroy \p e, while the signal is firing: that
@@ -1422,19 +1467,41 @@ public:
   /**
    * @brief Wipes every entity and every component.
    *
-   * Clears all component storages, then bumps the generation of every
+   * Fires the on-destroy signal for every live component (so listeners
+   * doing resource cleanup observe each one, consistent with \c destroy),
+   * clears all component storages, then bumps the generation of every
    * previously-used slot and returns all slots to the free list, so
    * any outstanding \c entity_id stays invalid forever.
    *
    * @pre None.
    * @post \c alive() is 0. Every \c entity_id obtained before this
-   *       call is now invalid. Registered component types remain
-   *       registered (their storages are empty, not destroyed).
+   *       call is now invalid. One \c on_destroy fired for each component
+   *       live at entry. Registered component types remain registered
+   *       (their storages are empty, not destroyed).
    *
    * @complexity \c O(N + C) where N is the number of slots ever used
    *             and C the number of registered component types.
    */
   auto clear() noexcept -> void {
+    // Fire on_destroy for every live component before tearing the storages down,
+    // so listeners observe each component exactly once (consistent with
+    // destroy). Snapshot the live indices first: a listener may create or
+    // destroy entities and mutate the alive set. A listener may also register a
+    // new component type and grow m_storages, so index the table and copy each
+    // dispatch out before firing.
+    auto const live{index_vector{m_alive_indices.keys().begin(), m_alive_indices.keys().end()}};
+    for (auto const idx : live) {
+      auto const storage_count{m_storages.size()};
+      for (auto i{std::size_t{0}}; i < storage_count; ++i) {
+        auto* const data{m_storages[i].data};
+        if (data == nullptr || !m_storages[i].contains_fn(data, idx)) {
+          continue;
+        }
+        auto const fire_on_destroy{m_storages[i].fire_on_destroy_fn};
+        // m_storages[i] must not be touched past here: fire may reallocate it.
+        fire_on_destroy(data, entity_id{idx, m_generations[idx]});
+      }
+    }
     for (auto& s : m_storages) {
       if (s.data != nullptr) {
         s.clear_fn(s.data);
