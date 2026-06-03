@@ -201,4 +201,66 @@ TEST_CASE("nexenne::container::hash trie equal tries hash equal regardless of in
   CHECK_FALSE(seen.contains(different));
 }
 
+TEST_CASE("nexenne::container::hash flat_set hashes as a sorted sequence") {
+  cn::flat_set<int> const a{3, 1, 2};
+  cn::flat_set<int> const b{2, 3, 1};  // same contents, inserted differently
+  cn::flat_set<int> const c{1, 2};
+  std::hash<cn::flat_set<int>> const h;
+  CHECK(a == b);
+  CHECK(h(a) == h(b));  // canonical sorted order, so equal sets hash equal
+  CHECK(h(a) != h(c));
+
+  std::unordered_set<cn::flat_set<int>> seen;
+  seen.insert(a);
+  CHECK(seen.contains(b));
+  CHECK_FALSE(seen.contains(c));
+}
+
+TEST_CASE("nexenne::container::hash flat_map hashes keys and values in sorted key order") {
+  cn::flat_map<int, std::string> const a{{2, "b"s}, {1, "a"s}};
+  cn::flat_map<int, std::string> const b{{1, "a"s}, {2, "b"s}};
+  cn::flat_map<int, std::string> const differ{{1, "a"s}, {2, "z"s}};
+  std::hash<cn::flat_map<int, std::string>> const h;
+  CHECK(a == b);
+  CHECK(h(a) == h(b));
+  CHECK(a != differ);
+  CHECK(h(a) != h(differ));
+
+  std::unordered_set<cn::flat_map<int, std::string>> seen;
+  seen.insert(a);
+  CHECK(seen.contains(b));
+  CHECK_FALSE(seen.contains(differ));
+}
+
+TEST_CASE("nexenne::container::hash static_flat_map works as a map key") {
+  using map = cn::static_flat_map<int, int, 4>;
+  map const a{{2, 20}, {1, 10}};
+  map const b{{1, 10}, {2, 20}};
+  map const differ{{1, 10}, {3, 30}};
+  std::hash<map> const h;
+  CHECK(a == b);
+  CHECK(h(a) == h(b));
+  CHECK(h(a) != h(differ));
+
+  std::unordered_set<map> seen;
+  seen.insert(a);
+  CHECK(seen.contains(b));
+  CHECK_FALSE(seen.contains(differ));
+}
+
+TEST_CASE("nexenne::container::hash gap_buffer hashes as a logical sequence") {
+  cn::gap_buffer<int> const a{1, 2, 3};
+  cn::gap_buffer<int> const b{1, 2, 3};
+  cn::gap_buffer<int> const c{1, 2};
+  std::hash<cn::gap_buffer<int>> const h;
+  CHECK(a == b);
+  CHECK(h(a) == h(b));
+  CHECK(h(a) != h(c));
+
+  std::unordered_set<cn::gap_buffer<int>> seen;
+  seen.insert(a);
+  CHECK(seen.contains(b));
+  CHECK_FALSE(seen.contains(c));
+}
+
 }  // namespace
