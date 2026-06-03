@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Tests for nexenne::ecs entity_id formatting (to_string, operator<<, std::formatter).
+ */
+
 #include <doctest/doctest.h>
 
 #include <format>
@@ -33,4 +38,12 @@ TEST_CASE("std::format and operator<< agree with to_string") {
 
   ecs::entity_id const invalid{};
   CHECK(std::format("{}", invalid) == "entity(invalid)");
+}
+
+TEST_CASE("the formatter honours width and alignment specs") {
+  // Inheriting std::formatter<std::string_view> means a spec applies to the
+  // whole rendering, so the handle right- and left-aligns like any string.
+  ecs::entity_id const invalid{};
+  CHECK(std::format("{:>20}", invalid) == "     entity(invalid)");
+  CHECK(std::format("{:<20}", invalid) == "entity(invalid)     ");
 }
