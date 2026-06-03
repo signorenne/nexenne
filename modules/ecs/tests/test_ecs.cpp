@@ -5,11 +5,14 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <iterator>
 #include <memory>
 #include <ranges>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -1331,7 +1334,7 @@ TEST_CASE("registry move assignment transfers ownership and frees the target") {
 
   CHECK(dst.alive() == 1);
   CHECK(dst.valid(a));
-  // `old` and `a` are both {index 0, generation 1} (each registry's first
+  // old and a are both {index 0, generation 1} (each registry's first
   // entity), so they collide as handles (a handle carries no registry id);
   // verify instead that dst's OLD storages were freed: the health it held is
   // gone (the moved-in registry had no health storage).
@@ -1457,26 +1460,144 @@ TEST_CASE("recycle never mints a generation-0 (invalid) handle") {
   CHECK_FALSE(r.valid(entity_id{}));
 }
 
-TEST_CASE(
-  "registry.destroy detaches a component an on_destroy listener attaches to the dying entity"
-) {
+TEST_CASE("registry.destroy rejects a listener re-adding to the dying (now-invalid) entity") {
   auto r{registry{}};
-  // The dying entity is still valid while on_destroy fires, so a listener can
-  // attach a brand-new component type to it. Its storage does not exist until
-  // this fires (so it is appended past the storages the destroy loop captured).
-  // destroy must still leave the freed index component-free.
+  // The dying entity is marked not-alive before on_destroy fires (reentrancy
+  // proofing), so it reads invalid inside the listener: an add() targeting it
+  // returns false and attaches nothing, and the recycled index comes up clean.
+  auto add_result{true};
   auto conn{r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
-    nexenne::utility::discard(r.add<position>(e, position{.x = 9.0F, .y = 9.0F, .z = 9.0F}));
+    add_result = r.add<position>(e, position{.x = 9.0F, .y = 9.0F, .z = 9.0F});
   })};
   auto const a{r.create()};
   nexenne::utility::discard(r.add<health>(a, health{.hp = 100}));
   auto const a_index{a.index()};
 
   CHECK(r.destroy(a));
+  CHECK_FALSE(add_result);  // the dying entity was invalid, so add did nothing
 
   auto const b{r.create()};
   REQUIRE(b.index() == a_index);    // recycled the freed index
-  CHECK_FALSE(r.has<position>(b));  // the mid-destroy attachment was swept off
+  CHECK_FALSE(r.has<position>(b));  // no stale component inherited
+  nexenne::utility::discard(conn);
+}
+
+TEST_CASE("values() range-for tolerates append then tombstone mid-iteration (C1)") {
+  auto r{registry{}};
+  auto const e0{r.create()};
+  auto const e1{r.create()};
+  nexenne::utility::discard(r.add<health>(e0, health{.hp = 1}));
+  nexenne::utility::discard(r.add<health>(e1, health{.hp = 2}));
+
+  auto visited{0};
+  auto sum{0};
+  auto mutated{false};
+  for (auto& h : r.storage<health>().values()) {
+    ++visited;
+    sum += h.hp;
+    if (!mutated) {
+      mutated = true;
+      // No free slot exists, so this appends slot 2, then tombstones it. Before
+      // the fix the cursor re-read the grown slot count, stepped over the
+      // tombstone, and dereferenced a null slot past the captured end().
+      auto const tmp{r.create()};
+      nexenne::utility::discard(r.add<health>(tmp, health{.hp = 99}));
+      nexenne::utility::discard(r.remove<health>(tmp));
+    }
+  }
+  CHECK(visited == 2);  // only the two originally-live slots
+  CHECK(sum == 3);      // 1 + 2, never the appended-then-removed 99
+}
+
+TEST_CASE("valid() rejects a forged handle carrying a freed slot's current generation (M3)") {
+  auto r{registry{}};
+  auto const a{r.create()};
+  auto const idx{a.index()};
+  CHECK(r.destroy(a));
+  CHECK(r.alive() == 0);
+
+  // The slot's current generation is the one create() will hand out next, so a
+  // handle forged with it matched generation but named a freed slot.
+  auto const forged{entity_id{idx, r.generation_at(idx)}};
+  CHECK_FALSE(r.valid(forged));                        // freed slot: not alive
+  CHECK_FALSE(r.add<health>(forged, health{.hp = 5}));  // add must fail
+  CHECK_FALSE(r.destroy(forged));                      // must not double-push the free list
+
+  // The free list still holds idx exactly once, so two creates mint two
+  // distinct indices rather than aliasing the same slot.
+  auto const b{r.create()};
+  auto const c{r.create()};
+  CHECK(b.index() != c.index());
+}
+
+TEST_CASE("an on_destroy listener destroying the same entity does not recurse (M2)") {
+  auto r{registry{}};
+  auto reentry_result{true};
+  auto fire_count{0};
+  auto conn{r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
+    ++fire_count;
+    reentry_result = r.destroy(e);  // nested destroy of the SAME entity
+  })};
+  auto const a{r.create()};
+  nexenne::utility::discard(r.add<health>(a, health{.hp = 1}));
+
+  CHECK(r.destroy(a));          // must not stack-overflow via mutual recursion
+  CHECK(fire_count == 1);       // fired exactly once
+  CHECK_FALSE(reentry_result);  // the nested destroy saw an invalid handle
+  CHECK(r.alive() == 0);
+
+  // The free list holds the index once, so two creates mint distinct indices.
+  auto const b{r.create()};
+  auto const c{r.create()};
+  CHECK(b.index() != c.index());
+  nexenne::utility::discard(conn);
+}
+
+TEST_CASE("clear() fires on_destroy for every live component (M4)") {
+  auto r{registry{}};
+  auto pos_count{0};
+  auto hp_count{0};
+  auto c1{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept { ++pos_count; }
+  )};
+  auto c2{r.on_destroy<health>().connect([&](entity_id, health const&) noexcept { ++hp_count; })};
+
+  auto const a{r.create()};
+  auto const b{r.create()};
+  nexenne::utility::discard(r.add<position>(a, position{}));
+  nexenne::utility::discard(r.add<health>(a, health{.hp = 1}));
+  nexenne::utility::discard(r.add<position>(b, position{}));
+
+  r.clear();
+
+  CHECK(pos_count == 2);  // a and b both carried a position
+  CHECK(hp_count == 1);   // only a carried a health
+  CHECK(r.alive() == 0);
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
+}
+
+// Distinct tag type per thread, so first-touch of each races only on the
+// shared counter inside next_type_id (not on any per-type static local).
+template <std::size_t N>
+struct race_tag {};
+
+TEST_CASE("type_id mints unique ids for types first-touched concurrently (M1)") {
+  // With a plain (non-atomic) counter, two threads first-touching disjoint types
+  // race and can mint duplicate ids. The counter is now std::atomic, so every id
+  // is distinct. This does not deterministically reproduce the race: verify the
+  // fix under ThreadSanitizer. It pins the observable invariant that concurrently
+  // minted ids are unique.
+  constexpr auto count{std::size_t{8}};
+  auto ids{std::array<std::size_t, count>{}};
+  auto threads{std::array<std::thread, count>{}};
+  [&]<std::size_t... Is>(std::index_sequence<Is...>) noexcept {
+    ((threads[Is] = std::thread{[&ids]() noexcept { ids[Is] = type_id<race_tag<Is>>(); }}), ...);
+  }(std::make_index_sequence<count>{});
+  for (auto& t : threads) {
+    t.join();
+  }
+  std::ranges::sort(ids);
+  CHECK(std::ranges::adjacent_find(ids) == ids.end());  // all ids distinct
 }
 
 }  // namespace
