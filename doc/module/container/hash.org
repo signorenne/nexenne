@@ -16,20 +16,25 @@ A =std::hash= specialization for each container that has a well-defined
 =operator== over a *canonical* iteration order, so that equal values always hash
 equal (the only correctness requirement a hash must meet):
 
-| container        | hash basis                                              |
-|------------------+---------------------------------------------------------|
-| =bitset_dynamic= | the bit count plus every packed word                    |
-| =static_vector=  | the size plus each element, in order                    |
-| =small_vector=   | the size plus each element, in order                    |
-| =stable_vector=  | the size plus each element, in order                    |
-| =ring_buffer=    | the size plus each element, front to back (FIFO)        |
-| =binary_tree=    | the size plus each element, in-order (sorted, canonical)|
-| =trie=           | the size plus a commutative (XOR) fold over its entries |
+| container          | hash basis                                              |
+|--------------------+---------------------------------------------------------|
+| =bitset_dynamic=   | the bit count plus every packed word                    |
+| =static_vector=    | the size plus each element, in order                    |
+| =small_vector=     | the size plus each element, in order                    |
+| =stable_vector=    | the size plus each element, in order                    |
+| =ring_buffer=      | the size plus each element, front to back (FIFO)        |
+| =gap_buffer=       | the size plus each element, in logical order            |
+| =flat_set=         | the size plus each element, in sorted (canonical) order |
+| =flat_map=         | the size plus each key and value, in sorted key order   |
+| =static_flat_map=  | the size plus each key and value, in sorted key order   |
+| =binary_tree=      | the size plus each element, in-order (sorted, canonical)|
+| =trie=             | the size plus a commutative (XOR) fold over its entries |
 
 Every specialization combines the element count first, then the elements, using
 =nexenne::utility::hash_combine= (a Boost-style mixer) so the recipe stays in one
-place. The =trie= uses an order-insensitive XOR fold so the hash matches its
-structural =operator==.
+place. The sequence and sorted forms share one =detail::sequence_hash= /
+=detail::map_hash= helper. The =trie= uses an order-insensitive XOR fold so the
+hash matches its structural =operator==.
 
 * What it deliberately omits
 
@@ -40,12 +45,20 @@ provide a logical =operator== either. The hashed associative containers
 (=flat_hash_map= and friends) are likewise not hashed: hashing a hash table as a
 value is rarely wanted and has no canonical order.
 
+=bimap=, =dense_map=, =graph=, =union_find=, =slot_map=, =intrusive_list=, and
+=bloom_filter= also define =operator== but are left unhashed for now: their
+equality is either order-insensitive (needing a commutative fold like the trie's)
+or keyed on stable handles rather than contents, so each needs a per-type
+decision rather than the sequence recipe above.
+
 * Requirements and gotchas
 
 - The element type must itself be hashable: =std::hash<T>= must exist for a
-  container of =T= to be hashable. The specialization is only instantiated when
-  used, so a container of a non-hashable type is fine as long as you never hash
-  it.
+  container of =T= to be hashable. Each specialization is *constrained* on
+  =nexenne::utility::hashable=, so a query against a container of a non-hashable
+  element sees =std::hash= as disabled (non-invocable) rather than hard-erroring,
+  and each =operator()= is conditionally =noexcept=, propagating a throwing
+  element hash instead of calling =std::terminate=.
 - Equal containers hash equal, which is the contract; unequal containers *may*
   collide, as with any hash.
 - The hash is for use as a map/set key, not for persistence: the values are not
