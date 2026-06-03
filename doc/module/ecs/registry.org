@@ -201,6 +201,18 @@ The firing rules are precise:
 - =on_destroy<T>= fires *before* the component is erased by =remove<T>= or by
   =destroy(e)=, so the listener can read the final value while it is still live.
 
+** Printing entity handles
+
+Include =nexenne/ecs/format.hpp= (also pulled in by the umbrella) to print an
+=entity_id= with no hand-written helper. It ships the usual three layers: a
+=to_string(e)= returning a readable string, an =operator<<= that streams it, and a
+=std::formatter= specialization so =std::format("{}", e)= and =std::println("{}",
+e)= work directly. A live handle prints as =entity(index, generation)=; the
+default (invalid) handle prints as =entity(invalid)=. The formatter inherits the
+=string_view= formatter, so width and alignment specs apply to the whole
+rendering. Keep this header out of hot or widely-included code: =<format>= is
+heavy, so formatting is opt-in.
+
 * When to use it
 
 Reach for the registry when you have many entities composed of varying

@@ -176,11 +176,13 @@ auto main() -> int {
   }};
 
   // 4. Reaping. Anything whose health dropped to zero or below is destroyed.
-  // We cannot destroy entities while iterating the live-entity set in place, so
-  // we collect the doomed in one pass and destroy them in a second. destroy()
-  // fires on_destroy for every component the entity holds, then frees its slot
-  // for recycling, so all of an entity's parts leave together with no manual
-  // teardown per component type.
+  // Destroying inside the view loop is safe (the storage is pointer-stable), but
+  // we use the classic deferred discipline: collect the doomed in one pass and
+  // destroy them in a second, keeping the reaping decision and the structural
+  // change separate and easy to reason about. destroy() fires on_destroy for
+  // every component the entity holds, then frees its slot for recycling, so all
+  // of an entity's parts leave together with no manual teardown per component
+  // type.
   auto const reap_step{[&reg]() noexcept -> int {
     auto doomed{std::vector<ecs::entity_id>{}};
     reg.view<health>().each([&doomed](ecs::entity_id const e, health const& h) noexcept {
