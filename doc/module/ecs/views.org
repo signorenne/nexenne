@@ -171,9 +171,12 @@ hands back stays valid even as the storage grows or tombstones slots. The loop
 body may add or remove components and create or destroy entities, with two
 well-defined edges to know about:
 
-- A component *added* during the walk lands in a slot beyond the count captured
-  when the walk began, so it is *not* visited this time around. If you need the
-  new entity processed, do it in the next pass.
+- A component *added* during the walk may or may not be visited this pass. An
+  append lands in a slot beyond the count captured when the walk began, so it is
+  skipped; but an add that reuses a tombstoned slot ahead of the cursor lands
+  inside the captured range and is picked up, so a remove then re-add of the same
+  component type can visit one entity twice. If you need newly added entities
+  handled deterministically, do it in the next pass.
 
 - *Removing* a component (or destroying its entity) tombstones its slot. A slot
   already visited is unaffected; a slot not yet reached is simply skipped when

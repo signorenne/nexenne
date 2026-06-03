@@ -41,7 +41,9 @@ auto main() -> int {
   // (generation 0) never is, so an uninitialised id is always safely rejected.
   std::println("== 1. Create and validity ==");
   auto const e{reg.create()};
-  std::println("  created entity index {} gen {}", e.index(), e.generation());
+  // The entity_id formatter (from <nexenne/ecs/format.hpp>, pulled in by the
+  // umbrella) prints the handle directly as entity(index, generation).
+  std::println("  created entity      {}", e);
   std::println("  valid(e)            {}", reg.valid(e));
   std::println("  valid(default id)   {}", reg.valid(ecs::entity_id{}));
   std::println("  alive               {}", reg.alive());
