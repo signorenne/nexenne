@@ -19,6 +19,7 @@
  * C++26.
  */
 
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <limits>
@@ -85,6 +86,7 @@ template <arithmetic Value>
 template <arithmetic Value>
 [[nodiscard]] constexpr auto
 clamp(Value const value, Value const lo, Value const hi) noexcept -> Value {
+  assert(!(hi < lo) && "clamp requires lo <= hi");
   return value < lo ? lo : (value > hi ? hi : value);
 }
 
@@ -312,6 +314,7 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 inverse_lerp(Real const lo, Real const hi, Real const value) noexcept -> Real {
+  assert(lo != hi && "inverse_lerp requires lo != hi (would divide by zero)");
   return Real{(value - lo) / (hi - lo)};
 }
 
@@ -495,11 +498,15 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto trunc(Real const value) noexcept -> Real {
   if consteval {
-    // Any value of magnitude >= 2/epsilon has no fractional bits left, so it is
-    // already integral; return it unchanged. This both is correct and avoids the
-    // undefined cast of an out-of-range float to long long for huge inputs (a
-    // value above LLONG_MAX would otherwise be UB).
-    constexpr Real integral_threshold{Real{2} / std::numeric_limits<Real>::epsilon()};
+    // Any value of magnitude >= 1/epsilon has ulp >= 1, so it carries no
+    // fractional bits and is already integral; return it unchanged. This both is
+    // correct and avoids the undefined cast of an out-of-range float to long long
+    // for huge inputs. The threshold is 1/epsilon, not 2/epsilon: for x87 long
+    // double (epsilon 2^-63) the 2/epsilon form is 2^64, which lets every value in
+    // [2^63, 2^64) fall through to a static_cast<long long> that is out of range (a
+    // hard error in constant evaluation). At 1/epsilon the largest value passed to
+    // the cast is below 2^63, which always casts safely.
+    constexpr Real integral_threshold{Real{1} / std::numeric_limits<Real>::epsilon()};
     if (value >= integral_threshold || value <= -integral_threshold) {
       return value;
     }
@@ -621,11 +628,27 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto mod(Real const a, Real const b) noexcept -> Real {
+  assert(b != Real{0} && "mod requires a non-zero divisor");
   // Floor-based modulo: subtract the largest multiple of b not exceeding a.
   // Because floor rounds toward negative infinity (not toward zero like the
   // truncated division behind std::fmod), the remainder always takes the sign of
   // b, which is what cyclic quantities (angles, tile indices) want.
-  auto const r{a - b * floor(a / b)};
+  auto r{a - b * floor(a / b)};
+  // One reduction is not enough for a huge dividend: once ulp(a) exceeds |b|
+  // (|a| > |b|/epsilon, about 2.8e16 for b = tau), the product b*floor(a/b) can
+  // round to a value above a, so r comes out as a large multiple of ulp(a) with
+  // the wrong sign, not a hair below the period. Re-reduce r against b until it
+  // lands in range; each pass shrinks the residue by a factor of about 2^52, so
+  // at most a few passes are needed. floor keeps the remainder following the sign
+  // of b. The equality guard stops the loop rather than spin if a pass makes no
+  // representable progress.
+  while ((b > Real{0} && (r < Real{0} || r >= b)) || (b < Real{0} && (r > Real{0} || r <= b))) {
+    auto const reduced{r - b * floor(r / b)};
+    if (reduced == r) {
+      break;
+    }
+    r = reduced;
+  }
   // The result is mathematically in [0, b) (or (b, 0] for b < 0), but rounding
   // can land it on the excluded endpoint b: for a tiny a of opposite sign,
   // a - b*(-1) rounds to b. Pull that back to 0 so the half-open postcondition
@@ -653,6 +676,7 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto repeat(Real const value, Real const length) noexcept -> Real {
+  assert(length > Real{0} && "repeat requires a positive length");
   return mod(value, length);
 }
 
@@ -673,6 +697,7 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto wrap(Real const value, Real const lo, Real const hi) noexcept -> Real {
+  assert(lo < hi && "wrap requires lo < hi");
   return lo + repeat(value - lo, hi - lo);
 }
 
@@ -694,6 +719,7 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto ping_pong(Real const value, Real const length) noexcept -> Real {
+  assert(length > Real{0} && "ping_pong requires a positive length");
   auto const cycle{repeat(value, Real{2} * length)};
   return cycle <= length ? cycle : Real{2} * length - cycle;
 }
