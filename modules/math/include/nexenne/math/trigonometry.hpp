@@ -214,7 +214,8 @@ template <std::floating_point Real>
   // common small-angle path free of the extra division, reducing modulo a full
   // turn (which preserves sin and cos) only when x is enormous.
   auto reduced_x{x};
-  if (x > Real{1e15} || x < Real{-1e15}) {
+  auto constexpr huge_angle{static_cast<Real>(1e15)};
+  if (x > huge_angle || x < -huge_angle) {
     reduced_x = mod(x, tau_v<Real>);
   }
   // Range reduction: find the nearest multiple of pi/2 and subtract it, so the
@@ -349,8 +350,9 @@ template <std::floating_point Real>
 /**
  * @brief Approximate \c asin of \p x, in radians.
  *
- * Abramowitz and Stegun 4.4.46 degree-7 polynomial. Maximum error around 5e-8
- * over [-1, 1].
+ * Abramowitz and Stegun 4.4.46 degree-7 polynomial. Maximum error about 2e-8 in
+ * \c double over [-1, 1]; about 3e-7 in \c float, where coefficient rounding and
+ * the \c sqrt evaluation dominate the fit's own 5e-8 ceiling.
  *
  * @tparam Real Floating-point type.
  * @param x Value in [-1, 1].
@@ -426,6 +428,11 @@ template <std::floating_point Real>
   auto const ax{abs(x)};
   auto const reduced{ax > Real{1} ? Real{1} / ax : ax};
   auto const r2{reduced * reduced};
+  // The six coefficients are a minimax (Remez) fit of atan(r)/r as a degree-5
+  // polynomial in r^2 on [0, 1], minimizing the maximum absolute error (about
+  // 1.7e-6, verified by the accuracy harness) rather than the truncation error a
+  // Taylor series would give. Coefficients from the vectorized-atan2 derivation at
+  // https://mazzo.li/posts/vectorized-atan2.html (originally an Intel SVML fit).
   // Horner from the highest coefficient down; bit-identical to the nested form,
   // within the column limit.
   auto q{Real{-0.01172120}};
@@ -613,7 +620,7 @@ template <std::floating_point Real>
  * @post Result lies in [-1, 1].
  */
 template <std::floating_point Real>
-[[nodiscard]] auto lut_sin(radians<Real> const r) noexcept -> Real {
+[[nodiscard]] constexpr auto lut_sin(radians<Real> const r) noexcept -> Real {
   auto const phase{detail::to_unit_phase(r.value())};
   return detail::lut_lookup_sin<Real, default_trig_lut_size>(phase);
 }
@@ -633,7 +640,7 @@ template <std::floating_point Real>
  * @post Result lies in [-1, 1].
  */
 template <std::floating_point Real>
-[[nodiscard]] auto lut_cos(radians<Real> const r) noexcept -> Real {
+[[nodiscard]] constexpr auto lut_cos(radians<Real> const r) noexcept -> Real {
   auto const phase{detail::to_unit_phase(r.value() + half_pi_v<Real>)};
   return detail::lut_lookup_sin<Real, default_trig_lut_size>(phase);
 }
