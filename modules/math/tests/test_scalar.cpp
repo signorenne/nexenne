@@ -1,7 +1,10 @@
 #include <doctest/doctest.h>
 
+#include <cmath>
+#include <cstdint>
 #include <limits>
 
+#include <nexenne/math/constants.hpp>
 #include <nexenne/math/scalar.hpp>
 
 namespace math = nexenne::math;
@@ -123,4 +126,49 @@ TEST_CASE("move_toward does not move for a non-positive step (regression)") {
   static_assert(math::move_toward(0.0, 10.0, -3.0) == 0.0);
   static_assert(math::move_toward(0.0, 10.0, 0.0) == 0.0);
   static_assert(math::move_toward(5.0, 5.0, -1.0) == 5.0);
+}
+
+TEST_CASE("mod re-reduces a huge dividend into range (C1 regression)") {
+  // Above |a| > b/epsilon (about 2.8e16 for b = tau) a single floor reduction can
+  // leave a large negative residue instead of a value in [0, b); mod must
+  // re-reduce until it lands in range. Round decimals reduce cleanly and hide the
+  // bug, so sweep bit-mixed (randomized) mantissas across large exponents.
+  constexpr auto tau{math::tau_v<double>};
+  std::uint64_t state{0x9E3779B97F4A7C15ULL};
+  auto const next{[&state]() noexcept -> std::uint64_t {
+    state ^= state << 13;
+    state ^= state >> 7;
+    state ^= state << 17;
+    return state;
+  }};
+  for (int e{60}; e <= 300; e += 3) {
+    for (int trial{0}; trial < 200; ++trial) {
+      auto const fraction{static_cast<double>(next() >> 11) / static_cast<double>(1ULL << 53)};
+      auto const a{std::ldexp(1.0 + fraction, e)};
+      auto const r{math::mod(a, tau)};
+      CHECK(r >= 0.0);
+      CHECK(r < tau);
+    }
+  }
+  // The exact probe called out in the review: was -7.13624e44 before the fix.
+  auto const probe{math::mod(6.3656990270058986e60, tau)};
+  CHECK(probe >= 0.0);
+  CHECK(probe < tau);
+}
+
+TEST_CASE("trunc is a constant expression for huge long double values (M2 regression)") {
+  // For x87 long double (epsilon 2^-63) the old 2/epsilon threshold was 2^64, so a
+  // value in [2^63, 2^64) fell through to a static_cast<long long> that is a hard
+  // error in constant evaluation. 9.3e18L lies in that window and must compile as
+  // already integral. Where long double aliases double the threshold is far lower,
+  // so the same values are still returned unchanged.
+  static_assert(math::trunc(9.3e18L) == 9.3e18L);
+  static_assert(math::floor(9.3e18L) == 9.3e18L);
+  static_assert(math::ceil(9.3e18L) == 9.3e18L);
+  static_assert(math::trunc(-9.3e18L) == -9.3e18L);
+  static_assert(math::round(9.3e18L) == 9.3e18L);
+  static_assert(math::mod(9.3e18L, 7.0L) >= 0.0L);
+  // Ordinary long double truncation still works below the threshold.
+  static_assert(math::trunc(2.7L) == 2.0L);
+  static_assert(math::floor(-2.1L) == -3.0L);
 }
