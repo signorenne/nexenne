@@ -39,7 +39,7 @@ struct score {
 auto main() -> int {
   auto reg{ecs::registry{}};
 
-  // 1. Wire all three signals for `score` and watch the firing order. We track
+  // 1. Wire all three signals for score and watch the firing order. We track
   // a running total that stays correct purely by reacting: +points on construct,
   // the delta on update, and -points on destroy. No system ever recomputes it.
   std::println("== 1. Construct / update / destroy order ==");
