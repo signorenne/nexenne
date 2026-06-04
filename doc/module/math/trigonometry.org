@@ -51,7 +51,10 @@ roughly a decimal per period as the range reduction loses low bits to
 floating-point cancellation in =reduced - k*(pi/2)= (=k= itself stays exact), so
 the fast path is for bounded angles (wrap first with [[file:angle.org][wrap_signed]] if needed). The
 inverse trig (=fast_asin= via Abramowitz and Stegun, =fast_atan= via a degree-11
-fit with the =atan(1/x)= fold) follows the same approximate-but-constexpr spirit.
+minimax fit with the =atan(1/x)= fold) follows the same approximate-but-constexpr
+spirit. =fast_asin= reaches about 2e-8 in =double=, but only about 3e-7 in
+=float=, where coefficient rounding and the =sqrt= evaluation, not the fit,
+set the floor.
 
 ** The lookup table
 
