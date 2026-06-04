@@ -18,10 +18,12 @@
  */
 
 #include <bit>
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 
 #include <nexenne/math/constants.hpp>
 
@@ -48,15 +50,22 @@ concept ieee_float = std::same_as<Real, float> || std::same_as<Real, double>;
  * @tparam Real Floating-point type.
  * @param value Non-negative input.
  *
- * @return Square root of \p value, or 0 for non-positive input.
+ * @return Square root of \p value; \p value itself for zero (preserving the sign
+ *         of zero) and NaN for a negative input, matching \c std::sqrt.
  *
  * @pre None.
- * @post Result is non-negative.
+ * @post Result is non-negative for non-negative input.
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto sqrt_newton(Real const value) noexcept -> Real {
-  if (value <= Real{0}) {
-    return Real{0};
+  // Match std::sqrt at the boundary so a compile-time root agrees with the
+  // runtime one: a negative input has no real root and gives NaN (not 0, which
+  // the old guard returned), and +/-0 returns itself so the sign of zero survives.
+  if (value < Real{0}) {
+    return std::numeric_limits<Real>::quiet_NaN();
+  }
+  if (value == Real{0}) {
+    return value;
   }
   // Infinity has no finite root and, left unguarded, would spin the range-reduction
   // loop forever (inf * 0.25 == inf never drops below 4), which at compile time is
@@ -89,6 +98,15 @@ template <std::floating_point Real>
   for (int i{0}; i < 8; ++i) {
     y = Real{0.5} * (y + m / y);
   }
+  // One final refinement in a wider type. The fixed-iteration Heron result can
+  // land one ulp off the correctly rounded root because the m/y division rounds in
+  // Real; doing the last step in a wider type and rounding once brings the reduced
+  // root to the nearest representable value, so a compile-time sqrt matches the
+  // runtime std::sqrt. For long double there is no wider type, so this is a
+  // same-precision no-op that leaves the converged value untouched.
+  using wide = std::conditional_t<std::same_as<Real, float>, double, long double>;
+  auto const yw{static_cast<wide>(y)};
+  y = static_cast<Real>(wide{0.5} * (yw + static_cast<wide>(m) / yw));
   // Scale the root back by 2^e2 (a power of two, exact in floating point).
   auto scale{Real{1}};
   for (int i{0}; i < (e2 < 0 ? -e2 : e2); ++i) {
@@ -137,6 +155,7 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto inv_sqrt(Real const value) noexcept -> Real {
+  assert(value > Real{0} && "inv_sqrt requires strictly positive input");
   return Real{1} / sqrt(value);
 }
 
@@ -161,6 +180,7 @@ template <std::floating_point Real>
  */
 template <detail::ieee_float Real>
 [[nodiscard]] constexpr auto fast_inv_sqrt(Real const value) noexcept -> Real {
+  assert(value > Real{0} && "fast_inv_sqrt requires strictly positive input");
   // Why the bit trick works. An IEEE-754 float stores value as
   // (1 + m) * 2^e with e in the exponent field and m in the mantissa, so the
   // raw integer bit pattern, read as an int, is an affine approximation of
@@ -216,7 +236,9 @@ template <detail::ieee_float Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto pow_int(Real base, int exponent) noexcept -> Real {
+  assert(exponent != std::numeric_limits<int>::min() && "pow_int exponent must not be INT_MIN");
   if (exponent < 0) {
+    assert(base != Real{0} && "pow_int with a negative exponent requires a non-zero base");
     return Real{1} / pow_int(base, -exponent);
   }
   // Exponentiation by squaring: read the exponent in binary. base^exponent is
@@ -305,13 +327,25 @@ template <detail::ieee_float Real>
  * @return Approximation of \c ln(x).
  *
  * @pre \p x is strictly positive and finite.
- * @post Result is finite.
+ * @post Result is finite for a strictly positive \p x.
  *
+ * @note Non-positive input is handled defensively to match \c std::log: exactly
+ *       zero returns negative infinity and a negative value returns NaN, rather
+ *       than diverging.
  * @warning Accuracy is intentionally lower than libm. For full precision use
  *          \c std::log.
  */
 template <detail::ieee_float Real>
 [[nodiscard]] constexpr auto fast_log(Real const x) noexcept -> Real {
+  // log is undefined for non-positive input; match std::log rather than diverge.
+  // Exactly 0 gives -infinity, a negative value gives NaN. This guard is also what
+  // keeps the subnormal rescale below terminating: 0 and every negative value stay
+  // at or below min(), so without it the recursion never bottoms out (a stack
+  // overflow at -O0, an infinite loop once the tail call is optimized).
+  if (x <= Real{0}) {
+    return x < Real{0} ? std::numeric_limits<Real>::quiet_NaN()
+                       : -std::numeric_limits<Real>::infinity();
+  }
   // Subnormals have a zero exponent field and an un-normalized mantissa, which
   // the bit decode below would misread. Scale such an input up by 2^64 into the
   // normal range, then subtract 64*ln(2) from the result. (2^64 normalizes the
