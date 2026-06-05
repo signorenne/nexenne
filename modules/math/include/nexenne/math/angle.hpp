@@ -13,6 +13,7 @@
  * are not \c constexpr in C++23.
  */
 
+#include <cassert>
 #include <cmath>
 #include <compare>
 #include <concepts>
@@ -79,6 +80,66 @@ public:
    */
   [[nodiscard]] constexpr auto value() noexcept -> value_type& {
     return m_value;
+  }
+
+  /**
+   * @brief Adds another radian angle in place.
+   *
+   * @param o Angle added to \c *this.
+   *
+   * @return Reference to \c *this after the addition.
+   *
+   * @pre Both operands are finite.
+   * @post \c *this holds the sum of its prior value and \p o.
+   */
+  constexpr auto operator+=(radians const o) noexcept -> radians& {
+    m_value += o.m_value;
+    return *this;
+  }
+
+  /**
+   * @brief Subtracts another radian angle in place.
+   *
+   * @param o Angle subtracted from \c *this.
+   *
+   * @return Reference to \c *this after the subtraction.
+   *
+   * @pre Both operands are finite.
+   * @post \c *this holds the difference of its prior value and \p o.
+   */
+  constexpr auto operator-=(radians const o) noexcept -> radians& {
+    m_value -= o.m_value;
+    return *this;
+  }
+
+  /**
+   * @brief Scales this angle by a raw scalar in place.
+   *
+   * @param scalar Scaling factor.
+   *
+   * @return Reference to \c *this after the scaling.
+   *
+   * @pre Both operands are finite.
+   * @post \c *this holds its prior value multiplied by \p scalar.
+   */
+  constexpr auto operator*=(value_type const scalar) noexcept -> radians& {
+    m_value *= scalar;
+    return *this;
+  }
+
+  /**
+   * @brief Divides this angle by a raw scalar in place.
+   *
+   * @param scalar Divisor.
+   *
+   * @return Reference to \c *this after the division.
+   *
+   * @pre \p scalar is non-zero and finite.
+   * @post \c *this holds its prior value divided by \p scalar.
+   */
+  constexpr auto operator/=(value_type const scalar) noexcept -> radians& {
+    m_value /= scalar;
+    return *this;
   }
 
   /**
@@ -153,6 +214,66 @@ public:
    */
   [[nodiscard]] constexpr auto value() noexcept -> value_type& {
     return m_value;
+  }
+
+  /**
+   * @brief Adds another degree angle in place.
+   *
+   * @param o Angle added to \c *this.
+   *
+   * @return Reference to \c *this after the addition.
+   *
+   * @pre Both operands are finite.
+   * @post \c *this holds the sum of its prior value and \p o.
+   */
+  constexpr auto operator+=(degrees const o) noexcept -> degrees& {
+    m_value += o.m_value;
+    return *this;
+  }
+
+  /**
+   * @brief Subtracts another degree angle in place.
+   *
+   * @param o Angle subtracted from \c *this.
+   *
+   * @return Reference to \c *this after the subtraction.
+   *
+   * @pre Both operands are finite.
+   * @post \c *this holds the difference of its prior value and \p o.
+   */
+  constexpr auto operator-=(degrees const o) noexcept -> degrees& {
+    m_value -= o.m_value;
+    return *this;
+  }
+
+  /**
+   * @brief Scales this angle by a raw scalar in place.
+   *
+   * @param scalar Scaling factor.
+   *
+   * @return Reference to \c *this after the scaling.
+   *
+   * @pre Both operands are finite.
+   * @post \c *this holds its prior value multiplied by \p scalar.
+   */
+  constexpr auto operator*=(value_type const scalar) noexcept -> degrees& {
+    m_value *= scalar;
+    return *this;
+  }
+
+  /**
+   * @brief Divides this angle by a raw scalar in place.
+   *
+   * @param scalar Divisor.
+   *
+   * @return Reference to \c *this after the division.
+   *
+   * @pre \p scalar is non-zero and finite.
+   * @post \c *this holds its prior value divided by \p scalar.
+   */
+  constexpr auto operator/=(value_type const scalar) noexcept -> degrees& {
+    m_value /= scalar;
+    return *this;
   }
 
   /**
@@ -273,6 +394,7 @@ operator*(Real const scalar, radians<Real> const a) noexcept -> radians<Real> {
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 operator/(radians<Real> const a, Real const scalar) noexcept -> radians<Real> {
+  assert(scalar != Real{0} && "dividing a radians angle by zero");
   return radians<Real>{a.value() / scalar};
 }
 
@@ -399,6 +521,7 @@ operator*(Real const scalar, degrees<Real> const a) noexcept -> degrees<Real> {
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 operator/(degrees<Real> const a, Real const scalar) noexcept -> degrees<Real> {
+  assert(scalar != Real{0} && "dividing a degrees angle by zero");
   return degrees<Real>{a.value() / scalar};
 }
 
