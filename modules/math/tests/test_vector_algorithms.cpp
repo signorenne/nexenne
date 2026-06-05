@@ -151,3 +151,48 @@ TEST_CASE("vector move_toward does not move for a non-positive step (regression)
   CHECK(r.y() == 0.0);
   CHECK(r.z() == 0.0);
 }
+
+TEST_CASE("normalize family reports an error when the squared length overflows (M2)") {
+  // Components are finite floats, but 2e19f squared (~4e38) already exceeds
+  // FLT_MAX, so length_squared overflows to +inf. The old code passed the
+  // short-vector guard (inf > threshold) and returned v / sqrt(inf) = zero as a
+  // "unit" success. Each variant must now flag it instead of emitting garbage.
+  constexpr math::vector3_f huge{2e19f, 0.0f, 2e19f};
+  REQUIRE_FALSE(math::isfinite(math::length_squared(huge)));  // precondition of the test
+
+  auto const n{math::normalize(huge)};
+  REQUIRE_FALSE(n.has_value());
+  CHECK(n.error() == math::math_error::invalid_input);
+
+  auto const fn{math::fast_normalize(huge)};
+  REQUIRE_FALSE(fn.has_value());
+  CHECK(fn.error() == math::math_error::invalid_input);
+
+  // normalize_or cannot report, so it takes the fallback (still unit length).
+  constexpr math::vector3_f up{0, 1, 0};
+  CHECK(math::normalize_or(huge, up) == up);
+
+  // project / reject overflow on dot(onto, onto); reject forwards project's error.
+  auto const p{math::project(math::vector3_f{1, 0, 0}, huge)};
+  REQUIRE_FALSE(p.has_value());
+  CHECK(p.error() == math::math_error::invalid_input);
+  auto const rej{math::reject(math::vector3_f{1, 0, 0}, huge)};
+  REQUIRE_FALSE(rej.has_value());
+  CHECK(rej.error() == math::math_error::invalid_input);
+}
+
+TEST_CASE("default-constructed normalized holds a unit axis, not the zero vector (M1)") {
+  // A zero default broke the whole point of the type (a zero normal makes reflect
+  // return its input unchanged); the default is now the canonical +X unit axis.
+  constexpr math::normalized<float, 3> d3{};
+  CHECK(math::length(d3.value()) == doctest::Approx(1.0));
+  CHECK(d3.value() == math::vector3_f{1, 0, 0});
+
+  constexpr math::normalized<double, 2> d2{};
+  CHECK(math::length(d2.value()) == doctest::Approx(1.0));
+
+  // Equality is available now (defaulted operator==), comparing wrapped vectors.
+  constexpr auto same{math::make_unchecked(math::vector3_f{1, 0, 0})};
+  CHECK(d3 == same);
+  CHECK(d3 != math::make_unchecked(math::vector3_f{0, 1, 0}));
+}
