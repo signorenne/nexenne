@@ -88,3 +88,31 @@ TEST_CASE("constexpr sqrt does not hang on infinity (regression)") {
   constexpr auto inf{std::numeric_limits<double>::infinity()};
   static_assert(math::sqrt(inf) == inf);
 }
+
+TEST_CASE("fast_log handles non-positive input instead of diverging (M1 regression)") {
+  // Before the guard, fast_log(0) and fast_log(-1) recursed forever (a stack
+  // overflow at -O0, an infinite loop once the tail call is optimized). Match
+  // std::log: 0 gives -inf, a negative value gives NaN.
+  CHECK(math::fast_log(0.0) == -std::numeric_limits<double>::infinity());
+  CHECK(math::fast_log(0.0f) == -std::numeric_limits<float>::infinity());
+  CHECK(std::isnan(math::fast_log(-1.0)));
+  CHECK(std::isnan(math::fast_log(-1.0f)));
+  CHECK(std::isnan(math::fast_log(-1e-300)));
+  // The guard is on a cold path and stays constexpr.
+  static_assert(math::fast_log(1.0) == 0.0 || math::fast_log(1.0) != 0.0);
+}
+
+TEST_CASE("constexpr sqrt is bit-exact and consistent for the boundary (m5 regression)") {
+  // Force the compile-time Newton path into constexpr variables, then compare to
+  // the runtime std::sqrt: the wider-type final refinement pins the two together.
+  constexpr auto const_sqrt2{math::sqrt(2.0)};
+  constexpr auto const_sqrt3{math::sqrt(3.0)};
+  CHECK(const_sqrt2 == std::sqrt(2.0));
+  CHECK(const_sqrt3 == std::sqrt(3.0));
+  // A negative input is NaN at compile time as well as at runtime (was 0 before).
+  static_assert(math::sqrt(-1.0) != math::sqrt(-1.0));
+  CHECK(std::isnan(math::sqrt(-1.0)));
+  // The sign of zero survives, matching std::sqrt.
+  static_assert(math::sqrt(0.0) == 0.0);
+  static_assert(math::sqrt(-0.0) == -0.0);
+}
