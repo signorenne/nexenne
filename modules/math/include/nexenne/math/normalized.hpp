@@ -24,6 +24,7 @@
  * consumer relies on, so only a const accessor is exposed.
  */
 
+#include <compare>
 #include <concepts>
 #include <cstddef>
 
@@ -50,15 +51,27 @@ private:
 
 public:
   /**
-   * @brief Constructs a zero-initialized wrapper.
+   * @brief Constructs the canonical unit axis (1, 0, ..., 0).
+   *
+   * A direction has no meaningful zero, and a zero-initialized wrapper would
+   * break the unit-length invariant the type exists to guarantee (a zero normal
+   * makes \c reflect return its input unchanged, a zero axis makes every
+   * projection collapse). The default is therefore the first basis axis, which is
+   * unit length like any other value the type can hold.
    *
    * @pre None.
-   * @post The wrapped vector is value-initialized to zero.
+   * @post The wrapped vector is the unit axis (1, 0, ..., 0).
    */
-  constexpr normalized() noexcept = default;
+  constexpr normalized() noexcept : m_value{} {
+    m_value[0] = value_type{1};
+  }
 
   /**
    * @brief Wraps \p v without checking or normalizing it.
+   *
+   * The explicit-constructor equivalent of \c make_unchecked: it trusts the
+   * caller and does no math. Prefer \c make_unchecked / \c make_normalized at call
+   * sites; this constructor exists so the factories can build the wrapper.
    *
    * @param v Vector assumed to be unit length.
    *
@@ -94,6 +107,38 @@ public:
   [[nodiscard]] constexpr operator vector_type const&() const noexcept {
     return m_value;
   }
+
+  /**
+   * @brief Equality of two wrapped unit vectors; the compiler derives \c !=.
+   *
+   * Compares the wrapped vectors component by component. The implicit conversion
+   * to \c vector const& is never considered by name lookup for \c n1 == n2, so
+   * this operator is provided explicitly.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return \c true when the wrapped vectors are component-wise equal.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto
+  operator==(normalized const& lhs, normalized const& rhs) noexcept -> bool = default;
+
+  /**
+   * @brief Ordering of two wrapped unit vectors; the compiler derives the rest.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Three-way comparison result over the wrapped vectors.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto
+  operator<=>(normalized const& lhs, normalized const& rhs) noexcept = default;
 };
 
 /**

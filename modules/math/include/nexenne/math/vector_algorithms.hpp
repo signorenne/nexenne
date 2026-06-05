@@ -239,7 +239,9 @@ template <arithmetic Value>
  * @param v Vector to normalize.
  * @param threshold Minimum allowed squared length. Default 1e-20.
  *
- * @return The unit vector, or \c math_error::zero_length_vector when too short.
+ * @return The unit vector, \c math_error::zero_length_vector when too short, or
+ *         \c math_error::invalid_input when the squared length overflows to
+ *         infinity (finite components can still square-sum past the type range).
  *
  * @pre Components are finite.
  * @post On success the returned vector has unit length.
@@ -249,6 +251,13 @@ template <std::floating_point Real, std::size_t N>
   vector<Real, N> const& v, Real const threshold = static_cast<Real>(1e-20)
 ) noexcept -> result<vector<Real, N>> {
   auto const len_sq{length_squared(v)};
+  // Components can be finite yet square-sum past the type range (a float overflows
+  // once a component exceeds ~1.8e19), leaving len_sq = +inf. Then inf > threshold
+  // passes the short-vector guard and v / sqrt(inf) is the zero vector, which would
+  // be returned as a "unit" success. Report it instead of emitting silent garbage.
+  if (!isfinite(len_sq)) {
+    return std::unexpected{math_error::invalid_input};
+  }
   if (len_sq <= threshold) {
     return std::unexpected{math_error::zero_length_vector};
   }
@@ -266,8 +275,9 @@ template <std::floating_point Real, std::size_t N>
  * @param v Vector to normalize.
  * @param threshold Minimum allowed squared length. Default 1e-20.
  *
- * @return The approximate unit vector, or \c math_error::zero_length_vector when
- *         too short.
+ * @return The approximate unit vector, \c math_error::zero_length_vector when too
+ *         short, or \c math_error::invalid_input when the squared length overflows
+ *         to infinity.
  *
  * @pre Components are finite.
  * @post On success the returned vector has unit length within \c fast_inv_sqrt
@@ -278,6 +288,11 @@ template <std::floating_point Real, std::size_t N>
   vector<Real, N> const& v, Real const threshold = static_cast<Real>(1e-20)
 ) noexcept -> result<vector<Real, N>> {
   auto const len_sq{length_squared(v)};
+  // See normalize: a finite-component vector can overflow len_sq to +inf, which
+  // would slip past the short-vector guard and normalize to zero. Reject it.
+  if (!isfinite(len_sq)) {
+    return std::unexpected{math_error::invalid_input};
+  }
   if (len_sq <= threshold) {
     return std::unexpected{math_error::zero_length_vector};
   }
@@ -297,7 +312,8 @@ template <std::floating_point Real, std::size_t N>
  * @param fallback Unit vector returned when \p v is too short.
  * @param threshold Minimum allowed squared length. Default 1e-20.
  *
- * @return \c v/length(v), or \p fallback when \p v is too short.
+ * @return \c v/length(v), or \p fallback when \p v is too short or its squared
+ *         length overflows to infinity.
  *
  * @pre \p fallback has unit length.
  * @post The returned vector has unit length.
@@ -309,7 +325,10 @@ template <std::floating_point Real, std::size_t N>
   Real const threshold = static_cast<Real>(1e-20)
 ) noexcept -> vector<Real, N> {
   auto const len_sq{length_squared(v)};
-  if (len_sq <= threshold) {
+  // A non-finite squared length (finite components overflowing their square-sum)
+  // cannot be normalized, so take the fallback rather than divide by sqrt(inf) and
+  // return a zero vector that violates the unit-length postcondition.
+  if (!isfinite(len_sq) || len_sq <= threshold) {
     return fallback;
   }
   return v / sqrt(len_sq);
@@ -449,8 +468,10 @@ hadamard(vector<Value, N> const& a, vector<Value, N> const& b) noexcept -> vecto
  * @param onto Vector defining the projection axis.
  * @param threshold Minimum allowed \c dot(onto, onto). Default 1e-20.
  *
- * @return The projection of \p v onto \p onto, or
- *         \c math_error::zero_length_vector when \p onto is too short.
+ * @return The projection of \p v onto \p onto,
+ *         \c math_error::zero_length_vector when \p onto is too short, or
+ *         \c math_error::invalid_input when \c dot(onto, onto) overflows to
+ *         infinity.
  *
  * @pre Components are finite.
  * @post On success the returned vector is parallel to \p onto.
@@ -462,6 +483,11 @@ template <std::floating_point Real, std::size_t N>
   Real const threshold = static_cast<Real>(1e-20)
 ) noexcept -> result<vector<Real, N>> {
   auto const denom{dot(onto, onto)};
+  // A finite but huge onto overflows dot(onto, onto) to +inf, which passes the
+  // short-axis guard and divides to a zero (or NaN) result reported as success.
+  if (!isfinite(denom)) {
+    return std::unexpected{math_error::invalid_input};
+  }
   if (denom <= threshold) {
     return std::unexpected{math_error::zero_length_vector};
   }
@@ -481,8 +507,10 @@ template <std::floating_point Real, std::size_t N>
  * @param onto Axis to remove the parallel component along.
  * @param threshold Minimum allowed \c dot(onto, onto). Default 1e-20.
  *
- * @return The component of \p v perpendicular to \p onto, or
- *         \c math_error::zero_length_vector when \p onto is too short.
+ * @return The component of \p v perpendicular to \p onto, or the same error
+ *         \c project reports (\c math_error::zero_length_vector when \p onto is
+ *         too short, \c math_error::invalid_input when \c dot(onto, onto)
+ *         overflows), forwarded unchanged.
  *
  * @pre Components are finite.
  * @post On success the returned vector is perpendicular to \p onto.
@@ -497,7 +525,7 @@ template <std::floating_point Real, std::size_t N>
   if (!proj) {
     return std::unexpected{proj.error()};
   }
-  // The rejection is orthogonal to `onto` by construction:
+  // The rejection is orthogonal to onto by construction:
   // dot(v - proj, onto) = dot(v, onto) - (dot(v,onto)/dot(onto,onto))*dot(onto,onto)
   // = 0. So v = proj + reject splits v into parallel and perpendicular parts.
   return v - *proj;
@@ -701,7 +729,10 @@ template <arithmetic Value, std::size_t N>
  *
  * @return The sum of the absolute components.
  *
- * @pre None.
+ * @pre For a signed integer \p Value, no component is the most-negative value
+ *      (its negation is signed-overflow UB, as in \c abs), and the sum of the
+ *      absolute components is representable in \p Value. Floating-point input has
+ *      no precondition.
  * @post Returned value is non-negative.
  */
 template <signed_arithmetic Value, std::size_t N>
@@ -725,7 +756,9 @@ template <signed_arithmetic Value, std::size_t N>
  *
  * @return The largest absolute component.
  *
- * @pre None.
+ * @pre For a signed integer \p Value, no component is the most-negative value
+ *      (its negation is signed-overflow UB, as in \c abs). Floating-point input
+ *      has no precondition.
  * @post Returned value is non-negative.
  */
 template <signed_arithmetic Value, std::size_t N>
