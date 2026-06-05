@@ -34,6 +34,7 @@
  * not the intermediate.
  */
 
+#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstdint>
@@ -56,6 +57,7 @@ template <std::signed_integral Storage, std::size_t FractionBits>
   requires(FractionBits > 0 && FractionBits < sizeof(Storage) * 8 - 1)
 class fixed {
 public:
+  using value_type = Storage;    ///< The underlying stored integer type (alias of storage_type).
   using storage_type = Storage;  ///< The underlying signed integer storage type.
   static constexpr std::size_t fraction_bits = FractionBits;  ///< Number of fractional bits.
   /// Number of integer bits (excludes the sign bit and the fraction bits).
@@ -99,6 +101,13 @@ public:
    *
    * @pre \p v is finite and within the representable range.
    * @post The represented value is \p v truncated to the fixed-point grid.
+   *
+   * @note Entry from a float truncates toward zero (like a \c static_cast to an
+   *       integer), while \c operator* and \c operator/ round to nearest. The
+   *       split is deliberate: this constructor mirrors the plain C conversion so
+   *       a literal converts with no surprise, whereas the arithmetic operators
+   *       round to keep repeated operations unbiased. Pre-round the value (add
+   *       \c copysign(0.5 * resolution)) at the call site when nearest is wanted.
    */
   template <std::floating_point F>
   constexpr explicit fixed(F const v) noexcept
@@ -310,6 +319,7 @@ public:
    *       \c operator*. Rounding is symmetric, so \c (-a)/b equals \c -(a/b).
    */
   [[nodiscard]] friend constexpr auto operator/(fixed a, fixed b) noexcept -> fixed {
+    assert(b.m_raw != storage_type{0} && "fixed division by zero");
     // Dividing the raw integers cancels both scale factors, leaving a plain
     // ratio with no scale. Pre-shift the dividend left by FractionBits (multiply
     // by scale) so the quotient comes out in raw form again. The pre-shift can
