@@ -18,6 +18,21 @@ static_assert(fixed_instantiable<std::int16_t, 14>);
 static_assert(!fixed_instantiable<std::int16_t, 15>);
 static_assert(!fixed_instantiable<std::int32_t, 31>);
 
+TEST_CASE("value_type aliases the storage type (m7)") {
+  static_assert(std::is_same_v<math::q16_16::value_type, std::int32_t>);
+  static_assert(std::is_same_v<math::q8_8::value_type, std::int16_t>);
+  static_assert(std::is_same_v<math::q16_16::value_type, math::q16_16::storage_type>);
+}
+
+TEST_CASE("float construction truncates toward zero (m8)") {
+  // Entry from a float truncates like a C cast, unlike the round-to-nearest
+  // arithmetic operators: 0.99999 is within half an ulp of 1.0 but still lands on
+  // raw 65535, not 65536.
+  static_assert(math::q16_16{0.99999f}.raw() == 65535);
+  static_assert(math::q16_16{-0.99999f}.raw() == -65535);
+  // The arithmetic path, by contrast, rounds to nearest (pinned elsewhere).
+}
+
 TEST_CASE("construction and conversion round-trip") {
   static_assert(math::q16_16::fraction_bits == 16);
   static_assert(math::q16_16::scale == (1 << 16));
