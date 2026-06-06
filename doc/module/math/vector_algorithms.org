@@ -57,6 +57,13 @@ plain vector. The default threshold of 1e-20 is on the *squared* length, so it
 corresponds to a length around 1e-10 (tuned for =double=; for =float=, where 1e-10
 is already near the precision floor, pass a larger type-appropriate threshold).
 
+The variants also guard the *other* end of the range. Components can be finite yet
+square-sum past the type maximum (a =float= overflows =length_squared= once a
+component exceeds ~1.8e19), and =+inf= sails through the near-zero gate and divides
+to a zero vector. So each checks =isfinite(length_squared(v))= first:
+=normalize=, =fast_normalize=, =project= and =reject= return =invalid_input= on an
+overflowing squared length, and =normalize_or= takes its fallback.
+
 ** project, reject, reflect
 
 =project(v, onto)= returns the part of =v= along =onto=, computed as
