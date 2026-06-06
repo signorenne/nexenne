@@ -14,16 +14,21 @@ re-normalization, because the guarantee rides along in the type.
 
 "This vector is normalized" is a precondition that is easy to state and easy to
 forget, and a wrong normal silently corrupts a reflection or a lighting term. The
-fix is a *newtype*: wrap the vector so the only way to obtain one is through a
-factory that either trusts a known-unit input or normalizes it, and make the
-wrapped value read-only so it cannot drift out of unit length afterwards. The
-guarantee then lives in the type, not in a comment.
+fix is a *newtype*: wrap the vector so it is obtained through a factory that either
+trusts a known-unit input or normalizes it, and make the wrapped value read-only so
+it cannot drift out of unit length afterwards. The guarantee then lives in the
+type, not in a comment.
+
+Every reachable value is unit length, including the default: a
+default-constructed =normalized= holds the canonical unit axis =(1, 0, ..., 0)=,
+not the zero vector, so it can never be the degenerate direction that makes
+=reflect= return its input unchanged or collapses a projection.
 
 * How it works
 
 ** Two factories, one guarantee
 
-There is no public normalizing constructor; you go through a factory:
+Prefer a factory over the constructor:
 
 - =make_unchecked(v)= wraps =v= as-is, doing no math. For inputs already known to
   be unit length (an axis basis, the output of a prior normalize). It is the
@@ -31,6 +36,11 @@ There is no public normalizing constructor; you go through a factory:
 - =make_normalized(v)= re-normalizes and returns =result<normalized<Real,N>>=,
   failing with =zero_length_vector= when =v= is too short to normalize stably (it
   delegates to [[file:vector_algorithms.org][=normalize=]]).
+
+There is also an explicit converting constructor =normalized{v}=, the direct
+equivalent of =make_unchecked= (same unchecked =@pre=); the factories are the
+readable spelling and the one to reach for at call sites. Two =normalized= values
+compare with =operator===/=operator<=>= (they compare the wrapped vectors).
 
 ** Read-only after construction
 
