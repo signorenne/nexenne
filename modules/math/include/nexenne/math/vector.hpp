@@ -34,12 +34,20 @@
  * rejected on purpose, to avoid surprise integer-promotion dispatch in templated
  * algorithms.
  *
+ * Scalar-operator typing. The same-type policy extends to the scalar operators:
+ * \c operator*(vector, scalar) and \c operator/(vector, scalar) deduce the scalar
+ * from both the component type and the literal, so for a \c vector3_f write
+ * \c v * 2.0f, not \c v * 2 or \c v * 2.0 (a mismatched literal is a
+ * template-deduction failure, not a conversion). The matrix and quaternion scalar
+ * operators follow the same rule.
+ *
  * The algorithms (dot, cross, length, normalize) live in
  * \c vector_algorithms.hpp to keep this header focused on storage and the
  * element-wise algebra.
  */
 
 #include <array>
+#include <cassert>
 #include <compare>
 #include <cstddef>
 #include <type_traits>
@@ -103,6 +111,7 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto operator[](std::size_t const i) noexcept -> value_type& {
+    assert(i < N && "vector component index out of range");
     return m_components[i];
   }
 
@@ -117,6 +126,7 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto operator[](std::size_t const i) const noexcept -> value_type const& {
+    assert(i < N && "vector component index out of range");
     return m_components[i];
   }
 
