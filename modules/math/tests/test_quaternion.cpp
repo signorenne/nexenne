@@ -143,3 +143,19 @@ TEST_CASE("from_two_vectors is accurate in the near-antipodal gap (regression)")
   REQUIRE(q.has_value());
   CHECK(vapprox(math::rotate(*q, from), *math::normalize(to), 1e-9));
 }
+
+TEST_CASE("from_two_vectors and look_at_rotation are constexpr (m10)") {
+  // Every step is constant-evaluable (normalize, cross, dot, math::sqrt), so a
+  // static orientation must build at compile time.
+  constexpr auto turn{
+    math::from_two_vectors(math::vector3_f{1, 0, 0}, math::vector3_f{0, 1, 0})
+  };
+  static_assert(turn.has_value());
+  static_assert(math::length_squared(*turn) > 0.9f);
+
+  constexpr auto look{
+    math::look_at_rotation(math::vector3_f{0, 0, -1}, math::vector3_f{0, 1, 0})
+  };
+  static_assert(look.has_value());
+  static_assert(math::length_squared(*look) > 0.9f);
+}
