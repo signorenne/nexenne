@@ -70,6 +70,12 @@ public:
    *
    * @pre None.
    * @post The X, Y, and Z angles equal \p x, \p y, and \p z respectively.
+   *
+   * @warning The angles are in RADIANS, and the raw \c value_type is accepted with
+   *          no unit check: passing a degree value (for example
+   *          \c euler_angles{90, 0, 0} for a quarter turn) compiles and silently
+   *          produces a wildly wrong rotation. Convert with \c to_radians first, or
+   *          take the angle from an API that already works in radians.
    */
   constexpr euler_angles(value_type const x, value_type const y, value_type const z) noexcept
       : m_x{x}, m_y{y}, m_z{z} {}
@@ -130,7 +136,7 @@ namespace detail {
 template <std::floating_point Real>
 [[nodiscard]] auto axis_quat(Real const angle, Real const ax, Real const ay, Real const az) noexcept
   -> quaternion<Real> {
-  // A rotation by `angle` about the unit axis (ax, ay, az) is encoded as the
+  // A rotation by angle about the unit axis (ax, ay, az) is encoded as the
   // HALF-angle quaternion (sin(angle/2) * axis, cos(angle/2)). The half-angle is
   // what makes the sandwich product q * v * conjugate(q) rotate v by the full
   // angle (the q and conjugate(q) each contribute angle/2). See from_axis_angle
@@ -211,6 +217,14 @@ template <std::floating_point Real>
  *
  * @pre \p yaw, \p pitch, and \p roll are finite.
  * @post The result has unit length up to rounding.
+ *
+ * @warning The angles are in RADIANS, and the raw \c Real is accepted with no unit
+ *          check: a degree value compiles and silently produces a wrong rotation.
+ *          Convert with \c to_radians first.
+ * @warning The parameter order is (yaw, pitch, roll), the reverse of
+ *          \c quaternion::from_euler, which takes (roll, pitch, yaw). Both compute
+ *          the same intrinsic zyx rotation, so mixing the two orders silently
+ *          transposes yaw and roll.
  */
 template <std::floating_point Real>
 [[nodiscard]] auto
