@@ -25,6 +25,13 @@
  * ones return \c result so an invalid input cannot silently produce a NaN-laden
  * quaternion. The components are read-only after construction (no mutable
  * accessor): build through a constructor or a factory.
+ *
+ * Scalar-operator typing. The scalar \c operator* and the interpolation parameter
+ * \c t of \c nlerp / \c slerp deduce their scalar from both the quaternion
+ * component type and the literal, so the scalar must be exactly the component
+ * type: for a \c quaternion_f write \c slerp(a, b, 0.5f), not \c slerp(a, b, 0.5)
+ * (a mismatched literal is a template-deduction failure, not a conversion). The
+ * vector and matrix scalar operators use the same same-type policy.
  */
 
 #include <cmath>
@@ -542,6 +549,12 @@ template <std::floating_point Real>
  *
  * @pre All three angles are finite.
  * @post The result has unit length up to rounding.
+ *
+ * @warning The parameter order is (roll, pitch, yaw), the reverse of
+ *          \c euler::from_ypr, which takes (yaw, pitch, roll). The two compute the
+ *          same intrinsic zyx rotation, so calling one with the other's argument
+ *          order silently transposes roll and yaw. Check the order at every call
+ *          site.
  */
 template <std::floating_point Real>
 [[nodiscard]] auto from_euler(
@@ -593,9 +606,14 @@ template <std::floating_point Real>
  *
  * @pre \p from and \p to have finite components.
  * @post On success the result has unit length and rotates \p from onto \p to.
+ *
+ * @note \c constexpr: every step (normalize, cross, dot, \c math::sqrt) is usable
+ *       in a constant expression, so a static orientation can be built at compile
+ *       time.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto from_two_vectors(vector<Real, 3> const from, vector<Real, 3> const to) noexcept
+[[nodiscard]] constexpr auto
+from_two_vectors(vector<Real, 3> const from, vector<Real, 3> const to) noexcept
   -> result<quaternion<Real>> {
   auto const from_unit{normalize(from)};
   if (!from_unit) {
@@ -621,7 +639,7 @@ template <std::floating_point Real>
     auto const unit_axis{*normalize(axis)};
     // A 180-degree turn about a unit axis n is the half-angle quaternion
     // (sin(90)*n, cos(90)) = (n, 0): a pure quaternion with zero scalar part.
-    // Because the axis is orthogonal to `from`, rotating `from` by pi about it
+    // Because the axis is orthogonal to from, rotating from by pi about it
     // sends it to -from = to, as required.
     return quaternion<Real>{unit_axis.x(), unit_axis.y(), unit_axis.z(), Real{0}};
   }
@@ -712,6 +730,11 @@ public:
  *
  * @pre \p q has finite components.
  * @post For an identity \p q the angle is zero and the axis is +X.
+ *
+ * @note The angle is \c 2*acos(w) and so lies in [0, 2*pi): a quaternion with
+ *       \c w < 0 yields the reflex angle about the returned axis rather than the
+ *       equivalent smaller angle about the negated axis. Negate \p q first (it is
+ *       the same rotation) if the [0, pi] range is wanted.
  */
 template <std::floating_point Real>
 [[nodiscard]] auto to_axis_angle(quaternion<Real> const q) noexcept -> axis_angle<Real> {
@@ -754,9 +777,13 @@ template <std::floating_point Real>
  *
  * @pre \p forward and \p up have finite components and are not parallel.
  * @post On success the result has unit length and orients -Z toward \p forward.
+ *
+ * @note \c constexpr: it uses only normalize, cross, dot, and \c math::sqrt (no
+ *       libm), so a static camera orientation can be built at compile time, as
+ *       with \c transform::look_at.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto look_at_rotation(
+[[nodiscard]] constexpr auto look_at_rotation(
   vector<Real, 3> const forward, vector<Real, 3> const up
 ) noexcept -> result<quaternion<Real>> {
   auto const forward_unit{normalize(forward)};
