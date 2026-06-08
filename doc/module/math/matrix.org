@@ -69,12 +69,15 @@ the six 2x2 minors of the bottom two rows and reuses them across the four 3x3
 cofactors. =inverse= is the adjugate (transposed cofactor matrix) divided by the
 determinant; its 4x4 path expands every adjugate entry over six 2x2 minors of the
 top two rows and six of the bottom two. It returns =result<matrix<Real,N>>=,
-failing with =singular_matrix= when =|det|= is at or below 1e-20 or when =det= is
-non-finite (a NaN entry, or overflow to infinity). Note that =1e-20= is an
-*absolute* threshold: because scaling a matrix by =s= scales its determinant by
-=s^N=, it flags a genuinely tiny pivot, not ill-conditioning, and it is loose for
-=float= - rescale badly-scaled inputs rather than relying on it to detect
-singularity.
+failing with =singular_matrix= when =det= is non-finite (a NaN entry, or overflow
+to infinity) or when =|det|= has collapsed into the input-scaled rounding-noise
+band. The singularity threshold is *relative*, =eps(Real) * max_abs_entry^N * N=:
+the determinant of a matrix with entries bounded by =M= runs up to =N! * M^N= and
+its float cancellation noise is on the order of =eps * M^N=, so an absolute cutoff
+(the former =1e-20=) is unreachable for =float= and a rank-deficient float matrix
+(colinear rows) would otherwise invert to garbage as a false success. Scaling the
+cutoff to =M^N= tracks rank deficiency rather than overall magnitude, so a
+uniformly scaled matrix is treated the same as the original.
 
 * When to use it
 
