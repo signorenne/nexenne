@@ -123,3 +123,52 @@ TEST_CASE("inverse rejects a non-finite determinant instead of returning garbage
   big_m(2, 2) = 1e308;  // det ~ 1e924 -> +inf
   CHECK_FALSE(math::inverse(big_m).has_value());
 }
+
+TEST_CASE("float inverse rejects a rank-deficient matrix via the relative threshold (M3)") {
+  // Row 2 = 2*row0 + row1, so the exact determinant is zero and the matrix is
+  // singular. In float the determinant computes to ~-3.8e-6 (cancellation noise),
+  // ten trillion times the old absolute 1e-20 cutoff, so the matrix used to invert
+  // to garbage returned as success. The input-scaled threshold catches it.
+  auto const singular{math::make_matrix3(
+    0.3f, 1.7f, 2.9f, 4.1f, 0.2f, 5.3f, 4.7f, 3.6f, 11.1f
+  )};
+  auto const inv{math::inverse(singular)};
+  REQUIRE_FALSE(inv.has_value());
+  CHECK(inv.error() == math::math_error::singular_matrix);
+}
+
+TEST_CASE("float inverse still accepts a well-conditioned matrix (M3 no over-rejection)") {
+  // Guard against the relative threshold rejecting valid matrices: a plainly
+  // non-singular float matrix must invert and round-trip to the identity.
+  auto const m{math::make_matrix3(2.0f, 0.0f, 1.0f, 0.0f, 3.0f, 0.0f, 1.0f, 0.0f, 4.0f)};
+  auto const inv{math::inverse(m)};
+  REQUIRE(inv.has_value());
+  auto const prod{m * *inv};
+  for (std::size_t r{0}; r < 3; ++r) {
+    for (std::size_t c{0}; c < 3; ++c) {
+      CHECK(prod(r, c) == doctest::Approx(r == c ? 1.0f : 0.0f).epsilon(1e-5));
+    }
+  }
+}
+
+TEST_CASE("matrix unary minus, scalar division, and in-place operators (m9)") {
+  constexpr auto a{math::make_matrix2(1.0f, 2.0f, 3.0f, 4.0f)};
+  static_assert(-a == math::make_matrix2(-1.0f, -2.0f, -3.0f, -4.0f));
+  static_assert((a * 2.0f) / 2.0f == a);
+
+  auto b{math::make_matrix2(2.0f, 4.0f, 6.0f, 8.0f)};
+  b /= 2.0f;
+  CHECK(b == a);
+
+  auto c{a};
+  c += a;
+  CHECK(c == math::make_matrix2(2.0f, 4.0f, 6.0f, 8.0f));
+  c -= a;
+  CHECK(c == a);
+  c *= 3.0f;
+  CHECK(c == math::make_matrix2(3.0f, 6.0f, 9.0f, 12.0f));
+
+  auto d{math::matrix2_f::identity()};
+  d *= a;
+  CHECK(d == a);
+}

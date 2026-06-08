@@ -96,8 +96,8 @@ TEST_CASE("fast inverse trig hold their bounds") {
     [](double x) { return math::fast_atan(x).value(); },
     [](double x) { return std::atan(x); }
   )};
-  CHECK(asin_e < 1.0e-7);  // doc says ~5e-8 (away from the endpoints)
-  CHECK(atan_e < 7.0e-6);  // doc says ~6e-6
+  CHECK(asin_e < 1.0e-7);  // header claims ~2e-8 in double; measured ~2.2e-8
+  CHECK(atan_e < 2.0e-6);  // header claims ~1.7e-6; measured ~1.66e-6
 }
 
 TEST_CASE("power approximations hold their bounds") {
@@ -122,9 +122,9 @@ TEST_CASE("power approximations hold their bounds") {
     [](double x) { return math::fast_log(x); },
     [](double x) { return std::log(x); }
   )};
-  CHECK(isqrt_e < 6.0e-6);  // doc ~5e-6
-  CHECK(exp_e < 4.0e-6);    // doc ~3e-6
-  CHECK(log_e < 1.5e-7);    // doc ~1e-7 (measured sits right at the limit)
+  CHECK(isqrt_e < 6.0e-6);  // header claims ~5e-6; measured just under
+  CHECK(exp_e < 1.5e-6);    // header claims ~1e-6 in double; measured ~7.2e-7
+  CHECK(log_e < 1.5e-7);    // header claims ~1e-7; measured sits right at the limit
 }
 
 TEST_CASE("lerp endpoint behaviour matches the documented contract") {
