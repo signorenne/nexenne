@@ -41,6 +41,30 @@ auto main() -> int {
     }
   }
 
+  // Compare the interpolation variants on the same endpoint pair. slerp walks the
+  // arc at constant angular velocity, so its angle is exactly linear in t (a 90
+  // degree arc gives 22.5, 45, 67.5 degrees at t = 0.25, 0.5, 0.75). nlerp_short
+  // blends the four components and renormalizes: cheaper, but the angle is not
+  // linear in t, so it lags slerp off the midpoint (the two coincide at t = 0.5 by
+  // symmetry). nlerp_plain is the same blend with no shorter-arc fix; the endpoints
+  // here already share a hemisphere, so it agrees with nlerp_short. See
+  // slerp_variants.hpp for when each one is the right pick.
+  if (qz) {
+    auto const id{nm::quaternion_d::identity()};
+    for (double t : {0.25, 0.5, 0.75}) {
+      auto const via_slerp{nm::to_axis_angle(nm::slerp(id, *qz, t)).angle().value()};
+      auto const via_nlerp_short{nm::to_axis_angle(nm::nlerp_short(id, *qz, t)).angle().value()};
+      auto const via_nlerp_plain{nm::to_axis_angle(nm::nlerp_plain(id, *qz, t)).angle().value()};
+      std::println(
+        "t={:.2f} angle: slerp={:.4f} nlerp_short={:.4f} nlerp_plain={:.4f} rad",
+        t,
+        via_slerp,
+        via_nlerp_short,
+        via_nlerp_plain
+      );
+    }
+  }
+
   // Euler angles (aerospace yaw-pitch-roll) to a quaternion and back to an axis.
   auto const aircraft{nm::from_ypr(0.4, -0.2, 0.9)};
   auto const aa{nm::to_axis_angle(aircraft)};
