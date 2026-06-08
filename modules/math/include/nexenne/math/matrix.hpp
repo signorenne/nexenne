@@ -27,12 +27,21 @@
  * row-major factories (you write the matrix in reading order, they store it
  * column-major). The projection builders (perspective, orthographic) are in
  * projection.hpp.
+ *
+ * Scalar-operator typing. The scalar operators (\c operator* and \c operator/
+ * against a scalar) deduce the scalar from both the matrix component type and the
+ * literal, so the scalar must be exactly the component type: for a \c matrix4_f
+ * write \c m * 2.0f, not \c m * 2 or \c m * 2.0 (a mismatched literal is a
+ * template-deduction failure, not a conversion). This is the same same-type policy
+ * the vector and quaternion scalar operators use.
  */
 
 #include <array>
+#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
+#include <limits>
 
 #include <nexenne/math/concepts.hpp>
 #include <nexenne/math/error.hpp>
@@ -89,6 +98,7 @@ public:
    */
   [[nodiscard]] constexpr auto
   operator()(std::size_t const row, std::size_t const col) noexcept -> value_type& {
+    assert(row < N && col < N && "matrix element index out of range");
     return m_columns[col][row];
   }
 
@@ -105,6 +115,7 @@ public:
    */
   [[nodiscard]] constexpr auto
   operator()(std::size_t const row, std::size_t const col) const noexcept -> value_type const& {
+    assert(row < N && col < N && "matrix element index out of range");
     return m_columns[col][row];
   }
 
@@ -119,6 +130,7 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto operator[](std::size_t const col) noexcept -> column_type& {
+    assert(col < N && "matrix column index out of range");
     return m_columns[col];
   }
 
@@ -134,6 +146,7 @@ public:
    */
   [[nodiscard]] constexpr auto operator[](std::size_t const col
   ) const noexcept -> column_type const& {
+    assert(col < N && "matrix column index out of range");
     return m_columns[col];
   }
 
@@ -165,6 +178,13 @@ public:
    *
    * @pre None.
    * @post The returned pointer addresses \c N*N contiguous scalars.
+   *
+   * @note The storage is \c std::array<vector, N>, so the pointer names the first
+   *       column. Reading all \c N*N scalars through it (as a GPU upload does)
+   *       works at runtime and on every real compiler, but crossing a column
+   *       boundary is not a constant expression: full traversal through \c data()
+   *       is runtime-only. Index a single column through \c operator[] in a
+   *       constant expression.
    */
   [[nodiscard]] constexpr auto data() noexcept -> value_type* {
     return m_columns[0].data();
@@ -177,6 +197,9 @@ public:
    *
    * @pre None.
    * @post The returned pointer addresses \c N*N contiguous scalars.
+   *
+   * @note Full \c N*N traversal through this pointer is runtime-only; crossing a
+   *       column boundary is not a constant expression (see the mutable overload).
    */
   [[nodiscard]] constexpr auto data() const noexcept -> value_type const* {
     return m_columns[0].data();
@@ -545,6 +568,50 @@ operator*(Value const scalar, matrix<Value, N> const& m) noexcept -> matrix<Valu
 }
 
 /**
+ * @brief Unary minus: negates every element.
+ *
+ * @tparam Value Component type.
+ * @tparam N Matrix dimension.
+ * @param m Matrix to negate.
+ *
+ * @return The matrix whose element (r, c) is \c -m(r,c).
+ *
+ * @pre None.
+ * @post The result has the same dimension as \p m.
+ */
+template <arithmetic Value, std::size_t N>
+[[nodiscard]] constexpr auto operator-(matrix<Value, N> const& m) noexcept -> matrix<Value, N> {
+  auto result{matrix<Value, N>{}};
+  for (std::size_t c{0}; c < N; ++c) {
+    result[c] = -m[c];  // per-column vector negate
+  }
+  return result;
+}
+
+/**
+ * @brief Scalar division (matrix on the left).
+ *
+ * @tparam Value Component type.
+ * @tparam N Matrix dimension.
+ * @param m Matrix to divide.
+ * @param scalar Divisor applied to every element.
+ *
+ * @return The matrix whose element (r, c) is \c m(r,c) / scalar.
+ *
+ * @pre \p scalar is non-zero.
+ * @post The result has the same dimension as \p m.
+ */
+template <arithmetic Value, std::size_t N>
+[[nodiscard]] constexpr auto
+operator/(matrix<Value, N> const& m, Value const scalar) noexcept -> matrix<Value, N> {
+  auto result{matrix<Value, N>{}};
+  for (std::size_t c{0}; c < N; ++c) {
+    result[c] = m[c] / scalar;
+  }
+  return result;
+}
+
+/**
  * @brief Element-wise in-place addition.
  *
  * @tparam Value Component type.
@@ -605,6 +672,27 @@ template <arithmetic Value, std::size_t N>
 constexpr auto operator*=(matrix<Value, N>& m, Value const scalar) noexcept -> matrix<Value, N>& {
   for (std::size_t c{0}; c < N; ++c) {
     m[c] *= scalar;
+  }
+  return m;
+}
+
+/**
+ * @brief In-place scalar division.
+ *
+ * @tparam Value Component type.
+ * @tparam N Matrix dimension.
+ * @param m Matrix mutated in place.
+ * @param scalar Divisor applied to every element.
+ *
+ * @return Reference to \p m after the division.
+ *
+ * @pre \p scalar is non-zero.
+ * @post Every element of \p m is divided by \p scalar.
+ */
+template <arithmetic Value, std::size_t N>
+constexpr auto operator/=(matrix<Value, N>& m, Value const scalar) noexcept -> matrix<Value, N>& {
+  for (std::size_t c{0}; c < N; ++c) {
+    m[c] /= scalar;
   }
   return m;
 }
@@ -773,14 +861,15 @@ template <arithmetic Value, std::size_t N>
  * dimension 2, 3, and 4 (the 4x4 path expands the cofactors over six 2x2 minors
  * of the top two rows, \c s0..s5, and six of the bottom two rows, \c c0..c5).
  * The matrix is treated as singular, and an error returned, when \c |det| falls
- * to or below a numerical-zero threshold of 1e-20.
+ * into the rounding-noise band scaled to the input (see the implementation note).
  *
  * @tparam Real Floating-point component type.
  * @tparam N Matrix dimension (2, 3, or 4).
  * @param m Input matrix.
  *
  * @return The inverse on success, or \c math_error::singular_matrix when the
- *         determinant is at or below the numerical-zero threshold.
+ *         determinant is not finite or has shrunk into the input-scaled
+ *         numerical-zero band.
  *
  * @pre Components are finite.
  * @post On success the returned \c inv satisfies \c m*inv == identity() within
@@ -791,14 +880,31 @@ template <std::floating_point Real, std::size_t N>
   requires(N >= 2 && N <= 4)
 {
   auto const det{determinant(m)};
-  // Reject both a (near-)singular and a non-finite determinant. The plain
-  // comparison would let a NaN det slip through (every comparison with NaN is
-  // false) and an infinite det (from overflow) divides to a zero matrix; either
-  // would otherwise be returned as a bogus "success", so guard finiteness
-  // explicitly. The threshold is absolute, not scale- or precision-relative: a
-  // matrix scaled by s has its determinant scaled by s^N, so this detects a
-  // genuinely tiny pivot, not conditioning - rescale ill-scaled inputs first.
-  if (!isfinite(det) || abs(det) <= static_cast<Real>(1e-20)) {
+  // Relative singularity threshold. A former absolute cutoff (1e-20) is
+  // unreachable under float rounding: the determinant of a matrix whose entries
+  // are bounded by M has magnitude up to N! * M^N, and the float cancellation
+  // noise in computing it is on the order of eps * M^N. For O(1) entries that
+  // noise is ~1e-4, ten trillion times 1e-20, so a genuinely rank-deficient float
+  // matrix (colinear rows, whose exact determinant is zero) sails through the
+  // absolute guard and inverts to garbage returned as success. Scale the cutoff to
+  // the input instead: reject when |det| has collapsed into the eps * M^N noise
+  // band. The extra factor N is a small slack for the N! terms that accumulate the
+  // noise. A matrix scaled by s scales both its determinant and this threshold by
+  // s^N, so the test tracks rank deficiency, not overall magnitude. The finiteness
+  // guard rejects a NaN det (every NaN comparison is false) and an infinite det
+  // from overflow (which would divide to a zero matrix), both bogus "successes".
+  auto max_abs{Real{0}};
+  for (std::size_t c{0}; c < N; ++c) {
+    for (std::size_t r{0}; r < N; ++r) {
+      max_abs = max(max_abs, abs(m(r, c)));
+    }
+  }
+  auto scale{Real{1}};
+  for (std::size_t i{0}; i < N; ++i) {
+    scale *= max_abs;  // max_abs^N, the natural determinant magnitude scale
+  }
+  auto const threshold{std::numeric_limits<Real>::epsilon() * scale * static_cast<Real>(N)};
+  if (!isfinite(det) || abs(det) <= threshold) {
     return std::unexpected{math_error::singular_matrix};
   }
   auto const inv_det{Real{1} / det};
