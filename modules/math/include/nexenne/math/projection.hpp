@@ -40,6 +40,11 @@ namespace nexenne::math {
  * @pre \p near_z and \p far_z are distinct, with \p far_z greater than \p near_z.
  * @post The returned matrix maps the frustum to the OpenGL clip cube.
  *
+ * @warning \p fovy_rad is in RADIANS and is accepted as a raw \c Real with no unit
+ *          check: passing a degree value (for example \c perspective(60, ...))
+ *          compiles and silently builds a nearly degenerate frustum. Convert with
+ *          \c to_radians first.
+ *
  * @note Not \c constexpr: it calls libm \c std::tan, which is not \c constexpr
  *       in C++23 (GCC accepts it as a builtin, clang does not). The orthographic
  *       builders use no transcendental and are \c constexpr.
@@ -89,6 +94,10 @@ template <std::floating_point Real>
  * @pre \p aspect is strictly positive.
  * @pre \p near_z and \p far_z are distinct, with \p far_z greater than \p near_z.
  * @post The returned matrix maps the frustum to the [0, 1] depth clip volume.
+ *
+ * @warning \p fovy_rad is in RADIANS and is accepted as a raw \c Real with no unit
+ *          check: a degree value compiles and silently builds a degenerate
+ *          frustum. Convert with \c to_radians first.
  *
  * @note Not \c constexpr: it calls libm \c std::tan (see \c perspective).
  */
