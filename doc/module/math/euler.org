@@ -40,6 +40,14 @@ same orientation). =from_ypr(yaw, pitch, roll)= maps the aerospace angles onto
 intrinsic =zyx= (=z = yaw=, =y = pitch=, =x = roll=) and delegates; it matches
 quaternion.hpp's dedicated =from_euler= for that convention.
 
+Two gotchas the compiler cannot catch yet. First, =euler_angles= and =from_ypr=
+take raw =Real= angles *in radians*, not the [[file:angle.org][=radians=]] strong type, so a degree
+value (=euler_angles{90, 0, 0}=) compiles and silently produces a wrong rotation;
+convert with =to_radians= at the boundary. Second, =from_ypr(yaw, pitch, roll)= and
+=from_euler(roll, pitch, yaw)= take their three angles in *opposite order*, so
+swapping one call for the other transposes yaw and roll. Both are flagged with a
+=@warning= in the headers.
+
 ** The carrier
 
 =euler_angles<Real>= is a small encapsulated class (private members, =x()= /
