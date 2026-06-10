@@ -1,0 +1,162 @@
+# nexenne clang-tidy configuration.
+#
+# Enforces the rules documented in STYLE_GUIDE.org:
+#   - snake_case for every identifier, PascalCase for template parameters
+#   - trailing return types
+#   - const-correctness
+#   - modern C++ idioms
+#   - performance defaults
+#
+# Treat warnings as errors in CI: build with the `ci` preset, or pass
+# -DNEXENNE_WARNINGS_AS_ERRORS=ON; clang-tidy is invoked via the
+# CMAKE_CXX_CLANG_TIDY hook when consumers set it.
+#
+# Minimum clang-tidy version: 18.
+
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-*,
+  hicpp-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -cert-err58-cpp,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -hicpp-no-array-decay,
+  -hicpp-vararg,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -modernize-use-nodiscard,
+  -readability-identifier-length,
+  -readability-magic-numbers
+
+WarningsAsErrors:    ''
+HeaderFilterRegex:   '.*/nexenne/.*\.hpp$'
+FormatStyle:         file
+SystemHeaders:       false
+UseColor:            true
+
+CheckOptions:
+  # Naming: snake_case for identifiers, PascalCase for template parameters.
+  - key:   readability-identifier-naming.NamespaceCase
+    value: lower_case
+  - key:   readability-identifier-naming.InlineNamespaceCase
+    value: lower_case
+  - key:   readability-identifier-naming.ClassCase
+    value: lower_case
+  - key:   readability-identifier-naming.StructCase
+    value: lower_case
+  - key:   readability-identifier-naming.UnionCase
+    value: lower_case
+  - key:   readability-identifier-naming.EnumCase
+    value: lower_case
+  - key:   readability-identifier-naming.ScopedEnumConstantCase
+    value: lower_case
+  - key:   readability-identifier-naming.EnumConstantCase
+    value: lower_case
+  - key:   readability-identifier-naming.TypeAliasCase
+    value: lower_case
+  - key:   readability-identifier-naming.TypedefCase
+    value: lower_case
+  - key:   readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key:   readability-identifier-naming.MethodCase
+    value: lower_case
+  - key:   readability-identifier-naming.VirtualMethodCase
+    value: lower_case
+  - key:   readability-identifier-naming.MemberCase
+    value: lower_case
+  - key:   readability-identifier-naming.PrivateMemberPrefix
+    value: m_
+  - key:   readability-identifier-naming.ProtectedMemberPrefix
+    value: m_
+  - key:   readability-identifier-naming.PublicMemberCase
+    value: lower_case
+  - key:   readability-identifier-naming.VariableCase
+    value: lower_case
+  - key:   readability-identifier-naming.LocalVariableCase
+    value: lower_case
+  - key:   readability-identifier-naming.ParameterCase
+    value: lower_case
+  - key:   readability-identifier-naming.ParameterPackCase
+    value: lower_case
+  - key:   readability-identifier-naming.GlobalVariableCase
+    value: lower_case
+  - key:   readability-identifier-naming.GlobalConstantCase
+    value: lower_case
+  - key:   readability-identifier-naming.StaticConstantCase
+    value: lower_case
+  - key:   readability-identifier-naming.ConstantCase
+    value: lower_case
+  - key:   readability-identifier-naming.ConstexprVariableCase
+    value: lower_case
+  - key:   readability-identifier-naming.ConstexprFunctionCase
+    value: lower_case
+  - key:   readability-identifier-naming.ConstexprMethodCase
+    value: lower_case
+  - key:   readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  - key:   readability-identifier-naming.TemplateParameterCase
+    value: CamelCase
+  - key:   readability-identifier-naming.TypeTemplateParameterCase
+    value: CamelCase
+  - key:   readability-identifier-naming.ValueTemplateParameterCase
+    value: CamelCase
+  - key:   readability-identifier-naming.TemplateTemplateParameterCase
+    value: CamelCase
+
+  # ---------------------------------------------------------------------
+  # Modernization: enforce trailing return types and other C++23 idioms.
+  # ---------------------------------------------------------------------
+  - key:   modernize-use-trailing-return-type.TransformLambdas
+    value: 'all'
+  - key:   modernize-use-trailing-return-type.TransformFunctions
+    value: 'all'
+
+  # ---------------------------------------------------------------------
+  # Performance defaults.
+  # ---------------------------------------------------------------------
+  - key:   performance-unnecessary-value-param.AllowedTypes
+    value: 'std::string_view;std::span'
+  - key:   performance-for-range-copy.AllowedTypes
+    value: 'std::string_view;std::span'
+
+  # ---------------------------------------------------------------------
+  # Const-correctness: nexenne treats every non-reassigned local as const.
+  # ---------------------------------------------------------------------
+  - key:   misc-const-correctness.AnalyzeValues
+    value: 'true'
+  - key:   misc-const-correctness.AnalyzeReferences
+    value: 'true'
+  - key:   misc-const-correctness.WarnPointersAsValues
+    value: 'true'
+  - key:   misc-const-correctness.TransformValues
+    value: 'true'
+  - key:   misc-const-correctness.TransformReferences
+    value: 'true'
+
+  # ---------------------------------------------------------------------
+  # Readability.
+  # ---------------------------------------------------------------------
+  - key:   readability-function-cognitive-complexity.Threshold
+    value: 25
+  - key:   readability-function-size.LineThreshold
+    value: 80
+  - key:   readability-implicit-bool-conversion.AllowIntegerConditions
+    value: false
+  - key:   readability-implicit-bool-conversion.AllowPointerConditions
+    value: false
+  - key:   readability-braces-around-statements.ShortStatementLines
+    value: 0

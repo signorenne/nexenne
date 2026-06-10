@@ -1,0 +1,113 @@
+# ---------------------------------------------------------------------------
+# Build trees
+# ---------------------------------------------------------------------------
+build/
+build-*/
+out/
+cmake-build-*/
+
+# ---------------------------------------------------------------------------
+# CMake artifacts that occasionally leak into the source tree
+# ---------------------------------------------------------------------------
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+install_manifest.txt
+Testing/
+
+# ---------------------------------------------------------------------------
+# Editors / IDEs
+# ---------------------------------------------------------------------------
+.vscode/
+.vs/
+.idea/
+.cache/
+.clangd/
+.ccache/
+.zed/
+.qtcreator/
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+
+# ---------------------------------------------------------------------------
+# AI assistants / coding agents (drop everything; force-add if you really
+# want to commit one of these)
+# ---------------------------------------------------------------------------
+.claude/
+.claude-flow/
+.claude-cache/
+.aider*
+.cursor/
+.cursorrules
+.cursorignore
+.cursorindexingignore
+.codeium/
+.codeiumignore
+.continue/
+.windsurf/
+.windsurfrules
+.roo/
+.roocode/
+.qodo/
+.codecompanion/
+.copilot/
+.copilot-*
+.github/copilot-instructions.md
+.openhands/
+.devin/
+.cody/
+.tabnine/
+.kilo/
+.bolt/
+.chat/
+.history/
+.assistant/
+.ai/
+CLAUDE.md
+AGENTS.md
+AGENT.md
+CONVERSATIONS.md
+GEMINI.md
+COPILOT.md
+
+# ---------------------------------------------------------------------------
+# OS junk
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ---------------------------------------------------------------------------
+# Doxygen rendered output (if generated into source tree)
+# ---------------------------------------------------------------------------
+docs/html/
+docs/latex/
+docs/xml/
+
+# ---------------------------------------------------------------------------
+# Coverage / sanitizer artifacts
+# ---------------------------------------------------------------------------
+*.gcno
+*.gcda
+*.gcov
+*.profraw
+*.profdata
+coverage/
+lcov.info
+
+# ---------------------------------------------------------------------------
+# Misc
+# ---------------------------------------------------------------------------
+core
+*.dSYM/
+node_modules/
+__pycache__/
+.python-version
+.envrc

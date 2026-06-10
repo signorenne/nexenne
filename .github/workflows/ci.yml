@@ -1,0 +1,112 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y clang-format-18
+      - name: Check formatting
+        run: |
+          files=$(git ls-files '*.hpp' '*.cpp')
+          if [ -n "$files" ]; then
+            clang-format-18 --dry-run --Werror $files
+          else
+            echo "no C++ sources to check yet"
+          fi
+
+  build-test:
+    name: build + doctest (gcc, werror)
+    runs-on: ubuntu-24.04
+    env: { CC: gcc-14, CXX: g++-14 }
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y g++-14 cmake ninja-build ccache
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-build-test-${{ github.sha }}
+          restore-keys: ccache-build-test-
+      - run: cmake --preset ci -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+      - run: cmake --build --preset ci
+      - run: cmake --build --preset ci --target nexenne_tests
+
+  build-clang:
+    name: build + doctest (clang)
+    runs-on: ubuntu-24.04
+    env: { CC: clang-18, CXX: clang++-18 }
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y clang-18 cmake ninja-build ccache
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-build-clang-${{ github.sha }}
+          restore-keys: ccache-build-clang-
+      - run: cmake --preset ci -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+      - run: cmake --build --preset ci
+      - run: cmake --build --preset ci --target nexenne_tests
+
+  asan:
+    name: doctest under asan + ubsan
+    runs-on: ubuntu-24.04
+    env: { CC: gcc-14, CXX: g++-14 }
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y g++-14 cmake ninja-build
+      - run: cmake --preset asan
+      - run: cmake --build --preset asan
+      - run: cmake --build --preset asan --target nexenne_tests
+
+  tidy:
+    name: clang-tidy
+    runs-on: ubuntu-24.04
+    env: { CC: clang-18, CXX: clang++-18 }
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y clang-18 clang-tidy-18 cmake ninja-build
+      - name: Configure (compile database)
+        run: cmake --preset dev
+      - name: Run clang-tidy
+        run: |
+          files=$(git ls-files 'modules/*.hpp' 'modules/*.cpp')
+          if [ -n "$files" ]; then
+            run-clang-tidy-18 -p build/dev -warnings-as-errors='*' -quiet $files
+          else
+            echo "no module sources to lint yet"
+          fi
+
+  docs:
+    name: doxygen (documentation errors)
+    runs-on: ubuntu-24.04
+    env: { CC: gcc-14, CXX: g++-14 }
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y g++-14 cmake ninja-build doxygen
+      - name: Build docs
+        run: |
+          cmake -S . -B build/docs -G Ninja \
+            -DNEXENNE_BUILD_DOCS=ON \
+            -DNEXENNE_FETCH_DOXYGEN_IF_MISSING=OFF \
+            -DNEXENNE_BUILD_TESTS=OFF
+          cmake --build build/docs --target nexenne_docs
+
+  install:
+    name: install + consumer find_package
+    runs-on: ubuntu-24.04
+    env: { CC: gcc-14, CXX: g++-14 }
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y g++-14 cmake ninja-build
+      - run: bash scripts/install_smoke.sh

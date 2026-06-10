@@ -1,0 +1,29 @@
+#+TITLE: CMake helpers
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Everything under [[file:../../cmake/][cmake/]]. The root and each module include these; you rarely
+call into them directly beyond =nexenne_add_module=.
+
+- [[file:../../cmake/nexenne_modules.cmake][nexenne_modules.cmake]] : =nexenne_read_module_deps=,
+  =nexenne_discover_modules= (glob plus topological sort), and
+  =nexenne_standalone_bootstrap=.
+- [[file:../../cmake/nexenne_module.cmake][nexenne_module.cmake]] : =nexenne_add_module=,
+  =nexenne_add_module_tests=, =nexenne_add_module_example=, and the install rules.
+- [[file:../../cmake/nexenne_warnings.cmake][nexenne_warnings.cmake]] : the =nexenne::warnings= interface target
+  (GCC, Clang, and MSVC flags).
+- [[file:../../cmake/nexenne_testing.cmake][nexenne_testing.cmake]] : finds or fetches doctest.
+- [[file:../../cmake/nexenne_doxygen.cmake][nexenne_doxygen.cmake]] : finds or fetches Doxygen, and
+  =nexenne_add_module_docs=.
+- [[file:../../cmake/templates/][templates/]] : =*-config.cmake.in= for =find_package=.
+
+* nexenne_add_module
+
+The one helper a module author writes. Reads =module.deps= for linking,
+declares the target + alias, registers headers via =FILE_SET=, and (when
+=NEXENNE_INSTALL=) emits the export and package config. Signature and kinds:
+[[file:modules.org][Modules]].
+
+* See also
+
+[[file:build-system.org][Build system]], [[file:modules.org][Modules]], [[file:install.org][Install and consume]].

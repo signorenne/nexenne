@@ -1,0 +1,15 @@
+@PACKAGE_INIT@
+
+#
+# Per-module package for nexenne-@_module_name@. Use as:
+#   find_package(nexenne-@_module_name@ REQUIRED)
+#   target_link_libraries(<tgt> PRIVATE nexenne::@_module_name@)
+#
+
+include(CMakeFindDependencyMacro)
+
+@_module_deps@
+
+include("${CMAKE_CURRENT_LIST_DIR}/nexenne-@_module_name@-targets.cmake")
+
+check_required_components(nexenne-@_module_name@)

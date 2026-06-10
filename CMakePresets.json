@@ -1,0 +1,64 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
+        },
+        {
+            "name": "dev",
+            "inherits": "base",
+            "displayName": "Dev (Debug, all modules, tests on)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "NEXENNE_BUILD_TESTS": "ON",
+                "NEXENNE_BUILD_EXAMPLES": "ON"
+            }
+        },
+        {
+            "name": "release",
+            "inherits": "base",
+            "displayName": "Release (RelWithDebInfo)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "NEXENNE_BUILD_TESTS": "OFF",
+                "NEXENNE_BUILD_EXAMPLES": "OFF"
+            }
+        },
+        {
+            "name": "asan",
+            "inherits": "dev",
+            "displayName": "Dev with AddressSanitizer + UBSan",
+            "cacheVariables": {
+                "CMAKE_CXX_FLAGS_INIT": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+                "CMAKE_EXE_LINKER_FLAGS_INIT": "-fsanitize=address,undefined"
+            }
+        },
+        {
+            "name": "ci",
+            "inherits": "dev",
+            "displayName": "CI (warnings as errors)",
+            "cacheVariables": {
+                "NEXENNE_WARNINGS_AS_ERRORS": "ON"
+            }
+        }
+    ],
+    "buildPresets": [
+        { "name": "dev",     "configurePreset": "dev" },
+        { "name": "release", "configurePreset": "release" },
+        { "name": "asan",    "configurePreset": "asan" },
+        { "name": "ci",      "configurePreset": "ci" },
+        {
+            "name": "tests",
+            "configurePreset": "dev",
+            "displayName": "Build and run all doctest suites",
+            "targets": ["nexenne_tests"]
+        }
+    ]
+}

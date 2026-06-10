@@ -1,0 +1,44 @@
+#+TITLE: Tools and tech
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Every external tool nexenne relies on, what it does here, and where to learn
+more. Most are fetched or installed automatically; you mainly need a C++23
+compiler and CMake.
+
+* Build
+
+- [[https://cmake.org/cmake/help/latest/][CMake]] (=>= 3.23) : the build system. Config in [[file:../../CMakeLists.txt][CMakeLists.txt]] and the
+  [[file:../../cmake/][cmake/]] helpers. Presets in [[file:../../CMakePresets.json][CMakePresets.json]].
+- [[https://ninja-build.org][Ninja]] : the build backend the presets generate for. Fast, parallel.
+- [[https://gcc.gnu.org][GCC]] 15 / [[https://clang.llvm.org][Clang]] 18+ : the C++23 compilers. CI builds with both.
+- [[https://cmake.org/cmake/help/latest/module/FetchContent.html][FetchContent]] : CMake module that pulls missing dependencies (doctest,
+  Doxygen) at configure time, so a fresh clone is self-contained.
+
+* Test and quality
+
+- [[https://github.com/doctest/doctest][doctest]] : the unit-test framework (header-only, fetched). See [[file:testing.org][Testing]].
+- [[https://clang.llvm.org/docs/ClangFormat.html][clang-format]] (18+) : formatter. Rules in [[file:../../.clang-format][.clang-format]].
+- [[https://clang.llvm.org/extra/clang-tidy/][clang-tidy]] (18+) : static analysis + naming. Rules in [[file:../../.clang-tidy][.clang-tidy]].
+- [[https://clang.llvm.org/docs/AddressSanitizer.html][AddressSanitizer]] + [[https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html][UBSan]] : runtime memory and UB checks, via the
+  =asan= preset and the CI =asan= job.
+
+* Docs
+
+- [[https://www.doxygen.nl][Doxygen]] : API docs from header comments (system or fetched). See [[file:api-docs.org][API docs]].
+- [[https://orgmode.org][Org mode]] : the format for all prose docs in this repo (this file included).
+
+* CI and developer tooling
+
+- [[https://docs.github.com/actions][GitHub Actions]] : CI. Workflow in [[file:../../.github/workflows/ci.yml][.github/workflows/ci.yml]], see [[file:ci.org][CI]].
+- [[https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks][Git hooks]] : the local gates in [[file:../../.githooks/][.githooks/]], see [[file:hooks.org][Git hooks]].
+- [[https://ccache.dev][ccache]] : compiler cache that keeps CI builds fast.
+- [[https://editorconfig.org][EditorConfig]] : baseline editor settings in [[file:../../.editorconfig][.editorconfig]].
+
+* Licensing
+
+- [[https://spdx.org/licenses/MIT.html][MIT]] : the licence; full text in [[file:../../LICENSE][LICENSE]].
+
+* See also
+
+[[file:build-system.org][Build system]], [[file:ci.org][CI]], [[file:../README.org][knowledge base index]].

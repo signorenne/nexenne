@@ -1,0 +1,336 @@
+#+TITLE: nexenne C++ style guide
+#+SUBTITLE: the style every file in this repo follows
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+The goal: open any file and know what the next line looks like before reading
+it. =.clang-format= handles layout, =.clang-tidy= enforces the rules below.
+When this guide and the tooling disagree, the tooling wins; fix both together.
+
+*Indent with two spaces*, never tabs; wrap at 100 columns. Always braced
+initialization, never === init. Name stored types with =using= aliases and use
+the alias, not the raw type.
+
+* Language
+
+C++23, =CXX_EXTENSIONS OFF=. Reach for the modern facilities: concepts,
+ranges and =std::views=, =std::string_view= / =std::span=, =std::expected=,
+=if constexpr=, =[[nodiscard]]=.
+
+* Naming
+
+snake_case for everything. The only suffix/prefix rules:
+
+| construct                  | rule        | example                    |
+|----------------------------+-------------+----------------------------|
+| types, functions, members  | snake_case  | =vector_view=, =to_string= |
+| private / protected member | =m_= prefix | =m_count=                  |
+| type template parameter    | PascalCase  | =Real=, =Value=, =T=       |
+| value template parameter   | PascalCase  | =N=, =Width=, =Capacity=   |
+| macro                      | UPPER_CASE  | =NEXENNE_MATH_VERSION=     |
+
+Template parameters are the one exception to snake_case: they are PascalCase,
+matching standard-library style (=std::vector<T, Allocator>=). Everything else
+is snake_case, never camelCase, never a trailing underscore (=count_= is
+wrong). Public members carry no prefix.
+
+* Class layout
+
+Order the access sections like this: a leading =public:= for type aliases and
+constants that callers need (the exception), then =private:= for data members
+and helpers, then =protected:=, then the =public:= interface (constructors,
+methods, operators). Do not push data members to the bottom; only
+externally-needed type definitions lead the class.
+
+Name stored types with =using= aliases (for example =using function_type = Fn=)
+and use the alias throughout the class, not the raw template parameter.
+
+Alias *any* long, complex, or repeated type expression and use the alias rather
+than spelling it inline: function-pointer types as =using fn = R (*)(Args...)=
+(never a name buried mid-declarator like =R (*p)(Args...)=), and nested
+template-ids like =std::common_type_t<value_t<A>, value_t<B>>= as a named
+=detail= alias. Never write the same complex type inline more than once.
+
+* Special members and operators
+
+- Prefer the *rule of zero*: declare no special members when the compiler's
+  defaults are correct. Reach for them only when ownership demands it.
+- When a type needs assignment, write one unifying =operator=(T value)= by
+  value (copy-and-swap); the compiler routes both copy and move through it. Do
+  not hand-write separate copy and move assignment.
+- For ordering, define =operator<=>= (and =operator=== when needed) and let the
+  compiler generate the other comparisons. Never hand-write =<=, =>=, =<==.
+- To make a type non-copyable and non-movable, delete the copy constructor and
+  the single copy =operator==; the move operations are then suppressed.
+- A scope-bound RAII guard (=defer=, =scope_guard=) is =[[nodiscard]]= (a
+  discarded temporary, which would fire immediately, warns) and =final=, and is
+  non-copyable and non-movable by the rule above.
+- Where a move-assignment must re-establish a member whose type is not
+  move-assignable (a captured lambda has no =operator==), reconstruct it with
+  =std::destroy_at= + =std::construct_at= rather than assigning.
+
+* Functions
+
+Trailing return type, always:
+
+#+BEGIN_SRC cpp
+[[nodiscard]] constexpr auto square(real_t const value) noexcept -> real_t;
+#+END_SRC
+
+- =[[nodiscard]]= on pure functions that return a value.
+- =noexcept= when it never throws; =constexpr= / =consteval= when usable at
+  compile time.
+
+Accessors and returns:
+
+- No =get_= / =set_= prefixes: an accessor is =position()=, a mutator is
+  =position(p)=. Keep verb prefixes for actions.
+- Return =T const&= to read a non-trivial member (or =T= by value when cheap);
+  do not hand out a non-const reference to internal state unless mutation
+  through it is intended.
+- Add ref-qualifiers where it matters: =value() const&= returns =T const&=,
+  =value() &&= returns =T&&= so callers can move out of an rvalue.
+
+Parameter passing:
+
+| kind                           | pass as                          |
+|--------------------------------+----------------------------------|
+| trivially copyable, =<=2 words | by value, =const=                |
+| string / range view            | =std::string_view= / =std::span= |
+| ownership transfer             | by value or =T&&=                |
+| large, read-only               | =T const&=                       |
+| out / in-out scalar            | =T*= (never =T&=)                |
+| caller-owned buffer to fill    | =T&= or =std::span=              |
+
+* Initialization and const
+
+Braced init only. Every value not reassigned is =const=. East const.
+
+#+BEGIN_SRC cpp
+auto const g{real_t{-9.81}};
+auto const hit{std::ranges::find_if(items, pred)};
+auto find(grid_t const& g, point_t const& p) -> cell_t const*;
+#+END_SRC
+
+Forbidden: =T x(...)=, =auto x = expr=, =int x = 0=. Members default with
+=T m_x{};=. Loops too: =for (auto i{0}; ...)=. Non-mutating methods are =const=.
+
+* Idioms and performance
+
+- Prefer =std::ranges= algorithms and =std::views= over raw loops.
+- =std::array= over C arrays; smart pointers over =new= / =delete=.
+- Never a C-style =(T)x= or functional =T(x)= cast: use =static_cast= (and
+  =reinterpret_cast= / =const_cast= when unavoidable), or =static_cast<void>(x)=
+  to discard a value.
+- Mark =constexpr= / =noexcept=; avoid needless allocations; =std::move= only
+  on a genuine ownership transfer (never a =const= or a return value).
+- Mark a potentially-empty stored member (a stateless deleter, comparator, or
+  allocator) =[[no_unique_address]]= so it costs no space.
+- Debug-only contract checks: =assert(cond && "msg")= on a documented =@pre=;
+  the precondition is the caller's to uphold and is undefined behaviour (not an
+  exception) in release.
+
+* File header
+
+Headers open with =#pragma once=, then a =/** @file @brief */= block; source
+files open with the same block. Licence and authorship live in the LICENSE file
+and git, never in a per-file banner.
+
+#+BEGIN_SRC cpp
+#pragma once
+
+/**
+ * @file
+ * @brief Strong typedef wrapper for distinct integer-like types.
+ */
+
+#include <concepts>
+#+END_SRC
+
+* Headers and namespaces
+
+- Include order (clang-format regroups): doctest, std, third-party, =<nexenne/...>=,
+  local.
+- Every public symbol is in =nexenne::<module>=. Implementation details go in a
+  nested =detail= namespace, or an unnamed namespace when the helper must not
+  leak out of the translation unit.
+- Constrain every template with a concept, and prefer a concept or =requires=
+  over a =static_assert=. Template parameters are PascalCase (=Real=, =Value=,
+  =N=). Include rather than forward-declare unless it breaks a cycle.
+
+* Error handling
+
+- *=std::expected<T, error_t>= for every recoverable error.* Never throw to
+  report one. Throwing is allowed only where it is the single correct option by
+  design: a constructor that cannot otherwise signal failure, or allocation
+  (=new=). Everything else returns =std::expected=.
+- =assert= for internal preconditions in Debug, never on release input.
+- Document =@pre= / =@post= on public functions.
+
+* Comments
+
+- *No decorative banner comments* (=// -----=, =# =====). Use a plain short
+  comment or a Doxygen block, nothing else.
+- *No em-dash, no =--= em-dash substitute, and no backticks*, in comments,
+  strings, and prose docs alike. Use a comma, a colon, or parentheses for an
+  aside; use Doxygen =\c= for inline code in a comment.
+- *No HTML* in comments.
+- In function bodies, comment the /why/, never the /what/. Default to none.
+
+** Doxygen on every public symbol
+
+Javadoc-flavored =/** ... */=, no HTML, no backticks (use =\c= for an
+identifier, =\p= for a parameter). The block is always built from the same
+ordered groups, one blank comment line between groups:
+
+1. =@brief=, one line.
+2. Detail paragraph.
+3. =@tparam= then =@param=.
+4. =@return=, alone (a blank line both before and after it).
+5. =@pre=, =@post=, =@throws=.
+6. =@note=, =@warning=, =@see=, =@complexity=, =@par Example=.
+
+Always spell =@brief= out. =@pre= and =@post= are mandatory, even when the
+answer is "None". A =void= function has no =@return= (Doxygen rejects it).
+Drop any /optional/ tag that only restates the signature. Put exactly one space
+after every tag (and after a =@param= / =@tparam= name): no column alignment.
+The order never varies between files; the example below is exact.
+
+The docs build runs under =FAIL_ON_WARNINGS= with =WARN_NO_PARAMDOC=, which adds
+three hard rules:
+
+- *Every documented entity with parameters or a return needs =@param= /
+  =@return=, operators included.* A one-line =/// @brief= on an operator that
+  takes parameters fails the docs build; give every operator the full block.
+- Hide implementation that must not appear in the API docs (a =detail= helper,
+  or a self-referential primary template Doxygen misreads as a "recursive class
+  relation") between =/// @cond INTERNAL= and =/// @endcond=.
+- Never leave a bare =<word>= token in Doxygen text: Doxygen reads =<bit>=,
+  =<I>=, =<utility>= as HTML tags and the build rejects them. Drop the angle
+  brackets or use =\c=.
+
+#+BEGIN_SRC cpp
+/**
+ * @brief Kinetic energy of a body of mass \p mass at velocity \p velocity.
+ *
+ * Implements \c E_k = 1/2 * m * v^2; the result is non-negative.
+ *
+ * @tparam Real Floating-point type satisfying \c std::floating_point.
+ * @param mass Mass in kilograms.
+ * @param velocity Velocity in metres per second.
+ *
+ * @return Kinetic energy in joules.
+ *
+ * @pre \p mass is finite and non-negative.
+ * @post Returned value is finite and non-negative.
+ *
+ * @complexity \c O(1).
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto kinetic_energy(Real const mass, Real const velocity)
+  noexcept -> Real;
+#+END_SRC
+
+=@complexity= and =@thread_safety= are project aliases (defined in the
+Doxyfile); use =@complexity= on anything non-trivial.
+
+* A complete example
+
+Every rule above in one small type: trailing returns, =const= by default, braced
+init, the rule of zero, a defaulted =operator<=>= plus =operator===, =constexpr=
+throughout, and =std::expected= instead of throwing.
+
+#+BEGIN_SRC cpp
+enum class counter_error { overflow };
+
+/**
+ * @brief A counter that reports overflow instead of wrapping.
+ *
+ * @tparam T Unsigned integral counter type.
+ *
+ * @pre None.
+ * @post A default-constructed counter is zero.
+ */
+template <std::unsigned_integral T>
+class saturating_counter {
+public:
+  using value_type = T;
+
+private:
+  value_type m_value{};  // braced default member init
+
+public:
+  // Rule of zero: the compiler's special members are correct, so none are declared.
+
+  /**
+   * @brief The current count.
+   *
+   * @return The stored value.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto value() const noexcept -> value_type {
+    return m_value;
+  }
+
+  /**
+   * @brief Adds \p amount, reporting overflow instead of wrapping.
+   *
+   * @param amount Amount to add.
+   *
+   * @return The new count, or \c counter_error::overflow when the addition
+   *         would exceed the maximum of \p T.
+   *
+   * @pre None.
+   * @post On success the count has increased by \p amount.
+   */
+  [[nodiscard]] constexpr auto add(value_type const amount) noexcept
+    -> std::expected<value_type, counter_error> {
+    if (amount > std::numeric_limits<value_type>::max() - m_value) {
+      return std::unexpected{counter_error::overflow};  // no throw
+    }
+    m_value = static_cast<value_type>(m_value + amount);
+    return m_value;
+  }
+
+  /// @brief Equality of two counters; the compiler derives \c != from it.
+  [[nodiscard]] friend constexpr auto
+  operator==(saturating_counter const&, saturating_counter const&) noexcept -> bool = default;
+
+  /// @brief Ordering of two counters; the compiler derives \c < \c > \c <= \c >=.
+  [[nodiscard]] friend constexpr auto
+  operator<=>(saturating_counter const&, saturating_counter const&) noexcept = default;
+};
+#+END_SRC
+
+* Naming files
+
+- Directories and files: =lower_snake_case=. Headers =.hpp=, sources =.cpp=.
+- Tests: =test_<topic>.cpp= under =tests/=.
+- Examples: =examples/<module>/<topic>.cpp=, one runnable =main= per class.
+- Module =foo= umbrella header is =include/nexenne/foo/foo.hpp= and includes
+  every leaf header.
+- All repo documentation (guides, READMEs, this file) is org-mode (=.org=),
+  never markdown. Per-module usage guides live in =doc/module/<name>/=.
+- Never put a =[[...]]= link inside an org table cell: the markup width is not
+  the rendered width, so any realign corrupts the columns. List link-bearing
+  entries as =- [[link]] : description= instead; keep tables for plain text.
+- Documentation is a hierarchy of indexes: the top index links to each
+  subfolder index, which links to its articles. Each level is shaped for its
+  own content.
+
+* Tooling
+
+=clang-format= and =clang-tidy= (both version 18+) read the configs at repo
+root. A change is not done until format, tidy, the warnings-as-errors build,
+the sanitizers, and the docs build are all clean:
+
+#+BEGIN_SRC sh
+clang-format -i $(git ls-files '*.hpp' '*.cpp')
+run-clang-tidy -p build/dev -quiet
+cmake --preset ci   && cmake --build --preset ci   --target nexenne_tests  # warnings as errors
+cmake --preset asan && cmake --build --preset asan --target nexenne_tests  # ASan + UBSan
+cmake -S . -B build/docs -DNEXENNE_BUILD_DOCS=ON \
+  && cmake --build build/docs --target nexenne_<mod>_docs                  # docs: FAIL_ON_WARNINGS
+#+END_SRC

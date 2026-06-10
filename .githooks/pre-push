@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#
+# Full gate before code leaves the machine: configure, build, and run every
+# doctest suite with warnings as errors. Enable with:
+#
+#   git config core.hooksPath .githooks
+#
+# Skip once with: NEXENNE_SKIP_HOOK=1 git push ...
+set -euo pipefail
+
+if [ "${NEXENNE_SKIP_HOOK:-0}" = "1" ]; then
+    echo "pre-push: skipped (NEXENNE_SKIP_HOOK=1)"
+    exit 0
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo "pre-push: configuring and building (ci preset)"
+cmake --preset ci >/dev/null
+cmake --build --preset ci
+cmake --build --preset ci --target nexenne_tests
+echo "pre-push: build + doctest OK"

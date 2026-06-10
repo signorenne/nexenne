@@ -1,0 +1,32 @@
+#+TITLE: Continuous integration
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+[[file:../../.github/workflows/ci.yml][.github/workflows/ci.yml]] runs on every push and pull request to =main=. A PR
+merges only when every job is green. Compile-heavy jobs cache with ccache.
+
+| job           | what it checks                                              |
+|---------------+-------------------------------------------------------------|
+| =format=      | clang-format is clean                                       |
+| =build-test=  | GCC build + =nexenne_tests=, warnings as errors             |
+| =build-clang= | Clang build (portability)                                   |
+| =asan=        | =nexenne_tests= under Address + UB sanitizers               |
+| =tidy=        | clang-tidy clean (=-warnings-as-errors=) once modules exist |
+| =docs=        | Doxygen builds with no documentation errors                 |
+| =install=     | install, then a consumer =find_package=s a module           |
+
+The =install= job runs [[file:../../scripts/install_smoke.sh][scripts/install_smoke.sh]], which scaffolds a throwaway
+module, installs to a temp prefix, and builds a consumer against it. Run it
+locally the same way: =bash scripts/install_smoke.sh=.
+
+* Notes
+
+- CI uses GCC 14 (runner availability); the project targets GCC 15. Bump the
+  workflow when a module needs a 15-only feature.
+- =docs= catches Doxygen errors (bad =@param=, =@return= on void, broken refs),
+  not completeness. "Every public symbol documented" stays a review item, see
+  [[file:api-docs.org][API docs]].
+
+* See also
+
+[[file:hooks.org][Git hooks]], [[file:testing.org][Testing]], [[file:install.org][Install and consume]].
