@@ -28,6 +28,20 @@ TEST_CASE("equal values hash equally; the types work as hash keys") {
   CHECK(grid.at(math::vector2_i{3, 4}) == 7);
 }
 
+TEST_CASE("plus and minus zero components hash equally (m11)") {
+  // std::hash special-cases zero, so +0.0 and -0.0 (which compare equal) hash
+  // equally, as unordered-container invariants require. The old @file note wrongly
+  // claimed they hash differently.
+  std::hash<math::vector2_f> const h{};
+  CHECK(h(math::vector2_f{0.0f, 0.0f}) == h(math::vector2_f{-0.0f, -0.0f}));
+  CHECK(math::vector2_f{0.0f, 0.0f} == math::vector2_f{-0.0f, -0.0f});
+
+  std::unordered_set<math::vector2_f> set;
+  set.insert(math::vector2_f{0.0f, 0.0f});
+  set.insert(math::vector2_f{-0.0f, -0.0f});  // equal key, must not add a second slot
+  CHECK(set.size() == 1);
+}
+
 TEST_CASE("hash is order-sensitive across components") {
   std::hash<math::vector3_d> const h{};
   // Permuted components should (almost surely) hash differently.
