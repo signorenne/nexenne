@@ -11,9 +11,11 @@
  * re-derived. Including this header is enough to enable hashing; the
  * specializations live at global scope as the standard requires.
  *
- * @note Hashing is bit-for-bit on the components, so two values that compare
- *       equal hash equally, but the usual floating-point caveats apply (for
- *       example +0.0 and -0.0 are equal yet hash differently).
+ * @note Each component is hashed through \c std::hash, not by a raw bit pattern,
+ *       so equal values hash equally as unordered containers require: +0.0 and
+ *       -0.0 compare equal and do hash equally (std::hash special-cases zero). A
+ *       NaN component makes a value unusable as a key for the usual reason that
+ *       NaN does not compare equal to itself, not because of the hash.
  */
 
 #include <cstddef>
