@@ -18,6 +18,7 @@ nexenne_add_module(utility
         include/nexenne/utility/utility.hpp
         include/nexenne/utility/defer.hpp
         include/nexenne/utility/narrow_cast.hpp
+        include/nexenne/utility/non_null.hpp
         include/nexenne/utility/overloaded.hpp
         include/nexenne/utility/scope_guard.hpp
 )
