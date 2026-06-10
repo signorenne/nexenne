@@ -62,6 +62,11 @@ near/far, etc.) and return a plain =matrix=. Violating them produces a matrix wi
 infallible-by-contract; validate the arguments at the call site if they come from
 untrusted input.
 
+=fovy_rad= is a raw =Real= *in radians*, not the [[file:angle.org][=radians=]] strong type, so a
+degree value (=perspective(60, ...)=) compiles and silently builds a nearly
+degenerate frustum. Convert with =to_radians= first; the headers carry a =@warning=
+to that effect.
+
 * When to use them
 
 - =perspective= / =perspective_zo= for a normal 3D camera; pick the variant that
