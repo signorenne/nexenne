@@ -16,6 +16,7 @@ endif()
 nexenne_add_module(utility
     HEADERS
         include/nexenne/utility/utility.hpp
+        include/nexenne/utility/defer.hpp
         include/nexenne/utility/narrow_cast.hpp
         include/nexenne/utility/overloaded.hpp
 )
