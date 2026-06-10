@@ -1,0 +1,36 @@
+#+TITLE: align
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::align= provides three power-of-two alignment helpers,
+=align_up=, =align_down=, and =is_aligned=, each in an integral flavour for
+sizes and offsets and a pointer flavour for addresses.
+
+* The idea
+
+Rounding a size or address to a power-of-two boundary is the bread and butter of
+bare-metal allocators (DMA buffers on a cache line, a bump allocator advancing
+its cursor). The mask trick the formulas rely on is correct only for
+power-of-two alignments, so every alignment must be a non-zero power of two,
+asserted in debug. The integral overloads are =constexpr=; the pointer overloads
+are not, because they round-trip through =std::uintptr_t= with =reinterpret_cast=,
+which a constant expression forbids.
+
+* Usage
+
+#+BEGIN_SRC cpp
+// Integral: round a cursor up before each allocation.
+cursor = nexenne::utility::align_up(cursor, std::size_t{16});
+static_assert(nexenne::utility::align_down(std::size_t{17}, std::size_t{8}) == 16);
+
+// Pointer: confirm an address sits on its boundary (works for void* too).
+std::byte* const block{arena.data() + cursor};
+auto const ok{nexenne::utility::is_aligned(block, 16)};
+#+END_SRC
+
+The integral overloads take unsigned, same-typed arguments (use =std::size_t{...}=
+literals); the pointer overloads take the alignment as a plain =std::size_t=.
+
+Runnable: [[file:../../../examples/utility/align.cpp][examples/utility/align.cpp]]

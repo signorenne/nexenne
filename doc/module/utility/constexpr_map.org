@@ -1,0 +1,38 @@
+#+TITLE: constexpr_map
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::constexpr_map= is a compile-time, fixed-size map backed by a
+=std::array= of key-value pairs sorted by key, giving =O(log N)= lookups where a
+=std::map= would be unavailable or overkill.
+
+* The idea
+
+The constructor sorts the entries by key, so callers may list them in any order,
+and every lookup is then a binary search. Because only the key needs =operator<=,
+the value type is unconstrained. The whole structure is =constexpr=, so the table,
+its lookups, and =contains= checks can all be resolved at compile time and baked
+into the binary with zero runtime setup. The tradeoff is a fixed size set at
+construction and unspecified behaviour on duplicate keys.
+
+* Usage
+
+#+BEGIN_SRC cpp
+constexpr auto names{nexenne::utility::constexpr_map{std::array{
+  std::pair{1, std::string_view{"one"}},
+  std::pair{3, std::string_view{"three"}},
+  std::pair{2, std::string_view{"two"}},
+}}};
+
+static_assert(names.size() == 3);
+static_assert(names.contains(2));
+static_assert(names[3] == "three");          // operator[] asserts on a miss
+static_assert(names.find(9) == nullptr);     // find returns a pointer
+#+END_SRC
+
+The map is iterable in ascending key order via =begin()= / =end()=, and =data()=
+exposes the underlying sorted =std::array=.
+
+Runnable: [[file:../../../examples/utility/constexpr_map.cpp][examples/utility/constexpr_map.cpp]]

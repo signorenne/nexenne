@@ -1,0 +1,42 @@
+#+TITLE: meta
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::meta= bundles small compile-time helpers: =always_false_v=
+for dependent static assertions, =type_name= for a diagnostic type spelling, and
+=function_traits= for introspecting a callable's signature.
+
+* The idea
+
+Generic code often needs a callable's shape (its return type, arity, argument
+types, and =noexcept=-ness) without the caller spelling them out.
+=function_traits= recovers all of these for plain functions, function pointers,
+member function pointers, and concrete-=operator()= functors, and the
+=function_*= aliases (=function_return_t=, =function_arity_v=, =function_arg_t=,
+=function_is_noexcept_v=, =function_args_t=) keep call sites terse.
+=always_false_v= gives the unreachable branch of an =if constexpr= chain a
+value-dependent =false=, so the diagnostic fires only for unhandled types. The
+tradeoff: =type_name<T>()= relies on =__PRETTY_FUNCTION__= and returns an empty
+view outside GCC/Clang, and a generic or overloaded =operator()= has no single
+signature to introspect.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto compute(int a, double b) noexcept -> double;
+using fn = decltype(&compute);
+
+static_assert(nexenne::utility::function_arity_v<fn> == 2);
+static_assert(std::is_same_v<nexenne::utility::function_return_t<fn>, double>);
+static_assert(std::is_same_v<nexenne::utility::function_arg_t<fn, 0>, int>);
+static_assert(nexenne::utility::function_is_noexcept_v<fn>);
+
+constexpr auto label{nexenne::utility::type_name<double>()};  // contains "double"
+#+END_SRC
+
+Reach for =always_false_v<T>= in the =else= of an =if constexpr= chain to reject
+unsupported types with a readable message.
+
+Runnable: [[file:../../../examples/utility/meta.cpp][examples/utility/meta.cpp]]

@@ -1,0 +1,38 @@
+#+TITLE: unique_resource
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::unique_resource= ties an opaque resource handle (a file
+descriptor, a socket, a hardware register handle, a pointer) to a deleter
+callable and runs that deleter exactly once at the end of the owner's lifetime.
+
+* The idea
+
+It is the heap-free embedded analogue of P0052 /
+=std::experimental::unique_resource=, behaving like =std::unique_ptr=
+generalised to non-pointer handles. The type is move-only: ownership transfers
+on move and the source is left non-owning, so the deleter never fires twice (no
+double free or close). =release()= hands the handle off without running the
+deleter; =reset()= runs it early. The =make_unique_resource_checked= helper
+takes an invalid sentinel and immediately releases ownership when the acquired
+handle matches it, so the deleter never runs for a failed acquisition.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto const closer{[](int const fd) noexcept { fake_close(fd); }};
+
+// -1 is the invalid sentinel of a failed open().
+auto file{nexenne::utility::make_unique_resource_checked(
+  fake_open("/dev/sensor"), -1, closer
+)};
+
+if (file.owns()) {
+  int const fd{file.get()};  // use the descriptor
+}
+// closer fires once at scope exit, unless release() was called first.
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/unique_resource.cpp][examples/utility/unique_resource.cpp]]

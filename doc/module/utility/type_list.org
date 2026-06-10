@@ -1,0 +1,37 @@
+#+TITLE: type_list
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::type_list= is a compile-time list of types and a family of
+=tl_= metafunctions that query and transform it, producing no runtime code.
+
+* The idea
+
+A =type_list= is an empty aggregate that merely carries a parameter pack of
+types as a type-level tag, so no element is ever instantiated. The =tl_=
+operations (=tl_size=, =tl_at=, =tl_contains=, =tl_index_of=, =tl_push_back=,
+=tl_push_front=, =tl_concat=, =tl_transform=, =tl_filter=, =tl_unique=) all
+evaluate during compilation, each exposing a =_v= value or =_t= type alias. This
+turns ad-hoc variadic-template recursion into reusable, named building blocks.
+
+* Usage
+
+#+BEGIN_SRC cpp
+using protocol = nexenne::utility::type_list<connect, ping, disconnect>;
+
+static_assert(nexenne::utility::tl_size_v<protocol> == 3);
+static_assert(nexenne::utility::tl_contains_v<protocol, ping>);
+static_assert(nexenne::utility::tl_index_of_v<protocol, disconnect> == 2);
+
+using deduped =
+  nexenne::utility::tl_unique_t<nexenne::utility::tl_concat_t<protocol, protocol>>;
+static_assert(nexenne::utility::tl_size_v<deduped> == 3);
+#+END_SRC
+
+Use =tl_index_of_v= to give each registered type a stable index (e.g. a wire
+id); =tl_push_back_t= / =tl_concat_t= / =tl_unique_t= build derived lists. An
+out-of-range =tl_at= or an absent =tl_index_of= fires a =static_assert=.
+
+Runnable: [[file:../../../examples/utility/type_list.cpp][examples/utility/type_list.cpp]]

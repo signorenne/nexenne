@@ -1,0 +1,39 @@
+#+TITLE: bit
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::bit= adds the bit-manipulation operations =<bit>= omits:
+=reverse_bits=, single-bit =test_bit= / =set_bit= / =clear_bit= / =toggle_bit=,
+contiguous =set_bits_mask=, bitfield =pack_bits= / =extract_bits=, and
+=for_each_set_bit= iteration.
+
+* The idea
+
+The standard library already covers popcount, leading/trailing zeros, and
+rotation, so this header fills the gaps useful for register-level code, hardware
+bitfields, and bitset traversal. Everything is =constexpr= over any
+=std::unsigned_integral=, so masks and field layouts can be computed at compile
+time. The single-bit and field operations carry debug bounds-check assertions,
+and =for_each_set_bit= visits set bits in ascending order at a cost proportional
+to the popcount, not the type width.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto reg{std::uint16_t{0}};
+reg = nexenne::utility::pack_bits<std::uint16_t>(reg, 5, 0, 4);  // write a 4-bit field
+reg = nexenne::utility::set_bit<std::uint16_t>(reg, 10);         // enable flag
+
+auto const field{nexenne::utility::extract_bits<std::uint16_t>(reg, 0, 4)};
+static_assert(nexenne::utility::set_bits_mask<std::uint8_t>(2, 4) == 0b0001'1100);
+
+nexenne::utility::for_each_set_bit(reg, [](std::size_t i) { /* visit bit i */ });
+#+END_SRC
+
+=pack_bits= clears then writes a field while preserving surrounding bits;
+=extract_bits= returns it right-aligned. Bit indices must stay within the type
+width.
+
+Runnable: [[file:../../../examples/utility/bit.cpp][examples/utility/bit.cpp]]

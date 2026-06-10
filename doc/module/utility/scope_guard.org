@@ -1,0 +1,29 @@
+#+TITLE: scope_guard
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::scope_guard= is an RAII scope-exit guard that runs its
+callable on destruction unless it has been dismissed, making it ideal for
+rollback logic that should fire only when an operation does not complete.
+
+* The idea
+
+The classic use is the "commit or roll back" pattern: arm a cleanup, do work
+that might fail, and =dismiss= the guard once success is certain. =scope_guard=
+holds the callable by type rather than type-erasing it, so captured lambdas
+inline without indirection; =dismiss= and =engage= toggle an active flag, and
+=is_active= reports it. Use =nexenne::utility::defer= when cleanup always runs;
+the tradeoff here is the extra =bool= of state in exchange for cancellable
+cleanup. It is non-copyable, non-movable, and =[[nodiscard]]=.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto guard{nexenne::utility::scope_guard{[&] { release(handle); }}};
+// ... work that might return early or throw ...
+guard.dismiss();  // cancel cleanup once the resource is handed off
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/scope_guard.cpp][examples/utility/scope_guard.cpp]]

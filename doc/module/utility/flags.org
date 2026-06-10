@@ -1,0 +1,38 @@
+#+TITLE: flags
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::flags= is a type-safe bitfield wrapper over a scoped enum
+whose enumerators are power-of-two bit values, offering named operations and
+bitwise operators without implicit =int= promotion.
+
+* The idea
+
+Raw scoped-enum bitmasks force casts because =operator|= is not defined for them,
+and unscoped enums leak into =int= and silently mix with unrelated masks. =flags<E>=
+keeps the enum type in the operator return types, so a =flags<perm>= can never be
+combined with a =flags<other>=. It provides =set= / =clear= / =toggle= (chainable),
+predicates =has= / =has_all= / =has_any= / =any= / =none=, the operators =| & ^ ~=,
+and =raw= / =from_raw= for serialisation. Note the predicates take a single
+=enum_type=, so test combined masks by adding a combined enumerator.
+
+* Usage
+
+#+BEGIN_SRC cpp
+enum class perm : std::uint8_t {
+  read = 1U << 0U, write = 1U << 1U, exec = 1U << 2U,
+  rwx = read | write | exec,
+};
+
+auto f{nexenne::utility::flags<perm>{}};
+f.set(perm::read).set(perm::write);          // chainable
+auto const full{f | perm::exec};             // operator| with an enumerator
+
+bool const w{full.has(perm::write)};         // single-bit test
+bool const all{full.has_all(perm::rwx)};     // combined-mask test
+auto const wire{full.raw()};                 // round-trip via from_raw
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/flags.cpp][examples/utility/flags.cpp]]

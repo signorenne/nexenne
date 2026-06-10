@@ -1,0 +1,39 @@
+#+TITLE: source_location_format
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=source_location_format= formats a =std::source_location= into a
+caller-supplied fixed-size buffer with no allocation, returning a
+=std::string_view= into that buffer. The helpers live in =nexenne::utility=.
+
+* The idea
+
+The standard library exposes =file_name()=, =line()=, =column()= and
+=function_name()= but no formatter. Loggers usually want a short
+"file.cpp:42" tag (=format_short=) or a longer "file.cpp:42 in function"
+(=format_long=); both reduce the path to its basename, write into a
+=std::array<char, N>= via =snprintf=, and return a view truncated to fit when
+the buffer is too small. The buffer must outlive the returned view.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto log_here(
+  std::string_view msg,
+  std::source_location const loc = std::source_location::current()
+) -> void {
+  std::array<char, 128> buf{};
+  auto const tag{nexenne::utility::format_short(loc, buf)};
+  std::println("[{}] {}", tag, msg);  // [file.cpp:42] msg
+}
+
+// The long form also appends the enclosing function name.
+std::array<char, 256> buf{};
+auto const detailed{
+  nexenne::utility::format_long(std::source_location::current(), buf)
+};
+#+END_SRC
+
+Runnable: [[file:../../../examples/utility/source_location_format.cpp][examples/utility/source_location_format.cpp]]
