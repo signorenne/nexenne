@@ -23,5 +23,6 @@
 #include <nexenne/utility/static_string.hpp>
 #include <nexenne/utility/strong_typedef.hpp>
 #include <nexenne/utility/type_list.hpp>
+#include <nexenne/utility/unique_resource.hpp>
 
 namespace nexenne::utility {}
