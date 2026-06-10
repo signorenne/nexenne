@@ -6,6 +6,8 @@
 #include <print>
 #include <unordered_map>
 
+#include <nexenne/math/angle.hpp>
+#include <nexenne/math/fixed.hpp>
 #include <nexenne/math/format.hpp>
 #include <nexenne/math/hash.hpp>
 #include <nexenne/math/matrix.hpp>
@@ -19,6 +21,12 @@ auto main() -> int {
   std::println("vector     = {}", nm::vector3_d{1.5, -2.0, 3.25});
   std::println("quaternion = {}", nm::quaternion_d::identity());
   std::println("matrix     = {}", nm::matrix3_d::identity());
+
+  // The strong scalar types print through the same layer; the spec applies to
+  // the value.
+  std::println("radians    = {:.4f}", nm::radians_d{1.5708});
+  std::println("degrees    = {}", nm::degrees_d{90.0});
+  std::println("fixed      = {}", nm::q16_16{1.5});
 
   // to_string is the same representation, usable anywhere a string is wanted.
   std::println("to_string  = {}", nm::to_string(nm::vector2_i{7, 8}));

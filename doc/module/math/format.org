@@ -33,6 +33,11 @@ both delegate to it, so the three layers can never drift apart. The forms are:
 - =matrix3(r0c0, r0c1, ...; r1c0, ...)= - printed in *row-major reading order*
   even though storage is column-major, with =;= between rows.
 - =normalized(vector3(...))= - wraps the underlying vector's string.
+- =1.5708 rad= / =90 deg= - the =radians= and =degrees= strong types, value then
+  unit; the spec applies to the value (=std::format("{:.2f}", r)= gives
+  =1.57 rad=).
+- =q16.16(1.5)= - a =fixed= value, the Q-format tag then the decimal value.
+- =sin_cos(0.5, 0.75)= - a =sin_cos= pair, sine then cosine.
 
 The =std::formatter= *forwards its format spec to every component*, so
 =std::format("{:+.3f}", v)= renders each element with =+.3f= - e.g.
@@ -46,9 +51,11 @@ you want without a hand-rolled helper.
 - Logging or =std::println= during development; assertion and error messages.
 - Not a serialization format - it is for humans. For exact round-tripping use a
   real serializer, and for hashing as a map key see [[file:hash.org][hash]].
-- The strong scalar types =radians= / =degrees= are *not* covered here (so a
-  =random_angle= result prints via its =.value()=, not directly). Only the
-  multi-component value types get formatters.
+- Covers the multi-component value types (=vector=, =matrix=, =quaternion=,
+  =normalized=), the strong scalar types (=radians=, =degrees=, =fixed=,
+  =sin_cos=), and the =math_error= enum. Standard types (=std::vector=,
+  =std::array=) already format themselves in C++23 and are deliberately left
+  alone.
 
 * Usage
 
