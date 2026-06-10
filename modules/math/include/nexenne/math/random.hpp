@@ -105,7 +105,7 @@ template <std::floating_point Real, random::rng_engine G>
  * @post The result has unit length.
  */
 template <std::floating_point Real, random::rng_engine G>
-[[nodiscard]] auto unit_vector3(G& g) noexcept -> vector<Real, 3> {
+[[nodiscard]] constexpr auto unit_vector3(G& g) noexcept -> vector<Real, 3> {
   while (true) {
     auto const a{detail::uniform_real_in<Real>(g, Real{-1}, Real{1})};
     auto const b{detail::uniform_real_in<Real>(g, Real{-1}, Real{1})};
@@ -135,7 +135,7 @@ template <std::floating_point Real, random::rng_engine G>
  * @post The result has squared length strictly less than 1.
  */
 template <std::floating_point Real, random::rng_engine G>
-[[nodiscard]] auto point_in_unit_disc(G& g) noexcept -> vector<Real, 2> {
+[[nodiscard]] constexpr auto point_in_unit_disc(G& g) noexcept -> vector<Real, 2> {
   while (true) {
     auto const x{detail::uniform_real_in<Real>(g, Real{-1}, Real{1})};
     auto const y{detail::uniform_real_in<Real>(g, Real{-1}, Real{1})};
@@ -163,7 +163,7 @@ template <std::floating_point Real, random::rng_engine G>
  * @post The result has squared length strictly less than 1.
  */
 template <std::floating_point Real, random::rng_engine G>
-[[nodiscard]] auto point_in_unit_ball(G& g) noexcept -> vector<Real, 3> {
+[[nodiscard]] constexpr auto point_in_unit_ball(G& g) noexcept -> vector<Real, 3> {
   while (true) {
     auto const x{detail::uniform_real_in<Real>(g, Real{-1}, Real{1})};
     auto const y{detail::uniform_real_in<Real>(g, Real{-1}, Real{1})};
@@ -189,7 +189,7 @@ template <std::floating_point Real, random::rng_engine G>
  * @post The result lies in [-pi, pi).
  */
 template <std::floating_point Real, random::rng_engine G>
-[[nodiscard]] auto random_angle(G& g) noexcept -> radians<Real> {
+[[nodiscard]] constexpr auto random_angle(G& g) noexcept -> radians<Real> {
   return radians<Real>{detail::uniform_real_in<Real>(g, -pi_v<Real>, pi_v<Real>)};
 }
 
