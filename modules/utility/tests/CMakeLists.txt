@@ -5,4 +5,5 @@ nexenne_add_module_tests(utility
         test_non_null.cpp
         test_overloaded.cpp
         test_scope_guard.cpp
+        test_type_list.cpp
 )
