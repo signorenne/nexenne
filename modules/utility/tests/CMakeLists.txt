@@ -8,6 +8,7 @@ nexenne_add_module_tests(utility
         test_flags.cpp
         test_function_ref.cpp
         test_hash.cpp
+        test_in_place_function.cpp
         test_meta.cpp
         test_narrow_cast.cpp
         test_non_null.cpp
