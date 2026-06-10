@@ -1,0 +1,40 @@
+#+TITLE: error
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::error= defines =container_error= (the recoverable failures
+a container can report), the =result<T>= alias, and =to_string=. It fixes one
+error vocabulary and one fallible-return type for the whole module.
+
+* The idea
+
+A container library needs a single, honest answer to "what happens when an
+operation cannot proceed". The policy here is no-throw: an operation that can
+fail at a boundary (pop from an empty queue, push onto a full fixed buffer, a
+missing key) returns =result<T>=, i.e. =std::expected<T, container_error>=,
+with the failure spelled out as =full=, =empty=, =out_of_range=, or
+=not_found=. Non-allocating operations are =noexcept=; an operation whose only
+failure is allocation stays =noexcept= and terminates on =std::bad_alloc=,
+matching the rest of nexenne. There is deliberately no precondition-based
+"fast path" that trades the check for undefined behaviour.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto front(my_queue const& q) -> nexenne::container::result<int> {
+  if (q.empty()) {
+    return std::unexpected{nexenne::container::container_error::empty};
+  }
+  return q.peek();
+}
+
+if (auto const r{front(q)}; r.has_value()) {
+  use(*r);
+} else {
+  log(nexenne::container::to_string(r.error()));  // "empty"
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/error.cpp][examples/container/error.cpp]]

@@ -11,6 +11,8 @@ the real files. Start here, follow the links. Per-module usage guides live under
 - [[file:module/utility/README.org][utility]] : small, focused helpers (callables, RAII, bit/numeric, strong
   types, metaprogramming, reflection). One guide and one runnable example per
   class.
+- [[file:module/container/README.org][container]] : fixed-capacity and dynamic containers (vectors, maps, sets,
+  queues, trees, graphs), built on =utility=.
 
 * Setup and infrastructure
 
