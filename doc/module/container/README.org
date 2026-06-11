@@ -22,3 +22,4 @@ An operation whose only failure is allocation is =noexcept= and terminates on
 
 - [[file:static_vector.org][static_vector]] : fixed-capacity inline vector, no heap.
 - [[file:small_vector.org][small_vector]] : inline for the first N, heap fallback beyond.
+- [[file:ring_buffer.org][ring_buffer]] : fixed-capacity circular FIFO, fail or overwrite on full.
