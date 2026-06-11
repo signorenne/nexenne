@@ -185,4 +185,41 @@ TEST_CASE("closest_points: a segment above a triangle projects onto the face") {
   CHECK(nm::length(r.second - r.first) == doctest::Approx(2.0));
 }
 
+TEST_CASE("intersects: the pairwise matrix is symmetric in the argument order") {
+  // M3 reproduction. Each asymmetric pair now has a reversed-argument forwarder,
+  // so intersects compiles and agrees in both orders. Before the fix the reversed
+  // forms did not compile at all.
+  geo::aabb3_d const box{vec3{0, 0, 0}, vec3{2, 2, 2}};
+  geo::sphere3_d const s{vec3{3, 1, 1}, 1.5};
+  CHECK(geo::intersects(box, s) == geo::intersects(s, box));  // sphere vs box.
+
+  geo::obb3_d const o{vec3{0, 0, 0}, vec3{1, 1, 1}, nm::quaternion<double>{}};
+  CHECK(geo::intersects(o, box) == geo::intersects(box, o));  // aabb vs obb.
+
+  geo::plane3_d const pl{vec3{0, 0, 1}, -4.5};
+  geo::sphere3_d const s2{vec3{1, 1, 5}, 1.0};
+  CHECK(geo::intersects(pl, s2) == geo::intersects(s2, pl));  // sphere vs plane.
+
+  geo::capsule3_d const cap{vec3{0, 0, 0}, vec3{0, 0, 4}, 1.0};
+  geo::sphere3_d const s3{vec3{1.5, 0, 2}, 1.0};
+  CHECK(geo::intersects(s3, cap) == geo::intersects(cap, s3));  // capsule vs sphere.
+
+  // Ray pairs return the same optional distance in either order.
+  auto const r{geo::ray3_d{vec3{0, 0, 0}, unit(vec3{0, 0, -1})}};
+  geo::sphere3_d const target{vec3{0, 0, -10}, 1.0};
+  CHECK(geo::intersects(target, r) == geo::intersects(r, target));  // sphere vs ray.
+  auto const hb1{geo::intersects(box, r)};
+  auto const hb2{geo::intersects(r, box)};
+  CHECK(hb1.has_value() == hb2.has_value());  // box vs ray.
+}
+
+TEST_CASE("intersects: a near-parallel ray does not fabricate a far triangle hit") {
+  // m6: an exact-zero determinant test let a ray almost parallel to the plane
+  // report a hit at a huge, noise-dominated t. The relative parallel test rejects
+  // it as a miss instead.
+  geo::triangle3_d const t{vec3{-1, 0, -1}, vec3{1, 0, -1}, vec3{0, 0, 1}};  // in y = 0
+  auto const grazing{geo::ray3_d{vec3{0, 1e-9, 0}, unit(vec3{1, 1e-12, 0})}};  // ~parallel
+  CHECK_FALSE(geo::intersects(grazing, t).has_value());
+}
+
 }  // namespace
