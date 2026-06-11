@@ -166,7 +166,9 @@ public:
    * @return A pointer to the block, or \c container_error::full when the arena
    *         lacks room.
    *
-   * @pre \p alignment is a non-zero power of two (asserted in debug).
+   * @pre \p alignment is a non-zero power of two no greater than
+   *      \c alignof(std::max_align_t) (the inline buffer's alignment); both are
+   *      asserted in debug. A larger alignment cannot be guaranteed.
    * @post On success \c bytes_used() grew by the padding plus \p size and
    *       \c high_water_mark() is at least the new \c bytes_used(); on failure
    *       the arena is unchanged.
@@ -177,6 +179,9 @@ public:
   allocate(size_type const size, size_type const alignment) noexcept -> result<void*> {
     assert(
       alignment != 0 && (alignment & (alignment - 1)) == 0 && "alignment must be a power of two"
+    );
+    assert(
+      alignment <= alignof(std::max_align_t) && "alignment must not exceed the buffer's alignment"
     );
     auto const mask{alignment - 1};
     auto const aligned{(m_offset + mask) & ~mask};

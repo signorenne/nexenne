@@ -180,4 +180,26 @@ TEST_CASE("nexenne::container::bitset_dynamic words exposes the raw storage") {
   CHECK(w[0] == ((std::uint64_t{1} << 0) | (std::uint64_t{1} << 63)));
 }
 
+TEST_CASE("nexenne::container::bitset_dynamic mixed-width ops, multi-word resize, word boundary") {
+  bs wide(100);
+  wide.set_all();
+  bs narrow(10);
+  narrow.set_all();
+  wide &= narrow;  // narrower width wins; words past it are zeroed
+  CHECK(wide.count() == 10);
+
+  bs grow(60, true);
+  grow.resize(130, true);  // grow past a word boundary, filling new bits with 1
+  CHECK(grow.size() == 130);
+  CHECK(grow.count() == 130);
+
+  bs pb;
+  for (int i{0}; i < 65; ++i) {
+    pb.push_back(true);  // the 65th push spills into a second word
+  }
+  CHECK(pb.word_size() == 2);
+  CHECK(pb[64]);
+  CHECK(pb.count() == 65);
+}
+
 }  // namespace

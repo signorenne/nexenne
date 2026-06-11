@@ -146,7 +146,8 @@ public:
 
     [[nodiscard]] friend constexpr auto
     operator==(set_bit_iterator const& a, set_bit_iterator const& b) noexcept -> bool {
-      return a.m_word_idx == b.m_word_idx && a.m_remaining == b.m_remaining;
+      return a.m_words == b.m_words && a.m_word_idx == b.m_word_idx
+             && a.m_remaining == b.m_remaining;
     }
   };
 
@@ -574,7 +575,12 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto any() const noexcept -> bool {
-    return count() != 0;
+    for (auto const word : m_words) {  // early-exit on the first non-zero word
+      if (word != 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -586,7 +592,7 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto none() const noexcept -> bool {
-    return count() == 0;
+    return !any();
   }
 
   /**

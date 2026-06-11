@@ -314,7 +314,9 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto erase_at(size_type const index) noexcept -> result<void> {
+  constexpr auto erase_at(size_type const index) noexcept -> result<void>
+    requires std::assignable_from<T&, T>
+  {
     if (index >= m_data.size()) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -335,7 +337,7 @@ public:
    * @complexity \c O(size).
    */
   constexpr auto erase_first(T const& value) noexcept -> bool
-    requires std::equality_comparable<T>
+    requires(std::equality_comparable<T> && std::assignable_from<T&, T>)
   {
     auto const found{std::find(m_data.begin(), m_data.end(), value)};
     if (found == m_data.end()) {
@@ -361,7 +363,7 @@ public:
    * @complexity \c O(size).
    */
   constexpr auto erase_all(T const& value) noexcept -> size_type
-    requires std::equality_comparable<T>
+    requires(std::equality_comparable<T> && std::assignable_from<T&, T>)
   {
     size_type removed{0};
     size_type i{m_data.size()};

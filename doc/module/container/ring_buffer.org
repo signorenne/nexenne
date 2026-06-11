@@ -53,10 +53,10 @@ anything:
 push 40, then push 50 into the buffer above:
 
   +------+------+------+------+
-  |  50  |  20  |  30  |  40  |     tail wrapped 4 -> 0 to place 50
+  |  50  |  20  |  30  |  40  |     50 went in slot 0; tail then advanced to 1
   +------+------+------+------+
-     ^      ^
-   tail   head                      now full: size = 4, head == tail
+            ^
+        head, tail                   now full: size = 4, head == tail == 1
 #+END_EXAMPLE
 
 When the buffer is full =head == tail=: the next =push= reports
@@ -67,7 +67,7 @@ the window slides forward and the size stays =N=.
 ** Access and iteration
 
 Logical indices count from the front, so =operator[](0)= and =front()= are the
-oldest element and =back()= the newest, each mapping through =(head + i) % N=.
+oldest element and =back()= the newest, each mapping through the same =wrap=.
 =operator[]= is unchecked; =at=, =front=, and =back= are checked and return a
 =nullptr= pointer on a miss. The forward iterator walks =size= elements from
 =head= in FIFO order, wrapping as it goes, so a range-based =for= visits oldest
