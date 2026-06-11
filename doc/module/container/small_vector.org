@@ -1,0 +1,123 @@
+#+TITLE: small_vector
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::small_vector<T, N>= is a dynamic vector with =N= elements'
+worth of inline storage. While its size stays at or below =N= it allocates
+nothing; once it grows past =N= it falls back to the heap like =std::vector= and
+stays there until =shrink_to_fit= migrates it back.
+
+* The idea
+
+Many vectors are almost always small: a search returns a handful of hits, a
+parser node has two or three children, a command queue rarely fills. For those,
+=std::vector='s unconditional heap allocation is pure overhead. =small_vector=
+keeps the first =N= elements *inside* the object and only reaches for the heap
+when it must, so the common small case is allocation-free and cache-local while
+the occasional large case still works.
+
+* How it works
+
+** Memory layout
+
+The object holds an inline buffer for =N= elements plus three scalars: a data
+pointer =m_data=, the live =m_size=, and the current =m_capacity=. =m_data=
+always points at the live elements: into the inline buffer when small, or at a
+heap block once grown. Comparing =m_data= against the inline buffer's address is
+how the container knows which mode it is in.
+
+#+BEGIN_EXAMPLE
+small_vector<int, 4> holding 2 elements, inline (no heap):
+
+  +----------------------------------+
+  | m_inline: 4 slots, 16 bytes      |
+  |   [ 10 | 20 | ~~ | ~~ ]          |   ~~ = unused inline slot
+  +----------------------------------+
+  | m_data ---> &m_inline[0]         |   points inside the object
+  | m_size     = 2                   |
+  | m_capacity = 4  (= N)            |
+  +----------------------------------+
+
+after a 5th push_back, grown to the heap:
+
+  +----------------------------------+            heap block (capacity 8)
+  | m_inline: 4 slots, now unused    |        +----+----+----+----+----+--+
+  +----------------------------------+        | 10 | 20 | 30 | 40 | 50 |..|
+  | m_data --------------------------------->  +----+----+----+----+----+--+
+  | m_size     = 5                   |
+  | m_capacity = 8                   |
+  +----------------------------------+
+#+END_EXAMPLE
+
+** Growth and the inline boundary
+
+A push that would exceed =m_capacity= doubles it (=grow_to=): it allocates a new
+block, moves every element across with =std::construct_at= + =std::destroy_at=,
+frees the old block if it was on the heap, and repoints =m_data=. Starting from
+the inline buffer, the first growth is the one move from inline to heap; after
+that it behaves like =std::vector=. =shrink_to_fit= reverses the trip, migrating
+back inline when the size fits within =N=.
+
+** Move and swap
+
+A move is cheap when the source is on the heap: the destination *steals* the
+pointer, capacity, and size, and resets the source to its inline buffer, with no
+element moves at all. When the source is inline there is no pointer to steal, so
+the elements are moved one by one. =swap= is built from these moves, since a
+plain pointer swap cannot work while either side is inline.
+
+** Access and failure
+
+All non-allocating operations are =noexcept=. A growth calls =::operator new=
+and, per the module policy, treats allocation failure as fatal rather than
+throwing, so =push_back= returns =void=. =pop_back= returns =result<void>= and
+reports =container_error::empty=. =operator[]= is unchecked; =at=, =front=, and
+=back= are checked and return a =nullptr= pointer on a miss. =data()=, =span()=,
+and the iterators expose the contiguous live range.
+
+* Choosing a vector
+
+The module has three vectors alongside =std::vector=; all hold a growable
+sequence and differ in where the storage lives and what growth costs.
+
+| vector        | heap      | element addresses  | constexpr |
+|---------------+-----------+--------------------+-----------|
+| std::vector   | always    | move on grow       | transient |
+| static_vector | never     | stable (fixed cap) | value     |
+| small_vector  | past N    | move on grow       | no        |
+| stable_vector | per chunk | always stable      | no        |
+
+In the =constexpr= column, =value= means a persisted compile-time value (no
+heap); =transient= means usable only inside a =constexpr= function, where the
+allocation is freed before the evaluation ends; =no= means not usable in
+constant evaluation.
+
+- =std::vector= is the default: one contiguous heap block that grows by
+  reallocating, which moves every element and invalidates outstanding pointers
+  and iterators. Use it unless one of the constraints below applies.
+- =static_vector<T, N>= when you can prove a hard upper bound and want zero
+  allocation, even at compile time; a push past =N= returns
+  =container_error::full=.
+- =small_vector<T, N>= when the size is usually small but must not be capped:
+  inline and allocation-free in the common case, one heap block once it grows.
+- =stable_vector<T, ChunkSize>= when you hold raw pointers or references to
+  elements across pushes: addresses never move, traded against non-contiguous,
+  chunk-hopping access.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::small_vector<int, 8> hits;  // inline for up to 8
+
+for (auto const i : indices_of(text, 'o')) {
+  hits.push_back(i);          // no allocation while size stays <= 8
+}
+if (hits.is_inline()) {
+  // the common, allocation-free path
+}
+auto const total{std::ranges::fold_left(hits.span(), 0, std::plus{})};
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/small_vector.cpp][examples/container/small_vector.cpp]]
