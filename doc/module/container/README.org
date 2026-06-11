@@ -24,3 +24,4 @@ An operation whose only failure is allocation is =noexcept= and terminates on
 - [[file:small_vector.org][small_vector]] : inline for the first N, heap fallback beyond.
 - [[file:ring_buffer.org][ring_buffer]] : fixed-capacity circular FIFO, fail or overwrite on full.
 - [[file:stable_vector.org][stable_vector]] : append-only, element addresses never move.
+- [[file:bitset_dynamic.org][bitset_dynamic]] : runtime-sized bitset, word-packed with popcount and scan.

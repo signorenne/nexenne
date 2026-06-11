@@ -16,6 +16,7 @@ endif()
 nexenne_add_module(container
     HEADERS
         include/nexenne/container/container.hpp
+        include/nexenne/container/bitset_dynamic.hpp
         include/nexenne/container/error.hpp
         include/nexenne/container/ring_buffer.hpp
         include/nexenne/container/small_vector.hpp

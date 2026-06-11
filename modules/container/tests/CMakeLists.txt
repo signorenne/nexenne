@@ -1,5 +1,6 @@
 nexenne_add_module_tests(container
     SOURCES
+        test_bitset_dynamic.cpp
         test_error.cpp
         test_ring_buffer.cpp
         test_small_vector.cpp
