@@ -30,6 +30,15 @@
  * rounded shapes (sphere, capsule) it adds the radius along the unit direction.
  * Everything is \c constexpr and \c noexcept; nothing allocates.
  *
+ * Transformed shapes: each mapping works in world space from the shape's own
+ * stored placement, so a rotated or translated instance needs no separate
+ * transform argument. An \c obb3 carries its center and rotation, so its support
+ * folds the direction through that rotation; a \c sphere3, \c capsule3, \c aabb,
+ * \c triangle3 and \c segment3 carry their world coordinates directly. To collide
+ * a shape defined in a local frame, bake its transform into the primitive first
+ * (place the \c obb3 at its world pose, or transform a hull's vertices) so both
+ * operands of a GJK/EPA pair live in the same frame.
+ *
  * Reference: C. Ericson, Real-Time Collision Detection (Morgan Kaufmann 2005),
  * section 9.5.2 on support mappings; G. van den Bergen, Collision Detection in
  * Interactive 3D Environments (Morgan Kaufmann 2003).
