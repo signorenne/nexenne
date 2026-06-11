@@ -192,6 +192,91 @@ template <std::floating_point Real>
 }
 
 /**
+ * @brief Clamps barycentric weights to the triangle and renormalizes them.
+ *
+ * The origin's projection onto the closest face plane can land outside the face
+ * triangle when the true closest boundary point lies on a polytope edge, so the
+ * raw \c barycentric weights can go negative and the blended contact points would
+ * then extrapolate off the shapes' faces. Clamping each weight to non-negative and
+ * renormalizing pins the blend back onto the triangle, matching what Bullet and
+ * Box2D do at this step. A fully clamped-out weight set falls back to the first
+ * vertex.
+ *
+ * @tparam Real Component type.
+ * @param weights Raw barycentric weights (alpha, beta, gamma).
+ *
+ * @return Non-negative weights summing to 1.
+ *
+ * @pre None.
+ * @post Each component is non-negative and the three sum to 1.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto clamp_barycentric(
+  nexenne::math::vector<Real, 3> const& weights
+) noexcept -> nexenne::math::vector<Real, 3> {
+  using point_type = nexenne::math::vector<Real, 3>;
+  auto const a{nexenne::math::max(Real{0}, weights.x())};
+  auto const b{nexenne::math::max(Real{0}, weights.y())};
+  auto const c{nexenne::math::max(Real{0}, weights.z())};
+  auto const sum{a + b + c};
+  if (sum <= static_cast<Real>(1e-20)) {
+    return point_type{Real{1}, Real{0}, Real{0}};
+  }
+  auto const inv{Real{1} / sum};
+  return point_type{a * inv, b * inv, c * inv};
+}
+
+/**
+ * @brief Reconstructs the per-shape contact points from the closest EPA face.
+ *
+ * Expresses the origin's projection onto the face plane in the face's barycentric
+ * coordinates (clamped onto the triangle) and blends the three stored per-shape
+ * support points by those weights, recovering the world-space contact point on A
+ * and on B. Shared by the converged and the cap-exhaustion branches so a
+ * non-converged result still carries the best face's actual contact points rather
+ * than the value-initialized origin.
+ *
+ * @tparam Real Component type.
+ * @param vertices Shared polytope vertex list (with per-shape support points).
+ * @param face Closest face to reconstruct from.
+ * @param closest_distance Origin-to-face-plane distance along the face normal.
+ *
+ * @return The pair (contact on A, contact on B) in world space.
+ *
+ * @pre The face indices are valid in \p vertices.
+ * @post Both points lie on the blend of the face's stored support points.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto face_contact_points(
+  std::vector<gjk_minkowski_point3<Real>> const& vertices,
+  epa_face<Real> const& face,
+  Real const closest_distance
+) noexcept -> std::pair<nexenne::math::vector<Real, 3>, nexenne::math::vector<Real, 3>> {
+  using point_type = nexenne::math::vector<Real, 3>;
+  auto const v0{vertices[face.indices[0]].difference};
+  auto const v1{vertices[face.indices[1]].difference};
+  auto const v2{vertices[face.indices[2]].difference};
+  auto const projected_origin{face.normal * closest_distance};
+  auto const weights{clamp_barycentric<Real>(barycentric<Real>(v0, v1, v2, projected_origin))};
+  auto const blend{
+    [&](point_type const& p0, point_type const& p1, point_type const& p2) noexcept -> point_type {
+      return p0 * weights.x() + p1 * weights.y() + p2 * weights.z();
+    }
+  };
+  auto const contact_a{blend(
+    vertices[face.indices[0]].support_a,
+    vertices[face.indices[1]].support_a,
+    vertices[face.indices[2]].support_a
+  )};
+  auto const contact_b{blend(
+    vertices[face.indices[0]].support_b,
+    vertices[face.indices[1]].support_b,
+    vertices[face.indices[2]].support_b
+  )};
+  return {contact_a, contact_b};
+}
+
+/**
  * @brief Grows a GJK terminal simplex into a non-degenerate seed tetrahedron.
  *
  * The signed-volumes GJK reports overlap with whatever simplex carries the origin
@@ -223,6 +308,11 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& initial
 ) noexcept -> std::vector<gjk_minkowski_point3<Real>> {
   using point_type = nexenne::math::vector<Real, 3>;
+  // Absolute distinctness and volume floor. This is calibrated for game-scale
+  // shapes (roughly 1e-2 to 1e4 units): a pair much smaller than 1e-4 units, or a
+  // contact between huge shapes whose supports differ only in their garbage
+  // digits, can shift its meaning and yield an empty seed (a spurious
+  // non-convergence). Scale the inputs into that band if this bites.
   auto const eps{static_cast<Real>(1e-12)};
 
   auto verts{std::vector<gjk_minkowski_point3<Real>>{}};
@@ -352,13 +442,16 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
  * @param b Second convex shape.
  * @param initial Terminal GJK simplex; must be a 4-vertex tetrahedron enclosing
  *        the origin (a \c gjk overlap result).
- * @param max_iterations Hard cap on expansion steps.
- * @param tolerance Convergence threshold on per-step face-distance improvement.
+ * @param max_iterations Hard cap on expansion steps (a safe backstop; smooth
+ *        pairs need more steps than flat ones).
+ * @param tolerance Relative convergence threshold: expansion stops once a step's
+ *        depth growth falls below \p tolerance times the current depth.
  *
  * @return Result with the normal (the MTV direction, out of A toward B),
  *         penetration depth, and contact
  *         points; \c converged is \c false when \p initial was not a tetrahedron
- *         or the iteration cap was hit (the best-known face is still returned).
+ *         or the iteration cap was hit (the best-known face, with its
+ *         reconstructed contact points, is still returned).
  *
  * @pre \p a and \p b overlap and \c initial.count equals 4.
  * @post On success \c converged is \c true, \c normal has unit length, and
@@ -371,10 +464,12 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   ShapeA const& a,
   ShapeB const& b,
   gjk_simplex3<Real> const& initial,
-  std::size_t const max_iterations = 32,
-  Real const tolerance = static_cast<Real>(1e-4)
+  std::size_t const max_iterations = 64,
+  Real const tolerance = static_cast<Real>(1e-2)
 ) noexcept -> epa_result3<Real> {
-  using point_type = nexenne::math::vector<Real, 3>;
+  // Floor on the relative convergence scale, so a near-zero depth does not make
+  // the threshold collapse to zero and iterate forever against the cap.
+  auto const epsilon{static_cast<Real>(1e-6)};
 
   auto result{epa_result3<Real>{}};
   if (initial.count == 0) {
@@ -388,7 +483,9 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   if (vertices.size() < 4) {
     return result;
   }
-  vertices.reserve(32);
+  // One fresh vertex is pushed per expansion step, so size the pool for the cap
+  // (seed_tetrahedron already reserved the seed; this covers the whole run).
+  vertices.reserve(max_iterations + 4);
 
   // Centroid of the seed tetrahedron: a point strictly inside the polytope,
   // used to orient every face outward. It stays interior as the polytope only
@@ -400,7 +497,7 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   };
 
   auto faces{std::vector<detail::epa_face<Real>>{}};
-  faces.reserve(32);
+  faces.reserve(2 * max_iterations + 4);
   // The four tetrahedron faces (one opposite each vertex); build_face orients
   // each outward, so the winding of these seed triples does not matter.
   faces.push_back(detail::build_face<Real>(vertices, 1, 2, 3, interior));
@@ -426,36 +523,23 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     auto const new_difference{pa - pb};
     auto const reach{nexenne::math::dot(new_difference, direction)};
 
-    if (reach - closest_distance < tolerance) {
-      // The surface is no further out than the closest face: converged. Blend
-      // the support pairs by the origin projection's barycentric weights to get
-      // the per-shape contact points.
-      auto const& face{faces[closest]};
-      auto const v0{vertices[face.indices[0]].difference};
-      auto const v1{vertices[face.indices[1]].difference};
-      auto const v2{vertices[face.indices[2]].difference};
-      auto const projected_origin{direction * closest_distance};
-      auto const weights{detail::barycentric<Real>(v0, v1, v2, projected_origin)};
-
-      // Blend three world-space points by the barycentric weights.
-      auto const blend{
-        [&](point_type const& p0, point_type const& p1, point_type const& p2) noexcept {
-          return p0 * weights.x() + p1 * weights.y() + p2 * weights.z();
-        }
+    // Converged when the surface is no further out than the closest face by more
+    // than a fraction of the current depth. The threshold is RELATIVE, not
+    // absolute: the Minkowski difference of two smooth shapes (two spheres, two
+    // capsules) is itself smooth, so every polytope face sits a
+    // curvature-dependent gap inside the true surface and an absolute floor would
+    // demand thousands of faces to close. Scaling by the depth lets a smooth pair
+    // converge in a bounded step count, while a flat contact (box pairs), whose
+    // faces reach the surface exactly, still converges at once.
+    if (reach - closest_distance < tolerance * nexenne::math::max(closest_distance, epsilon)) {
+      // On convergence the closest face is on the true surface: its outward normal
+      // of A (-) B is the minimum-translation direction (out of A toward B), its
+      // origin distance the depth, and its reconstructed contacts the deepest pair.
+      auto const [contact_a, contact_b]{
+        detail::face_contact_points<Real>(vertices, faces[closest], closest_distance)
       };
-      result.contact_point_a = blend(
-        vertices[face.indices[0]].support_a,
-        vertices[face.indices[1]].support_a,
-        vertices[face.indices[2]].support_a
-      );
-      result.contact_point_b = blend(
-        vertices[face.indices[0]].support_b,
-        vertices[face.indices[1]].support_b,
-        vertices[face.indices[2]].support_b
-      );
-      // The outward face normal of the Minkowski difference A (-) B at the closest
-      // point is exactly the minimum-translation direction (out of A toward B): move
-      // B by depth * normal, or A by its negative, to separate them.
+      result.contact_point_a = contact_a;
+      result.contact_point_b = contact_b;
       result.normal = direction;
       result.penetration_depth = closest_distance;
       result.converged = true;
@@ -471,6 +555,8 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
 
     // Horizon edges: an edge shared by two visible faces is interior and cancels;
     // an edge on the silhouette survives. add_edge keeps only the un-cancelled.
+    // It scans the horizon linearly per edge, so building it is O(h^2) in the
+    // horizon size h; h stays small at the iteration cap, so this is not sorted.
     auto horizon{std::vector<std::array<std::size_t, 2>>{}};
     auto const add_edge{[&](std::size_t const i, std::size_t const j) noexcept {
       for (auto it{horizon.begin()}; it != horizon.end(); ++it) {
@@ -495,6 +581,12 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
 
     if (visible.empty() || horizon.empty()) {
       // Defensive: the new vertex should always see at least the closest face.
+      // Return the best face's actual contact points, not a zeroed pair.
+      auto const [contact_a, contact_b]{
+        detail::face_contact_points<Real>(vertices, faces[closest], closest_distance)
+      };
+      result.contact_point_a = contact_a;
+      result.contact_point_b = contact_b;
       result.normal = direction;
       result.penetration_depth = closest_distance;
       result.converged = false;
@@ -511,13 +603,20 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     }
   }
 
-  // No convergence within the cap: return the best-known face as the estimate.
+  // No convergence within the cap: return the best-known face as the estimate,
+  // including its reconstructed contact points (M2), so a non-converged result is
+  // still usable rather than carrying a value-initialized (origin) contact pair.
   auto closest{std::size_t{0}};
   for (auto i{std::size_t{1}}; i < faces.size(); ++i) {
     if (faces[i].distance < faces[closest].distance) {
       closest = i;
     }
   }
+  auto const [contact_a, contact_b]{
+    detail::face_contact_points<Real>(vertices, faces[closest], faces[closest].distance)
+  };
+  result.contact_point_a = contact_a;
+  result.contact_point_b = contact_b;
   result.normal = faces[closest].normal;
   result.penetration_depth = faces[closest].distance;
   result.converged = false;

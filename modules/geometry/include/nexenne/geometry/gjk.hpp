@@ -432,8 +432,23 @@ template <std::floating_point Real>
     nexenne::math::length_squared(a) + nexenne::math::length_squared(b)
     + nexenne::math::length_squared(c) + nexenne::math::length_squared(d) + Real{1}
   };
+  // Which faces to recurse: those the origin is outside of. On a near-flat
+  // enclosing tetrahedron (abs(det_m) tiny yet every cofactor shares det_m's sign)
+  // the enclosure test above fails but no face would be selected, leaving an empty
+  // count == 0 reduction that violates the @post and misfires downstream. Fall
+  // back to recursing all four faces there, so at least one is kept (the origin
+  // lies on the flattened simplex, and the nearest face carries it).
+  auto recurse{std::array<bool, 4>{}};
+  auto any_recursed{false};
   for (auto opp{std::size_t{0}}; opp < 4; ++opp) {
-    if (compare_signs(cofactor[opp], det_m)) {
+    recurse[opp] = !compare_signs(cofactor[opp], det_m);
+    any_recursed = any_recursed || recurse[opp];
+  }
+  if (!any_recursed) {
+    recurse = {true, true, true, true};
+  }
+  for (auto opp{std::size_t{0}}; opp < 4; ++opp) {
+    if (!recurse[opp]) {
       continue;  // origin is on the inner side of this face: it cannot hold the closest point.
     }
     auto idx{std::array<std::size_t, 3>{}};
@@ -512,9 +527,17 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   using point_type = gjk_minkowski_point3<Real>;
 
   // Below this squared distance the closest point is taken to be the origin: the
-  // simplex touches it, so the shapes overlap (a touching contact).
+  // simplex touches it, so the shapes overlap (a touching contact). This one floor
+  // is absolute (not scaled by the shape extent): it is the squared distance at
+  // which a difference point is indistinguishable from the origin in Real, so a
+  // separation smaller than its square root (~1e-10 for float, in world units) is
+  // reported as a touching contact. That is acceptable because the two relative
+  // tests below already classify any separation that matters at the shapes' scale.
   auto const touch_sq{static_cast<Real>(1e-20)};
-  // Relative no-progress threshold for the separation test.
+  // Relative no-progress threshold. It multiplies a squared scale (the largest
+  // vertex magnitude seen, or the current squared distance) so the duplicate and
+  // convergence tests read as "within ~1e-5 of the shape extent", staying
+  // scale-invariant from unit shapes up to coordinates in the millions.
   auto const rel_tol{static_cast<Real>(1e-10)};
 
   auto result{gjk_result3<Real>{}};
@@ -544,6 +567,7 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   // runs until the closest point stops moving toward the origin (distance
   // converged) or the origin is enclosed (the fast tetrahedron path).
   auto separated{false};
+  auto stopped{false};  // true when the loop broke on convergence (not cap exhaustion).
   for (auto iter{std::size_t{0}}; iter < max_iterations; ++iter) {
     result.iterations = iter + 1;
 
@@ -564,8 +588,9 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     // origin lies on the simplex: an overlap), when the closest point has reached
     // the origin, or when the support can no longer push it nearer (the distance
     // has converged): the last is |v| - dot(v, w)/|v| <= rel_tol * |v|.
-    // Classification uses the separating-axis flag, not these floors, so an early
-    // stop never misjudges overlap.
+    // Classification uses the separating-axis flag, not these floors, so a
+    // convergence stop never misjudges overlap; only a cap-exhaustion stop, which
+    // proves nothing, needs the conservative post-loop check below.
     auto duplicate{false};
     for (auto i{std::size_t{0}}; i < result.simplex.count; ++i) {
       if (nexenne::math::length_squared(w.difference - result.simplex.points[i].difference)
@@ -575,6 +600,7 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     }
     if (dist_sq <= touch_sq || duplicate
         || dist_sq - nexenne::math::dot(closest, w.difference) <= rel_tol * dist_sq) {
+      stopped = true;
       break;
     }
 
@@ -605,15 +631,22 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   }
 
   if (!separated) {
-    // No separating axis was ever found: the shapes intersect. The terminal
-    // simplex (the origin lies on it) seeds EPA, which grows it to a tetrahedron.
-    result.overlap = true;
-    result.distance = Real{0};
-    return result;
+    // No separating axis was found. If GJK actually converged (a convergence stop
+    // fired), the origin lies on the terminal simplex, so the shapes intersect and
+    // that simplex seeds EPA. But if the iteration cap was hit before either a
+    // separating axis or a convergence stop, nothing is proven: default to overlap
+    // only when the current simplex genuinely encloses the origin, otherwise stay
+    // conservative and report separated (never claim an unproven collision, M1).
+    if (stopped || detail::signed_volumes(result.simplex).contains_origin) {
+      result.overlap = true;
+      result.distance = Real{0};
+      return result;
+    }
   }
 
-  // Apart: blend the per-shape support points by the simplex weights to recover
-  // the closest point on each shape, and report the distance.
+  // Apart (or a cap-exhausted verdict with no proof of overlap): blend the
+  // per-shape support points by the simplex weights to recover the closest point
+  // on each shape, and report the distance.
   result.overlap = false;
   result.distance = nexenne::math::length(closest);
   auto point_a{vector_type{}};
