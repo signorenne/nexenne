@@ -25,3 +25,7 @@ An operation whose only failure is allocation is =noexcept= and terminates on
 - [[file:ring_buffer.org][ring_buffer]] : fixed-capacity circular FIFO, fail or overwrite on full.
 - [[file:stable_vector.org][stable_vector]] : append-only, element addresses never move.
 - [[file:bitset_dynamic.org][bitset_dynamic]] : runtime-sized bitset, word-packed with popcount and scan.
+
+* Arenas
+
+- [[file:linear_arena.org][linear_arena]] : inline-buffer bump allocator, O(1) reset.

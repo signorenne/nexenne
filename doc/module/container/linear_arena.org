@@ -1,0 +1,74 @@
+#+TITLE: linear_arena
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::linear_arena<N>= is a bump allocator over an inline =N=-byte
+buffer. =allocate= hands out a pointer into the buffer in =O(1)= (a pointer bump
+plus a compare), there is no per-allocation free, and =reset= releases
+everything at once, also in =O(1)=. It never touches the heap.
+
+* The idea
+
+A lot of allocation is phase-scoped: everything allocated during a frame, a
+request, or a parse is thrown away together at the end. A general allocator pays
+for per-object bookkeeping and freeing that such code never uses. A bump
+allocator drops all of it: allocation is just "advance a cursor," and freeing is
+"move the cursor back to the start." =linear_arena= puts the buffer inline (no
+heap, stack-bufferable) and hands out raw memory, leaving object lifetime to the
+caller.
+
+* How it works
+
+** Memory layout
+
+The arena is an aligned inline byte buffer plus a single =offset= cursor (and a
+high-water mark for diagnostics). =allocate= rounds the cursor up to the
+requested alignment, checks the block fits, advances the cursor, and returns the
+old position.
+
+#+BEGIN_EXAMPLE
+linear_arena<64> after allocate(8,8), allocate(4,4):
+
+  +----------------------------------------------------------+
+  | [ 8-byte block ][ 4 ][ . . . . . free . . . . . . . . ]  |
+  +----------------------------------------------------------+
+  ^                      ^
+  buffer start           offset = 12   (bytes_used)
+
+  reset() moves offset back to 0; rewind_to(k) moves it back to k.
+#+END_EXAMPLE
+
+** Allocation and lifetime
+
+=allocate(size, alignment)= returns raw =void*=; the typed =allocate<T>(count)=
+sizes and aligns for =T=; =emplace<T>(args...)= also constructs the object.
+Allocation fails with =container_error::full= when the block does not fit. The
+arena hands out *raw memory* and does not track or run destructors, so for a
+non-trivially-destructible =T= the caller must =std::destroy_at= the object
+before the storage is reset. Trivial types can simply be abandoned.
+
+** Releasing
+
+There are three ways to give memory back, all =O(1)= and none of which run
+destructors: =reset()= drops everything; =rewind_to(offset)= drops back to a
+saved =bytes_used()= (the basis for [[file:scratch_pad.org][scratch_pad]]'s RAII checkpoints); and
+letting the arena go out of scope drops its whole buffer. =high_water_mark()=
+records the peak =bytes_used()=, which is handy for sizing the buffer
+empirically.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::linear_arena<4096> arena;
+
+for (auto const& frame : frames) {
+  auto const nodes{arena.allocate<node>(frame.count)};   // raw storage
+  if (!nodes.has_value()) { handle(nodes.error()); }     // container_error::full
+  // ... fill and use the scratch ...
+  arena.reset();                                         // release the frame, O(1)
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/linear_arena.cpp][examples/container/linear_arena.cpp]]

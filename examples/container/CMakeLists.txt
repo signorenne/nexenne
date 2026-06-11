@@ -3,6 +3,7 @@
 set(_container_examples
     bitset_dynamic
     error
+    linear_arena
     ring_buffer
     small_vector
     stable_vector
