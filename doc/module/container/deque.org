@@ -1,0 +1,78 @@
+#+TITLE: deque
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::deque<T>= is a double-ended queue backed by a single
+contiguous, power-of-two buffer addressed as a ring. Pushing and popping at
+either end is amortised =O(1)=, and indexed access is =O(1)= and cache-friendly.
+When the buffer fills it doubles and re-packs, so the capacity is not fixed.
+
+* The idea
+
+A double-ended queue wants cheap insert and remove at both ends. =std::deque=
+gets that from a map of fixed segments, which costs an extra indirection on every
+access and scatters the data. A plain ring buffer is contiguous and index-cheap
+but has a fixed capacity. =deque= takes the contiguous ring and lets it grow:
+one allocation, direct addressing, and amortised growth, trading the segmented
+layout's stable addresses for speed (a push that grows invalidates references).
+
+* How it works
+
+** Storage and addressing
+
+The deque holds one buffer of =cap= slots (=cap= is a power of two), the index of
+the front element, and a size. Logical index =i= maps to a physical slot by
+adding the head and masking, so the ring wraps with a single =&= rather than a
+modulo.
+
+#+BEGIN_EXAMPLE
+after push_back(1), push_back(2), push_front(0):   cap = 8
+
+  index:    0    1    2    3    4    5    6    7
+          +----+----+----+----+----+----+----+----+
+          | 1  | 2  |  . |  . |  . |  . |  . | 0  |
+          +----+----+----+----+----+----+----+----+
+                                                ^ head = 7
+
+  front-to-back order is d[0]=0, d[1]=1, d[2]=2
+  slot_of(i) = (head + i) & (cap - 1)
+#+END_EXAMPLE
+
+A back push writes =slot_of(size)= and bumps the size; a front push moves the
+head back one slot (with wrap) and writes there. Both pops destroy the end
+element and step the size or head inward.
+
+** Growth
+
+When a push finds the buffer full, the deque allocates a buffer twice the size
+(eight on the first growth), moves the elements into it in logical order so the
+new head is 0, frees the old buffer, and continues. Growth is the only =O(n)=
+event and is amortised away over the pushes between growths. Storage comes from
+the over-aligned =::operator new=, so an over-aligned =T= is placed correctly.
+
+** Values returned, errors, and copies
+
+=front()= and =back()= return a pointer that is =nullptr= when the deque is
+empty; =operator[]= is unchecked. =pop_front()= and =pop_back()= return the
+removed element as =result<T>=, or =container_error::empty= when there is
+nothing to remove. =push_*= and =emplace_*= are =noexcept= and terminate only on
+allocation failure. The deque is copyable when =T= is, via a deep copy that
+re-packs from the front, and always movable in =O(1)= by stealing the buffer.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::deque<task> work;
+
+work.push_back(job);                 // enqueue at the back
+work.emplace_front(urgent, args);    // jump the queue at the front
+
+while (!work.empty()) {
+  auto const next{work.pop_front()}; // result<task>; empty() guards it here
+  run(*next);
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/deque.cpp][examples/container/deque.cpp]]
