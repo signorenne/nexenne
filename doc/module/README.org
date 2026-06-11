@@ -1,0 +1,29 @@
+#+TITLE: nexenne modules
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Every module is header-only C++23, dependency-light, and picked individually. A
+module names its dependencies in =module.deps=, and the build discovers and
+orders them automatically. Follow a module to its own index, which lists a guide
+and a runnable example for each class it provides.
+
+* Modules
+
+- [[file:utility/README.org][utility]] (no dependencies) : callables, RAII, bit and numeric helpers,
+  strong types, metaprogramming, and reflection.
+- [[file:container/README.org][container]] (needs =utility=) : fixed-capacity and dynamic containers
+  such as vectors, maps, sets, queues, trees, and graphs.
+
+* Dependency layering
+
+A module may only use the modules below it; the build refuses a cycle.
+
+#+BEGIN_EXAMPLE
+  container     vectors, maps, sets, queues, trees, graphs
+     |
+     v
+  utility       the foundation, no dependencies
+#+END_EXAMPLE
+
+More modules join as they are ported, each declaring its place in the layering
+through =module.deps=.
