@@ -4,6 +4,7 @@ set(_container_examples
     error
     ring_buffer
     small_vector
+    stable_vector
     static_vector
 )
 

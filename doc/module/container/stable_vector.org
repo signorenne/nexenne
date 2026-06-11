@@ -1,0 +1,113 @@
+#+TITLE: stable_vector
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::stable_vector<T, ChunkSize>= is an append-only sequence
+whose element addresses never change. A =T*= or =T&= obtained from it stays
+valid for the element's whole lifetime, even as the container grows, unlike
+=std::vector= which dangles every pointer when it reallocates.
+
+* The idea
+
+=std::vector= keeps its elements in one contiguous block, so growing it past
+capacity reallocates and moves every element, invalidating outstanding pointers
+and iterators. Some code cannot tolerate that: an entity pool whose systems hold
+raw pointers, a cache keyed by =T*=, an arena that hands out long-lived
+references. =stable_vector= trades one contiguous block for a list of fixed-size
+chunks: a new element goes in the trailing chunk or a freshly allocated one, and
+an existing chunk is never moved or reallocated.
+
+* How it works
+
+** Memory layout
+
+A small =std::vector= owns pointers to heap-allocated chunks; each chunk is
+=ChunkSize= manually-managed slots. Only the pointer vector ever grows or
+reallocates; the chunks, and therefore the elements, stay put.
+
+#+BEGIN_EXAMPLE
+stable_vector<int, 4> holding 6 elements:
+
+  m_chunks: a std::vector of owning chunk pointers
+  +-----+-----+
+  | ptr | ptr |
+  +--|--+--|--+
+     |     |
+     v     v
+  +----------------+  +----------------+    each chunk: 4 slots
+  | 10  20  30  40 |  | 50  60  ~~  ~~ |    ~~ = unused slot
+  +----------------+  +----------------+
+    chunk 0              chunk 1
+#+END_EXAMPLE
+
+Growing only ever appends a chunk pointer to =m_chunks= (which may reallocate
+*that* small vector), and the chunks it points at never move. So a pointer into
+chunk 0 stays valid no matter how many chunks are added later.
+
+** Index math
+
+A logical index splits into a chunk and a slot: =chunk = i / ChunkSize=,
+=slot = i % ChunkSize=. Because =ChunkSize= is required to be a power of two,
+the compiler turns those into a shift and a mask (=i >> log2(ChunkSize)= and
+=i & (ChunkSize - 1)=), so random access costs a shift, a mask, and two pointer
+hops (the chunk pointer, then the slot), not a divide.
+
+** Moves and addresses
+
+A move or =swap= just transfers the =m_chunks= vector (the owning pointers), so
+both are =O(1)= and *preserve every element address*: the chunks move owners but
+not memory. Copy is a deep clone of every element into fresh chunks. The
+destructor destroys the live elements and frees the chunks.
+
+** Access and iteration
+
+=operator[]= is unchecked; =at=, =front=, and =back= are checked and return a
+=nullptr= pointer on a miss. The random-access iterator hops chunk boundaries
+transparently, so a range-based =for= and the =std::ranges= algorithms work, but
+the elements are not one contiguous block, so there is no =data()=. =push_back=
+returns the stable pointer to the new element; =pop_back= returns =result<void>=.
+
+* Choosing a vector
+
+The module has three vectors alongside =std::vector=; all hold a growable
+sequence and differ in where the storage lives and what growth costs.
+
+| vector        | heap      | element addresses  | constexpr |
+|---------------+-----------+--------------------+-----------|
+| std::vector   | always    | move on grow       | transient |
+| static_vector | never     | stable (fixed cap) | value     |
+| small_vector  | past N    | move on grow       | no        |
+| stable_vector | per chunk | always stable      | no        |
+
+In the =constexpr= column, =value= means a persisted compile-time value (no
+heap); =transient= means usable only inside a =constexpr= function, where the
+allocation is freed before the evaluation ends; =no= means not usable in
+constant evaluation.
+
+- =std::vector= is the default: one contiguous heap block that grows by
+  reallocating, which moves every element and invalidates outstanding pointers
+  and iterators. Use it unless one of the constraints below applies.
+- =static_vector<T, N>= when you can prove a hard upper bound and want zero
+  allocation, even at compile time; a push past =N= returns
+  =container_error::full=.
+- =small_vector<T, N>= when the size is usually small but must not be capped:
+  inline and allocation-free in the common case, one heap block once it grows.
+- =stable_vector<T, ChunkSize>= when you hold raw pointers or references to
+  elements across pushes: addresses never move, traded against non-contiguous,
+  chunk-hopping access.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::stable_vector<entity, 256> pool;
+
+entity* const player{pool.push_back(make_player())};  // keep the pointer
+for (int i{0}; i < 10'000; ++i) {
+  pool.push_back(make_npc());   // player stays valid across every growth
+}
+update(*player);                // no dangling, no std::vector reallocation
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/stable_vector.cpp][examples/container/stable_vector.cpp]]
