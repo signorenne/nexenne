@@ -2,8 +2,8 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-Header-only C++23 containers, fixed-capacity and dynamic, value- and
-node-based, each picked à la carte and built on
+Header-only C++23 containers, fixed-capacity and dynamic, value and
+node-based, each picked individually and built on
 [[file:../utility/README.org][nexenne::utility]]. Each entry below links to a
 guide and a runnable example under
 [[file:../../../examples/container/][examples/container/]].
@@ -17,3 +17,7 @@ An operation whose only failure is allocation is =noexcept= and terminates on
 * Foundation
 
 - [[file:error.org][error]] : =container_error=, the =result<T>= alias, and =to_string=.
+
+* Value containers
+
+- [[file:static_vector.org][static_vector]] : fixed-capacity inline vector, no heap.
