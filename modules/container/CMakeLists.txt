@@ -16,6 +16,7 @@ endif()
 nexenne_add_module(container
     HEADERS
         include/nexenne/container/container.hpp
+        include/nexenne/container/bag.hpp
         include/nexenne/container/bitset_dynamic.hpp
         include/nexenne/container/error.hpp
         include/nexenne/container/linear_arena.hpp
