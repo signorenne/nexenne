@@ -5,6 +5,7 @@ set(_container_examples
     bitset_dynamic
     deque
     error
+    heap
     linear_arena
     ring_buffer
     scratch_pad

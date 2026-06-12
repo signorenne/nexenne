@@ -31,6 +31,10 @@ An operation whose only failure is allocation is =noexcept= and terminates on
 
 - [[file:deque.org][deque]] : growable double-ended queue, contiguous power-of-two ring.
 
+* Priority queues
+
+- [[file:heap.org][heap]] : binary heap over a vector, max-heap by default, configurable order.
+
 * Arenas
 
 - [[file:linear_arena.org][linear_arena]] : inline-buffer bump allocator, O(1) reset.
