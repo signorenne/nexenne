@@ -2,10 +2,13 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-Small, focused, header-only C++23 utilities. Each is documented below with its
-purpose, the idea behind it, and idiomatic usage; every entry links to a
-runnable example under [[file:../../../examples/utility/][examples/utility/]] that
-you can build (=NEXENNE_BUILD_EXAMPLES=ON=) and run to see it work.
+The foundation module: 21 small, focused, header-only C++23 utilities with no
+dependencies, the layer everything else in nexenne is built on. Each fills a gap
+the standard library leaves open, and each is independent, so take only the ones
+you need. They are grouped below into six themes; every entry links to its guide
+(purpose, the idea behind it, idiomatic usage) and to a runnable example under
+[[file:../../../examples/utility/][examples/utility/]] that you can build
+(=NEXENNE_BUILD_EXAMPLES=ON=) and run to see it work.
 
 Include a single header (=nexenne/utility/<name>.hpp=) or the umbrella
 =nexenne/utility/utility.hpp=. Everything lives in =nexenne::utility=.

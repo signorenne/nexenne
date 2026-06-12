@@ -2,39 +2,75 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-CMake =>= 3.23, C++23, Ninja. The root [[file:../../CMakeLists.txt][CMakeLists.txt]] sets the standard and
-output dirs, defines the options below, includes the [[file:cmake-helpers.org][helpers]], discovers
-[[file:modules.org][modules]] in dependency order, then builds the =nexenne::all= umbrella and the
-install rules.
+CMake =>= 3.23 (presets need =>= 3.25), C++23, Ninja. The root
+[[file:../../CMakeLists.txt][CMakeLists.txt]] pins the language standard
+(=CMAKE_CXX_STANDARD 23=, =CMAKE_CXX_STANDARD_REQUIRED ON=,
+=CMAKE_CXX_EXTENSIONS OFF=), exports =compile_commands.json=, routes binaries to
+=build/<preset>/bin= and libraries to =build/<preset>/lib=, defines the options
+below, includes the [[file:cmake-helpers.org][helpers]], discovers
+[[file:modules.org][modules]] in dependency order, then builds the
+=nexenne::all= umbrella and the install rules.
 
 * Options
 
-Each defaults to ON when nexenne is the top-level project, OFF when embedded.
+Each =NEXENNE_*= toggle is a cache =option=. The first four and =NEXENNE_INSTALL=
+default to ON only when nexenne is the top-level project (=PROJECT_IS_TOP_LEVEL=),
+so an embedded build stays quiet. =NEXENNE_WARNINGS_AS_ERRORS= is OFF by default.
 
-| option                       | effect                                 |
-|------------------------------+----------------------------------------|
-| =NEXENNE_BUILD_TESTS=        | build doctest suites + =nexenne_tests= |
-| =NEXENNE_BUILD_EXAMPLES=     | build =examples/=                      |
-| =NEXENNE_BUILD_BENCHMARKS=   | build =benchmarks/=                    |
-| =NEXENNE_BUILD_DOCS=         | generate Doxygen API docs              |
-| =NEXENNE_INSTALL=            | generate install + package rules       |
-| =NEXENNE_WARNINGS_AS_ERRORS= | promote warnings to errors             |
+| option                       | default            | effect                                         |
+|------------------------------+--------------------+------------------------------------------------|
+| =NEXENNE_BUILD_TESTS=        | top-level          | build doctest suites and the =nexenne_tests= target |
+| =NEXENNE_BUILD_EXAMPLES=     | top-level          | build programs under =examples/=               |
+| =NEXENNE_BUILD_BENCHMARKS=   | top-level          | build =benchmarks/= (if that dir exists)       |
+| =NEXENNE_BUILD_DOCS=         | OFF                | generate Doxygen API docs, define =nexenne_docs= |
+| =NEXENNE_INSTALL=            | top-level          | generate install rules and package configs     |
+| =NEXENNE_WARNINGS_AS_ERRORS= | OFF                | add =-Werror= (or =/WX=) via =nexenne::warnings= |
 
-Per-module toggle: =NEXENNE_MODULE_<NAME>=OFF= drops one module from the build.
+Two more options are defined by the helpers, not the root:
+=NEXENNE_FETCH_DOXYGEN_IF_MISSING= (default ON, see [[file:api-docs.org][API docs]])
+and the cache string =NEXENNE_DOCTEST_GIT_TAG= (default =v2.4.11=, see
+[[file:testing.org][Testing]]).
+
+Per-module toggle: for every discovered module the root defines
+=NEXENNE_MODULE_<NAME>= (default ON). Set =-DNEXENNE_MODULE_CONTAINER=OFF= to
+drop one module from the build.
 
 * Presets
 
-From [[file:../../CMakePresets.json][CMakePresets.json]] (=cmake --preset <name>=):
+From [[file:../../CMakePresets.json][CMakePresets.json]]. Configure with
+=cmake --preset <name>=, build with =cmake --build --preset <name>=. All inherit
+a hidden =base= preset that selects the Ninja generator and puts the build tree
+at =build/<presetName>=.
 
-| preset    | build type     | notes                   |
-|-----------+----------------+-------------------------|
-| =dev=     | Debug          | tests + examples on     |
-| =release= | RelWithDebInfo | tests/examples off      |
-| =asan=    | Debug          | Address + UB sanitizers |
-| =ci=      | Debug          | warnings as errors      |
+| preset    | inherits | build type     | notes                                |
+|-----------+----------+----------------+--------------------------------------|
+| =dev=     | base     | Debug          | tests on, examples on                |
+| =release= | base     | RelWithDebInfo | tests off, examples off              |
+| =asan=    | dev      | Debug          | adds =-fsanitize=address,undefined=  |
+| =ci=      | dev      | Debug          | =NEXENNE_WARNINGS_AS_ERRORS=ON=       |
 
-Build preset =tests= builds the =nexenne_tests= target (see [[file:testing.org][Testing]]).
+Build presets: =dev=, =release=, =asan=, =ci= (each tied to the matching
+configure preset), plus =tests= which configures with =dev= and builds the
+=nexenne_tests= target. So =cmake --build --preset tests= builds and runs every
+suite. See [[file:testing.org][Testing]].
+
+* Top-level targets
+
+- =nexenne_all= / alias =nexenne::all= : an INTERFACE library linking every
+  enabled module. Defined only once at least one module exists. Carries the
+  umbrella header =include/nexenne/nexenne.hpp=.
+- =nexenne::<name>= : one alias per module (for example =nexenne::container=,
+  =nexenne::utility=). See [[file:modules.org][Modules]].
+- =nexenne::warnings= : an INTERFACE target of the project warning flags; tests
+  and examples link it, the header-only libraries do not. See
+  [[file:cmake-helpers.org][CMake helpers]].
+- =nexenne_tests= : aggregate target that builds and runs every module's doctest
+  binary. Present whenever =NEXENNE_BUILD_TESTS= is on.
+- =nexenne_docs= : aggregate Doxygen target, present only when
+  =NEXENNE_BUILD_DOCS= is on. See [[file:api-docs.org][API docs]].
+- =nexenne_<name>_tests=, =nexenne_<name>_docs= : per-module test and doc
+  targets that attach to the aggregates above.
 
 * See also
 
-[[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]], [[file:install.org][Install and consume]].
+[[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]], [[file:testing.org][Testing]], [[file:install.org][Install and consume]].

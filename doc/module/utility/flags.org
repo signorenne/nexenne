@@ -18,6 +18,41 @@ predicates =has= / =has_all= / =has_any= / =any= / =none=, the operators =| & ^ 
 and =raw= / =from_raw= for serialisation. Note the predicates take a single
 =enum_type=, so test combined masks by adding a combined enumerator.
 
+* How it works
+
+=flags<E>= stores one =std::underlying_type_t<E>= and does plain bitwise work on
+it. The =scoped_enum= concept (=std::is_scoped_enum_v=) restricts =E= to a scoped
+enum, so it never decays to =int=. =set= / =clear= / =toggle= OR / AND-NOT / XOR
+the enumerator's bits and return =*this= for chaining; =has= and =has_all= test
+that *every* bit of the argument is set (=(m_bits & mask) == mask=), while
+=has_any= tests that *at least one* is (=(m_bits & mask) != 0=). A single-argument
+implicit constructor turns an enumerator into a =flags=, which is what lets
+=flags{perm::read} | perm::write= and the mixed =flags=/enumerator operators work
+while still keeping the result a =flags<perm>=. =raw= and =from_raw= move the bits
+across the boundary to a register or wire format, and =operator=== compares the
+raw bits, so everything stays =constexpr=. There is no storage beyond the one
+integer.
+
+* When to use it
+
+Reach for =flags= whenever you have a set of independent on/off options that you
+want to combine and test by name without manual casts or =int= leakage:
+permission bits, feature toggles, hardware control-register fields, parser
+options. For a single multi-bit register field (a value, not a set of independent
+bits) use the field helpers in [[file:bit.org][bit]] (=pack_bits= / =extract_bits=)
+instead. For a large dynamic set of bits not tied to named enumerators use
+=std::bitset= or a vector of bits.
+
+Gotchas. The enumerators must be distinct powers of two (=1 << 0=, =1 << 1=, ...)
+for the bitwise model to hold; this is a convention the type does not enforce. The
+predicates take one =enum_type=, so to test a *combination* define a combined
+enumerator (=rwx = read | write | exec=) and pass that, or test the parts
+individually, and mind the all-versus-any distinction: =has= / =has_all= require
+all bits, =has_any= requires one. =operator~= flips *every* bit of the underlying
+type, including bits with no corresponding enumerator, so a complemented value can
+carry undefined bits, mask it back down if that matters. =from_raw= trusts its
+input and does no validation, so a stray raw value can set undefined bits too.
+
 * Usage
 
 #+BEGIN_SRC cpp

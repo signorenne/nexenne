@@ -19,6 +19,65 @@ multiplied. The flag set is a compile-time constant, so unsupported operators
 are removed from overload resolution rather than failing at the call site, and
 the wrapper stays trivially copyable when =T= is.
 
+* How it works
+
+A =strong_typedef<Tag, T, Ops>= stores a single =T m_value= (declared
+=[[no_unique_address]]=, so an empty =T= adds no size) and nothing else: the
+=Tag= and the =Ops= bitmask live only in the type, not in the object. Two
+specialisations with the same =T= but different =Tag= are unrelated types, which
+is what blocks accidental mixing. Construction from =T= is always =explicit=, and
+the conversion back to =T= is =explicit= too, so a wrapper neither springs into
+existence from a bare value nor silently decays into one inside an expression.
+
+=Ops= is an =enum class ability : std::uint32_t= used as a bitmask: each flag
+names one operator family (=add=, =scale=, =equality=, =ordered=, =bit_and=,
+=shift=, =bitops=, and so on), combined with =|=. Every operator is constrained
+with =requires(has(Ops, ability::X))=, so a capability you did not request is
+removed from overload resolution rather than producing an error deep inside the
+call, attempting it just reports "no matching operator". The convenience groups
+(=arithmetic=, =comparable=, =bitwise=) are simply unions of flags, and the
+ready-made aliases (=quantity=, =identifier=, =counter=, =bitfield=) bind common
+combinations to a tag and underlying type.
+
+Same-tag binary operations rebind to a common type: adding a =strong_typedef= over
+=std::int16_t= to one over =std::int32_t= (same tag) yields the
+=std::int32_t= wrapper, with the two ability sets unioned and then =sanitized= for
+the new underlying. Scalar =scale= operations (=value * scalar=, =value / scalar=)
+keep the original strong type by folding the result back into =T=, whereas =ratio=
+(=value / value=, same tag) yields a *bare* dimensionless scalar. Free functions
+cover the rest: =abs=, =sat_add=/=sat_sub=, =popcount=/=rotl=/=rotr= and the bit
+counts, plus =to_underlying= for explicit unwrapping. The header also specialises
+=std::hash=, =std::formatter= (format specs pass straight through to =T=), and
+=std::common_type= for two same-tag wrappers.
+
+* When to use it
+
+Reach for =strong_typedef= whenever two quantities share a primitive
+representation but must not be interchanged: meters versus seconds, a user id
+versus an account id, a byte count versus an element count, a hardware register
+versus a raw integer. The opt-in abilities let you grant exactly the operations
+that make sense, an =identifier= that compares and hashes but cannot be added, a
+=quantity= that does arithmetic, a =bitfield= that shifts and counts bits, so the
+type system rejects the operations that would be nonsense for that quantity.
+
+Pick a profile to stay terse: =quantity= (arithmetic plus comparison),
+=identifier= (comparison and hashing only), =counter= (comparison plus
+increment/decrement), =bitfield= (bitwise, shifts, bit-counting, comparison). Drop
+to the raw =strong_typedef<Tag, T, ability::...>= form when you need a custom mix.
+
+GOTCHAS. Each distinct =Tag= must be a unique type, so the idiom is
+=strong_typedef<struct meters_tag, double, ...>=: reusing the same tag for two
+logically different quantities silently makes them the *same* type and reunites
+them. Construction and the conversion to =T= are both =explicit=, by design, so
+you write =meters{10.0}= and =x.get()= (or =to_underlying(x)=), not implicit
+conversions. =ratio= breaks the strong type on purpose: dividing two same-tag
+values returns a bare scalar, not a wrapper. =scale= and the arithmetic operators
+fold back into =T=, so multiplying a narrow =T= can overflow or truncate just as
+the underlying would, convert to a wider strong type first if you need headroom.
+Finally, =shift= and =bitops= require an unsigned integral underlying: requesting
+them on any other =T= is a hard =static_assert=, and when a binary op rebinds to a
+signed or floating common type those flags are dropped from the result.
+
 * Usage
 
 Ready-made profiles keep the common cases short: =quantity= (arithmetic plus

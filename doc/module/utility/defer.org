@@ -18,6 +18,35 @@ returns and exceptions. Unlike =nexenne::utility::scope_guard= there is no
 non-movable, and =[[nodiscard]]= so a discarded temporary (which would fire
 immediately) warns.
 
+* How it works
+
+=defer= is a tiny RAII wrapper: it moves a no-argument callable into a member and
+its destructor invokes it exactly once. The class template argument deduction
+guide lets =defer{lambda}= deduce =Fn=, so you never spell the type. It is
+non-copyable and non-movable, so each guard is tied to the exact scope where it is
+declared, and =[[nodiscard]]= so writing =defer{...};= as a bare temporary (which
+would construct and immediately destroy, firing the cleanup on the spot) is a
+compile-time warning: always name it (=auto const guard{defer{...}};=). The
+destructor is =noexcept(noexcept(m_fn()))=, mirroring whether the callable throws.
+
+* When to use it
+
+Reach for =defer= when a scope must run cleanup on *every* exit path and the thing
+being cleaned up has no RAII wrapper of its own: closing a C file handle or
+socket, releasing a locked resource, restoring a flag, freeing a C allocation.
+When you need to *cancel* the cleanup conditionally (commit-or-rollback patterns)
+use =nexenne::utility::scope_guard=, which has =dismiss=; =defer= deliberately
+always fires. When the resource already has a destructor, prefer a real RAII type
+(=std::unique_ptr= with a deleter, =std::lock_guard=) over a manual =defer=.
+
+Gotchas. The cleanup runs on the exception path too, during stack unwinding: if
+the callable itself throws while a destructor runs during unwinding, the program
+terminates (the standard destructor-throws rule), so keep the cleanup
+non-throwing. The guard fires at the end of its enclosing scope, not the
+function, so place it in the scope whose exit you mean. Because it is =[[nodiscard]]=
+and non-movable, you must bind it to a named local; you cannot return it from a
+factory or store it in a container.
+
 * Usage
 
 #+BEGIN_SRC cpp

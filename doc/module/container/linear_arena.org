@@ -58,6 +58,54 @@ letting the arena go out of scope drops its whole buffer. =high_water_mark()=
 records the peak =bytes_used()=, which is handy for sizing the buffer
 empirically.
 
+* Complexity
+
+| operation                          | cost |
+|------------------------------------+------|
+| allocate(size, alignment)          | O(1) |
+| allocate<T>(count) / emplace<T>    | O(1) |
+| reset (drop everything)            | O(1) |
+| rewind_to(offset)                  | O(1) |
+| bytes_used / bytes_available       | O(1) |
+| high_water_mark                    | O(1) |
+
+Every operation is =O(1)=: a bump is a round-up, a compare, and a cursor
+advance, and releasing is a single cursor assignment. Memory overhead is fixed
+and inline, the =N=-byte buffer aligned to =max_align_t= plus two =size_type=
+cursors (=offset= and the high-water mark), with no heap and no per-allocation
+header. The cost of that simplicity is internal fragmentation: alignment padding
+is dead space, and a workload that needs less than =N= at once still reserves
+the whole buffer.
+
+* When to use it
+
+Reach for =linear_arena= when allocations are phase-scoped, everything made
+during a frame, request, or parse is discarded together at the end. Bump
+allocation is far cheaper than a general allocator there because it skips all the
+free-list bookkeeping that such code never uses, and the inline buffer keeps it
+off the heap (stack-bufferable, usable in freestanding code). Versus
+=std::pmr::monotonic_buffer_resource= it is a direct, non-virtual call with no
+type-erasure hop, at the cost of no allocator-aware-container adapter.
+
+The model has two hard rules:
+
+- *No individual free.* There is no =deallocate(ptr)=, you cannot give back one
+  allocation. Memory comes back only in bulk: =reset()= drops everything,
+  =rewind_to(saved)= drops back to an earlier =bytes_used()= (the basis for
+  [[file:scratch_pad.org][scratch_pad]]'s RAII checkpoints), or the arena going
+  out of scope drops its whole buffer. For scoped temporaries, prefer a
+  [[file:scratch_pad.org][scratch_pad]] over a manual =rewind_to=.
+- *Raw memory, no destructors.* The arena hands out untyped storage and never
+  runs destructors. =reset= and =rewind_to= just move the cursor, so a
+  non-trivially-destructible =T= built in arena storage must be =std::destroy_at=
+  'd before the cursor passes it, or it leaks. A trivially destructible =T= can
+  simply be abandoned.
+
+Invalidation: =reset= invalidates *every* pointer into the arena; =rewind_to(k)=
+invalidates every pointer at or above offset =k= and leaves those below it
+valid. Allocation never relocates earlier blocks, so a pointer stays valid until
+a =reset= or =rewind_to= passes it (or the arena is destroyed).
+
 * Usage
 
 #+BEGIN_SRC cpp

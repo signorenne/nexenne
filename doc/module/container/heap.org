@@ -59,6 +59,52 @@ order is neither priority nor sorted order and depends on insertion history, so
 iterating or comparing in it misleads. To consume in priority order, pop; to see
 sorted order, copy from =span()= and sort the copy.
 
+* Complexity
+
+| operation                     | cost     |
+|-------------------------------+----------|
+| push / emplace                | O(log n) |
+| pop                           | O(log n) |
+| top                           | O(1)     |
+| construct from list / range   | O(n)     |
+| rebuild (re-heapify)          | O(n)     |
+| data / span (read-only)       | O(1)     |
+| clear / swap                  | O(1)     |
+
+Constructing from a list or range is one =O(n)= =make_heap=, strictly cheaper
+than =n= separate =O(log n)= pushes (=O(n)= versus =O(n log n)=). Memory
+overhead is just the backing =std::vector='s geometric spare capacity.
+
+* When to use it
+
+Reach for =heap= when you repeatedly need the single most important element next
+and the set keeps changing: event schedulers (min-heap, earliest event next),
+A* / Dijkstra frontiers, top-K selection, bandwidth or job priority queues. The
+contiguous array layout sifts one element along a single root-to-leaf path per
+push or pop, with no node allocation.
+
+There is deliberately no =begin= / =end= and no =operator== / =<=>=: heap-layout
+order is neither priority order nor sorted order and depends on insertion
+history, so iterating or comparing in it would mislead. To consume in priority
+order, =pop=; to read sorted order, copy from =span()= and sort the copy; to
+compare two heaps, compare those projections, not the raw layout.
+
+Prefer a sibling when:
+
+- you want first-in or last-in order rather than highest-priority, use
+  [[file:deque.org][deque]].
+- order is irrelevant and you just add, remove, and iterate, use
+  [[file:bag.org][bag]] for its =O(1)= swap-pop erase.
+
+Invalidation and stability:
+
+- A push or emplace that grows the backing vector invalidates =top()=,
+  =data()=, =span()=, and any held pointer. =reserve= up front to keep them
+  stable across a known number of pushes.
+- *Any* mutation (=push=, =pop=, =emplace=, =rebuild=) can re-order elements, so
+  treat =top()=, =data()=, and =span()= results as valid only until the next
+  mutation, even when no reallocation occurs.
+
 * Usage
 
 #+BEGIN_SRC cpp

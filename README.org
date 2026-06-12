@@ -9,16 +9,30 @@
 A monorepo of small, focused C++23 libraries. Each is a /module/ exposed as
 the CMake target =nexenne::<name>= and the namespace =nexenne::<name>=. Take
 the whole thing and link =nexenne::all=, or take a single module with
-=find_package(nexenne-math)=. Modules are header-only by default and declare
+=find_package(nexenne-container)=. Modules are header-only by default and declare
 their dependencies in one short file, so each module's =CMakeLists.txt= stays
 a few lines.
 
 * Status
 
-Bootstrapping. The repository currently holds the infrastructure (build
-system, lint configs, module template, docs) and no modules yet. Modules are
-ported in one at a time, each reviewed and hardened as it lands, starting with
-=utility=. A fresh checkout configures and builds with zero modules present.
+Active development. =utility= is complete and reviewed (21 components);
+=container= is in progress, ported one container at a time and reviewed and
+hardened as each lands. Modules are added one at a time, and a fresh checkout
+configures and builds whatever modules are present.
+
+* Modules
+
+- [[file:doc/module/utility/README.org][utility]] : complete. 21 small, independent helpers: =function_ref= and
+  =in_place_function=, =expected_utils=, =strong_typedef=, =static_string=,
+  =scope_guard= and =unique_resource=, =bit= and =align=, =meta= and
+  =type_list=, and more.
+- [[file:doc/module/container/README.org][container]] : in progress. Fixed-capacity and dynamic containers: =static_vector=,
+  =small_vector=, =ring_buffer=, =stable_vector=, =bitset_dynamic=, =bag=,
+  =deque=, =gap_buffer=, =heap=, and the =linear_arena= and =scratch_pad=
+  allocators.
+
+Every module's guides and runnable examples live under [[file:doc/module/README.org][doc/module/]]; the full
+documentation tree starts at [[file:doc/README.org][doc/README.org]].
 
 * Requirements
 
@@ -50,14 +64,14 @@ filters) at =build/dev/bin/nexenne_<name>_tests=.
 
 #+BEGIN_SRC text
 nexenne/
-├── CMakeLists.txt        root: discovers modules, orders by dependency
-├── CMakePresets.json     dev / release / asan / ci
-├── cmake/                build helpers (module, warnings, testing, doxygen)
-├── include/nexenne/      umbrella header
-├── modules/<name>/       one folder per module, same layout each
-├── template/             module skeleton + new-module.sh + MODULE_GUIDE.org
-├── STYLE_GUIDE.org       C++ style (enforced by clang tooling)
-└── CONTRIBUTING.org      workflow + commit convention
+|-- CMakeLists.txt        root: discovers modules, orders by dependency
+|-- CMakePresets.json     dev / release / asan / ci
+|-- cmake/                build helpers (module, warnings, testing, doxygen)
+|-- include/nexenne/      umbrella header
+|-- modules/<name>/       one folder per module, same layout each
+|-- template/             module skeleton + new-module.sh + MODULE_GUIDE.org
+|-- STYLE_GUIDE.org       C++ style (enforced by clang tooling)
+`-- CONTRIBUTING.org      workflow + commit convention
 #+END_SRC
 
 * Use it in your project
@@ -66,9 +80,9 @@ nexenne/
 find_package(nexenne REQUIRED)                       # whole library
 target_link_libraries(app PRIVATE nexenne::all)
 
-find_package(nexenne REQUIRED COMPONENTS math)       # a subset
-find_package(nexenne-math REQUIRED)                  # one module
-target_link_libraries(app PRIVATE nexenne::math)
+find_package(nexenne REQUIRED COMPONENTS container)  # a subset
+find_package(nexenne-container REQUIRED)             # one module
+target_link_libraries(app PRIVATE nexenne::container)
 #+END_SRC
 
 Also works via =add_subdirectory(third_party/nexenne)= or =FetchContent=.

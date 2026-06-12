@@ -17,6 +17,43 @@ its lookups, and =contains= checks can all be resolved at compile time and baked
 into the binary with zero runtime setup. The tradeoff is a fixed size set at
 construction and unspecified behaviour on duplicate keys.
 
+* How it works
+
+The map stores its =N= pairs in one =std::array<std::pair<K, V>, N>=. The
+constructor moves that array in and =std::ranges::sort=s it by the =.first= key
+(=O(N log N)=, but it runs once, at compile time for a =constexpr= table).
+=find= then does a =std::ranges::lower_bound= on the key and confirms the hit with
+=!(key < it->first)=, returning a =V const*= (=nullptr= on a miss). =contains=
+is =find != nullptr=; =operator[]= is =find= with a debug assert that the key
+exists, returning a =V const&=. There is no heap, no nodes, and no hashing: just
+a sorted array and a binary search, so it sits entirely in the binary's read-only
+data.
+
+* Complexity
+
+| operation               | cost       |
+|-------------------------+------------|
+| construction (sort)     | O(N log N) |
+| find / contains / at    | O(log N)   |
+| iterate begin .. end    | O(N)       |
+
+* When to use it
+
+Reach for =constexpr_map= for a small-to-medium fixed lookup table known at
+compile time: enum-to-string pairs, name-keyed config constants, a dispatch
+table, anything where a =std::map= would be heap-backed overkill or simply
+unavailable in a constant expression. For runtime-mutable maps or unknown sizes
+use =std::map= or =std::unordered_map= instead; for a very large compile-time
+table a hash-based scheme beats the binary search.
+
+Gotchas. The size is fixed at construction: there is no insert or erase, the
+table is built once and read thereafter. Duplicate keys are kept (the sort does
+not deduplicate), and which one =find= returns is then unspecified, so keep keys
+unique. =operator[]= on a missing key only asserts in debug and dereferences
+=nullptr= in release: prefer =find= or =contains= when a key may be absent. The
+key type must be totally ordered via =operator<= (the =std::totally_ordered=
+constraint); the value type has no requirements.
+
 * Usage
 
 #+BEGIN_SRC cpp

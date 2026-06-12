@@ -19,6 +19,49 @@ pointers (=get= returns by reference to avoid refcount churn). The tradeoff is
 that the runtime guarantee is debug-only; in release it is a zero-overhead
 wrapper that trusts the contract.
 
+* How it works
+
+=non_null<T>= wraps a single pointer of type =T=, constrained by the
+=pointer_like= concept (dereferenceable and comparable to =nullptr=), so =T= may
+be a raw pointer or a smart pointer such as =std::unique_ptr= or
+=std::shared_ptr=. The contract is enforced at two levels:
+
+- *Compile time*: the =nullptr_t= constructor and the =nullptr_t= assignment
+  operator are deleted, so writing =non_null<widget*> p{nullptr}= or =p = nullptr=
+  does not compile.
+- *Run time, debug only*: the converting constructor asserts =m_ptr != nullptr= at
+  the construction site, so a pointer that happens to be null at runtime fails
+  loudly there rather than at some later dereference. Under =NDEBUG= the assert is
+  gone and the wrapper is a thin pass-through that trusts the contract.
+
+Access mirrors a pointer: =operator*= dereferences, =operator->= and =get()=
+return the stored pointer *by reference* (so a =shared_ptr= is observed without a
+refcount bump and a =unique_ptr= without a copy), and an implicit conversion yields
+the wrapped pointer so =non_null<T>= plugs straight into an API expecting =T=. Two
+=non_null= compare equal when they wrap the same pointer, and comparison against
+=nullptr= is always =false= by contract.
+
+* When to use it
+
+Reach for =non_null= on a parameter or member that genuinely must not be null:
+the implicit conversion and =operator->= let it stand in for a raw pointer with no
+call-site churn, while the type itself documents the precondition and the deleted
+=nullptr= overloads stop the obvious mistake at compile time. Prefer it to a
+comment or a hand-written assert at the top of every function.
+
+The gotchas:
+
+- The runtime guarantee is *debug-only*. Under =NDEBUG= a null that slips past the
+  compile-time checks (for instance a raw pointer that is null at runtime) is *not*
+  caught; dereferencing it is undefined behaviour. =non_null= states and checks a
+  contract, it does not validate untrusted input, so range/null-check external
+  pointers before wrapping.
+- It guards *null*, not lifetime or validity. =non_null= can still wrap a dangling
+  or freed pointer; it only promises non-null, not that the pointee is alive.
+- =get()= and =operator->= return *by reference* to the stored handle. That avoids
+  refcount churn on a smart pointer but means the reference is only valid while the
+  =non_null= lives; do not hold it past the wrapper's lifetime.
+
 * Usage
 
 #+BEGIN_SRC cpp

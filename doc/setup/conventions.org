@@ -2,14 +2,26 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-The full, enforced rules are in [[file:../../STYLE_GUIDE.org][STYLE_GUIDE.org]] (=.clang-format= +
-=.clang-tidy=) and [[file:../../CONTRIBUTING.org][CONTRIBUTING.org]]. The essentials:
+The full, enforced rules live in [[file:../../STYLE_GUIDE.org][STYLE_GUIDE.org]]
+(mechanically enforced by [[file:../../.clang-format][.clang-format]] and
+[[file:../../.clang-tidy][.clang-tidy]]) and the workflow rules in
+[[file:../../CONTRIBUTING.org][CONTRIBUTING.org]]. This page is an orienting
+summary, not a substitute; read those for the detail. The hooks
+([[file:hooks.org][Git hooks]]) and [[file:ci.org][CI]] enforce the formatting
+and lint rules on every change.
 
 * Code
 
-- C++23, snake_case everywhere; template parameters are PascalCase (=Real=, =N=).
-- Trailing return types, braced init only, =const= by default, ranges over loops.
-- =std::string_view= / =std::span= for non-owning args.
+- C++23, =snake_case= for every identifier; template parameters are =CamelCase=
+  (for example =Real=, =N=). Private and protected members take the =m_= prefix.
+  These names are checked by =readability-identifier-naming= in =.clang-tidy=.
+- Trailing return types everywhere (=modernize-use-trailing-return-type=), braced
+  init, =const= by default (=misc-const-correctness= transforms non-reassigned
+  locals), ranges over raw loops.
+- =std::string_view= / =std::span= for non-owning arguments.
+- East const, pointer and reference bind to the type (=int const* p=), two-space
+  indent, 100-column lines, attached braces, LF line endings. These come from
+  =.clang-format=.
 - Comments: plain or Doxygen only. No banner comments, no em-dash, no backticks,
   no HTML.
 
@@ -24,21 +36,30 @@ The full, enforced rules are in [[file:../../STYLE_GUIDE.org][STYLE_GUIDE.org]] 
  */
 #+END_SRC
 
-No SPDX line and no author list per file: the licence is in [[file:../../LICENSE][LICENSE]],
-authorship is in git.
+No SPDX line and no per-file author list: the licence is in
+[[file:../../LICENSE][LICENSE]], authorship is in git.
 
 * Doxygen blocks
 
-Fixed tag order, every file: =@brief=, detail, =@tparam= / =@param=, =@return=,
-=@pre= / =@post= / =@throws=, then =@note= / =@warning= / =@see= / =@complexity=
-/ =@par Example=. =@pre= / =@post= are mandatory. Canonical block in
+Fixed tag order, every block: =@brief=, detail, =@tparam= / =@param=, =@return=,
+=@pre= / =@post= / =@throws=, then =@note= / =@warning= / =@see= /
+=@complexity= / =@par Example=. =@pre= / =@post= are mandatory. The doc build
+enforces correctness of these tags, not their presence (see
+[[file:api-docs.org][API docs]]); the canonical block is in
 [[file:../../STYLE_GUIDE.org][STYLE_GUIDE.org]].
 
 * Commits
 
-=type(scope): description=, e.g. =feat(utility): add strong_type=. No AI/co-author
-trailer. Types and rules: [[file:../../CONTRIBUTING.org][CONTRIBUTING.org]].
+Subject line is =type(scope): description=, for example
+=feat(utility): add strong_typedef=. The scope is required (a module name or an
+area such as =cmake=, =docs=, =ci=, =template=, =hooks=, or =repo=). One logical
+change per commit, no body, no =Co-Authored-By= or AI trailer. The type table and
+full rules are in [[file:../../CONTRIBUTING.org][CONTRIBUTING.org]].
+
+* Docs format
+
+All prose docs are Org mode (=.org=), never Markdown; do not add =.md= files.
 
 * See also
 
-[[file:api-docs.org][API docs]], [[file:hooks.org][Git hooks]].
+[[file:api-docs.org][API docs]], [[file:hooks.org][Git hooks]], [[file:tools.org][Tools and tech]].

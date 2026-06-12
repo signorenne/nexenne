@@ -19,6 +19,39 @@ time. The single-bit and field operations carry debug bounds-check assertions,
 and =for_each_set_bit= visits set bits in ascending order at a cost proportional
 to the popcount, not the type width.
 
+* How it works
+
+The single-bit ops are the obvious shift-and-mask: =set_bit= ORs in =1 << i=,
+=clear_bit= ANDs with its complement, =toggle_bit= XORs it, =test_bit= shifts the
+bit down and masks. =set_bits_mask(low, high)= builds =high - low + 1= ones and
+shifts them up by =low=, with a guard so a full-width count does not shift by the
+type width (which is undefined). =pack_bits= clears the target field with that
+mask then ORs in the shifted source; =extract_bits= masks and shifts the field
+down to bit zero. =reverse_bits= is a divide-and-conquer butterfly: it swaps
+halves, then quarters, down to adjacent bits, so it is =O(log W)= in the width
+rather than a per-bit loop. =for_each_set_bit= reads the lowest set bit with
+=std::countr_zero=, calls =fn= with its index, then clears it via =x & (x - 1)=,
+so it costs one iteration per set bit (=O(popcount)=), not one per bit of width.
+
+* When to use it
+
+Reach for these when you are working at the bit level: decoding a hardware
+register, packing several small fields into one word, building a contiguous mask,
+or walking the set bits of a bitset. For the operations the standard already
+offers (popcount, leading/trailing zeros, =bit_width=, =bit_floor=, =bit_ceil=,
+=has_single_bit=, =rotl=, =rotr=, =bit_cast=) include =<bit>= directly; this
+header deliberately does not duplicate them. For a *named* type-safe set of flags
+over an enum prefer [[file:flags.org][flags]] rather than raw single-bit ops.
+
+Gotchas. Bit indices must stay within the type width: =i < sizeof(T) * 8=. An
+out-of-range index only asserts in debug and is undefined behaviour in release
+(it shifts by the width or beyond). =pack_bits= and =extract_bits= require
+=width >= 1= and =offset + width= within the width, also debug-only checks.
+=pack_bits= writes only the low =width= bits of =src=; higher bits of =src= are
+ignored, not an error. Everything is on =unsigned= types only (the
+=std::unsigned_integral= constraint), so shifts stay well-defined and there is no
+sign extension.
+
 * Usage
 
 #+BEGIN_SRC cpp

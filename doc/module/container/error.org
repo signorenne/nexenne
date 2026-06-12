@@ -20,6 +20,52 @@ failure is allocation stays =noexcept= and terminates on =std::bad_alloc=,
 matching the rest of nexenne. There is deliberately no precondition-based
 "fast path" that trades the check for undefined behaviour.
 
+* The error policy
+
+Three rules cover the whole module:
+
+- Every non-allocating function is =noexcept=.
+- An operation that mutates state and can fail at a documented boundary (popping
+  an empty queue, pushing onto a full fixed-capacity buffer, an out-of-range
+  index, a missing key) returns =result<T>=. There is no precondition-based
+  variant that skips the check and risks undefined behaviour.
+- An operation whose *only* failure mode is =std::bad_alloc= from the underlying
+  allocator (for example a growing vector-backed container) stays =noexcept= and
+  terminates via =std::terminate= on allocation failure, matching the rest of
+  nexenne. Callers needing to recover from exhaustion should pre-allocate with
+  =reserve= or use a fixed-capacity container that reports =full=.
+
+So =result<T>= is for *recoverable, expected* boundary failures; allocation
+failure is treated as fatal and is never reported through =result=.
+
+* The error values
+
+=container_error= is a scoped enum; each value names one recoverable boundary
+failure. =result<T>= is =std::expected<T, container_error>=, the module's single
+fallible-return type, and =to_string= maps a value to a program-lifetime
+=std::string_view= for logging.
+
+| value        | returned when                                          |
+|--------------+--------------------------------------------------------|
+| full         | a push hit a fixed-capacity container's limit          |
+| empty        | a pop or front read found no elements                  |
+| out_of_range | an index was outside the container's logical size      |
+| not_found    | a looked-up key or handle is not present               |
+
+=to_string= returns the value's name verbatim ("full", "empty", "out_of_range",
+"not_found"), and "unknown" for an out-of-range enum value.
+
+* When to use it
+
+Use =result<T>= as the return type of any new container operation that can fail
+recoverably at a boundary, and pick the =container_error= value that names the
+boundary (=empty= for underflow, =full= for a fixed-capacity overflow,
+=out_of_range= for a bad index, =not_found= for a missing lookup). Do *not*
+reach for =result= when the only failure is allocation: keep that path
+=noexcept= and let it terminate, per the policy above. Check the result with
+=has_value()= (or the monadic helpers on =std::expected=) before dereferencing,
+and pass =error()= to =to_string= when logging.
+
 * Usage
 
 #+BEGIN_SRC cpp

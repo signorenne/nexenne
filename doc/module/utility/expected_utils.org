@@ -11,12 +11,44 @@
 * The idea
 
 C++23's =std::expected= already ships the monadic chain primitives (=and_then=,
-=or_else=, =transform=, =value_or=, ...). These free functions fill the gaps:
-=into_optional= drops the error channel to a =std::optional=, =try_or= calls a
-fallback with the error (unlike =value_or=, which takes a plain value),
-=flatten= collapses a nested =expected<expected<T, E>, E>=, and =first_error=
-folds a pack of =expected<void, E>= results to the first failure. Everything is
-header-only and =noexcept= where the callables are.
+=or_else=, =transform=, =transform_error=, =value_or=, =error_or=). These free
+functions fill the gaps: =into_optional= drops the error channel to a
+=std::optional= (a =bool= for the =void= value type), =try_or= calls a fallback
+with the error (unlike =value_or=, which takes a plain value), =flatten=
+collapses a nested =expected<expected<T, E>, E>=, and =first_error= folds a pack
+of =expected<void, E>= results to the first failure. Everything is header-only
+and =noexcept= where the callables are.
+
+* How it works
+
+Each helper is a small free function, with =const&= and =&&= overloads where it
+matters so values move out of a temporary instead of copying. =into_optional=
+returns =*e= or =std::nullopt= (and a plain =bool= for =expected<void, E>=, since
+there is no value to carry). =flatten= passes the outer error through unchanged,
+otherwise unwraps the inner =expected=. =try_or= returns =*e= on success, else
+calls =fn(e.error())= for the fallback, so the callable runs only on the error
+path and its return type must match =T=. =first_error= recurses through its
+argument pack, returning the first error or a value-holding =expected<void, E>= if
+all succeeded; the arguments are ordinary function arguments, so they are *all*
+evaluated at the call before the fold sees them.
+
+* When to use it
+
+Reach for these when you already use =std::expected= and want an ergonomic step
+the standard left out: =into_optional= at a boundary that only cares whether a
+value exists; =try_or= for a fallback computed from the error (logging it, mapping
+it to a default); =flatten= after an =and_then= that itself returns an =expected=;
+=first_error= to run a fixed sequence of fallible steps and report the first that
+failed. For the plain monadic chaining (=and_then=, =or_else=, =transform=,
+=value_or=) use the member functions on =std::expected= directly.
+
+Gotchas. =first_error= does *not* short-circuit: every argument is evaluated
+before the call (ordinary argument evaluation), so for lazy, stop-on-first-error
+sequencing chain =and_then= instead. =try_or='s callable must return exactly =T=
+(enforced by =std::is_invocable_r_v=) and may throw, in which case =try_or=
+propagates it; the success path never calls the callable. =flatten= requires the
+*same* error type =E= at both nesting levels. The =&&= overloads move out of the
+argument, so do not read an =expected= after passing it as an rvalue.
 
 * Usage
 

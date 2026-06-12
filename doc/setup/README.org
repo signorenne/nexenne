@@ -2,24 +2,43 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-How the project is built, tested, documented, and shipped. One topic per file;
-follow a link for the detail.
+How the project is built, tested, documented, and shipped: reference docs for
+the build system and tooling, kept separate from the per-class API guides (for
+the libraries themselves see [[file:../module/README.org][Modules]], or the
+guides under each =modules/<name>/doc/=). One topic per file, grouped below into
+the build pipeline, the quality gates that guard every change, and the
+conventions and external tools the project leans on. New here? Run the quick
+start, then read /Build system/ for the whole picture, /Modules/ to add a
+module, or /Install and consume/ to use nexenne in your own project.
+
+* Quick start
+
+#+BEGIN_SRC sh
+git config core.hooksPath .githooks     # enable the local format/test gates
+cmake --preset dev                       # configure (Debug, tests + examples on)
+cmake --build --preset dev               # build everything enabled
+cmake --build --preset dev --target nexenne_tests   # build and run all suites
+#+END_SRC
+
+The presets are =dev=, =release=, =asan=, =ci= (configure + build) plus the
+=tests= build preset. The umbrella library is =nexenne::all=; each module is
+=nexenne::<name>=. See [[file:build-system.org][Build system]] for the full picture.
 
 * Build and modules
 
-- [[file:build-system.org][Build system]] : root CMake, options, presets.
-- [[file:modules.org][Modules]] : layout, =module.deps=, discovery, kinds, standalone builds.
-- [[file:cmake-helpers.org][CMake helpers]] : what each file under =cmake/= does.
-- [[file:install.org][Install and consume]] : =find_package= / =add_subdirectory= / =FetchContent=.
+- [[file:build-system.org][Build system]] : root CMake, the =NEXENNE_*= options, presets, top-level targets.
+- [[file:modules.org][Modules]] : module layout, =module.deps=, discovery and ordering, kinds, standalone builds.
+- [[file:cmake-helpers.org][CMake helpers]] : every function in the =cmake/*.cmake= files, with signatures.
+- [[file:install.org][Install and consume]] : =find_package=, =add_subdirectory=, =FetchContent=.
 
 * Quality gates
 
-- [[file:testing.org][Testing]] : doctest and the =nexenne_tests= target.
-- [[file:hooks.org][Git hooks]] : the pre-commit and pre-push gates.
-- [[file:ci.org][CI]] : the GitHub Actions jobs.
-- [[file:api-docs.org][API docs]] : Doxygen, and what the docs build enforces.
+- [[file:testing.org][Testing]] : doctest, the =nexenne_tests= target, the =asan= preset.
+- [[file:hooks.org][Git hooks]] : the pre-commit (format) and pre-push (build + test) gates.
+- [[file:ci.org][CI]] : the seven GitHub Actions jobs and what each enforces.
+- [[file:api-docs.org][API docs]] : the Doxygen build, =FAIL_ON_WARNINGS=, per-module doc targets.
 
 * Conventions and tooling
 
-- [[file:conventions.org][Conventions]] : code style, naming, file headers, commits.
-- [[file:tools.org][Tools and tech]] : every external tool used, what for, where to learn more.
+- [[file:conventions.org][Conventions]] : where the enforced style lives and the essentials of it.
+- [[file:tools.org][Tools and tech]] : compiler, clang-format/tidy versions, Ninja, Doxygen, ccache.

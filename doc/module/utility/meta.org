@@ -22,6 +22,50 @@ tradeoff: =type_name<T>()= relies on =__PRETTY_FUNCTION__= and returns an empty
 view outside GCC/Clang, and a generic or overloaded =operator()= has no single
 signature to introspect.
 
+* How it works
+
+The three helpers are independent:
+
+- =always_false_v<Ts...>= is a variable template that is always =false= but whose
+  value formally depends on =Ts=. That dependency is what makes
+  =static_assert(always_false_v<T>, "...")= fire only when its =if constexpr=
+  branch is actually instantiated, rather than at parse time.
+- =type_name<T>()= reads the compiler's =__PRETTY_FUNCTION__= for this very
+  function and slices out the spelling of =T= between a =T = = marker and the
+  bounding bracket, coping with spaces, =::= qualifiers, commas inside template
+  arguments, array types, and GCC's trailing =; = signature entries. It runs at
+  compile time with no runtime cost.
+- =function_traits<F>= is a trait whose specialisations cover plain function types,
+  function pointers, and every cv- / ref- / =noexcept=-qualified member function
+  pointer; the primary template handles a functor or lambda by delegating to the
+  traits of its =operator()=. Each specialisation exposes a =return_type=, an
+  =arguments= =type_list=, an =arity=, an indexed =arg_t=, and an =is_noexcept=
+  flag. The =function_*= aliases are thin wrappers that strip a reference from =F=
+  and read those members, so prefer the aliases over touching =function_traits=
+  directly.
+
+* When to use it
+
+Reach for =function_traits= and the =function_*= aliases in generic code that must
+adapt to a callable's signature: building a tuple of its argument types, checking
+its arity, dispatching on its return type, or propagating its =noexcept=. Use
+=always_false_v= to make the =else= of an =if constexpr= chain reject unsupported
+types with a readable message, and =type_name<T>()= for diagnostic logging or test
+output, never as a key or stable identifier.
+
+The gotchas:
+
+- =function_traits= needs *one concrete* =operator()=. A generic lambda (one with
+  =auto= parameters) or any class with an overloaded or templated =operator()= has
+  no single signature, so it does not introspect; give it a concrete signature
+  first, for example by wrapping in a non-generic lambda.
+- =type_name<T>()= is a *diagnostic label, not a stable name*. The spelling is
+  compiler-dependent (it may carry an elaborated =struct= / =class= keyword,
+  differ in qualification or whitespace) and on compilers other than GCC/Clang it
+  returns an empty view, so never parse it or compare it for identity.
+- =function_arg_t<F, I>= triggers a =static_assert= when =I= is out of range, so
+  index within =function_arity_v<F>=.
+
 * Usage
 
 #+BEGIN_SRC cpp

@@ -18,6 +18,40 @@ guide, so there is zero runtime overhead; the one tradeoff is that the overload
 set must be unambiguous for every intended argument type, or the visit fails to
 compile.
 
+* How it works
+
+=overloaded<Ts...>= publicly inherits from every callable in the pack
+(=struct overloaded : Ts...=), so the merged object literally is all of the
+lambdas at once. The =using Ts::operator()...= pack-expansion brings each base's
+=operator()= into the derived class's overload set, and ordinary overload
+resolution then picks the right one per call. The deduction guide
+=overloaded(Ts...) -> overloaded<Ts...>= lets brace-init deduce the lambda types,
+so you write =overloaded{lambda_a, lambda_b}= without spelling them out. Because
+the lambdas are base subobjects (not stored members or =std::function=), nothing
+is type-erased, captures stay inline, and an empty-capture =overloaded= is itself
+empty.
+
+* When to use it
+
+Reach for =overloaded= whenever a =std::visit= would otherwise need a
+handwritten visitor struct: dispatching a =std::variant= of events, messages, or
+AST nodes by alternative, where each arm is a short lambda. It also pairs well
+with a generic catch-all arm written as =[](auto const&) { ... }=, which matches
+any alternative not covered by a more specific lambda.
+
+Alternatives: a single generic lambda =[](auto&& x){ ... }= suffices when every
+alternative is handled the same way; a named visitor class is clearer when the
+arms are long or share helper state; an =if=/=else= chain on
+=std::holds_alternative= is fine for one or two cases.
+
+GOTCHAS. The overload set must be unambiguous and exhaustive for the variant:
+a missing alternative or an ambiguous match is a compile error at the visit, not
+a runtime fallthrough. When you do add a generic =auto= arm to handle the rest,
+the compiler stops warning about newly added alternatives, so you lose the
+exhaustiveness check, prefer explicit arms when you want that safety net. The
+helper is stateless: it captures only what its lambdas capture, and a captured
+reference must outlive the visit.
+
 * Usage
 
 #+BEGIN_SRC cpp

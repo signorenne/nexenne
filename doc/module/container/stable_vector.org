@@ -68,6 +68,73 @@ destructor destroys the live elements and frees the chunks.
 transparently, so a range-based =for= and the =std::ranges= algorithms work, but
 the elements are not one contiguous block, so there is no =data()=. =push_back=
 returns the stable pointer to the new element; =pop_back= returns =result<void>=.
+Each random access is a chunk lookup (=i >> log2(ChunkSize)=) plus a slot lookup
+(=i & (ChunkSize - 1)=) and two pointer hops, so it is =O(1)= but carries one
+more indirection than a contiguous vector.
+
+* Complexity
+
+| operation                       | cost            |
+|---------------------------------+-----------------|
+| push_back / emplace_back        | amortised O(1)  |
+| pop_back                        | O(1)            |
+| operator[], at, front, back     | O(1)            |
+| reserve                         | O(chunks added) |
+| shrink_to_fit                   | O(chunks freed) |
+| clear                           | O(size)         |
+| copy construct or assign        | O(size)         |
+| move construct                  | O(1)            |
+| swap                            | O(1)            |
+| iterate begin .. end            | O(n)            |
+| operator== / operator<=>        | O(n)            |
+
+A push is amortised =O(1)=: it constructs into the trailing chunk, allocating a
+fresh chunk only on a chunk boundary; the only reallocation is of the small
+=m_chunks= pointer vector, never of the chunks themselves. A move and =swap= are
+=O(1)= because they transfer the owning-pointer vector, not the elements, and
+preserve every element address.
+
+Memory overhead has two parts: the =m_chunks= pointer vector (one =unique_ptr=
+per allocated chunk) and the unused slots in the trailing chunk (up to
+=ChunkSize - 1= reserved =sizeof(T)= slots). Each chunk is a separate heap
+allocation, so the elements are scattered, not contiguous.
+
+* When to use it
+
+Reach for =stable_vector= when downstream code holds raw pointers or references
+to elements and those must not dangle across a push: entity/component pools whose
+systems cache =T*=, long-lived caches keyed by element address, append-only
+arenas whose handles outlive growth. It is the unique vector here whose element
+addresses are stable for the element's whole lifetime.
+
+It is the wrong choice when you need a contiguous block (it has no =data()= and
+cannot back a =std::span<T>= over all elements), when access is hot and the extra
+indirection per lookup matters, or when you need mid-sequence insert/erase (it is
+append/pop-back only). Prefer a sibling when:
+
+- you simply want a growable sequence and do not cache element addresses:
+  =std::vector=, or [[file:small_vector.org][small_vector]] when the size is usually small.
+- a hard upper bound is known and zero allocation is required: [[file:static_vector.org][static_vector]];
+  its addresses are also stable across pushes (storage is fixed inline), but a
+  move, swap, or assignment relocates its elements, whereas =stable_vector= keeps
+  addresses even across those.
+
+Reference, pointer, and iterator rules (the whole point of this container):
+
+- =push_back= / =emplace_back= never move an existing element: every prior
+  reference, pointer, and the stable =T*= they return stay valid for the
+  element's lifetime, across any number of subsequent pushes.
+- a move or =swap= transfers chunk ownership without moving memory, so element
+  addresses survive them too (only the owning container changes); this is unlike
+  every other vector here.
+- =reserve= grows only the =m_chunks= pointer vector and allocates empty chunks,
+  so it never touches live elements and preserves all addresses.
+- =pop_back=, =clear=, =shrink_to_fit=, and the destructor destroy elements (and
+  =shrink_to_fit= frees now-empty trailing chunks): references to destroyed
+  elements dangle, but surviving elements keep their addresses.
+- iterators hold the owner plus a logical position, so a push or pop changes
+  =size()= and shifts =end()=; an iterator into the live range stays valid for
+  traversal because the chunk it points at never moves.
 
 * Choosing a vector
 

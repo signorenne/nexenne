@@ -73,6 +73,74 @@ oldest element and =back()= the newest, each mapping through the same =wrap=.
 =head= in FIFO order, wrapping as it goes, so a range-based =for= visits oldest
 to newest. Construction, the pushes, pops, and access are all =constexpr=.
 
+=pop= returns the value by =result<T>= (it moves the front out, then destroys the
+slot), so the oldest element leaves in one call; there is no separate
+front-then-discard dance.
+
+** Moves and the canonical head
+
+Copy and =operator==-style construction rebuild the FIFO by pushing each element
+in order. A move walks the source from its =head=, reconstructing the elements
+into the destination starting at slot 0, so the moved-into buffer always has
+=head == 0= (a canonical layout) while the source is left empty. =swap= is built
+from those moves, so it is =O(N)=, not a pointer exchange.
+
+* Complexity
+
+| operation                       | cost     |
+|---------------------------------+----------|
+| push / emplace                  | O(1)     |
+| push_overwrite                  | O(1)     |
+| pop                             | O(1)     |
+| operator[], at, front, back     | O(1)     |
+| copy / move construct or assign | O(size)  |
+| swap                            | O(N)     |
+| clear                           | O(size)  |
+| iterate begin .. end            | O(size)  |
+
+The =wrap= behind every index is branch-light: a single mask when =N= is a power
+of two, otherwise a compare-subtract, never a modulo. Push, pop, and index access
+are exact =O(1)= (no growth path, so not amortised).
+
+Memory overhead is the unused slots: the object always occupies =N * sizeof(T)=
+plus three =size_t= indices (=head=, =tail=, =size=), whatever the live count.
+No heap block, no per-element bookkeeping.
+
+* When to use it
+
+Reach for =ring_buffer= when you want a bounded queue that recycles its storage
+instead of growing, and you want the overflow policy to be explicit:
+
+- =push= reports =container_error::full= so a producer can block, sleep, or drop:
+  bounded event and work queues.
+- =push_overwrite= evicts the oldest element to make room, so the buffer always
+  holds the most recent =N=: rolling windows, sample histories, rolling
+  statistics, last-=N= command history.
+
+It is the wrong choice when the capacity bound is unknown or must grow, when you
+need random insertion or erase in the middle, or when both ends and the middle
+see edits. Prefer a sibling when:
+
+- you need an unbounded or growable sequence: [[file:small_vector.org][small_vector]] (or =std::vector=).
+- you can prove a hard bound but want LIFO/random push_back rather than FIFO:
+  [[file:static_vector.org][static_vector]].
+- edits cluster at a moving cursor (text editing): [[file:gap_buffer.org][gap_buffer]].
+
+Reference, pointer, and iterator rules:
+
+- a slot never moves while its element sits in the buffer, so a reference or
+  pointer from =operator[]=, =at=, =front=, or =back= stays valid until that
+  element is popped or evicted (=push_overwrite= when full destroys the oldest
+  slot and reuses it).
+- =pop= and =push_overwrite=-on-full destroy an element, dangling any reference
+  to it; the other live elements keep their addresses.
+- iterators capture =head= and an offset, so a =push= or =pop= changes the
+  logical window and any outstanding iterator should be treated as invalidated
+  for traversal even though the underlying slots have not moved.
+- a move or =swap= reconstructs elements in new slots (and canonicalises =head=
+  to 0), so it invalidates all references, pointers, and iterators into both
+  buffers.
+
 * Usage
 
 #+BEGIN_SRC cpp

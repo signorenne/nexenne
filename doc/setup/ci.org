@@ -2,31 +2,61 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-[[file:../../.github/workflows/ci.yml][.github/workflows/ci.yml]] runs on every push and pull request to =main=. A PR
-merges only when every job is green. Compile-heavy jobs cache with ccache.
+[[file:../../.github/workflows/ci.yml][.github/workflows/ci.yml]] runs on every
+push and pull request to =main=. A PR merges only when every job is green.
+Concurrency is set so a new push to a ref cancels the in-flight run for it. All
+jobs run on =ubuntu-24.04=; the compile-heavy ones cache with ccache via
+=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache=.
 
-| job           | what it checks                                              |
-|---------------+-------------------------------------------------------------|
-| =format=      | clang-format is clean                                       |
-| =build-test=  | GCC build + =nexenne_tests=, warnings as errors             |
-| =build-clang= | Clang build (portability)                                   |
-| =asan=        | =nexenne_tests= under Address + UB sanitizers               |
-| =tidy=        | clang-tidy clean (=-warnings-as-errors=) once modules exist |
-| =docs=        | Doxygen builds with no documentation errors                 |
-| =install=     | install, then a consumer =find_package=s a module           |
+| job           | toolchain      | what it checks                                              |
+|---------------+----------------+------------------------------------------------------------|
+| =format=      | clang-format-18 | =clang-format-18 --dry-run --Werror= on all tracked =.hpp= / =.cpp= |
+| =build-test=  | gcc-14         | =ci= preset configure + build + =nexenne_tests=, warnings as errors |
+| =build-clang= | clang-18       | =ci= preset configure + build + =nexenne_tests= (portability) |
+| =asan=        | gcc-14         | =asan= preset build + =nexenne_tests= under Address + UB sanitizers |
+| =tidy=        | clang-18       | =run-clang-tidy-18 -p build/dev -warnings-as-errors='*'= on module sources |
+| =docs=        | gcc-14         | Doxygen build of =nexenne_docs= with no documentation errors |
+| =install=     | gcc-14         | install to a temp prefix, then a consumer =find_package=es a module |
 
-The =install= job runs [[file:../../scripts/install_smoke.sh][scripts/install_smoke.sh]], which scaffolds a throwaway
-module, installs to a temp prefix, and builds a consumer against it. Run it
-locally the same way: =bash scripts/install_smoke.sh=.
+* Job notes
 
-* Notes
+- =build-test= and =build-clang= use the =ci= preset, so they configure and
+  build with =NEXENNE_WARNINGS_AS_ERRORS=ON=. =build-clang= exists purely to
+  catch Clang-only diagnostics and portability issues.
+- =tidy= configures with the =dev= preset first (it needs
+  =compile_commands.json=), then lints only files under =modules/=. It is a
+  no-op until a module ships sources.
+- =docs= configures a separate =build/docs= tree with =-DNEXENNE_BUILD_DOCS=ON
+  -DNEXENNE_FETCH_DOXYGEN_IF_MISSING=OFF -DNEXENNE_BUILD_TESTS=OFF= and uses the
+  distro Doxygen package, so a missing Doxygen fails the job rather than
+  silently building one from source. See [[file:api-docs.org][API docs]].
+- =install= runs [[file:../../scripts/install_smoke.sh][scripts/install_smoke.sh]],
+  which scaffolds a throwaway module, installs the project to a temp prefix, and
+  builds a consumer that pulls the module both as =find_package(nexenne-<mod>)=
+  and =find_package(nexenne COMPONENTS <mod>)=. Run it locally the same way:
+  =bash scripts/install_smoke.sh=. See [[file:install.org][Install and consume]].
 
-- CI uses GCC 14 (runner availability); the project targets GCC 15. Bump the
-  workflow when a module needs a 15-only feature.
-- =docs= catches Doxygen errors (bad =@param=, =@return= on void, broken refs),
-  not completeness. "Every public symbol documented" stays a review item, see
+* Toolchain notes
+
+- CI builds with GCC 14 and Clang 18 (=ubuntu-24.04= availability); the project
+  is otherwise tested on GCC 15.2. Bump the workflow when a module needs a
+  feature only newer compilers provide.
+- The =docs= job catches Doxygen documentation /errors/ (a bad =@param=, a
+  =@return= on a =void= function, a broken reference), not completeness.
+  "Every public symbol documented" stays a review item, see
   [[file:api-docs.org][API docs]].
+
+* Local mirror
+
+The =ci= preset reproduces =build-test= locally, and the pre-push hook runs
+exactly it before code leaves the machine:
+
+#+BEGIN_SRC sh
+cmake --preset ci
+cmake --build --preset ci
+cmake --build --preset ci --target nexenne_tests
+#+END_SRC
 
 * See also
 
-[[file:hooks.org][Git hooks]], [[file:testing.org][Testing]], [[file:install.org][Install and consume]].
+[[file:hooks.org][Git hooks]], [[file:testing.org][Testing]], [[file:api-docs.org][API docs]], [[file:install.org][Install and consume]].

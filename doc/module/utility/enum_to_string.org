@@ -18,6 +18,51 @@ enumerators fall outside that window (including signed ones). Scoped enums used
 with the census helpers should have a fixed underlying type and enumerators within
 the scanned range. Holes and aliases are simply skipped.
 
+* How it works
+
+For a single literal enumerator =V=, =enum_name<V>()= stamps =V= into a templated
+function whose =__PRETTY_FUNCTION__= the compiler fills in as something like
+=... [with auto V = color::green]=. The code finds the =V = = marker, takes the
+trailing token, strips any =Namespace::Enum::= qualifier, and rejects compiler
+placeholders for unnamed values (which render as =(color)5= and so carry a
+parenthesis, a leading digit, or a minus). That gives a pure compile-time
+value-to-name with no table.
+
+The runtime and census helpers build that up across a range. They expand a fold
+over =[Min, Min + Range)=, instantiating =enum_name= for each integer cast to the
+enum: =enum_to_string= returns the name whose value matches, =enum_cast= returns
+the value whose name matches, =enum_count= counts the non-empty names, and
+=enum_values= gathers them into a =std::array= sized exactly to that count. The
+fold is built over =int=, not the underlying type, so a narrow underlying type
+(say =std::uint8_t= with =Range = 256=) does not overflow the sequence.
+
+* Complexity
+
+| operation                           | cost                          |
+|-------------------------------------+-------------------------------|
+| enum_name<V>()                      | O(1), pure compile time       |
+| enum_to_string / enum_cast          | O(Range) comparisons          |
+| enum_count / enum_values            | O(Range) parses, compile time |
+
+* When to use it
+
+Reach for this to log, serialise, or parse enum names without hand-maintaining a
+table that drifts from the enum: debug printing, config or CLI parsing back to an
+enumerator, iterating all enumerators of an enum. For a hand-curated mapping
+(names that differ from the source spelling, or a guaranteed-stable wire format)
+use an explicit [[file:constexpr_map.org][constexpr_map]] instead.
+
+Gotchas. GCC or Clang only: on any other compiler every name comes back empty and
+every cast =std::nullopt=, silently. The runtime and census helpers scan a fixed
+window of underlying values, =[0, 256)= by default: enumerators outside it are
+invisible, so widen =Range= and shift =Min= for large, sparse, or signed
+enumerators (a negative enumerator needs a negative =Min=). A wide =Range=
+multiplies template instantiations and compile time, so keep it just large enough.
+Use a fixed underlying type (=enum class color : std::uint8_t=) so the scanned
+casts are well-defined. Holes, alias enumerators, and unnamed placeholder values
+are skipped, not counted; duplicate-valued aliases collapse to one underlying
+value, so only one name is recoverable for it.
+
 * Usage
 
 #+BEGIN_SRC cpp

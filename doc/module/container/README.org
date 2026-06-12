@@ -4,15 +4,31 @@
 
 Header-only C++23 containers, fixed-capacity and dynamic, value and
 node-based, each picked individually and built on
-[[file:../utility/README.org][nexenne::utility]]. Each entry below links to a
+[[file:../utility/README.org][nexenne::utility]]. They favour explicit capacity,
+predictable addresses, and recoverable failure over the implicit growth and
+throwing interfaces of the standard containers. Each entry below links to a
 guide and a runnable example under
-[[file:../../../examples/container/][examples/container/]].
+[[file:../../../examples/container/][examples/container/]]; everything lives in
+=nexenne::container=.
 
-*Error policy.* Non-allocating operations are =noexcept=. An operation that can
-fail at a documented boundary (pop from empty, push when full, missing key)
-returns =result<T>= (=std::expected<T, container_error>=), never an exception.
-An operation whose only failure is allocation is =noexcept= and terminates on
-=std::bad_alloc=; pre-allocate with =reserve= when recovery is needed.
+*Error policy.* Failure is uniform and exception-free. Non-allocating operations
+are =noexcept=. An operation that can fail at a documented boundary (pop from
+empty, push when full, missing key) returns =result<T>=
+(=std::expected<T, container_error>=) rather than throwing, so the caller decides
+what to do. An operation whose only failure mode is allocation is =noexcept= and
+terminates on =std::bad_alloc=; when you need to recover from that, pre-allocate
+with =reserve= and check the boundary up front. The shared =container_error= enum
+and the =result<T>= alias live in the [[file:error.org][error]] guide below.
+
+*Choosing a category.* Pick by lifetime and access pattern. Reach for a /value
+container/ when you want elements stored by value with a flat layout, choosing
+=static_vector= or =small_vector= when the capacity is bounded and you want to
+avoid the heap, =stable_vector= when references must stay valid across growth,
+and =bag= or =bitset_dynamic= for set-like membership. Reach for a /sequence/
+when you push and pop at the ends (=deque=) or edit around a cursor
+(=gap_buffer=), a /priority queue/ (=heap=) when you want the largest element
+first, and an /arena/ when many short-lived objects share one bump-allocated
+region freed all at once.
 
 * Foundation
 

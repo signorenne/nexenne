@@ -11,6 +11,26 @@
 5. The =ci= preset must be green before a PR:
    =cmake --preset ci && cmake --build --preset ci --target nexenne_tests=.
 
+* Adding a component to a module
+
+Most work adds a single component to an existing module. The pattern mirrors the
+component name across the module's four trees:
+
+1. Header at =modules/<mod>/include/nexenne/<mod>/<name>.hpp=, with a multiline
+   =/** @file @brief */= block and Doxygen on every public symbol.
+2. Test at =modules/<mod>/tests/test_<name>.cpp= (doctest) covering the public
+   surface, edge cases, and =constexpr= use where it applies.
+3. Guide at =doc/module/<mod>/<name>.org= (purpose, how it works, complexity, when
+   to use it, usage) and a runnable example at =examples/<mod>/<name>.cpp=.
+4. Wire the name into the module =CMakeLists.txt= (the =HEADERS= list), the
+   umbrella header, =tests/CMakeLists.txt=, =examples/<mod>/CMakeLists.txt=, and
+   the module's doc =README.org=.
+
+Verify before committing: clang-format clean, the =ci= preset green, the =asan=
+preset clean, and the module's Doxygen docs build without warnings
+(=cmake -B build/docs -DNEXENNE_BUILD_DOCS=ON && cmake --build build/docs --target nexenne_<mod>_docs=).
+One component per commit, =feat(<mod>): add <name>=.
+
 * Local gates (git hooks)
 
 Enable once per clone: =git config core.hooksPath .githooks=. Then:
@@ -40,7 +60,7 @@ A PR merges only when every job is green:
 Subject line is =type(scope): description=:
 
 - =type= is the kind of change (table below).
-- =scope= is required, never omitted: a module name (=utility=, =math=) or an
+- =scope= is required, never omitted: a module name (=utility=, =container=) or an
   area (=cmake=, =docs=, =ci=, =template=, =headers=, =hooks=). Use =repo= for a
   genuinely repo-wide change.
 - =description= is short, lower-case, imperative, no trailing period.

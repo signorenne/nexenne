@@ -3,37 +3,62 @@
 #+STARTUP: showall
 
 Every external tool nexenne relies on, what it does here, and where to learn
-more. Most are fetched or installed automatically; you mainly need a C++23
-compiler and CMake.
+more. Most are fetched or installed automatically; to build you mainly need a
+C++23 compiler and CMake with Ninja.
 
 * Build
 
-- [[https://cmake.org/cmake/help/latest/][CMake]] (=>= 3.23) : the build system. Config in [[file:../../CMakeLists.txt][CMakeLists.txt]] and the
-  [[file:../../cmake/][cmake/]] helpers. Presets in [[file:../../CMakePresets.json][CMakePresets.json]].
-- [[https://ninja-build.org][Ninja]] : the build backend the presets generate for. Fast, parallel.
-- [[https://gcc.gnu.org][GCC]] 15 / [[https://clang.llvm.org][Clang]] 18+ : the C++23 compilers. CI builds with both.
-- [[https://cmake.org/cmake/help/latest/module/FetchContent.html][FetchContent]] : CMake module that pulls missing dependencies (doctest,
-  Doxygen) at configure time, so a fresh clone is self-contained.
+- [[https://cmake.org/cmake/help/latest/][CMake]] (=>= 3.23; presets need =>=
+  3.25) : the build system. Config in [[file:../../CMakeLists.txt][CMakeLists.txt]]
+  and the [[file:../../cmake/][cmake/]] helpers; presets in
+  [[file:../../CMakePresets.json][CMakePresets.json]]. See [[file:build-system.org][Build system]].
+- [[https://ninja-build.org][Ninja]] : the build backend every preset generates
+  for (the hidden =base= preset sets =Ninja=). Fast and parallel.
+- C++23 compilers : tested on [[https://gcc.gnu.org][GCC]] 15.2, with
+  [[https://clang.llvm.org][Clang]] 18+ and MSVC 19.40+ supported. CI builds with
+  GCC 14 and Clang 18 (runner availability). See [[file:ci.org][CI]].
+- [[https://cmake.org/cmake/help/latest/module/FetchContent.html][FetchContent]] :
+  the CMake module that pulls missing dependencies (doctest, optionally Doxygen)
+  at configure time, so a fresh clone is self-contained.
+- [[https://ccache.dev][ccache]] : compiler cache. Not required locally; CI sets
+  =-DCMAKE_CXX_COMPILER_LAUNCHER=ccache= to keep builds fast.
 
 * Test and quality
 
-- [[https://github.com/doctest/doctest][doctest]] : the unit-test framework (header-only, fetched). See [[file:testing.org][Testing]].
-- [[https://clang.llvm.org/docs/ClangFormat.html][clang-format]] (18+) : formatter. Rules in [[file:../../.clang-format][.clang-format]].
-- [[https://clang.llvm.org/extra/clang-tidy/][clang-tidy]] (18+) : static analysis + naming. Rules in [[file:../../.clang-tidy][.clang-tidy]].
-- [[https://clang.llvm.org/docs/AddressSanitizer.html][AddressSanitizer]] + [[https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html][UBSan]] : runtime memory and UB checks, via the
-  =asan= preset and the CI =asan= job.
+- [[https://github.com/doctest/doctest][doctest]] (=v2.4.11=, pinned via
+  =NEXENNE_DOCTEST_GIT_TAG=) : the unit-test framework, header-only and fetched
+  if not installed. See [[file:testing.org][Testing]].
+- [[https://clang.llvm.org/docs/ClangFormat.html][clang-format]] (minimum 18) :
+  the formatter. Options are pinned explicitly in
+  [[file:../../.clang-format][.clang-format]] for cross-version determinism. CI
+  uses =clang-format-18=.
+- [[https://clang.llvm.org/extra/clang-tidy/][clang-tidy]] (minimum 18) : static
+  analysis plus naming enforcement. Checks in
+  [[file:../../.clang-tidy][.clang-tidy]]; CI runs =run-clang-tidy-18=. See
+  [[file:conventions.org][Conventions]].
+- [[https://clang.llvm.org/docs/AddressSanitizer.html][AddressSanitizer]] +
+  [[https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html][UBSan]] :
+  runtime memory and UB checks, wired through the =asan= preset and the CI
+  =asan= job.
 
 * Docs
 
-- [[https://www.doxygen.nl][Doxygen]] : API docs from header comments (system or fetched). See [[file:api-docs.org][API docs]].
-- [[https://orgmode.org][Org mode]] : the format for all prose docs in this repo (this file included).
+- [[https://www.doxygen.nl][Doxygen]] (fetches =Release_1_12_0= when missing and
+  =NEXENNE_FETCH_DOXYGEN_IF_MISSING=ON=) : API docs from header comments. See
+  [[file:api-docs.org][API docs]].
+- [[https://orgmode.org][Org mode]] : the format for every prose doc in this repo
+  (this file included). No Markdown.
 
 * CI and developer tooling
 
-- [[https://docs.github.com/actions][GitHub Actions]] : CI. Workflow in [[file:../../.github/workflows/ci.yml][.github/workflows/ci.yml]], see [[file:ci.org][CI]].
-- [[https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks][Git hooks]] : the local gates in [[file:../../.githooks/][.githooks/]], see [[file:hooks.org][Git hooks]].
-- [[https://ccache.dev][ccache]] : compiler cache that keeps CI builds fast.
-- [[https://editorconfig.org][EditorConfig]] : baseline editor settings in [[file:../../.editorconfig][.editorconfig]].
+- [[https://docs.github.com/actions][GitHub Actions]] : CI. Workflow in
+  [[file:../../.github/workflows/ci.yml][.github/workflows/ci.yml]]; see [[file:ci.org][CI]].
+- [[https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks][Git hooks]] : the
+  local format and build/test gates in [[file:../../.githooks/][.githooks/]]; see
+  [[file:hooks.org][Git hooks]].
+- [[https://editorconfig.org][EditorConfig]] : baseline editor settings (LF, two
+  spaces, trim trailing whitespace) in [[file:../../.editorconfig][.editorconfig]];
+  line-ending normalization in [[file:../../.gitattributes][.gitattributes]].
 
 * Licensing
 
@@ -41,4 +66,4 @@ compiler and CMake.
 
 * See also
 
-[[file:build-system.org][Build system]], [[file:ci.org][CI]], [[file:../README.org][knowledge base index]].
+[[file:build-system.org][Build system]], [[file:ci.org][CI]], [[file:conventions.org][Conventions]], [[file:README.org][setup index]].

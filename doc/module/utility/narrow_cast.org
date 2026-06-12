@@ -18,6 +18,40 @@ tradeoff is that the safety net is debug-only: it documents intent and catches
 mistakes in testing at zero release-build cost, but it does not throw or clamp in
 production.
 
+* How it works
+
+=narrow_cast<To>(from)= performs =static_cast<To>(from)= and, in debug builds,
+runs two checks before returning the result:
+
+1. A *round-trip* check: =static_cast<From>(result) == from=. If narrowing lost
+   information, casting back will not reproduce the original, and the assert
+   fires.
+2. A *sign* check, only when exactly one of =To= and =From= is signed and neither
+   is floating point: the result and the source must have the same sign. This
+   catches the case the round trip alone would wave through, for example
+   =narrow_cast<unsigned>(-1)=, which round-trips cleanly through the maximum value
+   yet is almost always a bug.
+
+Both operands must be arithmetic (a =requires= clause enforces it), the function
+is =constexpr= and =noexcept=, and the result is =[[nodiscard]]=. Under =NDEBUG=
+the asserts vanish and the call compiles to exactly the underlying =static_cast=,
+so there is no release-build cost.
+
+* When to use it
+
+Reach for =narrow_cast= at a deliberate narrowing: storing a =std::size_t= length
+in an =int= field, packing a wide counter into a smaller wire type, indexing with
+a value you believe fits. It documents that the narrowing is intentional and turns
+a silent truncation into a loud failure during testing.
+
+The gotcha that surprises people is that the guarantee is *debug-only*. Under
+=NDEBUG= a value that does not fit is *silently* truncated exactly as a plain
+=static_cast= would, with no throw and no clamp. So =narrow_cast= is for values you
+*expect* to fit and want verified in testing, not for validating untrusted input:
+when an out-of-range value is genuinely possible at runtime, range-check it
+yourself and handle the failure (clamp, reject, or report), then narrow. It is
+also arithmetic-only and does not narrow pointers, enums, or class types.
+
 * Usage
 
 #+BEGIN_SRC cpp

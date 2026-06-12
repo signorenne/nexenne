@@ -57,6 +57,47 @@ copying it would rewind the same arena twice, and a discarded temporary would
 rewind immediately, doing nothing useful. Construct it as a named local that
 lives exactly as long as the block whose allocations it should release.
 
+* Complexity
+
+| operation                          | cost |
+|------------------------------------+------|
+| construct (snapshot bytes_used)    | O(1) |
+| destruct (rewind_to saved)         | O(1) |
+| allocate / emplace (forwarded)     | O(1) |
+| saved_offset / arena               | O(1) |
+
+Everything is =O(1)= and forwards to the arena; the scratch_pad itself adds no
+storage beyond a reference and one saved =size_type= offset, and no per-object
+tracking.
+
+* When to use it
+
+Reach for =scratch_pad= whenever a block needs temporary allocations from a bump
+allocator and you want them released automatically on the way out, on a normal
+return, an early return, or an exception alike. It turns a manual
+=arena.rewind_to(saved)= into a scoped, hard-to-misuse pattern: take the
+checkpoint on entry, restore it in the destructor. Scratch pads nest, so an
+inner pad releases before an outer one.
+
+It pairs with [[file:linear_arena.org][linear_arena]] (or any type meeting the
+=checkpointable_arena= concept, exposing =size_type=, =bytes_used()=, and
+=rewind_to()=). Use the arena's own =reset= instead when you want to drop *all*
+allocations rather than just those since a checkpoint; use a bare =rewind_to=
+only when a scope does not match the lifetime you need.
+
+Lifetime and invalidation rules:
+
+- Construct it as a *named local*. It is non-copyable, non-movable, and
+  =[[nodiscard]]=: a copy would rewind the same arena twice and a discarded
+  temporary would rewind immediately, releasing nothing useful.
+- On destruction the arena rewinds to the saved offset, invalidating every
+  pointer allocated through the pad (or on the arena directly) since
+  construction. The rewind runs *no* destructors, so a non-trivially-
+  destructible object built in scratch storage must be =std::destroy_at='d
+  before the pad leaves scope, or it leaks.
+- The wrapped arena outlives the pad: it holds a reference, so the arena must
+  stay alive for the pad's whole scope.
+
 * Usage
 
 #+BEGIN_SRC cpp

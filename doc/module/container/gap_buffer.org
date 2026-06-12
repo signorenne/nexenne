@@ -69,6 +69,40 @@ order regardless of where the gap sits. =operator=== and =operator<=>= compare
 the logical sequences, so two buffers with the same contents but different cursor
 positions compare equal.
 
+* Complexity
+
+| operation                       | cost           |
+|---------------------------------+----------------|
+| insert / emplace at the cursor  | O(1) amortised |
+| erase_forward / erase_backward  | O(1)           |
+| move_cursor_to / move_cursor_by | O(distance)    |
+| operator[], at, front, back     | O(1)           |
+| iterate begin .. end            | O(n)           |
+| operator== / operator<=>        | O(n)           |
+| grow (gap exhausted)            | O(n) amortised |
+
+Memory overhead is the gap: between =initial_gap= (16) and the high-water gap
+size worth of unused slots, each a default-constructed =T=. =shrink_to_fit=
+closes the gap and returns that storage.
+
+* When to use it
+
+Reach for =gap_buffer= when edits cluster around one position that moves slowly:
+text and code editors, REPL input lines, command history, undo/redo timelines.
+It is the wrong choice when edits scatter across a large sequence, since each far
+jump pays =O(distance)= and a run of random edits degrades to =O(n)= apiece; a
+rope or balanced tree fits that better. For append-only or both-ends work prefer
+[[file:deque.org][deque]] or a plain vector, and for a fixed-capacity ring
+prefer [[file:ring_buffer.org][ring_buffer]].
+
+Two things to keep in mind. References, pointers, and iterators are invalidated
+by any cursor move (elements physically shift across the gap) and by a growth
+(the backing vector reallocates), so read an =operator[]= or =at= result before
+the next edit and do not hold an iterator across one. And erase is *logical*: the
+element is destroyed when its slot is later reused or when the buffer is
+destroyed, not at the erase call, so a =gap_buffer= of resource-holding types
+releases those resources lazily.
+
 * Usage
 
 #+BEGIN_SRC cpp
