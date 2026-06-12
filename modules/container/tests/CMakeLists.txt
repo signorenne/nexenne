@@ -6,6 +6,7 @@ nexenne_add_module_tests(container
         test_error.cpp
         test_gap_buffer.cpp
         test_heap.cpp
+        test_intrusive_list.cpp
         test_linear_arena.cpp
         test_object_pool.cpp
         test_ring_buffer.cpp

@@ -7,6 +7,7 @@ set(_container_examples
     error
     gap_buffer
     heap
+    intrusive_list
     linear_arena
     object_pool
     ring_buffer

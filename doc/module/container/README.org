@@ -48,6 +48,10 @@ region freed all at once.
 - [[file:deque.org][deque]] : growable double-ended queue, contiguous power-of-two ring.
 - [[file:gap_buffer.org][gap_buffer]] : text-editor buffer with a movable gap, O(1) edits at the cursor.
 
+* Linked structures
+
+- [[file:intrusive_list.org][intrusive_list]] : doubly-linked list with the links embedded in the element, O(1) erase.
+
 * Priority queues
 
 - [[file:heap.org][heap]] : binary heap over a vector, max-heap by default, configurable order.
