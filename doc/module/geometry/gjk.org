@@ -78,8 +78,12 @@ repeats:
    way, stop; otherwise add =w= and loop.
 
 The overlap verdict is decided by whether a separating direction is *ever* found:
-a single one proves the shapes are apart, so if the loop ends without having seen
-one, they intersect. Stopping early therefore never misjudges overlap.
+a single one proves the shapes are apart, so if the loop *converges* without
+having seen one, they intersect. A *convergence* stop therefore never misjudges
+overlap. The one exception is running out of iterations before either a
+separating direction or a convergence stop: that proves nothing, so GJK stays
+conservative there (see Termination) and reports overlap only when the terminal
+simplex actually encloses the origin.
 
 ** The signed-volumes distance subalgorithm
 
@@ -126,8 +130,12 @@ whatever simplex carried the origin.
 GJK stops when a probe finds no further progress (the closest point has converged,
 or the support repeats a vertex), or when the origin is enclosed in a tetrahedron.
 A hard iteration cap (default 32) guards against non-termination on degenerate
-input. The overlap verdict is the separating-axis flag, independent of which stop
-fired.
+input. When a real stop fires, the overlap verdict is the separating-axis flag.
+When instead the cap is exhausted with neither a separating direction nor a
+convergence stop, nothing is proven, so GJK does *not* default to overlap: it
+reports overlap only if the current simplex encloses the origin, and otherwise
+reports separated (never an unproven collision). The default cap is comfortable
+for every practical configuration, so this only matters to a caller who lowers it.
 
 * Complexity
 

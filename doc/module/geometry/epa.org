@@ -61,7 +61,14 @@ origin. Seeded with the four tetrahedron vertices and four faces, the loop:
    point of =A (-) B= that way.
 3. If the support point is no further out than the face (within a tolerance), the
    face is on the true surface: *converged*. Its normal is the penetration normal
-   and its distance the depth.
+   and its distance the depth. The tolerance is *relative to the current depth*,
+   not absolute: the Minkowski difference of two smooth shapes (two spheres, two
+   capsules) is itself smooth, so every face sits a curvature-dependent gap inside
+   the true surface, and an absolute floor would demand thousands of faces to
+   close it, silently dropping every smooth-pair contact. Scaling by the depth
+   lets a smooth pair converge in a bounded step count, while a flat contact (box
+   pairs), whose faces reach the surface exactly, still converges at once. The
+   default iteration cap is a safe backstop, higher than the flat case needs.
 4. Otherwise the surface is further out, so it *expands*: it adds the new vertex,
    deletes every face the vertex can see, and stitches the resulting hole (the
    horizon) to the new vertex with fresh faces. Then it repeats.
@@ -94,10 +101,14 @@ fixes.
 
 ** Contact points
 
-On convergence, the origin's projection onto the closest face is expressed in
-that face's [[file:triangle.org][barycentric coordinates]] (a Gram-matrix solve). Those same weights blend
-the three stored per-shape support points into the world-space contact points on
-A and on B, the deepest points of the contact.
+The origin's projection onto the closest face is expressed in that face's
+[[file:triangle.org][barycentric coordinates]] (a Gram-matrix solve), clamped to the triangle and
+renormalized so a projection that falls just off the face (when the true nearest
+boundary point is on an edge) does not extrapolate the blend off the shapes.
+Those same weights blend the three stored per-shape support points into the
+world-space contact points on A and on B, the deepest points of the contact. The
+same reconstruction runs whether EPA converged or hit its cap, so a non-converged
+result still carries real contact points.
 
 ** Contact manifolds
 
@@ -126,7 +137,7 @@ callers are unaffected.
 
 | quantity          | cost                                                      |
 |-------------------+-----------------------------------------------------------|
-| support queries   | one per iteration, default cap 32                         |
+| support queries   | one per iteration, default cap 64                         |
 | per iteration     | linear in the current face count (closest-face scan)      |
 | manifold          | 16 support probes plus a fixed Sutherland-Hodgman clip    |
 | memory            | the polytope, in std::vector (the one allocating routine) |
@@ -143,8 +154,9 @@ callers are unaffected.
   AABB-AABB), prefer that: it is exact and cheaper. EPA is for general convex
   shapes, especially [[file:convex_hull.org][hulls]].
 - The \c converged flag is part of the contract: on a degenerate input or if the
-  iteration cap is hit, the best-known face is still returned but \c converged is
-  \c false, so the caller can fall back.
+  iteration cap is hit, the best-known face is still returned, with its
+  reconstructed contact points (not a zeroed pair), but \c converged is \c false,
+  so the caller can fall back.
 
 * Usage
 
