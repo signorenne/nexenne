@@ -1,0 +1,84 @@
+#+TITLE: gap_buffer
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::gap_buffer<T>= is the classic text-editor buffer: a logical
+sequence stored in one backing vector with a movable gap of unused slots at the
+cursor. Inserting and erasing at the cursor are =O(1)= because they only resize
+the gap; random access stays =O(1)=; the cost is an =O(distance)= shift when the
+cursor moves.
+
+* The idea
+
+Editing is local: most keystrokes land near where the last one did. A plain
+=std::vector= makes an insert in the middle =O(n)= because every following
+element shifts. A gap buffer keeps the shift but pays it only when the cursor
+*moves*, not on every edit: it parks a block of free slots (the gap) right at the
+cursor so an insert just drops into the next free slot and a delete just widens
+the gap. Move the cursor once per edit session and a burst of edits there is each
+=O(1)=.
+
+* How it works
+
+** Layout
+
+The backing vector is read as three regions: the elements before the cursor, the
+gap, and the elements after. A logical index maps to a physical one by skipping
+the gap when it is at or past =gap_begin=.
+
+#+BEGIN_EXAMPLE
+gap_buffer<char> holding "hello", cursor after "he":
+
+  pre        gap                  post
+  +---+---+  +---+---+---+---+  +---+---+---+
+  | h | e |  | . | . | . | . |  | l | l | o |
+  +---+---+  +---+---+---+---+  +---+---+---+
+             ^                  ^
+        gap_begin (cursor)      gap_end
+
+  logical order: h e | l l o     (| marks the cursor)
+  physical(i) = i < gap_begin ? i : i + gap_size
+#+END_EXAMPLE
+
+** Editing at the cursor
+
+=insert= drops a value into =gap_begin= and advances it (the gap shrinks by one);
+=emplace= constructs the value first. =erase_forward= (the delete key) widens the
+gap to the right over the following element, and =erase_backward= (backspace)
+widens it to the left. All four are =O(1)=. Erase is a *logical* erase: it widens
+the gap over the element rather than destroying it, so the element's destructor
+runs when the slot is later reused by an insert or when the buffer is destroyed,
+not at the erase call. =shrink_to_fit= closes the gap and reclaims the storage.
+
+** Moving the cursor and growing
+
+=move_cursor_to= / =move_cursor_by= shift elements across the gap to reposition
+it, =O(distance)=, returning =container_error::out_of_range= for a position
+outside =[0, size()]=. When an insert finds the gap empty, the buffer grows it
+(doubling plus a base amount) by enlarging the vector and shifting the post
+region to the new tail, all in place. The gap slots hold default-constructed
+elements, which is why =T= must be default constructible.
+
+** Iteration and comparison
+
+=begin= / =end= give random-access iterators over the *logical* sequence, so
+iteration, =operator[]=, =front= / =back=, and the reverse iterators all read in
+order regardless of where the gap sits. =operator=== and =operator<=>= compare
+the logical sequences, so two buffers with the same contents but different cursor
+positions compare equal.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::gap_buffer<char> line;
+
+for (char const ch : "hello") { line.insert(ch); }   // O(1) each at the cursor
+if (line.move_cursor_to(2).has_value()) {            // reposition once
+  line.insert('!');                                  // O(1) burst of edits here
+}
+static_cast<void>(line.erase_backward());            // backspace, O(1)
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/gap_buffer.cpp][examples/container/gap_buffer.cpp]]

@@ -30,6 +30,7 @@ An operation whose only failure is allocation is =noexcept= and terminates on
 * Sequences
 
 - [[file:deque.org][deque]] : growable double-ended queue, contiguous power-of-two ring.
+- [[file:gap_buffer.org][gap_buffer]] : text-editor buffer with a movable gap, O(1) edits at the cursor.
 
 * Priority queues
 
