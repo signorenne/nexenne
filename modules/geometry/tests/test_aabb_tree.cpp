@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <random>
 #include <vector>
 
@@ -76,6 +77,19 @@ TEST_CASE("aabb_tree: remove drops the leaf and keeps the others") {
   hits = 0;
   t.query(make_box(5, 5, 5), [&](auto, std::uint32_t const&) noexcept { ++hits; });
   CHECK(hits == 1);
+}
+
+TEST_CASE("aabb_tree: remove releases the leaf payload") {
+  // M4 reproduction. A caller-chosen payload can own a resource, so remove must
+  // release it now, not pin it until the slot is reused. Track a shared_ptr.
+  using owning_tree = geo::aabb_tree<std::shared_ptr<int>, 3, float>;
+  auto t{owning_tree{}};
+  auto payload{std::make_shared<int>(7)};
+  REQUIRE(payload.use_count() == 1);
+  auto const h{t.insert(make_box(0, 0, 0), payload)};
+  CHECK(payload.use_count() == 2);  // the tree holds a copy.
+  CHECK(t.remove(h));
+  CHECK(payload.use_count() == 1);  // removal dropped the tree's copy.
 }
 
 TEST_CASE("aabb_tree: remove of an invalid handle returns false") {
