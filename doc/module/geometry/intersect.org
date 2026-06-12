@@ -24,6 +24,14 @@ The types are the usual aliases: =plane3=, =sphere3=, =circle2=, =obb2=, =obb3=,
 =aabb2=/=aabb3=, =ray2=/=ray3=, =segment2=/=segment3=, =triangle2=/=triangle3=,
 =capsule2=/=capsule3=, each with =_f= (float) and =_d= (double) suffixes.
 
+Every mixed pair is *symmetric in the argument order*: each asymmetric overload
+has a thin reversed-argument forwarder (=intersects(aabb, sphere3)= alongside
+=intersects(sphere3, aabb)=, =intersects(plane3, ray3)= alongside
+=intersects(ray3, plane3)=, and so on), so generic code that dispatches over a
+shape variant never has to remember a blessed order. The convention for =t= is:
+a *ray* query returns the smallest non-negative =t= (the half-line =t >= 0=),
+while a *segment* query confines the crossing to =t in [0, 1]=.
+
 * The idea
 
 Three threads run through the file. A *ray cast* substitutes the parametric ray
@@ -97,9 +105,12 @@ form of ray vs sphere.
 Moller and Trumbore (1997) solve =origin + t*dir = a + u*edge1 + v*edge2= for the
 barycentric =(u, v)= and the distance =t= in one shot via Cramer's rule, with
 =edge1 = b - a= and =edge2 = c - a=. The triple products are arranged so the
-determinant =a = dot(edge1, h)= with =h = dir x edge2= appears once; =|a| ~ 0=
-means the ray is parallel to the triangle's plane (miss). =u= and =v= are the
-barycentric coordinates, so the hit is inside the triangle exactly when
+determinant =a = dot(edge1, h)= with =h = dir x edge2= appears once; a
+near-parallel ray (=a= small *relative to* the edge-length product =|edge1|^2 *
+|edge2|^2=, not just exactly zero) is a miss, so a grazing ray cannot be turned
+into a hit at a huge, noise-dominated =t= by dividing through a tiny determinant.
+=u= and =v= are the barycentric coordinates, so the hit is inside the triangle
+exactly when
 =u >= 0=, =v >= 0=, and =u + v <= 1=; a final =t < 0= rejects an intersection
 behind the origin. Both face windings hit (no back-face culling).
 
@@ -231,6 +242,13 @@ ray. The =t=-only =intersects= overloads stay for callers that need nothing more
 - The OBB SAT overlaps for oriented-box collision; prefer the =constexpr= 3D and
   AABB-vs-OBB3 forms in compile-time contexts, and remember the 2D OBB queries
   are runtime only.
+
+There is deliberately no =intersects(ray, capsule)= (nor a capsule-vs-box or
+sphere-vs-obb overlap) here: the capsule ray query is not yet needed, and the
+general convex overlap route already covers a bool answer. For those pairs run
+[[file:gjk.org][GJK]] on the shapes' [[file:support.org][support]] mappings (=support(capsule3, dir)= exists), which
+answers overlap and distance for any convex pair; add a dedicated closed-form
+overload here only when a hot path measures GJK as too slow for it.
 
 * Usage
 
