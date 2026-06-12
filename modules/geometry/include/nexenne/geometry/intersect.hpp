@@ -227,7 +227,16 @@ intersects(ray<Real, 3> const& r, triangle<Real, 3> const& t) noexcept -> std::o
   auto const edge2{t.c() - t.a()};
   auto const h{nexenne::math::cross(r.direction(), edge2)};
   auto const a{nexenne::math::dot(edge1, h)};
-  if (nexenne::math::abs(a) <= Real{0}) {
+  // Reject a near-parallel ray, not just an exactly-zero determinant. \c a scales
+  // like the product of the two edge lengths, so the parallel test is relative to
+  // that product: a tiny determinant divided out (f = 1/a) would otherwise inflate
+  // a grazing miss into a hit at a huge, noise-dominated t. Comparing squares
+  // keeps the test allocation- and sqrt-free.
+  auto const parallel_eps{static_cast<Real>(1e-8)};
+  auto const scale_sq{
+    nexenne::math::length_squared(edge1) * nexenne::math::length_squared(edge2)
+  };
+  if (a * a <= parallel_eps * parallel_eps * scale_sq) {
     return std::nullopt;
   }
   auto const f{Real{1} / a};
@@ -443,7 +452,7 @@ template <std::floating_point Real, std::size_t N>
   nexenne::math::vector<Real, N> const& axis
 ) noexcept -> bool {
   // SAT: two convex boxes are disjoint iff some axis exists on which their
-  // projections do not overlap. Projected onto `axis`, each box is an interval of
+  // projections do not overlap. Projected onto axis, each box is an interval of
   // half-width projected_radius centered at its center's projection; they are
   // separated when the gap between centers exceeds the sum of the two half-widths.
   auto const center_dist{nexenne::math::abs(nexenne::math::dot(center_delta, axis))};
@@ -940,6 +949,286 @@ intersects(capsule<Real, N> const& a, capsule<Real, N> const& b) noexcept -> boo
   auto const [pa, pb]{closest_points(a, b)};
   auto const r_sum{a.radius() + b.radius()};
   return nexenne::math::distance_squared(pa, pb) <= r_sum * r_sum;
+}
+
+// Reversed-argument forwarders. Each asymmetric pair above is defined in one
+// argument order; these thin wrappers make \c intersects symmetric so generic
+// code (double dispatch over a shape variant) need not remember the blessed order
+// per pair. Every wrapper just swaps the arguments onto the primary overload.
+
+/**
+ * @brief Axis-aligned box vs sphere overlap (forwards to \c intersects(sphere, box)).
+ *
+ * @tparam Real Component type.
+ * @param box 3D box.
+ * @param s Sphere.
+ *
+ * @return \c true when the two overlap.
+ *
+ * @pre \p box is well-formed and \c s.radius() is non-negative.
+ * @post None.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(aabb<Real, 3> const& box, sphere3<Real> const& s) noexcept -> bool {
+  return intersects(s, box);
+}
+
+/**
+ * @brief Axis-aligned box vs circle overlap (forwards to \c intersects(circle, box)).
+ *
+ * @tparam Real Component type.
+ * @param box 2D box.
+ * @param c Circle.
+ *
+ * @return \c true when the two overlap.
+ *
+ * @pre \p box is well-formed and \c c.radius() is non-negative.
+ * @post None.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(aabb<Real, 2> const& box, circle2<Real> const& c) noexcept -> bool {
+  return intersects(c, box);
+}
+
+/**
+ * @brief Plane vs sphere overlap (forwards to \c intersects(sphere, plane)).
+ *
+ * @tparam Real Component type.
+ * @param pl Plane.
+ * @param s Sphere.
+ *
+ * @return \c true when the sphere straddles or touches the plane.
+ *
+ * @pre \c pl.normal() has unit length.
+ * @post None.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(plane3<Real> const& pl, sphere3<Real> const& s) noexcept -> bool {
+  return intersects(s, pl);
+}
+
+/**
+ * @brief 2D oriented box vs axis-aligned box overlap (forwards to \c intersects(aabb, obb)).
+ *
+ * @tparam Real Component type.
+ * @param o Oriented box.
+ * @param box Axis-aligned box.
+ *
+ * @return \c true when the two overlap.
+ *
+ * @pre \p box is well-formed.
+ * @post None.
+ *
+ * @note Runtime only: depends on \c std::sin / \c std::cos.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto intersects(obb2<Real> const& o, aabb<Real, 2> const& box) noexcept -> bool {
+  return intersects(box, o);
+}
+
+/**
+ * @brief 3D oriented box vs axis-aligned box overlap (forwards to \c intersects(aabb, obb)).
+ *
+ * @tparam Real Component type.
+ * @param o Oriented box.
+ * @param box Axis-aligned box.
+ *
+ * @return \c true when the two overlap.
+ *
+ * @pre \p box is well-formed and \c o.rotation() has unit length.
+ * @post None.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(obb3<Real> const& o, aabb<Real, 3> const& box) noexcept -> bool {
+  return intersects(box, o);
+}
+
+/**
+ * @brief Sphere vs capsule overlap (forwards to \c intersects(capsule, sphere)).
+ *
+ * @tparam Real Component type.
+ * @param s Sphere.
+ * @param cap Capsule.
+ *
+ * @return \c true when the two overlap.
+ *
+ * @pre \c cap.radius() and \c s.radius() are non-negative.
+ * @post None.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(sphere3<Real> const& s, capsule<Real, 3> const& cap) noexcept -> bool {
+  return intersects(cap, s);
+}
+
+/**
+ * @brief Circle vs 2D capsule overlap (forwards to \c intersects(capsule, circle)).
+ *
+ * @tparam Real Component type.
+ * @param c Circle.
+ * @param cap 2D capsule.
+ *
+ * @return \c true when the two overlap.
+ *
+ * @pre \c cap.radius() and \c c.radius() are non-negative.
+ * @post None.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(circle2<Real> const& c, capsule<Real, 2> const& cap) noexcept -> bool {
+  return intersects(cap, c);
+}
+
+/**
+ * @brief Plane vs ray intersection (forwards to \c intersects(ray, plane)).
+ *
+ * @tparam Real Component type.
+ * @param pl Plane.
+ * @param r Ray.
+ *
+ * @return The smallest non-negative hit distance \c t, or \c nullopt on a miss.
+ *
+ * @pre \c r.direction() and \c pl.normal() have unit length.
+ * @post When engaged the result is non-negative.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(plane3<Real> const& pl, ray<Real, 3> const& r) noexcept -> std::optional<Real> {
+  return intersects(r, pl);
+}
+
+/**
+ * @brief Axis-aligned box vs ray intersection (forwards to \c intersects(ray, box)).
+ *
+ * @tparam Real Component type.
+ * @tparam N Dimension (2 or 3).
+ * @param box Axis-aligned box.
+ * @param r Ray.
+ *
+ * @return The smallest non-negative entry distance \c t, or \c nullopt on a miss.
+ *
+ * @pre \c r.direction() has unit length for \c t to read as a distance.
+ * @post When engaged the result is non-negative.
+ */
+template <std::floating_point Real, std::size_t N>
+[[nodiscard]] constexpr auto
+intersects(aabb<Real, N> const& box, ray<Real, N> const& r) noexcept -> std::optional<Real> {
+  return intersects(r, box);
+}
+
+/**
+ * @brief Sphere vs ray intersection (forwards to \c intersects(ray, sphere)).
+ *
+ * @tparam Real Component type.
+ * @param s Sphere.
+ * @param r 3D ray.
+ *
+ * @return The smallest non-negative hit distance \c t, or \c nullopt on a miss.
+ *
+ * @pre \c r.direction() has unit length.
+ * @post When engaged the result is non-negative.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(sphere3<Real> const& s, ray<Real, 3> const& r) noexcept -> std::optional<Real> {
+  return intersects(r, s);
+}
+
+/**
+ * @brief Circle vs ray intersection (forwards to \c intersects(ray, circle)).
+ *
+ * @tparam Real Component type.
+ * @param c Circle.
+ * @param r 2D ray.
+ *
+ * @return The smallest non-negative hit distance \c t, or \c nullopt on a miss.
+ *
+ * @pre \c r.direction() has unit length.
+ * @post When engaged the result is non-negative.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(circle2<Real> const& c, ray<Real, 2> const& r) noexcept -> std::optional<Real> {
+  return intersects(r, c);
+}
+
+/**
+ * @brief Triangle vs ray intersection (forwards to \c intersects(ray, triangle)).
+ *
+ * @tparam Real Component type.
+ * @param t 3D triangle.
+ * @param r 3D ray.
+ *
+ * @return The hit distance \c t, or \c nullopt on a miss.
+ *
+ * @pre The triangle is non-degenerate.
+ * @post When engaged the result is non-negative.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(triangle<Real, 3> const& t, ray<Real, 3> const& r) noexcept -> std::optional<Real> {
+  return intersects(r, t);
+}
+
+/**
+ * @brief 2D oriented box vs ray intersection (forwards to \c intersects(ray, obb)).
+ *
+ * @tparam Real Component type.
+ * @param box 2D oriented box.
+ * @param r 2D ray.
+ *
+ * @return The hit distance \c t, or \c nullopt on a miss.
+ *
+ * @pre \c r.direction() has unit length.
+ * @post When engaged the result is non-negative.
+ *
+ * @note Runtime only: depends on \c std::sin / \c std::cos.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto
+intersects(obb2<Real> const& box, ray<Real, 2> const& r) noexcept -> std::optional<Real> {
+  return intersects(r, box);
+}
+
+/**
+ * @brief 3D oriented box vs ray intersection (forwards to \c intersects(ray, obb)).
+ *
+ * @tparam Real Component type.
+ * @param box 3D oriented box.
+ * @param r 3D ray.
+ *
+ * @return The hit distance \c t, or \c nullopt on a miss.
+ *
+ * @pre \c r.direction() and \c box.rotation() have unit length.
+ * @post When engaged the result is non-negative.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+intersects(obb3<Real> const& box, ray<Real, 3> const& r) noexcept -> std::optional<Real> {
+  return intersects(r, box);
+}
+
+/**
+ * @brief Plane vs segment intersection (forwards to \c intersects(segment, plane)).
+ *
+ * @tparam Real Component type.
+ * @param pl Plane.
+ * @param seg 3D segment.
+ *
+ * @return The intersection point, or \c nullopt when parallel or same-side.
+ *
+ * @pre \c pl.normal() has unit length.
+ * @post When engaged the result lies on both \p seg and \p pl.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto intersects(
+  plane3<Real> const& pl, segment<Real, 3> const& seg
+) noexcept -> std::optional<nexenne::math::vector<Real, 3>> {
+  return intersects(seg, pl);
 }
 
 }  // namespace nexenne::geometry
