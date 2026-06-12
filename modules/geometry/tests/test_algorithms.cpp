@@ -266,7 +266,7 @@ TEST_CASE("epa: moving B out by depth*normal separates the shapes") {
 }
 
 TEST_CASE("epa: depth tracks the overlap amount across offsets") {
-  // Equal cubes (size 1) offset along x by `off` overlap by 1 - off on x.
+  // Equal cubes (size 1) offset along x by off overlap by 1 - off on x.
   for (auto const off : {0.2f, 0.4f, 0.6f, 0.8f}) {
     auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
     auto const vb{cube_vertices(vec3{off, 0, 0}, 0.5f)};
@@ -384,6 +384,53 @@ TEST_CASE("gjk: distance is found regardless of the seed direction") {
     CHECK_FALSE(r.overlap);
     CHECK(r.distance == doctest::Approx(2.0f).epsilon(1e-3));  // 4 - 1 - 1.
   }
+}
+
+TEST_CASE("epa: two overlapping unit spheres converge with the default parameters") {
+  // C1 reproduction. The Minkowski difference of two unit spheres is a sphere, so
+  // every polytope face sits a curvature gap inside the true surface: an absolute
+  // convergence floor never closes it at the cap, silently dropping the contact.
+  // With a relative floor and the raised cap, EPA converges on the analytic depth
+  // (radius sum 2 minus the 0.3 center gap = 1.7). Fails before the fix
+  // (converged == false), passes after.
+  geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
+  geo::sphere3_f const b{vec3{0.3f, 0, 0}, 1.0f};  // centers 0.3 apart, deep overlap
+  auto const g{geo::gjk<float>(a, b, vec3{1, 0, 0})};
+  REQUIRE(g.overlap);
+  auto const e{geo::epa<float>(a, b, g.simplex)};  // DEFAULT max_iterations / tolerance
+  CHECK(e.converged);
+  CHECK(e.penetration_depth == doctest::Approx(1.7f).epsilon(0.02f));  // 2 - 0.3.
+  CHECK(nm::length(e.normal) == doctest::Approx(1.0f).epsilon(1e-3));
+  CHECK(e.normal.x() > 0.9f);  // separation runs out of A toward B along +x.
+}
+
+TEST_CASE("epa: a non-converged result still reports the best face's contact points") {
+  // M2 reproduction. Force non-convergence with a tiny cap on the smooth sphere
+  // pair; the result must still carry the reconstructed contact points on each
+  // surface, not the value-initialized origin. Before the fix both contacts are
+  // (0, 0, 0); after, they lie out on the shapes.
+  geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
+  geo::sphere3_f const b{vec3{0.3f, 0, 0}, 1.0f};
+  auto const g{geo::gjk<float>(a, b, vec3{1, 0, 0})};
+  REQUIRE(g.overlap);
+  auto const e{geo::epa<float>(a, b, g.simplex, 4)};  // cap too small to converge
+  REQUIRE_FALSE(e.converged);
+  CHECK(nm::length(e.contact_point_a) > 0.1f);  // not the zeroed origin.
+  CHECK(nm::length(e.contact_point_b) > 0.1f);
+}
+
+TEST_CASE("gjk: a too-small iteration cap does not misreport separated shapes as overlapping") {
+  // M1 reproduction. On cap exhaustion the verdict must not default to overlap:
+  // it comes from whether the terminal simplex actually encloses the origin. Two
+  // clearly-separated spheres (gap 0.5) with a one-iteration cap and an unhelpful
+  // seed reported overlap before the fix; now they report separated.
+  geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
+  geo::sphere3_f const b{vec3{2.5f, 0, 0}, 1.0f};  // gap of 0.5 between the surfaces
+  CHECK_FALSE(geo::gjk<float>(a, b, vec3{0, 1, 0}, 1).overlap);  // tiny cap, bad seed
+  // A comfortable cap agrees (and reports the analytic distance).
+  auto const r{geo::gjk<float>(a, b, vec3{0, 1, 0})};
+  CHECK_FALSE(r.overlap);
+  CHECK(r.distance == doctest::Approx(0.5f).epsilon(1e-3));
 }
 
 }  // namespace
