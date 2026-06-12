@@ -36,10 +36,11 @@
  * payload type is caller-chosen.
  */
 
+#include <array>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <limits>
 #include <optional>
 #include <type_traits>
@@ -191,16 +192,15 @@ public:
    * @param new_bounds New world box.
    *
    * @return \c true when the tree was restructured; \c false when the move fit
-   *         the fat box or \p h was invalid.
+   *         the fat box (the only false case, so it is unambiguous, unlike a
+   *         stale handle, which is a precondition violation, not a return value).
    *
-   * @pre \p new_bounds is well-formed.
+   * @pre \p h is a live leaf handle and \p new_bounds is well-formed.
    * @post After a restructure the leaf's fat box contains \p new_bounds;
    *       \c size() is unchanged.
    */
   auto update(handle_type const h, bounds_type const& new_bounds) noexcept -> bool {
-    if (h >= m_nodes.size() || !m_nodes[h].is_leaf()) {
-      return false;
-    }
+    assert(h < m_nodes.size() && m_nodes[h].is_leaf() && "update() requires a live leaf handle");
     if (contains_aabb(m_nodes[h].bounds, new_bounds)) {
       return false;  // still inside the fat box: no work.
     }
@@ -245,12 +245,24 @@ public:
    */
   template <typename Visitor>
   auto query(bounds_type const& region, Visitor&& visitor) const noexcept -> void {
+    // The visitor's return type must be exactly void (always continue) or bool
+    // (return false to stop early); anything else (int, a wider type) would be
+    // silently ignored, so pruning would quietly not happen. Make that loud.
+    using result_type =
+      decltype(visitor(std::declval<handle_type>(), std::declval<payload_type const&>()));
+    static_assert(
+      std::is_void_v<result_type> || std::is_same_v<result_type, bool>,
+      "aabb_tree::query visitor must return void or bool"
+    );
     if (m_root == null_handle) {
       return;
     }
     // An inline stack avoids the heap for the logarithmic depth of a balanced
-    // tree; 64 holds far more than any realistic node count's depth.
-    handle_type stack[64];
+    // tree; 64 holds far more than any realistic node count's depth (an
+    // AVL-balanced tree of depth 62 would need about 2^43 leaves, past the handle
+    // space), and an assert guards the impossible overflow rather than silently
+    // dropping a subtree.
+    auto stack{std::array<handle_type, 64>{}};
     auto top{std::size_t{0}};
     stack[top++] = m_root;
     while (top != 0) {
@@ -260,7 +272,7 @@ public:
         continue;
       }
       if (n.is_leaf()) {
-        if constexpr (std::is_same_v<decltype(visitor(idx, n.payload)), bool>) {
+        if constexpr (std::is_same_v<result_type, bool>) {
           if (!visitor(idx, n.payload)) {
             return;
           }
@@ -268,12 +280,9 @@ public:
           visitor(idx, n.payload);
         }
       } else {
-        if (top + 1 < std::size(stack)) {
-          stack[top++] = n.child_a;
-        }
-        if (top + 1 < std::size(stack)) {
-          stack[top++] = n.child_b;
-        }
+        assert(top + 2 <= stack.size() && "aabb_tree::query traversal stack overflow");
+        stack[top++] = n.child_a;
+        stack[top++] = n.child_b;
       }
     }
   }
@@ -297,10 +306,22 @@ public:
    */
   template <typename Visitor>
   auto raycast(ray_type const& r, Real max_t, Visitor&& visitor) const noexcept -> void {
+    // The visitor's return type must be exactly void (leave max_t) or Real (the
+    // new working max_t); any other type (bool, a double on a float tree) would be
+    // silently ignored, so max_t pruning would quietly not happen. Make that loud.
+    using result_type = decltype(visitor(
+      std::declval<handle_type>(), std::declval<payload_type const&>(), std::declval<Real>()
+    ));
+    static_assert(
+      std::is_void_v<result_type> || std::is_same_v<result_type, Real>,
+      "aabb_tree::raycast visitor must return void or Real"
+    );
     if (m_root == null_handle) {
       return;
     }
-    handle_type stack[64];
+    // See query() for the inline-stack bound; the assert guards the impossible
+    // overflow instead of silently dropping a subtree.
+    auto stack{std::array<handle_type, 64>{}};
     auto top{std::size_t{0}};
     stack[top++] = m_root;
     while (top != 0) {
@@ -311,18 +332,15 @@ public:
         continue;
       }
       if (n.is_leaf()) {
-        if constexpr (std::is_same_v<decltype(visitor(idx, n.payload, *hit)), Real>) {
+        if constexpr (std::is_same_v<result_type, Real>) {
           max_t = visitor(idx, n.payload, *hit);
         } else {
           visitor(idx, n.payload, *hit);
         }
       } else {
-        if (top + 1 < std::size(stack)) {
-          stack[top++] = n.child_a;
-        }
-        if (top + 1 < std::size(stack)) {
-          stack[top++] = n.child_b;
-        }
+        assert(top + 2 <= stack.size() && "aabb_tree::raycast traversal stack overflow");
+        stack[top++] = n.child_a;
+        stack[top++] = n.child_b;
       }
     }
   }
@@ -409,10 +427,15 @@ private:
    * @param idx Slot to free.
    *
    * @pre \p idx is a valid pool index not already free.
-   * @post \p idx is the new free-list head and reads as free.
+   * @post \p idx is the new free-list head, reads as free, and holds no payload.
    */
   auto free_node(handle_type const idx) noexcept -> void {
     m_nodes[idx].height = -1;
+    // Release the payload now, not on the slot's eventual reuse: a caller-chosen
+    // payload can own a resource (a shared_ptr, a handle), and a long-lived tree
+    // must not pin the resources of removed leaves until the slot happens to be
+    // reused.
+    m_nodes[idx].payload = payload_type{};
     m_nodes[idx].child_a = m_free_head;
     m_free_head = idx;
   }
