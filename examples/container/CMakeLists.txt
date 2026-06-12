@@ -13,6 +13,7 @@ set(_container_examples
     ring_buffer
     scratch_pad
     small_vector
+    sparse_set
     stable_vector
     static_vector
 )

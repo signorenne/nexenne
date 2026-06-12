@@ -1,0 +1,109 @@
+#+TITLE: sparse_set
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::sparse_set<Key>= is a set of unsigned integer keys with
+=O(1)= insert, erase, and membership test, plus contiguous, cache-friendly
+iteration of the live keys. It is the data structure behind sparse-set
+entity-component systems. =Key= defaults to =std::uint32_t=; the
+=sparse_set_u16= / =sparse_set_u32= / =sparse_set_u64= aliases name the common
+widths.
+
+* The idea
+
+A hash set gives =O(1)= membership but scatters its elements, so iterating them
+chases pointers. When the keys are dense integers you can do better: keep the
+live keys packed in one array for fast iteration, and a second array indexed by
+the key itself that says where each key sits in the packed one. Membership and
+position become a single array read, and iteration is a flat walk, all without
+hashing.
+
+* How it works
+
+** Two arrays
+
+=dense= holds the live keys contiguously. =sparse=, indexed by the key, holds
+each present key's position in =dense= (or =invalid_index= when the key is
+absent). The two point at each other: =sparse[k]= gives a dense slot, and that
+slot holds =k=.
+
+#+BEGIN_EXAMPLE
+sparse_set holding {10, 3, 42}:
+
+  dense:   [ 10 ][ 3 ][ 42 ]      live keys, packed
+  index:      0     1    2
+
+  sparse[10] = 0       sparse[3] = 1       sparse[42] = 2
+  sparse[k]  = invalid_index for every absent k
+
+  contains(k): sparse[k] is in range AND dense[sparse[k]] == k
+#+END_EXAMPLE
+
+** The operations
+
+=insert(k)= appends =k= to =dense= and records the position in =sparse[k]=,
+growing =sparse= to =k + 1= if needed. =erase(k)= swaps =k= with the last dense
+key, pops, and fixes the moved key's =sparse= entry, so it is =O(1)= but changes
+dense order. =contains(k)= range-checks =sparse[k]= and confirms the dense slot
+still holds =k=, which is the trick that makes a stale =sparse= entry, left over
+from an earlier key, never read as present.
+
+** Reading positions and iterating
+
+=index_of(k)= returns the dense position (or =std::nullopt=), stable until the
+next =erase= or =clear=; pairing it with a parallel value array is how you build
+a key-to-value map. =find= and =count= mirror the =std::set= spelling. =keys()=
+exposes the dense array as a =std::span=, and =begin()= / =end()= iterate it
+read-only (the values are the keys, so they cannot be mutated in place).
+
+* Complexity
+
+| operation                          | cost        |
+|------------------------------------+-------------|
+| insert / erase / contains          | O(1)        |
+| index_of / find / count            | O(1)        |
+| iterate keys() / begin .. end      | O(size)     |
+| clear                              | O(size)     |
+| reserve / shrink_to_fit / swap     | O(1) amort. |
+
+Memory is =O(max_key + size)=: =dense= is one key per live element, but =sparse=
+grows to the largest key ever inserted, so a single key of one million reserves a
+million-entry sparse array. Keep keys dense from 0, or trim with
+=shrink_to_fit=.
+
+* When to use it
+
+Reach for =sparse_set= when keys are dense integer ids and you want both =O(1)=
+membership and a fast walk over the members: ECS entity tags and component
+masks, "dirty" or "active" id sets, and graph visited-sets over node indices.
+Versus =std::unordered_set= it never hashes and iterates contiguously, at the
+cost of =O(max_key)= memory; versus a [[file:bag.org][bag]] it enforces uniqueness and answers
+=contains= in =O(1)= rather than by scanning.
+
+Things to keep in mind:
+
+- *Memory tracks the largest key.* A sparse key space wastes memory; reuse ids
+  densely from 0, or call =shrink_to_fit=.
+- *Erase reorders.* Swap-pop moves the last key into the erased slot, so dense
+  order is not insertion order after an erase, and an =index_of= result is stable
+  only until the next =erase= or =clear=.
+- *Iteration is read-only and fragile.* The keys cannot be mutated through the
+  iterators or =keys()= span, and any mutation invalidates them.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::sparse_set_u32 active;
+
+active.insert(entity);                 // O(1)
+if (active.contains(entity)) { ... }   // O(1)
+active.erase(entity);                  // O(1), swap-pop
+
+for (auto const id : active.keys()) {  // contiguous, cache-friendly
+  update(id);
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/sparse_set.cpp][examples/container/sparse_set.cpp]]
