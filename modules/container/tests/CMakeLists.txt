@@ -2,6 +2,7 @@ nexenne_add_module_tests(container
     SOURCES
         test_bag.cpp
         test_bitset_dynamic.cpp
+        test_dense_map.cpp
         test_deque.cpp
         test_error.cpp
         test_flat_hash_map.cpp

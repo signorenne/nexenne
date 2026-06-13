@@ -7,6 +7,7 @@
 
 #include <nexenne/container/bag.hpp>
 #include <nexenne/container/bitset_dynamic.hpp>
+#include <nexenne/container/dense_map.hpp>
 #include <nexenne/container/deque.hpp>
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/flat_hash_map.hpp>
