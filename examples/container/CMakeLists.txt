@@ -13,6 +13,7 @@ set(_container_examples
     flat_map
     flat_set
     gap_buffer
+    graph
     heap
     intrusive_list
     linear_arena

@@ -51,6 +51,7 @@ region freed all at once.
 * Linked structures
 
 - [[file:intrusive_list.org][intrusive_list]] : doubly-linked list with the links embedded in the element, O(1) erase.
+- [[file:graph.org][graph]] : directed adjacency-list graph, dense vertex ids, optional edge payload.
 
 * Ordered associative
 

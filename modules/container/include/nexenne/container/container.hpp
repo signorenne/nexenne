@@ -17,6 +17,7 @@
 #include <nexenne/container/flat_map.hpp>
 #include <nexenne/container/flat_set.hpp>
 #include <nexenne/container/gap_buffer.hpp>
+#include <nexenne/container/graph.hpp>
 #include <nexenne/container/heap.hpp>
 #include <nexenne/container/intrusive_list.hpp>
 #include <nexenne/container/linear_arena.hpp>

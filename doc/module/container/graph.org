@@ -1,0 +1,133 @@
+#+TITLE: graph
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::graph<E, Vertex>= is a directed graph stored as an adjacency
+list: vertices are dense integer ids, and each vertex owns a contiguous list of
+outgoing edges, each edge carrying a target vertex and an optional payload \c E
+(a weight, a label, or nothing). It stores *topology and payload only*; adding a
+vertex, adding or removing an edge, and querying degree or adjacency are all the
+operations, and the views it exposes (=edges_of=, =neighbors=, =vertices=) plug
+straight into graph algorithms that live elsewhere.
+
+* The idea
+
+The two classic graph representations are the adjacency *matrix* (an N-by-N grid,
+=O(1)= edge test but =O(N^2)= memory, good for dense graphs) and the adjacency
+*list* (per-vertex lists of neighbours, =O(V+E)= memory, good for sparse graphs).
+Most real graphs are sparse, so this container uses adjacency lists. The
+refinement over a hand-rolled =vector<vector<...>>= is that vertex ids are typed
+and bounds-checked, edge counts are tracked, and the adjacency is handed out as
+contiguous =std::span= / lazy views so the standard algorithms apply directly.
+
+* How it works
+
+** Storage: a vector of edge lists
+
+The graph holds =m_adjacency=, a =vector= indexed by vertex id, where each
+element is the =vector= of that vertex's outgoing edges, plus a running
+=m_edge_count=. An edge record is the target vertex and (unless \c E is \c void) a
+payload; the \c void case specialises the record down to just the target, so a
+payload-free graph carries no per-edge overhead beyond the id.
+
+#+BEGIN_EXAMPLE
+graph<int> (int = edge weight), 4 vertices:
+
+  vertex  outgoing edge list (target, data)
+    0  -> [ (1, 5) ][ (2, 3) ]
+    1  -> [ (3, 2) ]
+    2  -> [ (3, 7) ]
+    3  -> [ ]                     m_edge_count = 4
+#+END_EXAMPLE
+
+** Vertices: dense, stable, append-only
+
+=add_vertex= returns the next id (the current vertex count) and appends an empty
+edge list; ids start at zero and never change, so a held id stays valid across
+any number of later insertions. There is no vertex removal: the dense-id scheme
+makes a true removal either =O(V)= (renumber everything) or hole-punching that
+breaks density, so the container leaves "removal" to the caller (mark a vertex
+dead in your own data). =contains(v)= is just =v < vertex_count()=.
+
+** Edges: bounds-checked add, scan-based remove and query
+
+=add_edge(from, to[, data])= bounds-checks both endpoints (returning
+=out_of_range= on a bad id), then pushes an edge record onto =from='s list and
+bumps the edge count, all amortised =O(1)=. Parallel edges and self-loops are
+allowed; an undirected edge is just two directed adds. =has_edge= and
+=remove_edge= scan =from='s list (=O(out-degree)=); =remove_edge= drops the first
+match.
+
+#+BEGIN_EXAMPLE
+add_edge(0, 2, 3):
+
+  bounds-check 0 and 2 -> ok
+  m_adjacency[0].push_back( (2, 3) )
+  ++m_edge_count
+#+END_EXAMPLE
+
+** Views: span, neighbours, vertex ids
+
+=edges_of(v)= returns a =std::span= straight over =v='s edge list (empty for an
+invalid =v=), so an algorithm reads the records with no copy. =neighbors(v)= is a
+lazy =transform= view of just the target ids, for traversals that ignore
+payloads. =vertices()= is a lazy =iota= range of every id. The graph deliberately
+does *not* model a range itself: "iterate a graph" is ambiguous (vertices? edges?
+a traversal?), so the caller picks a view explicitly. All views stay valid only
+until the next mutation of the underlying list.
+
+* Complexity
+
+| operation                              | cost              |
+|----------------------------------------+-------------------|
+| add_vertex                             | amortised O(1)    |
+| add_edge                               | amortised O(1)    |
+| has_edge / remove_edge                 | O(out-degree)     |
+| out_degree / edges_of / neighbors      | O(1) to form      |
+| contains / vertex_count / edge_count   | O(1)              |
+| operator==                             | O(V + E)          |
+
+Memory is =O(V + E)=: the per-vertex vectors plus their edges. A payload-free
+graph (\c E = \c void) stores only a target id per edge. =operator== compares the
+adjacency lists *positionally*, so two graphs are equal only when each vertex's
+edges were added in the same order, not merely as the same set.
+
+* When to use it
+
+Reach for =graph= when you need an editable directed graph with integer vertices:
+dependency and task graphs, scene graphs, body-to-body connectivity for island
+detection (hand the partition to [[file:union_find.org][union_find]]), or any topology you will run your
+own traversal over.
+
+Prefer an alternative when:
+
+- the graph is *dense* (edge count near V^2): an adjacency matrix gives =O(1)=
+  edge tests at =O(V^2)= memory, better for that regime.
+- you need *vertex removal* with id reuse: pair this with a [[file:slot_map.org][slot_map]] of vertex
+  payloads, or renumber outside the container.
+- you only need *disjoint-set* connectivity, not the topology: [[file:union_find.org][union_find]] answers
+  "same component?" in near-constant time without storing edges.
+
+Things to keep in mind:
+
+- *No vertex removal.* Ids are dense and stable by design; model a dead vertex in
+  your own state.
+- *Views are borrowed.* The span from =edges_of= and the =neighbors= view are
+  invalidated by the next mutation of that vertex's list; do not hold them across
+  an =add_edge= / =remove_edge=.
+- *Equality is order-sensitive*, comparing adjacency lists positionally rather
+  than as edge sets.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::graph<int> g{4};   // 4 vertices, int edge payload
+
+static_cast<void>(g.add_edge(0, 1, 5));   // O(1), out_of_range on a bad id
+for (auto const& e : g.edges_of(0)) { visit(e.target, e.data); }  // span
+for (auto const n : g.neighbors(0)) { visit(n); }                 // target ids
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/graph.cpp][examples/container/graph.cpp]]
