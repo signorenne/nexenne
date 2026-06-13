@@ -50,7 +50,7 @@ Reach for this to log, serialise, or parse enum names without hand-maintaining a
 table that drifts from the enum: debug printing, config or CLI parsing back to an
 enumerator, iterating all enumerators of an enum. For a hand-curated mapping
 (names that differ from the source spelling, or a guaranteed-stable wire format)
-use an explicit [[file:constexpr_map.org][constexpr_map]] instead.
+use a hand-built lookup table instead.
 
 Gotchas. GCC or Clang only: on any other compiler every name comes back empty and
 every cast =std::nullopt=, silently. The runtime and census helpers scan a fixed

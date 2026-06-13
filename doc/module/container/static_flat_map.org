@@ -124,10 +124,8 @@ Things to keep in mind:
 
 Because the whole interface is =constexpr=, a =constexpr= instance built from its
 initializer-list constructor is a compile-time constant lookup table, queried
-with =at= inside a constant expression. It is the mutable, capacity-bounded
-relative of the utility module's [[file:../utility/constexpr_map.org][constexpr_map]]: reach for =constexpr_map= for an
-immutable, exactly-sized table built from an array of pairs, and for
-=static_flat_map= when the same table must also be mutable at runtime.
+with =at= inside a constant expression, so one type serves both a
+build-once-then-read constant table and a map mutated at runtime.
 
 * Usage
 
