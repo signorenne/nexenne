@@ -97,8 +97,11 @@ private:
   constexpr auto emplace_overwrite(Args&&... args) noexcept -> void {
     if (m_size == N) {
       // Full: m_tail == m_head, so this slot holds the oldest element.
+      // Materialize the value before destroying that slot, so an argument
+      // aliasing the evicted element (push_overwrite(r[0])) stays valid.
+      T value{std::forward<Args>(args)...};
       std::destroy_at(value_ptr(m_tail));
-      std::construct_at(value_ptr(m_tail), std::forward<Args>(args)...);
+      std::construct_at(value_ptr(m_tail), std::move(value));
       m_head = advance(m_head);
       m_tail = advance(m_tail);
     } else {
