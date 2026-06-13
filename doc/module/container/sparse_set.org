@@ -41,22 +41,76 @@ sparse_set holding {10, 3, 42}:
   contains(k): sparse[k] is in range AND dense[sparse[k]] == k
 #+END_EXAMPLE
 
-** The operations
+** Insert, step by step
 
-=insert(k)= appends =k= to =dense= and records the position in =sparse[k]=,
-growing =sparse= to =k + 1= if needed. =erase(k)= swaps =k= with the last dense
-key, pops, and fixes the moved key's =sparse= entry, so it is =O(1)= but changes
-dense order. =contains(k)= range-checks =sparse[k]= and confirms the dense slot
-still holds =k=, which is the trick that makes a stale =sparse= entry, left over
-from an earlier key, never read as present.
+=insert(k)= first calls =contains(k)= so a duplicate is a no-op (it returns
+=false=). On a genuinely new key it grows =sparse= to =k + 1= entries if =k= is
+beyond the current length (filling the gap with =invalid_index=), then appends:
+the new dense slot is =dense.size()= (the current end), so it writes
+=sparse[k] = dense.size()= and only then pushes =k= onto =dense=. The order
+matters: the recorded position must be the index the key is about to occupy.
+After it, the two arrays again point at each other, =sparse[k]= names a slot and
+that slot holds =k=.
+
+#+BEGIN_EXAMPLE
+insert(7) into {10, 3, 42}:
+
+  before:  dense [ 10 ][ 3 ][ 42 ]        sparse[7] = invalid_index
+                    0     1    2
+
+  step 1:  sparse[7] = 3                  (3 == current dense.size())
+  step 2:  dense.push_back(7)
+
+  after:   dense [ 10 ][ 3 ][ 42 ][ 7 ]   sparse[7] = 3
+                    0     1    2    3
+#+END_EXAMPLE
+
+** Erase by swap-pop, step by step
+
+=erase(k)= keeps =dense= packed by moving the hole to the end. It reads
+=pos = sparse[k]=, takes =last_pos = dense.size() - 1=, and if =k= is not already
+the last key it copies the last key into =dense[pos]= and repairs that moved
+key's back-pointer with =sparse[moved_key] = pos=. Then it pops the (now
+duplicated) tail and sets =sparse[k] = invalid_index=. The =if (pos != last_pos)=
+guard skips the self-move when erasing the last key. The cost is =O(1)= because
+only one element ever moves, but dense order is no longer insertion order.
+
+#+BEGIN_EXAMPLE
+erase(3) from {10, 3, 42, 7}:
+
+  before:  dense [ 10 ][ 3 ][ 42 ][ 7 ]   sparse[3] = 1, sparse[7] = 3
+                    0     1    2    3
+
+  move 7 (the last key) into slot 1, fix its back-pointer:
+           dense [ 10 ][ 7 ][ 42 ][ 7 ]   sparse[7] = 1
+  pop the tail, mark 3 absent:
+           dense [ 10 ][ 7 ][ 42 ]        sparse[3] = invalid_index
+                    0     1    2
+#+END_EXAMPLE
+
+** Why a stale sparse entry is safe
+
+=sparse= is only ever grown and overwritten, never cleared per key on erase, so
+=sparse[k]= can keep pointing at some slot long after =k= is gone. The two-part
+=contains= check, =sparse[k]= in range AND =dense[sparse[k]] == k=, is what makes
+that harmless. After erasing =3= above, =sparse[3]= still reads =1=, but
+=dense[1]= now holds =7=, not =3=, so the equality fails and =3= reads as absent.
+This is the classic ABA guard: an index can be reused, but the dense slot
+co-confirms the identity, so a recycled or never-initialised =sparse= value can
+never be mistaken for a live key.
 
 ** Reading positions and iterating
 
-=index_of(k)= returns the dense position (or =std::nullopt=), stable until the
-next =erase= or =clear=; pairing it with a parallel value array is how you build
-a key-to-value map. =find= and =count= mirror the =std::set= spelling. =keys()=
-exposes the dense array as a =std::span=, and =begin()= / =end()= iterate it
-read-only (the values are the keys, so they cannot be mutated in place).
+=index_of(k)= returns the dense position (=std::optional=, =std::nullopt= when
+absent). That position is stable across further =insert= calls (they only append)
+but is invalidated by the next =erase= or =clear=, since swap-pop can move the
+key. To build a key-to-value map, keep a parallel value array indexed the same
+way as =dense= and read it at =index_of(k)=; on =erase= you mirror the same
+swap-pop on the value array to keep them aligned. =find= and =count= mirror the
+=std::set= spelling (an iterator or a =0=/=1= count). =keys()= exposes =dense= as
+a =std::span<Key const>=, and =begin()= / =end()= iterate it read-only: the dense
+values *are* the keys, and mutating one would desync its =sparse= entry, so
+=iterator= is a =const_iterator= by design.
 
 * Complexity
 
@@ -78,19 +132,35 @@ million-entry sparse array. Keep keys dense from 0, or trim with
 Reach for =sparse_set= when keys are dense integer ids and you want both =O(1)=
 membership and a fast walk over the members: ECS entity tags and component
 masks, "dirty" or "active" id sets, and graph visited-sets over node indices.
-Versus =std::unordered_set= it never hashes and iterates contiguously, at the
-cost of =O(max_key)= memory; versus a [[file:bag.org][bag]] it enforces uniqueness and answers
-=contains= in =O(1)= rather than by scanning.
+
+Choosing between the three nearby options:
+
+- *Versus =std::unordered_set=:* =sparse_set= never hashes (lookup is a direct
+  array index, not a hash plus bucket walk) and iterates contiguously rather than
+  chasing node pointers, so it wins on cache behaviour and on tight membership
+  loops. The trade is memory: it costs =O(max_key)= for =sparse= regardless of
+  how few keys are live, whereas =unordered_set= scales with the element count
+  and accepts any hashable key, not just dense integers.
+- *Versus a [[file:bag.org][bag]]:* a bag is a plain dynamic array, so =contains= is an =O(n)=
+  scan and duplicates are allowed. =sparse_set= enforces uniqueness and answers
+  =contains= and =erase= in =O(1)=, at the cost of the =sparse= array. Pick the
+  bag when you only ever append and iterate and never test membership; pick
+  =sparse_set= the moment you need fast =contains= or unique ids.
 
 Things to keep in mind:
 
-- *Memory tracks the largest key.* A sparse key space wastes memory; reuse ids
-  densely from 0, or call =shrink_to_fit=.
+- *Memory tracks the largest key, not the live count.* =sparse= grows to the
+  largest key ever inserted and never shrinks on its own, so one key of one
+  million reserves a million-entry array even if it is the only live key. Reuse
+  ids densely from 0 and call =shrink_to_fit= after a key space contracts.
 - *Erase reorders.* Swap-pop moves the last key into the erased slot, so dense
-  order is not insertion order after an erase, and an =index_of= result is stable
-  only until the next =erase= or =clear=.
-- *Iteration is read-only and fragile.* The keys cannot be mutated through the
-  iterators or =keys()= span, and any mutation invalidates them.
+  order is not insertion order after any interior erase. An =index_of= result and
+  any parallel value array stay valid across inserts but only until the next
+  =erase= or =clear=; if you keep a parallel array, mirror every swap-pop on it.
+- *Iteration is read-only and fragile.* The dense values are the keys, so neither
+  the iterators nor the =keys()= span let you mutate a key in place, and any
+  =insert=, =erase=, =clear=, or =shrink_to_fit= invalidates outstanding
+  iterators, spans, and =find= results.
 
 * Usage
 

@@ -20,13 +20,23 @@ carries exactly one link pair it can be in at most one list at a time.
 
 * How it works
 
-** Hook, sentinel, and circular links
+** Hook, sentinel, and the CRTP downcast
 
-Each element embeds a hook (one =prev= and one =next=) by deriving from
-=intrusive_list_hook<T>= (CRTP, so the iterator recovers =T= from the hook with a
-zero-cost downcast). The list itself holds one sentinel hook and is circular
-around it, so =begin()= / =end()= need no null check and a boundary insert is the
-same code as a middle insert.
+Each element embeds a hook, one =prev= pointer and one =next= pointer, by
+deriving =T= publicly from =intrusive_list_hook<T>=. The CRTP (the hook is
+templated on the deriving type) lets the iterator turn a hook pointer back into a
+=T*= with a plain =static_cast=: because the hook is a base subobject of =T=, the
+downcast is a compile-time address adjustment, no lookup and no stored type tag.
+A fresh hook is unlinked (both links null), and =is_linked()= just reports
+whether either link is non-null. The hook befriends =intrusive_list= so only the
+list may touch the raw links.
+
+The list object itself holds a single =sentinel= hook and keeps the ring
+*circular* through it: an empty list points the sentinel's =next= and =prev= at
+itself. =begin()= is =sentinel.next=, =end()= is the sentinel. Because the ring
+closes through the sentinel, no link is ever null while linked, so iteration and
+insertion never branch on null, and a boundary insert (front or back) runs the
+exact same four-pointer code as a middle insert.
 
 #+BEGIN_EXAMPLE
 intrusive_list<body>: the links live inside each body, around a sentinel
@@ -39,21 +49,48 @@ intrusive_list<body>: the links live inside each body, around a sentinel
        circular: sentinel.next = A, sentinel.prev = C
 #+END_EXAMPLE
 
-** Linking and unlinking
+** Walking a push and an erase
 
-=push_back= / =push_front= / =insert= splice an element in by rewriting four
-pointers; =erase(element)= unlinks it in =O(1)= straight from a reference, with no
-search, and =erase(iterator)= returns the following position. =pop_front= /
-=pop_back= unlink an end element and hand back a pointer to it (=nullptr= when
-empty), and =front= / =back= return the same nullable pointers. None of these
-destroy anything: the element survives, now unlinked.
+=insert(it, value)= (which =push_back= and =push_front= call with =end()= and
+=begin()=) splices =value= in just before =it= by rewriting *four* pointers. Let
+=next= be =it='s node and =prev= be =next->prev=; the list links =prev <-> value=
+and =value <-> next=, then bumps =size=. No node is allocated; the element's own
+embedded hook is the node.
 
-** Ownership and lifetime
+#+BEGIN_EXAMPLE
+insert value V before next N (prev P was N's old predecessor)
+
+  before:   ... P <----------> N ...
+  after:    ... P <--> V <--> N ...
+            link(P, V); link(V, N)   four pointer writes, then ++size
+#+END_EXAMPLE
+
+=erase(value)= is the payoff: given just a reference to an element, it unlinks it
+in =O(1)= with *no search*, because the element already knows its own neighbours.
+It links =value->prev= directly to =value->next= (closing the gap), nulls the
+element's two links so it reads as unlinked, and decrements =size=. A debug
+=assert= catches erasing an element that is not linked. =erase(iterator)= does
+the same and returns an iterator to the following element; =pop_front= /
+=pop_back= unlink the sentinel's neighbour and hand back a pointer (=nullptr=
+when empty). =front= / =back= return the same nullable pointers. None of these
+destroy anything: the element survives, now detached.
+
+** Ownership, lifetime, and move
 
 The list never allocates, copies, or destroys an element. =clear= and the
-destructor just detach every element (each becomes =is_linked() == false=); the
-caller still owns them. An element must therefore outlive its membership, and you
-must unlink it before its storage goes away.
+destructor walk the ring detaching every element (each becomes
+=is_linked() == false=) and reset the sentinel to empty; the caller still owns
+the elements. An element must therefore outlive its membership, and you must
+unlink it before its storage goes away.
+
+Move *detaches*. The list does not own nodes, so it is non-copyable but movable:
+a move-construct or move-assign =steal_from='s the source ring by re-pointing the
+destination sentinel at the source's first and last elements, then resets the
+source to empty, =O(1)=, no element touched. But the *element's* own move is
+different: a moved-to hook is left detached (its move constructor links nothing,
+its move assignment nulls both links), because the list still stores the
+*source's* address. Move the storage of a linked element and the list dangles at
+the old address: detach the element first.
 
 * Complexity
 
@@ -76,23 +113,46 @@ Reach for =intrusive_list= when you already hold the elements and want
 allocation-free, =O(1)= membership that you mutate by element pointer: active
 sets where an object cycles between lists each frame (physics islands,
 animations, pending commands), LRU chains where an element moves itself to the
-head, and ECS bookkeeping without a parallel map. Versus =std::list= it removes
-the per-node allocation and the erase-by-value search, at the cost of caller
-ownership and one list per element.
+head, and ECS bookkeeping without a parallel map.
 
-Things to keep in mind:
+=intrusive_list= versus =std::list=:
 
-- *Ownership is yours.* The list destroys nothing; an element must outlive its
-  membership, and you must unlink it before freeing its storage.
-- *One list at a time.* The hook holds a single link pair, so linking an element
-  into a second list while it is in another corrupts both. Use a separate hook
-  type per list role if an element must be in several at once.
-- *Moving an element detaches it.* The list stores the element's address, so a
-  moved-to element is left unlinked and a moved-from element that was still
-  linked dangles the list at the old address. Detach before moving.
-- *Stable otherwise.* Elements never relocate, so references and iterators stay
-  valid across other elements' inserts and erases; only the iterator to an erased
-  element is invalidated.
+- =std::list= *allocates* a node per =push= and *owns* the element (it lives in
+  that node); =intrusive_list= allocates nothing and owns nothing, the element is
+  the node.
+- =std::list::remove(value)= is =O(n)= (it searches); =intrusive_list::erase=
+  takes a reference or iterator you already hold and is =O(1)= with no search.
+- =std::list= can hold the same value type in many lists freely;
+  =intrusive_list= ties each element to one hook, hence one list at a time, and
+  needs =T= to derive from the hook up front.
+
+So pick =intrusive_list= when you hold pointers to the elements anyway and want
+free, immediate removal; pick =std::list= when you want a container that owns and
+allocates its values and a given value may sit in several lists.
+
+Gotchas:
+
+- *Ownership is yours.* The list destroys nothing, not even in its destructor; it
+  only detaches. An element must outlive its membership, and you must unlink it
+  (or destroy the list) before freeing the element's storage, or the ring points
+  into freed memory.
+- *One list at a time.* The hook holds a single link pair, so pushing an element
+  that is already linked corrupts both lists (the precondition is "not already
+  linked", and =insert= does not check it). If an element must belong to several
+  lists at once, give it several hooks, one per role, by deriving through distinct
+  hook bases.
+- *Moving an element detaches it.* The list stores the element's *address*. A
+  moved-to element is left unlinked (so it silently drops out of any list you
+  expected it in), and moving a still-linked element leaves the list pointing at
+  the old, now-vacated address, a dangling ring. Detach (=erase=) before moving
+  the element, or simply do not move linked elements.
+- *Stable otherwise.* Elements never relocate on insert or erase, so pointers,
+  references, and iterators to *other* elements stay valid across any number of
+  inserts and erases; only the iterator to the element you erased is invalidated.
+- *No bounds or membership check on erase.* =erase(value)= trusts that =value= is
+  in *this* list (the caller knows; the list does not verify beyond a debug
+  =assert= that it is linked at all). Erasing an element that belongs to a
+  different list corrupts that other list.
 
 * Usage
 

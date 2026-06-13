@@ -52,14 +52,54 @@ the gap over the element rather than destroying it, so the element's destructor
 runs when the slot is later reused by an insert or when the buffer is destroyed,
 not at the erase call. =shrink_to_fit= closes the gap and reclaims the storage.
 
-** Moving the cursor and growing
+** Moving the cursor
 
-=move_cursor_to= / =move_cursor_by= shift elements across the gap to reposition
-it, =O(distance)=, returning =container_error::out_of_range= for a position
-outside =[0, size()]=. When an insert finds the gap empty, the buffer grows it
-(doubling plus a base amount) by enlarging the vector and shifting the post
-region to the new tail, all in place. The gap slots hold default-constructed
-elements, which is why =T= must be default constructible.
+=move_cursor_to= / =move_cursor_by= reposition the gap by shifting elements
+across it, =O(distance)=, returning =container_error::out_of_range= for a target
+outside =[0, size()]= (=move_cursor_by= checks the signed target before
+delegating, so a negative overshoot is caught too). Moving *left* peels elements
+off the pre region and drops them onto the gap's right edge; moving *right* does
+the reverse. Walk one step left from the "hello" buffer above (cursor at 2):
+
+#+BEGIN_EXAMPLE
+move_cursor_to(1): one element ('e') crosses the gap left-to-right
+
+  before                          after
+  | h | e |. . . .| l | l | o |   | h |. . . .| e | l | l | o |
+        ^gb        ^ge                ^gb        ^ge
+                                  step: decrement gap_begin and gap_end,
+                                  buffer[gap_end] = move(buffer[gap_begin])
+#+END_EXAMPLE
+
+Each step does one move, so the gap "rolls" over the elements between the old and
+new cursor while its width stays constant. This is why a far cursor jump is
+=O(distance)=: you pay one move per element crossed, which is also why parking the
+cursor once per edit session and bursting edits there is the intended pattern.
+
+** Growing
+
+When an insert finds the gap empty (=gap_size() == 0=), =grow_gap= enlarges it.
+It computes the post-region count, picks a new gap width (the larger of the
+request and =gap_size * 2 + initial_gap=), resizes the backing vector, then
+relocates the post region to the new tail. The post elements move *back to front*
+(=j= from =post_count= down to 1) because the destination overlaps and sits
+strictly above the source, so copying high indices first avoids clobbering a
+not-yet-moved element. =gap_end= is then reset to where the post region now
+begins, which is what reopens the gap.
+
+#+BEGIN_EXAMPLE
+insert with gap empty: resize, then slide post to the tail (high index first)
+
+  before  | h | e | l | l | o |              (gap_size 0)
+  resize  | h | e | l | l | o | . . . . . .  (vector grown)
+  slide   | h | e | . . . . . . | l | l | o | (post moved right, gap reopened)
+            ^gb                  ^ge
+#+END_EXAMPLE
+
+The gap slots hold default-constructed elements (=resize= value-initializes the
+new tail and the vacated slots keep their moved-from objects), which is why =T=
+must be default constructible and why an insert *assigns* into =gap_begin= rather
+than constructing there.
 
 ** Iteration and comparison
 
@@ -88,20 +128,46 @@ closes the gap and returns that storage.
 * When to use it
 
 Reach for =gap_buffer= when edits cluster around one position that moves slowly:
-text and code editors, REPL input lines, command history, undo/redo timelines.
-It is the wrong choice when edits scatter across a large sequence, since each far
-jump pays =O(distance)= and a run of random edits degrades to =O(n)= apiece; a
-rope or balanced tree fits that better. For append-only or both-ends work prefer
-[[file:deque.org][deque]] or a plain vector, and for a fixed-capacity ring
-prefer [[file:ring_buffer.org][ring_buffer]].
+text and code editors, REPL input lines, command history, undo/redo timelines,
+single-cursor log or transcript views. The pattern it rewards is "move the cursor
+rarely, edit at it often"; the pattern it punishes is scattered random edits.
 
-Two things to keep in mind. References, pointers, and iterators are invalidated
-by any cursor move (elements physically shift across the gap) and by a growth
-(the backing vector reallocates), so read an =operator[]= or =at= result before
-the next edit and do not hold an iterator across one. And erase is *logical*: the
-element is destroyed when its slot is later reused or when the buffer is
-destroyed, not at the erase call, so a =gap_buffer= of resource-holding types
-releases those resources lazily.
+Choosing between the obvious candidates:
+
+- versus =std::vector=: reach for =gap_buffer= when inserts and erases happen
+  away from the end and cluster near one point; it turns =std::vector='s =O(n)=
+  middle insert into =O(1)= at the cursor (paying the shift once on a cursor
+  move, not on every edit). Reach for =std::vector= for append-only or
+  read-mostly data, where its zero overhead and no gap-shift logic win outright.
+- versus a rope (a balanced tree of chunks): reach for =gap_buffer= when the
+  edited region is small enough that =O(distance)= cursor moves are cheap and you
+  want one flat allocation, simple code, and =O(1)= random access. Reach for a
+  rope when the sequence is large *and* edits scatter, so that a gap buffer would
+  thrash on =O(distance)= jumps; a rope keeps both far edits and splits/joins
+  near-=O(log n)= at the cost of pointer chasing and a heavier implementation.
+- versus the siblings: for append-only or both-ends work prefer
+  [[file:deque.org][deque]]; for a fixed-capacity ring prefer
+  [[file:ring_buffer.org][ring_buffer]].
+
+Invalidation and stability gotchas:
+
+- A cursor move (=move_cursor_to= / =move_cursor_by=) physically shifts elements
+  across the gap, so it invalidates references, pointers, and iterators to the
+  elements it crossed; treat the whole logical sequence as relocated.
+- A growth reallocates the backing vector, invalidating *all* references,
+  pointers, and iterators. =reserve= up front to keep them stable across a known
+  number of inserts.
+- Even a plain =insert= or =erase= at the cursor shifts where the gap sits, so
+  read an =operator[]= or =at= result before the next edit and never hold an
+  iterator across one.
+- Erase is *logical*: =erase_forward= / =erase_backward= widen the gap over the
+  element rather than destroying it, so its destructor runs only when the slot is
+  reused by a later insert or when the buffer is destroyed. A =gap_buffer= of
+  resource-holding types therefore releases those resources lazily, which matters
+  for file handles, locks, or large buffers.
+- =operator[]= and =at= with an in-range or out-of-range index differ:
+  =operator[]= is unchecked, while =at= returns =nullptr= past =size()=, as do
+  =front= / =back= on an empty buffer.
 
 * Usage
 

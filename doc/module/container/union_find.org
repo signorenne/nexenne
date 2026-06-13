@@ -39,23 +39,66 @@ union_find{5} after unite(0, 1) then unite(1, 2):  sets {0,1,2}, {3}, {4}
       0   2
 #+END_EXAMPLE
 
-** find with path compression
+** find with path halving, step by step
 
-=find(i)= returns the root and flattens the path on the way: path halving points
-every other node at its grandparent, so the tree gets shorter with use and later
-finds are faster. Because of that rewrite, =find= *mutates* even though it reads
-like a query. =root_of(i)= is the =const= alternative that computes the root
-without flattening, for constant contexts or when you must not mutate. Both
-=find= and the query helpers bounds-check the index and return
-=container_error::out_of_range= for an invalid one.
+=find(i)= bounds-checks =i= (an out-of-range index returns
+=container_error::out_of_range=), then walks =m_parent= until it reaches a node
+that is its own parent, the root. On each step it does one extra write,
+=m_parent[current] = m_parent[m_parent[current]]=, which re-points =current= at
+its grandparent before advancing. That is path halving: every other node on the
+walk is lifted one level, so the chain is roughly halved in length each pass and
+later finds along it are shorter. Because of that write, =find= *mutates* even
+though it reads like a query.
 
-** unite by size
+#+BEGIN_EXAMPLE
+find(0) on the chain 0 -> 1 -> 2 -> 3 (3 is the root):
 
-=unite(a, b)= finds both roots and, if they differ, hangs the smaller set's root
-under the larger one (a tie favours the second argument), then adds the sizes.
-Attaching the smaller tree keeps heights logarithmic before compression even
-gets involved. =connected(a, b)= is =find(a) == find(b)=, and =size_of(i)=
-reports the size of =i='s set.
+  before:        3            walk: 0, then 1, then 2, reach root 3
+                 |
+                 2
+                 |
+                 1
+                 |
+                 0
+
+  during: at node 0, point 0 at its grandparent 2; advance to 2.
+          at node 2, 2's parent is 3 (the root); advance, loop ends.
+
+  after:         3            0 was halved up to 2; the chain is shorter
+                / \
+               1   2
+                   |
+                   0
+#+END_EXAMPLE
+
+=root_of(i)= is the =const= alternative: it walks the same parent chain but
+performs no writes, so it does no flattening and is =O(h)= for chain length =h=,
+but it is usable from a constant context or a comparison that must not mutate
+(it is what =same_partition= uses). Use =find= when you want the side benefit of
+compression, =root_of= when you must stay =const=.
+
+** unite by size, step by step
+
+=unite(a, b)= calls =find= on both (so both chains get compressed) and, if the
+roots already match, returns =false= with no change. Otherwise it compares the
+two roots' sizes, swaps so =big_root= is the larger (a tie leaves =b='s root as
+=big_root=, so the second argument wins), points =m_parent[small_root] = big_root=
+to hang the smaller tree under the larger, folds the small set's size into
+=m_set_size[big_root]=, zeroes the small root's size entry (a non-root no longer
+carries a size), and drops =m_set_count= by one. Attaching the *smaller* tree is
+what bounds the height: a node's depth only grows when its set is the smaller
+party in a merge, which can happen at most =log2(n)= times, so trees stay
+=O(log n)= tall even before any compression.
+
+** Why the two heuristics together are near-constant
+
+Union by size alone caps tree height at =O(log n)=, giving =O(log n)= finds. Path
+halving alone also helps but can still see deep chains. Used together they
+amortise to =O(alpha(n))= per operation, where =alpha= is the inverse Ackermann
+function: union by size keeps trees shallow to begin with, and every =find=
+permanently flattens the part of the chain it touches, so repeated queries pay
+the depth cost only once. =connected(a, b)= is =find(a) == find(b)= (both
+finds compress), and =size_of(i)= returns =m_set_size= at =i='s root.
 
 * Complexity
 
@@ -77,22 +120,39 @@ of =n= entries (parent links and per-root sizes).
 Reach for =union_find= when you incrementally learn that things are connected and
 need fast grouping queries: connected-component and island detection (the solver
 islands of a physics step), Kruskal-style minimum spanning trees, and
-equivalence-class tracking while building a graph. It beats re-traversing a graph
-after every edge, and unlike a general graph it needs no adjacency storage, just
-two integer arrays.
+equivalence-class tracking while building a graph.
+
+*Versus re-running a graph traversal:* a BFS or DFS answers "are x and y
+connected" in =O(V + E)= per query and must be redone after every new edge.
+=union_find= folds each edge in at =O(alpha(n))= and answers a query at the same
+cost, so for the streaming "add edges, ask connectivity" pattern it is
+dramatically faster and needs no adjacency lists, just two integer arrays. Prefer
+a real traversal when you need the *paths* themselves, per-edge structure, or
+edge removal: =union_find= tracks only which set each node lands in, not how it
+got there.
 
 Things to keep in mind:
 
-- *It only merges.* Sets join and never split; there is no "disconnect". To start
-  over, =reset= or =clear=. Model removals by rebuilding.
-- *find mutates.* Path compression rewrites parent links, so =find= and the query
-  helpers are non-const; use =root_of= when you need a =const= query.
-- *Indices are integers in =[0, size())=.* Invalid indices return
-  =container_error::out_of_range= rather than reading out of bounds.
-- *Comparison is explicit.* There is no =operator==='; =same_partition= compares
-  two partitions in =O(n)= regardless of compression history, and is named so that
-  cost never hides behind a generic comparison. The =parents()= / =set_sizes()=
-  spans are invalidated by any mutating call.
+- *It only merges.* Sets join and never split; there is no "disconnect" and no way
+  to undo a =unite=. To shrink or rebuild a partition, =reset(n)= back to
+  singletons or =clear=, then replay the edges you still want. Model node removal
+  by rebuilding from scratch.
+- *find mutates.* Path compression rewrites parent links, so =find=, =connected=,
+  =size_of=, and =unite= are all non-const; do not call them on a =const= or
+  shared structure expecting it to stay put. Use =root_of= for a =const= query,
+  accepting its =O(h)= cost and that it leaves the tree uncompressed.
+- *Indices are raw integers in =[0, size())=.* There is no string or pointer
+  keying; map your objects to dense indices yourself (=make_set= hands out the
+  next one). =find=, =connected=, =size_of=, and =unite= return
+  =container_error::out_of_range= on a bad index rather than reading out of
+  bounds, while =root_of= assumes a valid index as a precondition and does not
+  check.
+- *Comparison is explicit.* There is no =operator===; =same_partition= compares
+  two structures by classification in =O(n * alpha(n))= regardless of compression
+  history (it uses =root_of=, so it never mutates), and is given a visible name so
+  that cost never hides behind a generic comparison in a hot loop. The =parents()=
+  and =set_sizes()= spans are read-only and invalidated by any mutating call,
+  including a bare =find=.
 
 * Usage
 

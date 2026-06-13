@@ -41,13 +41,35 @@ max-heap {5, 4, 3, 1, 1} in the vector:
 
 ** Operations
 
-=push= and =emplace= append to the vector and =std::push_heap= sifts the new
-element up its path, =O(log n)=. =pop= moves the top to the back with
-=std::pop_heap= and pops it, also =O(log n)=, and returns it as =result<T>= (or
-=container_error::empty= when there is nothing to pop). Constructing from a list
-or range runs one =std::make_heap=, which is =O(n)=, strictly cheaper than =n=
-separate pushes. =rebuild= re-heapifies the whole range in =O(n)= after a bulk
-change.
+=push= and =emplace= append the new element to the back of the vector (the next
+free leaf), then =std::push_heap= sifts it *up*: it compares the element with its
+parent at =(i - 1) / 2= and swaps them while the parent loses under =Compare=,
+walking root-ward until the element finds a parent it does not outrank or reaches
+index 0. Only that one root-to-leaf path is touched, so the cost is =O(log n)=.
+
+#+BEGIN_EXAMPLE
+push(6) into max-heap {5,4,3,1,1}: append at index 5, then sift up
+
+  5                 5                  6          path touched: 6 -> its
+ / \               / \                / \         parent 3 (3 < 6, swap),
+4   3   append    4   3    swap 6,3  4   5         then parent 5 (5 < 6, swap),
+/ \             / \   /            / \   /          then index 0: stop.
+1  1            1 1  6             1 1  3          siblings 4,1,1 never moved.
+#+END_EXAMPLE
+
+=pop= does the mirror image: =std::pop_heap= swaps the top (index 0) with the
+last element, which logically removes the winner, then sifts that last element
+*down* by repeatedly swapping it with its larger-ranking child (=2i+1= or =2i+2=)
+until both children lose or it becomes a leaf, restoring the invariant over the
+shrunk range. =pop= then reads the now-last slot, =pop_back='s it, and returns it
+as =result<T>= (or =container_error::empty= when there is nothing to pop). Both
+operations are =O(log n)= because a sift visits one path of height =log n=.
+
+Constructing from a list or range runs one =std::make_heap=, which heapifies
+bottom-up in =O(n)=, strictly cheaper than =n= separate pushes (=O(n)= versus
+=O(n log n)=). =rebuild= re-runs =make_heap= to re-heapify the whole range in
+=O(n)= after you have bulk-modified the storage, instead of popping and pushing
+every element.
 
 ** What is exposed, and what is not
 
@@ -81,20 +103,35 @@ Reach for =heap= when you repeatedly need the single most important element next
 and the set keeps changing: event schedulers (min-heap, earliest event next),
 A* / Dijkstra frontiers, top-K selection, bandwidth or job priority queues. The
 contiguous array layout sifts one element along a single root-to-leaf path per
-push or pop, with no node allocation.
+push or pop, with no node allocation. It is the right structure only when you
+consume from *one* end (the top); if you also need the *worst* element cheaply,
+you want a different structure (a balanced tree or a double-ended heap), since
+this heap leaves everything below the root only partially ordered.
 
-There is deliberately no =begin= / =end= and no =operator== / =<=>=: heap-layout
-order is neither priority order nor sorted order and depends on insertion
-history, so iterating or comparing in it would mislead. To consume in priority
-order, =pop=; to read sorted order, copy from =span()= and sort the copy; to
-compare two heaps, compare those projections, not the raw layout.
+Choosing between the obvious candidates:
 
-Prefer a sibling when:
+- versus =std::priority_queue=: this heap is the same algorithm on the same
+  contiguous storage, but adds two things =std::priority_queue= hides. It returns
+  =result<T>= from =pop= instead of leaving an empty-container pop as undefined
+  behaviour, and it exposes the backing store read-only through =data()= /
+  =span()= for feeding range algorithms (a bulk scan, a parallel reduction, a
+  serialization pass) without draining the heap. Reach for =std::priority_queue=
+  only when you want the exact standard-library type at an interface boundary.
+- versus [[file:deque.org][deque]]: reach for =deque= when you want first-in or
+  last-in order rather than highest-priority; a queue or stack is cheaper than a
+  heap when priority is just arrival order.
+- versus [[file:bag.org][bag]]: reach for =bag= when order is irrelevant and you
+  just add, remove, and iterate; its =O(1)= swap-pop erase beats =O(log n)=
+  sifting when you never ask "which is most important".
 
-- you want first-in or last-in order rather than highest-priority, use
-  [[file:deque.org][deque]].
-- order is irrelevant and you just add, remove, and iterate, use
-  [[file:bag.org][bag]] for its =O(1)= swap-pop erase.
+Note the read-only span and the absence of iteration. There is deliberately no
+=begin= / =end= and no =operator== / =<=>=: heap-layout order is neither priority
+order nor sorted order and depends on insertion history, so iterating or
+comparing in it would mislead. =data()= and =span()= are =T const*= and
+=std::span<T const>=, read-only on purpose, because writing through them could
+break the invariant with no way to detect it. To consume in priority order,
+=pop=; to read sorted order, copy from =span()= and sort the copy; to compare two
+heaps, compare those projections, not the raw layout.
 
 Invalidation and stability:
 
