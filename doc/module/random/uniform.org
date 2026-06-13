@@ -1,0 +1,107 @@
+#+TITLE: uniform draws
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+The primitives every other distribution builds on: =uniform_int(g, lo, hi)= for a
+uniform integer in a closed range, =uniform_real(g)= for a double in =[0, 1)=,
+and =bernoulli= for a fair or weighted coin. The integer draw is *unbiased*, which
+is the part naive code gets wrong.
+
+* The idea
+
+An engine emits a value uniform over =[0, 2^b)= (here =b = 32= or =64=). To get a
+value uniform over a range of size =n=, the naive =output mod n= is *biased*
+whenever =n= does not divide =2^b=: the first =2^b mod n= values of the output
+space get one extra representative each, so they occur with probability
+=(floor(2^b/n) + 1) / 2^b= instead of =floor(2^b/n) / 2^b=. For a small =n= and a
+large =2^b= the bias is tiny, but it is real and it compounds. The principled fix
+is *rejection sampling*: define an acceptance region whose size is an exact
+multiple of =n=, and redraw on the rare miss; every accepted value is then exactly
+uniform. =uniform_int= uses Lemire's "nearly divisionless" method (2019), which
+arranges the test so the expensive modulo runs only on the rare rejection, making
+the amortised cost one multiply and a compare.
+
+* How it works
+
+** uniform_int
+
+For a range that fits in 32 bits, it multiplies a 32-bit engine draw =x= by the
+range =n= into a 64-bit product =m = x * n=. Think of this as partitioning =[0,
+2^32)= into =n= buckets: the high 32 bits =m >> 32= are the bucket index (the
+result), and the low 32 bits =m mod 2^32= are the position within it. Buckets have
+nearly equal size; the imbalance is exactly the leftover =2^32 mod n=, so rejecting
+only the products whose low part falls below that threshold leaves every bucket
+the same effective size, hence unbiased. The clever part (Lemire) is that the
+threshold =(2^32 mod n)= is itself only needed on the rare branch, so the common
+case is one widening multiply and one compare, no division. For a wider range it
+falls back to classic modulo-with-rejection on a 64-bit slice (concatenating two
+draws from a 32-bit engine). The full-range case (=lo= = min, =hi= = max) takes one
+draw with no rejection at all. Every path is exactly unbiased.
+
+#+BEGIN_EXAMPLE
+uniform_int(g, 1, 6)   ->  a fair die, every face exactly 1/6
+uniform_int(g, lo, hi) ->  uniform over the closed [lo, hi]
+#+END_EXAMPLE
+
+** uniform_real
+
+Takes the top 53 bits of a 64-bit engine output (or two draws from a 32-bit
+engine) and divides by 2^53, the largest mantissa a double can hold exactly, so
+every representable value in =[0, 1)= is reachable with the correct probability.
+
+** bernoulli
+
+=bernoulli(g)= returns the low bit of one draw, a fair coin in a single engine
+call (cheaper than =uniform_int(g, 0, 1)=). =bernoulli(g, p)= returns true with
+probability =p=, short-circuiting =p <= 0= to false and =p >= 1= to true so an
+out-of-range probability is harmless.
+
+* Complexity
+
+| operation                | cost                                  |
+|--------------------------+---------------------------------------|
+| uniform_int              | expected O(1) (rejections under one)  |
+| uniform_real / bernoulli | O(1)                                  |
+
+* When to use them
+
+- =uniform_int= for any integer in a range: dice, indices, coordinates. Prefer it
+  over =% range=, which is biased.
+- =uniform_real= for a fraction, a probability, or as the input to an inverse-CDF
+  sampler.
+- =bernoulli= for a yes/no with a fixed probability.
+
+Things to keep in mind:
+
+- =uniform_int= requires =lo <= hi=.
+- The rejection loop is expected-O(1) but has no hard upper bound; for an
+  adversarial engine it could retry, though with a real engine that never happens
+  in practice.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace rnd = nexenne::random;
+rnd::pcg32 g{seed, 1};
+
+auto const roll{rnd::uniform_int(g, 1, 6)};   // unbiased die
+auto const u{rnd::uniform_real(g)};           // double in [0, 1)
+if (rnd::bernoulli(g, 0.1)) { /* 10% chance */ }
+#+END_SRC
+
+Runnable: [[file:../../../examples/random/dice_and_picks.cpp][examples/random/dice_and_picks.cpp]]
+
+* Further reading
+
+- Daniel Lemire, "Fast Random Integer Generation in an Interval" (ACM TOMS, 2019),
+  the nearly-divisionless method used by =uniform_int=, with the bias analysis:
+  https://arxiv.org/abs/1805.10941
+- Daniel Lemire's write-up "A fast alternative to the modulo reduction" for the
+  multiply-shift bucket idea: https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+- Melissa O'Neill, "Efficiently Generating a Number in a Range", a survey of the
+  bias in =mod= and the fixes: https://www.pcg-random.org/posts/bounded-rands.html
+- On building a double in =[0, 1)= from random bits and the rounding subtleties,
+  Vigna's note: https://prng.di.unimi.it/ (see "Generating uniform doubles in the
+  unit interval").

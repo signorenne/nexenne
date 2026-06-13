@@ -26,6 +26,11 @@ Follow a module to its own index, which lists, per class it provides, a guide
   stopwatches, countdowns and polling timers, an alarm, a rate limiter, a frame
   timer, a scope timer and profiler, plus duration formatting and Hz/period
   helpers. The same code runs on a PC, an MCU, or a hand-advanced test clock.
+- [[file:random/README.org][random]] (no dependencies) : seedable, reproducible RNG: the =xoshiro256ss=
+  and =pcg32= engines, unbiased uniform draws, continuous and discrete
+  distributions (normal, exponential, gamma, Poisson, discrete), and sampling
+  (shuffle, reservoir, weighted choice). Deterministic across platforms, unlike
+  =std::random='s implementation-defined distributions.
 
 * Dependency layering
 
@@ -37,6 +42,8 @@ A module may only use the modules below it; the build refuses a cycle.
      |
      v
   utility       the foundation, no dependencies
+
+  random        seedable RNG (independent, no dependencies)
 #+END_EXAMPLE
 
 More modules join as they are ported, each declaring its place in the layering

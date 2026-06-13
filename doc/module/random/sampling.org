@@ -1,0 +1,100 @@
+#+TITLE: sampling
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Three utilities for picking from collections: =shuffle= permutes a range in place,
+=reservoir_sample= draws =k= items uniformly from a stream of unknown length in one
+pass, and =weighted_choice= picks an index in proportion to a weight array. All
+take any =rng_engine= and are deterministic for a fixed seed.
+
+* shuffle
+
+=shuffle(range, g)= is the Fisher-Yates shuffle: walk from the end, swapping each
+element with a uniformly chosen earlier-or-equal position. It produces every
+permutation with equal probability in =O(n)=, in place, and works on any
+random-access range.
+
+#+BEGIN_EXAMPLE
+deck {1..8}  ->  shuffle  ->  a uniformly random permutation, same multiset
+#+END_EXAMPLE
+
+* reservoir_sample
+
+=reservoir_sample(range, k, g)= returns =k= elements drawn uniformly without
+replacement, reading the input *once* and never needing its length up front, so it
+works on input ranges and streams. It keeps the first =k= elements, then for each
+later element at index =i= (zero-based) it picks a random index =j= in =[0, i]= and,
+if =j < k=, overwrites reservoir slot =j= with the new element, so the element is
+kept with probability =k / (i + 1)= (Algorithm R, Vitter 1985). The induction:
+assume after seeing =i= elements every one is in the reservoir with probability
+=k/i=; element =i+1= enters with probability =k/(i+1)=, and each incumbent survives
+with probability =1 - (k/(i+1))*(1/k) = i/(i+1)=, so its probability becomes
+=(k/i)*(i/(i+1)) = k/(i+1)=, preserving uniformity. After the whole stream of =n=,
+every element is present with probability =k/n=. If the stream has fewer than =k=
+elements, you get all of them.
+
+#+BEGIN_EXAMPLE
+reservoir_sample(stream, 10, g)  ->  10 distinct items, each equally likely,
+                                     one pass, O(k) memory
+#+END_EXAMPLE
+
+* weighted_choice
+
+=weighted_choice(weights, g)= picks an index with probability proportional to its
+weight, building no persistent state, the one-shot counterpart to
+[[file:distributions.org][discrete_distribution]] (which precomputes a table for repeated draws). A zero
+weight is never chosen.
+
+* Complexity
+
+| operation         | cost                              |
+|-------------------+-----------------------------------|
+| shuffle           | O(n) time, in place               |
+| reservoir_sample  | O(n) time, O(k) space, one pass   |
+| weighted_choice   | O(k) per call (linear scan)       |
+
+* When to use which
+
+- =shuffle= to randomise an order you already hold (a deck, a playlist, a turn
+  order).
+- =reservoir_sample= to take a fixed-size uniform sample from a large or
+  unknown-length stream without buffering it all.
+- =weighted_choice= for an occasional weighted pick; if you draw from the *same*
+  weights many times, build a [[file:distributions.org][discrete_distribution]] instead for its O(log k)
+  draws.
+
+Things to keep in mind:
+
+- =reservoir_sample= allocates the output vector (O(k)); everything else is
+  allocation-free.
+- =weighted_choice= scans the weights each call, so for hot repeated use the
+  precomputed =discrete_distribution= is cheaper.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace rnd = nexenne::random;
+rnd::pcg32 g{seed, 1};
+
+rnd::shuffle(deck, g);                              // in-place permutation
+auto const picks{rnd::reservoir_sample(stream, 10, g)};   // 10 uniform items
+auto const i{rnd::weighted_choice(std::span{weights}, g)};
+#+END_SRC
+
+Runnable: [[file:../../../examples/random/dice_and_picks.cpp][examples/random/dice_and_picks.cpp]]
+
+* Further reading
+
+- Donald Knuth, "The Art of Computer Programming, Vol. 2" (3rd ed., 1997), section
+  3.4.2, Algorithm P, the Fisher-Yates shuffle and the proof that it is uniform.
+- Jeffrey Vitter, "Random Sampling with a Reservoir" (ACM TOMS, 1985), the
+  reservoir method (Algorithm R) and faster skip-based variants:
+  https://doi.org/10.1145/3147.3165
+- Ronald Fisher and Frank Yates, "Statistical Tables for Biological, Agricultural
+  and Medical Research" (1938), the original shuffle, and Richard Durstenfeld's
+  in-place =O(n)= form (CACM, 1964): https://doi.org/10.1145/364520.364540
+- A. J. Walker's alias method (ACM TOMS, 1977) for =O(1)= weighted choice when the
+  weights are fixed, the faster alternative to repeated =weighted_choice=:
+  https://doi.org/10.1145/355744.355749

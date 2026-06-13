@@ -1,0 +1,45 @@
+#+TITLE: nexenne::random
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Seedable, *reproducible* random number generation with no dependencies. Two fast
+modern engines, a set of unbiased uniform draws, the common continuous and
+discrete distributions, and sampling utilities, all deterministic across
+platforms and toolchains. That last point is the reason the module exists:
+=std::random='s distributions are implementation-defined, so the same seed gives
+different numbers under libstdc++, libc++, and MSVC; these are specified to the
+bit, so a seed reproduces the same stream everywhere, which is what simulations,
+procedural generation, and tests need.
+
+* Engines and seeding
+
+- [[file:engines.org][engines]] : =xoshiro256ss= and =pcg32=, both small, fast, and seedable, plus the
+  =seed_seq= helpers that derive deterministic seeds from bytes, strings, or one
+  master value (one independent stream per thread or task).
+
+* Drawing values
+
+- [[file:uniform.org][uniform draws]] : =uniform_int= (Lemire's unbiased rejection sampler over a
+  closed range), =uniform_real= in =[0, 1)=, and =bernoulli= fair and weighted
+  coin flips.
+- [[file:distributions.org][distributions]] : sampler objects for =normal=, =exponential=, =gamma=,
+  =poisson=, and a =discrete= (weighted index) distribution.
+- [[file:sampling.org][sampling]] : =shuffle= (Fisher-Yates), =reservoir_sample= (k items from a
+  one-pass stream), and =weighted_choice=.
+
+* The engine concept
+
+Everything that consumes randomness is templated on an =rng_engine=: a type with
+an unsigned-integral =result_type= and a =next()= returning it. Both bundled
+engines satisfy it, and so does any conforming custom engine, so the uniform
+draws, distributions, and sampling all work against whatever engine you hand
+them. Reach for =pcg32= as the general default (32-bit output, tiny state,
+selectable streams) and =xoshiro256ss= when you want 64-bit output and a larger
+period.
+
+* Reproducibility
+
+Seed an engine explicitly and the stream is fixed: same seed, same sequence, on
+every run and every platform. Use =seed_sequence<N>(master)= to fan one seed out
+into =N= uncorrelated streams (one per worker) deterministically. None of this is
+cryptographically secure; it is for simulation and procedural use, not secrets.

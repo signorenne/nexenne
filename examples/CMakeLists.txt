@@ -3,3 +3,4 @@
 add_subdirectory(utility)
 add_subdirectory(container)
 add_subdirectory(chrono)
+add_subdirectory(random)

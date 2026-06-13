@@ -1,0 +1,124 @@
+#+TITLE: engines
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Two pseudo-random engines, =xoshiro256ss= (64-bit output) and =pcg32= (32-bit
+output), plus =seed_seq= helpers that turn bytes, strings, or one master value
+into deterministic seeds. Both engines are small, fast, seedable, and specified
+to the bit, so a given seed produces the same stream on every platform.
+
+* The idea
+
+A PRNG engine holds a small state and a transition that yields one output and
+advances the state. The two here are the modern, well-tested choices: PCG (a
+permuted linear congruential generator) and xoshiro256** (xor/shift/rotate). They
+both expose the minimal interface the rest of the module needs: an
+unsigned-integral =result_type= and =next()=, which is the =rng_engine= concept.
+
+* How it works
+
+** pcg32
+
+The state advances by a *linear congruential generator* (LCG), the oldest PRNG
+recurrence: =state = state * A + C (mod 2^64)=, with the classic multiplier
+=A = 6364136223846793005=. A bare LCG is statistically poor, its low bits cycle
+with tiny periods and successive values fall on lattice planes (Marsaglia's
+"random numbers fall mainly in the planes", 1968). PCG's insight (O'Neill, 2014)
+is to keep the LCG for state transition but emit a *permuted* function of it: take
+the high bits (which are the good ones), xorshift them, then *rotate* by an amount
+read from the very top bits. That output permutation (here "XSH-RR", xorshift-high
+then random rotate) destroys the lattice structure and passes the stringent
+TestU01 BigCrush battery, while the engine stays branch-free and two words wide.
+
+=pcg32(state, sequence)= seeds it. The =sequence= is folded into the additive
+constant =C= (forced odd), and a different =C= gives a *different full-period
+cycle* of the same recurrence, so two engines with the same state but different
+sequences walk independent streams, ideal for one generator per thread with no
+coordination. Period is =2^64=; output is 32-bit.
+
+#+BEGIN_EXAMPLE
+state transition:  s' = s * 6364136223846793005 + ((sequence << 1) | 1)
+output:            rotate( xorshift_high(s), top_bits(s) )   // XSH-RR permutation
+
+pcg32 a{42, 1};   // state 42, stream 1
+pcg32 b{42, 2};   // same state, different additive constant -> independent stream
+#+END_EXAMPLE
+
+** xoshiro256ss
+
+A *linear* generator over GF(2): the 256-bit state (four 64-bit lanes) advances by
+xors, shifts, and rotates, which is fast but, like all linear generators, has
+detectable linear structure in its raw bits. xoshiro256** (Blackman and Vigna,
+2018) hides that behind a non-linear *scrambler* on the output: =rotl(s1 * 5, 7) *
+9= ("**" = two multiplications). The state recurrence and the scrambler together
+pass BigCrush. The period is =2^256 - 1=, and the generator supports an =O(1)=
+*jump* (apply a precomputed jump polynomial) that advances the state by =2^128=
+steps, so you can carve non-overlapping subsequences for parallel workers.
+
+Seeding from a single 64-bit value expands it across the four lanes with
+SplitMix64. The all-zero state is the one fixed point of a linear generator (it
+maps to itself forever), so a zero seed is replaced. Output is 64-bit; reach for
+it when you want wide output, a huge period, or the jump function.
+
+** seed_seq helpers
+
+=seed_from_bytes= and =seed_from_string= hash an input into a 64-bit seed (seeded
+from the FNV offset-basis constant, then mixed byte-by-byte with SplitMix64; note
+this is not FNV-1a, there is no FNV-prime multiply), so "level-1" always maps to the same seed
+everywhere. =seed_sequence<N>(master)= iterates SplitMix64 from a master value to
+produce =N= distinct, deterministic seeds, the clean way to seed one engine per
+worker without correlating them.
+
+#+BEGIN_EXAMPLE
+auto const seeds{seed_sequence<4>(master)};   // 4 uncorrelated seeds
+xoshiro256ss w0{seeds[0]};  /* ... */  xoshiro256ss w3{seeds[3]};
+#+END_EXAMPLE
+
+* When to use which
+
+- =pcg32= as the general default: tiny state, fast, selectable streams, 32-bit
+  output (which is what =uniform_int= and friends consume most efficiently for
+  ranges that fit in 32 bits).
+- =xoshiro256ss= when you want 64-bit output directly or a longer period.
+- =seed_sequence= whenever you need several independent generators from one seed.
+
+Things to keep in mind:
+
+- *Not cryptographically secure.* These are for simulation and procedural use,
+  never for keys, tokens, or secrets.
+- *Seed explicitly for reproducibility.* The default constructors give a fixed,
+  documented sequence; for a fresh run-to-run stream, seed from a varying source
+  yourself.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace rnd = nexenne::random;
+rnd::pcg32 g{seed, stream};         // reproducible, stream-selectable
+auto const x{g.next()};             // one 32-bit draw
+rnd::xoshiro256ss h{rnd::seed_from_string("world-1")};   // seed from a name
+#+END_SRC
+
+Runnable: [[file:../../../examples/random/engines.cpp][examples/random/engines.cpp]]
+
+* Further reading
+
+- Melissa O'Neill, "PCG: A Family of Simple Fast Space-Efficient Statistically
+  Good Algorithms for Random Number Generation" (2014), the PCG paper and the
+  reference site with the permutation catalogue: https://www.pcg-random.org/ and
+  https://www.pcg-random.org/pdf/hmc-cs-2014-0905.pdf
+- David Blackman and Sebastiano Vigna, "Scrambled Linear Pseudorandom Number
+  Generators" (ACM TOMS, 2021), the xoshiro/xoroshiro family with the public
+  domain reference code and jump functions: https://prng.di.unimi.it/ and
+  https://arxiv.org/abs/1805.01407
+- Guy Steele, Doug Lea, Christine Flood, "Fast Splittable Pseudorandom Number
+  Generators" (OOPSLA 2014), the SplitMix mixer used here for seeding:
+  https://doi.org/10.1145/2660193.2660195
+- George Marsaglia, "Random numbers fall mainly in the planes" (PNAS, 1968), the
+  classic result on why a bare LCG is not enough:
+  https://doi.org/10.1073/pnas.61.1.25
+- Pierre L'Ecuyer and Richard Simard, "TestU01: A C Library for Empirical Testing
+  of Random Number Generators" (ACM TOMS, 2007), the BigCrush battery these
+  engines pass: https://doi.org/10.1145/1268776.1268777
