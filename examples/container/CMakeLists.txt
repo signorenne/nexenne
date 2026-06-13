@@ -15,6 +15,7 @@ set(_container_examples
     flat_set
     gap_buffer
     graph
+    hash
     heap
     indexed_priority_queue
     intrusive_list

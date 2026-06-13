@@ -34,6 +34,10 @@ region freed all at once.
 
 - [[file:error.org][error]] : =container_error=, the =result<T>= alias, and =to_string=.
 
+* Integration
+
+- [[file:hash.org][hash]] : =std::hash= specializations so value containers work as hashed keys.
+
 * Value containers
 
 - [[file:static_vector.org][static_vector]] : fixed-capacity inline vector, no heap.
