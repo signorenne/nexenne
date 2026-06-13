@@ -19,6 +19,7 @@
 #include <nexenne/container/heap.hpp>
 #include <nexenne/container/intrusive_list.hpp>
 #include <nexenne/container/linear_arena.hpp>
+#include <nexenne/container/lru_cache.hpp>
 #include <nexenne/container/object_pool.hpp>
 #include <nexenne/container/ring_buffer.hpp>
 #include <nexenne/container/scratch_pad.hpp>

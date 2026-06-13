@@ -62,6 +62,7 @@ region freed all at once.
 
 - [[file:flat_hash_map.org][flat_hash_map]] : open-addressing hash map, linear probing, contiguous storage.
 - [[file:flat_hash_set.org][flat_hash_set]] : open-addressing hash set, membership and dedup, contiguous storage.
+- [[file:lru_cache.org][lru_cache]] : fixed-capacity cache, least-recently-used eviction, O(1) get/put.
 
 * Sets and relations
 

@@ -1,0 +1,137 @@
+#+TITLE: lru_cache
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::lru_cache<Key, Value>= is a fixed-capacity cache that evicts
+the *least recently used* entry when it is full and a new key arrives. Every
+=get= and =put= is amortised =O(1)= and also marks the touched entry as most
+recently used, so the cache naturally keeps the hottest entries and drops the
+cold ones. After construction it allocates nothing in steady state, which makes
+it suited to hot paths: asset caches, bounded memoisation, recently-used
+registries.
+
+* The idea
+
+An LRU cache needs two things at once: =O(1)= lookup by key, and an =O(1)= way to
+find and move the least- and most-recently-used entries. Neither a hash map nor a
+list alone gives both. The classic answer is to combine them: a doubly linked
+list orders entries by recency (move-to-front on touch, evict from the back), and
+a hash map maps each key to its list node for instant lookup. This cache does
+exactly that, but with two refinements from the nexenne toolbox: the list is an
+[[file:intrusive_list.org][intrusive_list]] (the links live inside the node, no per-node allocation), and the
+nodes come from a *fixed pool* sized once at construction, so a steady-state
+=put= that evicts and reuses a node touches the allocator zero times.
+
+* How it works
+
+** Three pieces: pool, recency list, index
+
+The cache owns a =vector<node_t>= pool (each node bundles the key, the value, and
+the intrusive list links), a free list of unused node pointers, an
+=intrusive_list= threading the live nodes in recency order (front = MRU, back =
+LRU), and a =flat_hash_map<Key, node_t*>= mapping each key to its node. The pool
+is allocated to capacity at construction and *never grows*, so node addresses are
+stable and the list and index pointers into it stay valid for the cache's life.
+
+#+BEGIN_EXAMPLE
+pool (fixed):   [ node0 ][ node1 ][ node2 ]   addresses never move
+
+recency list (intrusive, MRU -> LRU):
+   front -> node1("b") <-> node0("a") <-> node2("c") <- back (next evicted)
+
+index (flat_hash_map): "a" -> &node0   "b" -> &node1   "c" -> &node2
+#+END_EXAMPLE
+
+** get and put promote to the front
+
+A =get= hits the index for the node, unlinks it from wherever it sits in the
+recency list, and pushes it to the front (MRU). A =put= on an existing key
+overwrites the value and promotes the same way. A =put= on a new key takes a node
+(see below), fills in key and value, pushes it to the front, and registers it in
+the index. =peek= is the deliberate exception: it looks up the value *without*
+touching recency, for diagnostics that must not perturb eviction.
+
+#+BEGIN_EXAMPLE
+get("a"): unlink node0 from the middle, push to front
+
+   before  front -> b <-> a <-> c <- back
+   after   front -> a <-> b <-> c <- back     ("a" is now MRU, "c" still LRU)
+#+END_EXAMPLE
+
+** Where a node comes from: free list, then eviction
+
+=acquire_node= returns a free node if the free list is non-empty. Otherwise the
+cache is full, so it *evicts*: it takes the node at the back of the recency list
+(the LRU entry), unlinks it, removes its key from the index, and reuses that very
+node for the new entry. So eviction and allocation are the same =O(1)= step with
+no heap traffic. This is why a zero capacity is forbidden: a full cache must have
+a non-empty list to evict from, and capacity at least one guarantees it.
+
+#+BEGIN_EXAMPLE
+put("d") when full (free list empty), LRU is "c":
+
+  evict: unlink node2 ("c") from the back, erase "c" from the index
+  reuse: node2.key="d", node2.value=..., push node2 to front, index["d"]=&node2
+
+   front -> d <-> a <-> b <- back      ("c" gone, "d" is MRU)
+#+END_EXAMPLE
+
+** erase recycles, clear resets the pool
+
+=erase(key)= unlinks the node, drops the key from the index, and pushes the node
+back onto the free list for reuse. =clear= empties the list and index and returns
+every node to the free list, keeping the pool storage. Neither shrinks capacity.
+
+* Complexity
+
+| operation                          | cost           |
+|------------------------------------+----------------|
+| get / put / peek / erase           | amortised O(1) |
+| contains / mru_key / lru_key       | O(1)           |
+| clear                              | O(capacity)    |
+
+Memory is the node pool (capacity nodes, each a key, a value, and two list
+links), the free-list vector, and the index hash map, all sized to capacity once.
+Steady-state =get= / =put= allocates nothing: a full cache recycles the evicted
+node in place. The =O(1)= costs are amortised over the index's rare rehash, which
+=reserve= at construction is sized to avoid.
+
+* When to use it
+
+Reach for =lru_cache= when you want a *bounded* cache with temporal locality:
+keep the most recently used N assets, memoise a pure function under a fixed
+budget, track recently-viewed items. The fixed pool makes it predictable enough
+for per-frame or real-time code.
+
+Prefer a sibling or alternative when:
+
+- you want *no eviction*, just a map: use [[file:flat_hash_map.org][flat_hash_map]] directly.
+- your hit pattern is *frequency*-skewed, not recency-skewed: an LFU
+  (least-frequently-used) policy with per-entry counters may serve better; LRU
+  wins on temporal locality.
+- you need *unbounded* growth: an LRU cache is bounded by design.
+
+Things to keep in mind:
+
+- *Capacity must be at least one* (asserted in debug); a zero-capacity cache
+  cannot evict and is undefined.
+- *=get= is a mutation*: it reorders recency, so it is not safe to call
+  concurrently with other access. Use =peek= for a read that must not promote.
+- *The cache is non-copyable and non-movable*: it holds pointers into its own
+  pool, so construct it in place.
+- *A =put= pointer or =get= pointer is borrowed*: a later eviction can recycle the
+  node it points at, so do not hold value pointers across mutations.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::lru_cache<std::string, texture> cache{256};
+
+cache.put(name, load(name));                  // O(1), evicts the LRU if full
+if (auto* t{cache.get(name)}) { draw(*t); }    // O(1) hit, promotes to MRU
+if (auto const* t{cache.peek(name)}) { ... }   // O(1), does not promote
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/lru_cache.cpp][examples/container/lru_cache.cpp]]
