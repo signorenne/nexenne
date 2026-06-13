@@ -1,0 +1,153 @@
+#+TITLE: slot_map
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::slot_map<T>= stores values and hands each one back an opaque
+*key* (a handle) that stays valid across other inserts and erases, never dangles,
+and is checked on every lookup. A key is a slot index plus a generation counter;
+=find= returns the live element or =nullptr=, and crucially a key to a slot that
+was erased and later reused reads as absent rather than silently pointing at the
+new occupant. Insert, erase, and lookup are all =O(1)=, and live elements sit in
+one vector for cache-friendly iteration.
+
+* The idea
+
+A raw pointer or an index into a vector is a fragile handle: the pointer dangles
+when the container reallocates, and the index silently aliases whatever later
+takes that slot. A =slot_map= solves both. Storage never moves an element out
+from under a key (the key is an index, not an address, so reallocation is fine),
+and every slot carries a *generation counter* that is bumped on erase, so a stale
+key's generation no longer matches the slot's and the lookup fails cleanly. This
+is the standard fix for the "ABA problem": the slot looks the same (same index)
+but the generation proves it is a different occupant.
+
+* How it works
+
+** Three parallel arrays plus a free list
+
+The map keeps, in lockstep by slot index: a =vector<optional<T>>= (the value, or
+empty for a vacant slot), a =vector<generation>= (the slot's current generation),
+and a =vector<index>= free list of vacant slots ready to reuse. A separate
+=m_size= counts live elements. A key bundles an index and the generation it was
+issued with.
+
+#+BEGIN_EXAMPLE
+slot:        0         1         2
+values   [ "a"    ][ (empty) ][ "c"    ]   <- optional<T>, empty == vacant
+gens     [   1    ][    2     ][   1    ]   <- bumped each time the slot is erased
+free_list: [ 1 ]                            <- slot 1 is available to reuse
+
+key to slot 0 = {index:0, generation:1}  -> matches gens[0]==1  -> live
+#+END_EXAMPLE
+
+** Lookup: bounds, generation, occupancy
+
+=find(k)= passes one shared validity test, =is_live(k)=: the index is in range,
+the slot's generation equals the key's, and the slot holds a value. The three
+checks short-circuit in that order, so the generation and value reads never run
+on an out-of-range index. =contains= is the same test; =erase= reuses it before
+removing. Because the test is one function, find, contains, and erase can never
+disagree about what "valid" means.
+
+** Insert: reuse a free slot, or append
+
+If the free list is non-empty, insert pops a slot index off it, drops the value
+into that =optional=, and returns a key tagged with the slot's *current*
+generation (already bumped by the erase that freed it). Otherwise it appends a
+new slot at the end with generation 1. Either way no existing key is touched, so
+all outstanding handles stay valid.
+
+#+BEGIN_EXAMPLE
+insert("d") with slot 1 on the free list (its gen was bumped to 2 on erase):
+
+  values   [ "a" ][ "d" ][ "c" ]      free_list: [ ]   (slot 1 consumed)
+  gens     [  1  ][  2  ][  1  ]
+  returned key = {index:1, generation:2}  -> the new, current generation
+#+END_EXAMPLE
+
+** Erase: vacate, bump the generation, recycle
+
+Erase resets the slot's =optional= (destroying the element), increments the
+slot's generation, and pushes the index onto the free list. The generation bump
+is what invalidates the just-erased key and every other copy of it: their
+generation is now one behind the slot's, so =is_live= fails forever after for the
+old occupant.
+
+#+BEGIN_EXAMPLE
+erase {index:0, generation:1}:
+
+  values   [ (empty) ][ "d" ][ "c" ]    free_list: [ 0 ]
+  gens     [    2    ][  2  ][  1  ]     gen 1 -> 2: the old key {0,1} is now stale
+#+END_EXAMPLE
+
+** The generation-0 sentinel, and the wraparound guard
+
+Generation 0 is reserved: a default-constructed =key= carries generation 0, and
+it must never match a live element. Fresh slots therefore start at generation 1,
+and the bump *skips 0 on wraparound*: when a slot's 32-bit generation counter
+would roll from its maximum back to 0, it is set to 1 instead. Without that, a
+slot recycled four billion times could land on generation 0 and a default key
+would suddenly match it. Skipping 0 keeps the null key unique for the life of the
+map.
+
+** Iteration skips vacancies
+
+The iterator walks the value vector but advances past any empty =optional=, so a
+range-for visits only live elements, in slot order. The slot holes from erases
+are invisible to iteration; they cost a little scan time but no correctness.
+
+* Complexity
+
+| operation                            | cost           |
+|--------------------------------------+----------------|
+| insert / emplace                     | amortised O(1) |
+| erase                                | O(1)           |
+| find / contains                      | O(1)           |
+| iterate begin .. end                 | O(capacity)    |
+| clear                                | O(capacity)    |
+
+Memory is three parallel arrays sized to the high-water slot count: the values
+(each an =optional<T>=, so a flag plus =T=), the generations, and the free list.
+Vacant slots keep their storage for reuse, so a map that churned to a high size
+and shrank still holds that many slots until =shrink_to_fit=. Iteration is over
+capacity, not size, so a sparse map iterates slower than its live count suggests.
+
+* When to use it
+
+Reach for =slot_map= when you need *stable handles* to elements whose storage may
+reallocate and whose slots get recycled: entity systems, resource and asset
+registries, widget or particle pools, anything where you hand out a reference and
+need a later lookup to fail safely if the target was destroyed.
+
+Prefer a sibling when:
+
+- you key by a *value*, not a returned handle: [[file:flat_hash_map.org][flat_hash_map]] (arbitrary keys) or
+  [[file:dense_map.org][dense_map]] (dense integer keys) map your own key to a value.
+- you never erase, or never reuse slots, and a plain index is enough: a
+  =std::vector= is simpler.
+- you need the live elements *densely packed with no holes*: [[file:dense_map.org][dense_map]] keeps a
+  gap-free value array (at the cost of stable handles).
+
+Things to keep in mind:
+
+- *Keep the key, not a pointer.* A =find= pointer is valid only until the next
+  mutation; an insert can reallocate the value vector and invalidate it. The key
+  is the durable handle; re-look-up through it.
+- *Erase invalidates exactly one key's identity.* Every other key stays valid;
+  the erased slot's generation bump makes all copies of the old key read absent.
+- *Iteration order is slot order with holes skipped*, and costs proportional to
+  capacity, not size.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::slot_map<texture> textures;
+
+auto const k{textures.insert(load("grass.png"))};  // O(1), returns a stable key
+if (auto* t{textures.find(k)}) { draw(*t); }        // O(1), nullptr if erased
+textures.erase(k);                                  // O(1), every copy of k now stale
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/slot_map.cpp][examples/container/slot_map.cpp]]
