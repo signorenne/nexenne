@@ -16,6 +16,7 @@ set(_container_examples
     sparse_set
     stable_vector
     static_vector
+    union_find
 )
 
 foreach(_example IN LISTS _container_examples)

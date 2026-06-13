@@ -31,6 +31,7 @@ nexenne_add_module(container
         include/nexenne/container/sparse_set.hpp
         include/nexenne/container/stable_vector.hpp
         include/nexenne/container/static_vector.hpp
+        include/nexenne/container/union_find.hpp
 )
 
 if(NEXENNE_BUILD_TESTS)
