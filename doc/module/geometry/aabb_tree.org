@@ -48,7 +48,9 @@ contiguous (cache-friendly traversal) and lets a handle be a plain index. A
 =remove= does not shrink the vector: it threads the freed slot onto a singly
 linked free list (reusing the =child_a= field as the "next free" link), and the
 next =insert= pops that slot. So the pool never grows past its high-water mark
-and handles stay dense.
+and handles stay dense. Freeing a slot also resets its payload to =T{}=, so a
+payload that owns a resource (a =shared_ptr=, a handle) is released at =remove=
+time, not pinned in the pool until the slot is next reused.
 
 A node's =height= field encodes its role: =-1= free, =0= leaf, =>0= internal.
 
