@@ -16,6 +16,7 @@ set(_container_examples
     gap_buffer
     graph
     heap
+    indexed_priority_queue
     intrusive_list
     linear_arena
     lru_cache

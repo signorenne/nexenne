@@ -1,0 +1,143 @@
+#+TITLE: indexed_priority_queue
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::indexed_priority_queue<T, Compare>= is a binary heap whose
+elements can be *updated and removed by identity* in =O(log n)=, not just pushed
+and popped. Every =push= hands back a stable handle; with it you can read the
+value, change its priority and re-heapify, or erase it, all without scanning the
+heap to find the element first. It is the structure event schedulers and
+Dijkstra/A* frontiers actually need, where =std::priority_queue= forces a rescan
+or a lazy-deletion hack.
+
+* The idea
+
+A plain binary heap gives =O(log n)= push/pop and =O(1)= peek, but it cannot find
+an arbitrary element: to change or remove "the entry for node X" you would scan
+all =n= slots. The fix is a second array. Alongside the heap, keep a *position
+index* mapping each handle to that element's current slot. Every time the heap
+moves an element (a sift swap), update the index too. Now "where is handle h?" is
+an =O(1)= lookup, so update-key and delete become =O(log n)= sifts from a known
+position.
+
+* How it works
+
+** Two arrays plus a handle free list
+
+The queue holds the heap (a vector of =(value, handle)= entries), a =position=
+vector mapping handle to heap slot, and a free list of recycled handles. A handle
+is just an index into the position array; =allocate_handle= reuses a freed one or
+appends a new slot, and =release_handle= marks the slot with a tombstone and
+recycles the handle.
+
+#+BEGIN_EXAMPLE
+max-heap holding 5, 3, 8 (pushed in that order, handles 0, 1, 2):
+
+  heap slot:   0        1        2
+             (8, h2) (3, h1) (5, h0)        <- (value, handle), heap-ordered
+
+  position:  h0 -> 2   h1 -> 1   h2 -> 0    <- handle -> current heap slot
+#+END_EXAMPLE
+
+** The sift keeps both arrays in sync
+
+The one rule that makes everything work: =swap_nodes(i, j)= swaps the two heap
+entries *and* writes their handles' new slots back into the position array. Every
+sift is built on =swap_nodes=, so the index is always correct. =sift_up= bubbles a
+too-large (for a max-heap) element toward the root; =sift_down= sinks a too-small
+one toward the leaves.
+
+** push and pop
+
+=push= appends the new entry at the end with a fresh handle, records its position,
+and sifts it up. =pop= takes the root value, moves the last entry into the root
+slot (fixing its position), shrinks the heap, releases the old root's handle, and
+sifts the new root down. Both are =O(log n)=.
+
+#+BEGIN_EXAMPLE
+pop() from the heap above (root is 8, handle h2):
+
+  save 8; move last entry (5,h0) into slot 0, set position[h0]=0; pop_back;
+  release h2; sift_down(0): 5 < 3 is false, 5 stays
+        (5, h0) (3, h1)        -> returns 8
+#+END_EXAMPLE
+
+** update and erase by handle
+
+=update(h, v)= looks up =h='s slot in =O(1)=, overwrites the value, then calls
+*both* =sift_up= and =sift_down= from that slot: exactly one does work (a raised
+priority floats up, a lowered one sinks), and the other is a no-op, so it handles
+either direction without the caller saying which. =erase(h)= mirrors =pop= but at
+an arbitrary slot: move the last entry into =h='s slot, shrink, release =h=, then
+sift the moved entry up or down to restore the heap.
+
+#+BEGIN_EXAMPLE
+update(h0, 10) where h0 held 5 in a max-heap:
+
+  slot = position[h0]; heap[slot].value = 10;
+  sift_up(slot): 10 > parent -> swaps upward until 10 reaches the root
+  sift_down(slot): no-op (the element left behind already satisfies the heap)
+#+END_EXAMPLE
+
+** Handles are recycled
+
+A handle is valid only while its element is live. =pop= and =erase= release the
+handle, and a later =push= may reissue it for a *different* element (there is no
+generation tag). So treat a handle as dead once its element leaves the queue: do
+not call =value_at= or =update= on it afterward, or you may silently touch a
+recycled element. =contains(h)= reports whether =h= currently maps to a live slot.
+
+* Complexity
+
+| operation                              | cost          |
+|----------------------------------------+---------------|
+| push / emplace / pop                   | O(log n)      |
+| update / erase (by handle)             | O(log n)      |
+| value_at / contains / top / top_handle | O(1)          |
+| size / empty / clear                   | O(1) / O(n)   |
+
+Memory is the heap plus the position and free-list vectors, all =O(n)=: one
+=size_type= of index per ever-issued handle on top of the entries. The constant
+factor over a bare heap buys the =O(log n)= update and erase that a bare heap
+cannot do at all.
+
+* When to use it
+
+Reach for =indexed_priority_queue= when you must change or cancel queued items by
+identity: simulation event schedulers (reschedule, cancel), Dijkstra/A*
+(decrease-key on a frontier node without rescanning), audio voice priority, soft
+deadlines, anything where a queued item's priority changes while it waits.
+
+Prefer a sibling when:
+
+- you only ever *push and pop*, never touch the middle: [[file:heap.org][heap]] is leaner (no
+  position index).
+- you key by a *value* and want membership, not priority order: [[file:flat_hash_map.org][flat_hash_map]].
+- the priority is a *dense integer bucket*: a bucket queue or radix heap can beat
+  =O(log n)= for that special case.
+
+Things to keep in mind:
+
+- *Handles are recycled.* A handle is valid only until its element is popped or
+  erased; afterward it may be reissued for another element. Do not query a dead
+  handle.
+- *=update= takes either direction.* Pass the new priority; the queue sifts the
+  element up or down as needed. No separate increase/decrease call.
+- *=top= / =value_at= pointers are borrowed* and invalidated by the next mutation;
+  do not hold them across a push/pop/update/erase.
+- Default \c Compare is a *max-heap*; pass \c std::greater for a min-heap.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::indexed_priority_queue<int, std::greater<int>> pq;  // min-heap
+
+auto const h{pq.push(50)};                 // O(log n), returns a stable handle
+static_cast<void>(pq.update(h, 200));      // O(log n) reschedule, no rescan
+static_cast<void>(pq.erase(h));            // O(log n) cancel by handle
+while (!pq.empty()) { auto v{pq.pop()}; use(*v); }   // soonest-first drain
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/indexed_priority_queue.cpp][examples/container/indexed_priority_queue.cpp]]
