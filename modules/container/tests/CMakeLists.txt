@@ -3,6 +3,7 @@ nexenne_add_module_tests(container
         test_bag.cpp
         test_bimap.cpp
         test_binary_tree.cpp
+        test_bloom_filter.cpp
         test_bitset_dynamic.cpp
         test_dense_map.cpp
         test_deque.cpp

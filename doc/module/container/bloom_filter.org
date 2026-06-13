@@ -1,0 +1,138 @@
+#+TITLE: bloom_filter
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::bloom_filter<T, Hash>= is a *probabilistic* set: it answers
+"have I seen this value?" using only a bit array, trading exactness for size. A
+negative answer is certain (the value was definitely never inserted); a positive
+answer is "probably yes", wrong only at a configurable false-positive rate. It
+*never reports a false negative*. For roughly ten bits per element it gives a one
+percent false-positive rate while storing no values at all, which makes it the
+classic cheap pre-filter in front of an expensive exact check.
+
+* The idea
+
+An exact set stores every element, costing =sizeof(T)= plus overhead each. But
+many problems only need to *reject* most queries cheaply: a web crawler asking
+"seen this URL?", a database asking "could this row exist?" before a disk seek.
+A Bloom filter throws away the elements and keeps only a fingerprint: =k= bits per
+element, derived from its hash, OR-ed into a shared bit array. Because bits are
+shared, a query can be fooled into a false positive, but never a false negative,
+since every bit an inserted element set stays set. You back a positive with the
+real lookup; you trust a negative outright.
+
+* How it works
+
+** A bit array and k hash positions
+
+The filter holds a [[file:bitset_dynamic.org][bitset_dynamic]] of =m= bits and a hash count =k=. Each value
+maps to =k= bit positions; =insert= sets them all, =contains= checks them all.
+Deriving =k= independent hashes is made cheap by *double hashing*: one
+=std::hash= gives =h1=, a =splitmix64= mix of it gives =h2=, and the =i=-th
+position is =(h1 + i*h2) mod m=. The Kirsch-Mitzenmacher result says these
+=k= derived positions give the same error rate as =k= independent hash functions,
+for one hash evaluation. (The =h2= here is forced odd so it can never be zero,
+which would otherwise collapse every position onto bit 0 for a value whose hash is
+0.)
+
+#+BEGIN_EXAMPLE
+m = 16 bits, k = 3.  insert("cat"): h1, h2 -> positions 2, 7, 11
+
+  index 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+        . . 1 . . . . 1 . .  . 1  .  .  .  .
+            ^       ^     ^
+#+END_EXAMPLE
+
+** insert sets, contains checks
+
+=insert= computes the =k= positions and sets each bit (already-set bits just stay
+set, so repeats are idempotent on the array, though the insertion counter still
+ticks for the rate estimate). =contains= computes the same =k= positions: if
+*any* is unset the value was never inserted (a sure negative); only if *all* are
+set does it return a probable yes.
+
+#+BEGIN_EXAMPLE
+contains("dog") -> positions 2, 5, 11
+  bit 2 = 1, bit 5 = 0  -> stop: at least one unset -> definitely NOT present
+
+contains("cat") -> positions 2, 7, 11 -> all 1 -> probably present
+  (could be a false positive if other inserts happened to set 2, 7, and 11)
+#+END_EXAMPLE
+
+** Why no false negatives, but false positives
+
+A bit an inserted element set is never cleared (there is no erase), so all of an
+inserted element's =k= bits are always still set, hence =contains= can never miss
+it. False *positives* happen when other elements collectively set all =k= bits of
+a value that was never inserted, more likely as the array fills. The estimated
+rate is =(1 - e^(-kn/m))^k= for =n= insertions, exposed as
+=false_positive_rate()=.
+
+** Sizing and merging
+
+Picking =m= and =k= by hand is fiddly, so =with_target_false_positive_rate(n, p)=
+applies the standard recipe (=m = -n ln p / (ln 2)^2=, =k = (m/n) ln 2=). Two
+filters of the *same* shape (bit count and hash count) can be =merge=-d: a bitwise
+OR unions their membership, so the result reports present for anything either held.
+
+** No erase, no enumeration
+
+A standard Bloom filter cannot remove an element: clearing its bits might clear a
+bit another element relies on, breaking the no-false-negative guarantee. It also
+cannot list what it holds, only test a given value. Those are inherent to the
+"keep only a fingerprint" design.
+
+* Complexity
+
+| operation                          | cost          |
+|------------------------------------+---------------|
+| insert / contains                  | O(k)          |
+| merge                              | O(m) bits     |
+| clear                              | O(m) bits     |
+| false_positive_rate / bit_count    | O(1)          |
+| swap / operator==                  | O(1) / O(m)   |
+
+Memory is exactly =m= bits (plus a few counters), independent of =sizeof(T)=: a
+million items at one percent costs about 1.2 MB regardless of element size. The
+=O(k)= operations are a handful of hash mixes and bit probes, with =k= typically
+five to ten.
+
+* When to use it
+
+Reach for =bloom_filter= as a *space-cheap pre-filter* where a rare false positive
+is acceptable because it is caught by a following exact check: seen-set
+deduplication, "might this key be on disk?" guards, breach-list and spell-check
+screens, distributed "do you have X?" gossip.
+
+Prefer a sibling when:
+
+- you need an *exact* answer: [[file:flat_hash_set.org][flat_hash_set]] stores the elements and never lies
+  (at =sizeof(T)= plus overhead each).
+- you need to *remove* elements: a standard Bloom filter cannot; a counting or
+  cuckoo filter (not in this library) supports deletion.
+- you need to *enumerate* what was inserted: a Bloom filter only tests membership;
+  keep the values in a real set.
+
+Things to keep in mind:
+
+- *A positive may be wrong*, a negative never is. Always back a positive with the
+  authoritative check; trust a negative outright.
+- *Size before you fill.* The false-positive rate climbs as insertions approach
+  the design count; use the factory and do not overfill.
+- *merge requires identical shape* (same bit and hash counts) and returns
+  =out_of_range= otherwise.
+
+* Usage
+
+#+BEGIN_SRC cpp
+auto seen{nexenne::container::bloom_filter<std::string>
+              ::with_target_false_positive_rate(100000, 0.01)};
+
+seen.insert(url);                              // O(k)
+if (!seen.contains(url)) { /* definitely new */ }
+else if (exact_store.contains(url)) { /* confirmed */ }  // back a positive
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/bloom_filter.cpp][examples/container/bloom_filter.cpp]]

@@ -8,6 +8,7 @@
 #include <nexenne/container/bag.hpp>
 #include <nexenne/container/bimap.hpp>
 #include <nexenne/container/binary_tree.hpp>
+#include <nexenne/container/bloom_filter.hpp>
 #include <nexenne/container/bitset_dynamic.hpp>
 #include <nexenne/container/dense_map.hpp>
 #include <nexenne/container/deque.hpp>

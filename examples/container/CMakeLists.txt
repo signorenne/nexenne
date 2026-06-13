@@ -4,6 +4,7 @@ set(_container_examples
     bag
     bimap
     binary_tree
+    bloom_filter
     bitset_dynamic
     dense_map
     deque
