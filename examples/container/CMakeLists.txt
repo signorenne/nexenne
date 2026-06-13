@@ -6,6 +6,7 @@ set(_container_examples
     deque
     error
     flat_hash_map
+    flat_hash_set
     flat_map
     flat_set
     gap_buffer

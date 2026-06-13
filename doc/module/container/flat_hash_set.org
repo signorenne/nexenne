@@ -1,0 +1,131 @@
+#+TITLE: flat_hash_set
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::flat_hash_set<T, Hash, KeyEq>= is an unordered set that
+answers membership ("have I seen this value?") over the same single contiguous
+array of slots and linear probing as [[file:flat_hash_map.org][flat_hash_map]]. Insert, erase, and
+membership are amortised =O(1)=, storage is one allocation, and a query is
+typically one cache miss instead of the three a node-based set pays. The trade is
+the map's: a rehash invalidates references and iteration order is unspecified.
+
+* The idea
+
+A set is a map that forgot its values. =std::unordered_set= hangs every element
+off a bucket in its own heap node, so a membership test chases pointers and risks
+a cache miss at each hop. =flat_hash_set= reuses =flat_hash_map='s open-addressing
+table wholesale: it *is* a =flat_hash_map<T, detail::empty_value>= where the
+mapped type carries no information, plus a thin shell of forwarding methods. All
+the delicate machinery (probing, tombstones, the 7/8 load threshold, power-of-two
+sizing) lives in the map, written and tested once, reused here for free.
+
+* How it works
+
+** A thin shell over flat_hash_map
+
+The whole class is one data member, a =flat_hash_map<T, empty_value>=, and every
+method forwards to its namesake on the map. There is not a line of probing logic
+in the set's header. =empty_value= is an empty =struct= whose only ornament is an
+=operator=== that always returns =true=: when the map compares two tables it
+compares values too, so for two sets with the same keys to compare equal the
+phantom values must compare equal to each other. Two nothings are the same
+nothing.
+
+#+BEGIN_EXAMPLE
+flat_hash_set<T>                         flat_hash_map<T, empty_value>
++-----------------------+   forwards to  +----------------------------------+
+| insert / erase        | -------------> | insert / erase                   |
+| contains / count      | -------------> | contains / count                 |
+| begin / end (T const&)| -- ->first --> | begin / end (pair<T,empty> ...)  |
+| operator==            | -------------> | operator== (keys, values equal)  |
++-----------------------+                +----------------------------------+
+#+END_EXAMPLE
+
+** Where the element lives, and why iteration is read-only
+
+The map stores =(key, value)= pairs, so the set's element is the map's *key*, the
+first member of the pair. The set's iterator wraps the map's and dereferences to
+=->first=, yielding =T const&=, never =T&=. That const is deliberate: mutating an
+element in place would change its hash and leave it in the wrong slot, corrupting
+the table. =iterator= is therefore an alias of =const_iterator=; to "edit" a
+value you erase it and re-insert.
+
+#+BEGIN_EXAMPLE
+map slot:   [ state | cached hash | (key, empty_value) ]
+                                      ^^^             ^^^^^^^^^^^
+set element ----------------------- key            no payload
+#+END_EXAMPLE
+
+** Per-element cost: not a bit-per-element structure
+
+Because =empty_value= is empty, each slot carries no meaningful payload beyond the
+key, so a set entry costs what a map entry costs minus the value: the slot state,
+the cached hash, and the stored =T= (the empty marker adds at most a byte of
+padding inside the pair). That is denser than =std::unordered_set= but it is *not*
+a bit-per-element structure, because every slot still pays for its state byte and
+cached hash. When the values are dense integers and you only need visited bits,
+[[file:sparse_set.org][sparse_set]] or =bitset_dynamic= pack far tighter by skipping hashing entirely.
+
+** What it does not expose
+
+The interface is deliberately lean. There is no =find= or =at=: in the map they
+returned a pointer to the value, but here there is no value, and =contains= is all
+that makes sense to ask. There is no =emplace= either: hashing needs an
+already-constructed key, so constructing in place would save nothing over
+=insert(T)=. Growth, tombstone reuse, and the rehash threshold are inherited
+verbatim from the map.
+
+* Complexity
+
+| operation                    | cost           |
+|------------------------------+----------------|
+| insert / erase               | amortised O(1) |
+| contains / count             | amortised O(1) |
+| iterate begin .. end         | O(capacity)    |
+| reserve / shrink_to_fit      | O(n)           |
+| clear                        | O(capacity)    |
+| swap                         | O(1)           |
+| operator==                   | O(n) average   |
+
+The amortised costs hide the rare rehash and assume a good hash, exactly as in the
+map. Per-slot memory is the state byte, the cached hash, and the stored key, so a
+sparsely filled table iterates slower than its element count suggests.
+
+* When to use it
+
+Reach for =flat_hash_set= as the default membership/dedup set for hashable values
+that are not small dense integers: seen-token sets, pointer or name sets, visited
+sets in a graph walk whose node type is not an integer key. It wins most when the
+set is queried far more than it is grown.
+
+Prefer a sibling when:
+
+- the values are *dense integers*: [[file:sparse_set.org][sparse_set]] and =bitset_dynamic= pack tighter
+  and skip hashing altogether.
+- you need *ordered* iteration: a hash set offers no order; keep a sorted vector
+  or use an ordered structure instead.
+- you need *stable references* across inserts: every rehash moves entries, so a
+  node-based set keeps addresses.
+
+Things to keep in mind:
+
+- *A rehash invalidates everything.* Any insert that grows the table invalidates
+  all iterators and references; =reserve= up front to keep them stable across a
+  known number of inserts.
+- *Iteration yields =T const&= in unspecified order* and walks the whole slot
+  array, so do not rely on order and expect cost proportional to capacity, not
+  size. To change an element, erase and re-insert.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::flat_hash_set<std::string> seen;
+
+if (seen.insert(token)) { /* first time this token appears */ }   // O(1)
+if (seen.contains(token)) { /* membership hit, one cache miss */ } // O(1)
+seen.erase(token);                                                 // O(1), true if present
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/flat_hash_set.cpp][examples/container/flat_hash_set.cpp]]
