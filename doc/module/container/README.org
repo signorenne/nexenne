@@ -59,6 +59,7 @@ region freed all at once.
 - [[file:flat_map.org][flat_map]] : sorted-vector ordered map, O(log N) lookup, contiguous storage.
 - [[file:static_flat_map.org][static_flat_map]] : fixed-capacity inline ordered map, no heap, no growth.
 - [[file:binary_tree.org][binary_tree]] : unbalanced ordered BST, node-per-element, in-order iteration.
+- [[file:trie.org][trie]] : prefix-keyed map over character sequences, O(k) lookup, prefix queries.
 
 * Hashed associative
 

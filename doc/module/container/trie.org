@@ -1,0 +1,151 @@
+#+TITLE: trie
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::trie<Char, Value>= is a prefix tree: a map from sequences of
+characters to values, where keys that share a prefix share a path through the
+structure. Lookup, insertion, and erasure cost =O(k)= in the key length (not the
+number of stored keys), and the trie answers *prefix* questions, "does any stored
+key start with this?", that a hash or tree map cannot do directly. Keys are any
+forward range of an integral =Char=, so the same trie serves =std::string=,
+=std::string_view=, and =std::vector<char32_t>= of Unicode code points.
+
+* The idea
+
+To map strings, you could hash the whole string or compare it in a tree, both
+=O(k)= per probe but blind to structure. A trie instead branches one character at
+a time: the path from the root spells the key, and a value sits at the node where
+a key ends. Shared prefixes are stored once, so "cat", "car", "card" share the
+=c -> a= path. That shared structure is what makes prefix queries (autocomplete,
+longest-prefix routing) natural and cheap.
+
+* How it works
+
+** Node layout: a value slot and a child map
+
+Each node holds an optional value (present only when a key ends exactly there) and
+a map from the next character to a child node, owned through =std::unique_ptr=.
+The child map is a [[file:flat_map.org][flat_map]] keyed by the (unsigned) character, so a node's memory
+is proportional to its *number of live children*, not the size of the alphabet.
+That choice matters: a dense per-character array would waste an alphabet-sized
+slab at every node and explode for wide characters; the sorted-vector child map
+costs exactly the edges that exist and works for byte and code-point keys alike.
+
+#+BEGIN_EXAMPLE
+keys "car"=3, "card"=1, "care"=5, "dog"=2:
+
+  (root)
+   |- c - a - r [3] -+- d [1]
+   |                 \- e [5]
+   \- d - o - g [2]
+
+  each node: optional<Value> + flat_map<uchar, unique_ptr<node>> children
+  the value [n] sits at the node where a key ends; interior nodes hold none
+#+END_EXAMPLE
+
+** Lookup and prefix test: descend one character per level
+
+=descend= walks from the root, at each character looking the next node up in the
+current node's child map (=O(log children)=, tiny) and stopping at =nullptr= on a
+miss. =find= / =contains= descend the full key and then check whether that node
+actually holds a value, since landing on a node is not the same as a key ending
+there ("ca" is on the path to "car" but stores nothing). =starts_with= descends
+the prefix and only checks that the node *exists*, the prefix query the structure
+is built for.
+
+** Insert: walk, creating missing nodes, then set the value
+
+=insert= descends the key, creating a fresh child node wherever the path does not
+yet exist, then writes the value into the final node. A value already there is
+replaced (returning =false=); a newly occupied node bumps the size (returning
+=true=). Interior nodes created along the way carry no value until some key ends
+on them.
+
+#+BEGIN_EXAMPLE
+insert("care", 5) into the trie with "car" present:
+
+  descend c -> a -> r (all exist), then 'e' is missing:
+  create node under r for 'e', set its value to 5
+        r [3] -- e [5]   (the 'e' node is new; r keeps its own value 3)
+#+END_EXAMPLE
+
+** Erase: clear the value, then prune dead branches
+
+=erase= descends to the key's node and, if it holds a value, clears it and
+decrements the size. Then it prunes: a post-order walk drops every node that holds
+no value and has no children, so a deleted leaf's now-useless ancestors disappear
+and the trie stays compact. A node still needed by another key (it has children,
+or its own value) survives.
+
+#+BEGIN_EXAMPLE
+erase "card" from {"car"=3, "card"=1}:
+
+  clear the value at the 'd' node -> it has no value and no children -> prune it
+  the 'r' node keeps value 3, so it stays
+        c - a - r [3]      ("card"'s tail node pruned, "car" intact)
+#+END_EXAMPLE
+
+** Traversal, copy, move
+
+=for_each= does a depth-first walk carrying the path characters in a scratch
+vector, invoking the visitor with a =std::span= of the key and the value; siblings
+are visited in sorted character order because the child map is sorted. Copy
+deep-clones the whole node graph; move steals the root in =O(1)= and leaves the
+source a usable empty trie; the destructor cascades through the =unique_ptr=
+children.
+
+* Complexity
+
+| operation                         | cost                              |
+|-----------------------------------+-----------------------------------|
+| insert / find / contains          | O(k log a): key length k, alphabet a |
+| starts_with                       | O(k log a) in the prefix length   |
+| erase                             | O(k log a) to find, O(nodes) to prune |
+| for_each                          | O(total nodes)                    |
+| copy (deep clone)                 | O(total nodes)                    |
+| move / swap                       | O(1)                              |
+
+Memory is one node per distinct prefix character position, each holding a sorted
+child map sized to its live children. The =log a= factor is the child-map binary
+search and is tiny in practice (few children per node). Prefix sharing makes a
+dictionary of related words far smaller than storing each key whole.
+
+* When to use it
+
+Reach for =trie= when keys are sequences and you need *prefix* operations:
+autocomplete and command parsers (=starts_with=, enumerate completions via
+=for_each=), longest-prefix routing tables, and dictionaries of shared-prefix
+names.
+
+Prefer a sibling when:
+
+- you only need *exact* key lookup, no prefixes: [[file:flat_hash_map.org][flat_hash_map]] hashes the whole
+  key in =O(1)= average and uses less memory for unrelated keys.
+- keys are *short and few*: a [[file:flat_map.org][flat_map]] keyed by the whole string is simpler.
+- you need *ordered iteration by whole key*: [[file:flat_map.org][flat_map]] or [[file:binary_tree.org][binary_tree]] sort by the
+  full key; a trie's order is character-by-character (which for strings coincides
+  with lexicographic, but the model differs).
+
+Things to keep in mind:
+
+- *Landing on a node is not a hit.* =find= / =contains= also check the node holds
+  a value; only =starts_with= treats mere existence as success.
+- *find pointers are borrowed*: an insert or erase touching that key's path can
+  invalidate them.
+- *Do not mutate the trie from inside =for_each=*; the traversal holds raw node
+  pointers and a path stack that an insert or erase would invalidate.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::trie<char, int> dict;
+
+dict.insert(std::string{"car"}, 3);              // O(k), false if it replaced
+if (dict.starts_with(std::string{"ca"})) { /* some key has this prefix */ }
+if (auto* v{dict.find(std::string{"car"})}) { use(*v); }   // O(k), nullptr on miss
+dict.for_each([](std::span<char const> key, int v) { emit(key, v); });
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/trie.cpp][examples/container/trie.cpp]]
