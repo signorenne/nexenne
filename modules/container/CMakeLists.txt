@@ -35,12 +35,15 @@ nexenne_add_module(container
         include/nexenne/container/intrusive_list.hpp
         include/nexenne/container/linear_arena.hpp
         include/nexenne/container/lru_cache.hpp
+        include/nexenne/container/mpmc_queue.hpp
+        include/nexenne/container/mpsc_queue.hpp
         include/nexenne/container/object_pool.hpp
         include/nexenne/container/ring_buffer.hpp
         include/nexenne/container/scratch_pad.hpp
         include/nexenne/container/slot_map.hpp
         include/nexenne/container/small_vector.hpp
         include/nexenne/container/sparse_set.hpp
+        include/nexenne/container/spsc_queue.hpp
         include/nexenne/container/stable_vector.hpp
         include/nexenne/container/static_flat_map.hpp
         include/nexenne/container/static_vector.hpp

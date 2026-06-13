@@ -1,0 +1,126 @@
+#+TITLE: spsc_queue
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::container::spsc_queue<T, N>= is a lock-free bounded FIFO for exactly
+*one producer thread and one consumer thread*. Push and pop are wait-free (no
+locks, no retry loops, no allocation), and the only synchronisation is a pair of
+atomic indices with acquire/release ordering. It is the fastest queue shape there
+is, the right tool for audio-thread to main-thread sample handoff, worker to UI
+result passing, or a render command buffer.
+
+* The idea
+
+A ring buffer with a head and a tail index is a FIFO, but if a producer and a
+consumer touch it from different threads, the index updates and the element
+writes must be *published* in the right order or the consumer reads a
+half-written slot. The single-producer/single-consumer case is special: only one
+thread writes the tail and only one writes the head, so no compare-exchange is
+needed, just a release store when you publish and an acquire load when you
+observe. That makes SPSC the cheapest concurrent queue: two atomic loads and one
+atomic store per operation.
+
+* How it works
+
+** Layout: a ring, two indices on separate cache lines
+
+Storage is an inline aligned buffer for =N= slots. =m_head= (the consumer's index)
+and =m_tail= (the producer's index) are =std::atomic= placed on *separate cache
+lines* (=alignas(64)=) so the producer writing tail does not invalidate the cache
+line the consumer is reading head from, the false-sharing trap that silently
+halves throughput. One slot is left empty as a sentinel: =head == tail= means
+empty, so the usable capacity is =N - 1=.
+
+#+BEGIN_EXAMPLE
+N = 8 slots, capacity 7.  head=2 (consumer), tail=5 (producer):
+
+  index  0    1    2    3    4    5    6    7
+       [ .  ][ .  ][ A ][ B ][ C ][ .  ][ .  ][ .  ]
+                    ^head           ^tail
+  live = (tail - head) = 3 elements (A, B, C); slot at tail is the next to fill
+#+END_EXAMPLE
+
+** push: write, then release the tail
+
+The producer reads its own tail (relaxed, it owns it), computes the next index,
+and checks against an *acquire* load of head: if advancing would collide with
+head, the queue is full. Otherwise it constructs the element in the tail slot and
+then does a *release* store of the new tail. That release is the publish: it
+guarantees the consumer's matching acquire load of tail will also see the
+constructed element.
+
+#+BEGIN_EXAMPLE
+push(D) with tail=5, head=2:
+
+  next = 6; 6 != head(2) -> room
+  construct D at slot 5
+  tail.store(6, release)   <-- publishes slot 5's write to the consumer
+#+END_EXAMPLE
+
+** pop: observe the tail, take, then release the head
+
+The consumer reads its own head (relaxed) and does an *acquire* load of tail: if
+they are equal the queue is empty. Otherwise it moves the element out of the head
+slot, destroys it, and *release*-stores the advanced head, which tells the
+producer the slot is free again. The acquire on tail pairs with the producer's
+release on tail, so the element the consumer reads is fully constructed.
+
+** Why the orderings are exactly these
+
+The producer-to-consumer data travels through the tail index: release on store,
+acquire on load. The consumer-to-producer "slot is free" signal travels through
+the head index: release on store, acquire on load. Each thread reads its *own*
+index with relaxed order because no other thread writes it. This is the minimal
+set of fences that keeps the data race away, which is why SPSC needs no CAS.
+
+* Complexity
+
+| operation                          | cost   |
+|------------------------------------+--------|
+| push / emplace / pop / try_pop     | O(1)   |
+| size_approx / empty / full approx  | O(1)   |
+
+Each operation is a couple of atomic loads and one atomic store, no contention
+between the two threads except the unavoidable cache-line transfer of the index
+being published. Memory is the inline ring (=N= slots) plus two cache-line-sized
+atomics. When =N= is a power of two the wrap is a mask; otherwise a modulo.
+
+* When to use it
+
+Reach for =spsc_queue= whenever the topology is genuinely one producer and one
+consumer: audio/DSP thread to main, a worker thread feeding results to the UI, a
+logger producer to an IO thread, a game thread to a render thread.
+
+Prefer a sibling when:
+
+- you have *multiple producers*: [[file:mpsc_queue.org][mpsc_queue]] (one consumer) or [[file:mpmc_queue.org][mpmc_queue]] (many
+  of each) use a CAS-based protocol that SPSC deliberately avoids.
+- you are *single-threaded*: [[file:ring_buffer.org][ring_buffer]] is the same idea without the atomics.
+- you need *blocking* semantics: this queue fails fast on full/empty; wrap it with
+  your own spin or condition variable.
+
+Things to keep in mind:
+
+- *Exactly one producer and one consumer.* Calling =push= from two threads (or
+  =pop= from two) is a data race and will lose or duplicate elements. The type
+  cannot detect the violation.
+- *Capacity is =N - 1=*, not =N=, because of the empty-distinguishing sentinel
+  slot.
+- *The =_approx= observers are best-effort*: a snapshot that may be stale the
+  instant it returns, safe to call but not to branch on for correctness.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::container::spsc_queue<sample, 1024> q;
+
+// producer thread:
+while (!q.push(s).has_value()) { /* full: spin or drop */ }
+
+// consumer thread:
+if (auto s{q.try_pop()}) { process(*s); }
+#+END_SRC
+
+Runnable: [[file:../../../examples/container/spsc_queue.cpp][examples/container/spsc_queue.cpp]]
