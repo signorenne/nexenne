@@ -4,6 +4,7 @@ nexenne_add_module_tests(container
         test_bitset_dynamic.cpp
         test_deque.cpp
         test_error.cpp
+        test_flat_set.cpp
         test_gap_buffer.cpp
         test_heap.cpp
         test_intrusive_list.cpp

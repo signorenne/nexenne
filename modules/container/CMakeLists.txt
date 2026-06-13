@@ -20,6 +20,7 @@ nexenne_add_module(container
         include/nexenne/container/bitset_dynamic.hpp
         include/nexenne/container/deque.hpp
         include/nexenne/container/error.hpp
+        include/nexenne/container/flat_set.hpp
         include/nexenne/container/gap_buffer.hpp
         include/nexenne/container/heap.hpp
         include/nexenne/container/intrusive_list.hpp
