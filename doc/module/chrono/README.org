@@ -1,0 +1,50 @@
+#+TITLE: nexenne::chrono
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Portable timing primitives, every type templated on a *clock*, built on
+[[file:../utility/README.org][nexenne::utility]]. The single idea that ties the module together: write your
+timing code once against a clock template parameter, and the same code runs under
+=std::chrono::steady_clock= on a PC, a =tick_clock<Backend>= over a hardware
+counter on an MCU, or a hand-advanced =manual_clock= in a unit test. Nothing here
+sleeps or blocks; the timers are polled, so they drop into a game loop, an event
+loop, or a bare-metal superloop without a scheduler. Everything is header-only
+and allocation-free except the growable-lap =stopwatch= and the map-backed
+=profiler=.
+
+* Foundations and helpers
+
+- [[file:clocks.org][clocks]] : the =clock_like= / =steady_clock_like= / =tick_backend= concepts,
+  the =tick_clock= backend adapter, and the hand-advanced =manual_clock= for
+  deterministic tests.
+- [[file:duration-helpers.org][duration helpers]] : =duration_parts= with =extract_parts= and =format= for
+  human-readable d/h/m/s/ms breakdowns, the saturating =to_count_sat= for
+  embedded integer-count APIs, and the =frequency= Hz/period conversions.
+
+* Measurement
+
+- [[file:stopwatch.org][stopwatch]] : =stopwatch= and =fixed_stopwatch= with start / pause / resume /
+  lap, accumulating across intervals; the fixed variant is allocation-free.
+- [[file:scope-profiling.org][scope profiling]] : =scope_timer= (RAII, fires a callback on scope exit) and
+  =profiler= (named buckets aggregating count / min / max / mean).
+- [[file:frame-timer.org][frame timer]] : =frame_timer=, per-tick delta plus a moving-average FPS over a
+  fixed window in O(1).
+
+* Control
+
+- [[file:polling-timers.org][polling timers]] : =countdown= (target with expiry, overrun, progress),
+  =deadline= (an absolute "due by"), =interval= (fixed-period boundaries), and
+  =alarm= (a polled callback-on-expiry, one-shot or periodic).
+- [[file:rate-limiter.org][rate limiter]] : =rate_limiter=, a lazy-refill token bucket for throttling and
+  pacing.
+
+* The clock contract
+
+A clock exposes nested =rep= / =period= / =duration= / =time_point= types and a
+static =now()=; a *steady* clock additionally promises =is_steady == true= (it
+never runs backward). Measurement and control types require a steady clock so
+elapsed time is meaningful; the =alarm= accepts any =clock_like= since it works
+off caller-supplied time points. The =tick_clock= adapter turns any backend with
+a =rep= / =period= / =is_steady= / =ticks()= surface into such a clock, and
+=manual_clock= is a steady clock whose time only moves when test code calls
+=advance= or =set=.

@@ -22,6 +22,10 @@ Follow a module to its own index, which lists, per class it provides, a guide
   dynamic, value and node-based: vectors (=static_vector=, =small_vector=,
   =stable_vector=), a ring buffer and deque, a bitset, a bag, a gap buffer, a
   heap, and bump arenas, all under one documented error policy.
+- [[file:chrono/README.org][chrono]] (needs =utility=) : portable, clock-templated timing primitives:
+  stopwatches, countdowns and polling timers, an alarm, a rate limiter, a frame
+  timer, a scope timer and profiler, plus duration formatting and Hz/period
+  helpers. The same code runs on a PC, an MCU, or a hand-advanced test clock.
 
 * Dependency layering
 
@@ -29,6 +33,7 @@ A module may only use the modules below it; the build refuses a cycle.
 
 #+BEGIN_EXAMPLE
   container     vectors, maps, sets, queues, trees, graphs
+  chrono        clock-templated timing primitives
      |
      v
   utility       the foundation, no dependencies

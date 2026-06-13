@@ -1,0 +1,89 @@
+#+TITLE: stopwatch
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=stopwatch<Clock>= measures elapsed time like the physical device: start, pause,
+resume, and lap, accumulating across the running intervals. =fixed_stopwatch<N,
+Clock>= is the same machine with an allocation-free, fixed-capacity lap buffer
+for embedded use. Both default to =std::chrono::steady_clock= and work with any
+=steady_clock_like= clock.
+
+* The idea
+
+A naive "elapsed = now - start" cannot pause, and storing every lap needs a
+buffer. A stopwatch is a tiny state machine, *idle* / *running* / *paused*, plus
+an accumulator that captures time only while running, and a list of lap segments.
+Templating on the clock makes it testable (drive a =manual_clock=) and portable
+(use a =tick_clock= on hardware).
+
+* How it works
+
+** The state machine and accumulator
+
+=start()= (from idle) records the start instant and clears state. =pause()= adds
+=now - start= into the accumulator and freezes. =resume()= re-anchors =start= to
+=now= so the paused gap is not counted. =elapsed()= reads the accumulator plus, if
+running, the live =now - start=. The single =elapsed_at(now)= primitive computes
+this for any state from one =now()= snapshot, which is why the comparison
+operators take a single snapshot and cannot be flipped by jitter between two
+reads.
+
+#+BEGIN_EXAMPLE
+start ......... +30ms ... lap() ... +20ms ... pause ... (+500ms ignored) ... resume ... +10ms
+accumulated:    0                                30+20=50 (frozen)              50 -> 60
+#+END_EXAMPLE
+
+** Laps
+
+=lap()= closes the segment since the previous lap boundary (or since start),
+records it, advances the baseline, and returns the closed segment.
+=peek_lap()= reports the open segment without closing it. =lap_sum= / =lap_min=
+/ =lap_max= / =lap_average= summarise the recorded laps; =clear_laps= rebases
+without losing the running state.
+
+** Two storage strategies
+
+=stopwatch= keeps laps in a =std::vector=, so =lap()= and =reserve_laps()= may
+throw =std::bad_alloc= on growth (everything else is =noexcept=). =reserve_laps(n)=
+up front avoids that. =fixed_stopwatch<N>= instead stores up to =N= laps inline
+and *counts the overflow*: =stored_lap_count()= caps at =N=, =lap_count()= is the
+true total, and =laps_dropped()= reports how many did not fit, so a full buffer
+is visible rather than silently truncated. It never allocates.
+
+* Complexity
+
+| operation                       | cost                          |
+|---------------------------------+-------------------------------|
+| start / pause / resume / elapsed | O(1)                          |
+| lap                             | O(1) amortised (vector) / O(1) (fixed) |
+| lap_min / lap_max / lap_average | O(laps)                       |
+
+* When to use which
+
+- =stopwatch= on a hosted system where an occasional heap allocation for laps is
+  fine and the lap count is unbounded.
+- =fixed_stopwatch<N>= on an MCU or any allocation-free path, accepting that only
+  the first =N= laps are stored (the rest are counted).
+- Reach for [[file:scope-profiling.org][scope_timer]] instead when you just want to time one lexical scope.
+
+Things to keep in mind:
+
+- The clock must be steady; backward time (only reachable by abusing
+  =manual_clock=) breaks the elapsed arithmetic.
+- A =stopwatch= =lap()= can throw on buffer growth; pre-=reserve_laps= or use the
+  fixed variant where that matters.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::chrono::stopwatch<> sw;
+sw.start();
+do_work();
+auto const split{sw.lap()};                    // O(1) segment
+auto const total{sw.elapsed<std::chrono::microseconds>()};
+std::print("{}\n", sw);                          // std::formatter, e.g. "00s:060ms"
+#+END_SRC
+
+Runnable: [[file:../../../examples/chrono/stopwatch.cpp][examples/chrono/stopwatch.cpp]]

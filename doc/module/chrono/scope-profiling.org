@@ -1,0 +1,106 @@
+#+TITLE: scope profiling
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Two tools for measuring code in place. =scope_timer= times a lexical scope with
+RAII, firing a callback with the elapsed duration when the scope exits.
+=profiler= aggregates many timed samples into named buckets, each tracking count,
+min, max, and mean.
+
+* scope_timer: time a scope with RAII
+
+** The idea
+
+Timing a block by hand means a =now()= at the top, a =now()= before every
+=return=, and a subtraction, which is easy to get wrong with early exits. A
+scope-bound timer captures the start in its constructor and reports in its
+destructor, so it fires once on *every* exit path automatically.
+
+** How it works
+
+=scope_timer<Callback, Clock>= stores the start instant and the callback by value
+(the callback is a template parameter, so a captured lambda has no
+=std::function= indirection). The destructor calls =callback(elapsed())=.
+=elapsed()= is also callable mid-scope for an assertion without firing the
+callback. The type is non-copyable and non-movable: it belongs to exactly one
+scope. A deduction guide lets =scope_timer{cb}= infer the callback type with the
+default clock.
+
+#+BEGIN_EXAMPLE
+{
+    auto t{nexenne::chrono::scope_timer{[](auto d) {
+        log("scope took {} us",
+            std::chrono::duration_cast<std::chrono::microseconds>(d).count());
+    }}};
+    do_work();
+}   // callback fires here, on any exit path
+#+END_EXAMPLE
+
+If the callback throws, the throwing destructor propagates it; wrap the callback
+yourself if you need to swallow exceptions.
+
+* profiler: named aggregated samples
+
+** The idea
+
+To answer "how much total time is in each phase?" you need to accumulate samples
+under names. =profiler= is a map from a name to a =stats= bucket (count, min, max,
+running mean), fed either by =record(name, duration)= or by a reusable =sink=.
+
+** How it works
+
+=record(name, d)= looks the bucket up (heterogeneous =string_view= lookup, so no
+temporary =std::string= for the query) and folds the sample into its stats.
+=sink(name)= returns a small callable bound to one bucket, ideal as a
+=scope_timer= callback so a scope feeds a named bucket directly. =operator[]=
+reads a bucket's stats; =buckets()= gives the whole map. =reset()= zeroes every
+bucket's stats but *keeps the buckets* (so any outstanding =sink= stays valid);
+=reset(name)= zeroes one; =remove(name)= drops a bucket entirely (invalidating
+its sink).
+
+#+BEGIN_EXAMPLE
+profiler<> prof;
+{
+    auto t{scope_timer{prof.sink("render")}};   // feeds the "render" bucket
+    render();
+}
+auto const r{prof["render"]};
+log("render: n={} mean={}us", r.count, r.mean());
+#+END_EXAMPLE
+
+* Complexity
+
+| operation                  | cost                              |
+|----------------------------+-----------------------------------|
+| scope_timer ctor / dtor    | O(1) plus the callback            |
+| profiler record / sink     | O(log buckets) map lookup         |
+| profiler operator[] / reset | O(log buckets) / O(buckets)       |
+
+* When to use which
+
+- =scope_timer= for ad-hoc "how long did this block take" measurements and one-off
+  timing in a single scope.
+- =profiler= when you compare many named regions over a run, especially fed by
+  =scope_timer{prof.sink(name)}=.
+- For start/pause/lap control rather than scope-bound timing, use [[file:stopwatch.org][stopwatch]].
+
+Things to keep in mind:
+
+- A =scope_timer= callback runs in a destructor; keep it cheap and non-throwing.
+- =profiler::reset()= retains buckets by design (sinks stay valid); use =remove=
+  to actually drop one. The mean is an integer mean and truncates.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace ch = nexenne::chrono;
+ch::profiler<> prof;
+{
+    auto t{ch::scope_timer{prof.sink("step")}};
+    step();
+}                                  // "step" bucket updated on scope exit
+#+END_SRC
+
+Runnable: [[file:../../../examples/chrono/scope_timer.cpp][examples/chrono/scope_timer.cpp]]

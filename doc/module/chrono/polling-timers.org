@@ -1,0 +1,107 @@
+#+TITLE: polling timers
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Four timers you drive by polling, no threads and no callbacks-on-a-scheduler.
+=countdown= counts down from a target and reports expiry, overrun, and progress.
+=deadline= is an absolute "due by" instant. =interval= fires on fixed-period
+boundaries. =alarm= is a polled timer that *does* carry a callback, fired from
+your poll, one-shot or periodic. All are templated on the clock.
+
+* The idea
+
+In a game loop, event loop, or bare-metal superloop there is already a tick; you
+do not want a timer that spawns a thread or sleeps. These types hold the timing
+state and expose a cheap =tick()= / =poll(now)= / =reached()= you call from your
+existing loop, so they compose with whatever scheduler you already have (or none).
+
+* countdown: a target with expiry and overrun
+
+Built on a =stopwatch=, =countdown<Clock>= runs against a target duration.
+=tick()= returns =true= *exactly once*, on the running-to-expired transition, and
+=false= otherwise; the underlying stopwatch keeps running so =overrun()= grows
+after expiry. =remaining()=, =progress()= (clamped to =[0,1]=), =elapsed()=, and
+=deadline()= (the projected expiry instant while running) round it out, and it
+pauses / resumes through its stopwatch. A zero target expires immediately on
+=start()=.
+
+#+BEGIN_EXAMPLE
+countdown{100ms}; start();
++40ms  -> tick() false, remaining 60ms, progress 0.40
++80ms  -> tick() true (once), then false; overrun 20ms
+#+END_EXAMPLE
+
+* deadline: an absolute due-by
+
+=deadline<Clock>= stores a target =time_point=. =deadline::after(d)= anchors it
+=d= from now; =deadline::at(tp)= sets it absolutely. =reached()= tests =now >=
+target=, and =remaining()= clamps an overdue deadline to zero so callers need not
+special-case the past. It is =<=>=-comparable by target time, so deadlines sort
+into a priority queue (use =std::greater= for soonest-first, since the standard
+queue is a max-heap).
+
+* interval: fixed-period boundaries
+
+=interval<Clock>= fires on a fixed period from an anchor. Each =tick()= consumes
+*one* crossed boundary (returning =true=) and advances the anchor by exactly one
+period, so the cadence does not drift even if polling is irregular; poll in a loop
+to drain a backlog. =remaining()= reports time to the next boundary,
+=tick_count()= the boundaries consumed since =start()=. A non-positive period
+never fires.
+
+#+BEGIN_EXAMPLE
+interval period 50ms; start();
++50ms   -> tick() true (1 boundary)
++120ms  -> tick() true, tick() true (2 boundaries), tick() false
+#+END_EXAMPLE
+
+* alarm: a polled callback-on-expiry
+
+=alarm<Clock, CallbackBytes>= holds a fire time and an inline callback (stored in
+an =in_place_function=, so no allocation). =arm_at= / =arm_after= set a one-shot;
+=arm_periodic= sets a repeating timer. Each =poll(now)= fires the callback when
+the time is reached, once for a one-shot (then it disarms), and once per elapsed
+cycle for a periodic alarm (rearming to the next boundary, catching up if you
+polled late). A non-positive period disarms rather than looping forever. Use
+=alarm= when you want the "what to do on expiry" baked into the timer;
+use =countdown= / =deadline= when the polling caller decides.
+
+* Complexity
+
+| operation                         | cost          |
+|-----------------------------------+---------------|
+| countdown tick / remaining / progress | O(1)      |
+| deadline reached / remaining      | O(1)          |
+| interval tick                     | O(1) per consumed boundary |
+| alarm poll                        | O(cycles fired) |
+
+* When to use which
+
+- =countdown= when you need elapsed/remaining/overrun/progress against a target
+  (timeouts, charge meters, cooldowns).
+- =deadline= for an absolute "must finish by" point, especially to sort many in a
+  queue.
+- =interval= for "do this every N" cadence inside a loop.
+- =alarm= when the action lives in the timer and you just pump =poll= from a loop.
+
+Things to keep in mind:
+
+- These never sleep; you must call =tick= / =poll= from your loop.
+- =alarm::poll= invokes the callback unguarded; keep it cheap and non-throwing.
+- An =interval= or =alarm= with a non-positive period is inert (it will not fire).
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace ch = nexenne::chrono;
+
+ch::countdown<> timeout{5s}; timeout.start();
+while (working) { if (timeout.tick()) { abort_work(); break; } poll_io(); }
+
+ch::interval<> tickrate; tickrate.set_period(16ms); tickrate.start();
+while (running) { if (tickrate.tick()) { step(); } }
+#+END_SRC
+
+Runnable: [[file:../../../examples/chrono/countdown.cpp][examples/chrono/countdown.cpp]]

@@ -1,0 +1,12 @@
+nexenne_add_module_tests(chrono
+    SOURCES
+        test_clocks.cpp
+        test_concepts.cpp
+        test_conversion.cpp
+        test_duration_parts.cpp
+        test_frequency.cpp
+        test_measurement.cpp
+        test_polling_timers.cpp
+        test_smoke.cpp
+        test_stopwatch.cpp
+)
