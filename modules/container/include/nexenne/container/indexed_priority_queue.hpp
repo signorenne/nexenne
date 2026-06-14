@@ -38,14 +38,14 @@ namespace nexenne::container {
 /**
  * @brief Binary-heap priority queue with handle-based update and erase.
  *
- * @tparam T Value type; must be move-constructible.
+ * @tparam T Value type; must be movable (sifting move-assigns elements).
  * @tparam Compare Strict weak ordering over \p T; \c std::less<T> (a max-heap) by
  *         default.
  *
  * @pre None.
  * @post A default-constructed queue is empty.
  */
-template <std::move_constructible T, typename Compare = std::less<T>>
+template <std::movable T, typename Compare = std::less<T>>
   requires std::strict_weak_order<Compare const&, T const&, T const&>
 class indexed_priority_queue {
 public:

@@ -360,7 +360,14 @@ public:
     requires std::constructible_from<T, Args...>
   auto emplace_back(Args&&... args) noexcept -> reference {
     if (m_size >= m_cap) {
+      // Materialize before grow frees the old buffer, so an argument aliasing an
+      // existing element (push_back(d[0])) stays valid across the reallocation.
+      T value{std::forward<Args>(args)...};
       grow(grown_capacity(m_cap));
+      auto* const target{m_data + slot_of(m_size)};
+      std::construct_at(target, std::move(value));
+      ++m_size;
+      return *target;
     }
     auto* const target{m_data + slot_of(m_size)};
     std::construct_at(target, std::forward<Args>(args)...);
@@ -386,7 +393,15 @@ public:
     requires std::constructible_from<T, Args...>
   auto emplace_front(Args&&... args) noexcept -> reference {
     if (m_size >= m_cap) {
+      // Materialize before grow frees the old buffer, so an argument aliasing an
+      // existing element (push_front(d[0])) stays valid across the reallocation.
+      T value{std::forward<Args>(args)...};
       grow(grown_capacity(m_cap));
+      m_head = (m_head + m_cap - 1) & (m_cap - 1);
+      auto* const target{m_data + m_head};
+      std::construct_at(target, std::move(value));
+      ++m_size;
+      return *target;
     }
     m_head = (m_head + m_cap - 1) & (m_cap - 1);
     auto* const target{m_data + m_head};

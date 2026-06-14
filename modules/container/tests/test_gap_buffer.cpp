@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <iterator>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -161,6 +162,52 @@ TEST_CASE("nexenne::container::gap_buffer holds a move-only type") {
   REQUIRE(b.erase_backward().has_value());  // remove the 1
   CHECK(b.size() == 1);
   CHECK(*b[0] == 2);
+}
+
+TEST_CASE("nexenne::container::gap_buffer moved-from source is a valid empty buffer") {
+  cn::gap_buffer<int> a;
+  for (int i = 0; i < 20; ++i) {
+    a.insert(i);  // build a real gap layout
+  }
+  cn::gap_buffer<int> b{std::move(a)};
+  CHECK(b.size() == 20);
+  // The defaulted move would leave a's gap indices stale over an emptied buffer,
+  // underflowing size(); the user-defined move resets them to a usable empty state.
+  CHECK(a.empty());
+  CHECK(a.size() == 0);
+  a.insert(99);  // still usable after being moved from
+  CHECK(a.size() == 1);
+  CHECK(a[0] == 99);
+
+  cn::gap_buffer<int> c;
+  c = std::move(b);
+  CHECK(c.size() == 20);
+  CHECK(b.empty());
+  CHECK(b.size() == 0);
+}
+
+TEST_CASE("nexenne::container::gap_buffer cursor move on a closed gap keeps non-trivial elements") {
+  // Filling exactly initial_gap elements closes the gap (gap_size() == 0). Moving
+  // the cursor then must not self-move-assign each element, which would empty a
+  // std::string while leaving an int untouched (so int-only tests miss this).
+  cn::gap_buffer<std::string> g;
+  for (std::size_t i = 0; i < cn::gap_buffer<std::string>::initial_gap; ++i) {
+    g.insert(std::string(6, static_cast<char>('a' + (i % 26))));
+  }
+  REQUIRE(g.size() == cn::gap_buffer<std::string>::initial_gap);
+  REQUIRE(g.move_cursor_to(0).has_value());  // gap is empty here
+  for (std::size_t i = 0; i < g.size(); ++i) {
+    CHECK(g[i].size() == 6);  // not emptied by a self-move
+  }
+  REQUIRE(g.move_cursor_to(g.size() / 2).has_value());
+  for (std::size_t i = 0; i < g.size(); ++i) {
+    CHECK(g[i].size() == 6);
+  }
+  g.shrink_to_fit();  // closes an already-closed gap: must not self-move either
+  CHECK(g.size() == cn::gap_buffer<std::string>::initial_gap);
+  for (std::size_t i = 0; i < g.size(); ++i) {
+    CHECK(g[i].size() == 6);
+  }
 }
 
 }  // namespace

@@ -264,8 +264,13 @@ public:
     if (right == nullptr) {
       return false;
     }
-    static_cast<void>(m_r_to_l.erase(*right));
-    static_cast<void>(m_l_to_r.erase(left));
+    // Copy both keys before erasing: erasing one side can destroy the storage
+    // the other key (or the caller's own argument) aliases, so read them out
+    // first. e.g. erase_left(*find_by_right(r)) aliases the r_to_l entry.
+    auto const right_key{*right};
+    auto const left_key{left};
+    static_cast<void>(m_r_to_l.erase(right_key));
+    static_cast<void>(m_l_to_r.erase(left_key));
     return true;
   }
 
@@ -286,8 +291,12 @@ public:
     if (left == nullptr) {
       return false;
     }
-    static_cast<void>(m_l_to_r.erase(*left));
-    static_cast<void>(m_r_to_l.erase(right));
+    // Copy both keys before erasing (see erase_left): erase_right(*find(l))
+    // aliases the l_to_r entry that the first erase would destroy.
+    auto const left_key{*left};
+    auto const right_key{right};
+    static_cast<void>(m_l_to_r.erase(left_key));
+    static_cast<void>(m_r_to_l.erase(right_key));
     return true;
   }
 

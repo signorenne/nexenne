@@ -5,6 +5,7 @@
 
 #include <doctest/doctest.h>
 
+#include <cstddef>
 #include <memory>
 #include <type_traits>
 
@@ -74,6 +75,42 @@ TEST_CASE("nexenne::container::object_pool release and destroy validate the poin
   int foreign{5};
   CHECK(pool.release(&foreign).error() == cn::container_error::out_of_range);
   CHECK(pool.destroy(&foreign).error() == cn::container_error::out_of_range);
+}
+
+TEST_CASE("nexenne::container::object_pool rejects a double release without corrupting the pool") {
+  pool4 pool;
+  auto const a{pool.emplace(1)};
+  auto const b{pool.emplace(2)};
+  REQUIRE(a.has_value());
+  REQUIRE(b.has_value());
+  REQUIRE(pool.destroy(*a).has_value());
+  CHECK(pool.size() == 1);
+  // Releasing the same slot again must error, not push it onto the free list a
+  // second time (which would later hand the same slot to two acquisitions).
+  CHECK(pool.destroy(*a).error() == cn::container_error::out_of_range);
+  CHECK(pool.release(*a).error() == cn::container_error::out_of_range);
+  CHECK(pool.size() == 1);  // unchanged by the rejected releases
+
+  // The pool stays sound: distinct acquisitions yield distinct slots, and b's
+  // slot was never lost.
+  auto const c{pool.emplace(3)};
+  auto const d{pool.emplace(4)};
+  REQUIRE(c.has_value());
+  REQUIRE(d.has_value());
+  CHECK(*c != *d);
+  CHECK(*c != *b);
+  CHECK(*d != *b);
+  CHECK(pool.size() == 3);  // b, c, d live; the rejected releases lost nothing
+}
+
+TEST_CASE("nexenne::container::object_pool rejects an interior pointer") {
+  cn::object_pool<long long, 4> pool;
+  auto const a{pool.emplace(7)};
+  REQUIRE(a.has_value());
+  // A pointer inside the slot storage but not at a slot base must be rejected.
+  auto* const interior{reinterpret_cast<long long*>(reinterpret_cast<std::byte*>(*a) + 1)};
+  CHECK(pool.release(interior).error() == cn::container_error::out_of_range);
+  CHECK(pool.size() == 1);
 }
 
 TEST_CASE("nexenne::container::object_pool recycles the last freed slot (LIFO)") {
