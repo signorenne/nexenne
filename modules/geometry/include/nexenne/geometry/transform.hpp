@@ -15,8 +15,8 @@
  *   - \c to_matrix : the pose as its homogeneous matrix.
  *   - \c transform_point / \c transform_direction : apply a pose to a vector.
  *   - \c transform(pose, shape) : apply a pose to a primitive (sphere, box,
- *     triangle, circle, obb), with an axis-aligned box mapping to an oriented
- *     box because a rotation tilts it.
+ *     triangle, circle, obb, segment, capsule), with an axis-aligned box mapping
+ *     to an oriented box because a rotation tilts it.
  *   - \c decompose_2 / \c decompose_3 : recover a pose from a matrix.
  *
  * Composition order is the conventional scale, then rotate, then translate
@@ -29,15 +29,18 @@
  * \c constexpr in C++23.
  */
 
+#include <array>
 #include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <type_traits>
 
 #include <nexenne/geometry/aabb.hpp>
+#include <nexenne/geometry/capsule.hpp>
 #include <nexenne/geometry/circle.hpp>
 #include <nexenne/geometry/error.hpp>
 #include <nexenne/geometry/obb.hpp>
+#include <nexenne/geometry/segment.hpp>
 #include <nexenne/geometry/sphere.hpp>
 #include <nexenne/geometry/triangle.hpp>
 #include <nexenne/math/angle.hpp>
@@ -514,32 +517,100 @@ transform(transform3d<Real> const t, aabb<Real, 3> const& box) noexcept -> obb3<
 }
 
 /**
- * @brief Applies a 3D pose to an oriented box.
+ * @brief Applies a 3D pose to an oriented box (enclosing under non-uniform scale).
  *
- * Composes the pose rotation onto the box orientation and scales the half-size.
- * Exact for a rigid pose or a uniform scale; for a non-uniform scale of an
- * already-rotated box (whose exact image is a parallelepiped, not a box) the
- * half-size is scaled per axis, which stays exact when the box is axis-aligned.
+ * Composes the pose rotation onto the box orientation and scales the half-size so
+ * the result always contains the transformed box. Exact for a rigid pose, a
+ * uniform scale, or an axis-aligned box; for a non-uniform scale of an already
+ * rotated box (whose exact image is a parallelepiped, not a box) the half-size is
+ * the tight enclosing extent, so the result is conservative, never under-covering.
  *
  * @tparam Real Component type.
  * @param t Pose.
  * @param box Oriented box.
  *
- * @return The transformed oriented box.
+ * @return The transformed (enclosing) oriented box.
  *
  * @pre \c box.rotation() has unit length.
- * @post The center and orientation are exact; the half-size is exact under a
- *       uniform scale.
+ * @post The center and orientation are exact; the result contains the image of
+ *       \p box under \p t (exact half-size under a uniform scale or an
+ *       axis-aligned box).
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 transform(transform3d<Real> const t, obb3<Real> const& box) noexcept -> obb3<Real> {
-  auto const scaled{vector<Real, 3>{
-    box.half_size().x() * nexenne::math::abs(t.scale().x()),
-    box.half_size().y() * nexenne::math::abs(t.scale().y()),
-    box.half_size().z() * nexenne::math::abs(t.scale().z()),
-  }};
+  // Under a non-uniform pose scale the exact image of a rotated box is a
+  // parallelepiped, not a box. Scaling each local half-extent by the matching
+  // world scale component (the naive formula) applies the scale to the wrong
+  // axes once the box is rotated and can return a box SMALLER than the image. To
+  // stay conservative we return the tightest box with the composed orientation
+  // whose half-extent along composed axis k is the support of the parallelepiped
+  // along that axis:
+  //   h'[k] = sum_j half[j] * |a_j . (scale (.) a_k)|,
+  // where a_j is world axis j of the box (column j of its rotation matrix) and
+  // (.) is the component-wise product. The dot picks up the scale-weighted
+  // projection of local axis j onto local axis k; for a uniform scale it collapses
+  // to half[k]*scale and for an axis-aligned box to half[k]*|scale[k]|, both exact.
+  // This generalizes the abs(R) * half AABB bound (Ericson, RTCD 4.2.6) to a
+  // diagonal scale sitting between the two rotations.
+  auto const r{nexenne::math::to_matrix3(box.rotation())};
+  auto const s{t.scale()};
+  auto const h{box.half_size()};
+  auto scaled{vector<Real, 3>{}};
+  for (auto k{std::size_t{0}}; k < 3; ++k) {
+    auto acc{Real{0}};
+    for (auto j{std::size_t{0}}; j < 3; ++j) {
+      auto m{Real{0}};
+      for (auto i{std::size_t{0}}; i < 3; ++i) {
+        m += s[i] * r(i, j) * r(i, k);
+      }
+      acc += h[j] * nexenne::math::abs(m);
+    }
+    scaled[k] = acc;
+  }
   return obb3<Real>{transform_point(t, box.center()), scaled, t.rotation() * box.rotation()};
+}
+
+/**
+ * @brief Applies a 3D pose to a segment, endpoint by endpoint.
+ *
+ * @tparam Real Component type.
+ * @param t Pose.
+ * @param s Segment.
+ *
+ * @return The transformed segment (exact).
+ *
+ * @pre None.
+ * @post Each endpoint is the image of the corresponding endpoint of \p s.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+transform(transform3d<Real> const t, segment3<Real> const& s) noexcept -> segment3<Real> {
+  return segment3<Real>{transform_point(t, s.start()), transform_point(t, s.end())};
+}
+
+/**
+ * @brief Applies a 3D pose to a capsule (enclosing under non-uniform scale).
+ *
+ * The two spine endpoints are transformed as points; the radius is scaled by the
+ * largest scale component, so the result encloses the transformed capsule exactly
+ * under uniform scale and conservatively otherwise (the sphere overload's recipe).
+ *
+ * @tparam Real Component type.
+ * @param t Pose.
+ * @param c Capsule.
+ *
+ * @return The transformed (enclosing) capsule.
+ *
+ * @pre \c c.radius() is non-negative.
+ * @post The result contains the image of \p c under \p t.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto
+transform(transform3d<Real> const t, capsule3<Real> const& c) noexcept -> capsule3<Real> {
+  return capsule3<Real>{
+    transform_point(t, c.start()), transform_point(t, c.end()), c.radius() * max_scale(t.scale())
+  };
 }
 
 /**
@@ -609,31 +680,95 @@ transform(transform2d<Real> const t, aabb<Real, 2> const& box) noexcept -> obb2<
 }
 
 /**
- * @brief Applies a 2D pose to an oriented box.
+ * @brief Applies a 2D pose to an oriented box (enclosing under non-uniform scale).
  *
- * Adds the pose angle to the box angle and scales the half-size. Exact for a
- * rigid pose or a uniform scale.
+ * Adds the pose angle to the box angle and scales the half-size so the result
+ * always contains the transformed box. Exact for a rigid pose, a uniform scale,
+ * or an axis-aligned box; for a non-uniform scale of a rotated box the half-size
+ * is the tight enclosing extent, so the result is conservative, never
+ * under-covering.
  *
  * @tparam Real Component type.
  * @param t Pose.
  * @param box Oriented box.
  *
- * @return The transformed oriented box.
+ * @return The transformed (enclosing) oriented box.
  *
  * @pre None.
- * @post The center and angle are exact; the half-size is exact under a uniform
- *       scale.
+ * @post The center and angle are exact; the result contains the image of \p box
+ *       under \p t (exact half-size under a uniform scale or an axis-aligned box).
  *
  * @note Runtime only: the 2D transform path needs \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
 [[nodiscard]] auto
 transform(transform2d<Real> const t, obb2<Real> const& box) noexcept -> obb2<Real> {
-  auto const scaled{vector<Real, 2>{
-    box.half_size().x() * nexenne::math::abs(t.scale().x()),
-    box.half_size().y() * nexenne::math::abs(t.scale().y())
-  }};
+  // Same conservative support bound as the 3D obb overload: the box world axes
+  // are the columns of the 2D rotation [c -s; s c], a0 = (c, s) and a1 = (-s, c),
+  // and h'[k] = sum_j half[j] * |a_j . (scale (.) a_k)| is the tight enclosing
+  // half-extent along composed axis k. It collapses to half[k]*scale under a
+  // uniform scale and to half[k]*|scale[k]| for an axis-aligned box.
+  auto const c{std::cos(box.rotation().value())};
+  auto const s{std::sin(box.rotation().value())};
+  auto const a{std::array<vector<Real, 2>, 2>{vector<Real, 2>{c, s}, vector<Real, 2>{-s, c}}};
+  auto const sc{t.scale()};
+  auto const h{box.half_size()};
+  auto scaled{vector<Real, 2>{}};
+  for (auto k{std::size_t{0}}; k < 2; ++k) {
+    auto acc{Real{0}};
+    for (auto j{std::size_t{0}}; j < 2; ++j) {
+      auto const m{sc.x() * a[j].x() * a[k].x() + sc.y() * a[j].y() * a[k].y()};
+      acc += h[j] * nexenne::math::abs(m);
+    }
+    scaled[k] = acc;
+  }
   return obb2<Real>{transform_point(t, box.center()), scaled, box.rotation() + t.rotation()};
+}
+
+/**
+ * @brief Applies a 2D pose to a segment, endpoint by endpoint.
+ *
+ * @tparam Real Component type.
+ * @param t Pose.
+ * @param s Segment.
+ *
+ * @return The transformed segment (exact).
+ *
+ * @pre None.
+ * @post Each endpoint is the image of the corresponding endpoint of \p s.
+ *
+ * @note Runtime only: the 2D transform path needs \c std::sin / \c std::cos.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto
+transform(transform2d<Real> const t, segment2<Real> const& s) noexcept -> segment2<Real> {
+  return segment2<Real>{transform_point(t, s.start()), transform_point(t, s.end())};
+}
+
+/**
+ * @brief Applies a 2D pose to a capsule (enclosing under non-uniform scale).
+ *
+ * The two spine endpoints are transformed as points; the radius is scaled by the
+ * largest scale component, so the result encloses the transformed capsule exactly
+ * under uniform scale and conservatively otherwise (the circle overload's recipe).
+ *
+ * @tparam Real Component type.
+ * @param t Pose.
+ * @param c Capsule.
+ *
+ * @return The transformed (enclosing) capsule.
+ *
+ * @pre \c c.radius() is non-negative.
+ * @post The result contains the image of \p c under \p t.
+ *
+ * @note Runtime only: the 2D transform path needs \c std::sin / \c std::cos.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto
+transform(transform2d<Real> const t, capsule2<Real> const& c) noexcept -> capsule2<Real> {
+  return capsule2<Real>{
+    transform_point(t, c.start()), transform_point(t, c.end()), c.radius() * max_scale(t.scale())
+  };
 }
 
 /**
@@ -644,15 +779,22 @@ transform(transform2d<Real> const t, obb2<Real> const& box) noexcept -> obb2<Rea
  * columns, the angle the \c atan2 of the rotation part after dividing out scale.
  *
  * @tparam Real Component type.
- * @param m Input matrix, assumed built as \c translation2 * rotation2 * scale2.
+ * @param m Input matrix, assumed built as \c translation2 * rotation2 * scale2
+ *          with positive scale components.
  *
- * @return The decomposed pose, or
- *         \c geometry_error::degenerate_primitive when a scale component is zero.
+ * @return The decomposed pose,
+ *         \c geometry_error::degenerate_primitive when a scale component is zero,
+ *         or \c geometry_error::invalid_input when the linear part contains a
+ *         reflection (negative determinant, that is a negative scale component).
  *
- * @pre \p m was built in the standard order.
+ * @pre \p m was built in the standard order with positive scale components, so
+ *      the determinant of its linear part is positive.
  * @post On success \c to_matrix of the result reproduces \p m to within
  *       rounding.
  *
+ * @note A negative scale component is a reflection that column lengths (always
+ *       non-negative) cannot recover and a single rotation angle cannot
+ *       represent, so it is reported rather than silently returning a wrong pose.
  * @note Runtime only: \c std::atan2 is not \c constexpr in C++23.
  */
 template <std::floating_point Real>
@@ -661,6 +803,13 @@ template <std::floating_point Real>
   auto const sy{nexenne::math::length(vector<Real, 2>{m(0, 1), m(1, 1)})};
   if (sx <= static_cast<Real>(1e-10) || sy <= static_cast<Real>(1e-10)) {
     return std::unexpected{geometry_error::degenerate_primitive};
+  }
+  // A negative determinant of the linear part is a reflection: the recovered
+  // (positive) scale and a single angle cannot reproduce it, so reject rather
+  // than return a wrong pose that satisfies neither the @pre nor the round-trip.
+  auto const det{m(0, 0) * m(1, 1) - m(0, 1) * m(1, 0)};
+  if (det < Real{0}) {
+    return std::unexpected{geometry_error::invalid_input};
   }
   auto const angle{std::atan2(m(1, 0) / sx, m(0, 0) / sx)};
   return transform2d<Real>{
@@ -677,20 +826,29 @@ template <std::floating_point Real>
  * rotation part.
  *
  * @tparam Real Component type.
- * @param m Input matrix, assumed built as \c translation3 * rotation3 * scale3.
+ * @param m Input matrix, assumed built as \c translation3 * rotation3 * scale3
+ *          with positive scale components.
  *
- * @return The decomposed pose, or
- *         \c geometry_error::degenerate_primitive when a scale component is zero.
+ * @return The decomposed pose,
+ *         \c geometry_error::degenerate_primitive when a scale component is zero,
+ *         or \c geometry_error::invalid_input when the linear part contains a
+ *         reflection (negative determinant, that is a negative scale component).
  *
- * @pre \p m was built in the standard order.
+ * @pre \p m was built in the standard order with positive scale components, so
+ *      the determinant of its linear part is positive.
  * @post On success \c to_matrix of the result reproduces \p m to within
  *       rounding.
  *
+ * @note A negative scale component is a reflection that column lengths (always
+ *       non-negative) cannot recover and a quaternion cannot represent, so it is
+ *       reported rather than silently returning a wrong pose.
  * @note Fully \c constexpr: only arithmetic and the constexpr \c sqrt; no trig.
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto decompose_3(matrix<Real, 4> const& m
 ) noexcept -> result<transform3d<Real>> {
+  using nexenne::math::cross;
+  using nexenne::math::dot;
   using nexenne::math::length;
   using nexenne::math::sqrt;
 
@@ -703,6 +861,12 @@ template <std::floating_point Real>
   if (sx <= static_cast<Real>(1e-10) || sy <= static_cast<Real>(1e-10)
       || sz <= static_cast<Real>(1e-10)) {
     return std::unexpected{geometry_error::degenerate_primitive};
+  }
+  // A negative determinant of the linear part is a reflection: the recovered
+  // (positive) scale and a quaternion cannot reproduce it, so reject rather than
+  // return a wrong pose that satisfies neither the @pre nor the round-trip.
+  if (dot(col0, cross(col1, col2)) < Real{0}) {
+    return std::unexpected{geometry_error::invalid_input};
   }
 
   // Normalized rotation columns (scale divided out).

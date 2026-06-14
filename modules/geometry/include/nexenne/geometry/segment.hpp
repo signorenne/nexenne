@@ -279,6 +279,10 @@ template <std::floating_point Real>
 [[nodiscard]] constexpr auto intersects(
   segment<Real, 2> const& a, segment<Real, 2> const& b
 ) noexcept -> std::optional<nexenne::math::vector<Real, 2>> {
+  // Solve p + t r = q + u s for the two parameters with the 2D pseudo-cross:
+  // t = cross(qp, s) / cross(r, s), u = cross(qp, r) / cross(r, s), where qp is
+  // q - p. A zero cross(r, s) means the segments are parallel or collinear. See
+  // Ericson, RTCD section 5.1.9.1, or Gareth Rees's standard derivation.
   auto const r{direction(a)};
   auto const s{direction(b)};
   auto const rxs{nexenne::math::cross(r, s)};
