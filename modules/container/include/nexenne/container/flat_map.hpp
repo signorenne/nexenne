@@ -31,6 +31,16 @@
 
 namespace nexenne::container {
 
+namespace detail {
+
+// A comparator is transparent (allows heterogeneous lookup) when it exposes a
+// nested is_transparent type, as std::less<> and the other diamond comparators
+// do. Heterogeneous find/contains/at then accept any key-comparable type.
+template <typename C>
+concept transparent_comparator = requires { typename C::is_transparent; };
+
+}  // namespace detail
+
 /**
  * @brief Ordered map backed by a key-sorted std::vector of pairs.
  *
@@ -57,7 +67,7 @@ public:
   using const_iterator = typename std::vector<value_type>::const_iterator;
 
 private:
-  std::vector<value_type> m_data;
+  std::vector<value_type> m_data{};
   [[no_unique_address]] Compare m_cmp{};
 
 public:
@@ -267,6 +277,47 @@ public:
   }
 
   /**
+   * @brief Heterogeneous \c lower_bound for a key-comparable type \p K.
+   *
+   * Enabled only when \c Compare is transparent (exposes \c is_transparent, as
+   * \c std::less<> does), so a compatible lookup type (for example a
+   * \c std::string_view against \c std::string keys) is searched without
+   * constructing a \c Key.
+   *
+   * @tparam K Lookup type comparable with the keys through \c Compare.
+   * @param key Value to search for.
+   *
+   * @return Iterator to the first entry not ordered before \p key.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  [[nodiscard]] constexpr auto lower_bound(K const& key) noexcept -> iterator {
+    return std::lower_bound(
+      m_data.begin(),
+      m_data.end(),
+      key,
+      [this](value_type const& slot, K const& probe) { return m_cmp(slot.first, probe); }
+    );
+  }
+
+  /// @copydoc lower_bound(K const&)
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  [[nodiscard]] constexpr auto lower_bound(K const& key) const noexcept -> const_iterator {
+    return std::lower_bound(
+      m_data.begin(),
+      m_data.end(),
+      key,
+      [this](value_type const& slot, K const& probe) { return m_cmp(slot.first, probe); }
+    );
+  }
+
+  /**
    * @brief First entry whose key is ordered after \p key.
    *
    * @param key Key to search for.
@@ -327,6 +378,44 @@ public:
   }
 
   /**
+   * @brief Heterogeneous \c find for a key-comparable type \p K.
+   *
+   * Enabled only when \c Compare is transparent (see the heterogeneous
+   * \c lower_bound), so a lookup type like \c std::string_view finds a
+   * \c std::string key without constructing one.
+   *
+   * @tparam K Lookup type comparable with the keys through \c Compare.
+   * @param key Key to search for.
+   *
+   * @return An iterator to the matching entry, or \c end() when absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  [[nodiscard]] constexpr auto find(K const& key) noexcept -> iterator {
+    auto const pos{lower_bound(key)};
+    if (pos != m_data.end() && !m_cmp(key, pos->first)) {
+      return pos;
+    }
+    return m_data.end();
+  }
+
+  /// @copydoc find(K const&)
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  [[nodiscard]] constexpr auto find(K const& key) const noexcept -> const_iterator {
+    auto const pos{lower_bound(key)};
+    if (pos != m_data.end() && !m_cmp(key, pos->first)) {
+      return pos;
+    }
+    return m_data.end();
+  }
+
+  /**
    * @brief Reports whether an entry with key \p key exists.
    *
    * @param key Key to test.
@@ -343,6 +432,26 @@ public:
   }
 
   /**
+   * @brief Heterogeneous \c contains for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the keys through a transparent
+   *           \c Compare.
+   * @param key Key to test.
+   *
+   * @return \c true when \p key is present.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  [[nodiscard]] constexpr auto contains(K const& key) const noexcept -> bool {
+    return find(key) != m_data.end();
+  }
+
+  /**
    * @brief Number of entries with key \p key, always \c 0 or \c 1.
    *
    * @param key Key to count.
@@ -355,6 +464,26 @@ public:
    * @complexity \c O(log N).
    */
   [[nodiscard]] constexpr auto count(Key const& key) const noexcept -> size_type {
+    return contains(key) ? size_type{1} : size_type{0};
+  }
+
+  /**
+   * @brief Heterogeneous \c count for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the keys through a transparent
+   *           \c Compare.
+   * @param key Key to count.
+   *
+   * @return \c 1 when \p key is present, otherwise \c 0.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  [[nodiscard]] constexpr auto count(K const& key) const noexcept -> size_type {
     return contains(key) ? size_type{1} : size_type{0};
   }
 
@@ -380,6 +509,35 @@ public:
 
   /// @copydoc at(Key const&)
   [[nodiscard]] constexpr auto at(Key const& key) const noexcept -> Value const* {
+    auto const pos{find(key)};
+    return pos == m_data.end() ? nullptr : std::addressof(pos->second);
+  }
+
+  /**
+   * @brief Heterogeneous checked access for a key-comparable type \p K.
+   *
+   * @tparam K Lookup type comparable with the keys through a transparent
+   *           \c Compare.
+   * @param key Key whose value to access.
+   *
+   * @return A pointer to the mapped value, or \c nullptr when \p key is absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(log N).
+   */
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  [[nodiscard]] constexpr auto at(K const& key) noexcept -> Value* {
+    auto const pos{find(key)};
+    return pos == m_data.end() ? nullptr : std::addressof(pos->second);
+  }
+
+  /// @copydoc at(K const&)
+  template <typename K>
+    requires detail::transparent_comparator<Compare>
+  [[nodiscard]] constexpr auto at(K const& key) const noexcept -> Value const* {
     auto const pos{find(key)};
     return pos == m_data.end() ? nullptr : std::addressof(pos->second);
   }
