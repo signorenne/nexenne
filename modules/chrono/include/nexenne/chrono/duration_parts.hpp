@@ -26,6 +26,11 @@
  * to the nearest second (ties away from zero). With
  * \c suppress_zero = true, leading zero components are dropped and
  * the surviving components are joined with \c ':'.
+ *
+ * \c format_scaled is the complementary formatter for the other end of the
+ * range: it renders a single auto-scaled SI unit (ns / us / ms / s), keeping
+ * sub-millisecond resolution that the breakdown above deliberately drops, which
+ * is what micro-timing reports want (for example "4.17 us").
  */
 
 #include <algorithm>
@@ -318,6 +323,50 @@ template <chrono_duration D>
   std::string_view const neg_sign = "-"
 ) -> std::string {
   return format(detail::to_millis_clamped(d), fmt, suppress_zero, pos_sign, neg_sign);
+}
+
+/**
+ * @brief Render a duration as a human-readable auto-scaled single unit.
+ *
+ * Picks the largest of \c ns, \c us, \c ms, \c s whose magnitude is at least one
+ * and formats it with \p precision fractional digits, so 4170 ns becomes
+ * "4.17 us". Unlike \c format (a days/hours/minutes/seconds/ms breakdown) this
+ * keeps sub-millisecond resolution, which is what micro-timing reports want. A
+ * negative duration keeps its sign. Give it a floating-point rep (for example
+ * \c std::chrono::duration<double,std::nano>) to preserve fractional units.
+ *
+ * @tparam D Source duration type, deduced from \p d.
+ * @param d Duration to render.
+ * @param precision Number of fractional digits.
+ *
+ * @return The scaled magnitude with a unit suffix (\c ns, \c us, \c ms, or \c s).
+ *
+ * @pre \p precision is non-negative.
+ * @post None.
+ * @throws std::bad_alloc if string construction fails.
+ *
+ * @par Example
+ * \code
+ *   using ns_d = std::chrono::duration<double, std::nano>;
+ *   nexenne::chrono::format_scaled(ns_d{4170.0});  // "4.17 us"
+ *   nexenne::chrono::format_scaled(std::chrono::milliseconds{5});  // "5.00 ms"
+ * \endcode
+ */
+template <chrono_duration D>
+[[nodiscard]] auto format_scaled(D const d, int const precision = 2) -> std::string {
+  auto const raw{std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(d).count()};
+  auto const ns{raw == 0.0 ? 0.0 : raw};  // normalise -0.0 so a zero never reads "-0.00"
+  auto const magnitude{ns < 0.0 ? -ns : ns};
+  if (magnitude < 1e3) {
+    return std::format("{:.{}f} ns", ns, precision);
+  }
+  if (magnitude < 1e6) {
+    return std::format("{:.{}f} us", ns / 1e3, precision);
+  }
+  if (magnitude < 1e9) {
+    return std::format("{:.{}f} ms", ns / 1e6, precision);
+  }
+  return std::format("{:.{}f} s", ns / 1e9, precision);
 }
 
 }  // namespace nexenne::chrono
