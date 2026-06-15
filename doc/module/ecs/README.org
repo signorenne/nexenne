@@ -1,0 +1,35 @@
+#+TITLE: nexenne::ecs
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+A sparse-set entity-component registry in the EnTT style, built on
+[[file:../container/README.org][nexenne::container]] and [[file:../signal/README.org][nexenne::signal]]. The single idea: model your world as
+plain data components attached to lightweight entity handles, store each
+component type contiguously so iteration is cache-friendly, and compose
+behaviour by querying the entities that carry a given set of components, all
+with no virtual dispatch.
+
+An entity is an opaque =entity_id= ({index, generation}) that the registry mints
+and recycles; a component is any value type, stored in a dense, contiguous array
+keyed by entity, indexed through a dense per-type id. Systems iterate the
+entities matching a component combination through a =view=. Each component type
+also publishes construct, update, and destroy signals so other code can react to
+its lifecycle without the registry knowing about it.
+
+The pieces:
+
+* The registry
+
+- [[file:registry.org][registry]] : entities and components. Creating and destroying recycle-safe
+  entity handles, attaching and removing components (=add=, =remove=, =get=,
+  =has=, =patch=), the contiguous per-type storage behind =storage<T>()=, the
+  RTTI-free dense =type_id=, and the per-component =on_construct= / =on_update=
+  / =on_destroy= lifecycle signals.
+
+* Iterating
+
+- [[file:views.org][views]] : the =view<Includes...>= over a registry, with an optional
+  =.exclude<...>()= list. Driven by the smallest matching storage, with O(1)
+  membership checks and a fully-inlined hot loop; usable as =.each(callback)=,
+  as a range-for yielding a component tuple, or through the fluent query
+  builder.

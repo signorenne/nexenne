@@ -1,0 +1,230 @@
+#+TITLE: registry
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+An entity-component system (ECS) is a way to build objects out of plain data
+instead of class hierarchies. An *entity* is just an identity, a bare handle with
+no fields of its own. A *component* is a chunk of data (a position, a velocity, a
+health bar) that you attach to an entity. Behaviour lives in *systems*, free
+functions that walk over the entities carrying the components they care about.
+This is composition over inheritance taken to its conclusion: a "monster" is not
+a class, it is whichever entity happens to carry =health=, =position=, and
+=ai_state= at this instant, and you make it a corpse by removing the =ai_state=
+rather than by reassigning a base pointer.
+
+The reason to do this, beyond the modelling flexibility, is data layout. When
+every =position= lives next to every other =position= in one contiguous array,
+the system that updates positions streams through memory linearly and the cache
+does the rest. That is the data-oriented payoff, and it is what the storage
+design below exists to deliver.
+
+=nexenne::ecs::registry= is the object that owns all of it: the pool of entity
+identities, the per-type component storages, and the lifecycle signals that fire
+as components come and go. You create entities from it, attach components through
+it, and iterate it.
+
+* The idea
+
+The naive ECS keeps a =std::map<entity, T>= per component type. Lookup is a tree
+or hash probe, and iteration jumps all over the heap chasing pointers, exactly
+the access pattern a cache hates. The sparse-set model fixes both.
+
+Each component type gets two parallel structures. A *sparse* array is indexed by
+the entity's slot index and tells you where (if anywhere) that entity's component
+lives in the dense array. The *dense* side is two contiguous vectors held in
+lockstep: the entity-index =keys= and the component =values=. Looking up one
+entity is one sparse read then one dense read, =O(1)= with no probing. Iterating
+every component of a type is a straight walk over the dense =values= array, which
+is exactly the contiguous, cache-friendly access the naive map could not give
+you. In this module each component type's storage is a
+=container::dense_map<uint32, T>= wrapping that scheme.
+
+The entity handle is built to survive recycling. =entity_id= is an opaque
+{index, generation} pair. The index addresses the registry's per-slot arrays; the
+generation is a counter that distinguishes successive reuses of the same slot.
+=create()= mints a handle with generation >= 1, and a default-constructed
+=entity_id= has generation 0, which never matches a live entity. When you
+=destroy= an entity the registry bumps that slot's generation, so any handle you
+were still holding now disagrees with the slot's current generation and reads as
+invalid, even after the slot has been recycled for a brand-new entity. This is
+the dangling-handle problem solved without reference counting: a stale handle to
+a reused slot is detected by the generation mismatch, not by chance.
+
+The last piece is finding a type's storage at runtime. Storages live in a flat
+vector, and the index into it is =type_id<T>()= (see =type_id.hpp=): a dense,
+contiguous, RTTI-free id assigned to each type on first touch (0, 1, 2, ...).
+Because the ids are small and dense they index that vector directly, so "give me
+the storage for =position=" is an array subscript, not a hash of =typeid=.
+
+* How it works
+
+** Entities: create, destroy, and the free list
+
+=create()= returns a fresh =entity_id=. If the free list holds a recycled index
+it pops one and reuses it with that slot's current (already-bumped) generation;
+otherwise it appends a new slot with generation 1. Either way the result has
+generation >= 1 and =valid()= on it is =true=.
+
+=destroy(e)= fires the on-destroy signal for every component =e= carries (so
+listeners see a still-live value), erases those components, bumps the slot's
+generation, and pushes the index onto the free list for reuse. On generation
+wraparound it steps over 0, because generation 0 is the invalid sentinel and a
+recycled slot must never mint it. A stale or default-constructed handle is
+handled gracefully: =destroy= returns =false= and changes nothing.
+
+=valid(e)= is the gatekeeper. It is =true= only when the index is in range, the
+generation is non-zero, and it matches the slot's current generation. Every
+component operation calls it first, so a stale handle can never read or write the
+wrong entity's data. =alive()= reports the live count.
+
+The registry is itself a =std::ranges::input_range= over its live entities: its
+=begin()= / =end()= yield a fully-formed =entity_id= (index plus current
+generation) for each live entity. Iteration order is the dense set's order
+(creation order with a swap-pop on each destroy), so it is not stable across
+destroys. The =each(f)= method is the same loop in callback form. Do not create
+or destroy entities while iterating; the loop walks the live-index set in place.
+
+#+BEGIN_EXAMPLE
+nexenne::ecs::registry reg;
+auto e{reg.create()};            // generation >= 1, valid(e) == true
+reg.destroy(e);                  // slot's generation bumped, index recycled
+reg.valid(e);                    // false: the stale handle no longer matches
+
+for (auto entity : reg) { /* every live entity, once */ }
+#+END_EXAMPLE
+
+** Components: add, remove, get, has, patch
+
+=add<T>(e, value)= attaches a component, creating the storage for =T= lazily on
+first use. It returns =true= when a new =T= was attached and =false= when an
+existing =T= was replaced (or when =e= is invalid). The value is moved into the
+storage. Duplicate-add is a replace, not an error: adding a =T= to an entity that
+already has one overwrites it.
+
+=remove<T>(e)= detaches the component, returning =true= only if a =T= was
+actually there. =has<T>(e)= reports presence, and =all_of<Cs...>= / =any_of<Cs...>=
+fold it over several types.
+
+=get<T>(e)= follows the library-wide error policy: it returns
+=std::expected<std::reference_wrapper<T>, container_error>=, so the success path
+needs no nullptr check and a miss (invalid handle, no storage for =T= yet, or =e=
+does not carry a =T=) comes back as =container_error::not_found=. There is a const
+overload yielding a reference to a =const= component.
+
+=patch<T>(e, fn)= mutates the stored component in place: it hands =fn= a =T&=,
+then fires the update signal with that same reference so listeners observe the
+post-mutation value. Use it instead of =get= followed by a manual write when you
+want the on-update notification to fire.
+
+A component type with no data members (an empty *tag* component) works the same
+way; it carries no payload but its presence is still tracked, so =has<dead>(e)=
+and exclusion filters on tags behave as expected.
+
+#+BEGIN_EXAMPLE
+struct position { float x, y; };
+struct dead {};                                  // empty tag component
+
+auto e{reg.create()};
+reg.add<position>(e, {1.0F, 2.0F});              // true: newly attached
+reg.add<position>(e, {3.0F, 4.0F});              // false: replaced
+reg.patch<position>(e, [](position& p) noexcept { p.x += 1.0F; });
+if (auto got{reg.get<position>(e)}) { use(got->get()); }
+reg.add<dead>(e, {});                            // tag: presence only
+#+END_EXAMPLE
+
+** The per-type storage table and the hot loop
+
+Internally each =type_id<T>()= slot in the registry's storage vector holds a
+type-erased entry: a =void*= to a heap-allocated =component_storage<T>= plus a
+small struct of function pointers (erase, contains, size, clear, destroy, and the
+on-destroy emitter). This is a hand-rolled vtable, not a C++ virtual table, so
+the type-independent cold paths (=destroy(e)=, =clear()=) reach every storage
+through one direct indirect call with no vtable lookup.
+
+The hot path skips the indirection entirely. =storage<T>()= returns the concrete
+=component_storage<T>&=, and its =keys()= / =values()= give you contiguous spans
+parallel to each other. A system loop over =values()= compiles down to a straight
+walk over a =std::vector<T>=: no function-pointer call, no per-element branch,
+fully inlinable. That is where the cache-friendliness is actually spent.
+
+#+BEGIN_EXAMPLE
+component_storage<T>  ==  dense_map<uint32, T>
+
+  sparse (by entity index)        dense (parallel, contiguous)
+  +----+----+----+----+----+      keys:   [ 3 | 0 | 7 ]
+  | .  |  1 | .  |  0 |  . | ...  values: [ Ta| Tb| Tc]   <- the hot loop
+  +----+----+----+----+----+               ^   ^   ^
+   idx0 idx1 idx2 idx3 idx4                 |   |   |
+        |         |                         |   |   |
+        +---------|-------------------------+   |   |  entity 1 -> dense[0]
+                  +-----------------------------+      entity 3 -> dense[1]
+
+  // hot path: zero indirection, contiguous walk
+  for (auto& v : reg.storage<T>().values()) { update(v); }
+#+END_EXAMPLE
+
+For iterating several component types together (entities that carry *all* of a
+set), use the multi-component view rather than walking one storage by hand; see
+[[file:views.org][views]].
+
+** Lifecycle signals
+
+Each component type publishes three connect-only sinks, fetched from the registry
+as =on_construct<T>()=, =on_update<T>()=, and =on_destroy<T>()=. Each is a
+=signal::sink<void(entity_id, T&)>=, so a listener receives the entity and a
+reference to the component. (For how sinks and connections work, see
+[[file:../signal/signals.org][signals]].) Fetching a sink creates the storage for =T= lazily, so you can
+subscribe before any entity carries a =T=.
+
+The firing rules are precise:
+
+- =on_construct<T>= fires *after* =add<T>= attaches a brand-new component (the
+  =add= that returned =true=).
+- =on_update<T>= fires after =add<T>= *replaces* an existing component (the =add=
+  that returned =false=) or after =patch<T>= mutates one.
+- =on_destroy<T>= fires *before* the component is erased by =remove<T>= or by
+  =destroy(e)=, so the listener can read the final value while it is still live.
+
+* When to use it
+
+Reach for the registry when you have many entities composed of varying
+combinations of data and you want both cache-friendly bulk iteration and systems
+that stay decoupled from one another. Games are the canonical case, but any
+simulation, particle world, or entity-heavy tool fits: the win is that adding a
+new behaviour means adding a component type and a loop, touching nothing that
+already exists.
+
+The cost model, for sizing expectations:
+
+#+BEGIN_EXAMPLE
+operation                         cost
+create / destroy                  O(1) amortised  (destroy: O(C), see below)
+add / remove / get / has          O(1)
+destroy(e)                        O(C), C = number of registered component types
+iterate one component type        contiguous, cache-friendly
+#+END_EXAMPLE
+
+=destroy= is =O(C)= because it must check every registered storage for the
+entity's components. Everything is =noexcept=; out-of-range or stale-handle
+accesses return an error value (=false=, or =container_error::not_found=) and
+never invoke undefined behaviour. Allocation failure terminates rather than
+throwing, the library-wide policy for an embeddable target. Threading is the
+standard convention: concurrent reads are safe, concurrent mutation is not.
+
+** Constraints to respect
+
+- *Lifecycle listeners must not structurally modify the storage they observe.*
+  Inside an =on_construct=, =on_update=, or =on_destroy= listener (and inside a
+  =patch= mutator), do not add or remove a =T= on another entity, and do not
+  destroy an entity that holds a =T=. Any of those can reallocate the =T= storage
+  and dangle the very component reference the signal is still passing to the
+  listener. Read and mutate the referenced component freely; just do not grow or
+  shrink its storage.
+
+- *Entity index and generation are both =uint32=.* The registry addresses up to
+  2^32 slots and counts up to 2^32 reuses per slot before the generation wraps
+  (it steps over 0 on wrap, so a recycled slot never reads as the invalid handle).
+
+Runnable: [[file:../../../examples/ecs/simulation.cpp][examples/ecs/simulation.cpp]]

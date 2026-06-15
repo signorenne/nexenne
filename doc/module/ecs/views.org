@@ -1,0 +1,180 @@
+#+TITLE: views
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+A view is how you iterate the subset of entities that carry a particular
+combination of components, the bread and butter of any ECS. Most systems do not
+care about every entity in the [[file:registry.org][registry]]; a movement system wants exactly the
+entities that have both a =position= and a =velocity=, a render system wants
+=transform= and =sprite=, and so on. =view<Includes...>= gives you precisely
+that set and lets you touch the matching entities without walking, or even
+looking at, the rest.
+
+* The idea
+
+Iterating "everything that has all of these components" sounds like it should
+scan every entity and test each one. It should not. The components live in
+sparse sets (one =component_storage<T>= per type), and each storage already
+knows exactly which entities it holds, in a dense contiguous array. So the view
+does not scan entities, it walks one storage and rejects.
+
+The trick is to drive the walk from the *smallest* matching include storage. If
+=position= holds a million entities and =velocity= holds fifty, the answer can
+contain at most fifty entities, so you walk velocity's fifty and ask, for each
+one, whether =position= also holds it. That membership test is an O(1) sparse
+set lookup. Driving from the larger storage would walk a million candidates to
+find the same fifty; driving from the smallest means you walk the fewest
+candidates possible and reject the misses cheaply.
+
+Includes and excludes are both compile-time type lists. =view<C...>= is an alias
+for =basic_view<type_list<Includes...>, type_list<Excludes...>>=: includes are
+the components every visited entity must carry, excludes are the components it
+must not. Because the types are known at compile time, every storage pointer is
+captured with its concrete type and the hot loop is fully inlined: no virtual
+dispatch, no function-pointer indirection, no per-element type erasure. The loop
+the compiler sees is a plain index walk over an array of keys plus a handful of
+inlined membership checks.
+
+* How it works
+
+** Driver selection and the cached key span
+
+At construction the view caches a typed pointer to each include and exclude
+storage (creating any missing storage lazily through the registry), then picks
+its driver. With a single include the driver is just that storage; with several,
+=find_smallest_driver= reads each include's =size()= and selects the smallest.
+It then caches that storage's =keys()= span, the dense, contiguous array of
+entity indices the driver holds. From that point the iterator and =each= are a
+flat index walk over =m_driver_keys=, with no further dispatch to choose the
+driver.
+
+** The membership test per candidate
+
+For each driver key =idx=, =passes_filter(idx)= folds an =&&= of
+=contains(idx)= over the remaining include storages, then (only when the exclude
+list is non-empty) an =&&= of =!contains(idx)= over the exclude storages. Each
+=contains= is one O(1) sparse-set probe. An entry that fails any test is
+skipped. An entry that passes is guaranteed present in every include storage, so
+the subsequent =find(idx)= lookups that fetch the references never miss.
+
+#+BEGIN_EXAMPLE
+includes: position (1,000,000)   velocity (50)   <- velocity is smallest
+exclude:  frozen
+
+driver = velocity.keys()         (walk these 50, not the million)
+
+  idx ->  position.contains? --no--> skip
+          position.contains? --yes-> frozen.contains? --yes--> skip
+          position.contains? --yes-> frozen.contains? --no---> MATCH
+                                                                |
+                          fetch position[idx], velocity[idx] <-+
+#+END_EXAMPLE
+
+** The three idioms
+
+The functional form, =each(callback)=, runs the whole loop inside one function.
+The callback may take either =(entity_id, Includes&...)= or just
+=(Includes&...)=; the view picks the form at compile time with
+=std::is_invocable=, so you pay for the =entity_id= only when you name it.
+
+#+BEGIN_EXAMPLE
+reg.view<position, velocity>().each(
+    [](position& p, velocity const& v) noexcept {
+        p.x += v.x;
+        p.y += v.y;
+    });
+#+END_EXAMPLE
+
+The range form: the view is a =std::ranges::input_range= whose iterator
+dereferences to =std::tuple<entity_id, Includes&...>=, so a range-for with
+structured bindings reads cleanly. Construction and each increment skip forward
+to the next matching driver entry, so the body only ever sees matches.
+
+#+BEGIN_EXAMPLE
+for (auto [e, p, v] : reg.view<position, velocity>()) {
+    p.x += v.x;
+    p.y += v.y;
+}
+#+END_EXAMPLE
+
+The exclude form: =.exclude<T...>()= returns a new view over the same registry
+with the extra types appended to the exclude list, leaving the original
+untouched. The new types must be disjoint from the include list (a =requires=
+clause enforces this). Chain it before =each= or the range-for.
+
+#+BEGIN_EXAMPLE
+reg.view<position, velocity>().exclude<frozen, dead>().each(...);
+#+END_EXAMPLE
+
+** The query builder
+
+For longer or more dynamically assembled filters, =reg.query()= returns a
+=typed_query_builder=. Chain =.with<C>()= to grow the include list and
+=.without<C>()= to grow the exclude list, then =.build()= for the =basic_view=
+or call =.each(callback)= directly. Each chain step returns a builder of a new
+type with the component appended to the relevant pack, so the type system tracks
+both lists at zero runtime cost; the result is identical to naming the same
+=view<...>= directly.
+
+#+BEGIN_EXAMPLE
+reg.query().with<position>().with<velocity>().without<frozen>().each(...);
+#+END_EXAMPLE
+
+** Empty component types
+
+A tag component (=std::is_empty_v<T>= is =true=) carries no data but still
+participates in the filter. When such a type is in the include list the callback
+still receives a reference for it, a dummy reference per the standard iteration,
+so the arity matches. Bind it with =auto&= and ignore it; you used it for its
+presence in the filter, not for its value.
+
+* When to use it
+
+Reach for a view in any per-frame system that iterates a combination of
+components: movement, collision, rendering, AI ticks. The cost is the driver
+size times a small constant: one membership probe per remaining include and per
+exclude on each driver entry. Driving from the smallest include keeps the driver
+size as low as the data allows.
+
+For a single component, do not build a view at all; iterate the storage
+directly:
+
+#+BEGIN_EXAMPLE
+for (auto& p : reg.storage<position>().values()) { /* ... */ }
+#+END_EXAMPLE
+
+That is a bare walk over one dense array with no membership tests. Use a view
+when you need two or more components together; that is where the smallest-driver
+strategy earns its keep.
+
+The canonical position/velocity integrate loop:
+
+#+BEGIN_SRC cpp
+reg.view<position, velocity>().each(
+    [dt](position& p, velocity const& v) noexcept {
+        p.x += v.x * dt;
+        p.y += v.y * dt;
+    });
+#+END_SRC
+
+* Do not structurally modify a viewed storage while iterating
+
+This is a documented precondition (a =@pre= in the code), not a guideline. The
+view caches the driver's =keys()= span at construction, and the references it
+hands back point into the dense value arrays of the storages. The loop body must
+*not* structurally modify any viewed storage while iterating: do not add or
+remove one of the viewed components, and do not destroy a viewed entity. Such a
+change can reallocate a dense array (invalidating the cached key span and every
+handed-out reference) or swap-pop an element (moving entries under the walk),
+which corrupts the iteration.
+
+Mutating component *values* in place is fine, and is the normal case: changing
+=p.x= through the reference you were handed touches no structure. It is only the
+set of entities or the set of components per entity that must stay fixed for the
+duration of the loop. The standard ECS discipline applies: record the wanted
+structural changes during the loop and apply them afterward, once the view is
+done.
+
+Runnable: [[file:../../../examples/ecs/simulation.cpp][examples/ecs/simulation.cpp]]
