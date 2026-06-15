@@ -56,19 +56,19 @@ namespace nexenne::chrono {
  * @tparam Clock Steady clock to measure with.
  *
  * @pre \p N is greater than zero.
- * @post A default-constructed fixed_stopwatch is idle with zero elapsed time
+ * @post A default-constructed static_stopwatch is idle with zero elapsed time
  *       and no laps.
  */
 template <std::size_t N, steady_clock_like Clock = std::chrono::steady_clock>
   requires(N > 0)
-class fixed_stopwatch {
+class static_stopwatch {
 public:
   using clock_type = Clock;
   using duration = typename Clock::duration;
   using time_point = typename Clock::time_point;
 
   /**
-   * @brief Lifecycle state of a \c fixed_stopwatch.
+   * @brief Lifecycle state of a \c static_stopwatch.
    *
    * @pre None.
    * @post None.
@@ -103,7 +103,7 @@ public:
    * @pre None.
    * @post \c is_idle() is \c true with zero elapsed time and no laps.
    */
-  constexpr fixed_stopwatch() noexcept = default;
+  constexpr static_stopwatch() noexcept = default;
 
   /**
    * @brief Current lifecycle state.
@@ -484,7 +484,7 @@ public:
    * @post None.
    */
   [[nodiscard]] friend auto
-  operator<=>(fixed_stopwatch const& a, fixed_stopwatch const& b) noexcept {
+  operator<=>(static_stopwatch const& a, static_stopwatch const& b) noexcept {
     auto const now{Clock::now()};
     return a.elapsed_at(now) <=> b.elapsed_at(now);
   }
@@ -498,7 +498,7 @@ public:
    * @post None.
    */
   [[nodiscard]] friend auto
-  operator==(fixed_stopwatch const& a, fixed_stopwatch const& b) noexcept -> bool {
+  operator==(static_stopwatch const& a, static_stopwatch const& b) noexcept -> bool {
     auto const now{Clock::now()};
     return a.elapsed_at(now) == b.elapsed_at(now);
   }

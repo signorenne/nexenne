@@ -5,7 +5,7 @@
 * Purpose
 
 =stopwatch<Clock>= measures elapsed time like the physical device: start, pause,
-resume, and lap, accumulating across the running intervals. =fixed_stopwatch<N,
+resume, and lap, accumulating across the running intervals. =static_stopwatch<N,
 Clock>= is the same machine with an allocation-free, fixed-capacity lap buffer
 for embedded use. Both default to =std::chrono::steady_clock= and work with any
 =steady_clock_like= clock.
@@ -47,7 +47,7 @@ without losing the running state.
 
 =stopwatch= keeps laps in a =std::vector=, so =lap()= and =reserve_laps()= may
 throw =std::bad_alloc= on growth (everything else is =noexcept=). =reserve_laps(n)=
-up front avoids that. =fixed_stopwatch<N>= instead stores up to =N= laps inline
+up front avoids that. =static_stopwatch<N>= instead stores up to =N= laps inline
 and *counts the overflow*: =stored_lap_count()= caps at =N=, =lap_count()= is the
 true total, and =laps_dropped()= reports how many did not fit, so a full buffer
 is visible rather than silently truncated. It never allocates.
@@ -64,7 +64,7 @@ is visible rather than silently truncated. It never allocates.
 
 - =stopwatch= on a hosted system where an occasional heap allocation for laps is
   fine and the lap count is unbounded.
-- =fixed_stopwatch<N>= on an MCU or any allocation-free path, accepting that only
+- =static_stopwatch<N>= on an MCU or any allocation-free path, accepting that only
   the first =N= laps are stored (the rest are counted).
 - Reach for [[file:scope-profiling.org][scope_timer]] instead when you just want to time one lexical scope.
 

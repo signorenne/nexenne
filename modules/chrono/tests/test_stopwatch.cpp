@@ -1,6 +1,6 @@
 /**
  * @file
- * @brief Tests for nexenne::chrono stopwatch and fixed_stopwatch over manual_clock.
+ * @brief Tests for nexenne::chrono stopwatch and static_stopwatch over manual_clock.
  */
 
 #include <doctest/doctest.h>
@@ -8,8 +8,8 @@
 #include <chrono>
 #include <format>
 
-#include <nexenne/chrono/fixed_stopwatch.hpp>
 #include <nexenne/chrono/manual_clock.hpp>
+#include <nexenne/chrono/static_stopwatch.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
 
 namespace {
@@ -63,10 +63,10 @@ TEST_CASE("nexenne::chrono::stopwatch std::format renders elapsed time") {
   CHECK(std::format("{}", sw) == "01m:05s");
 }
 
-TEST_CASE("nexenne::chrono::fixed_stopwatch bounds its lap buffer and counts drops") {
+TEST_CASE("nexenne::chrono::static_stopwatch bounds its lap buffer and counts drops") {
   using clk = ch::basic_manual_clock<struct fsw_tag>;
   clk::reset();
-  ch::fixed_stopwatch<2, clk> sw;  // room for 2 laps (capacity first, clock second)
+  ch::static_stopwatch<2, clk> sw;  // room for 2 laps (capacity first, clock second)
   sw.start();
   for (int i{0}; i < 4; ++i) {
     clk::advance(10ms);
