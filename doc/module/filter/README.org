@@ -1,0 +1,44 @@
+#+TITLE: nexenne::filter
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Discrete-time digital filters for embedded signal conditioning, with no
+dependencies on the rest of the stack. The single idea that ties the module
+together: every filter holds its state inline (no heap, no allocation), is
+generic over the sample type, and processes one sample at a time through the
+same small surface, =push= a sample to get the filtered output, =value= to read
+the last output again, =reset= to return to the initial state. That uniformity
+lets generic code accept "any filter" through the =filter_like= concept, and it
+means each one drops into an interrupt handler or a bare-metal control loop
+without a scheduler. The members that take a single sample and return the same
+type satisfy =filter_like=; a few (the two-input fusion and adaptive filters, the
+boolean shapers, and the guards) have a wider surface and are used directly.
+
+The roster is grouped by what each family is for.
+
+* Linear smoothers
+
+- [[file:smoothers.org][smoothers]] : the frequency-domain workhorses, =ema= and =sma= for cheap
+  averaging, =lowpass= and =highpass= first-order IIR sections, the
+  second-order =biquad= with its low-pass / high-pass / band-pass / notch
+  designers, the maximally-flat =butterworth= cascade, and the exact-phase =fir=
+  convolution.
+
+* Robust, statistical, and adaptive
+
+- [[file:robust.org][robust]] : the filters that go beyond a weighted sum, =median= for spike
+  rejection, the scalar =kalman= estimator, =complementary= two-sensor fusion,
+  and the =lms= adaptive filter that learns its own coefficients.
+
+* Control and shaping
+
+- [[file:shaping.org][shaping]] : filters that shape how and when a signal may change, =slew= rate
+  limiting, count-based =debounce= and time-based =timed_debounce=, the
+  =hysteresis= Schmitt trigger, and the =glitch= suppressor.
+
+* Validation and guards
+
+- [[file:guards.org][guards]] : filters that defend the downstream logic from bad samples,
+  =range_guard= and =rate_guard= for physical limits, =validator= for arbitrary
+  predicates, =majority= voting for redundant reads, and =stale_detector= for a
+  sensor that has stopped updating.

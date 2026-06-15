@@ -1,0 +1,399 @@
+#+TITLE: smoothers
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+This family is the linear, frequency-shaping core of =nexenne::filter=: given a
+stream of noisy samples you push in one at a time, each filter hands back a
+cleaned-up or reshaped version of that stream. "Linear" means the output is a
+weighted sum of inputs (and, for the recursive members, of past outputs), so
+doubling the input doubles the output and the filter never invents frequencies
+that were not already present. Use them to tame sensor jitter (=ema=, =sma=,
+=lowpass=), to strip a slow DC drift off a measurement (=highpass=), or to carve
+a precise shape out of the spectrum (=biquad=, =butterworth=, =fir=).
+
+Every smoother here exposes the same small =filter_like= surface, so they are
+interchangeable at the call site and you can swap one for another without
+touching the surrounding loop:
+
+- =push(sample)= : feed one input, get the filtered output back (=[[nodiscard]]=).
+- =value()= : peek at the most recent output without advancing the filter.
+- =reset()= : clear the internal state back to silence (coefficients are kept).
+
+All of them are header-only, allocation-free, and =constexpr= where the math
+allows. They are polled, never blocking, so they drop straight into a control
+loop, an audio callback, or a bare-metal superloop.
+
+* The idea
+
+A digital filter computes each output from the inputs (and possibly the past
+outputs) around it. The first fork in the road is whether it remembers its own
+output:
+
+- *FIR* (Finite Impulse Response): the output is a weighted sum of the last =N=
+  inputs only, no feedback. A single spike in the input affects exactly =N=
+  outputs and then is gone, hence "finite". Always stable (there is nothing to
+  diverge), and if the weights are symmetric the filter has *linear phase*:
+  every frequency is delayed by the same =(N-1)/2= samples, so the waveform
+  shape is preserved. =fir= is the member here.
+
+- *IIR* (Infinite Impulse Response): the output feeds back into itself, so a
+  single input spike echoes forever (decaying, if the filter is stable). This
+  buys a sharp response from very little state and arithmetic, at the cost of
+  nonlinear phase and a stability you must respect. =ema=, =lowpass=,
+  =highpass=, =biquad=, and =butterworth= are all IIR.
+
+The recursive members come in rising order of sophistication:
+
+- *Single-pole* (=ema=, =lowpass=, =highpass=): one feedback term, one delay
+  element. The cheapest useful smoother, a gentle 6 dB-per-octave slope.
+- *Moving average* (=sma=): the mean of the last =N= samples. Technically an
+  FIR with all taps equal, but cheap to run incrementally; treated on its own
+  because you reach for it by name.
+- *Second-order biquad* (=biquad=): two poles and two zeros, five coefficients.
+  One section can be a low-pass, high-pass, band-pass, or notch with a tunable
+  resonance.
+- *Butterworth* (=butterworth=): a cascade of biquads tuned for a *maximally
+  flat* passband (no ripple) and a monotonic rolloff that steepens with order.
+
+The single knob you trade against everywhere is *smoothing versus lag*. A
+longer =ema= time constant, a wider =sma= window, a lower =lowpass= cutoff, or
+more =fir= taps all reject more noise but also delay the signal more and react
+more sluggishly to real changes. There is no free lunch: a filter that removes
+noise without delay would have to predict the future.
+
+For cutoff-based members the frequency knob is a real frequency in Hz, paired
+with the *sample rate* (also Hz, the rate at which you call =push=). The two
+together fix the filter's behaviour; the cutoff must stay below the *Nyquist*
+frequency (half the sample rate), the highest frequency a sampled signal can
+represent.
+
+* How it works
+
+** ema: exponential moving average
+
+The exponential moving average blends each new sample with the running output:
+
+#+BEGIN_EXAMPLE
+y[n] = alpha * x[n] + (1 - alpha) * y[n-1]
+#+END_EXAMPLE
+
+The single parameter =alpha= (the smoothing factor, in =(0, 1]=) sets how fast
+old data is forgotten. =alpha = 1= disables smoothing (output equals input);
+smaller =alpha= weights the history more heavily and smooths harder. This is
+exactly a first-order low-pass with time constant =tau = (1 - alpha) / alpha=
+samples. The weight of a sample =k= steps in the past decays as
+=(1 - alpha)^k=, an exponential tail, which is where the name comes from.
+
+The first =push= after construction (or =reset()=) *primes* the filter by
+seeding =y= directly with that sample, so there is no slow ramp up from zero.
+=reset()= drops back to the unprimed state; =reset(initial)= seeds a known
+primed value instead. =alpha(a)= retunes on the fly without disturbing the
+stored output. Cost is one multiply and one add per sample, no buffer.
+
+** sma: simple moving average
+
+The simple moving average outputs the arithmetic mean of the last =N= samples:
+
+#+BEGIN_EXAMPLE
+y[n] = (x[n] + x[n-1] + ... + x[n-N+1]) / N
+#+END_EXAMPLE
+
+The window =N= is a compile-time template parameter, so the storage is a
+=std::array= of =N= samples (zero heap). The running sum is kept incrementally:
+on each =push= the oldest sample is subtracted and the newest added, so the
+per-sample cost is =O(1)= regardless of =N=, not a re-scan of the window. Until
+=N= samples have arrived it averages only what it has, so there is no startup
+bias; =filled()= reports when the window is full and =count()= how many samples
+it holds. =reset()= zeros the window and the sum.
+
+A window of =N= introduces a delay of about =N/2= samples. Picture it sliding:
+
+#+BEGIN_EXAMPLE
+input:   3   7   2   8   5   1   9   ...
+                  +---------------+
+window (N=4):     | 2   8   5   1 |  ->  mean = 4.0
+                  +---------------+
+next push (9):        +---------------+
+                      | 8   5   1   9 |  ->  mean = 5.75
+                      +---------------+
+#+END_EXAMPLE
+
+Equal weights make the =sma= a true FIR; if you need a runtime-sized window
+without a buffer, an =ema= approximates it with exponential decay instead.
+
+** lowpass: first-order IIR low-pass
+
+This is the same recurrence as =ema=, but you specify a *cutoff frequency*
+rather than =alpha=, so you think in Hz:
+
+#+BEGIN_EXAMPLE
+dt    = 1 / sample_rate
+RC    = 1 / (2 * pi * cutoff)
+alpha = dt / (RC + dt)
+y[n]  = alpha * x[n] + (1 - alpha) * y[n-1]
+#+END_EXAMPLE
+
+It is the digital twin of an analogue RC low-pass circuit: frequencies below the
+cutoff pass through, frequencies above it are attenuated, with a gentle 6
+dB-per-octave slope. The constructor computes =alpha= once from =cutoff_hz= and
+=sample_rate_hz=, so per sample you again pay one multiply and one add. The
+first =push= primes the value directly; =reset()= unprimes it while keeping the
+coefficient; =cutoff(cutoff_hz, sample_rate_hz)= retunes without touching the
+running state. If you already hold an =alpha=, reach for =ema= directly.
+
+#+BEGIN_EXAMPLE
+magnitude (dB)
+  0 |--------\
+            |\
+ -3 |- - - - +\         <- cutoff (the -3 dB corner)
+            |  \
+            |   \__ 6 dB per octave
+    +-------+------------> frequency
+          cutoff
+#+END_EXAMPLE
+
+** highpass: first-order IIR high-pass
+
+The complement of =lowpass=: it passes rapid changes and attenuates slow drift.
+
+#+BEGIN_EXAMPLE
+dt    = 1 / sample_rate
+RC    = 1 / (2 * pi * cutoff)
+alpha = RC / (RC + dt)
+y[n]  = alpha * (y[n-1] + x[n] - x[n-1])
+#+END_EXAMPLE
+
+Note it keeps both the previous output =y[n-1]= and the previous input =x[n-1]=,
+so the per-sample cost is one multiply and a couple of adds. The typical jobs
+are removing a DC offset from a sensor, extracting the "AC component" of a
+measurement, or crude edge detection in sampled data. The first =push= seeds the
+input memory and emits zero (there is no prior input to difference against yet);
+later samples apply the equation. =reset()= clears the input memory and output;
+=cutoff()= retunes in place.
+
+** biquad: general second-order section
+
+The biquad is the Swiss-army knife: two poles, two zeros, five normalised
+coefficients, realised in Direct Form I:
+
+#+BEGIN_EXAMPLE
+y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]
+#+END_EXAMPLE
+
+(=a0= is normalised to 1.) Different coefficient sets give low-pass, high-pass,
+band-pass, notch, and more, all from this one recurrence with two input and two
+output delay elements. You can set the five coefficients directly through the
+=coefficients= struct (=b0, b1, b2, a1, a2=) via the constructor or =coefs(c)=,
+and read them back with =coefs()=. =reset()= clears the four delay elements but
+keeps the coefficients (so a coefficient swap with =coefs= mid-stream may cause a
+transient, since the old delay line lives on).
+
+In practice you rarely hand-compute coefficients: four static designers build the
+standard Audio EQ Cookbook sets for you, each taking a frequency, the sample
+rate, and a quality factor =q=:
+
+- =biquad<T>::make_lowpass(cutoff_hz, sample_rate_hz, q)=
+- =biquad<T>::make_highpass(cutoff_hz, sample_rate_hz, q)=
+- =biquad<T>::make_bandpass(center_hz, sample_rate_hz, q)=
+- =biquad<T>::make_notch(center_hz, sample_rate_hz, q)=
+
+The =q= (quality factor) controls resonance and bandwidth. For low/high-pass,
+=q = 0.7071= (= 1/sqrt(2)) gives the maximally flat Butterworth corner; higher
+=q= peaks the response near the cutoff. For band-pass and notch, larger =q=
+narrows the band. The low/high designers default to =0.7071=, the band-pass and
+notch to =1=.
+
+#+BEGIN_EXAMPLE
+band-pass magnitude          notch (band-reject) magnitude
+   ___/\___                     ----\    /----
+      |                              \  /
+   center                            \/
+                                   center
+#+END_EXAMPLE
+
+** butterworth: cascaded maximally-flat IIR
+
+A single biquad rolls off only so steeply. To get a sharper transition while
+keeping the passband flat, cascade several biquads, each realising one
+complex-conjugate pole pair. That is the Butterworth design: *maximally flat*
+magnitude in the passband (no ripple) and a monotonic rolloff that gets steeper
+with order.
+
+=butterworth<T, SectionsN>= holds an array of =SectionsN= biquad sections; the
+filter =order= is =2 * SectionsN= (each section is second order). =push= runs the
+sample through every section in series, so the cost is =O(SectionsN)=. You design
+it with one of:
+
+- =design_low_pass(cutoff_hz, sample_rate_hz)=
+- =design_high_pass(cutoff_hz, sample_rate_hz)=
+
+These assign every section the same cutoff but a different per-section =q=, the
+exact set =Q_k = 1 / (2 * sin((2k+1) * pi / (4N)))= that places the poles evenly
+on the Butterworth circle. A =kind= enum (=low_pass=, =high_pass=) names the two
+response shapes. For band-pass or band-stop, cascade a low-pass and a high-pass
+at the two corners. Note that the design functions do *not* clear the section
+state, so call =reset()= after a re-design to flush any transient.
+
+#+BEGIN_EXAMPLE
+magnitude                order 2 (1 section):  -.
+  0 |======\__              order 4 (2 sections): \.
+            \  \\           order 6 (3 sections):  \\.  steeper rolloff
+ -3 |- - - - +. \\                                  with more sections
+            |  \  \\
+    +-------+-----------> frequency
+          cutoff
+#+END_EXAMPLE
+
+** fir: finite impulse response
+
+The FIR convolves the input with a fixed coefficient (tap) vector and uses no
+feedback at all:
+
+#+BEGIN_EXAMPLE
+y[n] = c[0]*x[n] + c[1]*x[n-1] + ... + c[N-1]*x[n-N+1]
+#+END_EXAMPLE
+
+Tap =0= weights the newest sample. Because there is no recursion it is always
+stable, and if the taps are symmetric it has exact *linear phase* with a group
+delay of =(N-1)/2= samples. =fir<T, N>= stores both the =N= taps and an =N=-slot
+ring-buffer history in =std::array=, so it is heap-free. You supply the taps as a
+=std::span<T const, N>= (a fixed-extent span, so the size is checked at compile
+time) through the constructor or =coefficients(span)=, and read them back with
+=coefficients()=. The coefficients themselves are designed offline, by a
+windowed-sinc or Parks-McClellan tool, and pasted in. =push= stores the sample
+and multiply-accumulates against the last =N= inputs, newest first, at =O(N)= per
+sample. =reset()= zeros the history (the taps survive). The default-constructed
+filter has all-zero taps and outputs zero until you supply coefficients.
+
+The price is that =O(N)= work: a 64-tap FIR at 48 kHz is roughly 3 MFLOP/s, fine
+on any modern MCU, but a biquad does far less for a similar magnitude response if
+you can tolerate its nonlinear phase.
+
+* When to use it
+
+Reach for the cheapest member that meets the spec; only climb the ladder when the
+response or phase demands it.
+
+- =ema= :: The default lightweight smoother: one multiply and one add, no buffer,
+  a runtime-tunable =alpha=. Use it when you want "less jitter, a little lag" and
+  do not care about an exact cutoff. As a rule of thumb =alpha = 2 / (window + 1)=
+  makes it mimic an =window=-sample average while keeping the =O(1)= state and time
+  and zero storage, so it is the natural choice when the window would otherwise be
+  large or runtime-sized.
+- =sma= :: A true average with a hard, bounded window and predictable =N/2= delay.
+  Pick it when you want every sample in the window to count equally (for example
+  decimating or de-jittering a fixed burst), or when that exact, flat =N/2= group
+  delay matters for aligning the output against another stream. Compile-time
+  window, =O(1)= per push but =O(N)= storage; prefer =ema= when =N= is large or
+  not known until run time.
+- =lowpass= / =highpass= :: The =ema= idea (and its high-pass mirror) parameterised
+  in Hz. Use these when you think in cutoff frequency and sample rate rather than
+  raw =alpha=: noise rejection (=lowpass=) or DC-drift removal (=highpass=). The
+  gentle 6 dB-per-octave slope means the cutoff is where attenuation begins, not a
+  hard wall, so set it well below the noise you must kill and above the fastest
+  signal you must keep. =O(1)=.
+- =biquad= :: One designed second-order section: a sharper, resonant low/high-pass,
+  or a band-pass / notch (for example rejecting 50/60 Hz mains hum). Use it when a
+  single-pole slope is too gentle or you need a peak or a band. Tune with =q=:
+  =0.7071= (= 1/sqrt(2)) is the maximally flat Butterworth corner, higher =q= adds
+  a resonant peak near the cutoff, and for band-pass and notch a larger =q= narrows
+  the band. =O(1)=.
+- =butterworth= :: A biquad cascade for a steep yet ripple-free rolloff. Use it
+  when a single biquad does not separate the bands cleanly enough; each added
+  section steepens the rolloff by another 12 dB-per-octave but adds latency and
+  per-sample work. Pay =O(SectionsN)= per sample for the extra order.
+- =fir= :: The exact-response, always-stable, linear-phase option. Use it when
+  waveform shape must be preserved (the phase matters) or you need a precisely
+  specified magnitude response designed offline. The flip side is that the taps
+  cannot be dialled in from a single Hz value at run time: you design them once in
+  external tooling. Costs =O(N)= per sample; the only member here that is not
+  =O(1)=.
+
+All members are heap-free and ISR-safe; nothing here allocates or blocks. The
+=O(1)= members (=ema=, =lowpass=, =highpass=, =biquad=, and per-sample =sma=) are
+the natural fit for the tightest embedded budgets, while =fir= and the
+=butterworth= cascade trade a little more arithmetic for a more exact response.
+For the nonlinear, outlier-rejecting filters (a median, for instance) see
+[[file:robust.org][robust]].
+
+* Best practices and tuning
+
+A few habits keep these filters well-behaved and predictable.
+
+** Respect Nyquist
+
+Every cutoff-based member (=lowpass=, =highpass=, =biquad=, =butterworth=) takes a
+frequency in Hz alongside the sample rate. The cutoff must stay below the *Nyquist*
+frequency =sample_rate / 2=, the highest frequency a sampled signal can represent.
+Asking for a cutoff at or above Nyquist is meaningless and the coefficient math
+degenerates. When the band you care about sits close to Nyquist, the cleanest fix
+is to *oversample then filter*: sample faster than strictly required, run the
+filter at that higher rate where the cutoff has room below Nyquist, and optionally
+decimate afterward. This also pushes any analogue anti-aliasing requirement to an
+easier corner.
+
+** Separate the signal band from the noise band
+
+A linear filter can only help when the signal and the noise live in different parts
+of the spectrum. The whole tuning job is to place the transition between them: pick
+=alpha= (=ema=), the window =N= (=sma=), or the cutoff (=lowpass=, =highpass=,
+=biquad=, =butterworth=) so the band you want to keep passes and the band you want
+to reject is attenuated. If the two overlap, no amount of tuning a linear smoother
+will cleanly split them; you either move the bands apart (sample differently,
+change the sensor) or reach for a nonlinear approach.
+
+** Smoothing versus lag, concretely
+
+The single knob you trade against everywhere is *smoothing versus lag*. More
+smoothing always costs more delay: a lower =ema= =alpha= lengthens its time
+constant =tau = (1 - alpha) / alpha= samples, a wider =sma= window adds its =N/2=
+sample delay, a lower =lowpass= cutoff lengthens its =RC=, and more =fir= taps push
+the linear-phase group delay =(N-1)/2= up. A filter that removed noise with no
+delay would have to predict the future, so size the smoothing to the slowest you
+can tolerate the output reacting, no more.
+
+** Prefer cascaded second-order sections for IIR
+
+A high-order IIR filter written as one direct-form recurrence is numerically
+fragile: its coefficients span a wide dynamic range and small rounding errors in
+them can shift the poles enough to ripple the passband or even lose stability. The
+fix used by =butterworth= here is to factor the response into *cascaded
+second-order sections* (biquads), one complex-conjugate pole pair each. Each
+=biquad= is individually well-conditioned and easy to keep stable, and the cascade
+realises the same overall response with far less sensitivity to coefficient
+rounding. Build high-order IIR responses this way rather than as one big
+direct-form filter.
+
+** Choosing q
+
+For the resonant designers, =q= (the quality factor) sets how the response behaves
+near the corner. =q = 1/sqrt(2) = 0.7071= is the *maximally flat* (Butterworth)
+corner: the passband stays as flat as possible right up to the cutoff. Raising =q=
+above that adds a *resonant* peak near the cutoff (useful when you want to emphasise
+a band, unwanted when you do not), while for band-pass and notch a larger =q=
+narrows the band. The =biquad= low/high-pass designers default to =0.7071=; the
+band-pass and notch default to =1=.
+
+** Designing FIR taps offline
+
+=fir= has no Hz-and-sample-rate constructor on purpose: its taps are *designed
+offline* and pasted in. The two standard routes are the *windowed-sinc* method
+(take the ideal brick-wall impulse response and taper it with a window) and the
+*Parks-McClellan* (Remez) algorithm for an equiripple optimal fit to a target
+magnitude response. Compute the =N= taps in external tooling, drop them into a
+=std::array=, and hand the filter a =std::span<T const, N>=. Keep the taps symmetric
+if you want the exact linear phase.
+
+** Heap-free and ISR-safe by construction
+
+Every member here is header-only, allocation-free, and non-blocking: state lives in
+fixed-size members and =std::array=, =push= touches only that state, and nothing
+locks or waits. That makes them safe to call from an interrupt service routine or a
+bare-metal superloop. The =O(1)= members (=ema=, =lowpass=, =highpass=, =biquad=,
+and per-sample =sma=) fit the tightest budgets, while =fir= and the =butterworth=
+cascade trade a little more bounded arithmetic for a more exact response, still
+without ever touching the heap.
+
+Runnable: [[file:../../../examples/filter/smoothers.cpp][examples/filter/smoothers.cpp]]

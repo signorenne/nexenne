@@ -40,6 +40,13 @@ Follow a module to its own index, which lists, per class it provides, a guide
   =std::expected= error policy, never throwing and bounds-checking every byte: a
   JSON DOM, parser, and writers; a schema-driven binary =writer= / =reader=; the
   CBOR and MessagePack codecs; COBS framing; and a versioned envelope.
+- [[file:filter/README.org][filter]] (no dependencies) : discrete-time digital filters for embedded signal
+  conditioning, all sharing a =push= / =value= / =reset= surface: linear
+  smoothers (=ema=, =sma=, =lowpass=, =highpass=, =biquad=, =butterworth=,
+  =fir=), robust and adaptive filters (=median=, =kalman=, =complementary=,
+  =lms=), control shapers (=slew=, =debounce=, =hysteresis=, =glitch=), and
+  validation guards (=range_guard=, =rate_guard=, =validator=, =majority=,
+  =stale_detector=).
 
 * Dependency layering
 
@@ -57,6 +64,7 @@ A module may only use the modules below it; the build refuses a cycle.
   utility        the foundation, no dependencies
 
   random         seedable RNG (independent, no dependencies)
+  filter         discrete-time digital filters (independent, no dependencies)
 #+END_EXAMPLE
 
 More modules join as they are ported, each declaring its place in the layering

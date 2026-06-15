@@ -1,0 +1,233 @@
+#+TITLE: guards
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+The guard filters defend the logic downstream of a sensor from bad reads. A bus
+transfer can return a value outside the sensor's physical range, a value that is
+in range but changed faster than physics allows, a value that breaks a domain
+rule, a transient single-read corruption, or the same value forever because the
+part has frozen. Each guard in this file watches for one of those failure modes
+and keeps the garbage from reaching the application. They are not smoothers: they
+do not reshape the signal or trade lag for noise. Most of them pass good data
+through byte-for-byte and act only when a sample looks wrong, so a healthy stream
+comes out exactly as it went in. The companion smoothing filters live in
+[[file:shaping.org][shaping]].
+
+* The idea
+
+Every guard here is built on one pattern: validate each incoming sample, and on
+failure substitute the last known-good value instead of forwarding the bad one.
+=push= returns the value the application should use, which is either the fresh
+sample (it passed) or the held value (it did not). Because a rejected sample is
+replaced by a real earlier reading rather than an average, the accepted samples
+are never altered. That is the line between a guard and a smoother: a moving
+average changes every output, a guard changes only the outputs it rejects, and
+leaves the rest alone.
+
+Two members of the family bend that pattern slightly. The majority vote treats N
+consecutive reads as N-modular redundancy: read a noisy line several times and
+emit the value that appears most often, so a single corrupt read out of three is
+outvoted and silently corrected. This is the software form of the Triple Modular
+Redundancy used in safety-critical hardware. The stale detector is a liveness
+check rather than a corrector: it forwards every sample untouched but raises a
+flag once a value repeats N times in a row, which usually means the part stopped
+responding and the bus is handing back a stuck level.
+
+* How it works
+
+Each guard exposes the same small surface: a =push(sample)= that returns the
+value to use, a =value()= that reads the current output without advancing, and a
+=reset()=. All operations are =noexcept= and none of these types allocate.
+
+** range_guard
+
+=range_guard<T>= rejects values outside an inclusive physical range. Construct it
+from its bounds, =range_guard{lo, hi}=, with =lo= less than or equal to =hi=. A
+sample inside =[lo, hi]= is accepted and becomes the output; a sample outside the
+range is rejected and the previous accepted value is held.
+
+The first sample is the one exception, and the behaviour is deliberately dual. If
+the guard is still unprimed and the very first sample is out of range, it is
+*clamped* to the nearest bound rather than rejected, so the filter starts in a
+defined in-range state instead of holding a value-initialised =T=. Once primed,
+every later out-of-range sample is *rejected and held*, never clamped. So the
+first bad sample is pulled to a bound, but the second bad sample reuses the last
+good reading. =last_accepted()= reports whether the guard has primed yet.
+=range(lo, hi)= swaps the bounds at run time and leaves the held value untouched
+even if it now falls outside. =reset()= clears the output to =T{}= and returns to
+the unprimed state, so the next out-of-range =push= is clamped again.
+
+#+BEGIN_EXAMPLE
+range_guard{0, 100}, samples arriving left to right:
+
+  in:   42   77   255  88   -5   90
+  out:  42   77   77   88   88   90
+                  ^^^             rejected (255 > 100), held 77
+                            ^^    rejected (-5 < 0), held 88
+#+END_EXAMPLE
+
+** rate_guard
+
+=rate_guard<T>= rejects a sample that jumps too far from the last accepted value.
+Construct it from the limit, =rate_guard{max_delta}=, where =max_delta= is the
+maximum allowed absolute change between consecutive samples, in the sample's own
+units. A negative limit is clamped to zero, which then rejects every change after
+the first sample. =T= must be floating point.
+
+The first sample after construction or =reset()= *seeds* the output: it is
+accepted directly, since there is nothing yet to measure a jump against.
+Afterward a sample is accepted only when =abs(sample - value()) <= max_delta=;
+otherwise the output holds. This catches the read that passes a range check but
+is physically impossible, like a temperature sensor reading 25 then 250 in one
+period. =max_delta(v)= changes the limit at run time. There are two resets:
+=reset()= returns to zero and unprimed so the next =push= seeds again, while
+=reset(initial)= jumps straight to a known primed value so the next =push= is
+rate-limited against =initial=. Both preserve the limit.
+
+#+BEGIN_EXAMPLE
+rate_guard{5.0}: a spike train where the guard holds the last good value.
+
+  in:   20.0   22.0   24.0   90.0   25.0   27.0
+  out:  20.0   22.0   24.0   24.0   24.0   27.0
+                             ^^^^   jump 66 > 5, rejected, held 24.0
+                                    ^^^^   jump |25-24|=1 <= 5, accepted
+#+END_EXAMPLE
+
+** validator
+
+=validator<T, Pred>= accepts a sample only when a user-supplied predicate returns
+=true= for it; otherwise it holds the last accepted value. The predicate is any
+callable =(T const&) -> bool=, so any domain rule that fits that shape plugs in:
+an even-only register, a status byte that must read OK, a checksum that must
+match. It is the most flexible guard in the file because the acceptance test is
+yours to write.
+
+Construct it primed to a known value, =validator{predicate, initial}=, and the
+held output starts at =initial=; from then on a first sample that fails the
+predicate is rejected rather than seeded. The predicate is stored by value, like
+=scope_timer='s callback, so a captured lambda inlines without =std::function=
+overhead. =reset()= clears the output to =T{}= and unprimes the validator, after
+which the next single =push= is accepted unconditionally to re-establish an
+initial state; the predicate itself is retained. Per-sample cost is =O(1)= plus
+one predicate call.
+
+** majority
+
+=majority<T, N>= returns the most common value among the last N samples, the mode
+of the recent window. It is N-modular redundancy in software: read a noisy or
+flaky line N times and the value that appears most often wins. With =N = 3, one
+corrupted read out of three is outvoted and corrected. =T= need only be equality
+comparable, and odd N (3, 5, 7) guarantees a single clear winner.
+
+Every =push= stores the sample in an N-slot ring buffer and recomputes the mode
+over the samples seen so far, so a result is available before the window is full;
+=filled()= reports once N samples have accumulated. When several values tie for
+the highest count, the tie resolves toward the *most recent* sample in the
+window. =reset()= empties the buffer and returns =value()= to =T{}=. Per-sample
+cost is =O(N)= in the window (the mode scan is quadratic in N, which is tiny and
+fixed).
+
+#+BEGIN_EXAMPLE
+majority<uint16_t, 3>: one corrupted read of three is corrected.
+
+  reads:  0x1A2B   0x1A2B   0xFFFF
+  votes:    1        2        1     -> 0x1A2B wins (2 of 3)
+  out:    0x1A2B
+
+A tie resolves to the most recent sample:
+
+  reads:  0x10   0x20      (window holds 0x10, 0x20)
+  votes:   1      1        -> tie, newest wins -> 0x20
+#+END_EXAMPLE
+
+** stale_detector
+
+=stale_detector<T, N>= is diagnostic, not corrective. It passes every sample
+through verbatim (=push= returns its argument) and tracks the run length of
+identical consecutive samples. Once the same value arrives N times in a row,
+=is_stale()= flips to =true=, the usual sign that the part stopped responding or
+the bus is asserting a fixed level. =streak()= reports the current run, capped at
+N, and any value different from the last resets the run to 1. =T= need only be
+equality comparable.
+
+Because it never alters the output, the natural use is to chain it ahead of a
+corrective guard and consult =is_stale()= to decide whether to ignore the read,
+raise an alarm, or power-cycle the sensor. =reset()= unprimes the detector,
+clears =is_stale()= to =false=, and returns =streak()= to zero. Per-sample cost
+is =O(1)=.
+
+* When to use it
+
+- range_guard :: When a sensor has a known physical range and readings outside
+  it are impossible and should be rejected or clamped. A thermocouple that can
+  only read -40 to 125 degC, an ADC channel pinned to a tank's height: bound the
+  output from the documented limits and a corrupted 0xFF or 0x00 register read is
+  rejected on sight, while a genuine extreme within the range still passes.
+- rate_guard :: When the measured quantity cannot physically change faster than
+  a known rate, so a larger jump must be a fault. An encoder, a position, or a
+  slow thermal mass cannot move more than its slew rate allows in one sample
+  period, so a sudden large delta is corruption, not motion, and the last good
+  value is held.
+- validator :: When validity is an arbitrary domain rule that range and rate
+  cannot express, stated as a predicate: a required status flag, a parity or
+  checksum bit, a plausibility check, a value that must be even or lie in a
+  discrete set. You supply the =bool(T const&)= test.
+- majority :: When you can read a noisy or corruptible source several times and
+  want N-modular-redundancy voting. Sample the same register N times and emit
+  the value that appears most often, masking single-event upsets and transient
+  bus glitches the way Triple Modular Redundancy does in hardware; use an odd
+  window so a tie cannot occur.
+- stale_detector :: As a liveness watchdog on a sensor that should keep
+  changing, to flag a frozen or disconnected source. A live temperature or
+  pressure feed should never repeat exactly N times in a row; if it does, the
+  feed is frozen, so flag it and let the caller react.
+
+Things to keep in mind:
+
+- Every guard is heap-free and =noexcept=. =range_guard=, =rate_guard=, and
+  =validator= are =O(1)= per sample (the validator plus one predicate call);
+  =majority= and =stale_detector= work over a window of N and are =O(N)= per
+  sample, with N small and fixed.
+- The two first-sample rules are easy to trip on: =range_guard= clamps an
+  out-of-range first sample but rejects every later one, and =rate_guard= seeds
+  on its first sample rather than rate-limiting it. Prime deliberately with
+  =rate_guard='s =reset(initial)= or =validator{predicate, initial}= when you
+  want a known starting point.
+- =majority= recomputes the mode on every =push=, so a result is available
+  before =filled()= becomes true; treat early outputs as provisional until the
+  window has filled.
+
+* Best practices and tuning
+
+Every guard here passes good samples through untouched and acts only on the bad
+ones; all of them are heap-free and =noexcept=. The tuning that matters is in the
+bounds and thresholds you choose, and each filter has its own rule of thumb.
+
+- range_guard :: Set the bounds from the sensor's documented physical or
+  electrical range, not from the expected signal, so genuine extremes are not
+  clipped. Bounding to the signal you usually see would reject the rare but real
+  excursions you most want to capture. Remember the first-sample rule: the first
+  out-of-range sample is clamped to the nearest bound, while every later
+  out-of-range sample is held.
+- rate_guard :: Set =max_delta= from the fastest legitimate change of the
+  quantity over one sample period, the physical slew rate times the sample
+  period, and add a margin. Too tight a limit rejects real fast transients and
+  makes the guard lag behind genuine motion; the margin absorbs jitter in the
+  timing and the measurement.
+- validator :: Keep the predicate pure, cheap, and total: it runs on every
+  sample on the hot path, so it should not allocate and should not throw. A
+  predicate that touches global state or does heavy work per sample turns a
+  =O(1)= guard into a bottleneck.
+- majority :: Use an *odd* window so a tie cannot occur. A window of N corrects
+  up to =floor((N-1)/2)= corrupted reads, and the mode scan costs =O(N)= per
+  sample, so keep N small: 3, 5, or 7 covers nearly every case. Larger windows
+  buy little extra correction for a rising per-sample cost.
+- stale_detector :: Choose N as the largest number of identical consecutive
+  samples a healthy sensor can legitimately produce. That way a true freeze is
+  flagged without false alarms on a genuinely steady signal: set N too low and a
+  quiet but live feed trips the flag; set it too high and a real freeze takes
+  longer to catch.
+
+Runnable: [[file:../../../examples/filter/guards.cpp][examples/filter/guards.cpp]]
