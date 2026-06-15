@@ -1,0 +1,117 @@
+#+TITLE: connections
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+A subscription has a lifetime, and managing it by hand is where callback systems
+leak or crash. This file covers the four handle types that make subscription
+lifetime automatic and safe from both ends: =connection= and =scoped_connection=
+(the producer-to-subscriber link), =slot= (the subscriber's own tracker), and
+=emit_blocker= (a scoped mute). None of them allocate.
+
+* The idea
+
+A connection links two independent objects, the signal and the subscriber, and
+either can be destroyed first. Two distinct mechanisms cover the two directions.
+
+When the signal dies first, a stored =connection= must not dangle. It refers to
+the signal through a =std::weak_ptr= to the signal's shared core rather than a
+raw pointer, so after the signal is gone the weak reference simply fails to lock
+and =disconnect= becomes a safe no-op. This protects the signal's end.
+
+When the subscriber dies first, the signal must stop calling into freed memory.
+That is the =slot='s job: a subscriber holds a =slot=, routes every subscription
+it makes through it, and when the subscriber (and its =slot= member) is destroyed
+every tracked connection is disconnected. This protects the receiver's end. The
+two together cover every ordering.
+
+* How it works
+
+** connection
+
+=connection= is a small value handle returned by =connect=. It is freely
+copyable; copies share one logical connection, so the first =disconnect= wins and
+later calls report =false=. =valid()= reports whether the signal is still alive
+(not whether the slot is still connected). Equality compares the slot id and the
+signal core (via =owner_before=), so two handles to the same slot compare equal
+even after the signal is destroyed. A default-constructed handle is invalid and
+=disconnect='s to a no-op.
+
+** scoped_connection
+
+=scoped_connection= is the RAII wrapper: it owns one =connection= and disconnects
+it on destruction, the =std::unique_ptr= of subscriptions. It is move-only;
+move-assignment disconnects the connection it currently holds before adopting the
+source's. =release()= hands the raw =connection= back out, after which the scope
+no longer auto-disconnects. =connect= returns a =connection= that converts
+implicitly into a =scoped_connection=, so capturing the result in one is the easy
+way to scope a single subscription to a block.
+
+** slot
+
+=slot<Capacity>= is the receiver-side aggregator: the object a subscriber holds
+so that all of its subscriptions die with it. Each subscription made through the
+lifetime-tracking =connect(fn, owner)= overload is registered here, and the
+=slot='s destructor disconnects every one. Storage is inline (a
+=container::static_vector= of =Capacity= connections, zero heap); =track= returns
+=false= when full so the caller can react rather than silently overflow, and
+=clear()= releases all subscriptions early while keeping the =slot= usable. The
+vocabulary differs from Qt deliberately: there a "slot" is a single member
+function, here it is the receiver-side handle that plays the role Qt's =QObject=
+plays implicitly.
+
+#+BEGIN_EXAMPLE
+class widget {
+    nexenne::signal::slot<4> m_slot;   // tracks up to 4 subscriptions
+public:
+    widget(audio& a, ui& u) noexcept {
+        a.on_frame.connect<&widget::on_frame>(*this, m_slot);
+        u.on_click.connect<&widget::on_click>(*this, m_slot);
+    }
+    // ~widget -> ~m_slot -> both subscriptions disconnect, no dangling slot
+};
+#+END_EXAMPLE
+
+** emit_blocker
+
+=emit_blocker= is an RAII guard that blocks a signal's emission for a scope and
+restores the prior state on destruction. Because it saves and restores rather
+than forcing unblocked, nested blockers compose correctly: an inner guard's
+destructor restores the outer block, not the unblocked baseline. It is move-only
+and holds only a pointer and a bool (zero heap), cheap enough for a hot path.
+
+* When to use it
+
+- =scoped_connection= : a single subscription whose lifetime matches a scope or a
+  member. The default choice for "subscribe for now, clean up automatically".
+- =slot= : a subscriber that makes several subscriptions and wants them all torn
+  down together when it dies. Put one in the subscribing class and route every
+  =connect= through it.
+- a bare =connection= : when you genuinely want to manage disconnect timing by
+  hand, or to store a handle and disconnect on an external event. You own the
+  teardown.
+- =emit_blocker= : to suppress a signal across a region (for example while
+  applying a batch of changes that would otherwise fire a storm of updates), with
+  guaranteed restore even on early return.
+
+Keep in mind that =slot= has a fixed inline capacity: a =track= past it returns
+=false= and leaves the connection live but untracked, so size the capacity to the
+number of subscriptions the receiver actually makes.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::signal::slot<2> sub;                       // receiver-side tracker
+src.readings.connect<&display::show>(disp, sub);    // tied to disp's lifetime
+
+auto guard{nexenne::signal::scoped_connection{      // RAII single subscription
+    bus.on_event.connect([](auto e) noexcept { handle(e); })}};
+
+{
+    nexenne::signal::emit_blocker block{sig};       // muted for this scope
+    apply_batch();                                   // no emits escape
+}                                                    // prior state restored
+#+END_SRC
+
+Runnable: [[file:../../../examples/signal/observer.cpp][examples/signal/observer.cpp]]

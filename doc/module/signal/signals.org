@@ -1,0 +1,129 @@
+#+TITLE: signals
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=signal<R(Args...)>= is a typed, multicast callback channel: a list of callables
+(slots) that all run when you =emit=. It decouples a producer of events from any
+number of consumers without the producer knowing who they are. A class publishes
+a =sink= (a connect-only view), clients subscribe, and the class fires the signal
+when something happens. This is the observer pattern with the lifetime and
+reentrancy hazards actually handled.
+
+* The idea
+
+A callback list is easy to write and easy to get wrong. The three things that
+sink a naive version are storage, lifetime, and reentrancy.
+
+Storage: storing arbitrary callables usually means =std::function=, which heap
+allocates and dispatches through a vtable. Here a slot is a
+=utility::in_place_function= with a fixed inline byte budget (=SlotCapacity=,
+default 64), so a captureless lambda or free function is stored as a raw function
+pointer and everything else lives inline. A callable too large to fit is a
+compile error, not a silent allocation. The slot list itself is a
+=container::small_vector= with four inline slots, so a signal with a few
+subscribers never touches the heap beyond the single allocation for its shared
+core.
+
+Lifetime: a connection has two ends, and either can die first. The =connection=
+handle refers to the signal through a =std::weak_ptr= to its core, so it stays
+safe after the signal is gone (=disconnect= simply no-ops). The other direction,
+a subscriber dying while the signal lives, is solved by =slot= (see
+[[file:connections.org][connections]]).
+
+Reentrancy: a slot may, from inside its own callback, disconnect itself, connect
+new slots, or destroy the signal, and emits may nest. A list that mutates itself
+mid-iteration corrupts or crashes. This module defines every such case.
+
+* How it works
+
+** Connecting
+
+=connect(fn, priority = 0)= returns a =connection=. Lower priorities fire first;
+equal priorities keep insertion order. The list is kept sorted by an =O(n)=
+insertion-bubble on each connect, so =emit= never sorts. There are four shapes:
+
+- =connect(fn)= : any callable invocable as =fn(Args...)=.
+- =connect_once(fn)= : auto-disconnects after the first =emit= that reaches it.
+- =connect<&T::method>(obj)= : a member-function shortcut, wraps =obj.method=.
+- =connect(fn, owner)= / =connect<&T::method>(obj, owner)= : also registers the
+  connection in a =slot= so it dies with =owner=.
+
+** Emitting
+
+=emit(args...)= invokes every alive slot in order. =operator()= is an alias. For
+a non-void =R=, =emit_and_collect(args...)= returns a =std::vector<R>= of the
+results in fire order (the one path that allocates, since the count is dynamic).
+
+#+BEGIN_EXAMPLE
+priority:   -1        0         0        10
+slots:    [ log ] [ update ] [ paint ] [ audit ]
+            \________________ emit() ___________/
+          fires left to right; equal priority keeps connect order
+#+END_EXAMPLE
+
+** Reentrancy and lifetime during emit
+
+The guarantees, and how they are met:
+
+- A slot may disconnect itself or any other slot during =emit=. A disconnect
+  while emitting only marks the slot dead (it will not fire again, even later in
+  the same emit), and dead slots are physically removed once the outermost emit
+  finishes. Nothing is moved mid-iteration.
+- A slot may connect new slots during =emit=. Those are parked in a pending list
+  and merged into the live list (in priority order) only after the outermost
+  emit finishes. The in-progress emit does not visit them. This is what keeps the
+  live slot list from reallocating while a callable on it is still running: a
+  growth there would free the very callable mid-call.
+- A slot may destroy the signal during =emit=. The implementation pins a
+  =shared_ptr= copy of the core for the duration, so iteration completes on the
+  pinned state; afterward every outstanding connection sees a null owner and
+  becomes inert.
+- Emits may nest (a slot emits the same signal). Deferred connects accumulate
+  across the nesting and are merged once, when the outermost emit returns.
+
+** Blocking
+
+=block()= / =unblock()= suppress =emit= without disconnecting anything; while
+blocked, =emit= is a no-op. The RAII =emit_blocker= (see [[file:connections.org][connections]]) scopes a
+block with save-and-restore semantics so guards nest correctly.
+
+** The sink view
+
+=as_sink()= returns a =sink<R(Args...)>= that mirrors every =connect= overload
+but hides =emit=, =block=, and =disconnect_all=. A class exposes the sink so
+clients can subscribe without being able to fire the signal or silence it.
+
+* When to use it
+
+Reach for a signal when one producer must notify many consumers that are not
+known up front, and you want the wiring to be type-checked and the teardown to be
+automatic: UI events, state-change notifications, a sensor publishing readings, a
+device driver surfacing interrupts to higher layers. Prefer a plain function or a
+single =utility::function_ref= when there is exactly one consumer known at the
+call site; the multicast machinery only earns its keep with several independent,
+dynamically-managed subscribers.
+
+Keep in mind:
+
+- Signals are pinned (non-copyable, non-movable): the core holds a back-pointer
+  to the signal, so its address must stay stable. Hold one through a
+  =std::unique_ptr= if you need to relocate it.
+- =emit= is =noexcept=. A throwing slot terminates; keep slot bodies non-throwing
+  (the natural choice on an embedded target).
+- Threading is single-threaded by convention. Wrap with external synchronisation
+  for cross-thread use.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::signal::signal<void(int)> on_change;
+
+auto c{on_change.connect([](int v) noexcept { use(v); })};   // subscribe
+on_change.connect_once([](int) noexcept { calibrate(); });   // one-shot
+on_change.emit(42);                                          // fire all slots
+c.disconnect();                                              // unsubscribe
+#+END_SRC
+
+Runnable: [[file:../../../examples/signal/observer.cpp][examples/signal/observer.cpp]]
