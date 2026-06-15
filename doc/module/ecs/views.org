@@ -17,8 +17,8 @@ looking at, the rest.
 Iterating "everything that has all of these components" sounds like it should
 scan every entity and test each one. It should not. The components live in
 sparse sets (one =component_storage<T>= per type), and each storage already
-knows exactly which entities it holds, in a dense contiguous array. So the view
-does not scan entities, it walks one storage and rejects.
+knows exactly which entities it holds, in a pointer-stable slot pool. So the
+view does not scan entities, it walks one storage's slots and rejects.
 
 The trick is to drive the walk from the *smallest* matching include storage. If
 =position= holds a million entities and =velocity= holds fifty, the answer can
@@ -32,44 +32,48 @@ Includes and excludes are both compile-time type lists. =view<C...>= is an alias
 for =basic_view<type_list<Includes...>, type_list<Excludes...>>=: includes are
 the components every visited entity must carry, excludes are the components it
 must not. Because the types are known at compile time, every storage pointer is
-captured with its concrete type and the hot loop is fully inlined: no virtual
-dispatch, no function-pointer indirection, no per-element type erasure. The loop
-the compiler sees is a plain index walk over an array of keys plus a handful of
-inlined membership checks.
+captured with its concrete type, so the per-candidate membership tests and the
+component lookups are typed and inline, with no virtual dispatch. The one place
+type erasure remains is the driver itself: it is whichever include storage turns
+out smallest at runtime, so its slot walk is reached through a small captured
+function-pointer cursor (slot count, liveness, key) set once at construction.
 
 * How it works
 
-** Driver selection and the cached key span
+** Driver selection and the slot walk
 
 At construction the view caches a typed pointer to each include and exclude
 storage (creating any missing storage lazily through the registry), then picks
 its driver. With a single include the driver is just that storage; with several,
-=find_smallest_driver= reads each include's =size()= and selects the smallest.
-It then caches that storage's =keys()= span, the dense, contiguous array of
-entity indices the driver holds. From that point the iterator and =each= are a
-flat index walk over =m_driver_keys=, with no further dispatch to choose the
-driver.
+=select_driver_index= reads each include's =size()= and selects the smallest. It
+binds the driver cursor to that storage and from then on iterates its slots:
+indices =[0, slot_count())=, reading each live slot's entity index and skipping
+the tombstones. The slot count is captured at the start of a walk, so a slot
+appended mid-iteration (by code that adds a component) falls beyond it and is not
+visited.
 
 ** The membership test per candidate
 
-For each driver key =idx=, =passes_filter(idx)= folds an =&&= of
-=contains(idx)= over the remaining include storages, then (only when the exclude
-list is non-empty) an =&&= of =!contains(idx)= over the exclude storages. Each
-=contains= is one O(1) sparse-set probe. An entry that fails any test is
-skipped. An entry that passes is guaranteed present in every include storage, so
-the subsequent =find(idx)= lookups that fetch the references never miss.
+For each live driver slot it reads the owning entity index =idx=, then
+=passes_filter(idx)= folds an =&&= of =contains(idx)= over the remaining include
+storages, then (only when the exclude list is non-empty) an =&&= of
+=!contains(idx)= over the exclude storages. Each =contains= is one O(1)
+sparse-set probe. An entry that fails any test is skipped. An entry that passes
+is guaranteed present in every include storage, so the subsequent =try_get(idx)=
+lookups that fetch the references never miss.
 
 #+BEGIN_EXAMPLE
 includes: position (1,000,000)   velocity (50)   <- velocity is smallest
 exclude:  frozen
 
-driver = velocity.keys()         (walk these 50, not the million)
+driver = velocity slots          (walk these 50, not the million)
 
-  idx ->  position.contains? --no--> skip
+  live slot -> idx
+          position.contains? --no--> skip
           position.contains? --yes-> frozen.contains? --yes--> skip
           position.contains? --yes-> frozen.contains? --no---> MATCH
                                                                 |
-                          fetch position[idx], velocity[idx] <-+
+                  fetch position.try_get(idx), velocity.try_get(idx) <-+
 #+END_EXAMPLE
 
 ** The three idioms
@@ -145,9 +149,9 @@ directly:
 for (auto& p : reg.storage<position>().values()) { /* ... */ }
 #+END_EXAMPLE
 
-That is a bare walk over one dense array with no membership tests. Use a view
-when you need two or more components together; that is where the smallest-driver
-strategy earns its keep.
+That is a bare walk over one pool's live components with no membership tests. Use
+a view when you need two or more components together; that is where the
+smallest-driver strategy earns its keep.
 
 The canonical position/velocity integrate loop:
 
@@ -159,22 +163,29 @@ reg.view<position, velocity>().each(
     });
 #+END_SRC
 
-* Do not structurally modify a viewed storage while iterating
+* Structural changes during iteration are safe
 
-This is a documented precondition (a =@pre= in the code), not a guideline. The
-view caches the driver's =keys()= span at construction, and the references it
-hands back point into the dense value arrays of the storages. The loop body must
-*not* structurally modify any viewed storage while iterating: do not add or
-remove one of the viewed components, and do not destroy a viewed entity. Such a
-change can reallocate a dense array (invalidating the cached key span and every
-handed-out reference) or swap-pop an element (moving entries under the walk),
-which corrupts the iteration.
+The pointer-stable storage was built precisely so a view can be modified while it
+iterates. The pool never relocates a live component, so every reference the loop
+hands back stays valid even as the storage grows or tombstones slots. The loop
+body may add or remove components and create or destroy entities, with two
+well-defined edges to know about:
 
-Mutating component *values* in place is fine, and is the normal case: changing
-=p.x= through the reference you were handed touches no structure. It is only the
-set of entities or the set of components per entity that must stay fixed for the
-duration of the loop. The standard ECS discipline applies: record the wanted
-structural changes during the loop and apply them afterward, once the view is
-done.
+- A component *added* during the walk lands in a slot beyond the count captured
+  when the walk began, so it is *not* visited this time around. If you need the
+  new entity processed, do it in the next pass.
+
+- *Removing* a component (or destroying its entity) tombstones its slot. A slot
+  already visited is unaffected; a slot not yet reached is simply skipped when
+  the walk gets there. The one thing to avoid is reading a reference *after* you
+  have removed the component it points at: that component is gone. Reading or
+  mutating the references the view hands you, including the current entity's,
+  before you remove anything is always fine.
+
+Mutating component *values* in place is, of course, the normal case: changing
+=p.x= through the reference you were handed touches no structure at all. If you
+prefer the classic ECS discipline of recording structural changes during the
+loop and applying them afterward, that still works and side-steps the two edges
+above; it is no longer required for correctness.
 
 Runnable: [[file:../../../examples/ecs/simulation.cpp][examples/ecs/simulation.cpp]]

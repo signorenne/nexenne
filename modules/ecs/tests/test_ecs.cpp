@@ -840,4 +840,161 @@ TEST_CASE("destroy is safe when an on_destroy listener registers a new component
   CHECK(r.get<health>(other).value().get().hp == 42);
 }
 
+TEST_CASE("component references survive structural changes (pointer stability)") {
+  auto r{registry{}};
+  auto const pinned{r.create()};
+  r.add<position>(pinned, {7.0f, 8.0f, 9.0f});
+  auto* const addr{&r.get<position>(pinned).value().get()};
+
+  // Grow the storage across many chunks and punch tombstone holes; a
+  // pointer-stable pool must not relocate the pinned component.
+  auto others{std::vector<entity_id>{}};
+  others.reserve(2000);
+  for (auto i{0}; i < 2000; ++i) {
+    auto const e{r.create()};
+    r.add<position>(e, {static_cast<float>(i), 0.0f, 0.0f});
+    others.push_back(e);
+  }
+  for (auto i{std::size_t{0}}; i < others.size(); i += 2) {
+    r.remove<position>(others[i]);
+  }
+
+  REQUIRE(r.get<position>(pinned).has_value());
+  auto& after{r.get<position>(pinned).value().get()};
+  CHECK(&after == addr);  // address never moved
+  CHECK(after.x == 7.0f);
+  CHECK(after.y == 8.0f);
+  CHECK(after.z == 9.0f);
+}
+
+TEST_CASE("view.each may remove components mid-iteration without dangling") {
+  auto r{registry{}};
+  auto ents{std::vector<entity_id>{}};
+  for (auto i{0}; i < 50; ++i) {
+    auto const e{r.create()};
+    r.add<position>(e, {static_cast<float>(i), 0.0f, 0.0f});
+    r.add<health>(e, {i});
+    ents.push_back(e);
+  }
+
+  // health and position are both size 50, so health (the first include) is
+  // the driver. Removing the current entity's health tombstones the driver
+  // slot just read; pointer stability keeps the references valid through the
+  // rest of the body, and the captured slot count keeps the walk terminating.
+  auto visited{0};
+  auto sum{0.0f};
+  view<health, position>{r}.each([&](entity_id const e, health const&, position const& p) noexcept {
+    sum += p.x;
+    ++visited;
+    r.remove<health>(e);
+  });
+  CHECK(visited == 50);
+  CHECK(sum == doctest::Approx(50.0f * 49.0f / 2.0f));
+  for (auto const e : ents) {
+    CHECK_FALSE(r.has<health>(e));
+    CHECK(r.has<position>(e));
+  }
+}
+
+TEST_CASE("view.each may add components mid-iteration without dangling") {
+  auto r{registry{}};
+  for (auto i{0}; i < 30; ++i) {
+    auto const e{r.create()};
+    r.add<position>(e, {static_cast<float>(i), 0.0f, 0.0f});
+  }
+
+  // Adding positions to fresh entities grows the driver storage (possibly
+  // allocating new chunks). Existing references stay valid, and the slots
+  // appended mid-loop lie beyond the captured count, so they are not visited.
+  auto visited{0};
+  auto seen_sum{0.0f};
+  view<position>{r}.each([&](position const& p) noexcept {
+    seen_sum += p.x;
+    ++visited;
+    if (visited <= 5) {
+      auto const fresh{r.create()};
+      r.add<position>(fresh, {1000.0f, 0.0f, 0.0f});
+    }
+  });
+  CHECK(visited == 30);  // only the originals, none of the 5 added mid-loop
+  CHECK(seen_sum == doctest::Approx(30.0f * 29.0f / 2.0f));
+  CHECK(r.storage<position>().size() == 35);  // 30 + 5 now live
+}
+
+TEST_CASE("storage values() skips tombstoned slots after erase") {
+  auto r{registry{}};
+  auto ents{std::vector<entity_id>{}};
+  for (auto i{0}; i < 10; ++i) {
+    auto const e{r.create()};
+    r.add<position>(e, {static_cast<float>(i), 0.0f, 0.0f});
+    ents.push_back(e);
+  }
+  for (auto i{std::size_t{1}}; i < ents.size(); i += 2) {
+    r.remove<position>(ents[i]);  // remove the odd-x components
+  }
+
+  auto sum{0.0f};
+  auto count{0};
+  for (auto const& p : r.storage<position>().values()) {
+    sum += p.x;
+    ++count;
+  }
+  CHECK(count == 5);
+  CHECK(sum == doctest::Approx(0.0f + 2.0f + 4.0f + 6.0f + 8.0f));
+}
+
+TEST_CASE("listener may structurally modify the same storage without dangling") {
+  auto r{registry{}};
+  auto const first{r.create()};
+
+  // The on_construct listener attaches the SAME component type to many other
+  // fresh entities, forcing the pool to grow new chunks while the reference it
+  // was handed is still live. A flat-vector storage would reallocate and
+  // dangle that reference; the pointer-stable pool must not.
+  auto observed_x{-1.0f};
+  auto* observed_addr{static_cast<position*>(nullptr)};
+  auto conn{r.on_construct<position>().connect([&](entity_id const e, position& p) noexcept {
+    if (e == first) {
+      observed_addr = &p;
+      for (auto i{0}; i < 500; ++i) {
+        auto const other{r.create()};
+        r.add<position>(other, {static_cast<float>(i), 0.0f, 0.0f});
+      }
+      observed_x = p.x;  // read AFTER the storage grew under us
+    }
+  })};
+  static_cast<void>(conn);
+
+  r.add<position>(first, {123.0f, 0.0f, 0.0f});
+  CHECK(observed_x == 123.0f);  // reference stayed valid mid-growth
+  REQUIRE(r.get<position>(first).has_value());
+  auto& after{r.get<position>(first).value().get()};
+  CHECK(&after == observed_addr);  // and never moved
+  CHECK(after.x == 123.0f);
+}
+
+TEST_CASE("storage reuses tombstoned slots (no unbounded growth)") {
+  auto r{registry{}};
+  auto ents{std::vector<entity_id>{}};
+  for (auto i{0}; i < 16; ++i) {
+    auto const e{r.create()};
+    r.add<position>(e, {static_cast<float>(i), 0.0f, 0.0f});
+    ents.push_back(e);
+  }
+  auto const high_water{r.storage<position>().slot_count()};
+
+  // Churn the same working set: every remove frees a slot the next add
+  // reuses, so the slot count must not creep past the high-water mark.
+  for (auto round{0}; round < 100; ++round) {
+    for (auto const e : ents) {
+      r.remove<position>(e);
+    }
+    for (auto const e : ents) {
+      r.add<position>(e, {1.0f, 0.0f, 0.0f});
+    }
+  }
+  CHECK(r.storage<position>().size() == 16);
+  CHECK(r.storage<position>().slot_count() == high_water);
+}
+
 }  // namespace
