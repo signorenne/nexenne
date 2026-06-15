@@ -1,0 +1,123 @@
+#+TITLE: nexenne::serialization - JSON
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+A complete JSON subsystem: an in-memory =value= DOM, a strict RFC 8259 =parse=
+that turns text into a =value=, =serialize= / =serialize_pretty= that turn a
+=value= back into text, a pull-style =sax= parser for streaming large inputs
+without building a DOM, a =writer= for emitting JSON incrementally, and RFC 6901
+JSON Pointer lookup through =at_path=.
+
+* The idea
+
+=std::format= and ad-hoc string building produce JSON that is easy to get subtly
+wrong (an unescaped quote, a stray control char, a number that does not
+round-trip). This subsystem makes the correct path the easy one: the writer
+escapes every control character, numbers go through =std::to_chars= shortest
+round-trip, and the parser is strict so a malformed document is rejected with a
+located error rather than silently mis-read.
+
+* How it works
+
+** The value DOM
+
+=value= holds one of null, =bool=, =int64_t=, =double=, =std::string=, =array=
+(a =vector<value>=), or =object= (an ordered map of string to =value=) in a
+variant. Type queries (=is_string=, =is_number=, ...) and checked access
+(=as_int=, =as_float=, =as_string=) return =std::expected=, so reading the wrong
+type yields =type_mismatch= instead of a surprise. =as_int= on a floating value
+range-checks before the cast: a value like =1e300= cannot be cast to =int64_t=
+(that is undefined behaviour), so it returns =type_mismatch=.
+
+#+BEGIN_EXAMPLE
+  value
+   +-- monostate            (null)
+   +-- bool
+   +-- int64_t              integers parse here ...
+   +-- double               ... everything with '.' or 'e' parses here
+   +-- string
+   +-- array  = vector<value>
+   +-- object = container::flat_map<string, value>  (sorted, contiguous)
+#+END_EXAMPLE
+
+** Parsing (RFC 8259, strict)
+
+=parse= is recursive descent. A number is scanned against the JSON grammar
+*before* =std::from_chars= sees it: the integer part is a single =0= or
+=[1-9][0-9]*= (no leading zeros), a fraction needs a digit after the =.=, and an
+exponent needs a digit, so =01=, =1.=, and =1e= are rejected, not quietly
+accepted. A value with no =.= or =e= is stored as =int64_t=; anything else as
+=double=. Strings are decoded: =\\u= escapes are validated, and a surrogate pair
+=\\uD834\\uDD1E= becomes one code point, while a lone low surrogate or a high
+surrogate not followed by a low one is rejected (both would otherwise yield
+invalid UTF-8). Nesting is bounded by =max_depth= (default 128) so an adversarial
+=[[[[...= input is rejected before it can overflow the call stack; the parser
+recurses per level, so the limit is deliberately conservative. Errors carry the
+byte offset, line, and column.
+
+** Serializing
+
+=serialize= writes compact JSON, =serialize_pretty= an indented form. String
+escaping covers =\"=, =\\=, the named control escapes =\b \f \n \r \t=, and every
+other control byte below =0x20= as =\\uXXXX=, so the output is always valid JSON
+even for a string holding an embedded NUL or newline. Numbers use
+=std::to_chars= shortest, which round-trips exactly; an integer-valued or large
+=double= that =to_chars= renders without a =.= or =e= gets a trailing =.0= so it
+re-parses as a float rather than an overflowing integer. NaN and infinity (which
+JSON cannot represent) are emitted as =null=.
+
+** SAX and the streaming writer
+
+=sax= drives a caller-supplied handler with begin/key/value/end events as it
+scans, so a multi-megabyte document can be processed without materialising a
+=value= tree. =writer= is the dual: it emits JSON token by token into a buffer,
+bounds-checked, for building output incrementally. Both share the parser's number
+and string rules.
+
+** JSON Pointer
+
+=at_path("/users/0/name")= walks an RFC 6901 pointer: =~1= decodes to =/=, =~0=
+to =~=, and an array index has no leading zeros and is overflow-checked, so a
+token like =/01= or a 20-digit index resolves to =path_not_found= rather than
+wrapping to the wrong element. A missing key or out-of-range index is
+=path_not_found=.
+
+* Complexity
+
+| operation          | cost                                            |
+|--------------------+-------------------------------------------------|
+| parse              | O(n) in input bytes, O(depth) stack             |
+| serialize          | O(n) in the DOM size                            |
+| value typed access | O(1)                                            |
+| object lookup      | O(log k) binary search over a sorted flat_map    |
+| at_path            | O(path length + per-segment lookup)             |
+
+* When to use it
+
+Reach for the DOM (=parse= / =serialize=) for config files, APIs, and anything a
+human reads or edits. Use =sax= when the input is large and you only need a few
+fields (no DOM allocation). Use =writer= when you build output incrementally.
+For machine-to-machine payloads where size and speed matter more than
+readability, prefer [[file:binary.org][binary]] or [[file:codecs.org][CBOR/MessagePack]]. Gotchas: parsing is strict
+by default (opt into comments or trailing commas through =parse_options=);
+=max_depth= caps nesting; and reading a value as the wrong type returns
+=type_mismatch=, it does not coerce.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace js = nexenne::serialization::json;
+
+auto doc{js::parse(R"({"name":"alice","scores":[10,20]})")};
+if (doc) {
+    auto const name{doc->at_path("/name")->get().as_string()};   // "alice"
+    auto const first{doc->at_path("/scores/0")->get().as_int()}; // 10
+}
+
+auto root{js::value{js::object{{"ok", true}, {"n", 42}}}};
+auto const text{js::serialize(root)};   // {"ok":true,"n":42}
+#+END_SRC
+
+Runnable: [[file:../../../examples/serialization/round_trip.cpp][examples/serialization/round_trip.cpp]].

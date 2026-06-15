@@ -1,0 +1,44 @@
+#+TITLE: nexenne::serialization
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Encoders and decoders with one shared error policy: every fallible operation
+returns =std::expected<T, error>=, never throws, and bounds-checks every read
+and write. The module spans the human-readable end (a full JSON DOM, parser, and
+writers) and the compact machine end (a schema-driven binary format, the
+self-describing CBOR and MessagePack codecs, COBS framing, and a versioned
+envelope), so the same project can log JSON for humans and ship CBOR over the
+wire without pulling in two libraries.
+
+* JSON
+
+- [[file:json.org][JSON]] : the =value= DOM (null / bool / int / double / string / array / object),
+  a strict RFC 8259 =parse=, =serialize= / =serialize_pretty=, a pull =sax=
+  parser for large inputs, and a streaming =writer=, plus RFC 6901 JSON Pointer
+  lookup. The bytes-in, bytes-out path that humans read.
+
+* Compact binary
+
+- [[file:binary.org][schema-driven binary]] : a =writer= / =reader= pair over a caller-provided
+  buffer, no type tags or framing, little-endian, LEB128 string lengths. The
+  most compact option when both sides agree on the layout.
+- [[file:codecs.org][CBOR and MessagePack]] : the two standard self-describing binary formats, each a
+  =writer= / =reader= over a buffer. Reach for these when the consumer is another
+  system that speaks the format, or when the payload must describe itself.
+
+* Framing and versioning
+
+- [[file:framing.org][COBS framing and versioned envelopes]] : =cobs= encodes a payload into a
+  zero-free frame so a single =0x00= byte can delimit packets on a stream or
+  UART; =versioned= prefixes a payload with a small magic-and-version header so a
+  reader can reject or migrate an unknown wire version.
+
+* The error policy
+
+There is one =error= enum (=error.hpp=) shared by every subsystem, with a
+=to_string= for diagnostics. Decoders treat all input as hostile: a length
+prefix larger than the buffer, a truncated value, a malformed escape, or nesting
+past =max_depth= all return a specific error rather than over-reading or
+crashing. Nothing here allocates a destination for you; you hand in a buffer (or
+get a =std::string= / =value= back), so the embedded targets that motivate the
+binary side stay in control of memory.
