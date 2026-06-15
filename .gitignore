@@ -111,3 +111,6 @@ node_modules/
 __pycache__/
 .python-version
 .envrc
+
+# Local, private working notes (ours, not part of the repo)
+.private/

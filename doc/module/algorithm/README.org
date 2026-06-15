@@ -1,0 +1,31 @@
+#+TITLE: nexenne::algorithm
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+Header-only C++23 algorithms that are not in the standard library but are
+broadly useful for embedded and systems work, built on
+[[file:../container/README.org][nexenne::container]]. Grouped by category: binary search variants, integer
+sorts, string matching, numerical routines, hashing, checksums, byte
+encodings, and graph algorithms.
+
+* Status
+
+Module under construction: only the scaffold is in place so far. Headers are
+ported one category at a time in dependency order. Each category gets a themed
+article here as it lands; this index grows with them.
+
+Planned categories:
+
+- binary search : =find_sorted=, =exponential_search=, =interpolation_search=.
+- sort : =counting_sort=, =radix_sort= (linear-time integer sorts).
+- string matching : =kmp=, =z_function=, =boyer_moore=, =aho_corasick=,
+  =levenshtein=, =suffix_array=.
+- numerical : stable sums and online stats, integration, interpolation, root
+  finding, ODE integrators, FFT.
+- hashing : =fnv=, =murmur=, =xxhash= (non-cryptographic).
+- checksum : =adler32=, =crc=.
+- encoding : =hex=, =base32=, =base64=, =url=, =cobs=.
+- graph : traversal (=bfs=, =dfs=), shortest paths (=dijkstra=, =a_star=,
+  =bellman_ford=, =floyd_warshall=), structure (=topological_sort=,
+  =connected_components=, =tarjan_scc=, =kruskal_mst=, =lca=); these reuse
+  =container::graph= and friends.
