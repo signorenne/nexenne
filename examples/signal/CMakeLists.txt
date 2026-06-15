@@ -2,6 +2,7 @@
 # self-contained program demonstrating a nexenne::signal facility.
 set(_signal_examples
     observer
+    static_signal
 )
 
 foreach(_example IN LISTS _signal_examples)

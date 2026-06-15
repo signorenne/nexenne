@@ -23,6 +23,7 @@ nexenne_add_module(signal
         include/nexenne/signal/slot.hpp
         include/nexenne/signal/emit_blocker.hpp
         include/nexenne/signal/signal.hpp
+        include/nexenne/signal/static_signal.hpp
 )
 
 if(NEXENNE_BUILD_TESTS)

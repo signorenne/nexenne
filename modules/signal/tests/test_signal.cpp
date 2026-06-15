@@ -8,12 +8,15 @@
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/signal/signal.hpp>
 #include <nexenne/signal/slot.hpp>
+#include <nexenne/signal/static_signal.hpp>
 
 namespace {
 
 using nexenne::signal::connection;
 using nexenne::signal::scoped_connection;
 using nexenne::signal::signal;
+using nexenne::signal::static_connection;
+using nexenne::signal::static_signal;
 
 TEST_CASE("signal empty by default") {
   auto sig{signal<void()>{}};
@@ -739,6 +742,161 @@ TEST_CASE("slot::track leaves the connection live and connected when full") {
 
   sig.emit();
   CHECK(count == 2);  // both slots still fire: c2 was not disconnected by track
+}
+
+// ---- static_signal (heap-free, fixed-capacity) ----
+
+TEST_CASE("static_signal connect / emit fires in priority order") {
+  auto sig{static_signal<void(int)>{}};
+  auto sum{0};
+  auto order{std::vector<int>{}};
+  auto a{sig.connect(
+    [&](int v) noexcept {
+      sum += v;
+      order.push_back(1);
+    },
+    10
+  )};
+  auto b{sig.connect([&](int) noexcept { order.push_back(2); }, -1)};
+  (void)a;
+  (void)b;
+
+  sig.emit(5);
+  CHECK(sum == 5);
+  CHECK(order == std::vector{2, 1});  // priority -1 before 10
+}
+
+TEST_CASE("static_signal enforces its fixed capacity") {
+  auto sig{static_signal<void(), 3>{}};
+  auto a{sig.connect([] noexcept {})};
+  auto b{sig.connect([] noexcept {})};
+  auto c{sig.connect([] noexcept {})};
+  auto d{sig.connect([] noexcept {})};  // full: must fail
+  (void)a;
+  (void)b;
+  (void)c;
+
+  CHECK(a.has_target());
+  CHECK(c.has_target());
+  CHECK_FALSE(d.has_target());  // invalid handle, callable not stored
+  CHECK(sig.full());
+  CHECK(sig.size() == 3);
+}
+
+TEST_CASE("static_signal connect_once fires once then is swept") {
+  auto sig{static_signal<void()>{}};
+  auto n{0};
+  auto once{0};
+  auto a{sig.connect([&] noexcept { ++n; })};
+  auto b{sig.connect_once([&] noexcept { ++once; })};
+  (void)a;
+  (void)b;
+
+  sig.emit();
+  sig.emit();
+  CHECK(n == 2);
+  CHECK(once == 1);
+  CHECK(sig.size() == 1);
+}
+
+TEST_CASE("static_signal disconnect removes the slot") {
+  auto sig{static_signal<void()>{}};
+  auto n{0};
+  auto c{sig.connect([&] noexcept { ++n; })};
+
+  sig.emit();
+  CHECK(n == 1);
+  CHECK(c.disconnect());
+  sig.emit();
+  CHECK(n == 1);
+  CHECK(sig.empty());
+  CHECK_FALSE(c.disconnect());  // already gone
+}
+
+TEST_CASE("static_signal emit is reentrancy-safe and stays allocation-free") {
+  auto sig{static_signal<void(), 8>{}};
+  auto fired{0};
+  auto first{sig.connect([&] noexcept {
+    ++fired;
+    if (sig.size() < 4) {
+      static_cast<void>(sig.connect([&] noexcept { ++fired; }, 5));
+    }
+  })};
+  (void)first;
+
+  sig.emit();  // first fires; the connect is deferred (appended), not visited
+  CHECK(fired == 1);
+  sig.emit();  // now both fire
+  CHECK(fired == 3);
+}
+
+TEST_CASE("static_signal one-shot re-emitting its own signal fires exactly once") {
+  auto sig{static_signal<void()>{}};
+  auto n{0};
+  auto c{sig.connect_once([&] noexcept {
+    ++n;
+    if (n < 5) {
+      sig.emit();  // a still-alive once slot would recurse without bound
+    }
+  })};
+  (void)c;
+
+  sig.emit();
+  CHECK(n == 1);
+  CHECK(sig.empty());
+}
+
+TEST_CASE("static_signal a slot disconnecting itself during emit is safe") {
+  auto sig{static_signal<void()>{}};
+  auto n{0};
+  auto c{static_connection{}};
+  c = sig.connect([&] noexcept {
+    ++n;
+    c.disconnect();
+  });
+
+  sig.emit();
+  sig.emit();
+  CHECK(n == 1);
+  CHECK(sig.empty());
+}
+
+TEST_CASE("static_slot auto-disconnects tracked subscriptions on destruction") {
+  auto sig{static_signal<void()>{}};
+  auto n{0};
+  {
+    auto tracker{nexenne::signal::static_slot<2>{}};
+    static_cast<void>(sig.connect([&] noexcept { ++n; }, tracker));
+    sig.emit();
+    CHECK(n == 1);
+  }  // tracker dies, disconnecting its subscription
+  sig.emit();
+  CHECK(n == 1);
+}
+
+TEST_CASE("static_signal emit_blocker suppresses emission for a scope") {
+  auto sig{static_signal<void()>{}};
+  auto n{0};
+  auto c{sig.connect([&] noexcept { ++n; })};
+  (void)c;
+  {
+    auto const block{nexenne::signal::emit_blocker{sig}};
+    sig.emit();
+    CHECK(n == 0);
+  }
+  sig.emit();
+  CHECK(n == 1);
+}
+
+TEST_CASE("static_sink exposes connect but hides emit") {
+  auto sig{static_signal<void(int)>{}};
+  auto sink{sig.as_sink()};
+  auto got{0};
+  auto c{sink.connect([&](int v) noexcept { got = v; })};
+  (void)c;
+  CHECK(sink.size() == 1);
+  sig.emit(7);
+  CHECK(got == 7);
 }
 
 }  // namespace

@@ -52,7 +52,8 @@ Follow a module to its own index, which lists, per class it provides, a guide
   slot path. Priority-ordered =emit=, one-shot and lifetime-tracked
   subscriptions, a connect-only =sink= view, RAII =scoped_connection= /
   =emit_blocker=, and defined reentrancy (connect, disconnect, or destroy the
-  signal from inside a slot).
+  signal from inside a slot). A fully allocation-free, fixed-capacity
+  =static_signal= variant trades unbounded slots for zero heap.
 
 * Dependency layering
 

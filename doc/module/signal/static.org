@@ -1,0 +1,115 @@
+#+TITLE: static_signal
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=static_signal= is the allocation-free sibling of [[file:signals.org][signal]]: the same multicast
+callback channel, but with every byte of state held inline so it never touches
+the heap. It is to =signal= what =container::static_vector= is to
+=container::small_vector=, a fixed-capacity version for targets where a heap
+allocation per signal is unwanted and the maximum number of subscribers is known
+up front.
+
+* The idea
+
+The dynamic =signal= keeps its state in a heap-allocated, =shared_ptr=-managed
+core. That one allocation per signal buys two things: an unbounded number of
+slots, and the ability for a slot to safely destroy the signal mid-emit (the
+pinned core outlives the object). On a tight target you often want neither, and
+you do not want the allocation or the atomic reference count that comes with it.
+
+=static_signal= drops the core. The slot list is a fixed-capacity
+=container::static_vector<slot_entry, MaxSlots>= living directly in the signal,
+each slot is an inline =utility::in_place_function=, and the connection is a
+small token. The whole signal is a value with a bounded, predictable size that
+sits in a struct, on the stack, or in a static, and =emit= allocates nothing.
+
+You pay for that with three limits, each the direct consequence of having no
+heap core:
+
+- *Bounded slots.* =connect= returns an invalid connection once =MaxSlots= slots
+  are live, instead of growing. Size the capacity for the worst case.
+- *No destroy-during-emit.* A slot must not destroy the signal it is running on:
+  the slot storage is the signal, so freeing it mid-iteration is undefined.
+- *Token connections.* A =static_connection= is a small copyable handle that
+  does not detect the signal's death, so it must not outlive the signal. Keep
+  the signal longer-lived than anything connected to it, and use
+  =static_scoped_connection= or =static_slot= for receiver-side teardown while
+  the signal is alive.
+
+* How it works
+
+** Storage and capacity
+
+=static_signal<R(Args...), MaxSlots, SlotCapacity>= takes two size parameters
+beyond the call signature: =MaxSlots= (default 8) bounds the slot list, and
+=SlotCapacity= (default 32, smaller than =signal='s 64) bounds the inline byte
+budget of each type-erased slot. A callable larger than =SlotCapacity= is a
+compile error; a =connect= past =MaxSlots= returns an invalid handle (check
+=has_target()=). Nothing here can allocate, so the footprint is exactly
+=MaxSlots= slots of =SlotCapacity= plus a little bookkeeping, fixed at compile
+time.
+
+** Emit and reentrancy
+
+=emit= walks the slots alive at entry in priority order and allocates nothing.
+The reentrancy guarantees match =signal=, and a fixed array makes them simpler:
+because the storage never reallocates, the live slot list is at a stable address
+for the whole emit, so a slot may disconnect (the slot is flagged dead and swept
+when the outermost emit ends) or connect (the new slot is appended past the
+current length, not visited this emit, and the list is re-sorted in place before
+the next one). A one-shot slot is marked dead before it runs, so it cannot
+re-fire itself through a re-entrant =emit=. The one thing it must not do is
+destroy the signal.
+
+#+BEGIN_EXAMPLE
+static_signal<void(int), 8, 32>:  8 inline slots, 32-byte functors, zero heap
+  connect ... connect (8th) -> ok
+  connect (9th)             -> invalid handle (has_target() == false)
+#+END_EXAMPLE
+
+** Connections and teardown
+
+=connect= returns a =static_connection=: a type-erased pointer to the signal, a
+disconnect dispatcher, and a slot id, all copyable. =disconnect()= removes the
+slot; copies share one logical connection. It deliberately has no =valid()=,
+because with no heap core it cannot tell whether the signal is still alive, only
+whether it was ever connected (=has_target()=).
+
+For automatic teardown there are the heap-free counterparts of the dynamic
+handles: =static_scoped_connection= (RAII, disconnects on destruction) and
+=static_slot<Capacity>= (the receiver-side tracker that disconnects every
+subscription it holds when it dies). Both require the signal to still be alive
+when they run, which is the normal case when the signal is the longer-lived
+publisher. The RAII =emit_blocker= works unchanged, since =static_signal=
+satisfies the same =blockable= surface. =as_sink()= yields a connect-only
+=static_sink= just as =signal::as_sink= does.
+
+* When to use it
+
+Reach for =static_signal= on a constrained target where the per-signal heap
+allocation (and, in a threaded build, the atomic reference count per emit) of
+the dynamic =signal= is unwelcome, and the subscriber count is bounded and known.
+It is the natural choice for a driver or subsystem that publishes a handful of
+events to a fixed set of listeners, all living for the duration.
+
+Reach for the dynamic [[file:signals.org][signal]] instead when you need an unbounded or unknown
+number of slots, a connection that stays safe after the signal is destroyed, or
+a slot that tears down the signal from inside its own callback. The two share the
+=emit_blocker= and the priority, one-shot, member-function, and tracked-connect
+vocabulary, so the choice is purely about storage and lifetime, not about how you
+use them.
+
+* Usage
+
+#+BEGIN_SRC cpp
+nexenne::signal::static_signal<void(int), 4> on_change;   // up to 4 slots, no heap
+
+auto c{on_change.connect([](int v) noexcept { use(v); })};
+if (!c.has_target()) { /* signal was full */ }
+on_change.emit(42);
+c.disconnect();
+#+END_SRC
+
+Runnable: [[file:../../../examples/signal/static_signal.cpp][examples/signal/static_signal.cpp]]
