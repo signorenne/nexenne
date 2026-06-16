@@ -246,6 +246,14 @@ template <std::floating_point Real>
  *
  * @pre None.
  * @post None.
+ *
+ * @warning A degenerate (zero-area) triangle is treated as containing its whole
+ *          supporting line or point: for a collinear or single-point triangle
+ *          every edge cross product is zero, so no sign disagreement is possible
+ *          and every point on the supporting line (or every point at all, for a
+ *          single-point triangle) reports \c true. Points off the supporting line
+ *          are still correctly excluded. Reject zero-area triangles beforehand
+ *          (their \c signed_area is zero) if that matters to the caller.
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto contains_point(

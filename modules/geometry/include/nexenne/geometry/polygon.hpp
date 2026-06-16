@@ -165,7 +165,9 @@ template <std::floating_point Real>
   // weight on the edge-midpoint sum: Cx = sum((x0 + x1) * cross) / (3 * 2A),
   // likewise Cy, where a6 accumulates 6A (six times the signed area). The /6 and
   // /3 fold into the final inv. A zero-area (collinear or self-cancelling) loop
-  // leaves a6 == 0 and falls back to the plain vertex mean below.
+  // leaves a6 == 0 and falls back to the plain vertex mean below. See Bourke,
+  // "Calculating the area and centroid of a polygon" (1988), and the polygon
+  // centroid formula on Wikipedia.
   auto cx{Real{0}};
   auto cy{Real{0}};
   auto a6{Real{0}};
@@ -214,10 +216,11 @@ contains_point(polygon2<Real> const poly, nexenne::math::vector<Real, 2> const p
   // Crossing-number rule: shoot a ray from p in the +x direction and count how
   // many polygon edges it crosses; an odd count means p is inside. Each edge runs
   // between vj (previous vertex) and vi (current); j = i++ walks them as a closed
-  // loop. `crosses_y` uses the half-open test (exactly one endpoint strictly above
+  // loop. crosses_y uses the half-open test (exactly one endpoint strictly above
   // p.y) so a vertex shared by two edges is counted once, not zero or twice.
-  // `x_intersect` is the edge's x where it meets the horizontal line y = p.y; the
-  // +x ray hits the edge only when p is to its left, and each hit flips `inside`.
+  // x_intersect is the edge's x where it meets the horizontal line y = p.y; the
+  // +x ray hits the edge only when p is to its left, and each hit flips inside.
+  // This is W. R. Franklin's PNPOLY test (the half-open vertex treatment is his).
   auto inside{false};
   for (auto i{std::size_t{0}}, j{n - 1}; i < n; j = i++) {
     auto const& vi{poly.vertices()[i]};
