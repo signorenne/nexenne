@@ -52,20 +52,35 @@ ignored (a direction has no position).
 
 ** The pose to a shape
 
-| shape            | result | how                                                |
-|------------------+--------+----------------------------------------------------|
-| sphere / circle  | same   | center as a point; radius * largest scale factor   |
-| triangle         | same   | each vertex as a point (exact)                     |
-| aabb             | obb    | center as a point, half * scale, pose rotation     |
-| obb              | obb    | center as a point, half * scale, rotations composed |
+| shape             | result | how                                                 |
+|-------------------+--------+-----------------------------------------------------|
+| sphere / circle   | same   | center as a point; radius * largest scale factor    |
+| triangle          | same   | each vertex as a point (exact)                      |
+| segment           | same   | each endpoint as a point (exact)                    |
+| capsule           | same   | both spine endpoints as points; radius * largest    |
+| aabb              | obb    | center as a point, half * scale, pose rotation      |
+| obb               | obb    | center as a point, enclosing half, rotations composed |
 
 The =aabb -> obb= case is the interesting one: an axis-aligned box has its faces
 on the world axes, so once the pose rotates it those faces tilt and the only
 honest description is an oriented box. The box center maps through
 =transform_point=, the half-extents scale per axis, and the pose rotation
 becomes the obb orientation, which is exact. For an =obb= the pose rotation is
-composed onto the box's own (quaternion multiply in 3D, angle addition in 2D);
-the half-size scaling is exact under a uniform scale.
+composed onto the box's own (quaternion multiply in 3D, angle addition in 2D).
+
+The =obb= half-size needs care under a *non-uniform* scale. The exact image of an
+already-rotated box under a non-uniform scale is a parallelepiped, not a box, and
+naively scaling each local half-extent by the matching world scale component
+applies the scale to the wrong axes and can return a box *smaller* than the image
+(missed collisions, the worst failure mode). Instead the overload returns the
+tight *enclosing* box with the composed orientation: its half-extent along
+composed axis =k= is the support of the parallelepiped along that axis,
+=h'[k] = sum_j half[j] * |a_j . (scale (.) a_k)|=, where =a_j= is world axis =j= of
+the box. This collapses to the exact =half[k] * scale[k]= for an axis-aligned box
+and =half[k] * scale= for a uniform scale, and is always conservative (it contains
+the image), matching the rounded-shape overloads. Segment and capsule follow the
+triangle and sphere recipes: endpoints as points, and the capsule radius grows by
+the largest scale factor.
 
 #+BEGIN_EXAMPLE
        aabb              rotate 45 deg            obb
@@ -83,7 +98,13 @@ the scale is the length of each of the first three columns, and the rotation is 
 trace-based quaternion extraction from the columns after dividing the scale out.
 =decompose_2= is the 2D analogue with =atan2= for the angle. Both report
 =geometry_error::degenerate_primitive= when a scale component is zero (the matrix
-is singular and the rotation cannot be recovered). =decompose_3= is =constexpr=
+is singular and the rotation cannot be recovered), and
+=geometry_error::invalid_input= when the linear part contains a *reflection*
+(negative determinant, that is a negative scale component): column lengths are
+always non-negative, so the recovered scale is positive and neither a quaternion
+nor a single 2D angle can represent the leftover reflection. Rejecting it avoids
+silently returning a wrong pose for an input that satisfies the plain
+standard-order build. Feed a positive-scale matrix. =decompose_3= is =constexpr=
 (only arithmetic and the constexpr =sqrt=); =decompose_2= is runtime-only.
 
 * Complexity
@@ -134,7 +155,8 @@ auto const back{geo::decompose_3(m)};                         // result<transfor
 - [[file:../math/quaternion.org][math/quaternion]] : the 3D rotation type, =from_axis_angle=, and quaternion
   multiply used to compose rotations.
 - [[file:obb.org][obb]] : the oriented box an =aabb= or =obb= transform produces.
-- [[file:sphere.org][sphere]], [[file:circle.org][circle]], [[file:triangle.org][triangle]] : the other shapes a pose can transform.
+- [[file:sphere.org][sphere]], [[file:circle.org][circle]], [[file:triangle.org][triangle]], [[file:segment.org][segment]], [[file:capsule.org][capsule]] : the other shapes a pose can
+  transform.
 
 * Further reading
 
