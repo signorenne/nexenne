@@ -57,7 +57,7 @@ private:
 
 public:
   /**
-   * @brief Constructs the unit box at the origin with zero rotation.
+   * @brief Constructs the degenerate point box at the origin with zero rotation.
    */
   constexpr obb2() noexcept = default;
 
@@ -150,6 +150,25 @@ static_assert(sizeof(obb2_f) == 5 * sizeof(float));
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto area(obb2<Real> const& box) noexcept -> Real {
   return Real{4} * box.half_size().x() * box.half_size().y();
+}
+
+/**
+ * @brief Perimeter of the box: \c 2 * (2*hx + 2*hy).
+ *
+ * Rotation does not change the edge lengths, so this matches the axis-aligned
+ * formula.
+ *
+ * @tparam Real Component type.
+ * @param box Oriented box.
+ *
+ * @return The box perimeter.
+ *
+ * @pre Both half-size components are non-negative.
+ * @post The result is non-negative.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto perimeter(obb2<Real> const& box) noexcept -> Real {
+  return Real{4} * (box.half_size().x() + box.half_size().y());
 }
 
 /**
@@ -286,7 +305,7 @@ private:
 
 public:
   /**
-   * @brief Constructs the unit box at the origin with identity rotation.
+   * @brief Constructs the degenerate point box at the origin with identity rotation.
    */
   constexpr obb3() noexcept = default;
 
@@ -379,6 +398,26 @@ static_assert(sizeof(obb3_f) == 10 * sizeof(float));
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto volume(obb3<Real> const& box) noexcept -> Real {
   return Real{8} * box.half_size().x() * box.half_size().y() * box.half_size().z();
+}
+
+/**
+ * @brief Surface area of the box: \c 8 * (hx*hy + hy*hz + hz*hx).
+ *
+ * Rotation does not change any face area, so this matches the axis-aligned
+ * formula.
+ *
+ * @tparam Real Component type.
+ * @param box Oriented box.
+ *
+ * @return The box surface area.
+ *
+ * @pre All half-size components are non-negative.
+ * @post The result is non-negative.
+ */
+template <std::floating_point Real>
+[[nodiscard]] constexpr auto surface_area(obb3<Real> const& box) noexcept -> Real {
+  auto const h{box.half_size()};
+  return Real{8} * (h.x() * h.y() + h.y() * h.z() + h.z() * h.x());
 }
 
 /**
@@ -488,7 +527,8 @@ template <std::floating_point Real>
   // furthest reach along world axis k folds every local half-axis in by its
   // absolute projection. This is exact and far cheaper than rotating all eight
   // corners (one quaternion-to-matrix build plus nine multiply-adds, versus eight
-  // quaternion rotations).
+  // quaternion rotations). See Arvo, "Transforming Axis-Aligned Bounding Boxes",
+  // Graphics Gems (1990), or Ericson, RTCD section 4.2.6.
   auto const r{nexenne::math::to_matrix3(box.rotation())};
   auto const h{box.half_size()};
   auto world_half{nexenne::math::vector<Real, 3>{}};
