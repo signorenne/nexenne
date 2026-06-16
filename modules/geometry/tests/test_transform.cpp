@@ -179,4 +179,82 @@ TEST_CASE("transform: a 2D pose transforms a circle and an aabb") {
   CHECK(o.half_size().x() == doctest::Approx{2.0f});
 }
 
+TEST_CASE("transform: a non-uniform scale of a rotated obb stays enclosing (M2)") {
+  using vec3d = nm::vector<double, 3>;
+  // A box rotated 90 degrees about z with UNEQUAL half extents, then a
+  // non-uniform pose scale. The old code scaled each local half by the matching
+  // world scale component, applying the scale to the wrong axes once the box is
+  // rotated, and returned a box smaller than the image (it under-covered world x).
+  auto t{geo::transform3d_d::identity()};
+  t.scale() = vec3d{2.0, 1.0, 1.0};
+  auto const rot{*nm::from_axis_angle(vec3d{0, 0, 1}, radians<double>{nm::half_pi})};
+  geo::obb3_d const box{vec3d{0, 0, 0}, vec3d{1.0, 2.0, 3.0}, rot};
+  auto const o{transform(t, box)};
+
+  // The tight enclosing half-size: local x (half 1) maps to world y (scale 1),
+  // local y (half 2) maps to world x (scale 2) -> 4, local z (half 3) stays.
+  CHECK(o.half_size().x() == doctest::Approx{1.0});
+  CHECK(o.half_size().y() == doctest::Approx{4.0});
+  CHECK(o.half_size().z() == doctest::Approx{3.0});
+
+  // Every corner of the true image (each original corner mapped by the pose) must
+  // lie inside the returned box; the old under-covering box failed this.
+  auto const inside{[&](vec3d const& p) {
+    auto const local{nm::rotate(nm::conjugate(o.rotation()), p - o.center())};
+    auto const h{o.half_size()};
+    return nm::abs(local.x()) <= h.x() + 1e-9 && nm::abs(local.y()) <= h.y() + 1e-9
+           && nm::abs(local.z()) <= h.z() + 1e-9;
+  }};
+  for (auto const& corner : geo::corners(box)) {
+    CHECK(inside(transform_point(t, corner)));
+  }
+}
+
+TEST_CASE("transform: decompose_3 rejects a negative-scale (reflection) matrix (M3)") {
+  auto t{transform3d_f::identity()};
+  t.rotation() = *nm::from_axis_angle(vec3{0, 0, 1}, radians<float>{0.7f});
+  t.scale() = vec3{-2.0f, 1.0f, 1.0f};  // reflection: det of the linear part < 0.
+  auto const r{geo::decompose_3(to_matrix(t))};
+  CHECK_FALSE(r.has_value());
+  CHECK(r.error() == geo::geometry_error::invalid_input);
+}
+
+TEST_CASE("transform: decompose_2 rejects a negative-scale (reflection) matrix (M3)") {
+  auto t{transform2d_f::identity()};
+  t.position() = vec2{3.0f, 4.0f};
+  t.rotation() = radians<float>{0.7f};
+  t.scale() = vec2{-2.0f, 1.0f};  // reflection.
+  auto const r{geo::decompose_2(to_matrix(t))};
+  CHECK_FALSE(r.has_value());
+  CHECK(r.error() == geo::geometry_error::invalid_input);
+}
+
+TEST_CASE("transform: a 2D pose transforms an obb2 (uniform scale is exact)") {
+  auto t{transform2d_f::identity()};
+  t.rotation() = radians<float>{half_pi_v<float>};
+  t.scale() = vec2{3.0f, 3.0f};
+  geo::obb2_f const box{vec2{1, 0}, vec2{1, 2}, radians<float>{0.0f}};
+  auto const o{transform(t, box)};
+  // Uniform scale keeps the axis-aligned half exact: (1, 2) * 3 = (3, 6).
+  CHECK(o.half_size().x() == doctest::Approx{3.0f});
+  CHECK(o.half_size().y() == doctest::Approx{6.0f});
+  // Center (1, 0) scaled by 3 then rotated 90 CCW -> (0, 3).
+  CHECK(o.center().x() == doctest::Approx{0.0f}.epsilon(1e-5f));
+  CHECK(o.center().y() == doctest::Approx{3.0f}.epsilon(1e-5f));
+}
+
+TEST_CASE("transform: a 3D pose transforms a segment and grows a capsule") {
+  auto t{transform3d_f::identity()};
+  t.position() = vec3{1.0f, 0.0f, 0.0f};
+  t.scale() = vec3{2.0f, 3.0f, 1.0f};
+
+  auto const seg{transform(t, geo::segment3_f{vec3{0, 0, 0}, vec3{1, 0, 0}})};
+  CHECK(seg.start() == vec3{1, 0, 0});
+  CHECK(seg.end().x() == doctest::Approx{3.0f});  // (1,0,0)*scale.x -> 2, +translate.
+
+  auto const cap{transform(t, geo::capsule3_f{vec3{0, 0, 0}, vec3{1, 0, 0}, 0.5f})};
+  CHECK(cap.start() == vec3{1, 0, 0});
+  CHECK(cap.radius() == doctest::Approx{1.5f});  // 0.5 * max_scale(3).
+}
+
 }  // namespace
