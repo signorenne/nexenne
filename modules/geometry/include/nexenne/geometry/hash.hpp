@@ -12,7 +12,8 @@
  *
  * \c polygon2 and \c convex_hull3 are intentionally NOT hashable: they hold a
  * \c std::span, so their identity is the backing storage, not the value. A
- * caller who wants one can hash the underlying vertex range directly.
+ * caller who wants one can hash the underlying vertex range directly. \c frustum3
+ * is a value type (six planes, no reference members) and hashes its six planes.
  *
  * Including this header is all that is needed; the specializations live at global
  * scope as the standard requires.
@@ -24,6 +25,7 @@
 #include <nexenne/geometry/aabb.hpp>
 #include <nexenne/geometry/capsule.hpp>
 #include <nexenne/geometry/circle.hpp>
+#include <nexenne/geometry/frustum.hpp>
 #include <nexenne/geometry/obb.hpp>
 #include <nexenne/geometry/plane.hpp>
 #include <nexenne/geometry/ray.hpp>
@@ -300,6 +302,34 @@ struct std::hash<nexenne::geometry::obb3<Real>> {
     nexenne::utility::hash_combine(seed, o.center());
     nexenne::utility::hash_combine(seed, o.half_size());
     nexenne::utility::hash_combine(seed, o.rotation());
+    return seed;
+  }
+};
+
+/**
+ * @brief Hashes a frustum by folding its six planes in order.
+ *
+ * @tparam Real Component type.
+ */
+template <std::floating_point Real>
+struct std::hash<nexenne::geometry::frustum3<Real>> {
+  /**
+   * @brief Computes the composite hash.
+   *
+   * @param f Frustum to hash.
+   *
+   * @return Hash combining the six planes in \c frustum_plane order.
+   *
+   * @pre None.
+   * @post Equal frustums hash equal.
+   */
+  [[nodiscard]] auto operator()(nexenne::geometry::frustum3<Real> const& f
+  ) const noexcept -> std::size_t {
+    auto seed{std::size_t{0}};
+    for (auto const& pl : f.planes()) {
+      nexenne::utility::hash_combine(seed, pl.normal());
+      nexenne::utility::hash_combine(seed, pl.d());
+    }
     return seed;
   }
 };
