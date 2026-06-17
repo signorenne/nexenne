@@ -129,18 +129,34 @@ template <std::floating_point Real>
 ) noexcept -> std::pair<nexenne::math::vector<Real, 3>, nexenne::math::vector<Real, 3>> {
   using vector_type = nexenne::math::vector<Real, 3>;
   using nexenne::math::dot;
+  // Relative floor. The two guards below compare quantities of different scales,
+  // so a single absolute epsilon would misbehave across triangle sizes: the
+  // squared normal length scales like area squared (a valid 1e-3-edged triangle
+  // would read as degenerate), and the squared pierce-containment distance scales
+  // like length squared. Each guard is therefore scaled by the relevant triangle
+  // measure, keeping the pierce fast path armed from tiny to huge geometry.
   auto const epsilon{static_cast<Real>(1e-12)};
 
   // Pierce test: if the segment crosses the triangle plane between its endpoints
   // and the crossing lands inside the triangle, the closest distance is zero.
-  auto const normal{nexenne::math::cross(tri.b() - tri.a(), tri.c() - tri.a())};
-  if (nexenne::math::length_squared(normal) > epsilon) {
+  auto const ab{tri.b() - tri.a()};
+  auto const ac{tri.c() - tri.a()};
+  auto const normal{nexenne::math::cross(ab, ac)};
+  auto const ab_sq{nexenne::math::length_squared(ab)};
+  auto const ac_sq{nexenne::math::length_squared(ac)};
+  // |normal|^2 = |ab|^2 |ac|^2 sin^2(theta), so scale the degeneracy floor by
+  // the edge-length product to test the shape (near-collinear), not the size.
+  if (nexenne::math::length_squared(normal) > epsilon * ab_sq * ac_sq) {
     auto const da{dot(normal, seg.start() - tri.a())};
     auto const db{dot(normal, seg.end() - tri.a())};
     if ((da < Real{0}) != (db < Real{0})) {  // endpoints straddle the plane.
       auto const t{da / (da - db)};
       auto const pierce{seg.start() + (seg.end() - seg.start()) * t};
-      if (nexenne::math::length_squared(closest_point(tri, pierce) - pierce) <= epsilon) {
+      auto const bc_sq{nexenne::math::length_squared(tri.c() - tri.b())};
+      // Containment slack scaled by the triangle's squared size (its largest edge).
+      auto const tri_scale_sq{nexenne::math::max(ab_sq, nexenne::math::max(ac_sq, bc_sq))};
+      if (nexenne::math::length_squared(closest_point(tri, pierce) - pierce)
+          <= epsilon * tri_scale_sq) {
         return {pierce, pierce};
       }
     }
