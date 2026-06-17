@@ -81,7 +81,15 @@ template <
       }
       for (auto const& edge : g.edges_of(u)) {
         auto const w{static_cast<Weight>(weight_of(edge))};
-        auto const candidate{distances[u] + w};
+        // Saturating overflow guard. Written as w > 0 && d_u > sentinel - w
+        // rather than w > sentinel - d_u so it stays overflow-safe for signed
+        // Weight with a negative d_u: only a positive w can push the sum up to
+        // the unreachable sentinel, and sentinel - w is then representable.
+        if (w > Weight{0}
+            && distances[u] > detail::unreachable_weight<Weight>() - w) {
+          continue;
+        }
+        auto const candidate{static_cast<Weight>(distances[u] + w)};
         auto const target{static_cast<std::size_t>(edge.target)};
         if (candidate < distances[target]) {
           distances[target] = candidate;
@@ -102,7 +110,11 @@ template <
     }
     for (auto const& edge : g.edges_of(u)) {
       auto const w{static_cast<Weight>(weight_of(edge))};
-      auto const candidate{distances[u] + w};
+      if (w > Weight{0}
+          && distances[u] > detail::unreachable_weight<Weight>() - w) {
+        continue;  // sum would reach the sentinel, never a relaxation
+      }
+      auto const candidate{static_cast<Weight>(distances[u] + w)};
       auto const target{static_cast<std::size_t>(edge.target)};
       if (candidate < distances[target]) {
         return std::unexpected{err::not_found};

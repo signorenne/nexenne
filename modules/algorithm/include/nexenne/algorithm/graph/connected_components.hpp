@@ -29,8 +29,8 @@ namespace nexenne::algorithm {
  */
 template <typename E, std::unsigned_integral V>
 struct components_result {
-  std::vector<V> labels;       ///< Dense component label for each vertex.
-  std::size_t num_components;  ///< Number of distinct components.
+  std::vector<V> labels;          ///< Dense component label for each vertex.
+  std::size_t num_components{0};  ///< Number of distinct components.
 };
 
 /**
@@ -70,17 +70,21 @@ template <typename E, std::unsigned_integral V>
     }
   }
 
-  // Renumber roots to dense [0, num_components).
+  // Renumber roots to dense [0, num_components). The label counter and the scan
+  // counter are std::size_t: a V-typed component counter wraps max -> 0 when all
+  // 2^bits(V) vertices are singletons (labels stop being unique), and a V-typed
+  // scan counter wraps and loops forever at vertex_count() == 2^bits(V). Each
+  // label is < n <= 2^bits(V), so the cast back to V at use is exact.
   auto labels{std::vector<V>(n, V{0})};
   auto remap{std::vector<V>(n, V{0})};
   auto seen{std::vector<std::uint8_t>(n, 0)};  // bool-as-byte
-  auto next{V{0}};
+  auto next{std::size_t{0}};
 
-  for (V v{0}; v < n; ++v) {
-    auto const root{uf.root_of(v)};
+  for (auto v{std::size_t{0}}; v < n; ++v) {
+    auto const root{uf.root_of(static_cast<V>(v))};
     if (!seen[root]) {
       seen[root] = 1;
-      remap[root] = next;
+      remap[root] = static_cast<V>(next);
       next += 1;
     }
     labels[v] = remap[root];
@@ -88,7 +92,7 @@ template <typename E, std::unsigned_integral V>
 
   return components_result<E, V>{
     .labels = std::move(labels),
-    .num_components = static_cast<std::size_t>(next),
+    .num_components = next,
   };
 }
 

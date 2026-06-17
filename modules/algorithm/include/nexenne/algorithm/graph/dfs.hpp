@@ -47,7 +47,11 @@ namespace nexenne::algorithm {
  *       exactly once unless a \c bool callback short-circuited the traversal;
  *       \p g is not modified.
  *
- * @complexity \c O(V + E) time and \c O(V) auxiliary space.
+ * @note This push-then-check variant can stack a vertex once per in-edge, so the
+ *       work stack peaks at \c O(E), not \c O(V); the \c O(V) reserve is only an
+ *       initial hint. Use \c bfs when an \c O(V) frontier bound matters.
+ *
+ * @complexity \c O(V + E) time and \c O(V + E) auxiliary space.
  */
 template <typename E, std::unsigned_integral V, typename Visitor>
 auto dfs(nexenne::container::graph<E, V> const& g, V const source, Visitor&& visit)
