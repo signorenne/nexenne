@@ -57,10 +57,13 @@ public:
   /**
    * @brief Constructs a hull viewing the given vertices.
    *
-   * The vertices are assumed to be those of a convex polytope; interior or
-   * duplicate points are harmless but wasted work, and a non-convex set yields
-   * silently wrong collision results. No validation is performed and nothing is
-   * copied: the hull is valid only while \p vertices outlives it.
+   * The vertices are assumed to be those of a convex polytope; interior,
+   * duplicate, collinear, or coplanar points are all harmless (the support scan
+   * simply never, or arbitrarily, selects them), just wasted work, whereas a
+   * non-convex set yields silently wrong collision results. Because the type only
+   * ever evaluates the support function, there is no winding or face requirement
+   * to violate. No validation is performed and nothing is copied: the hull is
+   * valid only while \p vertices outlives it.
    *
    * @param vertices Caller-owned vertex set.
    */
