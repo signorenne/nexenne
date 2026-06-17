@@ -71,6 +71,17 @@ TEST_CASE("hash: every primitive specialization is stable on equal values") {
   );
 }
 
+TEST_CASE("hash: a frustum hashes by its six planes") {
+  geo::frustum3_f const a{};
+  geo::frustum3_f const b{};
+  CHECK(std::hash<geo::frustum3_f>{}(a) == std::hash<geo::frustum3_f>{}(b));
+
+  auto planes{a.planes()};
+  planes[0] = geo::plane3_f{vec3{1, 0, 0}, 2.0f};
+  geo::frustum3_f const c{planes};
+  CHECK(std::hash<geo::frustum3_f>{}(a) != std::hash<geo::frustum3_f>{}(c));
+}
+
 TEST_CASE("hash: the pose aggregates are hashable too") {
   geo::transform3d_f const a{vec3{1, 2, 3}, quaternion<float>{}, vec3{1, 1, 1}};
   geo::transform3d_f const b{vec3{1, 2, 3}, quaternion<float>{}, vec3{1, 1, 1}};
