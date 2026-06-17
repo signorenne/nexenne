@@ -64,6 +64,14 @@ TEST_CASE("format: frustum and the poses") {
   CHECK(to_string(geo::transform3d_f::identity()).starts_with("transform3d(pos="));
 }
 
+TEST_CASE("format: the frustum_plane enum prints its name") {
+  CHECK(to_string(geo::frustum_plane::near_plane) == "near_plane");
+  CHECK(std::format("{}", geo::frustum_plane::left) == "left");
+  auto stream{std::stringstream{}};
+  stream << geo::frustum_plane::far_plane;
+  CHECK(stream.str() == "far_plane");
+}
+
 TEST_CASE("format: the geometry_error enum prints its name") {
   CHECK(to_string(geo::geometry_error::degenerate_primitive) == "degenerate_primitive");
   CHECK(std::format("{}", geo::geometry_error::parallel) == "parallel");
