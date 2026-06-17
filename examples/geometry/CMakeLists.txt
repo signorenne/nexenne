@@ -1,6 +1,7 @@
 # One executable per example, named nexenne_example_geometry_<name>.
 set(_geometry_examples
     showcase
+    primitives
 )
 
 foreach(_example IN LISTS _geometry_examples)
