@@ -58,10 +58,15 @@ template <typename E, std::unsigned_integral V>
 [[nodiscard]] auto tarjan_scc(nexenne::container::graph<E, V> const& g) -> scc_result<V> {
   auto const n{g.vertex_count()};
 
-  auto constexpr undef{std::numeric_limits<V>::max()};
+  // DFS indices and low-links live in std::size_t, not V: a V-typed index would
+  // reach std::numeric_limits<V>::max() for a legitimate vertex when
+  // vertex_count() == 2^bits(V), colliding with the "unvisited" sentinel and
+  // making that vertex look re-peelable. std::size_t indices cannot alias the
+  // SIZE_MAX sentinel because at most n <= 2^bits(V) < SIZE_MAX indices exist.
+  auto constexpr undef{std::numeric_limits<std::size_t>::max()};
 
-  auto index{std::vector<V>(n, undef)};
-  auto lowlink{std::vector<V>(n, V{0})};
+  auto index{std::vector<std::size_t>(n, undef)};
+  auto lowlink{std::vector<std::size_t>(n, std::size_t{0})};
   auto on_stack{std::vector<std::uint8_t>(n, 0)};  // bool-as-byte
   auto labels{std::vector<V>(n, V{0})};
 
@@ -77,10 +82,13 @@ template <typename E, std::unsigned_integral V>
   auto work{std::vector<frame>{}};
   work.reserve(n);
 
-  auto next_index{V{0}};
-  auto next_comp{V{0}};
+  auto next_index{std::size_t{0}};
+  auto next_comp{std::size_t{0}};
 
-  for (V root{0}; root < n; ++root) {
+  // The outer scan counter is std::size_t, cast to V only at use: a V-typed
+  // counter would wrap max -> 0 at vertex_count() == 2^bits(V) and loop forever.
+  for (auto root_i{std::size_t{0}}; root_i < n; ++root_i) {
+    auto const root{static_cast<V>(root_i)};
     if (index[root] != undef) {
       continue;
     }
@@ -134,7 +142,7 @@ template <typename E, std::unsigned_integral V>
           auto const w{path.back()};
           path.pop_back();
           on_stack[w] = 0;
-          labels[w] = next_comp;
+          labels[w] = static_cast<V>(next_comp);
           if (w == u) {
             break;
           }
@@ -156,7 +164,7 @@ template <typename E, std::unsigned_integral V>
 
   return scc_result<V>{
     .labels = std::move(labels),
-    .num_components = static_cast<std::size_t>(next_comp),
+    .num_components = next_comp,
   };
 }
 

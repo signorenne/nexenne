@@ -55,8 +55,12 @@ struct a_star_entry {
   V vertex{};
   Weight f_score{};
 
+  // Equality on the ordering key (f-score) alone, kept consistent with the
+  // f-score-only operator<=> so equal-score entries never disagree.
   [[nodiscard]] friend constexpr auto
-  operator==(a_star_entry const&, a_star_entry const&) noexcept -> bool = default;
+  operator==(a_star_entry const& a, a_star_entry const& b) noexcept -> bool {
+    return a.f_score == b.f_score;
+  }
 
   [[nodiscard]] friend constexpr auto
   operator<=>(a_star_entry const& a, a_star_entry const& b) noexcept {
@@ -94,7 +98,9 @@ struct a_star_entry {
  *
  * @pre Every edge weight is non-negative and \p heuristic is admissible (never
  *      overestimates the true remaining cost) for the returned path to be
- *      optimal.
+ *      optimal. \c Weight can represent every accumulated path cost without
+ *      overflow (a sum that would reach or exceed the unreachable sentinel is
+ *      treated as unreachable, not wrapped).
  * @post On success, \c result.path begins at \p source, ends at \p goal, and
  *       \c result.cost equals the sum of its edge weights. \p g is not modified.
  *
@@ -130,7 +136,7 @@ template <
   auto pq{nexenne::container::indexed_priority_queue<entry, std::greater<>>{}};
   using pq_type = decltype(pq);
   auto constexpr no_h{pq_type::invalid_handle};
-  auto handles{std::vector<std::uint32_t>(n, no_h)};
+  auto handles{std::vector<typename pq_type::handle_type>(n, no_h)};
 
   // The heuristic is a pure function of the vertex, so evaluate it at most once
   // per vertex and reuse the value; an expensive heuristic is then not recomputed
@@ -187,11 +193,17 @@ template <
       auto const target{edge.target};
       auto const target_i{static_cast<std::size_t>(target)};
       auto const w{static_cast<Weight>(weight_of(edge))};
-      auto const tentative{g_score[u] + w};
+      // Saturating overflow guard, as in dijkstra: a cost reaching the
+      // unreachable sentinel cannot improve any real path, so skip the edge
+      // rather than wrap.
+      if (w > detail::unreachable_weight<Weight>() - g_score[u]) {
+        continue;
+      }
+      auto const tentative{static_cast<Weight>(g_score[u] + w)};
       if (tentative < g_score[target_i]) {
         came_from[target_i] = u;
         g_score[target_i] = tentative;
-        auto const f{tentative + h_of(target)};
+        auto const f{static_cast<Weight>(tentative + h_of(target))};
         if (handles[target_i] != no_h) {
           nexenne::utility::discard(pq.update(handles[target_i], entry{target, f}));
         } else {

@@ -8,10 +8,12 @@
  */
 
 #include <bit>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace nexenne::algorithm {
@@ -93,6 +95,9 @@ public:
     if (m_n == 0) {
       return;
     }
+    assert(static_cast<size_type>(root) < m_n
+           && parent[static_cast<size_type>(root)] == root
+           && "lca::build requires a valid self-parented root");
 
     m_log = static_cast<size_type>(std::bit_width(m_n));  // ceil(log2(n))+1
     if (m_log == 0) {
@@ -127,6 +132,8 @@ public:
    * @complexity \c O(1).
    */
   [[nodiscard]] auto depth_of(Node const v) const noexcept -> size_type {
+    assert(static_cast<size_type>(v) < m_depth.size()
+           && "lca::depth_of requires a built index and a valid node");
     return m_depth[static_cast<size_type>(v)];
   }
 
@@ -148,6 +155,9 @@ public:
    * @complexity \c O(log N) in the node count \c N.
    */
   [[nodiscard]] auto query(Node u, Node v) const noexcept -> Node {
+    assert(static_cast<size_type>(u) < m_depth.size()
+           && static_cast<size_type>(v) < m_depth.size()
+           && "lca::query requires a built index and valid nodes");
     if (m_depth[static_cast<size_type>(u)] < m_depth[static_cast<size_type>(v)]) {
       std::swap(u, v);
     }

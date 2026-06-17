@@ -55,8 +55,12 @@ struct dijkstra_entry {
   V vertex{};
   Weight distance{};
 
+  // Equality on the ordering key (distance) alone, kept consistent with the
+  // distance-only operator<=> so equal-distance entries never disagree.
   [[nodiscard]] friend constexpr auto
-  operator==(dijkstra_entry const&, dijkstra_entry const&) noexcept -> bool = default;
+  operator==(dijkstra_entry const& a, dijkstra_entry const& b) noexcept -> bool {
+    return a.distance == b.distance;
+  }
 
   [[nodiscard]] friend constexpr auto
   operator<=>(dijkstra_entry const& a, dijkstra_entry const& b) noexcept {
@@ -88,7 +92,9 @@ struct dijkstra_entry {
  *         valid vertex of \p g.
  *
  * @pre Every edge weight produced by \p weight_of is non-negative; negative
- *      weights break the optimality of the result.
+ *      weights break the optimality of the result. \c Weight can represent every
+ *      accumulated path cost without overflow (a sum that would reach or exceed
+ *      the unreachable sentinel is treated as unreachable, not wrapped).
  * @post On success, \c distances[source] == 0 and each finite entry is the weight
  *       of a shortest path from \p source to that vertex. \p g is not modified.
  *
@@ -116,7 +122,7 @@ template <
 
   using pq_type = decltype(pq);
   auto constexpr no_h{pq_type::invalid_handle};
-  auto handles{std::vector<std::uint32_t>(n, no_h)};
+  auto handles{std::vector<typename pq_type::handle_type>(n, no_h)};
 
   handles[source] = pq.push(entry{source, Weight{0}});
 
@@ -134,7 +140,14 @@ template <
     }
     for (auto const& edge : g.edges_of(u)) {
       auto const w{static_cast<Weight>(weight_of(edge))};
-      auto const candidate{d_u + w};
+      // Saturating overflow guard: a candidate d_u + w that would reach or pass
+      // the unreachable sentinel (integral overflow, and the sentinel value
+      // itself, which stays reserved for "unreached") cannot improve any real
+      // distance, so skip the edge instead of wrapping to a bogus small cost.
+      if (w > detail::unreachable_weight<Weight>() - d_u) {
+        continue;
+      }
+      auto const candidate{static_cast<Weight>(d_u + w)};
       auto const target{static_cast<std::size_t>(edge.target)};
       if (candidate < distances[target]) {
         distances[target] = candidate;

@@ -9,6 +9,7 @@
  * Dijkstra runs on dense graphs or small V.
  */
 
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <expected>
@@ -50,6 +51,8 @@ struct floyd_warshall_result {
    * @complexity \c O(1).
    */
   [[nodiscard]] constexpr auto at(V const i, V const j) const noexcept -> Weight {
+    assert(static_cast<std::size_t>(i) < n && static_cast<std::size_t>(j) < n
+           && "floyd_warshall_result::at index out of range");
     return distances[static_cast<std::size_t>(i) * n + static_cast<std::size_t>(j)];
   }
 };
@@ -125,7 +128,13 @@ template <
         if (dkj == inf) {
           continue;
         }
-        auto const cand{dik + dkj};
+        // Saturating overflow guard, overflow-safe for signed Weight: only a
+        // positive dkj can push dik + dkj up to the unreachable sentinel, and
+        // inf - dkj is then representable.
+        if (dkj > Weight{0} && dik > inf - dkj) {
+          continue;
+        }
+        auto const cand{static_cast<Weight>(dik + dkj)};
         if (cand < d[idx(i, j)]) {
           d[idx(i, j)] = cand;
         }
