@@ -16,7 +16,8 @@
  *
  * Covered: \c aabb, \c circle2, \c sphere3, \c ray, \c segment, \c plane3,
  * \c triangle, \c capsule, \c obb2, \c obb3, \c polygon2, \c convex_hull3,
- * \c frustum3, \c transform2d, \c transform3d, and \c geometry_error. The
+ * \c frustum3, \c frustum_plane, \c transform2d, \c transform3d, and
+ * \c geometry_error. The
  * transient GJK and EPA working aggregates (\c gjk_simplex3, \c gjk_result3,
  * \c epa_result3) are intentionally not formatted: like the standard library's
  * \c *_result aggregates they are inspected through their fields, and the math
@@ -642,6 +643,21 @@ inline auto operator<<(std::ostream& os, geometry_error const err) -> std::ostre
   return os << to_string(err);
 }
 
+/**
+ * @brief Streams a \c frustum_plane by its \c to_string name.
+ *
+ * @param os Output stream.
+ * @param which Plane index to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The plane name has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, frustum_plane const which) -> std::ostream& {
+  return os << to_string(which);
+}
+
 }  // namespace nexenne::geometry
 
 /**
@@ -1048,5 +1064,31 @@ struct std::formatter<nexenne::geometry::geometry_error> : std::formatter<std::s
   template <typename FormatContext>
   auto format(nexenne::geometry::geometry_error const err, FormatContext& ctx) const {
     return std::formatter<std::string_view>::format(nexenne::geometry::to_string(err), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c frustum_plane: prints its \c to_string name.
+ *
+ * Inherits the string formatter so a spec (width, alignment) applies to the name
+ * and \c std::format("{}", which) works directly on a plane index.
+ */
+template <>
+struct std::formatter<nexenne::geometry::frustum_plane> : std::formatter<std::string_view> {
+  /**
+   * @brief Writes the plane's \c to_string name through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param which Plane index to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The plane name has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::geometry::frustum_plane const which, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::geometry::to_string(which), ctx);
   }
 };
