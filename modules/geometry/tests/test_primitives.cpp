@@ -181,4 +181,21 @@ TEST_CASE("triangle: centroid, area, normal, containment, bounds") {
   CHECK(geo::bounding_aabb(t2) == geo::aabb2_d{vec2{0, 0}, vec2{4, 3}});
 }
 
+TEST_CASE("triangle: a degenerate triangle contains its supporting line, not off-line points") {
+  // A single-point triangle reports containment for every point (documented).
+  geo::triangle2_d const point{vec2{3, 3}, vec2{3, 3}, vec2{3, 3}};
+  CHECK(geo::contains_point(point, vec2{100, 100}));
+  // A collinear triangle contains points on its supporting line...
+  geo::triangle2_d const line{vec2{0, 0}, vec2{1, 0}, vec2{2, 0}};
+  CHECK(geo::contains_point(line, vec2{100, 0}));
+  // ...but still excludes points off the line.
+  CHECK_FALSE(geo::contains_point(line, vec2{1, 1}));
+}
+
+TEST_CASE("segment: collinear overlapping 2D segments report no crossing") {
+  geo::segment2_d const a{vec2{0, 0}, vec2{4, 0}};
+  geo::segment2_d const overlap{vec2{2, 0}, vec2{6, 0}};  // collinear, overlapping
+  CHECK_FALSE(geo::intersects(a, overlap).has_value());
+}
+
 }  // namespace
