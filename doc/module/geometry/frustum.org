@@ -71,10 +71,24 @@ Each raw plane's first three components form the normal and the fourth is the
 offset =d=. The code then normalizes every plane by dividing through by the length
 of its normal, so the normals come out unit length and =signed_distance= reports a
 true Euclidean distance. A plane that comes out degenerate (zero-length normal) is
-left unnormalized rather than dividing by zero. Because the clip convention is
-baked into the matrix you pass in, the same extraction works for OpenGL or D3D
-depth and for either a full view-projection (a world-space frustum) or the
-projection alone (a view-space frustum).
+left unnormalized rather than dividing by zero.
+
+This extraction requires an *OpenGL-style depth convention*, where the clip
+inequality on =z= is =-w <= z <= w=. The near plane is always built as =row3 +
+row2= (encoding =z_clip >= -w=), which is exactly the OpenGL near plane. The four
+side planes and the far plane are convention-independent, so they come out correct
+for either a full view-projection (a world-space frustum) or the projection alone
+(a view-space frustum).
+
+A *zero-to-one depth projection* (Direct3D or Vulkan, for example
+=math::perspective_zo=) constrains =z_clip= to =[0, w]=, so its near plane is
+=row2= alone, not =row3 + row2=. Passing such a matrix yields a *wrong near plane*
+(it lands near half the near distance) while the other five planes stay correct;
+the culling tests remain conservative, but =plane_of= for the near plane and any
+distance-to-near computation are off by about half the near distance. Gribb and
+Hartmann's paper gives the two different near-plane formulas per convention. The
+convention cannot be detected reliably from the matrix, so this factory does not
+try; feed it an OpenGL-convention matrix.
 
 ** Sphere culling
 

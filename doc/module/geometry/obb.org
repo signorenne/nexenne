@@ -8,10 +8,11 @@
 stored as a =center=, a =half_size= (the half-extent along each local axis), and
 a =rotation=. The two flavours differ only in how they carry that rotation:
 =obb2= holds a =math::radians= angle, =obb3= a =math::quaternion=. Each provides
-the size query (=area= in 2D, =volume= in 3D), =corners=, =contains_point=, and
-=bounding_aabb=; the full OBB-OBB overlap (the Separating Axis Theorem) lives in
-the cross-type =intersect= header. Aliases: =obb2= / =obb3=, each with =_f=
-(float) and =_d= (double).
+the size queries (=area= and =perimeter= in 2D, =volume= and =surface_area= in
+3D, all rotation-invariant and matching the axis-aligned formulas), =corners=,
+=contains_point=, and =bounding_aabb=; the full OBB-OBB overlap (the Separating
+Axis Theorem) lives in the cross-type =intersect= header. Aliases: =obb2= /
+=obb3=, each with =_f= (float) and =_d= (double).
 
 * The idea
 
