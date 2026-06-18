@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include <nexenne/algorithm/graph/a_star.hpp>
@@ -30,6 +31,7 @@
 #include <nexenne/algorithm/graph/topological_sort.hpp>
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/graph.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -83,7 +85,7 @@ template <typename G>
   for (auto u{V{0}}; u < n; ++u) {
     for (auto v{u + 1}; v < n; ++v) {
       if (static_cast<int>(gen.next() % 100) < density) {
-        g.add_edge(u, v);  // only u < v: guaranteed acyclic
+        nexenne::utility::discard(g.add_edge(u, v));  // only u < v: guaranteed acyclic
       }
     }
   }
@@ -115,9 +117,9 @@ TEST_CASE("nexenne::algorithm bfs and dfs visit exactly the reachable set") {
 
 TEST_CASE("nexenne::algorithm bfs early termination and invalid source") {
   auto g{ugraph(4)};
-  g.add_edge(0, 1);
-  g.add_edge(1, 2);
-  g.add_edge(2, 3);
+  nexenne::utility::discard(g.add_edge(0, 1));
+  nexenne::utility::discard(g.add_edge(1, 2));
+  nexenne::utility::discard(g.add_edge(2, 3));
   auto count{0};
   REQUIRE(alg::bfs(g, V{0}, [&](V) {
             count += 1;
@@ -152,9 +154,9 @@ TEST_CASE("nexenne::algorithm topological_sort yields a valid order on DAGs") {
 
 TEST_CASE("nexenne::algorithm topological_sort detects cycles") {
   auto g{ugraph(3)};
-  g.add_edge(0, 1);
-  g.add_edge(1, 2);
-  g.add_edge(2, 0);  // cycle
+  nexenne::utility::discard(g.add_edge(0, 1));
+  nexenne::utility::discard(g.add_edge(1, 2));
+  nexenne::utility::discard(g.add_edge(2, 0));  // cycle
   CHECK(alg::topological_sort(g).error() == nc::container_error::not_found);
   CHECK(!alg::is_acyclic(g));
 }
@@ -163,9 +165,9 @@ TEST_CASE("nexenne::algorithm topological_sort detects cycles") {
 
 TEST_CASE("nexenne::algorithm connected_components groups by component") {
   auto g{ugraph(6)};
-  g.add_edge(0, 1);
-  g.add_edge(1, 2);  // {0,1,2}
-  g.add_edge(3, 4);  // {3,4}
+  nexenne::utility::discard(g.add_edge(0, 1));
+  nexenne::utility::discard(g.add_edge(1, 2));  // {0,1,2}
+  nexenne::utility::discard(g.add_edge(3, 4));  // {3,4}
   // vertex 5 isolated
   auto const r{alg::connected_components(g)};
   CHECK(r.num_components == 3);
@@ -180,11 +182,11 @@ TEST_CASE("nexenne::algorithm connected_components groups by component") {
 
 TEST_CASE("nexenne::algorithm::tarjan_scc finds strongly connected components") {
   auto g{ugraph(5)};
-  g.add_edge(0, 1);
-  g.add_edge(1, 2);
-  g.add_edge(2, 0);  // {0,1,2} is one SCC
-  g.add_edge(2, 3);
-  g.add_edge(3, 4);  // 3 and 4 are singletons
+  nexenne::utility::discard(g.add_edge(0, 1));
+  nexenne::utility::discard(g.add_edge(1, 2));
+  nexenne::utility::discard(g.add_edge(2, 0));  // {0,1,2} is one SCC
+  nexenne::utility::discard(g.add_edge(2, 3));
+  nexenne::utility::discard(g.add_edge(3, 4));  // 3 and 4 are singletons
   auto const r{alg::tarjan_scc(g)};
   CHECK(r.num_components == 3);
   CHECK(r.labels[0] == r.labels[1]);
@@ -204,8 +206,8 @@ TEST_CASE("nexenne::algorithm::kruskal_mst builds a minimum spanning forest") {
   // Undirected: add each edge in both directions.
   auto g{wgraph(4)};
   auto undirected{[&](V a, V b, double w) {
-    g.add_edge(a, b, w);
-    g.add_edge(b, a, w);
+    nexenne::utility::discard(g.add_edge(a, b, w));
+    nexenne::utility::discard(g.add_edge(b, a, w));
   }};
   undirected(0, 1, 1.0);
   undirected(1, 2, 2.0);
@@ -228,7 +230,7 @@ TEST_CASE("nexenne::algorithm::kruskal_mst builds a minimum spanning forest") {
   for (auto u{V{0}}; u < n; ++u) {
     for (auto v{V{0}}; v < n; ++v) {
       if (u != v && static_cast<int>(gen.next() % 100) < density) {
-        g.add_edge(u, v, 1.0 + static_cast<double>(gen.next() % 20));
+        nexenne::utility::discard(g.add_edge(u, v, 1.0 + static_cast<double>(gen.next() % 20)));
       }
     }
   }
@@ -259,9 +261,9 @@ TEST_CASE("nexenne::algorithm shortest-path trio agrees on random graphs") {
 
 TEST_CASE("nexenne::algorithm::dijkstra known answer and unreachable handling") {
   auto g{wgraph(4)};
-  g.add_edge(0, 1, 1.0);
-  g.add_edge(1, 2, 2.0);
-  g.add_edge(0, 2, 5.0);  // 0->1->2 (cost 3) beats 0->2 (cost 5)
+  nexenne::utility::discard(g.add_edge(0, 1, 1.0));
+  nexenne::utility::discard(g.add_edge(1, 2, 2.0));
+  nexenne::utility::discard(g.add_edge(0, 2, 5.0));  // 0->1->2 (cost 3) beats 0->2 (cost 5)
   // vertex 3 unreachable
   auto const d{alg::dijkstra(g, V{0})};
   REQUIRE(d.has_value());
@@ -274,9 +276,9 @@ TEST_CASE("nexenne::algorithm::dijkstra known answer and unreachable handling") 
 
 TEST_CASE("nexenne::algorithm::bellman_ford detects negative cycles") {
   auto g{wgraph(3)};
-  g.add_edge(0, 1, 1.0);
-  g.add_edge(1, 2, -1.0);
-  g.add_edge(2, 0, -1.0);  // total -1 around the cycle
+  nexenne::utility::discard(g.add_edge(0, 1, 1.0));
+  nexenne::utility::discard(g.add_edge(1, 2, -1.0));
+  nexenne::utility::discard(g.add_edge(2, 0, -1.0));  // total -1 around the cycle
   CHECK(!alg::bellman_ford(g, V{0}).has_value());
 }
 
@@ -349,8 +351,8 @@ TEST_CASE("nexenne::algorithm graph algorithms handle empty and single-vertex gr
 
 TEST_CASE("nexenne::algorithm self-loop is a one-vertex SCC and a cycle") {
   auto g{ugraph(2)};
-  g.add_edge(0, 0);  // self-loop
-  g.add_edge(0, 1);
+  nexenne::utility::discard(g.add_edge(0, 0));  // self-loop
+  nexenne::utility::discard(g.add_edge(0, 1));
   CHECK(alg::tarjan_scc(g).num_components == 2);  // {0} and {1}
   CHECK(!alg::is_acyclic(g));                     // a self-loop is a cycle
   CHECK(alg::topological_sort(g).error() == nc::container_error::not_found);
@@ -358,9 +360,9 @@ TEST_CASE("nexenne::algorithm self-loop is a one-vertex SCC and a cycle") {
 
 TEST_CASE("nexenne::algorithm shortest paths pick the cheapest of parallel edges") {
   auto g{wgraph(3)};
-  g.add_edge(0, 1, 9.0);
-  g.add_edge(0, 1, 2.0);  // parallel edge, cheaper
-  g.add_edge(1, 2, 1.0);
+  nexenne::utility::discard(g.add_edge(0, 1, 9.0));
+  nexenne::utility::discard(g.add_edge(0, 1, 2.0));  // parallel edge, cheaper
+  nexenne::utility::discard(g.add_edge(1, 2, 1.0));
   auto const d{alg::dijkstra(g, V{0})};
   REQUIRE(d.has_value());
   CHECK(dist_eq((*d)[1], 2.0));  // relaxation takes the smaller weight
@@ -373,8 +375,8 @@ TEST_CASE("nexenne::algorithm shortest paths pick the cheapest of parallel edges
 TEST_CASE("nexenne::algorithm::kruskal_mst on a disconnected graph is a forest") {
   auto g{wgraph(5)};
   auto undirected{[&](V a, V b, double w) {
-    g.add_edge(a, b, w);
-    g.add_edge(b, a, w);
+    nexenne::utility::discard(g.add_edge(a, b, w));
+    nexenne::utility::discard(g.add_edge(b, a, w));
   }};
   undirected(0, 1, 1.0);  // component {0, 1}
   undirected(2, 3, 2.0);  // component {2, 3}
@@ -385,11 +387,11 @@ TEST_CASE("nexenne::algorithm::kruskal_mst on a disconnected graph is a forest")
 
 TEST_CASE("nexenne::algorithm::a_star evaluates the heuristic at most once per vertex") {
   auto g{wgraph(5)};
-  g.add_edge(0, 1, 1.0);
-  g.add_edge(1, 2, 1.0);
-  g.add_edge(2, 3, 1.0);
-  g.add_edge(0, 3, 5.0);  // a second, longer route into 3 (relaxes it twice)
-  g.add_edge(3, 4, 1.0);
+  nexenne::utility::discard(g.add_edge(0, 1, 1.0));
+  nexenne::utility::discard(g.add_edge(1, 2, 1.0));
+  nexenne::utility::discard(g.add_edge(2, 3, 1.0));
+  nexenne::utility::discard(g.add_edge(0, 3, 5.0));  // a second, longer route into 3 (relaxes it twice)
+  nexenne::utility::discard(g.add_edge(3, 4, 1.0));
   auto calls{std::vector<int>(5, 0)};
   auto const r{alg::a_star<double, V, double>(g, V{0}, V{4}, [&](V const v) {
     calls[v] += 1;
@@ -438,6 +440,93 @@ TEST_CASE("nexenne::algorithm::lca on degenerate trees (single node and a path)"
   CHECK(path.query(4, 0) == 0);
   CHECK(path.query(2, 2) == 2);
   CHECK(path.depth_of(4) == 4);
+}
+
+TEST_CASE("nexenne::algorithm::tarjan_scc terminates at vertex_count == 2^bits(V) (C1)") {
+  // Regression for C1: the outer scan used a V-typed counter that wrapped
+  // max -> 0 at exactly 2^bits(V) vertices and looped forever, and the DFS index
+  // sentinel (max(V)) collided with a legitimate index there. tarjan now drives
+  // the scan and the indices with std::size_t. uint8 spans ids 0..255, and
+  // tarjan reads vertex_count()/edges_of (never vertices()), so a 256-vertex
+  // graph is usable; if this test returns at all, the hang is gone.
+  using V8 = std::uint8_t;
+  auto g{nc::graph<void, V8>{}};
+  for (auto i{0}; i < 256; ++i) {
+    g.add_vertex();
+  }
+  // One directed cycle over all 256 vertices: exactly one strongly connected
+  // component, so every label must be identical.
+  for (auto i{std::uint32_t{0}}; i < 256; ++i) {
+    nexenne::utility::discard(g.add_edge(static_cast<V8>(i), static_cast<V8>((i + 1) % 256)));
+  }
+  auto const r{alg::tarjan_scc(g)};
+  REQUIRE(r.labels.size() == 256);
+  CHECK(r.num_components == 1);
+  for (auto const label : r.labels) {
+    CHECK(label == r.labels[0]);
+  }
+}
+
+TEST_CASE("nexenne::algorithm::connected_components labels stay distinct at the id edge (C1)") {
+  // Regression for C1's secondary defect: a V-typed component counter wrapped to
+  // 0 once every vertex was its own component, and a V-typed scan counter would
+  // loop forever. 255 singletons must yield 255 distinct labels and a count of
+  // 255 (the container caps vertices() at max(V) == 255 for uint8).
+  using V8 = std::uint8_t;
+  auto g{nc::graph<void, V8>{}};
+  for (auto i{0}; i < 255; ++i) {
+    g.add_vertex();
+  }
+  auto const r{alg::connected_components(g)};
+  REQUIRE(r.labels.size() == 255);
+  CHECK(r.num_components == 255);
+  auto seen{std::vector<char>(255, 0)};
+  for (auto const label : r.labels) {
+    seen[label] = char{1};
+  }
+  CHECK(std::ranges::count(seen, char{1}) == 255);
+}
+
+TEST_CASE("nexenne::algorithm::dijkstra guards integral distance overflow (M1)") {
+  // Regression for M1: d_u + w wrapped for integral Weight, so a path whose true
+  // cost overflowed was reported as a bogus small distance. The saturating guard
+  // leaves the vertex at the unreachable sentinel instead of wrapping.
+  using w_type = std::uint32_t;
+  auto g{nc::graph<w_type, V>{}};
+  for (auto i{0}; i < 3; ++i) {
+    g.add_vertex();
+  }
+  nexenne::utility::discard(g.add_edge(0, 1, w_type{3'000'000'000}));
+  nexenne::utility::discard(g.add_edge(1, 2, w_type{3'000'000'000}));
+  auto const r{alg::dijkstra<w_type, V, w_type>(g, V{0})};
+  REQUIRE(r.has_value());
+  auto const& d{*r};
+  CHECK(d[0] == w_type{0});
+  CHECK(d[1] == w_type{3'000'000'000});
+  // 0 -> 2 costs 6e9, which overflows uint32; it must read as unreachable (max),
+  // not the wrapped value 1'705'032'704 the unguarded sum produced.
+  CHECK(d[2] == std::numeric_limits<w_type>::max());
+}
+
+TEST_CASE("nexenne::algorithm::topological_sort and kruskal_mst are correct near the id edge (M2)") {
+  // M2 is resolved by the container capping vertices() at max(V) plus C1's
+  // std::size_t loops; this pins that both algorithms iterate every vertex on a
+  // large uint8 graph rather than collapsing to an empty range.
+  using V8 = std::uint8_t;
+  auto chain{nc::graph<int, V8>{}};
+  for (auto i{0}; i < 200; ++i) {
+    chain.add_vertex();
+  }
+  for (auto i{std::uint32_t{0}}; i + 1 < 200; ++i) {
+    nexenne::utility::discard(chain.add_edge(static_cast<V8>(i), static_cast<V8>(i + 1), 1));
+  }
+  auto const order{alg::topological_sort(chain)};
+  REQUIRE(order.has_value());
+  CHECK(order->size() == 200);
+  CHECK(order->front() == V8{0});
+  CHECK(order->back() == V8{199});
+  auto const mst{alg::kruskal_mst(chain)};
+  CHECK(mst.size() == 199);  // a 200-vertex tree has 199 edges
 }
 
 }  // namespace
