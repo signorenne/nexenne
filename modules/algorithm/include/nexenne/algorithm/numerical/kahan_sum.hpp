@@ -19,9 +19,25 @@
  */
 
 #include <concepts>
+#include <iterator>
 #include <ranges>
+#include <utility>
 
 namespace nexenne::algorithm {
+
+namespace detail {
+
+// True when iterating \c Range (comparing begin to end, incrementing, and
+// dereferencing) cannot throw, so a compensated sum over it can be conditionally
+// noexcept rather than lying about a range whose iterator, for example a
+// transform_view over a throwing projection, may throw on dereference.
+template <std::ranges::input_range Range>
+inline constexpr bool nothrow_iterable_v{
+  noexcept(std::ranges::begin(std::declval<Range&>()) != std::ranges::end(std::declval<Range&>()))
+  && noexcept(++std::declval<std::ranges::iterator_t<Range>&>())
+  && noexcept(*std::ranges::begin(std::declval<Range&>()))};
+
+}  // namespace detail
 
 /**
  * @brief Kahan-compensated sum of \p range.
@@ -43,7 +59,8 @@ namespace nexenne::algorithm {
  * @complexity \c O(N) time and \c O(1) auxiliary space in the element count.
  */
 template <std::ranges::input_range Range, std::floating_point T = std::ranges::range_value_t<Range>>
-[[nodiscard]] constexpr auto kahan_sum(Range&& range, T init = T{0}) noexcept -> T {
+[[nodiscard]] constexpr auto kahan_sum(Range&& range, T init = T{0})
+  noexcept(detail::nothrow_iterable_v<Range>) -> T {
   auto sum{init};
   auto comp{T{0}};  // running compensation for lost low-order bits
   for (auto const value : range) {
@@ -75,7 +92,8 @@ template <std::ranges::input_range Range, std::floating_point T = std::ranges::r
  * @complexity \c O(N) time and \c O(1) auxiliary space in the element count.
  */
 template <std::ranges::input_range Range, std::floating_point T = std::ranges::range_value_t<Range>>
-[[nodiscard]] constexpr auto neumaier_sum(Range&& range, T init = T{0}) noexcept -> T {
+[[nodiscard]] constexpr auto neumaier_sum(Range&& range, T init = T{0})
+  noexcept(detail::nothrow_iterable_v<Range>) -> T {
   auto sum{init};
   auto comp{T{0}};
   for (auto const value : range) {

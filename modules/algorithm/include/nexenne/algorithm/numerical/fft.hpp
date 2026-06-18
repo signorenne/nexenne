@@ -40,7 +40,11 @@ auto fft_inplace(std::span<std::complex<T>> const data, bool const inverse) noex
     return;
   }
 
-  // Bit-reverse permutation (classical Gold-Rader form).
+  // Bit-reverse permutation (classical Gold-Rader form). The in-place
+  // decimation-in-time butterflies below expect their inputs in bit-reversed
+  // index order, so element i is swapped with the element at the reversal of i's
+  // log2(n)-bit index; j is grown as a bit-reversed counter to avoid recomputing
+  // the reversal per index.
   for (auto i{std::size_t{1}}, j{std::size_t{0}}; i < n; ++i) {
     auto bit{n >> 1u};
     for (; (j & bit) != 0; bit >>= 1u) {
