@@ -13,6 +13,7 @@
 #include <concepts>
 #include <cstddef>
 #include <expected>
+#include <type_traits>
 
 #include <nexenne/algorithm/numerical/numerical_error.hpp>
 
@@ -48,7 +49,7 @@ namespace nexenne::algorithm {
 template <std::floating_point T, typename Fn>
 [[nodiscard]] constexpr auto bisection(
   Fn&& f, T const lo, T const hi, T const tol = T{1e-9}, std::size_t const max_iter = 100
-) noexcept -> std::expected<T, numerical_error> {
+) noexcept(std::is_nothrow_invocable_v<Fn&, T>) -> std::expected<T, numerical_error> {
   auto a{lo};
   auto b{hi};
   auto const fa_0{f(a)};
@@ -116,7 +117,8 @@ template <std::floating_point T, typename Fn>
 template <std::floating_point T, typename Fn, typename Dfn>
 [[nodiscard]] constexpr auto newton(
   Fn&& f, Dfn&& df, T const x0, T const tol = T{1e-9}, std::size_t const max_iter = 50
-) noexcept -> std::expected<T, numerical_error> {
+) noexcept(std::is_nothrow_invocable_v<Fn&, T> && std::is_nothrow_invocable_v<Dfn&, T>)
+  -> std::expected<T, numerical_error> {
   auto x{x0};
   for (auto i{std::size_t{0}}; i < max_iter; ++i) {
     auto const fx{f(x)};

@@ -15,6 +15,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <iterator>
 #include <ranges>
@@ -27,7 +28,12 @@ namespace nexenne::algorithm {
  * @brief Linear interpolation between \p a and \p b at parameter \p t.
  *
  * Returns \c a + (b - a) * t. \p t is not clamped, so values outside \c [0, 1]
- * extrapolate.
+ * extrapolate. The simple \c a + (b - a) * t form is kept deliberately rather
+ * than forwarding to \c std::lerp: the standard does not require \c std::lerp to
+ * be \c constexpr before C++26, so this form keeps portable \c constexpr use and
+ * composes into the \c constexpr \c bilinear and \c catmull_rom helpers. Prefer
+ * \c std::lerp directly when its exactness and monotonicity guarantees at the
+ * endpoints matter more than \c constexpr evaluation.
  *
  * @tparam T Floating-point type.
  * @param a Value at \c t == 0.
@@ -177,17 +183,26 @@ public:
   /**
    * @brief Builds an interpolator from parallel \c x and \c y knot arrays.
    *
-   * Copies the knots verbatim; no sorting is performed.
+   * Copies the knots verbatim; no sorting is performed. When \p xs and \p ys
+   * differ in length the tail of the longer span is dropped, so the table holds
+   * \c min(xs.size(), ys.size()) knots.
    *
    * @param xs Strictly increasing knot abscissae.
    * @param ys Knot ordinates, parallel to \p xs.
    *
-   * @pre \p xs is strictly increasing and \p ys has the same length.
-   * @post \c size() equals \c xs.size() and the interpolator is ready.
+   * @pre The retained \c x knots are strictly increasing.
+   * @post \c size() equals \c min(xs.size(), ys.size()) and the interpolator is
+   *       ready.
    */
   linear_interpolator(std::span<T const> const xs, std::span<T const> const ys)
       : m_x{xs.begin(), xs.begin() + static_cast<std::ptrdiff_t>(std::min(xs.size(), ys.size()))}
-      , m_y{ys.begin(), ys.begin() + static_cast<std::ptrdiff_t>(std::min(xs.size(), ys.size()))} {}
+      , m_y{ys.begin(), ys.begin() + static_cast<std::ptrdiff_t>(std::min(xs.size(), ys.size()))} {
+    assert(
+      std::ranges::adjacent_find(m_x, [](T const l, T const r) noexcept { return !(l < r); })
+        == m_x.end()
+      && "linear_interpolator requires strictly increasing x knots"
+    );
+  }
 
   /**
    * @brief Number of knots in the table.
@@ -264,13 +279,15 @@ public:
    *
    * Solves the tridiagonal system for the knot second derivatives by the Thomas
    * algorithm. Fewer than three knots leave the second derivatives zero, so
-   * evaluation degrades gracefully to linear-and-clamp behaviour.
+   * evaluation degrades gracefully to linear-and-clamp behaviour. When \p xs and
+   * \p ys differ in length the tail of the longer span is dropped, so the spline
+   * holds \c min(xs.size(), ys.size()) knots.
    *
    * @param xs Strictly increasing knot abscissae.
    * @param ys Knot ordinates, parallel to \p xs.
    *
-   * @pre \p xs is strictly increasing and \p ys has the same length.
-   * @post \c size() equals \c xs.size() and the spline is ready.
+   * @pre The retained \c x knots are strictly increasing.
+   * @post \c size() equals \c min(xs.size(), ys.size()) and the spline is ready.
    *
    * @complexity \c O(N) in the knot count.
    */
@@ -278,6 +295,11 @@ public:
       : m_x{xs.begin(), xs.begin() + static_cast<std::ptrdiff_t>(std::min(xs.size(), ys.size()))}
       , m_y{ys.begin(), ys.begin() + static_cast<std::ptrdiff_t>(std::min(xs.size(), ys.size()))}
       , m_m(std::min(xs.size(), ys.size()), T{0}) {
+    assert(
+      std::ranges::adjacent_find(m_x, [](T const l, T const r) noexcept { return !(l < r); })
+        == m_x.end()
+      && "cubic_spline requires strictly increasing x knots"
+    );
     auto const n{m_x.size()};
     if (n < 3) {
       return;  // degenerate; falls back to linear behaviour

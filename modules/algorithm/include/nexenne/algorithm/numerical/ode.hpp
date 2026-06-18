@@ -11,8 +11,10 @@
  * Runge-Kutta, the non-stiff workhorse). For second-order mechanics:
  * \c verlet_step (position Verlet, symplectic, needs the previous position) and
  * \c velocity_verlet_step (the common physics-engine form, returns updated
- * position and velocity). All are templated on the state type, so the same code
- * works for scalars, vectors, or any type with the needed arithmetic.
+ * position and velocity). The first-order steppers (\c euler_step, \c rk4_step)
+ * use one type for both time and state, so they operate on scalar states; the
+ * Verlet pair (\c verlet_step, \c velocity_verlet_step) is templated purely on
+ * the state type and works for vectors as well as scalars.
  */
 
 #include <concepts>

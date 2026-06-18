@@ -14,7 +14,9 @@
  * detection.
  */
 
+#include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstddef>
@@ -115,7 +117,11 @@ public:
    * @post The accumulator is unchanged; the result is non-negative.
    */
   [[nodiscard]] constexpr auto variance() const noexcept -> T {
-    return m_count < 2 ? T{0} : m_m2 / static_cast<T>(m_count);
+    // Clamp at zero: in exact arithmetic m_m2 is non-negative, but when a sample
+    // sits within rounding distance of the mean the two Welford deltas can round
+    // to opposite signs and leave m_m2 slightly negative, which would make
+    // stddev return NaN against the documented non-negative @post.
+    return m_count < 2 ? T{0} : std::max(m_m2, T{0}) / static_cast<T>(m_count);
   }
 
   /**
@@ -127,7 +133,8 @@ public:
    * @post The accumulator is unchanged; the result is non-negative.
    */
   [[nodiscard]] constexpr auto sample_variance() const noexcept -> T {
-    return m_count < 2 ? T{0} : m_m2 / static_cast<T>(m_count - 1);
+    // Clamp at zero for the same rounding reason as \c variance().
+    return m_count < 2 ? T{0} : std::max(m_m2, T{0}) / static_cast<T>(m_count - 1);
   }
 
   /**
@@ -204,7 +211,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto merge(running_stats const& other) noexcept -> void {
+  constexpr auto merge(running_stats const& other) noexcept -> void {
     if (other.m_count == 0) {
       return;
     }
@@ -280,7 +287,9 @@ public:
    * @post The histogram is empty and spans \c [min, max].
    */
   constexpr histogram(T const min, T const max) noexcept
-      : m_min{min}, m_max{max}, m_width{(max - min) / static_cast<T>(N)} {}
+      : m_min{min}, m_max{max}, m_width{(max - min) / static_cast<T>(N)} {
+    assert(max > min && "histogram range requires max > min");
+  }
 
   /**
    * @brief Records one sample into the appropriate bucket.
@@ -357,6 +366,7 @@ public:
    * @post The histogram is unchanged.
    */
   [[nodiscard]] constexpr auto bucket(size_type const i) const noexcept -> std::uint64_t {
+    assert(i < N && "histogram bucket index out of range");
     return m_buckets[i];
   }
 
@@ -375,7 +385,7 @@ public:
   /**
    * @brief Approximate \p p quantile of the recorded samples.
    *
-   * Walks the cumulative bucket counts until the target fraction is reached and
+   * Walks the cumulative bucket counts until the rank target is reached and
    * returns that bucket's midpoint. Resolution is one bucket width.
    *
    * @param p Quantile fraction in \c [0, 1], for example 0.95.
@@ -388,12 +398,19 @@ public:
    * @complexity \c O(N) in the bucket count.
    */
   [[nodiscard]] auto quantile(double const p) const noexcept -> T {
+    assert(p >= 0.0 && p <= 1.0 && "quantile fraction must be in [0, 1]");
     if (m_total == 0) {
       return T{0};
     }
-    auto const target{static_cast<std::uint64_t>(static_cast<double>(m_total) * p)};
+    // Rank target: the 1-based index of the first sample whose cumulative count
+    // reaches fraction p. Using ceil (not floor) and a floor of 1 keeps the walk
+    // from stopping in an empty low bucket when p is tiny (floor would make the
+    // target 0, which every bucket trivially satisfies).
+    auto const target{
+      std::max<std::uint64_t>(1, static_cast<std::uint64_t>(std::ceil(static_cast<double>(m_total) * p)))
+    };
     auto cumulative{m_underflow};
-    if (cumulative > target) {
+    if (cumulative >= target) {
       return m_min;
     }
     for (auto i{size_type{0}}; i < N; ++i) {
@@ -423,10 +440,17 @@ public:
  * @brief Exponentially-weighted moving mean and variance.
  *
  * Tracks recent behaviour rather than the full history; older samples decay by
- * a factor of \c (1 - alpha) per step, computed inline as
- * \c m[n] = alpha*x[n] + (1 - alpha)*m[n-1] and
- * \c v[n] = alpha*(x[n] - m[n])^2 + (1 - alpha)*v[n-1]. Use when the underlying
- * distribution drifts (sensor calibration, load patterns, network conditions).
+ * a factor of \c (1 - alpha) per step. The mean is
+ * \c m[n] = alpha*x[n] + (1 - alpha)*m[n-1], and the variance follows Finch's
+ * exponentially weighted Welford recurrence
+ * \c v[n] = alpha*(x[n] - m[n])^2 + (1 - alpha)*(v[n-1] + (m[n] - m[n-1])^2),
+ * whose \c (m[n] - m[n-1])^2 term carries the shift of the running mean into the
+ * variance and makes the estimate exact under exponential weighting. Use when
+ * the underlying distribution drifts (sensor calibration, load patterns, network
+ * conditions).
+ *
+ * @see Tony Finch, "Incremental calculation of weighted mean and variance"
+ *      (2009).
  *
  * @tparam T Floating-point sample type.
  */
@@ -451,7 +475,9 @@ public:
    * @pre \p alpha is in \c (0, 1].
    * @post The estimator is unprimed and reports zero until the first sample.
    */
-  constexpr explicit ema_stats(T const alpha) noexcept : m_alpha{alpha} {}
+  constexpr explicit ema_stats(T const alpha) noexcept : m_alpha{alpha} {
+    assert(alpha > T{0} && alpha <= T{1} && "ema smoothing factor must be in (0, 1]");
+  }
 
   /**
    * @brief Incorporates one sample into the moving mean and variance.
@@ -478,6 +504,9 @@ public:
     m_mean = m_alpha * x + (T{1} - m_alpha) * m_mean;
     auto const dx{x - m_mean};
     auto const dm{m_mean - old_mean};
+    // Finch's weighted-Welford variance update: the dm*dm term folds the shift of
+    // the running mean back into the accumulated variance so the estimate stays
+    // exact under exponential weighting (see the class @see reference).
     m_var = m_alpha * dx * dx + (T{1} - m_alpha) * (m_var + dm * dm);
   }
 
