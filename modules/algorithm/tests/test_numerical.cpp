@@ -17,7 +17,9 @@
 #include <complex>
 #include <cstddef>
 #include <numbers>
+#include <ranges>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include <nexenne/algorithm/numerical/bisection.hpp>
@@ -453,6 +455,71 @@ TEST_CASE("nexenne::algorithm interpolators truncate to the common knot count") 
 
   auto const cs{alg::cubic_spline<double>{xs, ys}};
   CHECK(cs.size() == 2);  // also truncated to the common length
+}
+
+TEST_CASE("nexenne::algorithm::histogram::quantile targets the lowest non-empty bucket (M3)") {
+  // Regression for M3: when all mass sat in a high bucket, low quantiles returned
+  // the midpoint of empty bucket 0 instead of the populated bucket, because the
+  // rank target floored to 0 and every bucket trivially satisfied it.
+  auto h{alg::histogram<double, 8>{0.0, 8.0}};  // one unit per bucket
+  for (auto i{0}; i < 10; ++i) {
+    h.push(5.5);  // all in bucket 5, whose midpoint is 5.5
+  }
+  CHECK(close(h.quantile(0.0), 5.5));
+  CHECK(close(h.quantile(0.05), 5.5));
+  CHECK(close(h.quantile(1.0), 5.5));
+
+  // Underflow boundary: half the mass below the range must pin the median to min,
+  // not fall through to empty bucket 0.
+  auto u{alg::histogram<double, 8>{0.0, 8.0}};
+  for (auto i{0}; i < 5; ++i) {
+    u.push(-1.0);  // underflow
+  }
+  for (auto i{0}; i < 5; ++i) {
+    u.push(7.5);  // bucket 7
+  }
+  CHECK(close(u.quantile(0.5), 0.0));  // underflow count 5 >= target -> min
+  CHECK(close(u.quantile(0.9), 7.5));  // a high quantile still reaches bucket 7
+}
+
+namespace m4 {
+
+// A projection whose call operator is not noexcept, so a transform_view over it
+// has a potentially-throwing dereference.
+struct maythrow_proj {
+  auto operator()(double const x) const -> double {
+    return x;
+  }
+};
+using thrown_range =
+  decltype(std::declval<std::array<double, 3>&>() | std::views::transform(maythrow_proj{}));
+
+struct nothrow_fn {
+  auto operator()(double const x) const noexcept -> double {
+    return x;
+  }
+};
+struct throwing_fn {
+  auto operator()(double const x) const -> double {
+    return x;
+  }
+};
+
+}  // namespace m4
+
+TEST_CASE("nexenne::algorithm compensated sums and root finders are conditionally noexcept (M4)") {
+  // Regression for M4: these were unconditionally noexcept over user callables
+  // and ranges, so a throwing one would terminate. They are now noexcept only
+  // when the underlying operation is.
+  static_assert(noexcept(alg::kahan_sum(std::declval<std::array<double, 3>&>())));
+  static_assert(!noexcept(alg::kahan_sum(std::declval<m4::thrown_range&>())));
+  static_assert(!noexcept(alg::neumaier_sum(std::declval<m4::thrown_range&>())));
+
+  static_assert(noexcept(alg::bisection(m4::nothrow_fn{}, -1.0, 1.0)));
+  static_assert(!noexcept(alg::bisection(m4::throwing_fn{}, -1.0, 1.0)));
+  static_assert(noexcept(alg::newton(m4::nothrow_fn{}, m4::nothrow_fn{}, 0.5)));
+  static_assert(!noexcept(alg::newton(m4::throwing_fn{}, m4::nothrow_fn{}, 0.5)));
+  CHECK(true);  // the static_asserts above are the test
 }
 
 }  // namespace
