@@ -1,0 +1,88 @@
+#+TITLE: string matching
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Substring search, edit distance, and suffix structures over byte strings, the
+pieces the standard library leaves out. Everything takes =std::string_view= and
+treats bytes as =unsigned char=.
+
+- =kmp_find= / =kmp_find_all= : Knuth-Morris-Pratt. Worst-case-linear single
+  search, plus a callback that reports every (overlapping) occurrence.
+- =boyer_moore_find= : Boyer-Moore with the bad-character heuristic. Usually
+  faster on long patterns and large alphabets, with a quadratic worst case.
+- =z_function= / =z_find_all= : the Z-function and a Z-based all-occurrences
+  search.
+- =levenshtein= : edit distance, the basis of fuzzy matching.
+- =aho_corasick= : one scan that finds every occurrence of many patterns at
+  once.
+- =build_suffix_array= / =build_lcp= : the suffix array and its
+  longest-common-prefix array.
+
+* How it works
+
+** Single-pattern search
+
+=kmp_find= precomputes a failure table over the needle so the text scan never
+backtracks: every text position is examined a bounded number of times, giving
+=O(H + N)= worst case. =boyer_moore_find= instead scans each window right to
+left and, on a mismatch, consults a 256-entry bad-character table to skip ahead
+by as much as the needle length, which is often sublinear on real text but
+quadratic on adversarial small-alphabet inputs. Reach for KMP when a linear
+guarantee matters, Boyer-Moore when raw speed on long patterns does.
+
+** Z-function
+
+=z[i]= is the length of the longest substring starting at =i= that matches a
+prefix of the string. The Z-box algorithm fills the whole array in one linear
+pass by reusing the rightmost already-matched window. Searching is then a
+matter of running the Z-function over =needle + separator + haystack= and
+reading off positions whose Z-value reaches the needle length.
+
+** Edit distance
+
+=levenshtein= fills a dynamic-programming table whose cell =(i, j)= is the
+distance between the first =i= and =j= characters; only the previous and current
+rows are kept, so memory is =O(min(|a|, |b|))=.
+
+** Multi-pattern (Aho-Corasick)
+
+=aho_corasick= builds a trie of all patterns, then wires failure links so that,
+on a mismatch, the scan jumps to the longest proper suffix that is still a
+prefix of some pattern. A single linear pass over the text then reports every
+occurrence of every pattern, with per-byte cost independent of the pattern
+count. Build once, scan many times. Patterns must be non-empty.
+
+** Suffix array
+
+=build_suffix_array= sorts the suffixes by prefix doubling: rank by the first
+character, then sort by the first 2, 4, 8, ... characters, each round reusing
+the previous ranks. =build_lcp= then derives the longest-common-prefix of
+adjacent suffixes in linear time (Kasai's algorithm), which most suffix-array
+queries need.
+
+* When to use it
+
+- One pattern, linear guarantee: =kmp_find=; one pattern, fastest on long text:
+  =boyer_moore_find=; every occurrence of one pattern: =z_find_all= or
+  =kmp_find_all=.
+- Many patterns at once (blocklists, dictionaries): =aho_corasick=.
+- Fuzzy or typo-tolerant matching: =levenshtein=.
+- Repeated substring queries on a fixed text, longest common substring, BWT:
+  =build_suffix_array= with =build_lcp=.
+
+Confidence: the single- and multi-pattern searches are validated differentially
+against =std::string_view::find= and a brute-force overlapping reference;
+=z_function=, =levenshtein=, and the suffix array are each checked against an
+independent reference (with the suffix array verified to be a sorted permutation
+and its LCP recomputed brute force).
+
+#+BEGIN_SRC cpp
+namespace alg = nexenne::algorithm;
+auto const at{alg::kmp_find(text, "needle")};          // first index or npos
+alg::aho_corasick m; m.add_pattern("a"); m.build();    // many patterns, one scan
+auto const d{alg::levenshtein("kitten", "sitting")};   // 3
+#+END_SRC
+
+Runnable: [[file:../../../examples/algorithm/string.cpp][examples/algorithm/string.cpp]]

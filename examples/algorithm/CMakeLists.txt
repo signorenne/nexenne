@@ -5,6 +5,7 @@ set(_algorithm_examples
     encoding
     hashing
     sort
+    string
 )
 
 foreach(_example IN LISTS _algorithm_examples)
