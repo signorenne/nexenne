@@ -26,11 +26,24 @@
 #include <optional>
 #include <ranges>
 #include <type_traits>
+#include <utility>
 
 namespace nexenne::algorithm {
 
 /// @brief A search result: the zero-based index of a match, or empty on a miss.
 using found_index = std::optional<std::size_t>;
+
+namespace detail {
+
+// True when the two-way \c < comparison between a \c R element and a \c T cannot
+// throw, so a search ordering \c R by that comparison can be conditionally
+// noexcept rather than lying about a user comparator that may throw.
+template <typename R, typename T>
+inline constexpr bool nothrow_ordered_v{
+  noexcept(std::declval<std::ranges::range_reference_t<R>>() < std::declval<T const&>())
+  && noexcept(std::declval<T const&>() < std::declval<std::ranges::range_reference_t<R>>())};
+
+}  // namespace detail
 
 /**
  * @brief Index of \p value in a sorted range, or empty when absent.
@@ -56,7 +69,8 @@ using found_index = std::optional<std::size_t>;
  */
 template <std::ranges::random_access_range R, typename T>
   requires std::strict_weak_order<std::ranges::less, std::ranges::range_value_t<R> const&, T const&>
-[[nodiscard]] constexpr auto find_sorted(R&& range, T const& value) noexcept -> found_index {
+[[nodiscard]] constexpr auto find_sorted(R&& range, T const& value)
+  noexcept(detail::nothrow_ordered_v<R, T>) -> found_index {
   auto const first{std::ranges::begin(range)};
   auto const last{std::ranges::end(range)};
   auto const it{std::ranges::lower_bound(range, value)};
@@ -95,7 +109,8 @@ template <std::ranges::random_access_range R, typename T>
  */
 template <std::ranges::random_access_range R, typename T>
   requires std::strict_weak_order<std::ranges::less, std::ranges::range_value_t<R> const&, T const&>
-[[nodiscard]] constexpr auto exponential_search(R&& range, T const& value) noexcept -> found_index {
+[[nodiscard]] constexpr auto exponential_search(R&& range, T const& value)
+  noexcept(detail::nothrow_ordered_v<R, T>) -> found_index {
   auto const first{std::ranges::begin(range)};
   auto const last{std::ranges::end(range)};
   auto const n{std::ranges::distance(first, last)};
