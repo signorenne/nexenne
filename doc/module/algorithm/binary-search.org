@@ -1,0 +1,83 @@
+#+TITLE: binary search
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=std::ranges= already ships =lower_bound=, =upper_bound=, =equal_range=,
+=binary_search=, and =partition_point=, all with projection support. They are
+excellent, and you should reach for them first. This header adds only the three
+variants the standard does not provide, each returning a =found_index= (a
+=std::optional<std::size_t>=): a zero-based index you can feed straight into an
+array subscript, rather than an iterator you must convert.
+
+- =find_sorted(range, value)= : the general case, a thin index-returning wrapper
+  over =lower_bound= plus an equality confirmation.
+- =exponential_search(range, value)= : galloping search, faster than a plain
+  binary search when the target sits near the front of a huge range.
+- =interpolation_search(range, value)= : expected sub-logarithmic cost on
+  uniformly distributed numeric data.
+
+All three take a sorted random-access range and order it with =<= by default.
+
+* How it works
+
+** find_sorted
+
+=lower_bound= returns the first element not less than =value=. That element
+equals =value= only when =value= is actually present, so =find_sorted= confirms
+with a two-way =<= test (=!(a < b) && !(b < a)=) and, on a hit, returns the
+distance from the start. When several elements compare equal, the index of the
+*first* is returned. The comparison uses the same =<= the range is sorted by, so
+no separate equality operator is required of the element type. Cost: =O(log N)=.
+
+** exponential_search
+
+A plain binary search always probes the middle first, so finding an element near
+the front still costs =O(log N)=. Exponential search instead doubles a probe
+offset (1, 2, 4, 8, ...) until it overshoots =value=, then binary-searches only
+the final bracket:
+
+#+BEGIN_EXAMPLE
+  index:  0   1   2   3   4   5   6   7   8 ...
+  probe:  ^   ^       ^               ^         doubling until value < range[i]
+                      |---- binary search this bracket ----|
+#+END_EXAMPLE
+
+The bracket is proportional to =P=, the distance of =value= from the front, so
+the cost is =O(log P)=, which is far below =O(log N)= when the target is early in
+a very large range. The worst case (target at the end) is still =O(log N)=. It is
+also the building block for searching an unbounded or lazily-generated sequence
+where the length is not known up front.
+
+** interpolation_search
+
+Where binary search always splits at the midpoint, interpolation search guesses
+*where* =value= should sit from the linear fraction
+=(value - low) / (high - low)=, the same way you open a phone book near the back
+to find a name starting with W. On uniformly distributed numeric data this
+converges in an expected =O(log log N)= probes. It only makes sense for numeric
+ranges, so it is constrained to arithmetic element and key types; an adversarial
+(highly non-uniform) distribution degrades it to a linear scan, never worse. It
+guards against a zero-width span (all probed elements equal) so the position
+arithmetic never divides by zero, and unlike the other two it returns *some*
+matching index, not necessarily the first of a run of duplicates.
+
+* When to use it
+
+Reach for plain =std::ranges::lower_bound= / =binary_search= by default. Use
+these when you specifically want an *index* back (=find_sorted=), when the data
+is huge and lookups cluster near the front (=exponential_search=), or when you
+have large uniformly distributed numeric keys and the =O(log log N)= expectation
+pays off (=interpolation_search=). Every function is =constexpr= and
+allocation-free, and returns =std::nullopt= on a miss rather than an end iterator
+you have to test.
+
+#+BEGIN_SRC cpp
+constexpr std::array primes{2, 3, 5, 7, 11, 13, 17, 19, 23, 29};
+if (auto const at{nexenne::algorithm::find_sorted(primes, 17)}) {
+    use(primes[*at]);  // *at is a ready-to-use index
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/algorithm/binary_search.cpp][examples/algorithm/binary_search.cpp]]

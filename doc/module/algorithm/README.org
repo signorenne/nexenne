@@ -16,7 +16,8 @@ article here as it lands; this index grows with them.
 
 Planned categories:
 
-- binary search : =find_sorted=, =exponential_search=, =interpolation_search=.
+- [[file:binary-search.org][binary search]] : =find_sorted=, =exponential_search=,
+  =interpolation_search= (index-returning variants beyond =std::ranges=).
 - sort : =counting_sort=, =radix_sort= (linear-time integer sorts).
 - string matching : =kmp=, =z_function=, =boyer_moore=, =aho_corasick=,
   =levenshtein=, =suffix_array=.
