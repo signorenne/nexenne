@@ -5,9 +5,10 @@
  * CRCs are pinned to the reveng catalogue check values for "123456789" across
  * every preset, then differentially validated against an independent bit-serial
  * reference over random inputs so the generated tables are exercised on more
- * than the one canonical string. Adler-32 is pinned to zlib vectors and checked
- * against a naive per-byte reference, including inputs spanning several NMAX
- * blocks. Streaming contexts and seed chaining are verified across every split
+ * than the one canonical string. The modular-sum family (Adler-32 and
+ * Fletcher-16/32/64) is pinned to published vectors and checked against a naive
+ * per-unit reference, including inputs spanning several blocks and partial final
+ * units. Streaming contexts and seed chaining are verified across every split
  * point.
  */
 
@@ -22,8 +23,8 @@
 #include <type_traits>
 #include <vector>
 
-#include <nexenne/algorithm/checksum/adler32.hpp>
 #include <nexenne/algorithm/checksum/crc.hpp>
+#include <nexenne/algorithm/checksum/modular_sum.hpp>
 
 namespace {
 
@@ -68,6 +69,30 @@ naive_adler32(std::span<std::uint8_t const> const bytes, std::uint32_t seed) -> 
     b = (b + a) % 65521u;
   }
   return (b << 16u) | a;
+}
+
+// Per-unit-modulo modular sum, the textbook formulation, parameterised like the
+// engine: little-endian units, zero-padded final unit, modulo on every step.
+[[nodiscard]] auto naive_modular_sum(
+  std::span<std::uint8_t const> const bytes,
+  std::size_t const unit,
+  std::size_t const w,
+  std::uint64_t const m,
+  std::uint64_t const init1
+) -> std::uint64_t {
+  auto sum1{init1 % m};
+  auto sum2{std::uint64_t{0}};
+  for (auto i{std::size_t{0}}; i < bytes.size(); i += unit) {
+    auto u{std::uint64_t{0}};
+    for (auto j{std::size_t{0}}; j < unit; ++j) {
+      if (i + j < bytes.size()) {
+        u |= static_cast<std::uint64_t>(bytes[i + j]) << (8 * j);
+      }
+    }
+    sum1 = (sum1 + u) % m;
+    sum2 = (sum2 + sum1) % m;
+  }
+  return (sum2 << w) | sum1;
 }
 
 [[nodiscard]] auto reflect_n(std::uint64_t const value, std::size_t const n) -> std::uint64_t {
@@ -160,6 +185,84 @@ TEST_CASE("nexenne::algorithm::adler32 reduces an over-range seed correctly") {
   CHECK(
     alg::adler32(std::string_view{"payload"}, seed) == naive_adler32(bytes_of("payload"), seed)
   );
+}
+
+// Modular-sum family: published Fletcher vectors and the generic engine.
+
+static_assert(std::is_same_v<alg::modular_sum_result_t<8>, std::uint16_t>);
+static_assert(std::is_same_v<alg::modular_sum_result_t<16>, std::uint32_t>);
+static_assert(std::is_same_v<alg::modular_sum_result_t<32>, std::uint64_t>);
+static_assert(alg::modular_sum<alg::adler32_spec>(std::span<std::uint8_t const>{}) == 1u);
+
+TEST_CASE("nexenne::algorithm::fletcher published known-answer vectors") {
+  CHECK(alg::fletcher16(std::string_view{"abcde"}) == 0xC8F0u);
+  CHECK(alg::fletcher16(std::string_view{"abcdef"}) == 0x2057u);
+  CHECK(alg::fletcher16(std::string_view{"abcdefgh"}) == 0x0627u);
+  CHECK(alg::fletcher32(std::string_view{"abcde"}) == 0xF04FC729u);
+  CHECK(alg::fletcher32(std::string_view{"abcdef"}) == 0x56502D2Au);
+  CHECK(alg::fletcher32(std::string_view{"abcdefgh"}) == 0xEBE19591u);
+  CHECK(alg::fletcher64(std::string_view{"abcde"}) == 0xC8C6C527646362C6ull);
+  CHECK(alg::fletcher64(std::string_view{"abcdef"}) == 0xC8C72B276463C8C6ull);
+  CHECK(alg::fletcher64(std::string_view{"abcdefgh"}) == 0x312E2B28CCCAC8C6ull);
+}
+
+TEST_CASE("nexenne::algorithm::adler32 is the prime-modulus member of the family") {
+  // The generic engine with adler32_spec equals the named wrapper.
+  CHECK(alg::modular_sum<alg::adler32_spec>(std::string_view{"Wikipedia"}) == 0x11E60398u);
+  CHECK(alg::modular_sum<alg::adler32_spec>(bytes_of("abc")) == alg::adler32(bytes_of("abc")));
+}
+
+// Differential: the deferred-modulo engine equals the naive per-unit reference
+// for every family member, across block boundaries and partial final units.
+template <alg::modular_sum_spec Spec>
+void modular_sum_matches_naive() {
+  using value_type = alg::modular_sum_result_t<Spec.sum_bits>;
+  auto gen{lcg{}};
+  for (auto const len :
+       {std::size_t{0},
+        std::size_t{1},
+        std::size_t{2},
+        std::size_t{3},
+        std::size_t{4},
+        std::size_t{5},
+        std::size_t{7},
+        std::size_t{15},
+        std::size_t{255},
+        std::size_t{5551},
+        std::size_t{5552},
+        std::size_t{5553},
+        std::size_t{11106},
+        std::size_t{20003}}) {
+    CAPTURE(len);
+    auto const data{random_bytes(gen, len)};
+    auto const span{std::span<std::uint8_t const>{data}};
+    auto const expected{static_cast<value_type>(
+      naive_modular_sum(span, Spec.unit_bytes, Spec.sum_bits, Spec.modulus, Spec.init1)
+    )};
+    CHECK(alg::modular_sum<Spec>(span) == expected);
+  }
+}
+
+TEST_CASE("nexenne::algorithm::modular_sum matches the naive per-unit reference") {
+  SUBCASE("adler32 (byte unit, prime modulus)") {
+    modular_sum_matches_naive<alg::adler32_spec>();
+  }
+  SUBCASE("fletcher16 (byte unit)") {
+    modular_sum_matches_naive<alg::fletcher16_spec>();
+  }
+  SUBCASE("fletcher32 (16-bit unit)") {
+    modular_sum_matches_naive<alg::fletcher32_spec>();
+  }
+  SUBCASE("fletcher64 (32-bit unit)") {
+    modular_sum_matches_naive<alg::fletcher64_spec>();
+  }
+}
+
+TEST_CASE("nexenne::algorithm::fletcher32 seed chaining over whole units") {
+  // Continuation is well-defined when the split lands on a unit boundary.
+  auto const whole{alg::fletcher32(std::string_view{"abcdefgh"})};
+  auto const first{alg::fletcher32(std::string_view{"abcd"})};
+  CHECK(alg::modular_sum<alg::fletcher32_spec>(std::string_view{"efgh"}, first) == whole);
 }
 
 // CRC: the spec value_type maps to the smallest sufficient unsigned integer.

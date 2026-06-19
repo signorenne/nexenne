@@ -4,13 +4,17 @@
 
 * Purpose
 
-Integrity checks for detecting accidental corruption: a fast lightweight one
-(=adler32=) and a configurable, high-detection one (=crc=). Both take a byte
-span or a string view; neither is cryptographically secure, so they guard
-against transmission and storage errors, not tampering.
+Integrity checks for detecting accidental corruption: a fast lightweight family
+(=modular_sum=, the Adler and Fletcher checksums) and a configurable,
+high-detection one (=crc=). All take a byte span or a string view; none are
+cryptographically secure, so they guard against transmission and storage errors,
+not tampering. Each is a generic engine parameterised by a spec, exactly the
+same shape: =crc_spec= for CRC, =modular_sum_spec= for the sum family.
 
-- =adler32= : zlib's Adler-32. Two additions per byte, no table. A \p seed
-  parameter continues a checksum across chunks. Cheap, but weaker than CRC on
+- =modular_sum= : two running sums modulo =M=, parameterised by the input unit
+  size, sum width, and modulus. Named presets: =adler32= (zlib/PNG, prime
+  modulus 65521), and Fletcher =fletcher16= / =fletcher32= / =fletcher64=. A
+  \p seed continues a checksum across chunks. Cheap, but weaker than CRC on
   short messages.
 - =crc= : a generic table-driven CRC engine parameterised by a =crc_spec=
   (the Rocksoft model), with named presets for the common CRC-8, CRC-16, and
@@ -19,16 +23,19 @@ against transmission and storage errors, not tampering.
 
 * How it works
 
-** Adler-32
+** modular_sum (Adler and Fletcher)
 
-It keeps two 16-bit sums modulo 65521 (the largest prime below 2^16): =a= is
-the running sum of all bytes, =b= the running sum of every =a=. The result is
-=(b << 16) | a=. Taking the modulus on every byte is wasteful, so the
-implementation defers it: it accumulates up to 5552 bytes (zlib's NMAX, the
-largest count that cannot overflow a 32-bit accumulator) before reducing, which
-gives a result identical to the per-byte version at a fraction of the divisions.
-Because the two sums fully describe the state, an interrupted checksum resumes
-by passing the previous result back as the =seed=.
+It keeps two sums modulo =M=: =sum1= adds each input unit, =sum2= adds each
+=sum1=, and the result is =(sum2 << width) | sum1=. The members differ only in
+three knobs the spec captures: the unit size (1 byte for Adler-32 and
+Fletcher-16, a 16- or 32-bit little-endian word for Fletcher-32/64), the sum
+width, and the modulus. Adler-32 uses the prime 65521, which detects slightly
+more than the composite moduli (2^8-1, 2^16-1, 2^32-1) the Fletcher members use.
+Taking the modulus on every unit is wasteful, so the engine defers it: it sums
+up to 5552 units before reducing, which (with a 64-bit accumulator) cannot
+overflow for any member and gives a result identical to the per-unit version at
+a fraction of the divisions. Because the two sums fully describe the state, an
+interrupted checksum resumes by passing the previous result back as the =seed=.
 
 ** CRC
 
@@ -51,16 +58,17 @@ reflection and the final XOR to a copy of the register without disturbing it.
 * When to use it
 
 - A quick running check over non-adversarial data, or resuming a check across
-  chunks cheaply: =adler32=.
+  chunks cheaply: =adler32= (or a Fletcher preset to match an existing format).
 - A storage or wire-format integrity field, or matching a device or protocol
   that mandates a specific CRC: =crc= with the matching preset (or a custom
   =crc_spec=). For a general 32-bit check, =crc32= (zlib/PNG) or =crc32c=
   (hardware-accelerated on many CPUs).
 
-Confidence: every preset is pinned to its reveng catalogue check value for the
-string "123456789", and the engine is differentially validated against an
-independent bit-serial CRC over random inputs; Adler-32 is pinned to zlib
-vectors and checked against a naive per-byte reference past its block boundary.
+Confidence: every CRC preset is pinned to its reveng catalogue check value for
+the string "123456789" and differentially validated against an independent
+bit-serial CRC; the sum family is pinned to the published Adler-32 and
+Fletcher-16/32/64 vectors and checked against a naive per-unit reference past
+its block boundary and on partial final units.
 
 #+BEGIN_SRC cpp
 namespace alg = nexenne::algorithm;
