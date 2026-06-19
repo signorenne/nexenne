@@ -14,6 +14,8 @@
  */
 
 #include <nexenne/algorithm/binary_search.hpp>
+#include <nexenne/algorithm/checksum/adler32.hpp>
+#include <nexenne/algorithm/checksum/crc.hpp>
 #include <nexenne/algorithm/hash/fnv.hpp>
 #include <nexenne/algorithm/hash/murmur.hpp>
 #include <nexenne/algorithm/hash/xxhash.hpp>
