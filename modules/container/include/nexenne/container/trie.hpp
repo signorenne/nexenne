@@ -52,6 +52,31 @@ private:
   struct node {
     flat_map<uchar_type, std::unique_ptr<node>> children;
     std::optional<Value> value;
+
+    constexpr node() noexcept = default;
+
+    // Tear descendants down iteratively. The default recursive unique_ptr
+    // destruction would overflow the stack on a deep trie, whose depth can reach
+    // the longest stored key length. Every teardown path (the trie destructor,
+    // clear, and both assignments) reseats a node unique_ptr and so routes
+    // through here.
+    constexpr ~node() noexcept {
+      std::vector<std::unique_ptr<node>> pending;
+      auto detach{[&pending](node& n) noexcept {
+        for (auto& entry : n.children) {
+          if (entry.second != nullptr) {
+            pending.push_back(std::move(entry.second));
+          }
+        }
+        n.children.clear();
+      }};
+      detach(*this);
+      while (!pending.empty()) {
+        auto victim{std::move(pending.back())};
+        pending.pop_back();
+        detach(*victim);  // victim then destructs with no children, so O(1)
+      }
+    }
   };
 
   std::unique_ptr<node> m_root{std::make_unique<node>()};
@@ -441,59 +466,76 @@ public:
   }
 
 private:
+  // Iterative pre-order DFS. Each frame tracks the next child to descend into and
+  // whether it pushed a path character (the root pushes none), so the key path is
+  // unwound correctly without recursing to the trie depth. Both for_each
+  // overloads reach here with a node* (unique_ptr::get is non-const-propagating).
   template <typename Visitor>
-  static auto for_each_impl(node* const n, std::vector<Char>& path, Visitor& visit) -> void {
-    if (n == nullptr) {
+  static auto for_each_impl(node* const root, std::vector<Char>& path, Visitor& visit) -> void {
+    if (root == nullptr) {
       return;
     }
-    if (n->value.has_value()) {
-      visit(std::span<Char const>{path.data(), path.size()}, *n->value);
+
+    struct frame {
+      node* n;
+      std::size_t idx;
+      bool pushed;
+    };
+
+    if (root->value.has_value()) {
+      visit(std::span<Char const>{path.data(), path.size()}, *root->value);
     }
-    for (auto& [uc, child] : n->children) {
-      path.push_back(static_cast<Char>(uc));
-      for_each_impl(child.get(), path, visit);
-      path.pop_back();
+    std::vector<frame> stack;
+    stack.push_back(frame{root, 0, false});
+    while (!stack.empty()) {
+      auto& top{stack.back()};
+      if (top.idx < top.n->children.size()) {
+        auto& entry{*(top.n->children.begin() + static_cast<std::ptrdiff_t>(top.idx))};
+        ++top.idx;
+        path.push_back(static_cast<Char>(entry.first));
+        auto* const child{entry.second.get()};
+        if (child->value.has_value()) {
+          visit(std::span<Char const>{path.data(), path.size()}, *child->value);
+        }
+        stack.push_back(frame{child, 0, true});
+      } else {
+        auto const pushed{top.pushed};
+        stack.pop_back();
+        if (pushed) {
+          path.pop_back();
+        }
+      }
     }
   }
 
-  template <typename Visitor>
-  static auto for_each_impl(node const* const n, std::vector<Char>& path, Visitor& visit) -> void {
-    if (n == nullptr) {
-      return;
-    }
-    if (n->value.has_value()) {
-      visit(std::span<Char const>{path.data(), path.size()}, *n->value);
-    }
-    for (auto const& [uc, child] : n->children) {
-      path.push_back(static_cast<Char>(uc));
-      for_each_impl(child.get(), path, visit);
-      path.pop_back();
-    }
-  }
-
-  static auto nodes_equal(node const* const a, node const* const b) noexcept -> bool {
-    if (a == nullptr && b == nullptr) {
-      return true;
-    }
-    if (a == nullptr || b == nullptr) {
-      return false;
-    }
-    if (a->value.has_value() != b->value.has_value()) {
-      return false;
-    }
-    if (a->value.has_value() && !(*a->value == *b->value)) {
-      return false;
-    }
-    if (a->children.size() != b->children.size()) {
-      return false;
-    }
-    for (auto const& [uc, child] : a->children) {
-      auto const* const other{b->children.at(uc)};
-      if (other == nullptr) {
+  static auto nodes_equal(node const* const root_a, node const* const root_b) noexcept -> bool {
+    // Iterative structural comparison over a stack of node pairs to compare.
+    std::vector<std::pair<node const*, node const*>> work;
+    work.emplace_back(root_a, root_b);
+    while (!work.empty()) {
+      auto const [a, b]{work.back()};
+      work.pop_back();
+      if (a == nullptr && b == nullptr) {
+        continue;
+      }
+      if (a == nullptr || b == nullptr) {
         return false;
       }
-      if (!nodes_equal(child.get(), other->get())) {
+      if (a->value.has_value() != b->value.has_value()) {
         return false;
+      }
+      if (a->value.has_value() && !(*a->value == *b->value)) {
+        return false;
+      }
+      if (a->children.size() != b->children.size()) {
+        return false;
+      }
+      for (auto const& [uc, child] : a->children) {
+        auto const* const other{b->children.at(uc)};
+        if (other == nullptr) {
+          return false;
+        }
+        work.emplace_back(child.get(), other->get());
       }
     }
     return true;
@@ -531,14 +573,27 @@ private:
     if (src == nullptr) {
       return nullptr;
     }
-    auto fresh{std::make_unique<node>()};
-    if (src->value.has_value()) {
-      fresh->value.emplace(*src->value);
+    auto root{std::make_unique<node>()};
+    // Iterative pre-order copy over a stack of (source, freshly-made destination)
+    // pairs, so a deep source cannot overflow the stack.
+    std::vector<std::pair<node const*, node*>> work;
+    work.emplace_back(src, root.get());
+    while (!work.empty()) {
+      auto const [s, d]{work.back()};
+      work.pop_back();
+      if (s->value.has_value()) {
+        d->value.emplace(*s->value);
+      }
+      for (auto const& [uc, child] : s->children) {
+        if (child != nullptr) {
+          auto fresh{std::make_unique<node>()};
+          auto* const raw{fresh.get()};
+          static_cast<void>(d->children.try_emplace(uc, std::move(fresh)));
+          work.emplace_back(child.get(), raw);
+        }
+      }
     }
-    for (auto const& [uc, child] : src->children) {
-      static_cast<void>(fresh->children.try_emplace(uc, clone_subtree(child.get())));
-    }
-    return fresh;
+    return root;
   }
 };
 
