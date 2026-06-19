@@ -187,9 +187,9 @@ public:
    * @pre \p q is positive.
    * @post The returned filter has all delay elements at zero.
    */
-  [[nodiscard]] static auto make_lowpass(
-    T const cutoff_hz, T const sample_rate_hz, T const q = T{0.7071}
-  ) noexcept -> biquad {
+  [[nodiscard]] static auto
+  make_lowpass(T const cutoff_hz, T const sample_rate_hz, T const q = T{1} / std::numbers::sqrt2_v<T>) noexcept
+    -> biquad {
     auto const w0{T{2} * std::numbers::pi_v<T> * cutoff_hz / sample_rate_hz};
     auto const sin_w{std::sin(w0)};
     auto const cos_w{std::cos(w0)};
@@ -222,9 +222,9 @@ public:
    * @pre \p q is positive.
    * @post The returned filter has all delay elements at zero.
    */
-  [[nodiscard]] static auto make_highpass(
-    T const cutoff_hz, T const sample_rate_hz, T const q = T{0.7071}
-  ) noexcept -> biquad {
+  [[nodiscard]] static auto
+  make_highpass(T const cutoff_hz, T const sample_rate_hz, T const q = T{1} / std::numbers::sqrt2_v<T>) noexcept
+    -> biquad {
     auto const w0{T{2} * std::numbers::pi_v<T> * cutoff_hz / sample_rate_hz};
     auto const sin_w{std::sin(w0)};
     auto const cos_w{std::cos(w0)};
