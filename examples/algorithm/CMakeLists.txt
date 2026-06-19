@@ -4,6 +4,7 @@ set(_algorithm_examples
     checksum
     encoding
     hashing
+    sort
 )
 
 foreach(_example IN LISTS _algorithm_examples)

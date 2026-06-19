@@ -14,8 +14,8 @@
  */
 
 #include <nexenne/algorithm/binary_search.hpp>
-#include <nexenne/algorithm/checksum/modular_sum.hpp>
 #include <nexenne/algorithm/checksum/crc.hpp>
+#include <nexenne/algorithm/checksum/modular_sum.hpp>
 #include <nexenne/algorithm/encoding/alphabet.hpp>
 #include <nexenne/algorithm/encoding/base_n.hpp>
 #include <nexenne/algorithm/encoding/cobs.hpp>
@@ -24,3 +24,5 @@
 #include <nexenne/algorithm/hash/fnv.hpp>
 #include <nexenne/algorithm/hash/murmur.hpp>
 #include <nexenne/algorithm/hash/xxhash.hpp>
+#include <nexenne/algorithm/sort/counting_sort.hpp>
+#include <nexenne/algorithm/sort/radix_sort.hpp>
