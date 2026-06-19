@@ -355,4 +355,39 @@ TEST_CASE("nexenne::container::trie differential against std::set<std::string> u
   CHECK(harvested == ref);
 }
 
+TEST_CASE("nexenne::container::trie erase prunes only the dead path") {
+  trie_t t;
+  t.insert("ab"s, 1);  // holds a value
+  t.insert("abc"s, 2);
+  t.insert("abd"s, 3);
+  t.insert("xyz"s, 4);  // unrelated branch
+
+  // Drop only node 'c': 'b' survives (it holds a value and still has child 'd'),
+  // and the unrelated "xyz" must be untouched.
+  CHECK(t.erase("abc"s));
+  CHECK_FALSE(t.contains("abc"s));
+  CHECK(t.contains("ab"s));
+  CHECK(t.contains("abd"s));
+  CHECK(t.contains("xyz"s));
+  CHECK(t.size() == 3);
+
+  // Clearing "ab"'s value keeps the node alive because of the 'd' child.
+  CHECK(t.erase("ab"s));
+  CHECK_FALSE(t.contains("ab"s));
+  CHECK(t.contains("abd"s));
+  CHECK(t.size() == 2);
+
+  // Removing the last key under the "ab" prefix collapses the whole chain.
+  CHECK(t.erase("abd"s));
+  CHECK_FALSE(t.contains("abd"s));
+  CHECK(t.contains("xyz"s));
+  CHECK(t.size() == 1);
+
+  // A long, sibling-free key is fully reclaimed and can be re-inserted fresh.
+  t.insert("abcdefgh"s, 9);
+  CHECK(t.erase("abcdefgh"s));
+  CHECK(t.insert("abcdefgh"s, 10));  // fresh insertion => the chain was clean
+  CHECK(t.size() == 2);
+}
+
 }  // namespace
