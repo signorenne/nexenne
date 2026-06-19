@@ -23,7 +23,8 @@ Planned categories:
   =levenshtein=, =suffix_array=.
 - numerical : stable sums and online stats, integration, interpolation, root
   finding, ODE integrators, FFT.
-- hashing : =fnv=, =murmur=, =xxhash= (non-cryptographic).
+- [[file:hashing.org][hashing]] : =fnv1a=, =murmur3=, =xxhash= (non-cryptographic; hash tables,
+  fingerprints, content addressing).
 - checksum : =adler32=, =crc=.
 - encoding : =hex=, =base32=, =base64=, =url=, =cobs=.
 - graph : traversal (=bfs=, =dfs=), shortest paths (=dijkstra=, =a_star=,
