@@ -81,7 +81,7 @@ concept clock_like = requires {
 template <typename C>
 concept steady_clock_like = clock_like<C> && requires {
   { C::is_steady } -> std::convertible_to<bool>;
-} && (C::is_steady);
+} && static_cast<bool>(C::is_steady);
 
 namespace detail {
 
