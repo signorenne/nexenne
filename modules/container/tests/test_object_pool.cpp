@@ -7,7 +7,9 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <type_traits>
+#include <vector>
 
 #include <nexenne/container/object_pool.hpp>
 
@@ -189,6 +191,111 @@ TEST_CASE("nexenne::container::object_pool holds an immovable type") {
   REQUIRE(object.has_value());
   CHECK((*object)->value == 5);
   REQUIRE(pool.destroy(*object).has_value());
+}
+
+TEST_CASE("nexenne::container::object_pool acquiring every slot yields distinct storage") {
+  pool4 pool;
+  std::vector<int*> handles;
+  for (int i{0}; i < 4; ++i) {
+    auto const got{pool.acquire()};
+    REQUIRE(got.has_value());
+    for (auto* const prior : handles) {
+      CHECK(prior != *got);  // every slot is a distinct address
+    }
+    handles.push_back(*got);
+  }
+  CHECK(pool.full());
+  CHECK(pool.size() == 4);
+  for (auto* const h : handles) {  // raw tier: no T was constructed, just release
+    REQUIRE(pool.release(h).has_value());
+  }
+  CHECK(pool.empty());
+}
+
+TEST_CASE("nexenne::container::object_pool const inspection accessors") {
+  pool4 pool;
+  static_cast<void>(pool.emplace(1));
+  auto const& view{pool};
+  CHECK(view.size() == 1);
+  CHECK_FALSE(view.empty());
+  CHECK_FALSE(view.full());
+  CHECK(view.high_water_mark() == 1);
+  CHECK(view.capacity() == 4);
+  CHECK(view.max_size() == 4);
+}
+
+TEST_CASE("nexenne::container::object_pool rejects an address above the slot storage") {
+  pool4 pool;
+  auto const a{pool.emplace(0)};
+  REQUIRE(a.has_value());
+  // An address well above the pool's storage is foreign; the byte bounds check in
+  // acquired_index must reject it rather than form an out-of-range slot index. Two
+  // separate stack ints bracket the pool's storage, so one of them is guaranteed
+  // outside [base, base + N*sizeof(slot)); both must be rejected regardless.
+  int high_foreign{1};
+  int low_foreign{2};
+  CHECK(pool.release(&high_foreign).error() == cn::container_error::out_of_range);
+  CHECK(pool.destroy(&low_foreign).error() == cn::container_error::out_of_range);
+  CHECK(pool.size() == 1);
+}
+
+TEST_CASE("nexenne::container::object_pool single-slot pool boundary") {
+  cn::object_pool<int, 1> pool;
+  CHECK(pool.capacity() == 1);
+  CHECK(pool.empty());
+  auto const a{pool.emplace(5)};
+  REQUIRE(a.has_value());
+  CHECK(pool.full());
+  CHECK(pool.emplace(6).error() == cn::container_error::full);
+  REQUIRE(pool.destroy(*a).has_value());
+  CHECK(pool.empty());
+  auto const b{pool.emplace(7)};  // the one slot recycles
+  REQUIRE(b.has_value());
+  CHECK(**b == 7);
+}
+
+TEST_CASE("nexenne::container::object_pool high-water mark tracks the running peak") {
+  pool4 pool;
+  auto const a{pool.emplace(1)};
+  auto const b{pool.emplace(2)};
+  REQUIRE(a.has_value());
+  REQUIRE(b.has_value());
+  CHECK(pool.high_water_mark() == 2);
+  REQUIRE(pool.destroy(*a).has_value());  // dip to 1
+  CHECK(pool.high_water_mark() == 2);     // peak unchanged by the release
+  auto const c{pool.emplace(3)};
+  auto const d{pool.emplace(4)};  // climb to 3
+  REQUIRE(c.has_value());
+  REQUIRE(d.has_value());
+  CHECK(pool.high_water_mark() == 3);  // new peak recorded
+  pool.clear_high_water_mark();
+  CHECK(pool.high_water_mark() == 0);
+  CHECK(pool.size() == 3);  // live slots untouched by the reset
+}
+
+TEST_CASE("nexenne::container::object_pool holds a non-trivial std::string element") {
+  int constexpr count{4};
+  cn::object_pool<std::string, count> pool;
+  std::vector<std::string*> objects;
+  for (int i{0}; i < count; ++i) {
+    auto const got{pool.emplace(40, static_cast<char>('a' + i))};  // heap-backed string
+    REQUIRE(got.has_value());
+    CHECK((*got)->size() == 40);
+    objects.push_back(*got);
+  }
+  CHECK(pool.full());
+  // destroy must run ~std::string on each, freeing the heap buffer (LSan check).
+  for (auto* const obj : objects) {
+    REQUIRE(pool.destroy(obj).has_value());
+  }
+  CHECK(pool.empty());
+
+  // Recycle and leave one live: its destructor must NOT run at pool destruction,
+  // so destroy it explicitly to avoid the documented leak.
+  auto const live{pool.emplace(64, 'z')};
+  REQUIRE(live.has_value());
+  CHECK((*live)->size() == 64);
+  REQUIRE(pool.destroy(*live).has_value());
 }
 
 }  // namespace

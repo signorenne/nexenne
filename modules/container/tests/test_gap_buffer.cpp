@@ -9,6 +9,7 @@
 #include <iterator>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -208,6 +209,161 @@ TEST_CASE("nexenne::container::gap_buffer cursor move on a closed gap keeps non-
   for (std::size_t i = 0; i < g.size(); ++i) {
     CHECK(g[i].size() == 6);
   }
+}
+
+TEST_CASE("nexenne::container::gap_buffer copy preserves the logical sequence with a live gap") {
+  cn::gap_buffer<std::string> a{"one", "two", "three", "four"};
+  REQUIRE(a.move_cursor_to(2).has_value());  // gap bisects the sequence
+  cn::gap_buffer<std::string> b{a};          // copy with an open gap
+  CHECK(b.size() == 4);
+  CHECK(b[0] == "one");
+  CHECK(b[3] == "four");
+  CHECK(a == b);  // independent of gap position
+  a[0] = "edited";
+  CHECK(b[0] == "one");  // deep, independent copy
+
+  cn::gap_buffer<std::string> c;
+  c = a;  // copy-assign
+  CHECK(c.size() == 4);
+  CHECK(c[0] == "edited");
+  c[1] = "x";
+  CHECK(a[1] == "two");  // still independent
+}
+
+TEST_CASE("nexenne::container::gap_buffer self copy- and move-assignment are safe") {
+  cn::gap_buffer<std::string> g{"a", "bb", "ccc"};
+  REQUIRE(g.move_cursor_to(1).has_value());
+  cn::gap_buffer<std::string>& alias{g};
+  g = alias;  // defaulted self copy-assign
+  CHECK(g.size() == 3);
+  CHECK(g[0] == "a");
+  CHECK(g[2] == "ccc");
+
+  g = std::move(alias);  // self move-assign returns early, leaving g intact
+  CHECK(g.size() == 3);
+  CHECK(g[1] == "bb");
+}
+
+TEST_CASE("nexenne::container::gap_buffer const access and const iteration") {
+  gb const b{10, 20, 30};
+  CHECK(b.size() == 3);
+  CHECK_FALSE(b.empty());
+  CHECK(b[0] == 10);
+  CHECK(b[2] == 30);
+  REQUIRE(b.at(1) != nullptr);
+  CHECK(*b.at(1) == 20);
+  CHECK(b.at(9) == nullptr);
+  REQUIRE(b.front() != nullptr);
+  CHECK(*b.front() == 10);
+  REQUIRE(b.back() != nullptr);
+  CHECK(*b.back() == 30);
+  static_assert(std::is_same_v<decltype(b[0]), int const&>);
+  static_assert(std::is_same_v<decltype(b.front()), int const*>);
+
+  std::vector<int> const forward(b.begin(), b.end());
+  CHECK(forward == std::vector{10, 20, 30});
+  std::vector<int> const reverse(b.rbegin(), b.rend());
+  CHECK(reverse == std::vector{30, 20, 10});
+  std::vector<int> const cforward(b.cbegin(), b.cend());
+  CHECK(cforward == std::vector{10, 20, 30});
+  std::vector<int> const creverse(b.crbegin(), b.crend());
+  CHECK(creverse == std::vector{30, 20, 10});
+}
+
+TEST_CASE("nexenne::container::gap_buffer non-const to const iterator conversion") {
+  gb b{1, 2, 3};
+  gb::iterator const mut{b.begin()};
+  gb::const_iterator ci{mut};  // converting constructor
+  CHECK(*ci == 1);
+  CHECK(b.end() - b.begin() == 3);
+  CHECK(b.cend() - b.cbegin() == 3);
+}
+
+TEST_CASE("nexenne::container::gap_buffer move_cursor_by forward and to the edges") {
+  gb b{1, 2, 3, 4, 5};
+  CHECK(b.cursor() == 5);
+  REQUIRE(b.move_cursor_to(0).has_value());
+  REQUIRE(b.move_cursor_by(3).has_value());  // forward shift through the gap
+  CHECK(b.cursor() == 3);
+  b.insert(99);  // [1, 2, 3, 99, 4, 5]
+  CHECK(b[3] == 99);
+  CHECK(b[5] == 5);
+  REQUIRE(b.move_cursor_by(0).has_value());  // no-op
+  CHECK(b.cursor() == 4);
+}
+
+TEST_CASE("nexenne::container::gap_buffer emplace forwards constructor arguments") {
+  cn::gap_buffer<std::string> b;
+  // std::size_t counts: string(size_type, char) avoids an int->size_type
+  // sign-conversion warning when the args are forwarded.
+  b.emplace(std::size_t{5}, 'q');  // string(count, char)
+  b.emplace(std::size_t{3}, 'r');
+  REQUIRE(b.move_cursor_to(1).has_value());
+  b.emplace(std::size_t{2}, 's');  // inserted between
+  CHECK(b.size() == 3);
+  CHECK(b[0] == "qqqqq");
+  CHECK(b[1] == "ss");
+  CHECK(b[2] == "rrr");
+}
+
+TEST_CASE("nexenne::container::gap_buffer erase the entire buffer one element at a time") {
+  gb b{1, 2, 3};
+  REQUIRE(b.move_cursor_to(0).has_value());
+  REQUIRE(b.erase_forward().has_value());  // [2, 3]
+  REQUIRE(b.erase_forward().has_value());  // [3]
+  REQUIRE(b.erase_forward().has_value());  // []
+  CHECK(b.empty());
+  CHECK(b.erase_forward().error() == cn::container_error::empty);
+  CHECK(b.erase_backward().error() == cn::container_error::empty);
+  b.insert(7);  // still usable
+  CHECK(b.size() == 1);
+  CHECK(b[0] == 7);
+}
+
+TEST_CASE("nexenne::container::gap_buffer cursor move with a real (open) gap shifts strings") {
+  // Build fewer than initial_gap elements so the gap stays open, then sweep the
+  // cursor end-to-end: every move relocates a std::string across the gap, which
+  // must leave each element intact (no leaks, no emptied strings).
+  cn::gap_buffer<std::string> g{"alpha", "beta", "gamma", "delta", "epsilon"};
+  CHECK(g.cursor() == 5);
+  for (std::size_t target{0}; target <= g.size(); ++target) {
+    REQUIRE(g.move_cursor_to(target).has_value());
+    CHECK(g.cursor() == target);
+  }
+  CHECK(g[0] == "alpha");
+  CHECK(g[1] == "beta");
+  CHECK(g[2] == "gamma");
+  CHECK(g[3] == "delta");
+  CHECK(g[4] == "epsilon");
+  // Insert at the front after a full sweep: order must hold.
+  REQUIRE(g.move_cursor_to(0).has_value());
+  g.insert("zero");
+  CHECK(g[0] == "zero");
+  CHECK(g[1] == "alpha");
+  CHECK(g.size() == 6);
+}
+
+TEST_CASE("nexenne::container::gap_buffer shrink_to_fit with an open gap closes it correctly") {
+  cn::gap_buffer<std::string> g{"x", "yy", "zzz", "wwww"};
+  REQUIRE(g.move_cursor_to(2).has_value());  // open gap in the middle
+  g.shrink_to_fit();
+  CHECK(g.size() == 4);
+  CHECK(g.cursor() == 4);  // gap closed at the end
+  CHECK(g[0] == "x");
+  CHECK(g[1] == "yy");
+  CHECK(g[2] == "zzz");
+  CHECK(g[3] == "wwww");
+}
+
+TEST_CASE("nexenne::container::gap_buffer max_size is positive and swap exchanges state") {
+  gb a{1, 2};
+  gb b{7, 8, 9};
+  CHECK(a.max_size() > 0);
+  swap(a, b);
+  CHECK(a.size() == 3);
+  CHECK(b.size() == 2);
+  CHECK(a[0] == 7);
+  CHECK(b[1] == 2);
 }
 
 }  // namespace

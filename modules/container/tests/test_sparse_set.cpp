@@ -5,7 +5,10 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <random>
+#include <set>
 #include <type_traits>
 #include <vector>
 
@@ -134,6 +137,114 @@ TEST_CASE("nexenne::container::sparse_set works with 16-bit keys") {
   s.insert(300);
   CHECK(s.contains(300));
   CHECK(s.size() == 1);
+}
+
+TEST_CASE("nexenne::container::sparse_set erasing the dense tail takes the no-swap path") {
+  set_t s;
+  s.insert(10);
+  s.insert(20);
+  s.insert(30);        // dense [10, 20, 30]
+  CHECK(s.erase(30));  // last element: pop, no swap needed
+  CHECK(s.size() == 2);
+  std::vector<std::uint32_t> const ks(s.begin(), s.end());
+  CHECK(ks == std::vector<std::uint32_t>{10, 20});  // order of survivors preserved
+  CHECK(s.contains(10));
+  CHECK(s.contains(20));
+  CHECK_FALSE(s.contains(30));
+}
+
+TEST_CASE("nexenne::container::sparse_set interior erase fixes the moved key's sparse slot") {
+  set_t s;
+  s.insert(10);
+  s.insert(20);
+  s.insert(30);        // dense [10, 20, 30], sparse[30] = 2
+  CHECK(s.erase(10));  // swap-pop: 30 moves into slot 0
+  CHECK(s.size() == 2);
+  // index_of must now report 30 at its NEW dense position, not its stale one.
+  REQUIRE(s.index_of(30).has_value());
+  CHECK(*s.index_of(30) == 0);
+  REQUIRE(s.index_of(20).has_value());
+  CHECK(*s.index_of(20) == 1);
+  REQUIRE(s.find(30) != s.end());
+  CHECK(*s.find(30) == 30);  // find points at the relocated key
+  CHECK(s.contains(30));
+  CHECK(s.contains(20));
+}
+
+TEST_CASE("nexenne::container::sparse_set key zero is a valid key") {
+  set_t s;
+  CHECK(s.insert(0));
+  CHECK(s.contains(0));
+  CHECK(s.size() == 1);
+  CHECK_FALSE(s.contains(1));
+  REQUIRE(s.index_of(0).has_value());
+  CHECK(*s.index_of(0) == 0);
+  CHECK(s.erase(0));
+  CHECK_FALSE(s.contains(0));
+  CHECK(s.empty());
+}
+
+TEST_CASE("nexenne::container::sparse_set erase on an empty set returns false") {
+  set_t s;
+  CHECK_FALSE(s.erase(0));
+  CHECK_FALSE(s.erase(1000));
+  CHECK(s.empty());
+  CHECK(s.count(5) == 0);
+}
+
+TEST_CASE("nexenne::container::sparse_set reinsert after clear and shrink_to_fit") {
+  set_t s;
+  for (std::uint32_t k{0}; k < 50; ++k) {
+    s.insert(k);
+  }
+  CHECK(s.size() == 50);
+  s.clear();
+  CHECK(s.empty());
+  CHECK_FALSE(s.contains(0));
+  CHECK_FALSE(s.contains(49));
+  s.shrink_to_fit();   // releasing capacity must not corrupt the state
+  CHECK(s.insert(7));  // usable after clear + shrink
+  CHECK(s.contains(7));
+  CHECK(s.size() == 1);
+  CHECK(s.max_size() > 0);
+}
+
+TEST_CASE("nexenne::container::sparse_set handles a very large 64-bit key") {
+  cn::sparse_set_u64 s;
+  std::uint64_t const big{1u << 20};  // 1,048,576: forces a large sparse array
+  CHECK(s.insert(big));
+  CHECK(s.contains(big));
+  CHECK(s.key_capacity() >= big + 1);
+  CHECK(s.size() == 1);
+  CHECK(s.erase(big));
+  CHECK_FALSE(s.contains(big));
+}
+
+TEST_CASE("nexenne::container::sparse_set differential against std::set under randomized ops") {
+  std::mt19937 rng{2024};
+  std::set<std::uint32_t> model;
+  set_t subject;
+  for (int step{0}; step < 5000; ++step) {
+    auto const k{static_cast<std::uint32_t>(rng() % 200)};
+    if (rng() % 2 == 0) {
+      auto const inserted{model.insert(k).second};
+      CHECK(subject.insert(k) == inserted);
+    } else {
+      auto const erased{model.erase(k) != 0};
+      CHECK(subject.erase(k) == erased);
+    }
+    REQUIRE(subject.size() == model.size());
+    CHECK(subject.contains(k) == (model.count(k) != 0));
+  }
+  // Membership must agree across the whole key space.
+  for (std::uint32_t k{0}; k < 200; ++k) {
+    REQUIRE(subject.contains(k) == (model.count(k) != 0));
+  }
+  // The dense view, sorted, must equal the model exactly (no duplicates, no loss).
+  std::vector<std::uint32_t> dense(subject.begin(), subject.end());
+  std::sort(dense.begin(), dense.end());
+  std::vector<std::uint32_t> const expected(model.begin(), model.end());
+  CHECK(dense == expected);
 }
 
 }  // namespace

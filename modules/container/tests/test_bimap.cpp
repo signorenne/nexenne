@@ -130,4 +130,135 @@ TEST_CASE("nexenne::container::bimap equality is pair-set equality") {
   CHECK_FALSE(a == c);
 }
 
+TEST_CASE("nexenne::container::bimap empty queries are well-defined") {
+  bimap_t b;
+  CHECK(b.empty());
+  CHECK(b.size() == 0);
+  CHECK(b.max_size() > 0);
+  CHECK(b.find_by_left(0) == nullptr);
+  CHECK(b.find_by_right("x") == nullptr);
+  CHECK_FALSE(b.contains_left(0));
+  CHECK_FALSE(b.contains_right("x"));
+  CHECK_FALSE(b.erase_left(0));
+  CHECK_FALSE(b.erase_right("x"));
+  CHECK(b.begin() == b.end());
+  b.clear();  // no-op on empty
+  CHECK(b.empty());
+}
+
+TEST_CASE("nexenne::container::bimap erase_left aliasing the r_to_l entry is UAF-safe") {
+  bimap_t b;
+  b.insert(1, "one");
+  b.insert(2, "two");
+  // find_by_right returns a pointer into m_r_to_l's storage; erase_left then
+  // erases from m_r_to_l first, which would dangle that pointer if not copied.
+  auto const* const aliased{b.find_by_right("one")};
+  REQUIRE(aliased != nullptr);
+  CHECK(b.erase_left(*aliased));  // *aliased aliases the entry being erased
+  CHECK_FALSE(b.contains_left(1));
+  CHECK_FALSE(b.contains_right("one"));
+  CHECK(b.contains_left(2));  // the unrelated pair is intact
+  CHECK(*b.find_by_left(2) == "two");
+  CHECK(b.size() == 1);
+}
+
+TEST_CASE("nexenne::container::bimap erase_right aliasing the l_to_r entry is UAF-safe") {
+  bimap_t b;
+  b.insert(1, "one");
+  b.insert(2, "two");
+  // find_by_left returns a pointer into m_l_to_r's storage; erase_right erases
+  // from m_l_to_r first, aliasing that pointer.
+  auto const* const aliased{b.find_by_left(2)};
+  REQUIRE(aliased != nullptr);
+  CHECK(b.erase_right(*aliased));  // *aliased aliases the entry being erased
+  CHECK_FALSE(b.contains_right("two"));
+  CHECK_FALSE(b.contains_left(2));
+  CHECK(b.contains_left(1));
+  CHECK(b.size() == 1);
+}
+
+TEST_CASE("nexenne::container::bimap replace overwrites an existing right binding consistently") {
+  bimap_t b;
+  b.insert(1, "one");
+  // bind a new left to the already-bound right "one": displaces 1 (the right side)
+  CHECK(b.replace(2, "one") == 1);
+  CHECK(*b.find_by_right("one") == 2);  // right now points at 2
+  CHECK(*b.find_by_left(2) == "one");
+  CHECK(b.find_by_left(1) == nullptr);  // 1's old binding is gone
+  CHECK(b.size() == 1);
+}
+
+TEST_CASE("nexenne::container::bimap replace rebinding the identical pair is idempotent") {
+  bimap_t b;
+  b.insert(1, "one");
+  // left 1 and right "one" name the SAME existing pair, so exactly one binding
+  // is displaced (deduplicated), not two.
+  CHECK(b.replace(1, "one") == 1);
+  CHECK(*b.find_by_left(1) == "one");  // still consistent afterwards
+  CHECK(*b.find_by_right("one") == 1);
+  CHECK(b.size() == 1);
+}
+
+TEST_CASE("nexenne::container::bimap bidirectional invariant holds across mixed mutations") {
+  bimap_t b;
+  b.insert(1, "one");
+  b.insert(2, "two");
+  b.insert(3, "three");
+  b.replace(1, "uno");  // rebind left 1
+  b.erase_right("two");
+  b.insert(4, "four");
+  b.replace(3, "tres");
+  // verify both directions agree for every surviving pair
+  for (auto const& [l, r] : b) {
+    REQUIRE(b.find_by_left(l) != nullptr);
+    CHECK(*b.find_by_left(l) == r);
+    REQUIRE(b.find_by_right(r) != nullptr);
+    CHECK(*b.find_by_right(r) == l);
+  }
+  CHECK(b.size() == 3);
+  CHECK(*b.find_by_left(1) == "uno");
+  CHECK(*b.find_by_left(3) == "tres");
+  CHECK(*b.find_by_left(4) == "four");
+  CHECK_FALSE(b.contains_left(2));
+}
+
+TEST_CASE("nexenne::container::bimap constructor reserves, reserve grows, cbegin/cend") {
+  bimap_t b{16};
+  CHECK(b.capacity() >= 16);
+  b.insert(1, "one");
+  b.insert(2, "two");
+  b.reserve(64);
+  CHECK(b.capacity() >= 64);
+  CHECK(*b.find_by_left(1) == "one");  // bindings preserved across reserve
+  int key_sum{0};
+  for (auto it{b.cbegin()}; it != b.cend(); ++it) {
+    key_sum += it->first;
+  }
+  CHECK(key_sum == 3);
+}
+
+TEST_CASE("nexenne::container::bimap self swap is a no-op") {
+  bimap_t b;
+  b.insert(1, "one");
+  b.insert(2, "two");
+  b.swap(b);
+  CHECK(b.size() == 2);
+  CHECK(*b.find_by_left(1) == "one");
+  CHECK(*b.find_by_right("two") == 2);
+}
+
+TEST_CASE("nexenne::container::bimap with non-trivial types on both sides") {
+  cn::bimap<std::string, std::string> b;
+  CHECK(b.insert(std::string(40, 'a'), std::string(40, 'x')));
+  CHECK(b.insert(std::string(40, 'b'), std::string(40, 'y')));
+  CHECK_FALSE(b.insert(std::string(40, 'a'), std::string(40, 'z')));  // left clash
+  REQUIRE(b.find_by_left(std::string(40, 'a')) != nullptr);
+  CHECK(*b.find_by_left(std::string(40, 'a')) == std::string(40, 'x'));
+  CHECK(b.replace(std::string(40, 'a'), std::string(40, 'y')) == 2);  // merge two pairs
+  CHECK(*b.find_by_right(std::string(40, 'y')) == std::string(40, 'a'));
+  CHECK(b.size() == 1);
+  b.clear();
+  CHECK(b.empty());
+}
+
 }  // namespace

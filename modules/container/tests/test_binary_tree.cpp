@@ -7,6 +7,9 @@
 
 #include <functional>
 #include <memory>
+#include <random>
+#include <set>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -166,6 +169,235 @@ TEST_CASE("nexenne::container::binary_tree holds a move-only value") {
     seen += *p;
   }
   CHECK(seen == 3);
+}
+
+TEST_CASE("nexenne::container::binary_tree the empty tree") {
+  tree_t t;
+  CHECK(t.empty());
+  CHECK(t.size() == 0);
+  CHECK(t.begin() == t.end());
+  CHECK(t.cbegin() == t.cend());
+  CHECK(t.find(0) == nullptr);
+  CHECK_FALSE(t.contains(0));
+  CHECK_FALSE(t.erase(0));
+  CHECK(to_vector(t).empty());
+  CHECK(tree_t::max_size() > 0);
+}
+
+TEST_CASE("nexenne::container::binary_tree single-element tree") {
+  tree_t t;
+  CHECK(t.insert(42));
+  CHECK(t.size() == 1);
+  CHECK_FALSE(t.empty());
+  REQUIRE(t.find(42) != nullptr);
+  CHECK(*t.begin() == 42);
+  CHECK(std::next(t.begin()) == t.end());
+  CHECK(t.erase(42));
+  CHECK(t.empty());
+  CHECK(t.begin() == t.end());
+}
+
+TEST_CASE("nexenne::container::binary_tree clear empties a populated tree") {
+  tree_t t;
+  for (int v : {5, 3, 8, 1, 9}) {
+    t.insert(v);
+  }
+  t.clear();
+  CHECK(t.empty());
+  CHECK(t.size() == 0);
+  CHECK(t.begin() == t.end());
+  t.insert(7);  // usable after clear
+  CHECK(to_vector(t) == std::vector{7});
+}
+
+TEST_CASE("nexenne::container::binary_tree degenerate sorted-input chain stays a valid BST") {
+  tree_t t;
+  for (int v{0}; v < 32; ++v) {  // strictly ascending: a right-leaning chain
+    CHECK(t.insert(v));
+  }
+  CHECK(t.size() == 32);
+  std::vector<int> expected;
+  for (int v{0}; v < 32; ++v) {
+    expected.push_back(v);
+  }
+  CHECK(to_vector(t) == expected);
+  // erase from the middle of the chain keeps order
+  CHECK(t.erase(16));
+  CHECK_FALSE(t.contains(16));
+  CHECK(t.contains(15));
+  CHECK(t.contains(17));
+}
+
+TEST_CASE("nexenne::container::binary_tree erase a node whose successor is its right child") {
+  // Node with two children whose right child has no left subtree: the immediate
+  // right child becomes the replacement (y_parent == z branch).
+  tree_t t;
+  for (int v : {5, 3, 8, 9}) {  // 5 has children 3 and 8; 8 has only right child 9
+    t.insert(v);
+  }
+  CHECK(t.erase(5));
+  CHECK(to_vector(t) == std::vector{3, 8, 9});
+  CHECK(t.size() == 3);
+}
+
+TEST_CASE("nexenne::container::binary_tree move assignment steals the graph") {
+  tree_t a;
+  a.insert(1);
+  a.insert(2);
+  tree_t b;
+  b.insert(99);
+  b = std::move(a);
+  CHECK(to_vector(b) == std::vector{1, 2});
+  CHECK(a.empty());  // NOLINT: checking moved-from state is intentional
+}
+
+TEST_CASE("nexenne::container::binary_tree self move-assignment leaves it unchanged") {
+  tree_t t;
+  t.insert(1);
+  t.insert(2);
+  auto& alias{t};
+  t = std::move(alias);  // NOLINT: deliberate self-move
+  CHECK(to_vector(t) == std::vector{1, 2});
+}
+
+TEST_CASE("nexenne::container::binary_tree copy assignment deep-clones") {
+  tree_t a;
+  a.insert(2);
+  a.insert(1);
+  a.insert(3);
+  tree_t b;
+  b.insert(99);  // pre-existing content is replaced
+  b = a;
+  CHECK(a == b);
+  b.insert(4);
+  CHECK(to_vector(a) == std::vector{1, 2, 3});  // a unchanged
+  CHECK(to_vector(b) == std::vector{1, 2, 3, 4});
+}
+
+TEST_CASE("nexenne::container::binary_tree self copy-assignment leaves it unchanged") {
+  tree_t t;
+  t.insert(1);
+  t.insert(2);
+  auto const& alias{t};
+  t = alias;  // NOLINT: deliberate self-copy
+  CHECK(to_vector(t) == std::vector{1, 2});
+}
+
+TEST_CASE("nexenne::container::binary_tree swap exchanges state") {
+  tree_t a;
+  a.insert(1);
+  a.insert(2);
+  tree_t b;
+  b.insert(9);
+  a.swap(b);
+  CHECK(to_vector(a) == std::vector{9});
+  CHECK(to_vector(b) == std::vector{1, 2});
+  swap(a, b);  // friend swap
+  CHECK(to_vector(a) == std::vector{1, 2});
+  CHECK(to_vector(b) == std::vector{9});
+}
+
+TEST_CASE("nexenne::container::binary_tree post-increment iterator and const traversal") {
+  tree_t t;
+  for (int v : {3, 1, 2}) {
+    t.insert(v);
+  }
+  auto it{t.begin()};
+  auto const copy{it++};
+  CHECK(*copy == 1);
+  CHECK(*it == 2);
+  // const overloads of begin/end via a const reference
+  tree_t const& ct{t};
+  std::vector<int> out;
+  for (auto i{ct.begin()}; i != ct.end(); ++i) {
+    out.push_back(*i);
+  }
+  CHECK(out == std::vector{1, 2, 3});
+  CHECK(ct.find(2) != nullptr);  // const find overload
+  CHECK(ct.find(99) == nullptr);
+}
+
+TEST_CASE(
+  "nexenne::container::binary_tree non-const find allows in-place mutation of a non-key payload"
+) {
+  // Mutating through find on an int *is* the key, so use a tree whose order
+  // ignores part of the value: a pair compared by .first only.
+  using kv = std::pair<int, int>;
+
+  struct by_first {
+    auto operator()(kv const& a, kv const& b) const noexcept -> bool {
+      return a.first < b.first;
+    }
+  };
+
+  cn::binary_tree<kv, by_first> t;
+  t.insert(kv{1, 10});
+  t.insert(kv{2, 20});
+  auto* const p{t.find(kv{2, 0})};  // located by key 2
+  REQUIRE(p != nullptr);
+  p->second = 99;  // mutate the non-ordering payload in place
+  CHECK(t.find(kv{2, 0})->second == 99);
+}
+
+TEST_CASE("nexenne::container::binary_tree of non-trivial std::string values") {
+  cn::binary_tree<std::string> t;
+  CHECK(t.insert(std::string("banana")));
+  CHECK(t.insert(std::string("apple")));
+  CHECK(t.insert(std::string("cherry")));
+  CHECK_FALSE(t.insert(std::string("apple")));  // duplicate
+  CHECK(t.size() == 3);
+  std::vector<std::string> out;
+  for (auto const& s : t) {
+    out.push_back(s);
+  }
+  CHECK(out == std::vector<std::string>{"apple", "banana", "cherry"});
+  REQUIRE(t.find(std::string("banana")) != nullptr);
+  CHECK(*t.find(std::string("banana")) == "banana");
+  CHECK(t.erase(std::string("banana")));
+  CHECK_FALSE(t.contains(std::string("banana")));
+  // copy a string tree and confirm independence under LSan
+  cn::binary_tree<std::string> clone{t};
+  t.clear();
+  CHECK(clone.contains(std::string("apple")));
+}
+
+TEST_CASE("nexenne::container::binary_tree custom-comparator constructor is honoured") {
+  cn::binary_tree<int, std::greater<int>> t{std::greater<int>{}};
+  for (int v : {1, 5, 3}) {
+    t.insert(v);
+  }
+  CHECK(to_vector(t) == std::vector{5, 3, 1});
+}
+
+TEST_CASE("nexenne::container::binary_tree differential against std::set under random ops") {
+  std::mt19937 rng{1234};
+  std::uniform_int_distribution<int> values{0, 99};
+  std::uniform_int_distribution<int> ops{0, 2};
+  tree_t t;
+  std::set<int> ref;
+  for (int step{0}; step < 4000; ++step) {
+    int const v{values(rng)};
+    switch (ops(rng)) {
+      case 0: {
+        bool const a{t.insert(v)};
+        bool const b{ref.insert(v).second};
+        CHECK(a == b);
+        break;
+      }
+      case 1: {
+        bool const a{t.erase(v)};
+        bool const b{ref.erase(v) == 1};
+        CHECK(a == b);
+        break;
+      }
+      default:
+        CHECK(t.contains(v) == (ref.count(v) == 1));
+        break;
+    }
+    CHECK(t.size() == ref.size());
+  }
+  // in-order traversal must match the sorted reference exactly
+  CHECK(to_vector(t) == std::vector<int>(ref.begin(), ref.end()));
 }
 
 }  // namespace
