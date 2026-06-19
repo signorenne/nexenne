@@ -1,0 +1,79 @@
+#+TITLE: graph
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Graph algorithms over [[file:../container/graph.org][container::graph]], the directed adjacency-list type. They
+take a =graph= by const reference, address vertices by their integer ID, and
+return results by value; the ones that can fail report through
+=std::expected<T, container_error>=. An edge payload (a weight) is read through
+a weight functor that defaults to the edge's =data= field.
+
+- traversal : =bfs=, =dfs= (visit reachable vertices via a callback).
+- ordering : =topological_sort=, =is_acyclic= (Kahn's algorithm).
+- shortest paths : =dijkstra= (non-negative weights), =bellman_ford= (handles
+  negative weights, detects negative cycles), =floyd_warshall= (all pairs),
+  =a_star= (heuristic-guided).
+- structure : =connected_components= (weakly connected), =tarjan_scc= (strongly
+  connected), =kruskal_mst= (minimum spanning forest), =lca= (lowest common
+  ancestor on a tree).
+
+* How it works
+
+** Traversal and ordering
+
+=bfs= walks reachable vertices layer by layer with a queue and a
+=bitset_dynamic= for O(1) visited checks; =dfs= does the same depth-first with
+an explicit stack (no recursion, so it is stack-safe on deep graphs). Both call
+a visitor per vertex and stop early if it returns =false=. =topological_sort=
+runs Kahn's algorithm: repeatedly emit a vertex with no remaining incoming
+edges; if fewer than all vertices come out, the graph had a cycle, which is
+exactly how =is_acyclic= decides.
+
+** Shortest paths
+
+=dijkstra= grows a frontier from the source, always settling the nearest
+unsettled vertex via an indexed priority queue (so it can decrease-key in
+O(log V)); it needs non-negative weights. =bellman_ford= relaxes every edge V-1
+times, which tolerates negative edges and detects a negative cycle on the V-th
+pass. =floyd_warshall= fills a V-by-V matrix by allowing each vertex in turn as
+an intermediate, giving all-pairs distances in O(V^3). =a_star= is Dijkstra
+keyed on g(v) + h(v): with an admissible heuristic h it returns an optimal path
+while expanding far fewer vertices, and h returning 0 makes it Dijkstra exactly.
+
+** Structure
+
+=connected_components= unions the endpoints of every edge in a =union_find=, so
+two vertices share a label when an undirected path joins them. =tarjan_scc=
+finds strongly connected components (mutually reachable vertices) in one
+iterative depth-first pass using discovery indices and low-links.
+=kruskal_mst= sorts edges by weight and adds each one that joins two different
+components, building a minimum spanning forest. =lca= preprocesses a tree with
+binary lifting so each lowest-common-ancestor query runs in O(log N).
+
+* When to use it
+
+- Reachability or shortest unweighted hops: =bfs=; deep traversal or cycle
+  presence: =dfs= / =is_acyclic=.
+- Scheduling with dependencies: =topological_sort=.
+- Weighted shortest path: =dijkstra= (non-negative), =bellman_ford= (negative
+  edges or cycle detection), =floyd_warshall= (all pairs), =a_star= (with a
+  good heuristic, e.g. straight-line distance on a map).
+- Clustering and structure: =connected_components=, =tarjan_scc=,
+  =kruskal_mst=, =lca=.
+
+Confidence: the traversals are validated against a transitive-closure
+reachability reference and each other; the shortest-path trio (Dijkstra,
+Bellman-Ford, Floyd-Warshall) is cross-checked for agreement on random weighted
+graphs; topological order, SCCs, components, the MST, A*, and LCA are verified
+on constructed graphs with known answers.
+
+#+BEGIN_SRC cpp
+namespace alg = nexenne::algorithm;
+auto const dist{alg::dijkstra(g, source)};       // expected<vector<Weight>>
+auto const order{alg::topological_sort(g)};      // expected<vector<V>>, error on cycle
+alg::bfs(g, source, [](std::uint32_t v){ /* visit */ });
+#+END_SRC
+
+Runnable: [[file:../../../examples/algorithm/graph.cpp][examples/algorithm/graph.cpp]]

@@ -8,13 +8,12 @@ broadly useful for embedded and systems work, built on
 sorts, string matching, numerical routines, hashing, checksums, byte
 encodings, and graph algorithms.
 
-* Status
+Every category has a themed article below and a runnable example under
+=examples/algorithm/=. Each routine is exhaustive-tested (known-answer vectors
+and differential cross-checks) and reports recoverable failures through
+=std::expected=, never exceptions.
 
-Module under construction: only the scaffold is in place so far. Headers are
-ported one category at a time in dependency order. Each category gets a themed
-article here as it lands; this index grows with them.
-
-Planned categories:
+* Categories
 
 - [[file:binary-search.org][binary search]] : =find_sorted=, =exponential_search=,
   =interpolation_search= (index-returning variants beyond =std::ranges=).
@@ -29,7 +28,7 @@ Planned categories:
   CRC engine with named presets).
 - [[file:encoding.org][encoding]] : =hex=, =base64=, =base32=, =url=, =cobs= (byte-to-text and
   byte-stuffing codecs; heap-free and heap-allocating overloads).
-- graph : traversal (=bfs=, =dfs=), shortest paths (=dijkstra=, =a_star=,
+- [[file:graph.org][graph]] : traversal (=bfs=, =dfs=), shortest paths (=dijkstra=, =a_star=,
   =bellman_ford=, =floyd_warshall=), structure (=topological_sort=,
   =connected_components=, =tarjan_scc=, =kruskal_mst=, =lca=); these reuse
   =container::graph= and friends.
