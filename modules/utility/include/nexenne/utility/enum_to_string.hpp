@@ -103,7 +103,8 @@ template <typename E, int Min, int... Is>
 [[nodiscard]] constexpr auto
 enum_count_impl(std::integer_sequence<int, Is...>) noexcept -> std::size_t {
   return (
-    (enum_value_name<static_cast<E>(Min + Is)>().empty() ? std::size_t{0} : std::size_t{1}) + ...
+    std::size_t{0} + ...
+    + (enum_value_name<static_cast<E>(Min + Is)>().empty() ? std::size_t{0} : std::size_t{1})
   );
 }
 
