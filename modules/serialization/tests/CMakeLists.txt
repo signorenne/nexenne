@@ -1,6 +1,9 @@
 nexenne_add_module_tests(serialization
     SOURCES
-        test_serialization.cpp
-        test_serialization_extra.cpp
+        test_json.cpp
+        test_binary.cpp
+        test_cbor.cpp
+        test_msgpack.cpp
         test_cobs.cpp
+        test_versioned.cpp
 )

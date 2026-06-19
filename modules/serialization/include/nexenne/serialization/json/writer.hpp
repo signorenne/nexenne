@@ -112,7 +112,11 @@ private:
   auto raw_write(std::string_view const s) noexcept -> std::expected<void, error> {
     if (!fits(s.size())) [[unlikely]]
       return std::unexpected{error::buffer_full};
-    std::memcpy(m_buf.data() + m_pos, s.data(), s.size());
+    // memcpy with a null pointer is UB even for size 0; an empty string_view's
+    // data() may be null.
+    if (!s.empty()) {
+      std::memcpy(m_buf.data() + m_pos, s.data(), s.size());
+    }
     m_pos += s.size();
     return {};
   }

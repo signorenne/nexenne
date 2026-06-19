@@ -362,7 +362,9 @@ public:
     }
     auto const n{out.size() * sizeof(T)};
     if constexpr (std::endian::native == std::endian::little || sizeof(T) == 1) {
-      std::memcpy(out.data(), m_buf.data() + m_pos, n);
+      if (n != 0) {  // memcpy with a null/empty destination is UB even for size 0
+        std::memcpy(out.data(), m_buf.data() + m_pos, n);
+      }
       m_pos += n;
     } else {
       for (auto& x : out) {
