@@ -24,6 +24,14 @@
 #include <nexenne/algorithm/hash/fnv.hpp>
 #include <nexenne/algorithm/hash/murmur.hpp>
 #include <nexenne/algorithm/hash/xxhash.hpp>
+#include <nexenne/algorithm/numerical/bisection.hpp>
+#include <nexenne/algorithm/numerical/fft.hpp>
+#include <nexenne/algorithm/numerical/integration.hpp>
+#include <nexenne/algorithm/numerical/interpolation.hpp>
+#include <nexenne/algorithm/numerical/kahan_sum.hpp>
+#include <nexenne/algorithm/numerical/numerical_error.hpp>
+#include <nexenne/algorithm/numerical/ode.hpp>
+#include <nexenne/algorithm/numerical/online_stats.hpp>
 #include <nexenne/algorithm/sort/counting_sort.hpp>
 #include <nexenne/algorithm/sort/radix_sort.hpp>
 #include <nexenne/algorithm/string/aho_corasick.hpp>

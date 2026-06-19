@@ -4,6 +4,7 @@ set(_algorithm_examples
     checksum
     encoding
     hashing
+    numerical
     sort
     string
 )
