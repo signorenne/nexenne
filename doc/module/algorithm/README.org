@@ -27,7 +27,8 @@ Planned categories:
   fingerprints, content addressing).
 - [[file:checksum.org][checksum]] : =adler32=, =crc= (integrity checks; generic Rocksoft-model
   CRC engine with named presets).
-- encoding : =hex=, =base32=, =base64=, =url=, =cobs=.
+- [[file:encoding.org][encoding]] : =hex=, =base64=, =base32=, =url=, =cobs= (byte-to-text and
+  byte-stuffing codecs; heap-free and heap-allocating overloads).
 - graph : traversal (=bfs=, =dfs=), shortest paths (=dijkstra=, =a_star=,
   =bellman_ford=, =floyd_warshall=), structure (=topological_sort=,
   =connected_components=, =tarjan_scc=, =kruskal_mst=, =lca=); these reuse

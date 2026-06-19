@@ -1,0 +1,85 @@
+#+TITLE: encoding
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Byte-to-text and byte-stuffing codecs for moving binary data through channels
+that cannot carry arbitrary bytes: text fields, URLs, and byte-delimited frames.
+Every codec has a heap-free overload (the caller supplies the output span and
+gets back a =codec_result=, the byte count or an error) for embedded use, and a
+heap-allocating overload returning a =std::string= or =std::vector= for host
+code. Decoders never throw; they report =invalid_input=, =incomplete_input=, or
+=buffer_too_small=.
+
+- =hex= : base16, two characters per byte. The decoder skips whitespace and
+  accepts mixed case.
+- =url= : RFC 3986 percent-encoding, plus the form-urlencoded variant (space as
+  a plus sign) used by query strings and form bodies.
+- =base64= : RFC 4648, standard (padded) and URL-safe (unpadded, the JWT/OAuth
+  form) alphabets.
+- =base32= : RFC 4648, the standard and extended-hex alphabets; case-insensitive
+  on decode. Used by TOTP keys and onion addresses.
+- =cobs= : Consistent Overhead Byte Stuffing, which removes every =0x00= from a
+  payload so =0x00= can delimit frames on a serial link.
+
+Two shared pieces support them: =codec_error= (the error enum and result
+aliases) and =codec_alphabet= (a compile-time symbol table that base32 and
+base64 share).
+
+* How it works
+
+** The base-N codecs (hex, base32, base64)
+
+Each repacks a run of input bytes into output symbols of a fixed bit width: 4
+bits per hex character, 5 per base32 character, 6 per base64 character. Because
+8 does not divide 5 or 6 evenly, the encoders work in groups (5 bytes to 8
+base32 characters, 3 bytes to 4 base64 characters) and a final partial group
+emits the symbols its bits cover, padded with the pad character to a group
+boundary (base32 and standard base64) or left unpadded (URL-safe base64). The decoders
+reverse this, and tolerate omitted trailing padding because so much real-world
+text drops it. All three are faces over one generic engine: a =base_n_spec=
+(alphabet, padding policy, case folding) is passed as a compile-time template
+parameter, exactly as =crc_spec= parameterizes the CRC engine, so each named
+codec is a fully specialized instantiation with no runtime cost for the
+genericity. They share =codec_alphabet=, which builds both the forward (index to
+character) and reverse (character to index) tables at compile time, so a lookup
+is a single array index with no branching.
+
+** url
+
+A character in the RFC 3986 unreserved set passes through unchanged; anything
+else becomes a percent sign and two hex digits. The unreserved membership test
+is a 256-entry table built at compile time. The form-urlencoded variant differs
+in exactly one rule, a space mapping to and from a plus sign, so both share one
+templated implementation specialized on that flag.
+
+** cobs
+
+COBS replaces each =0x00= with a pointer to the next one: the stream is a
+series of blocks, each introduced by a code byte giving the distance to the
+following code byte, so no data byte is ever zero. A code of =0xFF= marks a
+maximal 254-byte block with no implied zero, which is what bounds the overhead
+to one byte per 254. Decoding walks the code bytes, copying the literal bytes
+and reinserting a zero between blocks. The result is a payload that a single =0x00= delimiter can frame unambiguously on a UART or RS-485 link.
+
+* When to use it
+
+- Embedding bytes in JSON, a config file, or a log line: =hex= (readable) or
+  =base64= (compact).
+- Building a URL component or a form body: =url= or =form_url=.
+- A TOTP/HOTP secret or other human-keyed token: =base32=.
+- Framing variable-length packets over a serial link: =cobs= with a =0x00= delimiter.
+
+Confidence: every base codec is pinned to its RFC 4648 known-answer vectors and
+COBS to the vectors from the Cheshire and Baker paper, then round-tripped over
+random inputs at every group-boundary length, with the error and buffer-sizing
+paths checked directly.
+
+#+BEGIN_SRC cpp
+namespace alg = nexenne::algorithm;
+auto const token{alg::base64url_encode(key_bytes)};   // unpadded, URL-safe
+auto const decoded{alg::base64_decode(received)};      // expected<vector>, never throws
+#+END_SRC
+
+Runnable: [[file:../../../examples/algorithm/encoding.cpp][examples/algorithm/encoding.cpp]]
