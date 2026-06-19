@@ -503,9 +503,14 @@ public:
    */
   constexpr auto insert(T const& value) noexcept -> void {
     if (gap_size() == 0) {
+      // grow_gap reallocates m_buffer, so materialize the value first in case it
+      // aliases an element of this same buffer (e.g. insert(b[k])).
+      auto materialized{value};
       grow_gap(initial_gap);
+      m_buffer[m_gap_begin] = std::move(materialized);
+    } else {
+      m_buffer[m_gap_begin] = value;
     }
-    m_buffer[m_gap_begin] = value;
     ++m_gap_begin;
   }
 
@@ -521,9 +526,14 @@ public:
    */
   constexpr auto insert(T&& value) noexcept -> void {
     if (gap_size() == 0) {
+      // Move into a local before grow_gap reallocates, in case value aliases an
+      // element of this same buffer (e.g. insert(std::move(b[k]))).
+      auto materialized{std::move(value)};
       grow_gap(initial_gap);
+      m_buffer[m_gap_begin] = std::move(materialized);
+    } else {
+      m_buffer[m_gap_begin] = std::move(value);
     }
-    m_buffer[m_gap_begin] = std::move(value);
     ++m_gap_begin;
   }
 

@@ -366,4 +366,30 @@ TEST_CASE("nexenne::container::gap_buffer max_size is positive and swap exchange
   CHECK(b[1] == 2);
 }
 
+TEST_CASE("nexenne::container::gap_buffer insert accepts an argument aliasing its storage") {
+  // Fill exactly to a closed gap so the next insert must grow_gap (reallocating
+  // the backing vector). Passing an element of the same buffer would dangle if
+  // the value were read after the reallocation.
+  gb b;
+  for (auto i{0}; i < 16; ++i) {  // initial_gap == 16
+    b.insert(i);
+  }
+  REQUIRE(b.size() == 16);
+  b.insert(b[0]);  // lvalue aliasing this buffer; b[0] == 0
+  REQUIRE(b.size() == 17);
+  CHECK(b[16] == 0);
+
+  // Same hazard on the move overload, with a heap-allocating element type so a
+  // use-after-realloc trips the sanitizer on the string's own storage too.
+  cn::gap_buffer<std::string> s;
+  for (auto i{0}; i < 16; ++i) {
+    s.insert(std::string(32, static_cast<char>('a' + i)));
+  }
+  REQUIRE(s.size() == 16);
+  auto const first{*s.front()};  // copy of s[0] for comparison
+  s.insert(std::move(*s.front()));
+  REQUIRE(s.size() == 17);
+  CHECK(*s.at(16) == first);
+}
+
 }  // namespace
