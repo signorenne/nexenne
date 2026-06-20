@@ -1247,4 +1247,24 @@ TEST_CASE("nexenne::serialization::json at_path resolves empty JSON-Pointer toke
   CHECK(nested->at_path("/")->get().is_object());  // one token -> the inner object
 }
 
+TEST_CASE("nexenne::serialization::json value equality is stack-safe on deep DOMs") {
+  // Build a hand-made DOM far deeper than the parser's depth limit; a recursive
+  // operator== would overflow the stack comparing it (the destructor is already
+  // iterative, so building and destroying it is safe).
+  auto build{[](int const depth, int const leaf) {
+    auto v{json::value{static_cast<std::int64_t>(leaf)}};
+    for (int i{0}; i < depth; ++i) {
+      auto arr{json::array{}};
+      arr.push_back(std::move(v));
+      v = json::value{std::move(arr)};
+    }
+    return v;
+  }};
+  auto const a{build(100000, 7)};
+  auto const b{build(100000, 7)};
+  auto const c{build(100000, 8)};  // identical except the innermost leaf
+  CHECK(a == b);
+  CHECK_FALSE(a == c);
+}
+
 }  // namespace

@@ -859,9 +859,10 @@ public:
   /**
    * @brief Deep equality of two values.
    *
-   * Compares the active kinds and their contents recursively. An integer
-   * and a numerically equal floating value are distinct kinds and
-   * therefore compare unequal.
+   * Compares the active kinds and their contents. The walk uses an explicit
+   * work stack rather than recursion, so comparing very deeply nested values is
+   * stack-safe, matching the iterative destructor. An integer and a numerically
+   * equal floating value are distinct kinds and therefore compare unequal.
    *
    * @param a  Left operand.
    * @param b  Right operand.
@@ -873,7 +874,43 @@ public:
    * @post None.
    */
   [[nodiscard]] friend auto operator==(value const& a, value const& b) noexcept -> bool {
-    return a.m_data == b.m_data;
+    auto work{std::vector<std::pair<value const*, value const*>>{}};
+    work.emplace_back(&a, &b);
+    while (!work.empty()) {
+      auto const [x, y]{work.back()};
+      work.pop_back();
+      if (x->m_data.index() != y->m_data.index()) {
+        return false;
+      }
+      if (auto const* xa{std::get_if<array_type>(&x->m_data)}) {
+        auto const& ya{std::get<array_type>(y->m_data)};
+        if (xa->size() != ya.size()) {
+          return false;
+        }
+        for (std::size_t i{0}; i < xa->size(); ++i) {
+          work.emplace_back(&(*xa)[i], &ya[i]);
+        }
+      } else if (auto const* xo{std::get_if<object_type>(&x->m_data)}) {
+        auto const& yo{std::get<object_type>(y->m_data)};
+        if (xo->size() != yo.size()) {
+          return false;
+        }
+        // Both objects are key-sorted flat_maps, so compare them in lockstep.
+        auto xi{xo->begin()};
+        auto yi{yo.begin()};
+        for (; xi != xo->end(); ++xi, ++yi) {
+          if (xi->first != yi->first) {
+            return false;
+          }
+          work.emplace_back(&xi->second, &yi->second);
+        }
+      } else if (x->m_data != y->m_data) {
+        // Scalar alternative: equal indices mean equal types, and the variant
+        // comparison touches only the active scalar, so it does not recurse.
+        return false;
+      }
+    }
+    return true;
   }
 };
 
