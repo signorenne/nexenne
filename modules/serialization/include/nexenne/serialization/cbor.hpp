@@ -39,6 +39,7 @@
 #include <cstdint>
 #include <cstring>
 #include <expected>
+#include <limits>
 #include <span>
 #include <string_view>
 
@@ -142,6 +143,30 @@ inline auto half_to_double(std::uint16_t const h) noexcept -> double {
     f |= ((exp + 127 - 15) << 23) | (mant << 13);
   }
   return static_cast<double>(std::bit_cast<float>(f));
+}
+
+/**
+ * @brief Narrow a CBOR 64-bit length argument to a platform size type.
+ *
+ * A CBOR length prefix is up to 64 bits wide. On a 32-bit target the platform
+ * \c size_type cannot hold a value above 4 GiB, so a blind \c static_cast would
+ * truncate it and pass a wrong-length view through the bounds check. This guard
+ * rejects any length the size type cannot represent. It is templated on the size
+ * type so the 32-bit narrowing path is unit-testable on a 64-bit host.
+ *
+ * @tparam SizeT Target size type (the reader passes its \c size_type).
+ * @param len The decoded 64-bit length argument.
+ *
+ * @return The length as \c SizeT, or \c error::string_too_long when it exceeds
+ *         the range of \c SizeT.
+ */
+template <std::unsigned_integral SizeT>
+[[nodiscard]] constexpr auto length_to_size(std::uint64_t const len
+) noexcept -> std::expected<SizeT, error> {
+  if (len > static_cast<std::uint64_t>(std::numeric_limits<SizeT>::max())) {
+    return std::unexpected{error::string_too_long};
+  }
+  return static_cast<SizeT>(len);
 }
 
 }  // namespace detail
@@ -767,12 +792,13 @@ public:
     auto const n{read_argument(b & 0x1F)};
     if (!n)
       return std::unexpected{n.error()};
-    if (!has(static_cast<size_type>(*n)))
+    auto const len{detail::length_to_size<size_type>(*n)};
+    if (!len)
+      return std::unexpected{len.error()};
+    if (!has(*len))
       return std::unexpected{error::buffer_underrun};
-    auto const sv{std::string_view{
-      reinterpret_cast<char const*>(m_buf.data() + m_pos), static_cast<size_type>(*n)
-    }};
-    m_pos += static_cast<size_type>(*n);
+    auto const sv{std::string_view{reinterpret_cast<char const*>(m_buf.data() + m_pos), *len}};
+    m_pos += *len;
     return sv;
   }
 
@@ -804,10 +830,13 @@ public:
     auto const n{read_argument(b & 0x1F)};
     if (!n)
       return std::unexpected{n.error()};
-    if (!has(static_cast<size_type>(*n)))
+    auto const len{detail::length_to_size<size_type>(*n)};
+    if (!len)
+      return std::unexpected{len.error()};
+    if (!has(*len))
       return std::unexpected{error::buffer_underrun};
-    auto const out{std::span{m_buf.data() + m_pos, static_cast<size_type>(*n)}};
-    m_pos += static_cast<size_type>(*n);
+    auto const out{std::span{m_buf.data() + m_pos, *len}};
+    m_pos += *len;
     return out;
   }
 

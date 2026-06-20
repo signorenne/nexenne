@@ -808,4 +808,24 @@ TEST_CASE("nexenne::serialization::cbor decodes a nested map-of-arrays document"
   CHECK(r.at_end());
 }
 
+TEST_CASE("nexenne::serialization::cbor length prefixes past the size type are rejected") {
+  // The helper is templated on the size type so the 32-bit narrowing path is
+  // testable on a 64-bit host: a length above 4 GiB cannot be represented by a
+  // 32-bit size_type and must not silently truncate.
+  CHECK(*cbor::detail::length_to_size<std::uint32_t>(5) == 5u);
+  CHECK(*cbor::detail::length_to_size<std::uint32_t>(0xFFFFFFFFull) == 0xFFFFFFFFu);
+  CHECK(
+    cbor::detail::length_to_size<std::uint32_t>(0x100000005ull).error() == error::string_too_long
+  );  // 4 GiB + 5 truncates to 5 on a 32-bit target without the guard
+  CHECK(*cbor::detail::length_to_size<std::uint64_t>(0x100000005ull) == 0x100000005ull);
+
+  // End-to-end: a byte string declaring an enormous 8-byte length over a short
+  // buffer is a clean error, never a wrong-length span.
+  auto const buf{
+    bytes_of(0x5B, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x05, 'h', 'e', 'l', 'l', 'o')
+  };
+  auto r{cbor::reader{buf}};
+  CHECK(!r.read_bytes().has_value());
+}
+
 }  // namespace
