@@ -27,6 +27,7 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <memory>
 #include <utility>
@@ -85,12 +86,16 @@ private:
   // pointer, an interior/misaligned pointer, or one already released. Byte
   // arithmetic avoids forming an out-of-bounds slot* for a stray pointer.
   [[nodiscard]] auto acquired_index(T const* const ptr) const noexcept -> size_type {
-    auto const* const base{reinterpret_cast<std::byte const*>(m_slots.data())};
-    auto const* const p{reinterpret_cast<std::byte const*>(ptr)};
+    // Compare and offset as integer addresses. Relational comparison and
+    // subtraction of pointers into different objects (a foreign \p ptr versus the
+    // pool storage) are not well-defined, but the same operations on their
+    // \c uintptr_t addresses are.
+    auto const base{reinterpret_cast<std::uintptr_t>(m_slots.data())};
+    auto const p{reinterpret_cast<std::uintptr_t>(ptr)};
     if (p < base || p >= base + N * sizeof(slot)) {
       return N;  // outside this pool's storage
     }
-    auto const offset{static_cast<size_type>(p - base)};
+    auto const offset{p - base};
     if (offset % sizeof(slot) != 0) {
       return N;  // interior or misaligned pointer, not a slot base
     }
