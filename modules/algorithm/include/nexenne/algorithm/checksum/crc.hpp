@@ -107,6 +107,11 @@ make_crc_table() noexcept -> std::array<typename decltype(Spec)::value_type, 256
       table[i] = static_cast<value_type>(reg & mask);
     }
   } else {
+    // The non-reflected (MSB-first) path shifts bytes to the top of the register
+    // and so needs width >= 8; sub-byte CRCs are only meaningful reflected (the
+    // ref_in branch above is width-safe). Reject the unsupported combination with
+    // a clear message instead of underflowing width - 8.
+    static_assert(width >= 8, "non-reflected CRC requires a width of at least 8 bits");
     // Non-reflected (MSB-first) table: shift left with the polynomial, each
     // byte placed at the top of the register.
     constexpr auto top_bit{static_cast<value_type>(value_type{1} << (width - 1))};
