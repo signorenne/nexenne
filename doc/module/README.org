@@ -60,6 +60,23 @@ Follow a module to its own index, which lists, per class it provides, a guide
   components while iterating), =add= / =remove= / =get= / =has= / =patch=,
   multi-component =view= queries with an exclude list, and per-component
   =on_construct= / =on_update= / =on_destroy= lifecycle signals.
+- [[file:algorithm/README.org][algorithm]] (needs =container=) : a toolbox of classic algorithms under one
+  =std::expected= error policy: binary search, hashing (=fnv=, =murmur=,
+  =xxhash=), checksums (a generic =crc= and the =modular_sum= / Fletcher
+  family), encoding (=hex=, =base32=, =base64=, =url=, =cobs=), non-comparison
+  sorts (=counting_sort=, =radix_sort=), string search and distance (=kmp=,
+  =boyer_moore=, =z_function=, =levenshtein=, =aho_corasick=, =suffix_array=),
+  numerical routines (=kahan_sum=, =online_stats=, =bisection=, =integration=,
+  =interpolation=, =ode=, =fft=), and graph algorithms over =container::graph=
+  (traversal, =topological_sort=, =tarjan_scc=, =kruskal_mst=, =dijkstra=,
+  =bellman_ford=, =floyd_warshall=, =a_star=, =lca=).
+- [[file:logging/README.org][logging]] (needs =container=) : a header-only leveled logging framework in the
+  spdlog/quill style: a =level= enum, a =record= event, a virtual =sink=
+  interface (=console=, =file=, =ring=, =multi=, =json=, =rotating_file=,
+  =async=), a compile-time =config= policy selecting a sync or thread-backed
+  async =manager=, a =logger= with =consteval= format strings that capture the
+  source location, and the =LOG_*= macros gated at compile time. Plus a
+  heap-free =stream_logger= for the MCU path with no alloc, thread, or queue.
 - [[file:math/README.org][math]] (needs =utility=, =random=) : the numeric toolbox: fixed-size
   =vector<T, N>= and =matrix<T, N>=, unit quaternions and Euler angles for
   rotations, scalar utilities and constants, three-speed trigonometry, strong
@@ -78,6 +95,8 @@ A module may only use the modules below it; the build refuses a cycle.
   benchmark      micro-benchmark runner
   serialization  JSON / CBOR / MessagePack / binary / COBS codecs
   signal         signal/slot multicast callbacks
+  algorithm      search, hashing, sorting, string, numerical, graph algorithms
+  logging        leveled logging with sinks, async manager, and macros
      |
      v
   container      vectors, maps, sets, queues, trees, graphs
