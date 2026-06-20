@@ -720,8 +720,8 @@ TEST_CASE("nexenne::signal::signal reentrancy: a slot may destroy the signal mid
   CHECK(sig == nullptr);
 }
 
-TEST_CASE("nexenne::signal::signal reentrancy: slot destroys signal, later slots skipped, "
-          "connection sees null owner") {
+TEST_CASE("nexenne::signal::signal reentrancy: slot destroys signal, later slots still fire on "
+          "the pinned core, connection sees null owner") {
   auto sig{std::make_unique<signal<void()>>()};
   auto first_fired{0};
   auto second_fired{0};
@@ -736,13 +736,13 @@ TEST_CASE("nexenne::signal::signal reentrancy: slot destroys signal, later slots
   raw->emit();
   CHECK(first_fired == 1);
   // The second slot still runs from the pinned core: it was alive at entry and
-  // the loop continues on the pinned state. What matters is no UAF/crash.
+  // the in-flight emit completes on the immutable snapshot (a stronger guarantee
+  // than Boost.Signals2, where destroying mid-emit is undefined).
+  CHECK(second_fired == 1);
   CHECK(sig == nullptr);
   // Outstanding connections now see a null owner: disconnect is a no-op.
   CHECK_FALSE(c1.disconnect());
   CHECK_FALSE(c2.disconnect());
-
-  (void)second_fired;
 }
 
 // lifetime tracking via slot
