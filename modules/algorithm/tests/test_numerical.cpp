@@ -440,4 +440,19 @@ TEST_CASE("nexenne::algorithm compensated sums on tiny and signed inputs") {
   CHECK(close(alg::kahan_sum(std::array<double, 2>{1e-300, -1e-300}), 0.0));
 }
 
+TEST_CASE("nexenne::algorithm interpolators truncate to the common knot count") {
+  // ys shorter than xs: the interpolator must not read m_y out of bounds; it
+  // truncates both spans to their common length.
+  auto const xs{std::array<double, 4>{0.0, 1.0, 2.0, 3.0}};
+  auto const ys{std::array<double, 2>{10.0, 20.0}};
+
+  auto const li{alg::linear_interpolator<double>{xs, ys}};
+  CHECK(li.size() == 2);
+  CHECK(close(li(0.5), 15.0));  // between the two retained knots
+  CHECK(close(li(5.0), 20.0));  // past the range clamps to the last knot, no OOB
+
+  auto const cs{alg::cubic_spline<double>{xs, ys}};
+  CHECK(cs.size() == 2);  // also truncated to the common length
+}
+
 }  // namespace

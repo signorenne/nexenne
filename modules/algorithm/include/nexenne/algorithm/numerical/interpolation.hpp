@@ -186,7 +186,8 @@ public:
    * @post \c size() equals \c xs.size() and the interpolator is ready.
    */
   linear_interpolator(std::span<T const> const xs, std::span<T const> const ys)
-      : m_x{xs.begin(), xs.end()}, m_y{ys.begin(), ys.end()} {}
+      : m_x{xs.begin(), xs.begin() + static_cast<std::ptrdiff_t>(std::min(xs.size(), ys.size()))}
+      , m_y{ys.begin(), ys.begin() + static_cast<std::ptrdiff_t>(std::min(xs.size(), ys.size()))} {}
 
   /**
    * @brief Number of knots in the table.
@@ -274,7 +275,9 @@ public:
    * @complexity \c O(N) in the knot count.
    */
   cubic_spline(std::span<T const> const xs, std::span<T const> const ys)
-      : m_x{xs.begin(), xs.end()}, m_y{ys.begin(), ys.end()}, m_m(xs.size(), T{0}) {
+      : m_x{xs.begin(), xs.begin() + static_cast<std::ptrdiff_t>(std::min(xs.size(), ys.size()))}
+      , m_y{ys.begin(), ys.begin() + static_cast<std::ptrdiff_t>(std::min(xs.size(), ys.size()))}
+      , m_m(std::min(xs.size(), ys.size()), T{0}) {
     auto const n{m_x.size()};
     if (n < 3) {
       return;  // degenerate; falls back to linear behaviour
