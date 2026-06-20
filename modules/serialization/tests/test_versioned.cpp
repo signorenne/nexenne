@@ -43,6 +43,24 @@ struct sample_codec {
   }
 };
 
+// The concept must accept a real codec and reject decode signatures that return
+// the wrong shape (not a std::expected, or an expected with a foreign error).
+struct bad_codec_plain {
+  auto decode(binary::reader&, std::uint16_t) const noexcept -> int {
+    return 0;
+  }
+};
+
+struct bad_codec_wrong_error {
+  auto decode(binary::reader&, std::uint16_t) const noexcept -> std::expected<int, bool> {
+    return 0;
+  }
+};
+
+static_assert(versioned_decoder<sample_codec>);
+static_assert(!versioned_decoder<bad_codec_plain>);
+static_assert(!versioned_decoder<bad_codec_wrong_error>);
+
 TEST_CASE("nexenne::serialization::versioned - envelope round trip carries magic, version, payload"
 ) {
   constexpr std::uint32_t magic{0x4E455845};

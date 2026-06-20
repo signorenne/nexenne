@@ -58,18 +58,29 @@
 
 namespace nexenne::serialization {
 
+// True when T is a std::expected whose error type is serialization::error,
+// i.e. the shape every codec's decode must return.
+template <typename T>
+concept expected_with_error = requires {
+  typename T::value_type;
+  typename T::error_type;
+} && std::same_as<typename T::error_type, error>;
+
 /**
  * @brief Requirements for a codec usable with \c decode_with.
  *
- * A codec must expose a \c const \c decode(reader&, version) member whose
- * return type is its own \c std::expected payload. The concept only checks
- * that the call is well-formed; the codec owns the version-dispatch logic.
+ * A codec must expose a \c const \c decode(reader&, version) member that returns
+ * a \c std::expected<T, error> for some payload \c T; the codec owns the
+ * version-dispatch logic. The concept checks both that the call is well-formed
+ * and that its result is an \c expected with \c error as the error type, so a
+ * codec whose \c decode returns the wrong shape is rejected at the call site
+ * rather than failing deeper.
  *
  * @tparam Codec  Candidate codec type.
  */
 template <typename Codec>
 concept versioned_decoder = requires(Codec const& c, binary::reader& r, std::uint16_t v) {
-  { c.decode(r, v) } -> std::same_as<decltype(c.decode(r, v))>;
+  { c.decode(r, v) } -> expected_with_error;
 };
 
 namespace detail {
