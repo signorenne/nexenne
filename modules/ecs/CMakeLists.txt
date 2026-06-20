@@ -21,6 +21,7 @@ nexenne_add_module(ecs
         HEADERS
         include/nexenne/ecs/ecs.hpp
         include/nexenne/ecs/type_id.hpp
+        include/nexenne/ecs/component_pool.hpp
         include/nexenne/ecs/registry.hpp
         include/nexenne/ecs/view.hpp
 )
