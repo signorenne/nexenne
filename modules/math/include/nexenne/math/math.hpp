@@ -12,3 +12,5 @@
 #include <nexenne/math/concepts.hpp>
 #include <nexenne/math/constants.hpp>
 #include <nexenne/math/error.hpp>
+#include <nexenne/math/power.hpp>
+#include <nexenne/math/scalar.hpp>

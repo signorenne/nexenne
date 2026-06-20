@@ -1,6 +1,8 @@
 # One executable per example, named nexenne_example_math_<name>.
 set(_math_examples
     constants
+    scalar
+    power
 )
 
 foreach(_example IN LISTS _math_examples)
