@@ -74,6 +74,13 @@ private:
     constexpr ~slot() noexcept {}
   };
 
+  // The runtime data()/iterator accessors expose a contiguous T* over m_slots by
+  // reinterpreting the slot array. That is only sound if a slot has exactly T's
+  // size and alignment (so the T* stride matches the slot stride); the union of
+  // T with a single byte guarantees this, and asserting it here turns the layout
+  // assumption into a compile-time invariant instead of a silent dependency.
+  static_assert(sizeof(slot) == sizeof(T) && alignof(slot) == alignof(T));
+
   std::array<slot, N> m_slots{};
   size_type m_size{};
 
@@ -477,6 +484,11 @@ public:
 
   /**
    * @brief Raw pointer to the contiguous storage (run time only).
+   *
+   * Reinterprets the slot array as a \c T array. This is not a constant
+   * expression (hence not \c constexpr) and relies on the slot having T's exact
+   * size and alignment, which the \c static_assert above guarantees so the
+   * pointer stride matches.
    *
    * @return Pointer to the first element slot of the inline buffer.
    *
