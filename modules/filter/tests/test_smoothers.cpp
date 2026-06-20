@@ -153,7 +153,7 @@ TEST_CASE("nexenne::filter::sma window-fill transient then steady state") {
   CHECK(f.push(1.0) == doctest::Approx(1.0));  // 1/1
   CHECK(f.push(2.0) == doctest::Approx(1.5));  // (1+2)/2
   CHECK(f.push(3.0) == doctest::Approx(2.0));  // (1+2+3)/3
-  CHECK(f.push(4.0) == doctest::Approx(2.5));  // (1+2+3+4)/4 — now full
+  CHECK(f.push(4.0) == doctest::Approx(2.5));  // (1+2+3+4)/4, now full
   CHECK(f.filled());
   CHECK(f.count() == 4);
   CHECK(f.push(5.0) == doctest::Approx(3.5));  // (2+3+4+5)/4

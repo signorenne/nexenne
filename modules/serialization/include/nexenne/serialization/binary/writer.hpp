@@ -17,7 +17,7 @@
  * String lengths are encoded as unsigned LEB128 varints, so short
  * strings cost a single byte of overhead. Signed integers may be
  * encoded with \c write_zigzag for variable-length encoding of
- * small negative values (1 byte for ±63, 2 bytes for ±8191, etc.)
+ * small negative values (1 byte for +/-63, 2 bytes for +/-8191, etc.)
  *
  * All write operations return \c std::expected<void, error>:
  *
