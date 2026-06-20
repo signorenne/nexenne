@@ -27,6 +27,18 @@ the dimension is known to the compiler, not the profiler.
 - [[file:power.org][power]] : =sqrt=, =inv_sqrt=, and =pow_int= with a =constexpr= path, plus the
   bit-trick approximations =fast_inv_sqrt=, =fast_exp=, and =fast_log= that trade
   a few digits for speed in the hot loop.
+- [[file:trigonometry.org][trigonometry]] : sine, cosine, tangent and inverses at three speeds (libm
+  =sincos=, =constexpr= polynomial =fast_*=, runtime =lut_*=), plus the
+  short-way-around =angle_diff= and =lerp_angle=.
+
+* Strong types for quantities
+
+- [[file:angle.org][angle]] : =radians= and =degrees= as distinct strong types, so a unit mismatch
+  is a compile error; carries the full algebra, typed conversions, and the
+  =wrap_signed= / =wrap_unsigned= reductions.
+- [[file:fixed.org][fixed]] : =fixed<Storage, FractionBits>= Q-format fixed-point for FPU-less or
+  bit-exact-deterministic targets, with a doubly-wide intermediate for multiply
+  and divide, and =q8_8= / =q16_16= / =q32_32= aliases.
 
 * Headers without an article
 

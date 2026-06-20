@@ -16,11 +16,14 @@ endif()
 
 nexenne_add_module(math
     HEADERS
+        include/nexenne/math/angle.hpp
         include/nexenne/math/concepts.hpp
         include/nexenne/math/constants.hpp
         include/nexenne/math/error.hpp
+        include/nexenne/math/fixed.hpp
         include/nexenne/math/power.hpp
         include/nexenne/math/scalar.hpp
+        include/nexenne/math/trigonometry.hpp
         include/nexenne/math/math.hpp
 )
 
