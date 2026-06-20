@@ -1456,4 +1456,26 @@ TEST_CASE("recycle never mints a generation-0 (invalid) handle") {
   CHECK_FALSE(r.valid(entity_id{}));
 }
 
+TEST_CASE(
+  "registry.destroy detaches a component an on_destroy listener attaches to the dying entity"
+) {
+  auto r{registry{}};
+  // The dying entity is still valid while on_destroy fires, so a listener can
+  // attach a brand-new component type to it. Its storage does not exist until
+  // this fires (so it is appended past the storages the destroy loop captured).
+  // destroy must still leave the freed index component-free.
+  auto conn{r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
+    static_cast<void>(r.add<position>(e, position{.x = 9.0F, .y = 9.0F, .z = 9.0F}));
+  })};
+  auto const a{r.create()};
+  static_cast<void>(r.add<health>(a, health{.hp = 100}));
+  auto const a_index{a.index()};
+
+  CHECK(r.destroy(a));
+
+  auto const b{r.create()};
+  REQUIRE(b.index() == a_index);    // recycled the freed index
+  CHECK_FALSE(r.has<position>(b));  // the mid-destroy attachment was swept off
+}
+
 }  // namespace
