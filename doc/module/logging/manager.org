@@ -1,0 +1,61 @@
+#+TITLE: logging manager backend
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+The manager is the backend that drains records onto the registered sinks. Two
+implementations share one public API, so user code stays config-agnostic:
+
+- =basic_async_manager<Config>= : owns a lock-free =container::mpmc_queue= and a
+  backend thread. Producers =push= and return immediately; the backend thread
+  dispatches to every sink. A full queue drops the record and bumps
+  =dropped_count=.
+- =basic_sync_manager<Config>= : no thread, no queue. Every =push= dispatches on
+  the calling thread. Right for init-time logging, a single-core MCU, and
+  deterministic-ordering tests.
+
+=basic_manager<Config>= resolves to the right one from =Config::async= (via a
+selector that only forms the matching specialisation's template-id, so the
+unused branch's constraints are never checked). =manager= is the alias for
+=default_config=.
+
+* Lifecycle
+
+Each =Config= has one process-wide singleton reached through =instance()=. The
+async backend thread starts on first use and stops at process exit (=shutdown=
+is idempotent and runs from the destructor). =flush()= blocks until every
+already-queued record has been dispatched and every sink flushed; a
+=m_dispatching= flag closes the pop-but-not-yet-written window so =flush= never
+returns early.
+
+#+BEGIN_SRC cpp
+auto& mgr = nexenne::logging::manager::instance();
+mgr.add_sink(std::make_shared<nexenne::logging::console_sink>());
+// ... logging happens ...
+mgr.flush();
+#+END_SRC
+
+=add_sink= is the one non-=noexcept= entry point: growing the sink list may
+allocate, and =std::bad_alloc= propagates. =push= on the hot path is
+allocation-free and =noexcept=.
+
+* Performance and threading
+
+- *Producer path is lock-free.* =push= enqueues into =container::mpmc_queue= (our
+  bounded lock-free multi-producer/multi-consumer queue), so any number of
+  threads log concurrently with no mutex; a full queue drops and bumps
+  =dropped_count=.
+- *Backend wakeup is poll-free.* The backend blocks on a C++20 atomic
+  wait/notify token rather than a timed condition-variable poll, so an idle
+  backend never wakes (the CPU can reach deep sleep) and a pushed record is
+  dispatched immediately with no lost-wakeup window. =notify= is skipped by the
+  runtime when the backend is busy draining, so a push under load costs only the
+  atomic bump.
+- *One allocation per log call.* The message is formatted into an owned
+  =std::string= (the one unavoidable heap op for format-on-producer); the logger
+  name is interned once and thereafter borrowed by every record as a
+  =string_view=, so it costs nothing per call.
+- *No RTTI.* The module uses no =dynamic_cast= / =typeid= and builds under
+  =-fno-rtti= and =-fno-exceptions=. The sink dispatch uses virtual functions
+  (which do not require RTTI).

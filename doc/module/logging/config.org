@@ -1,0 +1,25 @@
+#+TITLE: logging config
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=config<QueueSize, Async>= is the compile-time policy the manager and logger are
+parameterised on. It carries two knobs:
+
+- =queue_size= : capacity of the async backend queue (a power of two in async
+  mode, ignored in sync mode).
+- =async= : =true= runs a backend thread plus a lock-free queue; =false=
+  dispatches each record synchronously on the calling thread (no thread, no
+  queue) which is the right choice for a single-core MCU.
+
+The library ships *no* named presets: pick the two values for your target.
+=default_config= reads them from the build macros =NEXENNE_LOG_QUEUE_SIZE=
+(default 8192) and =NEXENNE_LOG_ASYNC= (default =true=), so a project can switch
+defaults from the build system. =config_like= is the concept the manager/logger
+constrain their config parameter with.
+
+#+BEGIN_SRC cpp
+using my_cfg = nexenne::logging::config<256, false>;  // small sync queue
+using lgr = nexenne::logging::basic_logger<my_cfg>;
+#+END_SRC

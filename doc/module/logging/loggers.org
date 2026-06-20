@@ -1,0 +1,44 @@
+#+TITLE: logging loggers and macros
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* basic_logger
+
+=basic_logger<Config>= is the named front end. Each level call
+(=trace/debug/info/warn/error/critical=, or =log(level, ...)=) formats its
+arguments with =std::format= on the calling thread and submits a =record= to
+=basic_manager<Config>::instance()=. A logger and its manager must share the
+same =Config=. =logger= is the alias for =default_config=; =default_logger<Config>()=
+returns the process-wide "main" logger.
+
+Two filters apply: the runtime per-logger =min_level= (a below-threshold call
+costs one relaxed atomic load and returns), and the compile-time gate in the
+=LOG_*= macros. The only hot-path allocation is the formatted message; the
+logger name is interned once and borrowed by every record. The level calls are not =noexcept=: formatting allocates, and
+=std::bad_alloc= propagates per the module error policy.
+
+* format_string and source location
+
+The level methods take a =format_string<Args...>= rather than a raw
+=std::format_string=. It pairs the validated (=consteval=-checked) format spec
+with a =std::source_location= captured by default at the call site, so callers
+never pass file or line by hand.
+
+#+BEGIN_SRC cpp
+nexenne::logging::logger log{"net"};
+log.info("connected to {}:{}", host, port);  // file/line captured automatically
+#+END_SRC
+
+* LOG_* macros
+
+The macros add a compile-time level gate: a call below =NEXENNE_LOG_MIN_LEVEL=
+expands to nothing (zero code), so disabled verbosity has no runtime cost at
+all. Two flavours:
+
+- =LOG_INFO(fmt, ...)= targets the default logger.
+- =LOG_INFO_TO(lgr, fmt, ...)= targets a supplied logger.
+
+#+BEGIN_SRC cpp
+LOG_DEBUG("retry {} of {}", attempt, max);   // compiled out below NEXENNE_LOG_MIN_LEVEL
+LOG_ERROR_TO(net_log, "giving up: {}", err);
+#+END_SRC

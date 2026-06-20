@@ -1,0 +1,48 @@
+#+TITLE: logging sinks
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* The sink interface
+
+A =sink= is where a formatted line ends up. Derive from it and implement
+=write_impl= and =flush_impl=; reuse =default_format= for the standard line
+shape =[time] [logger] [LEVEL] file:line -- msg=. The base owns a per-sink
+=min_level= filter (an atomic, so it is reconfigurable at runtime) applied by
+=write=, which drops anything below the threshold before calling =write_impl=.
+
+=write_impl= is =noexcept= on purpose: the backend thread has nowhere to
+propagate an exception, so a formatting OOM terminates rather than unwinding the
+backend. Record *creation* on the producer side does propagate =bad_alloc=.
+
+* Bundled sinks
+
+- =console_sink= : writes to stdout/stderr, with a routing policy
+  (=stdout_only=, =stderr_only=, =auto_split= sending warnings and up to stderr).
+- =file_sink= : appends to a file via =std::fopen= / =std::fwrite= (not
+  =<fstream>=, to stay light and embedded-portable). Move-only; check =is_open=.
+- =ring_sink<N>= : keeps the last =N= formatted lines in a
+  =container::ring_buffer=, mutex-guarded so =snapshot= / =size= are callable
+  from any thread. Ideal for crash dumps of recent activity.
+
+* Composing and decorating sinks
+
+- =multi_sink= : fans one record out to several child sinks (each still applies
+  its own level filter). Build a console + file + ring fan-out in one sink.
+- =json_sink= : emits each record as one NDJSON (JSON-Lines) object, with
+  hand-rolled string escaping (no =serialization= dependency); to a file or an
+  external =FILE*=.
+- =rotating_file_sink= : a =file_sink= that rotates to a fresh file once a byte
+  limit is crossed, keeping a bounded number of numbered backups.
+- =async_sink= : a decorator that hands records to a background thread over a
+  bounded queue, with an overflow policy (=drop_newest= / =drop_oldest= /
+  =block=) and a graceful destructor drain. Keeps a mutex + condition variable
+  rather than the lock-free =mpmc_queue= because it needs a runtime-sized bound,
+  a blocking-when-full policy, and atomic drop-oldest.
+
+* ESP-IDF sink
+
+=esp_log_sink= forwards each record's message to ESP-IDF's =esp_log_write= at the
+mapped level, with the logger name as the IDF tag, so nexenne logs interleave
+with component logs and obey the per-tag level controls. It requires ESP-IDF and
+is excluded from the umbrella header and the host build; include
+=nexenne/logging/esp_log_sink.hpp= explicitly on an ESP-IDF target.
