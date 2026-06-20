@@ -247,8 +247,8 @@ TEST_CASE("nexenne::serialization::json value - at_path malformed array indices"
   CHECK_FALSE(root->at_path("/01").has_value());                    // leading zero
   CHECK_FALSE(root->at_path("/18446744073709551618").has_value());  // overflows size_t
   CHECK_FALSE(root->at_path("/99").has_value());                    // out of range
-  // "/" strips its single leading slash, leaving an empty path -> resolves to root.
-  CHECK(root->at_path("/")->get().is_array());
+  // "/" is the single reference token "" (RFC 6901); an array has no "" index.
+  CHECK(root->at_path("/").error() == error::path_not_found);
 }
 
 TEST_CASE("nexenne::serialization::json parse - primitives") {
@@ -1214,6 +1214,37 @@ TEST_CASE("nexenne::serialization::json writer + scan round trip") {
   CHECK(*dom->at_path("/id")->get().as_int() == 42);
   CHECK(*dom->at_path("/temp")->get().as_float() == 23.5);
   CHECK(*dom->at_path("/on")->get().as_bool() == true);
+}
+
+TEST_CASE("nexenne::serialization::json at_path resolves empty JSON-Pointer tokens") {
+  // RFC 6901: "" is the whole document, "/" is the single token "" (the value at
+  // the empty-string key), and "/a/" descends into a's "" child.
+  auto const dom{json::parse(R"({"": 1, "a": {"": 2}, "x": 9})")};
+  REQUIRE(dom.has_value());
+
+  CHECK(dom->at_path("")->get().is_object());  // whole document
+
+  auto const root_empty{dom->at_path("/")};  // token "" -> value at key ""
+  REQUIRE(root_empty.has_value());
+  REQUIRE(root_empty->get().is_integer());  // not the whole document
+  CHECK(*root_empty->get().as_int() == 1);
+
+  auto const a_empty{dom->at_path("/a/")};  // "a" then ""
+  REQUIRE(a_empty.has_value());
+  REQUIRE(a_empty->get().is_integer());  // not the object at "a"
+  CHECK(*a_empty->get().as_int() == 2);
+
+  CHECK(dom->at_path("/a")->get().is_object());
+  CHECK(*dom->at_path("/x")->get().as_int() == 9);
+
+  // "//" is two empty tokens, not one.
+  auto const nested{json::parse(R"({"": {"": 5}})")};
+  REQUIRE(nested.has_value());
+  auto const both{nested->at_path("//")};
+  REQUIRE(both.has_value());
+  REQUIRE(both->get().is_integer());
+  CHECK(*both->get().as_int() == 5);
+  CHECK(nested->at_path("/")->get().is_object());  // one token -> the inner object
 }
 
 }  // namespace

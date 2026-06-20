@@ -783,10 +783,13 @@ public:
     }
     path.remove_prefix(1);
 
-    while (!path.empty()) {
+    // path begins with '/', already stripped, so there is always at least one
+    // reference token (possibly empty). Drive the loop per separator: a trailing
+    // empty token must not be dropped (RFC 6901: "/" is the single token "", and
+    // "/a/" descends into a's "" child).
+    for (;;) {
       auto const slash{path.find('/')};
       auto const token{path.substr(0, slash)};
-      path = (slash == std::string_view::npos) ? std::string_view{} : path.substr(slash + 1);
 
       auto decoded{std::string{}};
       decoded.reserve(token.size());
@@ -844,6 +847,11 @@ public:
       } else {
         return std::unexpected{error::path_not_found};
       }
+
+      if (slash == std::string_view::npos) {
+        break;
+      }
+      path.remove_prefix(slash + 1);
     }
     return std::cref(*cur);
   }
