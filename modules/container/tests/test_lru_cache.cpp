@@ -21,10 +21,10 @@ using cache_t = cn::lru_cache<int, int, N>;
 // A zero capacity is meaningless (a cache that can hold nothing) and is rejected
 // at compile time by the requires (Capacity >= 1) constraint.
 template <std::size_t N>
-concept lru_capacity_ok = requires { typename cn::lru_cache<int, int, N>; };
-static_assert(lru_capacity_ok<1>);
-static_assert(lru_capacity_ok<256>);
-static_assert(!lru_capacity_ok<0>);
+concept lru_cache_instantiable = requires { typename cn::lru_cache<int, int, N>; };
+static_assert(lru_cache_instantiable<1>);
+static_assert(lru_cache_instantiable<256>);
+static_assert(!lru_cache_instantiable<0>);
 
 TEST_CASE("nexenne::container::lru_cache put then get returns the value, promotes to MRU") {
   cache_t<2> c{};

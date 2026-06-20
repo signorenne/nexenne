@@ -69,9 +69,9 @@ static_assert(std::is_trivially_copyable_v<chip_id>);
 static_assert(!std::is_trivially_copyable_v<name>);  // std::string is not
 
 // Opt-in safety: distinct tags are unrelated types and never mix.
-static_assert(!util::same_tag<meters, chip_id>);
-static_assert(util::same_tag<chip_id, chip_id>);
-static_assert(util::same_tag<id16, id32>);
+static_assert(!util::same_tag_as<meters, chip_id>);
+static_assert(util::same_tag_as<chip_id, chip_id>);
+static_assert(util::same_tag_as<id16, id32>);
 static_assert(util::strong_typedef_like<meters>);
 static_assert(util::strong_typedef_like<meters const&>);  // cv/ref variants
 static_assert(!util::strong_typedef_like<double>);
@@ -88,7 +88,7 @@ static_assert(!std::is_convertible_v<beta, alpha>);
 static_assert(!std::is_convertible_v<alpha, int>);  // operator T is explicit
 static_assert(!std::is_convertible_v<int, alpha>);  // value ctor is explicit
 static_assert(!std::is_convertible_v<int, opaque>);
-static_assert(!util::same_tag<alpha, beta>);
+static_assert(!util::same_tag_as<alpha, beta>);
 
 // The value constructor is explicit; the underlying-conversion operator too.
 static_assert(std::is_constructible_v<alpha, int>);

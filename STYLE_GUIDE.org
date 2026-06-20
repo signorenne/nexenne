@@ -157,6 +157,23 @@ and git, never in a per-file banner.
 - Constrain every template with a concept, and prefer a concept or =requires=
   over a =static_assert=. Template parameters are PascalCase (=Real=, =Value=,
   =N=). Include rather than forward-declare unless it breaks a cycle.
+- *Name concepts the way the standard library does* (=std::integral=,
+  =std::movable=, =std::same_as=): no =Is=/=Has= prefix, no =_concept= suffix,
+  and the name reads as a predicate on the type. Pick the form by what the
+  constraint asserts:
+  - *category membership* : a plain noun or adjective (=arithmetic=,
+    =scoped_enum=, =rng_engine=), mirroring =std::integral= / =std::range=.
+  - *a capability* : an =-able= adjective (=hashable=, =blockable=), mirroring
+    =std::swappable= / =std::sortable=.
+  - *structural conformance to an archetype* : the archetype name plus a =_like=
+    suffix (=clock_like=, =pointer_like=), mirroring C++23 =tuple-like= /
+    =pair-like=.
+  - *a relation between two or more types* : a relational suffix =_as= / =_to= /
+    =_from= / =_with= / =_for= (=same_tag_as=), mirroring =std::same_as= /
+    =std::convertible_to= / =std::assignable_from=.
+  A role-noun concept may carry its role (=checkpointable_arena=,
+  =transparent_comparator=) the way =std::input_iterator= does. Test-local
+  =requires= probes follow the same rule.
 
 * Error handling
 
