@@ -14,9 +14,11 @@
  * \c radix_sort instead.
  */
 
+#include <algorithm>
 #include <concepts>
 #include <cstddef>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <span>
 #include <vector>
@@ -45,6 +47,14 @@ namespace nexenne::algorithm {
 template <std::unsigned_integral T>
 constexpr auto counting_sort(std::span<T> const range, T const max_value) -> void {
   if (range.size() <= 1) {
+    return;
+  }
+  // A bucket count of max_value + 1 overflows std::size_t only when max_value is
+  // its maximum; such a key range cannot be counting-sorted (the bucket array
+  // would be unrepresentable), so fall back to a comparison sort rather than wrap
+  // to an empty vector and write out of bounds.
+  if (static_cast<std::size_t>(max_value) == std::numeric_limits<std::size_t>::max()) {
+    std::ranges::sort(range);
     return;
   }
   auto const buckets{static_cast<std::size_t>(max_value) + 1};
