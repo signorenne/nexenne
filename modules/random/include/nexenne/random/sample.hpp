@@ -11,7 +11,7 @@
  *   - \c weighted_choice: pick one index proportional to its
  *     weight via linear scan; cheap to set up, O(n) per draw.
  *     For repeated draws from the same weight vector, the alias
- *     method is faster, that's not in here yet (see TODO.md).
+ *     method is faster, but is not implemented here.
  *
  * All callable on any \c rng_engine.
  */
@@ -53,7 +53,7 @@ constexpr auto shuffle(R&& range, G& g) noexcept -> void {
   }
   using std::swap;
   auto const first{std::ranges::begin(range)};
-  for (auto i{n - 1}; i > 0; --i) {
+  for (auto i{n - 1}; i > 0; i -= 1) {
     auto const j{static_cast<std::size_t>(uniform_int<std::size_t>(g, 0, i))};
     swap(*(first + static_cast<std::ptrdiff_t>(i)), *(first + static_cast<std::ptrdiff_t>(j)));
   }

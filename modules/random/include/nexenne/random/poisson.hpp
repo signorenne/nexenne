@@ -46,7 +46,8 @@ public:
    * @pre \p lambda is non-negative and finite.
    * @post \c mean() returns \p lambda.
    */
-  constexpr explicit poisson_distribution(double const lambda = 1.0) noexcept
+  // Not constexpr: std::exp is not usable in a constant expression before C++26.
+  explicit poisson_distribution(double const lambda = 1.0) noexcept
       : m_lambda{lambda}, m_exp_neg_lambda{lambda < 30.0 ? std::exp(-lambda) : 0.0} {}
 
   /**
