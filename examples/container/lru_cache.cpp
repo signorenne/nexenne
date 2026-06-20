@@ -19,7 +19,7 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  cn::lru_cache<std::string, int> textures{2};  // room for two resident textures
+  cn::lru_cache<std::string, int, 2> textures{};  // room for two resident textures
   textures.put("grass.png", 1);
   textures.put("stone.png", 2);
 

@@ -4,8 +4,9 @@
 
 * Purpose
 
-=nexenne::container::lru_cache<Key, Value>= is a fixed-capacity cache that evicts
-the *least recently used* entry when it is full and a new key arrives. Every
+=nexenne::container::lru_cache<Key, Value, Capacity>= is a fixed-capacity cache
+that evicts the *least recently used* entry when it is full and a new key arrives.
+The capacity is fixed at compile time. Every
 =get= and =put= is amortised =O(1)= and also marks the touched entry as most
 recently used, so the cache naturally keeps the hottest entries and drops the
 cold ones. After construction it allocates nothing in steady state, which makes
@@ -67,7 +68,9 @@ cache is full, so it *evicts*: it takes the node at the back of the recency list
 (the LRU entry), unlinks it, removes its key from the index, and reuses that very
 node for the new entry. So eviction and allocation are the same =O(1)= step with
 no heap traffic. This is why a zero capacity is forbidden: a full cache must have
-a non-empty list to evict from, and capacity at least one guarantees it.
+a non-empty list to evict from, and capacity at least one guarantees it. The
+=requires (Capacity >= 1)= constraint enforces this at compile time, so a
+zero-capacity cache simply does not compile.
 
 #+BEGIN_EXAMPLE
 put("d") when full (free list empty), LRU is "c":
@@ -115,8 +118,8 @@ Prefer a sibling or alternative when:
 
 Things to keep in mind:
 
-- *Capacity must be at least one* (asserted in debug); a zero-capacity cache
-  cannot evict and is undefined.
+- *Capacity must be at least one* (enforced by =requires (Capacity >= 1)=); a
+  zero-capacity cache cannot evict and is rejected at compile time.
 - *=get= is a mutation*: it reorders recency, so it is not safe to call
   concurrently with other access. Use =peek= for a read that must not promote.
 - *The cache is non-copyable and non-movable*: it holds pointers into its own
@@ -127,7 +130,7 @@ Things to keep in mind:
 * Usage
 
 #+BEGIN_SRC cpp
-nexenne::container::lru_cache<std::string, texture> cache{256};
+nexenne::container::lru_cache<std::string, texture, 256> cache{};
 
 cache.put(name, load(name));                  // O(1), evicts the LRU if full
 if (auto* t{cache.get(name)}) { draw(*t); }    // O(1) hit, promotes to MRU
