@@ -1,0 +1,69 @@
+#+TITLE: nexenne::math
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+The numeric toolbox of the library: fixed-size vectors and matrices, quaternions
+and Euler angles for rotations, scalar utilities and constants, strong angle and
+fixed-point types, and geometric samplers. It is the layer =geometry=, =physics=,
+and =simulation= build on, but it is written to stand on its own on a
+microcontroller too.
+
+The spirit matches the rest of nexenne: everything is generic over the scalar
+type, =constexpr= wherever the language allows, with no heap and no runtime
+surprises. The types are *fixed-size*, =vector<T, N>= and =matrix<T, N>=, because
+the dimension is known to the compiler, not the profiler.
+
+* Scalar foundation
+
+- [[file:constants.org][constants]] : pi, tau, e, the golden ratio, exact sin/cos at nice angles, and the
+  degree/radian conversion factors, as =inline constexpr= variable templates that
+  follow the caller's precision, plus unsuffixed =double= aliases. Forwards what
+  =std::numbers= already has and adds what it lacks.
+
+* Headers without an article
+
+- =math.hpp= : the umbrella header; includes the whole module.
+- =concepts.hpp= : the internal constraints (=arithmetic=, =signed_arithmetic=)
+  that keep the templates honest.
+- =error.hpp= : the =math_error= enum and the =result<T>= alias
+  (=std::expected<T, math_error>=) returned by the fallible operations.
+
+* Design pillars
+
+** Fixed-size, generic over the scalar
+   =vector<T, N>= and =matrix<T, N>= have a compile-time size and are generic over
+   the scalar type, so the same code serves =float=, =double=, and fixed-point.
+   No allocations, no runtime dimensions.
+
+** constexpr where it counts
+   Much of the algebra is usable in constant evaluation, so transforms known at
+   compile time cost nothing at runtime; this is checked by =static_assert= tests.
+
+** Strong types for quantities
+   An =angle= is not just a =double=, and a =normalized= vector is not just a
+   =vector=: the module uses the type system to rule out the classic mistakes,
+   like adding degrees to radians or forgetting to normalize.
+
+** Rotations without gimbal lock
+   For 3D rotation the reference representation is the unit quaternion; Euler
+   angles stay for human input, with the usual cautions. Interpolation goes
+   through SLERP.
+
+** Never throws
+   Every operation is =noexcept=. Operations with a real runtime failure mode
+   (singular matrix, zero-length vector) return =result<T>=; pure infallible
+   operations return their natural type directly. See [[file:../../../modules/math/include/nexenne/math/error.hpp][=error.hpp=]].
+
+* Dependencies
+
+=math= depends on two library modules:
+
+- [[file:../utility/README.org][utility]] : the base concepts, hashing, and strong types.
+- [[file:../random/README.org][random]] : the engines the geometric samplers draw from.
+
+In turn =math= is the base of =geometry=, =physics=, and =simulation=.
+
+* See also
+
+- [[file:../README.org][module index]]
+- [[file:../../../STYLE_GUIDE.org][STYLE_GUIDE.org]] : the code-style rules used in the examples.

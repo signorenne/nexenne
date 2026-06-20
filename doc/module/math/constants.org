@@ -1,0 +1,103 @@
+#+TITLE: math constants
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Named mathematical constants at the caller's precision and with no runtime cost:
+the pi family, common pi fractions, roots, logarithms, the golden ratio, exact
+sin/cos at the nice angles, the degree/radian conversion factors, and a few
+=numeric_limits= forwards under math-style names. Each exists as a
+=_v<Real>= variable template that follows the type parameter, and as an
+unsuffixed =double= alias for callers that do not care about precision.
+
+* The idea
+
+A magic literal like =deg * 3.14159265 / 180.0= hides three problems: a
+hand-typed digit nobody checks, a forced detour through =double= even when the
+caller works in =float=, and a division re-run on every call when =pi/180= is a
+constant. The modern-C++ answer to all three is the =inline constexpr= variable
+template: =pi_v<Real>= is one declaration from which the compiler instantiates the
+exact value for each precision, computed at compile time, and =inline= makes it
+safe to include everywhere (one entity to the linker, no one-definition-rule
+trouble). The =std::floating_point= constraint rules out =pi_v<int>=, which would
+otherwise truncate to =3= and be found only at runtime.
+
+The header does not replace =std::numbers=: where the standard already has the
+value it *forwards* it (there is nothing to gain from re-typing the digits of
+pi), and it *adds* what the standard lacks.
+
+* How it works
+
+The base constants forward =std::numbers=; the rest are derived at compile time
+from those roots.
+
+#+BEGIN_SRC cpp
+template <std::floating_point Real>
+inline constexpr Real pi_v = std::numbers::pi_v<Real>;          // forwarded
+
+template <std::floating_point Real>
+inline constexpr Real tau_v = Real{2} * std::numbers::pi_v<Real>;       // derived
+
+template <std::floating_point Real>
+inline constexpr Real deg_to_rad_v = std::numbers::pi_v<Real> / Real{180};
+#+END_SRC
+
+- *Pi family and fractions*: =pi_v=, =tau_v= (the period of sin and cos),
+  =pi_squared_v=, =inv_pi_v=, =inv_sqrt_pi_v=, and =half_pi_v= (90 deg),
+  =third_pi_v= (60), =quarter_pi_v= (45), =sixth_pi_v= (30), =two_thirds_pi_v=
+  (120), =three_quarters_pi_v= (135), =five_sixths_pi_v= (150).
+- *Roots*: =sqrt_two_v=, =sqrt_three_v=, =inv_sqrt_two_v=, =inv_sqrt_three_v=.
+  Note =inv_sqrt_two_v= is a genuine gap in the standard, =std::numbers= has
+  =inv_sqrt3_v= but no =inv_sqrt2_v=, so this header computes =1 / sqrt2=.
+- *Exact sin/cos*: at the nice angles (pi/6, pi/4, pi/3) sine and cosine have
+  closed forms (=sin(pi/6) = 1/2=, =cos(pi/6) = sqrt(3)/2=), so =sin_pi_6_v= and
+  friends are derived from the roots instead of calling libm. "Exact" is
+  symbolic: the value is still rounded to the nearest =Real=, like any irrational.
+- *Logarithms and golden ratio*: =e_v=, =ln_two_v=, =ln_ten_v=, =log2_e_v=,
+  =log10_e_v=, =golden_ratio_v= (phi), =inv_golden_ratio_v=, and =golden_angle_v=
+  (=2*pi*(1 - 1/phi)=, about 137.508 deg, the spacing that fills a sunflower
+  spiral, hence the right step for quasi-random radial layouts).
+- *Conversion and limits*: =deg_to_rad_v= (pi/180), =rad_to_deg_v= (180/pi), and
+  =numeric_limits= forwards =epsilon_v=, =infinity_v=, =min_normal_v=,
+  =max_finite_v=. =min_normal_v= is deliberately named: =numeric_limits<T>::min()=
+  is the smallest *normal* value, not the smallest representable, an ambiguity
+  the math-style name removes.
+
+The unsuffixed =double= aliases (=pi=, =tau=, =half_pi=, =e=, =deg_to_rad=, ...)
+exist one per templated constant, for the caller who just wants =nm::pi=.
+
+* When to use them
+
+- Anywhere a magic literal would stand in for a mathematical constant: the name
+  says what it means, the value is correct, and it costs nothing.
+- In templated code that needs the constant *at the caller's precision*:
+  =pi_v<Real>= follows the type instead of forcing =double=.
+- For =deg_to_rad_v= / =rad_to_deg_v=, which back =to_radians= / =to_degrees= in
+  the [[file:angle.org][angle]] type.
+
+Not for an arbitrary-angle sine or cosine, those need the real functions in
+[[file:trigonometry.org][trigonometry]]; the constants cover only the closed-form nice angles.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+constexpr auto tau_d{nm::tau_v<double>};
+static_assert(tau_d == 2.0 * nm::pi_v<double>);
+
+constexpr auto rad{45.0F * nm::deg_to_rad_v<float>};   // pi/4 in single precision
+constexpr auto eps{nm::epsilon_v<float>};
+static_assert(nm::pi == nm::pi_v<double>);             // the double alias
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/constants.cpp][examples/math/constants.cpp]]
+
+* Further reading
+
+- cppreference, "Mathematical constants (since C++20)", the =std::numbers= values
+  this header forwards and completes:
+  https://en.cppreference.com/w/cpp/numeric/constants
+- cppreference, "Variable template (since C++14)", the mechanism behind every
+  =_v= constant: https://en.cppreference.com/w/cpp/language/variable_template
