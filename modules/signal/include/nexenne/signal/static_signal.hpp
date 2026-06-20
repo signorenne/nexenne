@@ -135,6 +135,25 @@ public:
   [[nodiscard]] constexpr auto has_target() const noexcept -> bool {
     return m_signal != nullptr;
   }
+
+  /**
+   * @brief Equality: two handles refer to the same slot of the same signal.
+   *
+   * Mirrors \c connection::operator==. Default-constructed handles compare
+   * equal (both target no slot).
+   *
+   * @param a First handle.
+   * @param b Second handle.
+   *
+   * @return \c true when both name the same signal and slot id.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto
+  operator==(static_connection const& a, static_connection const& b) noexcept -> bool {
+    return a.m_signal == b.m_signal && a.m_id == b.m_id;
+  }
 };
 
 /**

@@ -913,4 +913,19 @@ TEST_CASE("nexenne::signal::static_signal stays consistent after full teardown a
   CHECK(n == 12);
 }
 
+TEST_CASE("nexenne::signal::static_connection equality compares signal and slot") {
+  auto sig{static_signal<void()>{}};
+  auto sig2{static_signal<void()>{}};
+  auto const a{sig.connect([] noexcept {})};
+  auto const b{sig.connect([] noexcept {})};
+  auto const other{sig2.connect([] noexcept {})};
+
+  auto const a_copy{a};
+  CHECK(a == a_copy);                                 // same signal + slot id
+  CHECK_FALSE(a == b);                                // same signal, different slot
+  CHECK_FALSE(a == other);                            // different signal
+  CHECK(static_connection{} == static_connection{});  // both target nothing
+  CHECK_FALSE(a == static_connection{});
+}
+
 }  // namespace
