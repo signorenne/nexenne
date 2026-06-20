@@ -63,6 +63,14 @@ private:
   time_point m_last{};
   bool m_anchored{false};
 
+  // Clamp a rate parameter to a finite, non-negative value. Negative inputs and
+  // non-finite ones (NaN, infinities) map to zero so they cannot propagate into
+  // the token count, where a NaN would make every comparison false and silently
+  // disable limiting.
+  [[nodiscard]] static constexpr auto clamp_rate(double const v) noexcept -> double {
+    return (v > 0.0 && v <= std::numeric_limits<double>::max()) ? v : 0.0;
+  }
+
   auto refill() noexcept -> void {
     auto const now{Clock::now()};
     if (!m_anchored) {
@@ -88,19 +96,19 @@ public:
   /**
    * @brief Construct a full bucket of \p capacity tokens.
    *
-   * Negative arguments are clamped to zero.
+   * Negative and non-finite arguments (NaN, infinities) are clamped to zero.
    *
    * @param capacity Maximum tokens the bucket can hold.
    * @param refill_per_sec Tokens added per second.
    *
    * @pre None.
-   * @post \c capacity() and \c refill_rate() are the non-negative clamps of
-   *       the arguments and the bucket starts full.
+   * @post \c capacity() and \c refill_rate() are the finite non-negative clamps
+   *       of the arguments and the bucket starts full.
    */
   constexpr rate_limiter(double const capacity, double const refill_per_sec) noexcept
-      : m_capacity{capacity < 0.0 ? 0.0 : capacity}
-      , m_refill_per_sec{refill_per_sec < 0.0 ? 0.0 : refill_per_sec}
-      , m_tokens{capacity < 0.0 ? 0.0 : capacity} {}
+      : m_capacity{clamp_rate(capacity)}
+      , m_refill_per_sec{clamp_rate(refill_per_sec)}
+      , m_tokens{clamp_rate(capacity)} {}
 
   /**
    * @brief Try to consume \p n tokens.
