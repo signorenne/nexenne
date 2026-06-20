@@ -55,6 +55,12 @@ template <std::floating_point T, typename Fn>
   auto const fb_0{f(b)};
   auto fa{fa_0};
 
+  // A non-finite endpoint value cannot bracket a root: every sign test below is
+  // false for a NaN, so guard it explicitly (NaN compares unequal to itself)
+  // rather than burn the whole iteration budget and report no_convergence.
+  if (!(fa_0 == fa_0) || !(fb_0 == fb_0)) {
+    return std::unexpected{numerical_error::not_bracketed};
+  }
   if ((fa_0 > T{0} && fb_0 > T{0}) || (fa_0 < T{0} && fb_0 < T{0})) {
     return std::unexpected{numerical_error::not_bracketed};
   }
