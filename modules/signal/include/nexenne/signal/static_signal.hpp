@@ -361,6 +361,15 @@ class static_sink;
  */
 template <typename R, typename... Args, std::size_t MaxSlots, std::size_t SlotCapacity>
 class static_signal<R(Args...), MaxSlots, SlotCapacity> {
+  // A multicast signal fans one argument out to every connected slot, so an
+  // rvalue-reference parameter is meaningless (a value cannot be moved into more
+  // than one slot). Reject it here with a clear message rather than let it fail
+  // deep inside the by-const-reference forwarder only when emit is instantiated.
+  static_assert(
+    (... && !std::is_rvalue_reference_v<Args>),
+    "static_signal parameters cannot be rvalue references"
+  );
+
 public:
   using id_type = static_connection::id_type;
 

@@ -145,6 +145,14 @@ class sink;
  */
 template <typename R, typename... Args, std::size_t SlotCapacity>
 class signal<R(Args...), SlotCapacity> {
+  // A multicast signal fans one argument out to every connected slot, so an
+  // rvalue-reference parameter is meaningless (a value cannot be moved into more
+  // than one slot). Reject it here with a clear message rather than let it fail
+  // deep inside the by-const-reference forwarder only when emit is instantiated.
+  static_assert(
+    (... && !std::is_rvalue_reference_v<Args>), "signal parameters cannot be rvalue references"
+  );
+
 private:
   using slot_fn_type = nexenne::utility::in_place_function<R(Args...), SlotCapacity>;
   using raw_fn_ptr_type = R (*)(Args...);
