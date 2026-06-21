@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -17,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <nexenne/algorithm/binary_search.hpp>
@@ -362,6 +364,51 @@ TEST_CASE("nexenne::algorithm: wide-magnitude differential (stresses interpolati
       check_all(v, v.back());
     }
   }
+}
+
+namespace m4 {
+
+// A totally-ordered key whose comparison never throws.
+struct nothrow_ord {
+  int v;
+  auto operator<=>(nothrow_ord const& o) const noexcept -> std::strong_ordering {
+    return v <=> o.v;
+  }
+  auto operator==(nothrow_ord const& o) const noexcept -> bool {
+    return v == o.v;
+  }
+};
+
+// A totally-ordered key whose comparison may throw.
+struct maythrow_ord {
+  int v;
+  auto operator<=>(maythrow_ord const& o) const -> std::strong_ordering {
+    return v <=> o.v;
+  }
+  auto operator==(maythrow_ord const& o) const -> bool {
+    return v == o.v;
+  }
+};
+
+}  // namespace m4
+
+TEST_CASE("nexenne::algorithm searches are conditionally noexcept over the comparison (M4)") {
+  // Regression for M4: find_sorted and exponential_search were unconditionally
+  // noexcept, so a throwing user comparator would terminate. They are now
+  // noexcept only when the two-way \c < comparison is.
+  static_assert(noexcept(find_sorted(
+    std::declval<std::array<m4::nothrow_ord, 3>&>(), std::declval<m4::nothrow_ord const&>()
+  )));
+  static_assert(!noexcept(find_sorted(
+    std::declval<std::array<m4::maythrow_ord, 3>&>(), std::declval<m4::maythrow_ord const&>()
+  )));
+  static_assert(noexcept(exponential_search(
+    std::declval<std::array<m4::nothrow_ord, 3>&>(), std::declval<m4::nothrow_ord const&>()
+  )));
+  static_assert(!noexcept(exponential_search(
+    std::declval<std::array<m4::maythrow_ord, 3>&>(), std::declval<m4::maythrow_ord const&>()
+  )));
+  CHECK(true);  // the static_asserts above are the test
 }
 
 }  // namespace
