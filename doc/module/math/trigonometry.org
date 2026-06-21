@@ -27,7 +27,7 @@ accurate, then fix up the sign and the sin/cos swap by quadrant.
 
 ** sincos and the pair
 
-=sincos= returns a [[file:trigonometry.org][sin_cos_t]], a sine and cosine of the same angle returned
+=sincos= returns a =sin_cos=, a sine and cosine of the same angle returned
 together. Computing both at once is the common case (rotations, polar to
 cartesian) and is cheaper shared: one range reduction, and libm fuses
 =std::sin=+=std::cos= into a single hardware sincos. See the type's own comment

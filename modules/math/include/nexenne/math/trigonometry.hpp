@@ -61,7 +61,7 @@ namespace nexenne::math {
  * @tparam Real Floating-point type.
  */
 template <std::floating_point Real>
-class sin_cos_t {
+class sin_cos {
 public:
   using value_type = Real;  ///< The underlying floating-point scalar type.
 
@@ -76,7 +76,7 @@ public:
    * @pre None.
    * @post Both the sine and cosine fields are zero.
    */
-  constexpr sin_cos_t() noexcept = default;
+  constexpr sin_cos() noexcept = default;
 
   /**
    * @brief Constructs a sine/cosine pair from its two values.
@@ -87,8 +87,7 @@ public:
    * @pre None.
    * @post The sine field equals \p sin and the cosine field equals \p cos.
    */
-  constexpr sin_cos_t(value_type const sin, value_type const cos) noexcept
-      : m_sin{sin}, m_cos{cos} {}
+  constexpr sin_cos(value_type const sin, value_type const cos) noexcept : m_sin{sin}, m_cos{cos} {}
 
   /**
    * @brief Accesses the sine value.
@@ -199,12 +198,21 @@ template <std::floating_point Real>
  * @post Both fields lie in [-1, 1] to within rounding error.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto poly_sincos(Real const x) noexcept -> sin_cos_t<Real> {
+[[nodiscard]] constexpr auto poly_sincos(Real const x) noexcept -> sin_cos<Real> {
+  // Guard the round_nearest cast against overflow for out-of-contract huge
+  // angles: x / (pi/2) above the long long range is undefined when cast. The LUT
+  // path reduces unconditionally; here a predicted-not-taken branch keeps the
+  // common small-angle path free of the extra division, reducing modulo a full
+  // turn (which preserves sin and cos) only when x is enormous.
+  auto reduced_x{x};
+  if (x > Real{1e15} || x < Real{-1e15}) {
+    reduced_x = mod(x, tau_v<Real>);
+  }
   // Range reduction: find the nearest multiple of pi/2 and subtract it, so the
   // remainder lies in [-pi/4, pi/4] where the short polynomials are accurate.
   // k counts how many quarter-turns we removed.
-  auto const k{round_nearest(x / half_pi_v<Real>)};
-  auto const reduced{x - static_cast<Real>(k) * half_pi_v<Real>};
+  auto const k{round_nearest(reduced_x / half_pi_v<Real>)};
+  auto const reduced{reduced_x - static_cast<Real>(k) * half_pi_v<Real>};
   auto const s{poly_sin_reduced(reduced)};
   auto const c{poly_cos_reduced(reduced)};
   // Each quarter-turn rotates (sin, cos) by 90 degrees, cycling with period 4.
@@ -214,13 +222,13 @@ template <std::floating_point Real>
   auto const q{static_cast<int>(((k % 4) + 4) % 4)};
   switch (q) {
     case 0:
-      return sin_cos_t<Real>{s, c};
+      return sin_cos<Real>{s, c};
     case 1:
-      return sin_cos_t<Real>{c, -s};
+      return sin_cos<Real>{c, -s};
     case 2:
-      return sin_cos_t<Real>{-s, -c};
+      return sin_cos<Real>{-s, -c};
     default:
-      return sin_cos_t<Real>{-c, s};
+      return sin_cos<Real>{-c, s};
   }
 }
 
@@ -242,8 +250,8 @@ template <std::floating_point Real>
  * @post Both fields lie in [-1, 1].
  */
 template <std::floating_point Real>
-[[nodiscard]] auto sincos(radians<Real> const r) noexcept -> sin_cos_t<Real> {
-  return sin_cos_t<Real>{std::sin(r.value()), std::cos(r.value())};
+[[nodiscard]] auto sincos(radians<Real> const r) noexcept -> sin_cos<Real> {
+  return sin_cos<Real>{std::sin(r.value()), std::cos(r.value())};
 }
 
 /**
@@ -305,7 +313,7 @@ template <std::floating_point Real>
  * @post Both fields lie in [-1, 1] to within rounding error.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto fast_sincos(radians<Real> const r) noexcept -> sin_cos_t<Real> {
+[[nodiscard]] constexpr auto fast_sincos(radians<Real> const r) noexcept -> sin_cos<Real> {
   return detail::poly_sincos(r.value());
 }
 
@@ -350,8 +358,10 @@ template <std::floating_point Real>
   // asin(x) = pi/2 - sqrt(1 - x) * P(x), where P is a smooth degree-7 polynomial
   // (the sqrt carries the vertical tangent, P is the easy part). We evaluate on
   // |x| and restore the sign at the end, since asin is odd. Coefficients are the
-  // A&S fit; max error about 5e-8 over [-1, 1].
-  auto const ax{abs(x)};
+  // A&S fit; max error about 5e-8 over [-1, 1]. The magnitude is clamped to 1
+  // first: callers routinely pass acos(dot) where rounding nudges the dot a hair
+  // past 1, which would make sqrt(1 - ax) take a negative argument and return NaN.
+  auto const ax{min(abs(x), Real{1})};
   auto const p{
     Real{1.5707963050}
     + ax
@@ -436,9 +446,11 @@ template <std::floating_point Real>
   }
   if (x < Real{0}) {
     // Left half-plane: atan(y/x) is off by a half-turn; add pi when above the
-    // x-axis, subtract pi when below, to swing into the correct quadrant.
+    // x-axis, subtract pi when below, to swing into the correct quadrant. Use the
+    // sign bit, not y >= 0, so a negative zero (atan2(-0, x<0)) returns -pi like
+    // IEEE std::atan2 rather than +pi.
     auto const inner{fast_atan(y / x).value()};
-    return radians<Real>{y >= Real{0} ? inner + pi_v<Real> : inner - pi_v<Real>};
+    return radians<Real>{std::signbit(y) ? inner - pi_v<Real> : inner + pi_v<Real>};
   }
   // x == 0: straight up or down (avoids the y/x division by zero).
   if (y > Real{0}) {
@@ -463,7 +475,7 @@ namespace detail {
  * @tparam lut_size Number of table entries.
  */
 template <std::floating_point Real, std::size_t lut_size>
-class trig_lut_t {
+class trig_lut_table {
 public:
   using table_type = std::array<Real, lut_size>;  ///< The table storage type.
 
@@ -475,9 +487,10 @@ public:
    * @brief Fills the table with one sine period at compile time.
    *
    * @pre None.
-   * @post Entry i holds sin(2*pi*i/lut_size).
+   * @post Entry i holds the polynomial approximation of sin(2*pi*i/lut_size)
+   *       (built from poly_sincos, since std::sin is not constexpr).
    */
-  constexpr trig_lut_t() noexcept {
+  constexpr trig_lut_table() noexcept {
     for (std::size_t i{0}; i < lut_size; ++i) {
       auto const angle{tau_v<Real> * static_cast<Real>(i) / static_cast<Real>(lut_size)};
       m_sin_table[i] = poly_sincos(angle).sin();
@@ -498,7 +511,7 @@ public:
 };
 
 template <std::floating_point Real, std::size_t lut_size = default_trig_lut_size>
-inline constexpr trig_lut_t<Real, lut_size> trig_lut{};
+inline constexpr trig_lut_table<Real, lut_size> trig_lut{};
 
 /**
  * @brief Linear-interpolated sine lookup for a phase already in [0, 1).
@@ -542,9 +555,17 @@ template <std::floating_point Real, std::size_t lut_size>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto to_unit_phase(Real const x) noexcept -> Real {
-  auto const wrapped{x - tau_v<Real> * static_cast<Real>(static_cast<long long>(x / tau_v<Real>))};
-  auto const positive{wrapped < Real{0} ? wrapped + tau_v<Real> : wrapped};
-  return positive / tau_v<Real>;
+  // Floor-modulo into [0, 2pi) via scalar::mod, which reduces with floor and so
+  // stays bounded for any finite magnitude (a truncating long long cast would be
+  // undefined for inputs above LLONG_MAX, e.g. lut_sin(1e30)). Rescale to [0, 1)
+  // with a boundary guard so a tiny rounding cannot land the phase on exactly 1.
+  auto phase{mod(x, tau_v<Real>) / tau_v<Real>};
+  if (phase >= Real{1}) {
+    phase -= Real{1};
+  } else if (phase < Real{0}) {
+    phase += Real{1};
+  }
+  return phase;
 }
 
 }  // namespace detail

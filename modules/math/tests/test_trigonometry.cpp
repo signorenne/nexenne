@@ -12,7 +12,7 @@ TEST_CASE("sincos returns a matching pair") {
   auto const sc{math::sincos(math::radians_d{math::third_pi})};
   CHECK(sc.sin() == doctest::Approx(std::sin(math::third_pi)));
   CHECK(sc.cos() == doctest::Approx(std::cos(math::third_pi)));
-  static_assert(std::is_same_v<math::sin_cos_t<double>::value_type, double>);
+  static_assert(std::is_same_v<math::sin_cos<double>::value_type, double>);
 }
 
 TEST_CASE("fast_sin and fast_cos approximate libm and are constexpr") {
@@ -61,4 +61,25 @@ TEST_CASE("angle_diff and lerp_angle take the short way around") {
   // Halfway from 350 to 10 deg is 0 deg (wrapping), not 180.
   auto const mid{math::lerp_angle(a, b, 0.5).value()};
   CHECK(std::abs(mid) < 1e-9);
+}
+
+TEST_CASE("lut/fast trig survive extreme and out-of-domain inputs (regression)") {
+  // Huge angles must not overflow the reduction; result stays in [-1, 1].
+  CHECK(math::lut_sin(math::radians_d{1e30}) >= -1.0);
+  CHECK(math::lut_sin(math::radians_d{1e30}) <= 1.0);
+  // fast_asin/acos clamp marginally-out-of-range inputs instead of returning NaN.
+  CHECK_FALSE(std::isnan(math::fast_asin(1.0000000001).value()));
+  CHECK(math::fast_asin(1.0000000001).value() == doctest::Approx(math::half_pi));
+  CHECK_FALSE(std::isnan(math::fast_acos(-1.0000000001).value()));
+  // fast_atan2 matches IEEE std::atan2 on a negative zero.
+  CHECK(math::fast_atan2(-0.0, -1.0).value() == doctest::Approx(std::atan2(-0.0, -1.0)));
+}
+
+TEST_CASE("poly-based fast trig survives out-of-contract huge angles (regression)") {
+  // The round_nearest cast would be UB past the long long range; the guarded
+  // pre-reduction keeps fast_sin/cos defined and bounded for enormous inputs.
+  CHECK(math::fast_sin(math::radians_d{1e30}) >= -1.0);
+  CHECK(math::fast_sin(math::radians_d{1e30}) <= 1.0);
+  CHECK(math::fast_cos(math::radians_d{-1e30}) >= -1.0);
+  CHECK(math::fast_cos(math::radians_d{-1e30}) <= 1.0);
 }
