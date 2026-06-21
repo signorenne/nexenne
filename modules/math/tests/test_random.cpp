@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <numbers>
 
 #include <nexenne/math/constants.hpp>
 #include <nexenne/math/random.hpp>
@@ -61,4 +62,15 @@ TEST_CASE("uniform directions and disc points have a near-zero mean (no bias)") 
   CHECK(std::abs(dir_sum.z() / n) < 0.02);
   CHECK(std::abs(disc_sum.x() / n) < 0.02);
   CHECK(std::abs(disc_sum.y() / n) < 0.02);
+}
+
+TEST_CASE("random_angle<float> stays strictly below pi (half-open, regression)") {
+  // The double->float narrowing in uniform_real_in must not let the upper bound
+  // be reached; random_angle<float> must stay in [-pi_f, pi_f).
+  auto g{seeded()};
+  for (std::size_t i{0}; i < 200000; ++i) {
+    auto const a{math::random_angle<float>(g).value()};
+    CHECK(a < std::numbers::pi_v<float>);
+    CHECK(a >= -std::numbers::pi_v<float>);
+  }
 }

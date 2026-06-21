@@ -47,7 +47,13 @@ namespace detail {
  */
 template <std::floating_point Real, random::rng_engine G>
 [[nodiscard]] constexpr auto uniform_real_in(G& g, Real const lo, Real const hi) noexcept -> Real {
-  return lo + (hi - lo) * static_cast<Real>(random::uniform_real(g));
+  auto const result{lo + (hi - lo) * static_cast<Real>(random::uniform_real(g))};
+  // Keep the interval half-open. uniform_real draws in [0, 1) as a double; when
+  // Real is narrower (float), rounding the product back to Real can land exactly
+  // on hi (the largest double below 1 rounds up to 1.0f). Map that excluded
+  // endpoint back to lo, which preserves [lo, hi) at a negligible (~2^-24) bias
+  // and is exactly right for cyclic ranges like [-pi, pi) where hi == -lo wraps.
+  return result < hi ? result : lo;
 }
 
 }  // namespace detail

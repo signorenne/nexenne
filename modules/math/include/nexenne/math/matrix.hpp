@@ -746,7 +746,13 @@ template <arithmetic Value, std::size_t N>
            - m(0, 1) * (m(1, 0) * m(2, 2) - m(1, 2) * m(2, 0))
            + m(0, 2) * (m(1, 0) * m(2, 1) - m(1, 1) * m(2, 0));
   } else {
-    // N == 4: the six 2x2 minors of rows 2 and 3, shared across the cofactors.
+    // N == 4: Laplace-expand along the first row. Each first-row cofactor is a
+    // 3x3 determinant of rows 1..3, which itself expands along row 1 into the six
+    // 2x2 minors of rows 2 and 3 - and those six are shared across all four
+    // cofactors, so compute them once. Each t names the column pair it covers
+    // (the two columns NOT struck out): t00 = cols{2,3}, t01 = {1,3}, t02 = {1,2},
+    // t03 = {0,3}, t04 = {0,2}, t05 = {0,1}. The alternating +-+- on the m(0,j)
+    // terms below is the checkerboard cofactor sign.
     auto const t00{m(2, 2) * m(3, 3) - m(2, 3) * m(3, 2)};
     auto const t01{m(2, 1) * m(3, 3) - m(2, 3) * m(3, 1)};
     auto const t02{m(2, 1) * m(3, 2) - m(2, 2) * m(3, 1)};
@@ -785,7 +791,14 @@ template <std::floating_point Real, std::size_t N>
   requires(N >= 2 && N <= 4)
 {
   auto const det{determinant(m)};
-  if (abs(det) <= static_cast<Real>(1e-20)) {
+  // Reject both a (near-)singular and a non-finite determinant. The plain
+  // comparison would let a NaN det slip through (every comparison with NaN is
+  // false) and an infinite det (from overflow) divides to a zero matrix; either
+  // would otherwise be returned as a bogus "success", so guard finiteness
+  // explicitly. The threshold is absolute, not scale- or precision-relative: a
+  // matrix scaled by s has its determinant scaled by s^N, so this detects a
+  // genuinely tiny pivot, not conditioning - rescale ill-scaled inputs first.
+  if (!isfinite(det) || abs(det) <= static_cast<Real>(1e-20)) {
     return std::unexpected{math_error::singular_matrix};
   }
   auto const inv_det{Real{1} / det};
@@ -812,8 +825,16 @@ template <std::floating_point Real, std::size_t N>
     result(2, 2) = (m(0, 0) * m(1, 1) - m(0, 1) * m(1, 0)) * inv_det;
     return result;
   } else {
-    // N == 4: the six 2x2 minors of the top two rows (s0..s5) and the bottom two
-    // rows (c0..c5). Every entry of the adjugate is a combination of these.
+    // N == 4: inverse = adjugate / det, where the adjugate is the transpose of the
+    // cofactor matrix, so result(i, j) = cofactor(j, i) / det. This uses the
+    // Laplace-expansion-by-complementary-minors identity (the same factorization
+    // GLM ships): every 3x3 cofactor of a 4x4 splits into a 2x2 minor of the top
+    // two rows times a 2x2 minor of the bottom two rows. There are only six
+    // distinct 2x2 minors per row-pair, so name them once - s0..s5 from rows 0,1
+    // and c0..c5 from rows 2,3 (sX and cX cover complementary column pairs) - and
+    // every adjugate entry below is a signed sum of products of one s and one c.
+    // The alternating signs are the cofactor checkerboard.
+    // https://en.wikipedia.org/wiki/Laplace_expansion#Laplace_expansion_of_a_determinant_by_complementary_minors
     auto const s0{m(0, 0) * m(1, 1) - m(1, 0) * m(0, 1)};
     auto const s1{m(0, 0) * m(1, 2) - m(1, 0) * m(0, 2)};
     auto const s2{m(0, 0) * m(1, 3) - m(1, 0) * m(0, 3)};

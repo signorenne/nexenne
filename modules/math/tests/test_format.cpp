@@ -48,3 +48,11 @@ TEST_CASE("std::format and operator<< agree with to_string") {
   // Works embedded in a larger format string.
   CHECK(std::format("v = {}!", v) == "v = vector3(5, 6, 7)!");
 }
+
+TEST_CASE("formatters reject a non-empty format spec (regression)") {
+  // parse() now enforces the documented "empty spec only" instead of silently
+  // accepting; a non-empty spec throws std::format_error.
+  math::vector3_d const v{1, 2, 3};
+  CHECK_THROWS_AS((void)std::vformat("{:5}", std::make_format_args(v)), std::format_error);
+  CHECK_NOTHROW((void)std::vformat("{}", std::make_format_args(v)));
+}
