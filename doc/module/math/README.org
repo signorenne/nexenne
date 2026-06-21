@@ -52,6 +52,14 @@ the dimension is known to the compiler, not the profiler.
 - [[file:normalized.org][normalized]] : =normalized<Real, N>=, the strong wrapper that carries the
   unit-length guarantee in the type so direction-consuming APIs need not re-check.
 
+* Matrices and transforms
+
+- [[file:matrix.org][matrix]] : =matrix<Value, N>=, the column-major square matrix with =(row,col)=
+  access, the full algebra, =transpose= / =determinant= / =inverse= / =trace=,
+  and a column-combination multiply that compiles to packed SSE.
+- [[file:projection.org][projection]] : the 4x4 =perspective= / =ortho= builders (plus the =_zo= Vulkan
+  and Direct3D depth variants) that map view space to clip space.
+
 * Headers without an article
 
 - =math.hpp= : the umbrella header; includes the whole module.

@@ -1,0 +1,109 @@
+#+TITLE: the column-major matrix
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=matrix<Value, N>=: a square, compile-time-sized matrix stored column-major, with
+=(row, col)= element access, whole-column access, the full algebra (add,
+subtract, scalar scale, matrix and matrix-vector multiply), and the linear-algebra
+staples =transpose=, =determinant=, =inverse=, and =trace= for dimensions 2, 3,
+and 4. It is the workhorse of every transform; the transform builders (translate,
+rotate, scale, look_at) live in [[file:transform.org][transform]] and the projection builders in
+[[file:projection.org][projection]].
+
+* The idea
+
+A matrix has to do two jobs well: be the algebra of linear maps, and be a buffer
+a GPU can read. Column-major storage serves both. It matches what OpenGL, Vulkan,
+and D3D expect, so =data()= uploads with no transpose; and, less obviously, it is
+the storage order that lets the products vectorize. The type reuses [[file:vector.org][vector]] as
+its column, so all the SIMD-friendly layout work from there carries straight up.
+
+* How it works
+
+** Storage: an array of column vectors
+
+The single member is =std::array<vector<Value, N>, N>=, one =vector= per column.
+So a matrix is standard-layout, trivially copyable, and exactly =N*N= scalars with
+no padding (the =static_assert= block proves it). Element =(r, c)= lives at column
+=c=, row =r=:
+
+#+BEGIN_EXAMPLE
+  matrix<float,3>  (column-major, 9 contiguous floats)
+
+  logical:            stored as (column by column):
+    | a d g |           index:  0 1 2 3 4 5 6 7 8
+    | b e h |           value:  a b c d e f g h i
+    | c f i |                   \__col0_/\__col1_/\__col2_/
+                                 (a,b,c)  (d,e,f)  (g,h,i)
+  m(0,0)=a  m(0,1)=d            m[0] = column 0 = (a, b, c)
+  m(1,0)=b  ...                 data() -> &a, valid for a GPU upload
+#+END_EXAMPLE
+
+A *column* is one contiguous vector (cheap, a reference); a *row* is strided, so
+=row(r)= gathers into a fresh vector.
+
+** Why the products are written "column-combination"
+
+The textbook matrix product is =result(i,j) = sum_k a(i,k)*b(k,j)=, reading rows
+of =a=. In column-major storage a row is strided, so that formulation forces the
+compiler into scalar loads. The equivalent column form avoids it: result column
+=j= is the linear combination of =a='s columns weighted by column =j= of =b=,
+
+#+BEGIN_EXAMPLE
+  result.column(j) = sum over k of  a.column(k) * b(k, j)
+#+END_EXAMPLE
+
+Each term is a contiguous vector scaled by a scalar and added, which is exactly
+the packed multiply-add [[file:vector.org][vector]] already vectorizes. Measured: a
+=matrix<float,4>= multiply compiles to *packed SSE with zero scalar fallback*,
+where the row formulation emits scalar =mulss=/=addss=. Matrix-vector multiply is
+the same trick: =M*v = sum_j M.column(j) * v[j]=.
+
+** determinant and inverse
+
+Both use closed-form expansions for N = 2, 3, 4 (a =requires= clause rules out
+larger N, which would need LU decomposition). =determinant= for 4x4 precomputes
+the six 2x2 minors of the bottom two rows and reuses them across the four 3x3
+cofactors. =inverse= is the adjugate (transposed cofactor matrix) divided by the
+determinant; its 4x4 path expands every adjugate entry over six 2x2 minors of the
+top two rows and six of the bottom two. It returns =result<matrix<Real,N>>=,
+failing with =singular_matrix= when =|det|= is at or below 1e-20.
+
+* When to use it
+
+- =matrix4_f= for 3D transforms and camera matrices; =matrix3= for 2D affine
+  transforms and rotation/normal matrices; =matrix2= for 2D linear maps.
+- Build with the =make_matrixN= factories (you write the matrix in reading order,
+  it stores column-major), or compose from the [[file:transform.org][transform]] and [[file:projection.org][projection]] builders.
+- =M * v= to transform a vector; =A * B= to compose transforms (right to left).
+- =data()= to hand the raw column-major storage to a GPU API.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+constexpr auto m{nm::make_matrix2(1.0f, 2.0f,    // row 0, written in reading order
+                                  3.0f, 4.0f)};  // row 1
+auto const composed{a * b};                       // packed-SSE multiply
+auto const moved{m * nm::vector2_f{1, 0}};        // transform a vector
+if (auto inv = nm::inverse(m)) { /* *inv is the inverse */ }
+upload_to_gpu(m.data());                           // column-major, no transpose
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/matrices.cpp][examples/math/matrices.cpp]]
+
+* See also
+
+- [[file:vector.org][vector]] : the column type, and the SIMD layout story this builds on.
+- [[file:transform.org][transform]] : translate / rotate / scale / look_at matrix builders.
+- [[file:projection.org][projection]] : perspective and orthographic builders.
+
+* Further reading
+
+- On column-major versus row-major and the GPU-upload convention:
+  https://en.wikipedia.org/wiki/Row-_and_column-major_order
+- The adjugate (classical adjoint) inverse and cofactor expansion:
+  https://en.wikipedia.org/wiki/Adjugate_matrix
