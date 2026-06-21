@@ -34,10 +34,12 @@ both delegate to it, so the three layers can never drift apart. The forms are:
   even though storage is column-major, with =;= between rows.
 - =normalized(vector3(...))= - wraps the underlying vector's string.
 
-Each component is rendered with =std::format("{}", ...)=, so the element type
-just has to be formattable; integers print without a decimal point, floats in
-their shortest round-trip form. The =std::formatter= accepts only the empty
-spec (=={}==).
+The =std::formatter= *forwards its format spec to every component*, so
+=std::format("{:+.3f}", v)= renders each element with =+.3f= - e.g.
+=vector3(+1.235, -2.000, +3.500)=. The empty spec gives the default rendering
+(integers without a decimal point, floats in their shortest round-trip form),
+matching =to_string=. This is the easy way to print math values to the precision
+you want without a hand-rolled helper.
 
 * When to use it
 
