@@ -1,0 +1,68 @@
+#+TITLE: format
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Debug printing for the math value types. Every covered type - [[file:vector.org][vector]], [[file:matrix.org][matrix]],
+[[file:quaternion.org][quaternion]], and [[file:normalized.org][normalized]] - gets three interlocking layers: =to_string(v)=, an
+=operator<<= for =std::ostream=, and a =std::formatter= specialization so
+=std::format("{}", v)= and =std::println("{}", v)= work.
+
+* The idea
+
+These types are value types you will want to print while debugging, log, or drop
+into an error message. Rather than make every call site reach into =.x()= /
+=.y()= by hand, this header gives one canonical, readable representation and wires
+it into all three of the standard output mechanisms, so whichever one a call site
+already uses, it just works.
+
+The output deliberately names the type the way the aliases do - =vector3(...)=,
+=matrix4(...)= - with *no underscore before the dimension*, so a printed value
+reads back as the type that produced it and stays consistent with =vector3_f= and
+friends elsewhere in the module.
+
+* How it works
+
+=to_string= is the single source of truth; =operator<<= and the =std::formatter=
+both delegate to it, so the three layers can never drift apart. The forms are:
+
+- =vector3(1, 2, 3)= - the dimension, then every component.
+- =quaternion(x, y, z; w)= - a semicolon sets the scalar (real) part apart from
+  the vector part, so it is unmistakable which component is =w=.
+- =matrix3(r0c0, r0c1, ...; r1c0, ...)= - printed in *row-major reading order*
+  even though storage is column-major, with =;= between rows.
+- =normalized(vector3(...))= - wraps the underlying vector's string.
+
+Each component is rendered with =std::format("{}", ...)=, so the element type
+just has to be formattable; integers print without a decimal point, floats in
+their shortest round-trip form. The =std::formatter= accepts only the empty
+spec (=={}==).
+
+* When to use it
+
+- Logging or =std::println= during development; assertion and error messages.
+- Not a serialization format - it is for humans. For exact round-tripping use a
+  real serializer, and for hashing as a map key see [[file:hash.org][hash]].
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+std::println("pos = {}", nm::vector3_d{1, 2, 3});       // pos = vector3(1, 2, 3)
+auto const s{nm::to_string(nm::quaternion_d::identity())};  // "quaternion(0, 0, 0; 1)"
+std::cout << nm::matrix3_d::identity() << '\n';
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/debug.cpp][examples/math/debug.cpp]]
+
+* See also
+
+- [[file:hash.org][hash]] : the other "use these types with the standard library" header.
+- [[file:vector.org][vector]] / [[file:matrix.org][matrix]] / [[file:quaternion.org][quaternion]] / [[file:normalized.org][normalized]] : the printed types.
+
+* Further reading
+
+- =std::formatter= and how to specialize it:
+  https://en.cppreference.com/w/cpp/utility/format/formatter

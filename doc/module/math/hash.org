@@ -1,0 +1,63 @@
+#+TITLE: hash
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=std::hash= specializations for [[file:vector.org][vector]], [[file:matrix.org][matrix]], and [[file:quaternion.org][quaternion]], so they can be
+keys in =std::unordered_map= / =std::unordered_set= without each caller writing
+its own hash. Including the header is all it takes.
+
+* The idea
+
+A value type is only half-usable with the standard containers until it has a
+=std::hash=. The combine recipe is easy to get subtly wrong (a weak mix collides;
+an order-insensitive one makes =(1, 2)= and =(2, 1)= collide), so this header
+provides one correct specialization per type and reuses the [[file:../utility/README.org][utility]] module's
+=hash_combine= - the order-sensitive Boost mix tuned to the width of
+=std::size_t= - rather than re-deriving it.
+
+* How it works
+
+Each specialization folds the component hashes together with =hash_combine=:
+
+- =vector= reuses =utility::hash_range= over its components (it models a range).
+- =quaternion= reuses =utility::hash_args(x, y, z, w)=.
+- =matrix= folds every element in a fixed (column-major) order.
+
+The order-sensitivity matters: permuted components hash differently, which is
+exactly what you want for spatial keys. Because the hash is computed bit-for-bit
+on the components, two values that compare equal hash equally - with the usual
+floating-point caveats (=+0.0= and =-0.0= are equal yet hash differently, and a
+=NaN= key is never findable since it is not equal to itself).
+
+* When to use it
+
+- Memoizing by a grid coordinate, deduplicating vertices, interning rotations -
+  anything that needs a math type as an =unordered_= key or set element.
+- Prefer integer component types for keys when you can; exact float equality is
+  fragile, so hashing floats is best reserved for values you know are canonical.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+#include <nexenne/math/hash.hpp>   // enables the specializations
+
+std::unordered_map<nm::vector2_i, Tile> tiles;
+tiles[nm::vector2_i{3, 4}] = some_tile;
+
+std::unordered_set<nm::vector3_d> seen_directions;
+#+END_SRC
+
+* See also
+
+- [[file:format.org][format]] : the companion "use these types with the standard library" header.
+- =nexenne::utility::hash= : the =hash_combine= / =hash_range= / =hash_args=
+  primitives reused here.
+
+* Further reading
+
+- The Boost =hash_combine= recipe these build on:
+  https://www.boost.org/doc/libs/release/libs/container_hash/
