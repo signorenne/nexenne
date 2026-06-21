@@ -1,0 +1,71 @@
+#+TITLE: quaternion interpolation variants
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Three explicitly-named ways to interpolate between two unit [[file:quaternion.org][quaternion]]
+orientations, so a call site picks the exact algorithm rather than the default:
+=nlerp_plain= (normalized linear, no arc fix), =nlerp_short= (with the shorter-arc
+fix), and =slerp_short= (shorter-arc spherical). They sit alongside the canonical
+=slerp= / =nlerp= in [[file:quaternion.org][quaternion]].
+
+* The idea
+
+"Interpolate the orientation" hides three independent choices. *Spherical vs
+linear*: spherical (=slerp=) moves at constant angular velocity, the
+mathematically correct blend, but costs an =acos=, a =sin=, and divisions; linear
+(=nlerp=) just blends the components and renormalizes, far cheaper, with a
+slightly uneven velocity that is invisible under about 45 degrees. *Shorter arc or
+not*: =q= and =-q= are the same orientation, so two endpoints can be interpolated
+the short way or the long way around; you usually want the short way. This header
+names each combination so the intent is on the page, instead of leaving the reader
+to infer it from the default.
+
+* How it works
+
+The variants reuse the quaternion operators and =dot= / =normalize= rather than
+re-implementing them.
+
+- =nlerp_plain(a, b, t)= is =normalize(a*(1-t) + b*t)=, with =normalize(...)
+  .value_or= so an exactly-antipodal pair (zero midpoint) degrades to the
+  un-normalized blend instead of failing.
+- =nlerp_short= negates =b= when =dot(a, b) < 0= (flipping it onto the hemisphere
+  nearer =a=), then calls =nlerp_plain=.
+- =slerp_short= negates for the short arc, falls back to =nlerp_plain= when the
+  endpoints are within the =0.9995= cosine threshold (tiny angle, unstable
+  =1/sin(theta)=), and otherwise weights the endpoints by =s1 = sin(t*theta)/
+  sin(theta)= and =s0 = cos(t*theta) - d*s1=, the incremental form of the same
+  great-circle path.
+
+=nlerp_short= and =slerp_short= are the same algorithms as quaternion.hpp's
+=nlerp= and =slerp=; they exist here under explicit names next to the no-fix
+=nlerp_plain= so a reader sees exactly which behaviour was chosen.
+
+* When to use which
+
+- =slerp_short=: camera moves and hero animation, where constant velocity shows.
+- =nlerp_short=: the common real-time default, blending many small rotations per
+  frame where the velocity error is invisible and the cost matters.
+- =nlerp_plain=: only when you have already aligned the endpoints' hemispheres and
+  want to skip even the dot-sign check.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+auto const blended{nm::nlerp_short(orientation_a, orientation_b, 0.25)};  // cheap
+auto const smooth{nm::slerp_short(camera_from, camera_to, t)};           // exact
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/rotations.cpp][examples/math/rotations.cpp]]
+
+* See also
+
+- [[file:quaternion.org][quaternion]] : the type, and the default =slerp= / =nlerp=.
+
+* Further reading
+
+- On nlerp versus slerp and when the velocity difference matters:
+  https://web.archive.org/web/20120903164510/http://number-none.com/product/Understanding%20Slerp,%20Then%20Not%20Using%20It/

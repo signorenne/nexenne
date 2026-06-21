@@ -60,6 +60,16 @@ the dimension is known to the compiler, not the profiler.
 - [[file:projection.org][projection]] : the 4x4 =perspective= / =ortho= builders (plus the =_zo= Vulkan
   and Direct3D depth variants) that map view space to clip space.
 
+* Rotations
+
+- [[file:quaternion.org][quaternion]] : =quaternion<Real>=, the unit quaternion for gimbal-lock-free 3D
+  rotation, with composition, the cheap vector =rotate=, conversions to and from
+  axis-angle / Euler / two-vectors / look-at / matrices, and =slerp= / =nlerp=.
+- [[file:slerp_variants.org][slerp_variants]] : the explicitly-named interpolation choices =nlerp_plain= /
+  =nlerp_short= / =slerp_short=.
+- [[file:euler.org][euler]] : the =euler_order= enum, the =euler_angles= carrier, and conversion to a
+  quaternion under any of the six orders (plus the aerospace =from_ypr=).
+
 * Headers without an article
 
 - =math.hpp= : the umbrella header; includes the whole module.

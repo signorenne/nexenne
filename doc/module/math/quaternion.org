@@ -1,0 +1,110 @@
+#+TITLE: the unit quaternion
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=quaternion<Real>=: a four-number encoding of a 3D rotation, stored =(x, y, z, w)=
+with =w= the scalar part. It composes rotations (the Hamilton product), rotates
+vectors (=rotate=), converts to and from axis-angle, Euler angles, two-vector
+"point this at that", look-at orientation, and rotation matrices, and interpolates
+(=nlerp=, =slerp=). The interpolation variants live in [[file:slerp_variants.org][slerp_variants]] and the
+Euler conventions in [[file:euler.org][euler]].
+
+* The idea
+
+A rotation matrix works but is heavy: nine numbers with six redundant
+constraints, awkward to interpolate, and slow to re-orthonormalize as float drift
+creeps in. A quaternion is the minimal honest encoding: four numbers, one
+constraint (unit length), composed by a cheap product, interpolated along a clean
+arc, and renormalized by a single divide. The trick is the *half angle*, a
+rotation by =theta= about a unit axis =n= is stored as
+=(sin(theta/2)*n, cos(theta/2))=. That half-angle is exactly what makes the
+sandwich product =q * v * conjugate(q)= apply the full rotation, and what makes
+=slerp= trace a constant-speed great circle on the unit hypersphere. And there is
+no gimbal lock: unlike Euler angles, no orientation is a coordinate singularity.
+
+* How it works
+
+** Composition: the Hamilton product
+
+=q1 * q2= is the rotation that does =q2= first, then =q1= (right to left, like
+matrices). Expanding =(w1 + v1)(w2 + v2)= under =i^2 = j^2 = k^2 = ijk = -1= gives
+a scalar part =w1*w2 - dot(v1, v2)= and a vector part
+=w1*v2 + w2*v1 + cross(v1, v2)=. The cross product is why rotation composition does
+not commute.
+
+** Rotating a vector, cheaply
+
+The textbook rotation is =q * v * conjugate(q)=, two quaternion multiplies.
+=rotate= uses the algebraically equivalent =v' = v + 2w*(qv x v) + 2*qv x (qv x v)=
+(=qv= is the vector part), which is two cross products, cheaper, and the form a
+hot loop should use.
+
+** Building rotations
+
+- =from_axis_angle(axis, angle)=: the direct half-angle encoding; validates and
+  normalizes the axis, returns =result= so a zero axis is an error not a NaN.
+- =from_euler(roll, pitch, yaw)=: the closed-form ZYX (aerospace) product.
+- =from_two_vectors(from, to)=: the shortest rotation taking one direction onto
+  another, via the half-vector method =(cross(from, h), dot(from, h))= where
+  =h = normalize(from + to)= is the unit bisector. This is stable across the whole
+  range, unlike the older =(cross(from, to), 1 + dot)= form whose =sqrt(2(1+d))=
+  normalization loses precision near 180 degrees (off by ~1e-3 in the gap band).
+  The genuinely antipodal case (=from + to= vanishes) is handled by an orthogonal
+  axis.
+- =look_at_rotation(forward, up)=: builds an orthonormal basis and converts it
+  with the trace formula (which picks the largest =1 +/- trace= term so the square
+  root never divides by something near zero).
+
+** Converting out
+
+=to_axis_angle= inverts =from_axis_angle= (=angle = 2*acos(w)=, clamped, with a +X
+fallback near the identity). =to_matrix3= / =to_matrix4= expand the quaternion
+into a [[file:matrix.org][matrix]] for the GPU or for chaining with other transforms.
+
+** Interpolation
+
+=nlerp= blends the four components and renormalizes: cheap, no trig, slightly
+non-uniform velocity (invisible for small arcs). =slerp= walks the great circle at
+constant angular velocity, weighting by =sin((1-t)*theta)/sin(theta)=, and falls
+back to =nlerp= when the endpoints are nearly aligned (where =sin(theta)= is tiny).
+Both take the shorter arc by negating one endpoint when the dot is negative, since
+=q= and =-q= are the same rotation.
+
+* When to use it
+
+- As the orientation type everywhere: store and accumulate rotations as
+  quaternions, renormalizing occasionally, and only convert to a matrix at the
+  boundary where you need one.
+- =from_axis_angle= / =from_euler= to build; =slerp= to blend orientations
+  (cameras, animation); =rotate= to apply one to a vector.
+- Reach for [[file:matrix.org][matrix]] only when an API demands a matrix.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+auto const q{nm::from_axis_angle(nm::vector3_d{0, 0, 1}, nm::radians_d{nm::half_pi})};
+if (q) {
+  auto const turned{nm::rotate(*q, nm::vector3_d{1, 0, 0})};   // -> (0, 1, 0)
+  auto const blend{nm::slerp(nm::quaternion_d::identity(), *q, 0.5)};
+  auto const m{nm::to_matrix4(*q)};                            // for the GPU
+}
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/rotations.cpp][examples/math/rotations.cpp]]
+
+* See also
+
+- [[file:slerp_variants.org][slerp_variants]] : the explicitly-named interpolation choices.
+- [[file:euler.org][euler]] : Euler-angle orders and conversions to quaternion.
+- [[file:matrix.org][matrix]] : the rotation-matrix form, and the transform pipeline.
+
+* Further reading
+
+- The quaternion-vector sandwich and the optimized rotation identity:
+  https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation
+- Ken Shoemake, "Animating Rotation with Quaternion Curves" (SIGGRAPH 1985), the
+  origin of slerp: https://www.cs.cmu.edu/~kiranb/animation/p245-shoemake.pdf

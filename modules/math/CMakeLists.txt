@@ -20,11 +20,14 @@ nexenne_add_module(math
         include/nexenne/math/concepts.hpp
         include/nexenne/math/constants.hpp
         include/nexenne/math/error.hpp
+        include/nexenne/math/euler.hpp
         include/nexenne/math/fixed.hpp
         include/nexenne/math/matrix.hpp
         include/nexenne/math/power.hpp
         include/nexenne/math/projection.hpp
+        include/nexenne/math/quaternion.hpp
         include/nexenne/math/scalar.hpp
+        include/nexenne/math/slerp_variants.hpp
         include/nexenne/math/trigonometry.hpp
         include/nexenne/math/vector.hpp
         include/nexenne/math/vector_algorithms.hpp
