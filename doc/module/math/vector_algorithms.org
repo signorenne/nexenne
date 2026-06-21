@@ -1,0 +1,119 @@
+#+TITLE: vector algorithms
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+The operations on [[file:vector.org][vector]] that are not element-wise arithmetic: the products
+(=dot=, the 2D scalar and 3D vector =cross=, =perpendicular=), the norms and
+distances (=length=, =length_squared=, =distance=, plus the L1 =manhattan_length=
+and L-infinity =chebyshev_length=), normalization (=normalize=, =fast_normalize=,
+=normalize_or=), geometric decomposition (=project=, =reject=, =reflect=),
+element-wise =lerp= / =clamp= / =component_min= / =component_max= / =hadamard=,
+reductions (=sum=, =product=, =min_component=, =max_component=), and the
+=angle_between= two vectors. Fallible ones return =result<T>=; the rest return
+their value.
+
+* The idea
+
+These are the building blocks every geometry and physics routine reuses, so each
+is written once, generically over the dimension where that makes sense, with the
+numerically careful version of the formula (a squared-length fast path before any
+=sqrt=, a clamp before any =acos=, a threshold before any divide). The split from
+[[file:vector.org][vector]] keeps the storage header small and these batched together.
+
+* How it works
+
+** dot, and why its sum is scalar
+
+=dot= multiplies component-wise and sums. The compiler computes the products
+packed (a =vector<float,4>= dot emits one SSE =mulps=), but the reduction is a
+plain left-to-right scalar add chain, not a horizontal SIMD sum. That is
+deliberate: floating-point addition is not associative, so a reordered horizontal
+sum would round differently, and the library keeps a deterministic result. The
+few saved cycles are not worth a non-reproducible number.
+
+=length_squared= is =dot(v, v)=, offered separately because comparing squared
+lengths avoids the =sqrt= entirely when only the ordering of magnitudes matters
+(nearest-neighbour tests, radius checks).
+
+** cross
+
+The 3D cross builds each output component as a 2x2 determinant of the other two
+axes, which is exactly the construction that makes the result orthogonal to both
+inputs (its dot with either is zero). The 2D =cross= returns the signed scalar
+=a.x*b.y - a.y*b.x=, the z-component of that 3D cross when both inputs sit in the
+plane; its sign is the orientation (counter-clockwise positive) and its magnitude
+is the parallelogram area.
+
+** normalization
+
+All three variants gate on =length_squared(v) <= threshold= first, so a near-zero
+vector is rejected (or replaced by a fallback) before any division.
+=normalize= divides by an exact =sqrt= and returns a =result=; =fast_normalize=
+multiplies by the =fast_inv_sqrt= bit-trick (about 5e-6 relative error, see
+[[file:power.org][power]]); =normalize_or= takes a caller-supplied fallback direction and returns a
+plain vector. The default threshold of 1e-20 is on the *squared* length, so it
+corresponds to a length around 1e-10.
+
+** project, reject, reflect
+
+=project(v, onto)= returns the part of =v= along =onto=, computed as
+=(dot(v,onto)/dot(onto,onto)) * onto=; =reject= is the leftover perpendicular part
+=v - project(v,onto)=; together they split =v= into parallel and perpendicular
+components. =reflect(v, n)= is the mirror bounce =v - 2*dot(v,n)*n=: =dot(v,n)*n=
+is the component along the unit normal, and subtracting it twice flips that
+component while leaving the tangential part, which is the reflection.
+
+** angle_between
+
+Computes =acos(dot(a,b) / (length(a)*length(b)))=, but clamps the cosine to
+=[-1, 1]= first: rounding can nudge it a hair outside that range for nearly
+parallel vectors, and =std::acos= of 1.0000001 is NaN, so the clamp keeps the
+result well-defined. The zero-length check guards each input's squared length
+*separately*, not their product: testing =length_squared(a)*length_squared(b)=
+against the threshold makes the effective per-vector cutoff its square root, so a
+genuinely non-zero short vector (length ~1e-7) would be wrongly rejected as
+zero-length. It returns a =result<Real>= (zero-length inputs fail) and is not
+=constexpr= because it calls libm =acos=.
+
+* When to use them
+
+- =dot= for projections, lighting, and "are these aligned"; =length_squared= over
+  =length= whenever you only compare magnitudes.
+- =cross= (3D) for normals and torque; =cross= (2D) for winding and orientation
+  tests.
+- =normalize= when failure is possible and you want to handle it; =normalize_or=
+  when you have a sensible fallback; =fast_normalize= in a hot loop that tolerates
+  5e-6 error.
+- =reflect= for bounces and mirrors; =project= / =reject= for decomposing motion
+  along and across a surface.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+auto const d{nm::dot(a, b)};
+auto const n{nm::cross(edge1, edge2)};             // triangle normal (unsorted)
+if (auto u = nm::normalize(n)) { /* *u is unit */ }
+auto const bounced{nm::reflect(velocity, surface_normal)};  // surface_normal unit
+auto const ang{nm::angle_between(a, b)};           // result<Real>, radians
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/vectors.cpp][examples/math/vectors.cpp]]
+
+* See also
+
+- [[file:vector.org][vector]] : the storage type and its element-wise algebra.
+- [[file:normalized.org][normalized]] : carry the "this is unit length" guarantee in the type.
+- [[file:power.org][power]] : =sqrt= and =fast_inv_sqrt= behind the norms.
+
+* Further reading
+
+- The cross product as a determinant, and the reflection formula:
+  https://en.wikipedia.org/wiki/Cross_product and
+  https://en.wikipedia.org/wiki/Reflection_(mathematics)
+- On why a floating-point dot product keeps a sequential sum (associativity and
+  reproducibility): https://docs.nvidia.com/cuda/floating-point/ (section on
+  reproducibility).

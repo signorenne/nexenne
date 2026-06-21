@@ -1,0 +1,88 @@
+#+TITLE: the unit-length vector
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=normalized<Real, N>=: a strong-typed wrapper around a [[file:vector.org][vector]] that the type
+system guarantees is unit length. An API that needs a direction (a surface normal
+for =reflect=, a projection axis, a lighting direction) can take a =normalized=
+and skip both the "you must pass a unit vector" precondition and any defensive
+re-normalization, because the guarantee rides along in the type.
+
+* The idea
+
+"This vector is normalized" is a precondition that is easy to state and easy to
+forget, and a wrong normal silently corrupts a reflection or a lighting term. The
+fix is a *newtype*: wrap the vector so the only way to obtain one is through a
+factory that either trusts a known-unit input or normalizes it, and make the
+wrapped value read-only so it cannot drift out of unit length afterwards. The
+guarantee then lives in the type, not in a comment.
+
+* How it works
+
+** Two factories, one guarantee
+
+There is no public normalizing constructor; you go through a factory:
+
+- =make_unchecked(v)= wraps =v= as-is, doing no math. For inputs already known to
+  be unit length (an axis basis, the output of a prior normalize). It is the
+  trust-me door, and its =@warning= says so.
+- =make_normalized(v)= re-normalizes and returns =result<normalized<Real,N>>=,
+  failing with =zero_length_vector= when =v= is too short to normalize stably (it
+  delegates to [[file:vector_algorithms.org][=normalize=]]).
+
+** Read-only after construction
+
+The wrapped vector is reachable through =value()= (const) and an implicit
+conversion to =vector const&=, but there is *no mutable accessor*: a mutable one
+would let a caller assign an arbitrary vector and silently break the invariant
+every consumer depends on, so it is deliberately omitted. To change the value,
+construct a new =normalized= through a factory.
+
+** The deduction caveat
+
+The implicit conversion to =vector const&= lets a =normalized= be passed wherever
+a plain vector is expected, but C++ template-argument deduction does not look
+through user-defined conversions. So a generic algorithm must be called on the
+unwrapped value:
+
+#+BEGIN_EXAMPLE
+  normalized<float,3> n = ...;
+  nm::dot(n, n);            // does NOT compile: deduction can't see through
+  nm::dot(n.value(), n.value());   // correct
+  vector<float,3> v = n;   // fine: non-template context, conversion applies
+#+END_EXAMPLE
+
+* When to use it
+
+- In a function signature that requires a direction: take =normalized<Real,N>=
+  instead of =vector<Real,N>= plus a "must be unit" comment.
+- Build one with =make_normalized= at the boundary where the direction enters the
+  system; pass it around freely afterwards with no re-checking.
+- Use =make_unchecked= only for vectors you can prove are already unit length.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+
+auto const dir{nm::make_normalized(nm::vector3_f{1, 1, 0})};
+if (dir) {
+  auto const bounced{nm::reflect(velocity, dir->value())};
+}
+
+constexpr auto up{nm::make_unchecked(nm::vector3_f{0, 1, 0})};  // known unit
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/vectors.cpp][examples/math/vectors.cpp]]
+
+* See also
+
+- [[file:vector.org][vector]] : the wrapped type.
+- [[file:vector_algorithms.org][vector_algorithms]] : =normalize= and the consumers (=reflect=, =project=).
+
+* Further reading
+
+- The newtype / strong-typedef pattern for carrying invariants in the type:
+  https://www.fluentcpp.com/2016/12/08/strong-types-for-strong-interfaces/
