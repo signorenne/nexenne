@@ -27,6 +27,7 @@ nexenne_add_module(math
         include/nexenne/math/power.hpp
         include/nexenne/math/projection.hpp
         include/nexenne/math/quaternion.hpp
+        include/nexenne/math/random.hpp
         include/nexenne/math/scalar.hpp
         include/nexenne/math/slerp_variants.hpp
         include/nexenne/math/transform.hpp

@@ -1,0 +1,101 @@
+#+TITLE: random
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+Geometric random samplers that produce math types: =unit_vector2= /
+=unit_vector3= (uniform directions), =point_in_unit_disc= / =point_in_unit_ball=
+(uniform points inside the circle / sphere), and =random_angle=. They are layered
+on the [[file:../random/README.org][nexenne::random]] engines and reuse that module's scalar draws rather than
+re-deriving them.
+
+* The idea
+
+Scalar sampling (uniform reals and ints, Bernoulli, normal) is the job of the
+engine-agnostic =nexenne::random= module. What belongs *here* is the handful of
+samplers that return a [[file:vector.org][vector]] or a [[file:angle.org][radians]] and therefore need the math types -
+so they live next to those types but still take any =random::rng_engine= as the
+source of bits. Every sampler advances the caller's generator in place; the
+generator owns the sequence state.
+
+The subtlety in all of these is *uniformity*. The obvious constructions are
+biased: sampling a radius and angle independently clusters points near a disc's
+center, and sampling spherical angles clusters directions near the poles. The
+samplers here avoid that, either by rejection or by a measure-preserving map.
+
+* How it works
+
+** uniform_real_in (the shared primitive)
+
+A small =detail= helper remaps the engine's canonical =[0, 1)= draw onto
+=[lo, hi)= with =lo + (hi - lo) * uniform_real(g)=. Everything else is built from
+it, so there is exactly one place the underlying engine is touched.
+
+** unit_vector2
+
+Sample an angle uniformly over a full turn and take its point on the unit circle.
+=sincos= returns both components from a single trig evaluation. Uniform angle maps
+directly to uniform direction in 2D, so no rejection is needed.
+
+** unit_vector3 - Marsaglia's method
+
+A uniform direction in 3D cannot come from uniform spherical angles (that biases
+toward the poles). Marsaglia (1972) instead rejection-samples a point =(a, b)= in
+the unit disc, sets =s = a^2 + b^2=, and maps to
+=(2a*sqrt(1-s), 2b*sqrt(1-s), 1-2s)=. This is *exactly* uniform on the sphere by
+Archimedes' hat-box theorem: a uniform sphere has its =z= uniform on =[-1, 1]= and
+its azimuth uniform. For a uniform disc point =s= is uniform on =[0, 1)= (disc
+area grows as the squared radius), so =z = 1-2s= is the required uniform =z=; and
+since =1 - z^2 = 4s(1-s)=, the in-plane radius =sqrt(1-z^2) = 2*sqrt(s(1-s))=
+reproduces the disc point scaled onto its circle of latitude. Two draws and one
+=sqrt= per accepted sample, no trigonometry, acceptance =pi/4= (~1.27 attempts).
+
+** point_in_unit_disc and point_in_unit_ball
+
+Plain rejection sampling: draw a point in the bounding square (2D) or cube (3D)
+and keep it only if it lands inside the unit radius. This is unbiased by
+construction - the kept points are a uniform subset of a uniform square/cube.
+Acceptance is =pi/4= (~1.27 attempts) for the disc and =pi/6= (~1.91 attempts)
+for the ball, both cheap enough that the simplicity wins.
+
+** random_angle
+
+A uniform =radians= in =[-pi, pi)=, sampled directly in range (no wrapping).
+
+* When to use it
+
+- =unit_vector3= for a random ray direction, a scatter direction in a path
+  tracer, or jitter on a normal.
+- =point_in_unit_disc= for sampling a lens aperture (depth of field) or a 2D
+  splatter; =point_in_unit_ball= for volumetric scatter.
+- =random_angle= for a random 2D heading or spin.
+- Reach for [[file:../random/README.org][nexenne::random]] directly for scalar draws (a uniform float, a normal
+  sample, a dice roll); this header is only the geometric layer on top.
+
+* Usage
+
+#+BEGIN_SRC cpp
+namespace nm = nexenne::math;
+namespace rng = nexenne::random;
+
+rng::pcg32 gen{seed, sequence};
+auto const dir{nm::unit_vector3<double>(gen)};        // uniform on the sphere
+auto const lens{nm::point_in_unit_disc<double>(gen)};  // uniform in the disc
+auto const heading{nm::random_angle<double>(gen)};     // radians in [-pi, pi)
+#+END_SRC
+
+Runnable: [[file:../../../examples/math/sampling.cpp][examples/math/sampling.cpp]]
+
+* See also
+
+- [[file:vector.org][vector]] : the return type of the direction and point samplers.
+- [[file:angle.org][angle]] : the =radians= returned by =random_angle=.
+- nexenne::random : the engines and scalar distributions these build on.
+
+* Further reading
+
+- Marsaglia, "Choosing a Point from the Surface of a Sphere" (1972):
+  https://projecteuclid.org/euclid.aoms/1177692644
+- Why naive spherical-angle sampling is biased, and uniform alternatives:
+  https://mathworld.wolfram.com/SpherePointPicking.html

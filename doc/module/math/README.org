@@ -59,8 +59,8 @@ the dimension is known to the compiler, not the profiler.
   and a column-combination multiply that compiles to packed SSE.
 - [[file:projection.org][projection]] : the 4x4 =perspective= / =ortho= builders (plus the =_zo= Vulkan
   and Direct3D depth variants) that map view space to clip space.
-- [[file:transform.org][transform]] : the affine builders (=translation_=, =rotation_=, =scale_= in 2D
-  and 3D), the =look_at= view matrix, and =transform_point= / =transform_direction=.
+- [[file:transform.org][transform]] : the affine builders (=translation=, =rotation=, =scale= in 2D and
+  3D), the =look_at= view matrix, and =transform_point= / =transform_direction=.
 
 * Curves and easing
 
@@ -76,6 +76,12 @@ the dimension is known to the compiler, not the profiler.
   =nlerp_short= / =slerp_short=.
 - [[file:euler.org][euler]] : the =euler_order= enum, the =euler_angles= carrier, and conversion to a
   quaternion under any of the six orders (plus the aerospace =from_ypr=).
+
+* Random sampling
+
+- [[file:random.org][random]] : geometric samplers on the nexenne::random engines: =unit_vector2= /
+  =unit_vector3= directions, =point_in_unit_disc= / =point_in_unit_ball=, and
+  =random_angle=.
 
 * Headers without an article
 

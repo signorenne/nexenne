@@ -11,6 +11,7 @@ set(_math_examples
     rotations
     transforms
     curves
+    sampling
 )
 
 foreach(_example IN LISTS _math_examples)
