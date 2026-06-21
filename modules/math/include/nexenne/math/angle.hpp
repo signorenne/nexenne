@@ -563,11 +563,12 @@ template <std::floating_point Real>
 [[nodiscard]] constexpr auto wrap_signed(radians<Real> const r) noexcept -> radians<Real> {
   // Floor-modulo over the period (via scalar::mod, which reduces with floor and
   // so handles any finite magnitude without the long long overflow a truncating
-  // cast would have). Shift into [0, 2pi) first, reduce, then shift back onto
-  // [-pi, pi). The final guard fixes the floating-point boundary case: when the
-  // input is a hair below a +pi multiple, the reduced value can round up to
-  // exactly +pi, the excluded endpoint, so subtract one period to keep it in
-  // [-pi, pi).
+  // cast would have). Recentre by +pi, reduce, then shift back by -pi. mod's
+  // result is strictly below the period on the high end, but floating-point
+  // rounding can leave it a hair below 0 (measured ~-1e-13), which after the -pi
+  // shift dips just under -pi; the (wrapped < -pi) branch pulls that back into
+  // [-pi, pi). The (wrapped >= pi) branch never fires - mod's upper end is already
+  // strict, so wrapped < pi always - and is kept only as a symmetric guard.
   auto const two_pi{tau_v<Real>};
   auto wrapped{mod(r.value() + pi_v<Real>, two_pi) - pi_v<Real>};
   if (wrapped >= pi_v<Real>) {
@@ -595,10 +596,11 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto wrap_unsigned(radians<Real> const r) noexcept -> radians<Real> {
-  // Floor-modulo over the period (scalar::mod), with a boundary guard: for a tiny
-  // negative input, mod(value, 2pi) = value + 2pi can round up to exactly 2pi
-  // (the excluded upper bound) because value is below the ulp of 2pi, so subtract
-  // one period to keep the result in [0, 2pi).
+  // scalar::mod's result is strictly below the period (it pulls a value rounding
+  // up to the period back to 0), but a floating-point rounding can leave it a
+  // hair below 0 (measured ~-1e-13); the (wrapped < 0) branch pulls that residue
+  // up into [0, 2pi). The (wrapped >= 2pi) branch never fires - mod's upper end is
+  // already strict - and is a symmetric backstop.
   auto const two_pi{tau_v<Real>};
   auto wrapped{mod(r.value(), two_pi)};
   if (wrapped >= two_pi) {

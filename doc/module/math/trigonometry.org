@@ -47,9 +47,10 @@ quadrant k mod 4:   0 -> ( s,  c)   1 -> ( c, -s)
 So =fast_sin= and =fast_cos= both need the reduced sine *and* cosine (the quadrant
 decides which becomes the answer), which is exactly why the pair form costs no
 more than either single. Accuracy is around 3e-7 near the origin and degrades by
-roughly a decimal per period as the =long long=-based reduction loses bits, so the
-fast path is for bounded angles (wrap first with [[file:angle.org][wrap_signed]] if needed). The
-inverse trig (=fast_asin= via Abramowitz and Stegun, =fast_atan= via a degree-9
+roughly a decimal per period as the range reduction loses low bits to
+floating-point cancellation in =reduced - k*(pi/2)= (=k= itself stays exact), so
+the fast path is for bounded angles (wrap first with [[file:angle.org][wrap_signed]] if needed). The
+inverse trig (=fast_asin= via Abramowitz and Stegun, =fast_atan= via a degree-11
 fit with the =atan(1/x)= fold) follows the same approximate-but-constexpr spirit.
 
 ** The lookup table
@@ -57,6 +58,8 @@ fit with the =atan(1/x)= fold) follows the same approximate-but-constexpr spirit
 =lut_sin= / =lut_cos= read a compile-time-generated 1024-entry sine table
 (=inline constexpr=, so it lives in read-only data with no runtime init) and
 linearly interpolate; cosine reuses the sine table at a quarter-turn offset.
+Because =std::sin= is not =constexpr=, the table is seeded at compile time from
+the polynomial approximation (not exact sines), which sets the accuracy floor.
 Accuracy around 4.7e-6. Useful on a target with slow or absent libm; measure before
 preferring it on a desktop.
 

@@ -130,6 +130,11 @@ namespace detail {
 template <std::floating_point Real>
 [[nodiscard]] auto axis_quat(Real const angle, Real const ax, Real const ay, Real const az) noexcept
   -> quaternion<Real> {
+  // A rotation by `angle` about the unit axis (ax, ay, az) is encoded as the
+  // HALF-angle quaternion (sin(angle/2) * axis, cos(angle/2)). The half-angle is
+  // what makes the sandwich product q * v * conjugate(q) rotate v by the full
+  // angle (the q and conjugate(q) each contribute angle/2). See from_axis_angle
+  // in quaternion.hpp for the full derivation.
   auto const half{angle * Real{0.5}};
   auto const s{std::sin(half)};
   // The quaternion ctor is (x, y, z, w); w is the scalar part cos(half).
@@ -164,6 +169,16 @@ template <std::floating_point Real>
   auto const qy{detail::axis_quat(angles.y(), Real{0}, Real{1}, Real{0})};
   auto const qz{detail::axis_quat(angles.z(), Real{0}, Real{0}, Real{1})};
 
+  // Why the product reads left-to-right for an INTRINSIC sequence. A rotation
+  // about a body-fixed (already-rotated) axis post-multiplies the accumulated
+  // orientation: if the frame is currently Q and we then turn about its own X by
+  // qx, the new orientation is Q * qx. Starting from identity and applying
+  // intrinsic x, then y, then z gives ((I * qx) * qy) * qz = qx*qy*qz - the same
+  // order as written. (Equivalently, because the Hamilton product applies to a
+  // vector right-to-left, qx*qy*qz rotates a vector about the fixed WORLD z
+  // first, then y, then x, which is the extrinsic zyx reading of the same
+  // orientation. Intrinsic xyz == extrinsic zyx.)
+  // https://en.wikipedia.org/wiki/Davenport_chained_rotations#Intrinsic_rotations
   switch (order) {
     case euler_order::xyz:
       return qx * qy * qz;

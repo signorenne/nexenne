@@ -46,10 +46,11 @@ built on =deg_to_rad_v= / =rad_to_deg_v= from [[file:constants.org][constants]].
 both via a floor-modulo reduction (reusing =scalar::mod=). Floor-modulo, not a
 truncating =long long= cast: the cast would overflow into undefined behaviour
 once the angle exceeds the integer range, whereas floor stays defined for any
-finite magnitude. A small boundary guard then keeps the result strictly inside
-the half-open interval, since a sub-ulp negative input can otherwise round up
-onto the excluded upper endpoint (=wrap_unsigned(-1e-17)= would land on exactly
-=2pi=). Reduction is only meaningful while the input still resolves the period:
+finite magnitude. =scalar::mod= keeps the result strictly below the period on the
+high end, but a floating-point rounding can leave it a hair below 0, so each
+wrapper's lower-end guard (=+= period= when the residue dips negative) is genuinely
+load-bearing; the upper-end branch never fires and is a symmetric backstop.
+Reduction is only meaningful while the input still resolves the period:
 past about =1e15= radians the spacing between doubles exceeds =2pi=, so the
 result is necessarily coarse (but still defined). These keep a cumulative heading
 from growing without bound so comparisons and interpolation stay well-conditioned.

@@ -73,8 +73,9 @@ duplicating them.
   left: scale first, then rotate, then translate).
 - =look_at= for a camera's view matrix; pair it with a [[file:projection.org][projection]] matrix.
 - =transform_point= to move a position through a matrix (it handles the
-  perspective divide); =transform_direction= for normals and velocities that
-  should ignore translation.
+  perspective divide); =transform_direction= for velocities and tangents that
+  should ignore translation (not normals under non-uniform scale - see the
+  caveat above; those need the inverse transpose).
 
 * Usage
 

@@ -81,7 +81,13 @@ dot(vector<Value, N> const& a, vector<Value, N> const& b) noexcept -> Value {
  *
  * @return \c dot(v, v).
  *
- * @pre Components are finite.
+ * @pre Components are finite and small enough that the sum of squares does not
+ *      overflow \p Value. This bites well below the per-component range: for
+ *      \c float it overflows to +inf once a component exceeds ~1.8e19
+ *      (sqrt(FLT_MAX)) even though the true length is representable, and for a
+ *      signed integer \p Value the sum-of-squares is undefined on overflow
+ *      (e.g. \c vector2_i{50000, 0} already exceeds INT_MAX). Scale large
+ *      floating-point inputs down first; keep integer coordinates bounded.
  * @post Result is non-negative and finite.
  */
 template <arithmetic Value, std::size_t N>
@@ -220,7 +226,12 @@ template <arithmetic Value>
  * Compares \c length_squared(v) against \p threshold and, on success, divides by
  * the length. The threshold is on the squared length, so its default of 1e-20
  * corresponds to a length of about 1e-10: short enough to catch a genuine zero
- * vector while not rejecting any meaningful direction.
+ * vector while not rejecting any meaningful direction. That reasoning is tuned
+ * for \c double; for \c float a length near 1e-10 is already at the edge of the
+ * type's precision, so pass a larger, type-appropriate \p threshold when
+ * normalizing small \c float vectors (and the same magic constant is reused by
+ * \c fast_normalize / \c project / \c reject / \c angle_between for the same
+ * reason - see here for the rationale).
  *
  * @tparam Real Floating-point component type.
  * @tparam N Component count.
@@ -485,6 +496,9 @@ template <std::floating_point Real, std::size_t N>
   if (!proj) {
     return std::unexpected{proj.error()};
   }
+  // The rejection is orthogonal to `onto` by construction:
+  // dot(v - proj, onto) = dot(v, onto) - (dot(v,onto)/dot(onto,onto))*dot(onto,onto)
+  // = 0. So v = proj + reject splits v into parallel and perpendicular parts.
   return v - *proj;
 }
 
@@ -494,7 +508,9 @@ template <std::floating_point Real, std::size_t N>
  * The mirror reflection \c v - 2*dot(v, n)*n. The term \c dot(v, n)*n is the
  * component of \p v along the normal; subtracting it once removes that component
  * (a slide along the surface), subtracting it twice flips it (a bounce), which is
- * the reflection. Assumes \p normal is a unit vector.
+ * the reflection. Length is preserved for a unit normal: with \c d = dot(v, n),
+ * \c |v - 2d*n|^2 = |v|^2 - 4d^2 + 4d^2*|n|^2 = |v|^2 when \c |n| = 1. Assumes
+ * \p normal is a unit vector.
  *
  * @tparam Real Floating-point component type.
  * @tparam N Component count.

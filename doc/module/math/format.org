@@ -44,6 +44,9 @@ spec (=={}==).
 - Logging or =std::println= during development; assertion and error messages.
 - Not a serialization format - it is for humans. For exact round-tripping use a
   real serializer, and for hashing as a map key see [[file:hash.org][hash]].
+- The strong scalar types =radians= / =degrees= are *not* covered here (so a
+  =random_angle= result prints via its =.value()=, not directly). Only the
+  multi-component value types get formatters.
 
 * Usage
 
