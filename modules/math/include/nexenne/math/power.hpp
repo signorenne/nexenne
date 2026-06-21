@@ -264,11 +264,16 @@ template <detail::ieee_float Real>
   auto const yf{y - yi};
   // 2^yf for yf in [0, 1): degree-7 Taylor of exp(yf*ln(2)) about yf=0, so the
   // coefficients are (ln 2)^k / k! for k = 0..7. This is the accurate part.
-  auto const two_yf{
-    Real{1}
-    + yf
-        * (Real{0.69314718055994531} + yf * (Real{0.24022650695910071} + yf * (Real{0.05550410866482158} + yf * (Real{0.00961812910762848} + yf * (Real{0.00133335581464284} + yf * (Real{0.00015403530393381} + yf * Real{0.00001525273380405}))))))
-  };
+  // Evaluated by Horner from the top coefficient down - bit-identical to the
+  // nested form, just within the column limit.
+  auto p{Real{0.00001525273380405}};       // (ln2)^7/7!
+  p = Real{0.00015403530393381} + yf * p;  // (ln2)^6/6!
+  p = Real{0.00133335581464284} + yf * p;  // (ln2)^5/5!
+  p = Real{0.00961812910762848} + yf * p;  // (ln2)^4/4!
+  p = Real{0.05550410866482158} + yf * p;  // (ln2)^3/3!
+  p = Real{0.24022650695910071} + yf * p;  // (ln2)^2/2!
+  p = Real{0.69314718055994531} + yf * p;  // ln2
+  auto const two_yf{Real{1} + yf * p};     // 1
   // Multiply by 2^yi for free: in IEEE-754 the exponent field sits just above
   // the mantissa (bit 23 for float, bit 52 for double), and adding 1 there
   // multiplies the value by 2. So adding yi shifted into the exponent field
@@ -343,10 +348,15 @@ template <detail::ieee_float Real>
   // https://en.wikipedia.org/wiki/Logarithm#Power_series (area hyperbolic tangent)
   auto const u{(m - Real{1}) / (m + Real{1})};
   auto const u2{u * u};
-  auto const ln_m{
-    Real{2} * u
-    * (Real{1} + u2 * (Real{1} / Real{3} + u2 * (Real{1} / Real{5} + u2 * (Real{1} / Real{7} + u2 * (Real{1} / Real{9} + u2 * Real{1} / Real{11})))))
-  };
+  // Horner in u2 from the top reciprocal (1/11) down, then scale by 2u. Within
+  // the column limit; same coefficients and order as the nested form.
+  auto q{Real{1} / Real{11}};
+  q = Real{1} / Real{9} + u2 * q;
+  q = Real{1} / Real{7} + u2 * q;
+  q = Real{1} / Real{5} + u2 * q;
+  q = Real{1} / Real{3} + u2 * q;
+  q = Real{1} + u2 * q;
+  auto const ln_m{Real{2} * u * q};
   return exp_part * ln_two_v<Real> + ln_m;
 }
 
