@@ -27,12 +27,26 @@ snake_case for everything. The only suffix/prefix rules:
 | private / protected member | =m_= prefix | =m_count=                  |
 | type template parameter    | PascalCase  | =Real=, =Value=, =T=       |
 | value template parameter   | PascalCase  | =N=, =Width=, =Capacity=   |
+| metafunction alias result  | =_t= suffix | =tl_concat_t=, =value_t=   |
+| member type alias          | =_type=     | =value_type=, =storage_type= |
+| variable template          | =_v= suffix | =pi_v=, =is_unit_v=        |
 | macro                      | UPPER_CASE  | =NEXENNE_MATH_VERSION=     |
 
 Template parameters are the one exception to snake_case: they are PascalCase,
 matching standard-library style (=std::vector<T, Allocator>=). Everything else
 is snake_case, never camelCase, never a trailing underscore (=count_= is
 wrong). Public members carry no prefix.
+
+The =_t= suffix follows the standard library and is *reserved for the result of
+a metafunction alias template*, =using foo_t = typename foo<...>::type;= (the
+analogue of =std::remove_cv_t= or =std::tuple_element_t=). A *concrete class,
+struct, or enum takes no suffix* (=sin_cos=, =vector=, =matrix=, never
+=sin_cos_t=), exactly as =std::vector= and =std::optional= carry none. A type
+alias that names a member uses the full =_type= (=value_type=, =storage_type=),
+matching =std::value_type=; a variable template uses =_v= (=pi_v=). Dimensioned
+math aliases attach the dimension and keep an explicit scalar suffix:
+=vector2<T>= / =vector3_f= / =matrix4_d=, never =vector_2_f= and never the
+abbreviated =vec3=.
 
 * Class layout
 

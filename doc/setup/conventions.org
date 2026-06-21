@@ -15,6 +15,11 @@ and lint rules on every change.
 - C++23, =snake_case= for every identifier; template parameters are =CamelCase=
   (for example =Real=, =N=). Private and protected members take the =m_= prefix.
   These names are checked by =readability-identifier-naming= in =.clang-tidy=.
+- The =_t= suffix follows the standard library: it marks the *result of a
+  metafunction alias template* (=using foo_t = typename foo<...>::type=, like
+  =std::remove_cv_t=). A concrete class, struct, or enum carries *no suffix*
+  (=sin_cos=, not =sin_cos_t=, just as =std::vector= has none); a member type
+  alias uses =_type= (=value_type=); a variable template uses =_v= (=pi_v=).
 - Trailing return types everywhere (=modernize-use-trailing-return-type=), braced
   init, =const= by default (=misc-const-correctness= transforms non-reassigned
   locals), ranges over raw loops.
