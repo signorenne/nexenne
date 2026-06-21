@@ -29,10 +29,10 @@ nodes come from a *fixed pool* sized once at construction, so a steady-state
 
 ** Three pieces: pool, recency list, index
 
-The cache owns a =vector<node_t>= pool (each node bundles the key, the value, and
+The cache owns a =vector<node>= pool (each node bundles the key, the value, and
 the intrusive list links), a free list of unused node pointers, an
 =intrusive_list= threading the live nodes in recency order (front = MRU, back =
-LRU), and a =flat_hash_map<Key, node_t*>= mapping each key to its node. The pool
+LRU), and a =flat_hash_map<Key, node*>= mapping each key to its node. The pool
 is allocated to capacity at construction and *never grows*, so node addresses are
 stable and the list and index pointers into it stay valid for the cache's life.
 
