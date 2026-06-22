@@ -9,19 +9,20 @@ include_guard(GLOBAL)
 # work when a parent project already provides doctest.
 #
 if(NOT TARGET doctest::doctest_with_main)
-    set(NEXENNE_DOCTEST_VERSION "2.4.11"
+    set(NEXENNE_DOCTEST_VERSION "2.4.12"
         CACHE STRING "doctest release version to fetch")
     set(NEXENNE_DOCTEST_SHA256
-        "632ed2c05a7f53fa961381497bf8069093f0d6628c5f26286161fbd32a560186"
+        "73381c7aa4dee704bd935609668cf41880ea7f19fa0504a200e13b74999c2d70"
         CACHE STRING "SHA256 of the doctest v${NEXENNE_DOCTEST_VERSION} release tarball")
 
     message(STATUS "[nexenne] fetching doctest ${NEXENNE_DOCTEST_VERSION} (release tarball)")
     include(FetchContent)
-    # doctest 2.4.11 declares cmake_minimum_required(VERSION 3.0), which CMake
-    # 4.x rejects; force a compatible policy version for its add_subdirectory,
-    # then restore the caller's value.
+    # doctest 2.4.12 declares cmake_minimum_required(VERSION 3.5). Raise the
+    # effective policy floor to 3.10 for its add_subdirectory so CMake 4.x does
+    # not warn that compatibility with CMake < 3.10 is going away, then restore
+    # the caller's value.
     set(_nexenne_prev_policy_min "${CMAKE_POLICY_VERSION_MINIMUM}")
-    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
     FetchContent_Declare(
         doctest
         URL "https://github.com/doctest/doctest/archive/refs/tags/v${NEXENNE_DOCTEST_VERSION}.tar.gz"
