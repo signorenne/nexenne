@@ -9,7 +9,11 @@
  * register value, whether each input byte is reflected (LSB-first), whether
  * the final register is reflected before the output XOR, and that XOR value.
  * The catalogue at https://reveng.sourceforge.io/crc-catalogue/all.htm lists
- * around a hundred named CRCs, each one a single \c crc_spec instantiation.
+ * around a hundred named CRCs, each one a single \c crc_spec instantiation, with
+ * one exception: a non-reflected CRC narrower than 8 bits (for example CRC-7/MMC)
+ * cannot be represented, since the MSB-first table places each byte at the top
+ * of the register and so needs a width of at least 8 (a \c static_assert rejects
+ * that combination). Reflected sub-byte widths, the common case, are supported.
  *
  * One 256-entry lookup table is generated per spec at \c constexpr time, so it
  * is fixed size (256, 512, or 1024 bytes) and ROM-resident on an MCU. The whole
@@ -132,6 +136,44 @@ make_crc_table() noexcept -> std::array<typename decltype(Spec)::value_type, 256
 template <crc_spec Spec>
 inline constexpr auto crc_table_for{make_crc_table<Spec>()};
 
+// Folds a byte-producing range through the table-driven CRC. Kept generic over
+// the element type so the string_view overload stays genuinely constexpr: a
+// reinterpret_cast to std::uint8_t const* is never a constant expression, so the
+// characters are read one at a time via static_cast instead.
+template <crc_spec Spec, typename Range>
+[[nodiscard]] constexpr auto
+crc_fold(Range const& data) noexcept -> typename decltype(Spec)::value_type {
+  using value_type = typename decltype(Spec)::value_type;
+  constexpr auto width{Spec.width};
+  constexpr auto mask{crc_mask<value_type, width>};
+  constexpr auto& table{crc_table_for<Spec>};
+
+  if constexpr (Spec.ref_in) {
+    auto reg{reflect_bits<value_type>(Spec.init, width)};
+    for (auto const e : data) {
+      auto const b{static_cast<std::uint8_t>(e)};
+      auto const idx{static_cast<std::uint8_t>((reg ^ static_cast<value_type>(b)) & 0xFFu)};
+      reg = static_cast<value_type>((reg >> 8) ^ table[idx]);
+    }
+    if constexpr (!Spec.ref_out) {
+      reg = reflect_bits<value_type>(reg, width);
+    }
+    return static_cast<value_type>((reg ^ Spec.xor_out) & mask);
+  } else {
+    auto reg{Spec.init};
+    constexpr auto shift_down{width - 8};
+    for (auto const e : data) {
+      auto const b{static_cast<std::uint8_t>(e)};
+      auto const idx{static_cast<std::uint8_t>(((reg >> shift_down) ^ b) & 0xFFu)};
+      reg = static_cast<value_type>(((reg << 8) ^ table[idx]) & mask);
+    }
+    if constexpr (Spec.ref_out) {
+      reg = reflect_bits<value_type>(reg, width);
+    }
+    return static_cast<value_type>((reg ^ Spec.xor_out) & mask);
+  }
+}
+
 }  // namespace detail
 
 /**
@@ -157,40 +199,15 @@ inline constexpr auto crc_table_for{make_crc_table<Spec>()};
 template <crc_spec Spec>
 [[nodiscard]] constexpr auto crc(std::span<std::uint8_t const> const data) noexcept ->
   typename decltype(Spec)::value_type {
-  using value_type = typename decltype(Spec)::value_type;
-  constexpr auto width{Spec.width};
-  constexpr auto mask{detail::crc_mask<value_type, width>};
-  constexpr auto& table{detail::crc_table_for<Spec>};
-
-  if constexpr (Spec.ref_in) {
-    auto reg{detail::reflect_bits<value_type>(Spec.init, width)};
-    for (auto const b : data) {
-      auto const idx{static_cast<std::uint8_t>((reg ^ static_cast<value_type>(b)) & 0xFFu)};
-      reg = static_cast<value_type>((reg >> 8) ^ table[idx]);
-    }
-    if constexpr (!Spec.ref_out) {
-      reg = detail::reflect_bits<value_type>(reg, width);
-    }
-    return static_cast<value_type>((reg ^ Spec.xor_out) & mask);
-  } else {
-    auto reg{Spec.init};
-    constexpr auto shift_down{width - 8};
-    for (auto const b : data) {
-      auto const idx{static_cast<std::uint8_t>(((reg >> shift_down) ^ b) & 0xFFu)};
-      reg = static_cast<value_type>(((reg << 8) ^ table[idx]) & mask);
-    }
-    if constexpr (Spec.ref_out) {
-      reg = detail::reflect_bits<value_type>(reg, width);
-    }
-    return static_cast<value_type>((reg ^ Spec.xor_out) & mask);
-  }
+  return detail::crc_fold<Spec>(data);
 }
 
 /**
  * @brief Computes the CRC of a string view under the algorithm \p Spec.
  *
- * Reinterprets the characters of \p s as bytes and forwards to the byte-span
- * overload.
+ * Folds the characters of \p s as bytes through the same table walk as the
+ * byte-span overload. Genuinely \c constexpr: the characters are read one at a
+ * time, so no \c reinterpret_cast blocks constant evaluation.
  *
  * @tparam Spec A named preset below or a custom \c crc_spec.
  * @param s Characters to checksum.
@@ -208,9 +225,7 @@ template <crc_spec Spec>
 template <crc_spec Spec>
 [[nodiscard]] constexpr auto crc(std::string_view const s) noexcept ->
   typename decltype(Spec)::value_type {
-  return crc<Spec>(
-    std::span<std::uint8_t const>{reinterpret_cast<std::uint8_t const*>(s.data()), s.size()}
-  );
+  return detail::crc_fold<Spec>(s);
 }
 
 /**
@@ -243,6 +258,28 @@ private:
 
   value_type m_reg{initial_reg()};
 
+  // Folds a byte-producing range into the running register. Generic over the
+  // element type so update(string_view) stays constexpr without a
+  // reinterpret_cast, reading each character as a byte via static_cast.
+  template <typename Range>
+  constexpr auto fold(Range const& data) noexcept -> void {
+    constexpr auto& table{detail::crc_table_for<Spec>};
+    if constexpr (Spec.ref_in) {
+      for (auto const e : data) {
+        auto const b{static_cast<std::uint8_t>(e)};
+        auto const idx{static_cast<std::uint8_t>((m_reg ^ static_cast<value_type>(b)) & 0xFFu)};
+        m_reg = static_cast<value_type>((m_reg >> 8) ^ table[idx]);
+      }
+    } else {
+      constexpr auto shift_down{width - 8};
+      for (auto const e : data) {
+        auto const b{static_cast<std::uint8_t>(e)};
+        auto const idx{static_cast<std::uint8_t>(((m_reg >> shift_down) ^ b) & 0xFFu)};
+        m_reg = static_cast<value_type>(((m_reg << 8) ^ table[idx]) & mask);
+      }
+    }
+  }
+
 public:
   /**
    * @brief Constructs a context holding the preset's initial register.
@@ -273,23 +310,14 @@ public:
    * @complexity \c O(N) in the size \c N of \p data.
    */
   constexpr auto update(std::span<std::uint8_t const> const data) noexcept -> void {
-    constexpr auto& table{detail::crc_table_for<Spec>};
-    if constexpr (Spec.ref_in) {
-      for (auto const b : data) {
-        auto const idx{static_cast<std::uint8_t>((m_reg ^ static_cast<value_type>(b)) & 0xFFu)};
-        m_reg = static_cast<value_type>((m_reg >> 8) ^ table[idx]);
-      }
-    } else {
-      constexpr auto shift_down{width - 8};
-      for (auto const b : data) {
-        auto const idx{static_cast<std::uint8_t>(((m_reg >> shift_down) ^ b) & 0xFFu)};
-        m_reg = static_cast<value_type>(((m_reg << 8) ^ table[idx]) & mask);
-      }
-    }
+    fold(data);
   }
 
   /**
    * @brief Feeds the characters of a string view into the running CRC.
+   *
+   * Genuinely \c constexpr: each character is folded in as a byte, so no
+   * \c reinterpret_cast blocks compile-time streaming.
    *
    * @param s Characters to append to the stream. An empty view is a no-op.
    *
@@ -299,8 +327,7 @@ public:
    * @complexity \c O(N) in the length \c N of \p s.
    */
   constexpr auto update(std::string_view const s) noexcept -> void {
-    update(std::span<std::uint8_t const>{reinterpret_cast<std::uint8_t const*>(s.data()), s.size()}
-    );
+    fold(s);
   }
 
   /**
@@ -325,10 +352,18 @@ public:
   }
 };
 
-inline constexpr auto crc8_ccitt_spec{
+/// @brief CRC-8/SMBUS (poly 0x07, no reflection): the reveng catalogue "CRC-8".
+inline constexpr auto crc8_smbus_spec{
   crc_spec<8>{.poly = 0x07, .init = 0x00, .ref_in = false, .ref_out = false, .xor_out = 0x00}
 };
-inline constexpr auto crc8_smbus_spec{crc8_ccitt_spec};
+/**
+ * @brief Legacy alias for \c crc8_smbus_spec.
+ *
+ * The CCITT name is a misnomer for this parameterisation: the ITU-T CCITT CRC-8
+ * (catalogue CRC-8/I-432-1) uses \c xor_out 0x55 and yields a different value.
+ * Kept for source compatibility; prefer \c crc8_smbus_spec.
+ */
+inline constexpr auto crc8_ccitt_spec{crc8_smbus_spec};
 inline constexpr auto crc8_rohc_spec{
   crc_spec<8>{.poly = 0x07, .init = 0xFF, .ref_in = true, .ref_out = true, .xor_out = 0x00}
 };
@@ -381,11 +416,11 @@ inline constexpr auto crc32_mpeg2_spec{crc_spec<32>{
 }};
 
 /**
- * @brief CRC-8/CCITT (SMBus) checksum of a byte span.
+ * @brief CRC-8/SMBUS checksum of a byte span.
  *
  * @param d Bytes to checksum.
  *
- * @return The CRC-8/CCITT of \p d.
+ * @return The CRC-8/SMBUS of \p d.
  *
  * @pre None.
  * @post Equal inputs always produce the same value.
@@ -393,15 +428,15 @@ inline constexpr auto crc32_mpeg2_spec{crc_spec<32>{
  * @complexity \c O(N) in the size \c N of \p d.
  */
 [[nodiscard]] constexpr auto crc8(std::span<std::uint8_t const> const d) noexcept -> std::uint8_t {
-  return crc<crc8_ccitt_spec>(d);
+  return crc<crc8_smbus_spec>(d);
 }
 
 /**
- * @brief CRC-8/CCITT (SMBus) checksum of a string view.
+ * @brief CRC-8/SMBUS checksum of a string view.
  *
  * @param s Characters to checksum.
  *
- * @return The CRC-8/CCITT of \p s.
+ * @return The CRC-8/SMBUS of \p s.
  *
  * @pre None.
  * @post Equal inputs always produce the same value.
@@ -409,7 +444,7 @@ inline constexpr auto crc32_mpeg2_spec{crc_spec<32>{
  * @complexity \c O(N) in the length \c N of \p s.
  */
 [[nodiscard]] constexpr auto crc8(std::string_view const s) noexcept -> std::uint8_t {
-  return crc<crc8_ccitt_spec>(s);
+  return crc<crc8_smbus_spec>(s);
 }
 
 /**
