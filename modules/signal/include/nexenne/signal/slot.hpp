@@ -74,11 +74,9 @@ public:
    */
   constexpr slot() noexcept = default;
 
-  /// @brief Deleted copy constructor; a slot uniquely owns its
-  ///        connections (move-only).
+  /// @brief Deleted copy constructor; a slot uniquely owns its connections (move-only).
   slot(slot const&) = delete;
-  /// @brief Deleted copy assignment; a slot uniquely owns its
-  ///        connections (move-only).
+  /// @brief Deleted copy assignment; a slot uniquely owns its connections (move-only).
   auto operator=(slot const&) -> slot& = delete;
 
   /**

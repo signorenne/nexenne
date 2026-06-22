@@ -757,8 +757,11 @@ private:
     return false;
   }
 
-  /// @brief Bubbles the just-appended slot left into priority position. Stable:
-  ///        only past strictly lower-priority neighbours.
+  /**
+   * @brief Bubbles the just-appended slot left into priority position.
+   *
+   * Stable: only past strictly lower-priority neighbours.
+   */
   auto bubble_last_into_position() noexcept -> void {
     for (auto i{m_slots.size()}; i > 1; --i) {
       if (m_slots[i - 1].priority < m_slots[i - 2].priority) {
@@ -770,8 +773,11 @@ private:
     }
   }
 
-  /// @brief In-place stable insertion sort by priority (no allocation), for
-  ///        slots appended during an emit. O(MaxSlots^2), MaxSlots is small.
+  /**
+   * @brief In-place stable insertion sort by priority, no allocation.
+   *
+   * For slots appended during an emit. O(MaxSlots^2), MaxSlots is small.
+   */
   auto sort_by_priority() noexcept -> void {
     for (auto i{std::size_t{1}}; i < m_slots.size(); ++i) {
       for (auto j{i}; j > 0 && m_slots[j].priority < m_slots[j - 1].priority; --j) {

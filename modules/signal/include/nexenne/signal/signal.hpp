@@ -179,8 +179,12 @@ private:
 
   struct core {
     nexenne::container::small_vector<slot_entry, 4> slots{};
-    /// Connections made while an emit is in progress. Merged into \c slots once
-    /// the outermost emit finishes, so the live list never moves mid-iteration.
+    /**
+     * @brief Connections made while an emit is in progress.
+     *
+     * Merged into \c slots once the outermost emit finishes, so the live list
+     * never moves mid-iteration.
+     */
     nexenne::container::small_vector<slot_entry, 2> pending{};
     detail::slot_id_type next_id{1};
     int emit_depth{0};
@@ -578,9 +582,12 @@ private:
     return *m_core;
   }
 
-  /// @brief Wraps a pointer-to-member call as a slot-shaped callable bound to
-  ///        \p obj by reference, shared by both member-function connect
-  ///        overloads. \p obj must outlive the resulting connection.
+  /**
+   * @brief Wraps a pointer-to-member call as a slot-shaped callable bound to \p obj.
+   *
+   * Bound by reference and shared by both member-function connect overloads.
+   * \p obj must outlive the resulting connection.
+   */
   template <auto MemberFn, typename T>
   static auto bind_member(T& obj) noexcept {
     return [&obj](Args... args) noexcept(noexcept((obj.*MemberFn)(args...))) -> R {
@@ -699,11 +706,13 @@ private:
     return true;
   }
 
-  /// @brief Insertion-bubble the just-pushed slot into its position
-  ///        in the priority-sorted list. O(n) worst case, O(1) when
-  ///        the new slot belongs at the end. Stable: equal-priority
-  ///        entries keep insertion order because we only bubble
-  ///        past STRICTLY lower-priority neighbours.
+  /**
+   * @brief Insertion-bubble the just-pushed slot into its priority-sorted position.
+   *
+   * O(n) worst case, O(1) when the new slot belongs at the end. Stable:
+   * equal-priority entries keep insertion order because we only bubble past
+   * strictly lower-priority neighbours.
+   */
   static auto bubble_last_into_position(core& c) noexcept -> void {
     auto& s{c.slots};
     for (auto i{s.size()}; i > 1; --i) {
@@ -723,9 +732,12 @@ private:
     [[maybe_unused]] auto const _{c.slots.pop_back()};
   }
 
-  /// @brief Merges connections deferred during an emit into the live slot list,
-  ///        each bubbled into priority position; dead (disconnected before the
-  ///        merge) entries are dropped. Called once the outermost emit finishes.
+  /**
+   * @brief Merges connections deferred during an emit into the live slot list.
+   *
+   * Each is bubbled into priority position; dead (disconnected before the merge)
+   * entries are dropped. Called once the outermost emit finishes.
+   */
   static auto apply_pending(core& c) noexcept -> void {
     for (auto& entry : c.pending) {
       if (!entry.alive) {
