@@ -18,6 +18,7 @@
 #include <ostream>
 #include <span>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
@@ -26,8 +27,12 @@
 #include <nexenne/container/binary_tree.hpp>
 #include <nexenne/container/bitset_dynamic.hpp>
 #include <nexenne/container/dense_map.hpp>
+#include <nexenne/container/deque.hpp>
+#include <nexenne/container/error.hpp>
 #include <nexenne/container/flat_hash_map.hpp>
 #include <nexenne/container/flat_hash_set.hpp>
+#include <nexenne/container/flat_map.hpp>
+#include <nexenne/container/flat_set.hpp>
 #include <nexenne/container/gap_buffer.hpp>
 #include <nexenne/container/graph.hpp>
 #include <nexenne/container/heap.hpp>
@@ -38,6 +43,7 @@
 #include <nexenne/container/small_vector.hpp>
 #include <nexenne/container/sparse_set.hpp>
 #include <nexenne/container/stable_vector.hpp>
+#include <nexenne/container/static_flat_map.hpp>
 #include <nexenne/container/static_vector.hpp>
 #include <nexenne/container/trie.hpp>
 #include <nexenne/container/union_find.hpp>
@@ -115,6 +121,27 @@ template <typename T>
 template <typename T>
 auto operator<<(std::ostream& os, bag<T> const& b) -> std::ostream& {
   return os << to_string(b);
+}
+
+// deque is indexed, not iterable (no begin/end), so we walk it by subscript
+// rather than reusing detail::join_csv.
+template <std::move_constructible T>
+[[nodiscard]] auto to_string(deque<T> const& d) -> std::string {
+  std::string body;
+  bool first{true};
+  for (typename deque<T>::size_type i{0}; i < d.size(); ++i) {
+    if (!first) {
+      body += ", ";
+    }
+    first = false;
+    body += std::format("{}", d[i]);
+  }
+  return std::format("deque[{}]", body);
+}
+
+template <std::move_constructible T>
+auto operator<<(std::ostream& os, deque<T> const& d) -> std::ostream& {
+  return os << to_string(d);
 }
 
 template <typename T, typename Compare>
@@ -286,6 +313,59 @@ auto operator<<(std::ostream& os, flat_hash_set<T, H, E> const& s) -> std::ostre
   return os << to_string(s);
 }
 
+// The ordered flat containers print in the same brace style as their hashed
+// cousins ("{k: v}" / "{elems}"), not the C++23 default range rendering of a
+// sorted-pair sequence ("[(k, v), ...]"), so the whole module stays uniform.
+template <typename Key, typename Value, typename Compare>
+[[nodiscard]] auto to_string(flat_map<Key, Value, Compare> const& m) -> std::string {
+  std::string body;
+  bool first{true};
+  for (auto const& [k, v] : m) {
+    if (!first) {
+      body += ", ";
+    }
+    first = false;
+    body += std::format("{}: {}", k, v);
+  }
+  return std::format("flat_map{{{}}}", body);
+}
+
+template <typename Key, typename Value, typename Compare>
+auto operator<<(std::ostream& os, flat_map<Key, Value, Compare> const& m) -> std::ostream& {
+  return os << to_string(m);
+}
+
+template <typename T, typename Compare>
+[[nodiscard]] auto to_string(flat_set<T, Compare> const& s) -> std::string {
+  return std::format("flat_set{{{}}}", detail::join_csv(s));
+}
+
+template <typename T, typename Compare>
+auto operator<<(std::ostream& os, flat_set<T, Compare> const& s) -> std::ostream& {
+  return os << to_string(s);
+}
+
+template <typename Key, typename Value, std::size_t Capacity, typename Compare>
+[[nodiscard]] auto to_string(static_flat_map<Key, Value, Capacity, Compare> const& m
+) -> std::string {
+  std::string body;
+  bool first{true};
+  for (auto const& [k, v] : m) {
+    if (!first) {
+      body += ", ";
+    }
+    first = false;
+    body += std::format("{}: {}", k, v);
+  }
+  return std::format("static_flat_map{{{}}}", body);
+}
+
+template <typename Key, typename Value, std::size_t Capacity, typename Compare>
+auto operator<<(std::ostream& os, static_flat_map<Key, Value, Capacity, Compare> const& m)
+  -> std::ostream& {
+  return os << to_string(m);
+}
+
 template <typename L, typename R, typename HL, typename HR>
 [[nodiscard]] auto to_string(bimap<L, R, HL, HR> const& m) -> std::string {
   std::string body;
@@ -427,6 +507,18 @@ struct std::formatter<nexenne::container::bag<T>> {
 
   static auto format(nexenne::container::bag<T> const& b, auto& ctx) {
     return std::format_to(ctx.out(), "{}", nexenne::container::to_string(b));
+  }
+};
+
+/// Formats a \c deque via \c nexenne::container::to_string.
+template <std::move_constructible T>
+struct std::formatter<nexenne::container::deque<T>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto format(nexenne::container::deque<T> const& d, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(d));
   }
 };
 
@@ -598,6 +690,43 @@ struct std::formatter<nexenne::container::flat_hash_set<T, H, E>> {
   }
 };
 
+/// Formats a \c flat_map via \c nexenne::container::to_string.
+template <typename Key, typename Value, typename Compare>
+struct std::formatter<nexenne::container::flat_map<Key, Value, Compare>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto format(nexenne::container::flat_map<Key, Value, Compare> const& m, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(m));
+  }
+};
+
+/// Formats a \c flat_set via \c nexenne::container::to_string.
+template <typename T, typename Compare>
+struct std::formatter<nexenne::container::flat_set<T, Compare>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto format(nexenne::container::flat_set<T, Compare> const& s, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(s));
+  }
+};
+
+/// Formats a \c static_flat_map via \c nexenne::container::to_string.
+template <typename Key, typename Value, std::size_t Capacity, typename Compare>
+struct std::formatter<nexenne::container::static_flat_map<Key, Value, Capacity, Compare>> {
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  static auto
+  format(nexenne::container::static_flat_map<Key, Value, Capacity, Compare> const& m, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(m));
+  }
+};
+
 /// Formats a \c bimap via \c nexenne::container::to_string.
 template <typename L, typename R, typename HL, typename HR>
 struct std::formatter<nexenne::container::bimap<L, R, HL, HR>> {
@@ -619,5 +748,31 @@ struct std::formatter<nexenne::container::gap_buffer<T>> {
 
   static auto format(nexenne::container::gap_buffer<T> const& b, auto& ctx) {
     return std::format_to(ctx.out(), "{}", nexenne::container::to_string(b));
+  }
+};
+
+/**
+ * @brief \c std::format support for \c container_error: prints its \c to_string
+ *        name, so \c std::format("{}", err) works on a value from a \c result<T>.
+ *
+ * Inherits the string formatter, so a spec (width, alignment) applies to the name.
+ */
+template <>
+struct std::formatter<nexenne::container::container_error> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the error's \c to_string name through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param err Error to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The error name has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::container::container_error const err, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::container::to_string(err), ctx);
   }
 };
