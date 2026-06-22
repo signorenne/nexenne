@@ -210,6 +210,44 @@ and git, never in a per-file banner.
 - =assert= for internal preconditions in Debug, never on release input.
 - Document =@pre= / =@post= on public functions.
 
+* Formatting and diagnostics
+
+*Every public type ships a formatter so its state prints with no caller-written
+helper.* If a user would otherwise write a =for= loop or a hand-rolled string to
+inspect a value, the type is missing its formatter. For each public value type
+(and each public enum, errors included) provide the three layers, in order:
+
+- =to_string(x)= returning a readable =std::string=,
+- =operator<<(std::ostream&, x)= that streams =to_string=,
+- a =std::formatter<X>= specialization so =std::format("{}", x)= works.
+
+Place these in the module's =format.hpp=, never in the type's own header and
+never in the light =error.hpp=: =<format>= is heavy and must stay out of hot and
+widely-included headers, so formatting is opt-in by including =format.hpp=.
+
+- *Enums* (an =error= enum returned from =std::expected=, say) inherit the string
+  formatter and forward to =to_string=, so a spec applies and no manual
+  =to_string= call is needed at the call site:
+  #+BEGIN_SRC cpp
+  template <>
+  struct std::formatter<module::some_error> : std::formatter<std::string_view> {
+    template <typename Ctx>
+    auto format(module::some_error const e, Ctx& ctx) const {
+      return std::formatter<std::string_view>::format(module::to_string(e), ctx);
+    }
+  };
+  #+END_SRC
+- *Match the house output style* so the module reads uniformly: sequences as
+  =[a, b, c]=, set-like as ={a, b, c}=, map-like as ={k: v, ...}=. A composite
+  type forwards a parsed spec to each element's formatter (see the math vector
+  and matrix formatters).
+- *Do not wrap standard types.* =std::vector=, =std::array=, =std::map=,
+  =std::pair=, =std::tuple=, =std::span= and friends are already formattable in
+  C++23; rely on the standard rather than adding a formatter for them.
+  (=std::optional= / =std::expected= formatting is C++26, not yet available.)
+- The =format= (and =parse=) method is a public symbol: give it the full Doxygen
+  block, since the docs build fails on warnings.
+
 * Comments
 
 - *No decorative banner comments* (=// -----=, =# =====). Use a plain short

@@ -86,6 +86,8 @@ Build docs with =cmake -B build/docs -DNEXENNE_BUILD_DOCS=ON= then target
 - [ ] Every public header listed in =nexenne_add_module(... HEADERS ...)=.
 - [ ] Dependencies declared in =module.deps= (not includes-only).
 - [ ] Tests under =tests/= exercise the public API; new behavior, new tests.
+- [ ] Every public type and enum has a formatter in =format.hpp= (=to_string=,
+      =operator<<=, =std::formatter=); see [[file:../STYLE_GUIDE.org][STYLE_GUIDE.org]].
 - [ ] Doxygen on every public symbol, =@pre= / =@post= included.
 - [ ] =nexenne_tests= target passes under the =dev= and =ci= presets.
 - [ ] =clang-format -i= leaves no diff; =run-clang-tidy= reports nothing new.
