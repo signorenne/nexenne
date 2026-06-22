@@ -2,16 +2,20 @@
 
 /**
  * @file
- * @brief Boyer-Moore string search (bad-character heuristic).
+ * @brief Boyer-Moore-Horspool string search.
  *
- * Scans the haystack right to left against the needle, using a 256-entry
- * bad-character shift table so a mismatching byte skips several positions at
- * once. On large alphabets and typical text this beats KMP in practice, often
- * sublinear in the haystack length. The good-suffix heuristic is deliberately
- * omitted: the bad-character table alone covers the common case and keeps setup
- * to one cache-friendly array. The trade-off is a quadratic worst case on small
- * alphabets (e.g. needle "aaaa" in "aaaa...a"); use \c kmp_find when worst-case
- * linearity is required. An empty needle matches at position 0.
+ * Compares each window right to left against the needle and, on any mismatch,
+ * shifts by the entry of a 256-entry table keyed on the byte currently aligned
+ * with the LAST needle position, regardless of where the mismatch occurred. This
+ * is Horspool's simplification of Boyer-Moore: one cache-friendly array, no
+ * good-suffix table, and a shift that is always at least 1. On large alphabets
+ * and typical text it beats KMP in practice, often sublinear in the haystack
+ * length; the trade-off is a quadratic worst case on small alphabets (e.g.
+ * needle "aaaa" in "aaaa...a"), so use \c kmp_find when worst-case linearity is
+ * required. An empty needle matches at position 0.
+ *
+ * @see R. N. Horspool, "Practical fast searching in strings", Software:
+ *      Practice and Experience 10(6), 1980.
  */
 
 #include <array>
@@ -24,9 +28,10 @@ namespace nexenne::algorithm {
 /**
  * @brief Index of the first occurrence of \p needle in \p haystack.
  *
- * Uses Boyer-Moore with the bad-character heuristic: a 256-entry shift table
- * lets a mismatching byte skip several positions at once. An empty \p needle
- * matches at position 0.
+ * Uses Boyer-Moore-Horspool: on a mismatch it shifts by the table entry for the
+ * haystack byte aligned with the last needle position, so a byte absent from the
+ * needle skips the whole needle length at once. An empty \p needle matches at
+ * position 0.
  *
  * @param haystack Text to search.
  * @param needle Pattern to find.
@@ -54,8 +59,11 @@ namespace nexenne::algorithm {
     return std::string_view::npos;
   }
 
-  // Bad-character table: skip[c] is the shift distance on a mismatch against
-  // byte c, the needle length by default and shorter for bytes in the needle.
+  // Horspool table: skip[c] is the distance from the last needle position back
+  // to the rightmost earlier occurrence of byte c in the needle, or the needle
+  // length when c does not occur before the last position. The final needle byte
+  // is excluded from the table (loop stops at m - 1) so a mismatch there still
+  // shifts by at least 1.
   auto skip{std::array<std::size_t, 256>{}};
   skip.fill(m);
   for (auto i{std::size_t{0}}; i + 1 < m; ++i) {

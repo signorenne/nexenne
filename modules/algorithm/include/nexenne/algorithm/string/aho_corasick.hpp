@@ -29,6 +29,7 @@
  */
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <queue>
@@ -38,6 +39,17 @@
 
 namespace nexenne::algorithm {
 
+/**
+ * @brief Multi-pattern substring matcher built once and scanned many times.
+ *
+ * Holds a trie of the added patterns plus Aho-Corasick failure links, so a
+ * single linear scan reports every occurrence of every pattern. Add all patterns
+ * with \c add_pattern, call \c build once to wire the automaton, then \c scan any
+ * number of texts; adding patterns after \c build is not supported.
+ *
+ * @pre None.
+ * @post A default-constructed matcher holds only the root node and is not built.
+ */
 class aho_corasick {
 public:
   /// @brief Index type identifying a trie node.
@@ -92,6 +104,8 @@ public:
    * @complexity \c O(|pattern|) amortised.
    */
   auto add_pattern(std::string_view const pattern) -> std::size_t {
+    assert(!m_built && "add_pattern must not be called after build");
+    assert(!pattern.empty() && "add_pattern does not support an empty pattern");
     auto cur{root_id};
     for (auto const c : pattern) {
       auto const byte{static_cast<std::uint8_t>(c)};
@@ -224,6 +238,7 @@ public:
    * @post The matcher is unchanged.
    */
   [[nodiscard]] auto pattern_length(std::size_t const id) const noexcept -> std::size_t {
+    assert(id < m_patterns.size() && "pattern_length id out of range");
     return m_patterns[id];
   }
 };

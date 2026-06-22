@@ -30,8 +30,9 @@ namespace nexenne::algorithm {
  * @param a First string.
  * @param b Second string.
  *
- * @return The edit distance. Zero for identical inputs; \c max(|a|, |b|) for
- *         inputs that share no characters in common positions.
+ * @return The edit distance. Zero for identical inputs, and at most
+ *         \c max(|a|, |b|), reached for example when the two strings share no
+ *         character at all.
  *
  * @pre None.
  * @post The result is in \c [abs(|a| - |b|), max(|a|, |b|)] and is symmetric in
