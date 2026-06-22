@@ -6,4 +6,5 @@ nexenne_add_module_tests(serialization
         test_msgpack.cpp
         test_cobs.cpp
         test_versioned.cpp
+        test_format.cpp
 )

@@ -15,6 +15,7 @@
 #include <nexenne/serialization/cbor.hpp>
 #include <nexenne/serialization/cobs.hpp>
 #include <nexenne/serialization/error.hpp>
+#include <nexenne/serialization/format.hpp>
 #include <nexenne/serialization/json/parse.hpp>
 #include <nexenne/serialization/json/sax.hpp>
 #include <nexenne/serialization/json/serialize.hpp>
