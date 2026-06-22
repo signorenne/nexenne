@@ -20,6 +20,7 @@
  * the individual leaf headers under \c nexenne/ecs/ directly.
  */
 
+#include <nexenne/ecs/format.hpp>
 #include <nexenne/ecs/registry.hpp>
 #include <nexenne/ecs/type_id.hpp>
 #include <nexenne/ecs/view.hpp>
