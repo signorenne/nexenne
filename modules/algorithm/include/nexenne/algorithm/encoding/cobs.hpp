@@ -12,9 +12,11 @@
  * Overhead Byte Stuffing", IEEE/ACM Transactions on Networking, 1999.
  *
  * Decode expects the bytes between two delimiters with the delimiters excluded,
- * not a trailing \c 0x00. Both directions are heap-free and return
- * \c codec_result. The decoded payload is always one byte shorter than its
- * encoded input.
+ * not a trailing \c 0x00. A conformant COBS frame is zero-free by construction,
+ * so decode rejects any \c 0x00 it meets, in a code position or a data position,
+ * as a lost delimiter or bit error rather than accepting it as payload. Both
+ * directions are heap-free, \c constexpr, and return \c codec_result. The decoded
+ * payload is always one byte shorter than its encoded input.
  */
 
 #include <cstddef>
@@ -62,7 +64,7 @@ namespace nexenne::algorithm {
  *
  * @complexity \c O(N) in the size \c N of \p in.
  */
-[[nodiscard]] inline auto cobs_encode(
+[[nodiscard]] constexpr auto cobs_encode(
   std::span<std::uint8_t const> const in, std::span<std::uint8_t> const out
 ) noexcept -> codec_result {
   if (out.size() < cobs_encoded_max_size(in.size())) {
@@ -105,9 +107,9 @@ namespace nexenne::algorithm {
  * @param out Destination byte buffer.
  *
  * @return The number of bytes written, or \c codec_error::invalid_input for a
- *         \c 0x00 code byte, \c codec_error::incomplete_input when a code byte
- *         points past the end of \p in, or \c codec_error::buffer_too_small
- *         when \p out is exhausted.
+ *         \c 0x00 byte in a code or data position (a valid frame is zero-free),
+ *         \c codec_error::incomplete_input when a code byte points past the end
+ *         of \p in, or \c codec_error::buffer_too_small when \p out is exhausted.
  *
  * @pre \p in and \p out do not overlap.
  * @post On success the written count is at most \c in.size() minus one; on
@@ -115,7 +117,7 @@ namespace nexenne::algorithm {
  *
  * @complexity \c O(N) in the size \c N of \p in.
  */
-[[nodiscard]] inline auto cobs_decode(
+[[nodiscard]] constexpr auto cobs_decode(
   std::span<std::uint8_t const> const in, std::span<std::uint8_t> const out
 ) noexcept -> codec_result {
   auto in_i{std::size_t{0}};
@@ -130,10 +132,17 @@ namespace nexenne::algorithm {
       if (in_i >= in.size()) {
         return std::unexpected{codec_error::incomplete_input};
       }
+      auto const data_byte{in[in_i++]};
+      if (data_byte == 0u) {
+        // A conformant COBS frame never contains 0x00, so a zero in a data
+        // position is a lost delimiter or bit error. Reject it, matching
+        // nexenne::serialization::cobs::decode, rather than passing it through.
+        return std::unexpected{codec_error::invalid_input};
+      }
       if (out_i >= out.size()) {
         return std::unexpected{codec_error::buffer_too_small};
       }
-      out[out_i++] = in[in_i++];
+      out[out_i++] = data_byte;
     }
     if (code < 0xFFu && in_i < in.size()) {
       if (out_i >= out.size()) {
