@@ -16,6 +16,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
@@ -47,6 +48,10 @@ namespace nexenne::algorithm {
  */
 [[nodiscard]] inline auto build_suffix_array(std::string_view const text
 ) -> std::vector<std::int32_t> {
+  assert(
+    text.size() <= static_cast<std::size_t>(INT32_MAX)
+    && "build_suffix_array text length must fit in std::int32_t"
+  );
   auto const n{static_cast<std::int32_t>(text.size())};
   auto sa{std::vector<std::int32_t>(static_cast<std::size_t>(n))};
   auto rank{std::vector<std::int32_t>(static_cast<std::size_t>(n))};
@@ -111,6 +116,11 @@ namespace nexenne::algorithm {
 [[nodiscard]] inline auto build_lcp(
   std::string_view const text, std::span<std::int32_t const> const sa
 ) -> std::vector<std::int32_t> {
+  assert(
+    text.size() <= static_cast<std::size_t>(INT32_MAX)
+    && "build_lcp text length must fit in std::int32_t"
+  );
+  assert(sa.size() == text.size() && "build_lcp expects sa sized to text");
   auto const n{static_cast<std::int32_t>(text.size())};
   auto rank{std::vector<std::int32_t>(static_cast<std::size_t>(n))};
   for (auto i{std::int32_t{0}}; i < n; ++i) {
