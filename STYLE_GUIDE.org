@@ -299,6 +299,27 @@ three hard rules:
 - Never leave a bare =<word>= token in Doxygen text: Doxygen reads =<bit>=,
   =<I>=, =<utility>= as HTML tags and the build rejects them. Drop the angle
   brackets or use =\c=.
+- *One =/** */= block per symbol; never stack =///= lines.* A function, method,
+  accessor, constructor, class, or alias is documented with a single multi-line
+  =/** ... */= block, even a one-line accessor (its =@brief= and =@return= go on
+  separate lines inside the block). The only short form is a trailing
+  =///< one line.= on an enumerator or data member: a single fact, no tags. Two
+  or more =///= lines, or any =///= carrying =@brief= / =@param= / =@return=, is
+  wrong, rewrite it as a =/** */= block. So this is forbidden:
+  #+BEGIN_SRC cpp
+  /// @brief Signed plane offset.
+  /// @return Const reference to the stored offset.
+  [[nodiscard]] constexpr auto offset() const noexcept -> Real const&;
+  #+END_SRC
+  and this is the rule:
+  #+BEGIN_SRC cpp
+  /**
+   * @brief Signed plane offset.
+   *
+   * @return Const reference to the stored offset.
+   */
+  [[nodiscard]] constexpr auto offset() const noexcept -> Real const&;
+  #+END_SRC
 
 #+BEGIN_SRC cpp
 /**
