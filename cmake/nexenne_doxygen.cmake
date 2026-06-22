@@ -15,29 +15,46 @@ include_guard(GLOBAL)
 
 #
 # Default ON so a fresh clone is fully self-contained: if Doxygen is not
-# installed system-wide, we build it from source. Users on slow machines
-# can opt out with -DNEXENNE_FETCH_DOXYGEN_IF_MISSING=OFF.
+# installed system-wide, we download the official prebuilt binary (no source
+# build, so no flex/bison/git toolchain headache). Opt out with
+# -DNEXENNE_FETCH_DOXYGEN_IF_MISSING=OFF. Docs are off by default anyway
+# (NEXENNE_BUILD_DOCS), so the core library + test build never needs Doxygen.
 #
 option(NEXENNE_FETCH_DOXYGEN_IF_MISSING
-    "Fetch and build Doxygen from source if not installed" ON)
-set(NEXENNE_DOXYGEN_GIT_TAG "Release_1_12_0"
-    CACHE STRING "Doxygen release tag to fetch if NEXENNE_FETCH_DOXYGEN_IF_MISSING")
+    "Download a prebuilt Doxygen if not installed" ON)
+set(NEXENNE_DOXYGEN_VERSION "1.12.0"
+    CACHE STRING "Doxygen version to fetch when missing")
+set(NEXENNE_DOXYGEN_SHA256
+    "3c42c3f3fb206732b503862d9c9c11978920a8214f223a3950bbf2520be5f647"
+    CACHE STRING "SHA256 of the Doxygen ${NEXENNE_DOXYGEN_VERSION} Linux x86_64 binary tarball")
 
 find_package(Doxygen QUIET)
 
 if(NOT DOXYGEN_FOUND AND NEXENNE_FETCH_DOXYGEN_IF_MISSING)
-    message(STATUS "[nexenne] Doxygen not found, fetching ${NEXENNE_DOXYGEN_GIT_TAG}")
-    include(FetchContent)
-    FetchContent_Declare(
-        nexenne_doxygen_src
-        GIT_REPOSITORY https://github.com/doxygen/doxygen.git
-        GIT_TAG        ${NEXENNE_DOXYGEN_GIT_TAG}
-    )
-    FetchContent_MakeAvailable(nexenne_doxygen_src)
-
-    if(TARGET doxygen)
-        set(DOXYGEN_EXECUTABLE "$<TARGET_FILE:doxygen>")
-        set(DOXYGEN_FOUND TRUE)
+    # The prebuilt binary is published for Linux x86_64 only. On other hosts a
+    # system Doxygen (package manager) is used; if absent, docs targets are
+    # skipped with a clear message below rather than failing the build.
+    if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux"
+       AND CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "x86_64|amd64")
+        message(STATUS "[nexenne] Doxygen not found, fetching prebuilt ${NEXENNE_DOXYGEN_VERSION}")
+        string(REPLACE "." "_" _doxy_tag "Release_${NEXENNE_DOXYGEN_VERSION}")
+        include(FetchContent)
+        FetchContent_Declare(
+            nexenne_doxygen_bin
+            URL "https://github.com/doxygen/doxygen/releases/download/${_doxy_tag}/doxygen-${NEXENNE_DOXYGEN_VERSION}.linux.bin.tar.gz"
+            URL_HASH "SHA256=${NEXENNE_DOXYGEN_SHA256}"
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        )
+        FetchContent_MakeAvailable(nexenne_doxygen_bin)
+        FetchContent_GetProperties(nexenne_doxygen_bin SOURCE_DIR _doxy_dir)
+        if(EXISTS "${_doxy_dir}/bin/doxygen")
+            set(DOXYGEN_EXECUTABLE "${_doxy_dir}/bin/doxygen")
+            set(DOXYGEN_FOUND TRUE)
+        endif()
+    else()
+        message(STATUS
+            "[nexenne] Doxygen not found; the prebuilt fetch is Linux x86_64 only. "
+            "Install Doxygen via your package manager to build docs.")
     endif()
 endif()
 
