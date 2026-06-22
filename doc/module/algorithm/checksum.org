@@ -47,7 +47,11 @@ Rocksoft model) pin down a specific CRC: the register =width=, the =poly=, the
 =init= value, whether input bytes and the output register are bit-reflected
 (=ref_in= / =ref_out=), and the final =xor_out=. The catalogue at
 https://reveng.sourceforge.io/crc-catalogue/all.htm lists about a hundred named
-CRCs; each is one =crc_spec= literal.
+CRCs; each is one =crc_spec= literal, with one exception: a non-reflected CRC
+narrower than 8 bits (for example CRC-7/MMC) is unrepresentable, because the
+MSB-first table places each input byte at the top of the register and so needs a
+width of at least 8. A =static_assert= rejects that combination; reflected
+sub-byte widths, the common case, work.
 
 Rather than divide bit by bit, the engine builds a 256-entry table once per spec
 (processing a whole byte per step) at =constexpr= time, so it lives in ROM and
