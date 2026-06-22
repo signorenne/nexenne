@@ -90,6 +90,17 @@ template <modular_sum_spec Spec>
   modular_sum_result_t<Spec.sum_bits> const seed =
     static_cast<modular_sum_result_t<Spec.sum_bits>>(Spec.init1)
 ) noexcept -> modular_sum_result_t<Spec.sum_bits> {
+  static_assert(
+    Spec.unit_bytes >= 1 && Spec.unit_bytes <= 4, "modular_sum requires unit_bytes in [1, 4]"
+  );
+  static_assert(
+    Spec.sum_bits >= 8 && Spec.sum_bits <= 32, "modular_sum requires sum_bits in [8, 32]"
+  );
+  static_assert(Spec.modulus >= 2, "modular_sum requires modulus >= 2");
+  static_assert(
+    Spec.modulus <= (std::uint64_t{1} << Spec.sum_bits),
+    "modular_sum requires modulus <= 2^sum_bits"
+  );
   using value_type = modular_sum_result_t<Spec.sum_bits>;
   constexpr auto w{Spec.sum_bits};
   constexpr auto m{Spec.modulus};
