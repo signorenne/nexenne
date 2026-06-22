@@ -27,6 +27,7 @@ namespace nexenne::algorithm {
  */
 template <std::size_t N>
 struct codec_alphabet {
+  using value_type = char;               ///< The element type stored in the forward table.
   static constexpr std::size_t size{N};  ///< Number of symbols in the alphabet.
 
   std::array<char, N> chars{};  ///< Forward table: index to character.
@@ -80,6 +81,10 @@ struct codec_alphabet {
    *
    * @pre None.
    * @post None.
+   *
+   * @note \p c is indexed through \c std::uint8_t, so a high-bit character (a
+   *       \c char that is negative on a signed-char platform) is a safe in-range
+   *       lookup that returns -1 rather than reading out of bounds.
    */
   [[nodiscard]] constexpr auto decode(char const c) const noexcept -> std::int8_t {
     return reverse[static_cast<std::uint8_t>(c)];

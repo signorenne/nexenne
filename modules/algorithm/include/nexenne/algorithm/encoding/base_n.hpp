@@ -125,6 +125,11 @@ template <base_n_spec Spec>
 [[nodiscard]] constexpr auto base_n_encode(
   std::span<std::uint8_t const> const in, std::span<char> const out
 ) noexcept -> codec_result {
+  static_assert(Spec.alphabet.is_distinct(), "base_n requires a distinct alphabet");
+  static_assert(
+    !Spec.padded || Spec.alphabet.decode(Spec.pad) < 0,
+    "base_n pad character must not be an alphabet member"
+  );
   constexpr auto bits{static_cast<int>(decltype(Spec)::bits)};
   constexpr auto mask{(std::uint32_t{1} << bits) - 1};
   constexpr auto gout{decltype(Spec)::group_out};
@@ -159,17 +164,25 @@ template <base_n_spec Spec>
 /**
  * @brief Generic base-N decode into a caller-provided buffer.
  *
- * Reverses \c base_n_encode. ASCII whitespace is skipped, omitted trailing
- * padding is tolerated, and case is folded when the spec is case-insensitive.
- * No allocation. Size \p out with \c base_n_decoded_max_size.
+ * Reverses \c base_n_encode. ASCII whitespace is skipped, and case is folded
+ * when the spec is case-insensitive. No allocation. Size \p out with
+ * \c base_n_decoded_max_size.
+ *
+ * Padding is lenient: omitted trailing padding is tolerated, and once a pad
+ * character is seen the decoder accepts any further pad or whitespace but
+ * rejects any data character, so the pad count and placement are not validated
+ * (\c "Zg", \c "Zg=", and \c "Zg===" all decode to the same byte). Trailing
+ * bits below one symbol, however, are validated: a non-canonical encoding whose
+ * final sub-symbol remainder is non-zero is rejected with \c invalid_input, per
+ * RFC 4648 section 3.5, so distinct strings cannot decode to the same bytes.
  *
  * @tparam Spec The base-N encoding.
  * @param in Source characters to decode.
  * @param out Destination byte buffer.
  *
  * @return The number of bytes written, or \c codec_error::invalid_input for a
- *         non-alphabet character or padding mid-stream,
- *         \c codec_error::incomplete_input for a truncated final group, or
+ *         non-alphabet character, padding followed by data, or non-zero trailing
+ *         bits, \c codec_error::incomplete_input for a truncated final group, or
  *         \c codec_error::buffer_too_small when \p out is exhausted.
  *
  * @pre \p in and \p out do not overlap.
@@ -182,6 +195,11 @@ template <base_n_spec Spec>
 [[nodiscard]] constexpr auto base_n_decode(
   std::string_view const in, std::span<std::uint8_t> const out
 ) noexcept -> codec_result {
+  static_assert(Spec.alphabet.is_distinct(), "base_n requires a distinct alphabet");
+  static_assert(
+    !Spec.padded || Spec.alphabet.decode(Spec.pad) < 0,
+    "base_n pad character must not be an alphabet member"
+  );
   constexpr auto bits{static_cast<int>(decltype(Spec)::bits)};
 
   auto acc{std::uint32_t{0}};
@@ -223,10 +241,16 @@ template <base_n_spec Spec>
       acc &= (std::uint32_t{1} << nbits) - 1;
     }
   }
-  // Leftover bits below one symbol are padding; a whole symbol left over means
-  // the final group was truncated.
+  // A whole symbol left over means the final group was truncated.
   if (nbits >= bits) {
     return std::unexpected{codec_error::incomplete_input};
+  }
+  // Leftover bits below one symbol must be zero: a canonical encoding zero-fills
+  // the final sub-symbol remainder (RFC 4648 section 3.5). Non-zero trailing
+  // bits are a non-canonical, malleable encoding, rejected here so distinct
+  // strings never decode to the same bytes.
+  if (nbits > 0 && (acc & ((std::uint32_t{1} << nbits) - 1u)) != 0u) {
+    return std::unexpected{codec_error::invalid_input};
   }
   return o;
 }
@@ -259,6 +283,12 @@ inline constexpr auto base64_url_spec{base_n_spec<64>{
   .padded = false,
   .case_insensitive = false
 }};
+/// @brief Decode-only URL-safe base64: like \c base64_url_spec but accepts '=' padding.
+inline constexpr auto base64_url_decode_spec{base_n_spec<64>{
+  .alphabet = {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"},
+  .padded = true,
+  .case_insensitive = false
+}};
 
 static_assert(base16_lower_spec.alphabet.is_distinct());
 static_assert(base16_upper_spec.alphabet.is_distinct());
@@ -266,6 +296,7 @@ static_assert(base32_std_spec.alphabet.is_distinct());
 static_assert(base32_hex_spec.alphabet.is_distinct());
 static_assert(base64_std_spec.alphabet.is_distinct());
 static_assert(base64_url_spec.alphabet.is_distinct());
+static_assert(base64_url_decode_spec.alphabet.is_distinct());
 
 // hex (base16)
 
@@ -769,9 +800,10 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
 /**
  * @brief URL-safe Base64 decode into a caller-provided buffer.
  *
- * Only the URL-safe alphabet is accepted. ASCII whitespace is skipped and
- * omitted trailing padding tolerated. Size \p out with
- * \c base64_decoded_max_size.
+ * Only the URL-safe alphabet is accepted. ASCII whitespace is skipped, and both
+ * padded and unpadded input decode: RFC 4648 section 5 makes '=' padding
+ * optional, so common stacks emit it either way. The encoder stays unpadded.
+ * Size \p out with \c base64_decoded_max_size.
  *
  * @param in Source characters to decode.
  * @param out Destination byte buffer.
@@ -790,7 +822,7 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
 [[nodiscard]] constexpr auto base64url_decode(
   std::string_view const in, std::span<std::uint8_t> const out
 ) noexcept -> codec_result {
-  return base_n_decode<base64_url_spec>(in, out);
+  return base_n_decode<base64_url_decode_spec>(in, out);
 }
 
 /**

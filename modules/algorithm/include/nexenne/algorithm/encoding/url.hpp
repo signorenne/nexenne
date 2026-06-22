@@ -21,9 +21,11 @@
  */
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <limits>
 #include <span>
 #include <string>
 #include <string_view>
@@ -69,7 +71,7 @@ inline constexpr auto url_hex_digits{std::string_view{"0123456789ABCDEF"}};
 }
 
 template <bool SpaceAsPlus>
-[[nodiscard]] inline auto
+[[nodiscard]] constexpr auto
 url_encode_into(std::string_view const in, std::span<char> const out) noexcept -> codec_result {
   auto o{std::size_t{0}};
   for (auto const c : in) {
@@ -106,7 +108,7 @@ url_encode_into(std::string_view const in, std::span<char> const out) noexcept -
 }
 
 template <bool PlusAsSpace>
-[[nodiscard]] inline auto
+[[nodiscard]] constexpr auto
 url_decode_into(std::string_view const in, std::span<char> const out) noexcept -> codec_result {
   auto o{std::size_t{0}};
   for (auto i{std::size_t{0}}; i < in.size(); ++i) {
@@ -160,6 +162,10 @@ url_decode_into(std::string_view const in, std::span<char> const out) noexcept -
  */
 [[nodiscard]] constexpr auto url_encoded_max_size(std::size_t const n_bytes
 ) noexcept -> std::size_t {
+  assert(
+    n_bytes <= std::numeric_limits<std::size_t>::max() / 3
+    && "url_encoded_max_size: n_bytes * 3 overflows std::size_t"
+  );
   return n_bytes * 3;
 }
 
@@ -180,9 +186,13 @@ url_decode_into(std::string_view const in, std::span<char> const out) noexcept -
  * @post On success the written count is at most \c url_encoded_max_size of \p in
  *       size; on failure \p out is left unspecified.
  *
+ * @note Every character outside the unreserved set is percent-encoded, including
+ *       all RFC 3986 reserved characters (the gen-delims \c :/?#[]@ and the
+ *       sub-delims \c !$&'()*+,;=), so the output is safe in any URI component.
+ *
  * @complexity \c O(N) in the length \c N of \p in.
  */
-[[nodiscard]] inline auto
+[[nodiscard]] constexpr auto
 url_encode(std::string_view const in, std::span<char> const out) noexcept -> codec_result {
   return detail::url_encode_into<false>(in, out);
 }
@@ -226,7 +236,7 @@ url_encode(std::string_view const in, std::span<char> const out) noexcept -> cod
  *
  * @complexity \c O(N) in the length \c N of \p in.
  */
-[[nodiscard]] inline auto
+[[nodiscard]] constexpr auto
 url_decode(std::string_view const in, std::span<char> const out) noexcept -> codec_result {
   return detail::url_decode_into<false>(in, out);
 }
@@ -273,7 +283,7 @@ url_decode(std::string_view const in, std::span<char> const out) noexcept -> cod
  *
  * @complexity \c O(N) in the length \c N of \p in.
  */
-[[nodiscard]] inline auto
+[[nodiscard]] constexpr auto
 form_url_encode(std::string_view const in, std::span<char> const out) noexcept -> codec_result {
   return detail::url_encode_into<true>(in, out);
 }
@@ -318,7 +328,7 @@ form_url_encode(std::string_view const in, std::span<char> const out) noexcept -
  *
  * @complexity \c O(N) in the length \c N of \p in.
  */
-[[nodiscard]] inline auto
+[[nodiscard]] constexpr auto
 form_url_decode(std::string_view const in, std::span<char> const out) noexcept -> codec_result {
   return detail::url_decode_into<true>(in, out);
 }
