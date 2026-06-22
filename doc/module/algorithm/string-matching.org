@@ -10,8 +10,8 @@ treats bytes as =unsigned char=.
 
 - =kmp_find= / =kmp_find_all= : Knuth-Morris-Pratt. Worst-case-linear single
   search, plus a callback that reports every (overlapping) occurrence.
-- =boyer_moore_find= : Boyer-Moore with the bad-character heuristic. Usually
-  faster on long patterns and large alphabets, with a quadratic worst case.
+- =boyer_moore_find= : Boyer-Moore-Horspool. Usually faster on long patterns and
+  large alphabets, with a quadratic worst case.
 - =z_function= / =z_find_all= : the Z-function and a Z-based all-occurrences
   search.
 - =levenshtein= : edit distance, the basis of fuzzy matching.
@@ -27,10 +27,14 @@ treats bytes as =unsigned char=.
 =kmp_find= precomputes a failure table over the needle so the text scan never
 backtracks: every text position is examined a bounded number of times, giving
 =O(H + N)= worst case. =boyer_moore_find= instead scans each window right to
-left and, on a mismatch, consults a 256-entry bad-character table to skip ahead
-by as much as the needle length, which is often sublinear on real text but
-quadratic on adversarial small-alphabet inputs. Reach for KMP when a linear
-guarantee matters, Boyer-Moore when raw speed on long patterns does.
+left and, on a mismatch, shifts by a 256-entry table keyed on the haystack byte
+aligned with the last needle position (Horspool's simplification of Boyer-Moore,
+which drops the good-suffix table), skipping ahead by as much as the needle
+length. This is often sublinear on real text but quadratic on adversarial
+small-alphabet inputs. Reach for KMP when a linear guarantee matters,
+Boyer-Moore-Horspool when raw speed on long patterns does. See R. N. Horspool,
+"Practical fast searching in strings", Software: Practice and Experience 10(6),
+1980.
 
 ** Z-function
 
