@@ -15,12 +15,14 @@
  */
 
 #include <array>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <memory>
 #include <span>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -102,6 +104,18 @@ template <std::unsigned_integral T>
 constexpr auto radix_sort(std::span<T> const range, std::span<T> const scratch) noexcept -> void {
   if (range.size() <= 1) {
     return;
+  }
+  assert(scratch.size() >= range.size() && "radix_sort scratch must be at least range size");
+  // A short scratch makes the subspan in radix_sort_into index out of bounds, and
+  // overlapping spans corrupt the scatter. The non-overlap check compares raw
+  // pointers and is skipped in constant evaluation, where a single array backs
+  // both spans and such a comparison is not a constant expression.
+  if (!std::is_constant_evaluated()) {
+    assert(
+      (range.data() + range.size() <= scratch.data()
+       || scratch.data() + scratch.size() <= range.data())
+      && "radix_sort range and scratch must not overlap"
+    );
   }
   detail::radix_sort_into(range, scratch);
 }
