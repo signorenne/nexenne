@@ -15,6 +15,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <iterator>
@@ -61,6 +62,9 @@ constexpr auto counting_sort(std::span<T> const range, T const max_value) -> voi
   auto counts{std::vector<std::size_t>(buckets, 0)};
 
   for (auto const v : range) {
+    // The count loop already visits every element, so the per-element @pre bound
+    // is cheap to guard here; a value above max_value would index out of bounds.
+    assert(v <= max_value && "counting_sort element exceeds max_value");
     ++counts[static_cast<std::size_t>(v)];
   }
 
