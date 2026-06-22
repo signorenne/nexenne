@@ -581,6 +581,51 @@ TEST_CASE("nexenne::algorithm::cobs encodes a maximal 254-byte run") {
   CHECK(dec == raw);
 }
 
+TEST_CASE("nexenne::algorithm::cobs decode rejects an embedded 0x00 data byte") {
+  // Regression for review [M1]: a conformant COBS frame is zero-free, so a 0x00
+  // in a data position is a lost delimiter or bit error and must be rejected.
+  // Previously {03 00 41} decoded "successfully" to the wrong payload {00 41},
+  // and {02 00} to {00}; both must now be invalid_input, matching
+  // nexenne::serialization::cobs::decode.
+  auto out{std::array<std::uint8_t, 16>{}};
+  auto const embedded{std::array<std::uint8_t, 3>{0x03, 0x00, 0x41}};
+  CHECK(
+    alg::cobs_decode(std::span<std::uint8_t const>{embedded}, std::span<std::uint8_t>{out}).error()
+    == codec_error::invalid_input
+  );
+  auto const embedded2{std::array<std::uint8_t, 2>{0x02, 0x00}};
+  CHECK(
+    alg::cobs_decode(std::span<std::uint8_t const>{embedded2}, std::span<std::uint8_t>{out}).error()
+    == codec_error::invalid_input
+  );
+}
+
+TEST_CASE("nexenne::algorithm::base64 decode padding leniency and canonical trailing bits") {
+  // [m1] Padding count and placement are not validated: an all-pad string, and
+  // surplus or omitted padding after the data, all decode.
+  CHECK(alg::base64_decode("====")->empty());
+  CHECK(*alg::base64_decode("Zg=====") == vbytes("f"));
+  CHECK(*alg::base64_decode("Zg") == vbytes("f"));
+  // [m2] Non-canonical trailing bits (RFC 4648 3.5) are rejected: "Zg" and "Zh"
+  // both carry byte 0x66, but "Zh" sets the discarded low bits, so it is
+  // malleable and must be rejected rather than aliasing "Zg".
+  CHECK(alg::base64_decode("Zh").error() == codec_error::invalid_input);
+  // base32 likewise rejects a non-zero sub-symbol remainder.
+  CHECK(*alg::base32_decode("MY") == vbytes("f"));
+  CHECK(alg::base32_decode("MZ").error() == codec_error::invalid_input);
+}
+
+TEST_CASE("nexenne::algorithm::base64url decode accepts optional padding") {
+  // [m3] RFC 4648 section 5 makes '=' optional in the URL-safe alphabet, so the
+  // decoder accepts both padded and unpadded input while the encoder stays
+  // unpadded.
+  CHECK(*alg::base64url_decode("Zg==") == vbytes("f"));
+  CHECK(*alg::base64url_decode("Zg") == vbytes("f"));
+  CHECK(*alg::base64url_decode("-_-_") == std::vector<std::uint8_t>{0xFB, 0xFF, 0xBF});
+  // The URL-safe alphabet still rejects the standard +/ characters.
+  CHECK(alg::base64url_decode("+/+/").error() == codec_error::invalid_input);
+}
+
 TEST_CASE("nexenne::algorithm encoding round-trips on a large random buffer") {
   auto gen{lcg{}};
   auto const data{random_bytes(gen, 4096)};
