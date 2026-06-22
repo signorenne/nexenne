@@ -241,8 +241,7 @@ public:
   using value_range = detail::pool_value_range<pool_type>;
   /// @brief Range over the live components, yielded by \c values() (const).
   using const_value_range = detail::pool_value_range<pool_type const>;
-  /// @brief Signal type for the three lifecycle events, signature
-  ///        \c (entity_id, T&).
+  /// @brief Signal type for the three lifecycle events, signature \c (entity_id, T&).
   using signal_type = nexenne::signal::signal<void(entity_id, T&)>;
   /// @brief Connect-only sink published for each lifecycle signal.
   using sink_type = nexenne::signal::sink<void(entity_id, T&)>;
