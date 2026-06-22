@@ -140,9 +140,11 @@ inline constexpr Real golden_ratio_v = std::numbers::phi_v<Real>;
 template <std::floating_point Real>
 inline constexpr Real inv_golden_ratio_v = Real{1} / std::numbers::phi_v<Real>;
 
-/// @brief Golden angle in radians: 2 * pi * (1 - 1/phi), about 137.508 degrees.
-///
-/// Used in sunflower-spiral and other quasi-random radial layouts.
+/**
+ * @brief Golden angle in radians: 2 * pi * (1 - 1/phi), about 137.508 degrees.
+ *
+ * Used in sunflower-spiral and other quasi-random radial layouts.
+ */
 template <std::floating_point Real>
 inline constexpr Real golden_angle_v =
   Real{2} * std::numbers::pi_v<Real> * (Real{1} - Real{1} / std::numbers::phi_v<Real>);
@@ -155,8 +157,10 @@ inline constexpr Real deg_to_rad_v = std::numbers::pi_v<Real> / Real{180};
 template <std::floating_point Real>
 inline constexpr Real rad_to_deg_v = Real{180} / std::numbers::pi_v<Real>;
 
-/// @brief Machine epsilon: smallest representable difference between 1 and the
-///        next larger representable value.
+/**
+ * @brief Machine epsilon: smallest representable difference between 1 and the
+ *        next larger representable value.
+ */
 template <std::floating_point Real>
 inline constexpr Real epsilon_v = std::numeric_limits<Real>::epsilon();
 

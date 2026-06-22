@@ -497,7 +497,8 @@ namespace detail {
 template <std::floating_point Real, std::size_t lut_size>
 class trig_lut_table {
 public:
-  using table_type = std::array<Real, lut_size>;  ///< The table storage type.
+  using value_type = Real;                              ///< The table component type.
+  using table_type = std::array<value_type, lut_size>;  ///< The table storage type.
 
 private:
   table_type m_sin_table{};
@@ -512,7 +513,9 @@ public:
    */
   constexpr trig_lut_table() noexcept {
     for (std::size_t i{0}; i < lut_size; ++i) {
-      auto const angle{tau_v<Real> * static_cast<Real>(i) / static_cast<Real>(lut_size)};
+      auto const angle{
+        tau_v<value_type> * static_cast<value_type>(i) / static_cast<value_type>(lut_size)
+      };
       m_sin_table[i] = poly_sincos(angle).sin();
     }
   }

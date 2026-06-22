@@ -260,8 +260,12 @@ public:
  */
 template <arithmetic Value, std::size_t N>
 class vector : public detail::vector_base<Value, N> {
+private:
+  using base = detail::vector_base<Value, N>;
+
 public:
-  using detail::vector_base<Value, N>::vector_base;
+  using value_type = typename base::value_type;
+  using base::base;
 };
 
 /**
@@ -275,6 +279,7 @@ private:
   using base = detail::vector_base<Value, 2>;
 
 public:
+  using value_type = typename base::value_type;
   using base::base;
 
   /**
@@ -286,7 +291,8 @@ public:
    * @pre None.
    * @post The x and y components equal \p a and \p b respectively.
    */
-  constexpr vector(Value const a, Value const b) noexcept : base{std::array<Value, 2>{a, b}} {}
+  constexpr vector(value_type const a, value_type const b) noexcept
+      : base{std::array<value_type, 2>{a, b}} {}
 
   /**
    * @brief Accesses the x component.
@@ -296,7 +302,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto x() noexcept -> Value& {
+  [[nodiscard]] constexpr auto x() noexcept -> value_type& {
     return this->m_components[0];
   }
 
@@ -308,7 +314,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto y() noexcept -> Value& {
+  [[nodiscard]] constexpr auto y() noexcept -> value_type& {
     return this->m_components[1];
   }
 
@@ -320,7 +326,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto x() const noexcept -> Value const& {
+  [[nodiscard]] constexpr auto x() const noexcept -> value_type const& {
     return this->m_components[0];
   }
 
@@ -332,7 +338,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto y() const noexcept -> Value const& {
+  [[nodiscard]] constexpr auto y() const noexcept -> value_type const& {
     return this->m_components[1];
   }
 };
@@ -348,6 +354,7 @@ private:
   using base = detail::vector_base<Value, 3>;
 
 public:
+  using value_type = typename base::value_type;
   using base::base;
 
   /**
@@ -360,8 +367,8 @@ public:
    * @pre None.
    * @post The x, y, and z components equal \p a, \p b, and \p c respectively.
    */
-  constexpr vector(Value const a, Value const b, Value const c) noexcept
-      : base{std::array<Value, 3>{a, b, c}} {}
+  constexpr vector(value_type const a, value_type const b, value_type const c) noexcept
+      : base{std::array<value_type, 3>{a, b, c}} {}
 
   /**
    * @brief Accesses the x component.
@@ -371,7 +378,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto x() noexcept -> Value& {
+  [[nodiscard]] constexpr auto x() noexcept -> value_type& {
     return this->m_components[0];
   }
 
@@ -383,7 +390,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto y() noexcept -> Value& {
+  [[nodiscard]] constexpr auto y() noexcept -> value_type& {
     return this->m_components[1];
   }
 
@@ -395,7 +402,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto z() noexcept -> Value& {
+  [[nodiscard]] constexpr auto z() noexcept -> value_type& {
     return this->m_components[2];
   }
 
@@ -407,7 +414,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto x() const noexcept -> Value const& {
+  [[nodiscard]] constexpr auto x() const noexcept -> value_type const& {
     return this->m_components[0];
   }
 
@@ -419,7 +426,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto y() const noexcept -> Value const& {
+  [[nodiscard]] constexpr auto y() const noexcept -> value_type const& {
     return this->m_components[1];
   }
 
@@ -431,7 +438,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto z() const noexcept -> Value const& {
+  [[nodiscard]] constexpr auto z() const noexcept -> value_type const& {
     return this->m_components[2];
   }
 
@@ -443,8 +450,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto xy() const noexcept -> vector<Value, 2> {
-    return vector<Value, 2>{this->m_components[0], this->m_components[1]};
+  [[nodiscard]] constexpr auto xy() const noexcept -> vector<value_type, 2> {
+    return vector<value_type, 2>{this->m_components[0], this->m_components[1]};
   }
 
   /**
@@ -455,8 +462,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto xz() const noexcept -> vector<Value, 2> {
-    return vector<Value, 2>{this->m_components[0], this->m_components[2]};
+  [[nodiscard]] constexpr auto xz() const noexcept -> vector<value_type, 2> {
+    return vector<value_type, 2>{this->m_components[0], this->m_components[2]};
   }
 
   /**
@@ -467,8 +474,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto yz() const noexcept -> vector<Value, 2> {
-    return vector<Value, 2>{this->m_components[1], this->m_components[2]};
+  [[nodiscard]] constexpr auto yz() const noexcept -> vector<value_type, 2> {
+    return vector<value_type, 2>{this->m_components[1], this->m_components[2]};
   }
 };
 
@@ -483,6 +490,7 @@ private:
   using base = detail::vector_base<Value, 4>;
 
 public:
+  using value_type = typename base::value_type;
   using base::base;
 
   /**
@@ -496,8 +504,10 @@ public:
    * @pre None.
    * @post The x, y, z, and w components equal \p a, \p b, \p c, and \p d.
    */
-  constexpr vector(Value const a, Value const b, Value const c, Value const d) noexcept
-      : base{std::array<Value, 4>{a, b, c, d}} {}
+  constexpr vector(
+    value_type const a, value_type const b, value_type const c, value_type const d
+  ) noexcept
+      : base{std::array<value_type, 4>{a, b, c, d}} {}
 
   /**
    * @brief Accesses the x component.
@@ -507,7 +517,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto x() noexcept -> Value& {
+  [[nodiscard]] constexpr auto x() noexcept -> value_type& {
     return this->m_components[0];
   }
 
@@ -519,7 +529,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto y() noexcept -> Value& {
+  [[nodiscard]] constexpr auto y() noexcept -> value_type& {
     return this->m_components[1];
   }
 
@@ -531,7 +541,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto z() noexcept -> Value& {
+  [[nodiscard]] constexpr auto z() noexcept -> value_type& {
     return this->m_components[2];
   }
 
@@ -543,7 +553,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto w() noexcept -> Value& {
+  [[nodiscard]] constexpr auto w() noexcept -> value_type& {
     return this->m_components[3];
   }
 
@@ -555,7 +565,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto x() const noexcept -> Value const& {
+  [[nodiscard]] constexpr auto x() const noexcept -> value_type const& {
     return this->m_components[0];
   }
 
@@ -567,7 +577,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto y() const noexcept -> Value const& {
+  [[nodiscard]] constexpr auto y() const noexcept -> value_type const& {
     return this->m_components[1];
   }
 
@@ -579,7 +589,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto z() const noexcept -> Value const& {
+  [[nodiscard]] constexpr auto z() const noexcept -> value_type const& {
     return this->m_components[2];
   }
 
@@ -591,7 +601,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto w() const noexcept -> Value const& {
+  [[nodiscard]] constexpr auto w() const noexcept -> value_type const& {
     return this->m_components[3];
   }
 
@@ -603,8 +613,10 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto xyz() const noexcept -> vector<Value, 3> {
-    return vector<Value, 3>{this->m_components[0], this->m_components[1], this->m_components[2]};
+  [[nodiscard]] constexpr auto xyz() const noexcept -> vector<value_type, 3> {
+    return vector<value_type, 3>{
+      this->m_components[0], this->m_components[1], this->m_components[2]
+    };
   }
 
   /**
@@ -615,8 +627,10 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto xyw() const noexcept -> vector<Value, 3> {
-    return vector<Value, 3>{this->m_components[0], this->m_components[1], this->m_components[3]};
+  [[nodiscard]] constexpr auto xyw() const noexcept -> vector<value_type, 3> {
+    return vector<value_type, 3>{
+      this->m_components[0], this->m_components[1], this->m_components[3]
+    };
   }
 
   /**
@@ -627,8 +641,10 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto xzw() const noexcept -> vector<Value, 3> {
-    return vector<Value, 3>{this->m_components[0], this->m_components[2], this->m_components[3]};
+  [[nodiscard]] constexpr auto xzw() const noexcept -> vector<value_type, 3> {
+    return vector<value_type, 3>{
+      this->m_components[0], this->m_components[2], this->m_components[3]
+    };
   }
 
   /**
@@ -639,8 +655,10 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto yzw() const noexcept -> vector<Value, 3> {
-    return vector<Value, 3>{this->m_components[1], this->m_components[2], this->m_components[3]};
+  [[nodiscard]] constexpr auto yzw() const noexcept -> vector<value_type, 3> {
+    return vector<value_type, 3>{
+      this->m_components[1], this->m_components[2], this->m_components[3]
+    };
   }
 
   /**
@@ -651,8 +669,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto xy() const noexcept -> vector<Value, 2> {
-    return vector<Value, 2>{this->m_components[0], this->m_components[1]};
+  [[nodiscard]] constexpr auto xy() const noexcept -> vector<value_type, 2> {
+    return vector<value_type, 2>{this->m_components[0], this->m_components[1]};
   }
 
   /**
@@ -663,8 +681,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto xz() const noexcept -> vector<Value, 2> {
-    return vector<Value, 2>{this->m_components[0], this->m_components[2]};
+  [[nodiscard]] constexpr auto xz() const noexcept -> vector<value_type, 2> {
+    return vector<value_type, 2>{this->m_components[0], this->m_components[2]};
   }
 
   /**
@@ -675,8 +693,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto yz() const noexcept -> vector<Value, 2> {
-    return vector<Value, 2>{this->m_components[1], this->m_components[2]};
+  [[nodiscard]] constexpr auto yz() const noexcept -> vector<value_type, 2> {
+    return vector<value_type, 2>{this->m_components[1], this->m_components[2]};
   }
 };
 

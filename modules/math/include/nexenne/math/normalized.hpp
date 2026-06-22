@@ -42,7 +42,8 @@ namespace nexenne::math {
 template <std::floating_point Real, std::size_t N>
 class normalized {
 public:
-  using vector_type = vector<Real, N>;  ///< The wrapped vector type.
+  using value_type = Real;  ///< The component type.
+  using vector_type = vector<value_type, N>;  ///< The wrapped vector type.
 
 private:
   vector_type m_value{};

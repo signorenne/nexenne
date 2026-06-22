@@ -51,7 +51,7 @@ template <arithmetic Value, std::size_t N>
 class matrix {
 public:
   using value_type = Value;                         ///< The scalar component type.
-  using column_type = vector<Value, N>;             ///< The column vector type.
+  using column_type = vector<value_type, N>;        ///< The column vector type.
   using storage_type = std::array<column_type, N>;  ///< The column-array storage.
 
 private:
