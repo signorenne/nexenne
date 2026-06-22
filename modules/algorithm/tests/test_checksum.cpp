@@ -451,6 +451,34 @@ TEST_CASE("nexenne::algorithm::crc_ctx with random chunk boundaries matches one-
   CHECK(ctx.value() == whole);
 }
 
+TEST_CASE("nexenne::algorithm::crc string_view overload is genuinely constexpr") {
+  // Regression for review [M2]: crc(string_view) reinterpret_cast'd the buffer
+  // and so was constexpr in name only; the checksum.org compile-time example did
+  // not compile. It now folds characters directly and is usable in a constant
+  // expression.
+  constexpr auto fp{alg::crc<alg::crc16_modbus_spec>("ID")};
+  static_assert(fp == alg::crc<alg::crc16_modbus_spec>(std::string_view{"ID"}));
+  CHECK(fp == alg::crc<alg::crc16_modbus_spec>(bytes_of("ID")));
+  // Compile-time streaming through crc_ctx::update(string_view) also works now.
+  constexpr auto streamed{[] {
+    auto ctx{alg::crc_ctx<alg::crc16_modbus_spec>{}};
+    ctx.update(std::string_view{"I"});
+    ctx.update(std::string_view{"D"});
+    return ctx.value();
+  }()};
+  static_assert(streamed == fp);
+  CHECK(streamed == fp);
+}
+
+TEST_CASE("nexenne::algorithm::crc8_smbus_spec is the honest name for the CRC-8 alias") {
+  // [m6] crc8_ccitt_spec is a legacy misnomer for this parameterisation (the true
+  // CCITT CRC-8 is CRC-8/I-432-1 with xor_out 0x55); crc8_smbus_spec is the
+  // honest name and the alias equals it.
+  constexpr auto s{std::string_view{"123456789"}};
+  CHECK(alg::crc<alg::crc8_smbus_spec>(s) == 0xF4u);
+  CHECK(alg::crc<alg::crc8_smbus_spec>(s) == alg::crc<alg::crc8_ccitt_spec>(s));
+}
+
 TEST_CASE("nexenne::algorithm::crc accepts a custom spec") {
   // CRC-16/CDMA2000 from the catalogue: poly 0xC867, init 0xFFFF, no reflection.
   constexpr auto cdma2000{alg::crc_spec<16>{
