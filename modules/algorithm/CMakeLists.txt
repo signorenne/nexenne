@@ -24,6 +24,7 @@ nexenne_add_module(algorithm
         include/nexenne/algorithm/encoding/cobs.hpp
         include/nexenne/algorithm/encoding/codec_error.hpp
         include/nexenne/algorithm/encoding/url.hpp
+        include/nexenne/algorithm/format.hpp
         include/nexenne/algorithm/graph/a_star.hpp
         include/nexenne/algorithm/graph/bellman_ford.hpp
         include/nexenne/algorithm/graph/bfs.hpp

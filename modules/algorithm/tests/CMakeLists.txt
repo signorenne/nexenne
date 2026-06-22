@@ -4,6 +4,7 @@ nexenne_add_module_tests(algorithm
         test_checksum.cpp
         test_graph.cpp
         test_encoding.cpp
+        test_format.cpp
         test_hash.cpp
         test_numerical.cpp
         test_sort.cpp
