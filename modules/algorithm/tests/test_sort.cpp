@@ -163,6 +163,16 @@ void radix_matches_std(lcg& gen) {
   }
 }
 
+TEST_CASE("nexenne::algorithm::radix_sort accepts scratch larger than the range") {
+  // The scratch overload subspans scratch down to the range size, so an
+  // oversized scratch buffer is valid (a caller may reuse one big buffer for
+  // many sorts); the trimming is load-bearing and was previously untested.
+  auto data{std::array<std::uint16_t, 5>{40, 10, 30, 20, 50}};
+  auto scratch{std::vector<std::uint16_t>(16, 0)};  // deliberately larger than 5
+  alg::radix_sort(std::span<std::uint16_t>{data}, std::span<std::uint16_t>{scratch});
+  CHECK(data == std::array<std::uint16_t, 5>{10, 20, 30, 40, 50});
+}
+
 TEST_CASE("nexenne::algorithm::radix_sort matches std::sort across every unsigned width") {
   auto gen{lcg{}};
   SUBCASE("uint8 (odd sizeof, copy-back path)") {
