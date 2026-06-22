@@ -6,6 +6,7 @@ set(_algorithm_examples
     graph
     hashing
     numerical
+    showcase
     sort
     string
 )

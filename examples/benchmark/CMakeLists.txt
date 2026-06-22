@@ -1,6 +1,7 @@
 # One executable per example, named nexenne_example_benchmark_<name>.
 set(_benchmark_examples
     compare_sorts
+    showcase
 )
 
 foreach(_example IN LISTS _benchmark_examples)

@@ -2,6 +2,10 @@
 set(_logging_examples
     levels
     basic
+    showcase
+    embedded
+    async_sync
+    sinks
 )
 
 foreach(_example IN LISTS _logging_examples)

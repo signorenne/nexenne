@@ -7,32 +7,25 @@
 #include <print>
 
 #include <nexenne/math/angle.hpp>
+#include <nexenne/math/format.hpp>
 #include <nexenne/math/matrix.hpp>
 #include <nexenne/math/projection.hpp>
 
 namespace nm = nexenne::math;
 
-namespace {
-
-void print2(char const* label, nm::matrix2_f const& m) {
-  std::println("{:<18} [{} {} ; {} {}]", label, m(0, 0), m(0, 1), m(1, 0), m(1, 1));
-}
-
-}  // namespace
-
 auto main() -> int {
   // Written in reading order; stored column-major.
   constexpr auto a{nm::make_matrix2(1.0f, 2.0f, 3.0f, 4.0f)};
   constexpr auto b{nm::make_matrix2(5.0f, 6.0f, 7.0f, 8.0f)};
-  print2("a", a);
-  print2("a * b (packed SSE)", a * b);
-  print2("a + b", a + b);
-  print2("transpose(a)", nm::transpose(a));
+  std::println("{:<18} {}", "a", a);
+  std::println("{:<18} {}", "a * b (packed SSE)", a * b);
+  std::println("{:<18} {}", "a + b", a + b);
+  std::println("{:<18} {}", "transpose(a)", nm::transpose(a));
   std::println("det(a) = {}", nm::determinant(a));
 
   if (auto const inv = nm::inverse(a)) {
-    print2("inverse(a)", *inv);
-    print2("a * inverse(a)", a * *inv);  // ~ identity
+    std::println("{:<18} {}", "inverse(a)", *inv);
+    std::println("{:<18} {}", "a * inverse(a)", a * *inv);  // ~ identity
   }
 
   // data() is a column-major upload pointer: column 0 then column 1.

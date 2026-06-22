@@ -3,6 +3,7 @@
 set(_signal_examples
     observer
     static_signal
+    showcase
 )
 
 foreach(_example IN LISTS _signal_examples)

@@ -3,6 +3,7 @@ set(_random_examples
     engines
     dice_and_picks
     distributions
+    showcase
 )
 
 foreach(_example IN LISTS _random_examples)

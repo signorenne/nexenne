@@ -18,6 +18,7 @@ set(_utility_examples
     non_null
     overloaded
     scope_guard
+    showcase
     source_location_format
     static_string
     strong_typedef

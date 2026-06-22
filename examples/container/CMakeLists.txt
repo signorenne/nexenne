@@ -27,6 +27,7 @@ set(_container_examples
     object_pool
     ring_buffer
     scratch_pad
+    showcase
     slot_map
     small_vector
     sparse_set

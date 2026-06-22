@@ -13,6 +13,7 @@ set(_math_examples
     curves
     sampling
     debug
+    showcase
 )
 
 foreach(_example IN LISTS _math_examples)
