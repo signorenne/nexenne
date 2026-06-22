@@ -15,6 +15,10 @@ fi
 
 cd "$(git rev-parse --show-toplevel)"
 
+# Clear the git env vars hooks inherit, so the build's own git clone (it
+# fetches doctest) does not pick them up and fail.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_OBJECT_DIRECTORY
+
 echo "pre-push: configuring and building (ci preset)"
 cmake --preset ci >/dev/null
 cmake --build --preset ci
