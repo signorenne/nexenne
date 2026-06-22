@@ -117,6 +117,17 @@ TEST_CASE("nexenne::algorithm single-pattern search known answers") {
   CHECK(alg::boyer_moore_find("aaaaaa", "aaab") == std::string_view::npos);
 }
 
+TEST_CASE("nexenne::algorithm single-pattern search handles bytes >= 0x80") {
+  // The Horspool skip table and the KMP scan index bytes via an unsigned-char
+  // cast; high bytes must search correctly (previously untested).
+  auto const hay{std::string{"\x01\x93\xff\x93\xff\x02", 6}};
+  auto const needle{std::string{"\x93\xff", 2}};
+  CHECK(alg::boyer_moore_find(hay, needle) == 1);
+  CHECK(alg::kmp_find(hay, needle) == 1);
+  CHECK(alg::boyer_moore_find(std::string{"\xff\xfe", 2}, std::string{"\x80", 1})
+        == std::string_view::npos);
+}
+
 TEST_CASE("nexenne::algorithm kmp_find and boyer_moore_find match std::find") {
   auto gen{lcg{}};
   for (auto trial{0}; trial < 4000; ++trial) {
