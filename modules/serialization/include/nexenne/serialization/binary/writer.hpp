@@ -55,6 +55,7 @@
 #include <type_traits>
 
 #include <nexenne/serialization/error.hpp>
+#include <nexenne/utility/buffer_cursor.hpp>
 #include <nexenne/utility/discard.hpp>
 
 namespace nexenne::serialization::binary {
@@ -79,18 +80,13 @@ public:
   using size_type = std::size_t;
 
 private:
-  std::span<byte_type> m_buf{};
-  size_type m_pos{0};
-
-  [[nodiscard]] constexpr auto fits(size_type const n) const noexcept -> bool {
-    return n <= m_buf.size() - m_pos;
-  }
+  nexenne::utility::buffer_cursor<byte_type> m_cursor;
 
   // True when a length prefix plus a body fit, computed without overflowing
   // size_type (prefix + body could wrap on a 32-bit target with a huge body).
   [[nodiscard]] constexpr auto
   fits_prefixed(size_type const prefix, size_type const body) const noexcept -> bool {
-    auto const remaining{m_buf.size() - m_pos};
+    auto const remaining{m_cursor.remaining()};
     return prefix <= remaining && body <= remaining - prefix;
   }
 
@@ -117,7 +113,7 @@ public:
    * @post \c bytes_written() is zero and \c bytes_remaining() equals
    *       \c buf.size().
    */
-  explicit constexpr writer(std::span<byte_type> const buf) noexcept : m_buf{buf} {}
+  explicit constexpr writer(std::span<byte_type> const buf) noexcept : m_cursor{buf} {}
 
   /**
    * @brief Number of bytes emitted so far.
@@ -128,7 +124,7 @@ public:
    * @post Result is in the range \c [0, capacity()].
    */
   [[nodiscard]] constexpr auto bytes_written() const noexcept -> size_type {
-    return m_pos;
+    return m_cursor.position();
   }
 
   /**
@@ -140,7 +136,7 @@ public:
    * @post Result plus \c bytes_written() equals \c capacity().
    */
   [[nodiscard]] constexpr auto bytes_remaining() const noexcept -> size_type {
-    return m_buf.size() - m_pos;
+    return m_cursor.remaining();
   }
 
   /**
@@ -152,7 +148,7 @@ public:
    * @post Result is constant for the lifetime of the writer.
    */
   [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
-    return m_buf.size();
+    return m_cursor.size();
   }
 
   /**
@@ -166,7 +162,7 @@ public:
    *       meaningful.
    */
   [[nodiscard]] constexpr auto data() const noexcept -> byte_type const* {
-    return m_buf.data();
+    return m_cursor.buffer().data();
   }
 
   /**
@@ -181,7 +177,7 @@ public:
    * @post The returned span has size \c bytes_written().
    */
   [[nodiscard]] constexpr auto written() const noexcept -> std::span<byte_type const> {
-    return std::span<byte_type const>{m_buf.data(), m_pos};
+    return m_cursor.consumed();
   }
 
   /**
@@ -194,7 +190,7 @@ public:
    * @post \c bytes_written() is zero.
    */
   constexpr auto reset() noexcept -> void {
-    m_pos = 0;
+    m_cursor.rewind();
   }
 
   /**
@@ -215,9 +211,9 @@ public:
    *         bytes remain.
    */
   auto skip(size_type const n) noexcept -> std::expected<void, error> {
-    if (!fits(n)) [[unlikely]]
+    if (!m_cursor.has(n)) [[unlikely]]
       return std::unexpected{error::buffer_full};
-    m_pos += n;
+    m_cursor.advance(n);
     return {};
   }
 
@@ -243,19 +239,19 @@ public:
   template <typename T>
     requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
   auto write(T const value) noexcept -> std::expected<void, error> {
-    if (!fits(sizeof(T))) [[unlikely]]
+    if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_full};
     if constexpr (std::endian::native == std::endian::little) {
-      std::memcpy(m_buf.data() + m_pos, &value, sizeof(T));
+      std::memcpy(m_cursor.data(), &value, sizeof(T));
     } else {
       // Cold path, every supported MCU target is little-endian.
       auto bytes{std::array<byte_type, sizeof(T)>{}};
       std::memcpy(bytes.data(), &value, sizeof(T));
       for (size_type i{0}; i < sizeof(T); ++i) {
-        m_buf[m_pos + i] = bytes[sizeof(T) - 1 - i];
+        m_cursor.data()[i] = bytes[sizeof(T) - 1 - i];
       }
     }
-    m_pos += sizeof(T);
+    m_cursor.advance(sizeof(T));
     return {};
   }
 
@@ -277,14 +273,14 @@ public:
    *         \c data.size() bytes remain.
    */
   auto write_bytes(std::span<byte_type const> const data) noexcept -> std::expected<void, error> {
-    if (!fits(data.size())) [[unlikely]]
+    if (!m_cursor.has(data.size())) [[unlikely]]
       return std::unexpected{error::buffer_full};
     // Guard the copy: memcpy with a null pointer is undefined even for size 0,
     // and an empty span's data() may be null.
     if (!data.empty()) {
-      std::memcpy(m_buf.data() + m_pos, data.data(), data.size());
+      std::memcpy(m_cursor.data(), data.data(), data.size());
     }
-    m_pos += data.size();
+    m_cursor.advance(data.size());
     return {};
   }
 
@@ -313,15 +309,15 @@ public:
     // Compare counts, not byte totals: xs.size() * sizeof(T) could overflow
     // size_t and wrap to a small value that passes a bounds check, then memcpy
     // would over-read the source span.
-    if (xs.size() > (m_buf.size() - m_pos) / sizeof(T)) [[unlikely]] {
+    if (xs.size() > m_cursor.remaining() / sizeof(T)) [[unlikely]] {
       return std::unexpected{error::buffer_full};
     }
     auto const n{xs.size() * sizeof(T)};
     if constexpr (std::endian::native == std::endian::little || sizeof(T) == 1) {
       if (n != 0) {  // memcpy with a null/empty source is UB even for size 0
-        std::memcpy(m_buf.data() + m_pos, xs.data(), n);
+        std::memcpy(m_cursor.data(), xs.data(), n);
       }
-      m_pos += n;
+      m_cursor.advance(n);
     } else {
       for (auto const& x : xs) {
         nexenne::utility::discard(write(x));  // sub-write already bounds-checked above
@@ -350,13 +346,13 @@ public:
    */
   auto write_varint(std::uint64_t value) noexcept -> std::expected<void, error> {
     auto const n{varint_size(value)};
-    if (!fits(n)) [[unlikely]]
+    if (!m_cursor.has(n)) [[unlikely]]
       return std::unexpected{error::buffer_full};
     while (value >= 0x80) {
-      m_buf[m_pos++] = static_cast<byte_type>((value & 0x7F) | 0x80);
+      m_cursor.put(static_cast<byte_type>((value & 0x7F) | 0x80));
       value >>= 7;
     }
-    m_buf[m_pos++] = static_cast<byte_type>(value);
+    m_cursor.put(static_cast<byte_type>(value));
     return {};
   }
 
@@ -418,15 +414,15 @@ public:
       return std::unexpected{error::buffer_full};
     auto v{s.size()};
     while (v >= 0x80) {
-      m_buf[m_pos++] = static_cast<byte_type>((v & 0x7F) | 0x80);
+      m_cursor.put(static_cast<byte_type>((v & 0x7F) | 0x80));
       v >>= 7;
     }
-    m_buf[m_pos++] = static_cast<byte_type>(v);
+    m_cursor.put(static_cast<byte_type>(v));
     // memcpy with a null pointer is UB even for size 0.
     if (!s.empty()) {
-      std::memcpy(m_buf.data() + m_pos, s.data(), s.size());
+      std::memcpy(m_cursor.data(), s.data(), s.size());
     }
-    m_pos += s.size();
+    m_cursor.advance(s.size());
     return {};
   }
 };

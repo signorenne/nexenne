@@ -45,6 +45,7 @@
 #include <type_traits>
 
 #include <nexenne/serialization/error.hpp>
+#include <nexenne/utility/buffer_cursor.hpp>
 
 namespace nexenne::serialization::binary {
 
@@ -79,13 +80,8 @@ public:
   static constexpr size_type default_max_string_size{64u * 1024u * 1024u};
 
 private:
-  std::span<byte_type const> m_buf{};
-  size_type m_pos{0};
+  nexenne::utility::buffer_cursor<byte_type const> m_cursor;
   size_type m_max_str{default_max_string_size};
-
-  [[nodiscard]] constexpr auto has(size_type const n) const noexcept -> bool {
-    return n <= m_buf.size() - m_pos;
-  }
 
 public:
   /**
@@ -101,7 +97,7 @@ public:
    * @post \c position() is zero and \c bytes_remaining() equals
    *       \c buf.size().
    */
-  explicit constexpr reader(std::span<byte_type const> const buf) noexcept : m_buf{buf} {}
+  explicit constexpr reader(std::span<byte_type const> const buf) noexcept : m_cursor{buf} {}
 
   /**
    * @brief Number of bytes consumed so far.
@@ -112,7 +108,7 @@ public:
    * @post Result is in the range \c [0, capacity()].
    */
   [[nodiscard]] constexpr auto bytes_read() const noexcept -> size_type {
-    return m_pos;
+    return m_cursor.position();
   }
 
   /**
@@ -124,7 +120,7 @@ public:
    * @post Result plus \c bytes_read() equals \c capacity().
    */
   [[nodiscard]] constexpr auto bytes_remaining() const noexcept -> size_type {
-    return m_buf.size() - m_pos;
+    return m_cursor.remaining();
   }
 
   /**
@@ -137,7 +133,7 @@ public:
    * @post Result is in the range \c [0, capacity()].
    */
   [[nodiscard]] constexpr auto position() const noexcept -> size_type {
-    return m_pos;
+    return m_cursor.position();
   }
 
   /**
@@ -149,7 +145,7 @@ public:
    * @post Result is constant for the lifetime of the reader.
    */
   [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
-    return m_buf.size();
+    return m_cursor.size();
   }
 
   /**
@@ -161,7 +157,7 @@ public:
    * @post Result equals \c (bytes_remaining() == 0).
    */
   [[nodiscard]] constexpr auto at_end() const noexcept -> bool {
-    return m_pos == m_buf.size();
+    return m_cursor.exhausted();
   }
 
   /**
@@ -198,9 +194,9 @@ public:
    *         \c capacity().
    */
   auto seek(size_type const pos) noexcept -> std::expected<void, error> {
-    if (pos > m_buf.size()) [[unlikely]]
+    if (pos > m_cursor.size()) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
-    m_pos = pos;
+    m_cursor.seek(pos);
     return {};
   }
 
@@ -222,9 +218,9 @@ public:
    *         \p n bytes remain.
    */
   auto skip(size_type const n) noexcept -> std::expected<void, error> {
-    if (!has(n)) [[unlikely]]
+    if (!m_cursor.has(n)) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
-    m_pos += n;
+    m_cursor.advance(n);
     return {};
   }
 
@@ -250,20 +246,20 @@ public:
   template <typename T>
     requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
   [[nodiscard]] auto read() noexcept -> std::expected<T, error> {
-    if (!has(sizeof(T))) [[unlikely]]
+    if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
     auto value{T{}};
     if constexpr (std::endian::native == std::endian::little) {
-      std::memcpy(&value, m_buf.data() + m_pos, sizeof(T));
+      std::memcpy(&value, m_cursor.data(), sizeof(T));
     } else {
       // Cold path, every supported MCU target is little-endian.
       auto bytes{std::array<byte_type, sizeof(T)>{}};
       for (size_type i{0}; i < sizeof(T); ++i) {
-        bytes[sizeof(T) - 1 - i] = m_buf[m_pos + i];
+        bytes[sizeof(T) - 1 - i] = m_cursor.data()[i];
       }
       std::memcpy(&value, bytes.data(), sizeof(T));
     }
-    m_pos += sizeof(T);
+    m_cursor.advance(sizeof(T));
     return value;
   }
 
@@ -287,15 +283,15 @@ public:
   template <typename T>
     requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
   [[nodiscard]] auto peek() const noexcept -> std::expected<T, error> {
-    if (!has(sizeof(T))) [[unlikely]]
+    if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
     auto value{T{}};
     if constexpr (std::endian::native == std::endian::little) {
-      std::memcpy(&value, m_buf.data() + m_pos, sizeof(T));
+      std::memcpy(&value, m_cursor.data(), sizeof(T));
     } else {
       auto bytes{std::array<byte_type, sizeof(T)>{}};
       for (size_type i{0}; i < sizeof(T); ++i) {
-        bytes[sizeof(T) - 1 - i] = m_buf[m_pos + i];
+        bytes[sizeof(T) - 1 - i] = m_cursor.data()[i];
       }
       std::memcpy(&value, bytes.data(), sizeof(T));
     }
@@ -324,11 +320,9 @@ public:
    */
   [[nodiscard]] auto read_bytes(size_type const n
   ) noexcept -> std::expected<std::span<byte_type const>, error> {
-    if (!has(n)) [[unlikely]]
+    if (!m_cursor.has(n)) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
-    auto const out{m_buf.subspan(m_pos, n)};
-    m_pos += n;
-    return out;
+    return m_cursor.take(n);
   }
 
   /**
@@ -357,15 +351,15 @@ public:
     // Compare counts, not byte totals: out.size() * sizeof(T) could overflow
     // size_t and wrap to a small value that passes a bounds check, then memcpy
     // would over-write the destination span.
-    if (out.size() > (m_buf.size() - m_pos) / sizeof(T)) [[unlikely]] {
+    if (out.size() > m_cursor.remaining() / sizeof(T)) [[unlikely]] {
       return std::unexpected{error::buffer_underrun};
     }
     auto const n{out.size() * sizeof(T)};
     if constexpr (std::endian::native == std::endian::little || sizeof(T) == 1) {
       if (n != 0) {  // memcpy with a null/empty destination is UB even for size 0
-        std::memcpy(out.data(), m_buf.data() + m_pos, n);
+        std::memcpy(out.data(), m_cursor.data(), n);
       }
-      m_pos += n;
+      m_cursor.advance(n);
     } else {
       for (auto& x : out) {
         x = *read<T>();
@@ -397,9 +391,9 @@ public:
     auto shift{0};
     // Max 10 bytes for a 64-bit value.
     for (auto i{0}; i < 10; ++i) {
-      if (!has(1)) [[unlikely]]
+      if (!m_cursor.has(1)) [[unlikely]]
         return std::unexpected{error::buffer_underrun};
-      auto const b{static_cast<std::uint8_t>(m_buf[m_pos++])};
+      auto const b{static_cast<std::uint8_t>(m_cursor.next())};
       // The 10th byte holds only bit 63, so its value bits beyond bit 0 would
       // overflow uint64: reject a non-canonical / over-wide encoding.
       if (i == 9 && (b & 0x7F) > 0x01u) [[unlikely]] {
@@ -468,10 +462,10 @@ public:
     if (*len > m_max_str) [[unlikely]]
       return std::unexpected{error::string_too_long};
     auto const n{static_cast<size_type>(*len)};
-    if (!has(n)) [[unlikely]]
+    if (!m_cursor.has(n)) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
-    auto const sv{std::string_view{reinterpret_cast<char const*>(m_buf.data() + m_pos), n}};
-    m_pos += n;
+    auto const sv{std::string_view{reinterpret_cast<char const*>(m_cursor.data()), n}};
+    m_cursor.advance(n);
     return sv;
   }
 };
