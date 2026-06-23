@@ -15,7 +15,7 @@
  * Reach for it as a work queue or sliding window where you add and remove at
  * both ends and want contiguous random access. It is copyable when \p T is (a
  * deep copy that re-packs from the front) and always movable. Allocation uses
- * the over-aligned \c ::operator \c new, so an over-aligned \p T is handled
+ * the over-aligned global allocation function, so an over-aligned \p T is handled
  * correctly. Every operation is \c noexcept: a boundary failure (pop from empty)
  * returns \c result, and allocation failure terminates. It is not thread-safe.
  */

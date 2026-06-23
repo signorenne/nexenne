@@ -16,7 +16,7 @@
  * but occasionally unbounded, anywhere \c std::vector would do but the
  * allocation traffic on small inputs is measurable. All non-allocating
  * operations are \c noexcept; an operation that grows past the inline buffer
- * calls \c ::operator new and, per the module policy, treats allocation failure
+ * calls the global allocation function and, per the module policy, treats allocation failure
  * as fatal (\c std::terminate) rather than throwing. \c data() / \c size() /
  * \c span() expose the contiguous live range for \c std::span and
  * \c std::ranges interop.
