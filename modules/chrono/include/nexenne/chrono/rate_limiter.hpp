@@ -171,8 +171,8 @@ public:
    *
    * @return Zero when \p n tokens are already on hand or \p n is not
    *         positive; \c duration::max() when the bucket can never reach
-   *         \p n, such as a zero refill rate while short; otherwise the
-   *         rounded-up wait.
+   *         \p n, either because \p n exceeds \c capacity() or the refill rate
+   *         is zero while short; otherwise the rounded-up wait.
    *
    * @pre None.
    * @post The result is greater than or equal to \c duration::zero().
@@ -185,6 +185,13 @@ public:
     constexpr auto eps{1e-9};
     if (m_tokens + eps >= n) {
       return duration::zero();
+    }
+    // More tokens than the bucket can ever hold: refill() caps m_tokens at
+    // m_capacity, so n above capacity is never reachable. Report the
+    // unreachable sentinel rather than a finite wait that would never elapse
+    // into success.
+    if (n > m_capacity + eps) {
+      return duration::max();
     }
     if (m_refill_per_sec <= 0.0) {
       return duration::max();
