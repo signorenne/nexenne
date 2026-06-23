@@ -310,9 +310,31 @@ TEST_CASE("nexenne::chrono::format with suppress_zero keeps seconds even when ze
   CHECK(ch::format(0ms) == "00s");
   // A pure-millisecond value keeps the seconds anchor plus the ms piece.
   CHECK(ch::format(500ms) == "00s:500ms");
-  // Hours present forces the intervening (zero) minutes to be dropped in suppress
-  // mode but days/hours kept; here 1h exactly.
-  CHECK(ch::format(std::chrono::hours{1}) == "01h:00s");
+  // Hours present keeps the intervening (zero) minutes: an interior zero is not
+  // dropped once a coarser component is shown, only leading zeros are.
+  CHECK(ch::format(std::chrono::hours{1}) == "01h:00m:00s");
+}
+
+TEST_CASE("nexenne::chrono::format keeps interior zero components (M1)") {
+  // 24h + 5m + 34s decomposes to 1 day, 0 hours, 5 minutes, 34 seconds. The zero
+  // hours sits between the shown days and minutes and must survive; dropping it
+  // would misread as 01d:05m:34s.
+  auto const d{ch::format(std::chrono::hours{24} + std::chrono::minutes{5} + std::chrono::seconds{34}
+  )};
+  CHECK(d == "01d:00h:05m:34s");
+  // Leading zeros are still dropped: no days, so the day component vanishes.
+  CHECK(ch::format(std::chrono::minutes{5} + std::chrono::seconds{34}) == "05m:34s");
+}
+
+TEST_CASE("nexenne::chrono::format honors the caller token layout under suppress_zero (M4)") {
+  // "{h}h:{m}m" excludes seconds, so the 30-second remainder must not reappear.
+  // 3'750'000 ms = 1 h 2 m 30 s.
+  CHECK(ch::format(std::chrono::milliseconds{3'750'000}, "{h}h:{m}m") == "01h:02m");
+  // The same value with suppress_zero == false already honored the layout.
+  CHECK(ch::format(std::chrono::milliseconds{3'750'000}, "{h}h:{m}m", false) == "01h:02m");
+  // A layout of minutes and seconds renders exactly those within-unit
+  // components (90 s decomposes to 1 minute, 30 seconds).
+  CHECK(ch::format(std::chrono::seconds{90}, "{m}m:{s}s") == "01m:30s");
 }
 
 TEST_CASE("nexenne::chrono::format rounds when {ms} is absent and keeps it when present") {
