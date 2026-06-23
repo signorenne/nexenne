@@ -29,10 +29,14 @@ jobs:
   build-test:
     name: build + doctest (gcc, werror)
     runs-on: ubuntu-24.04
-    env: { CC: gcc-14, CXX: g++-14 }
+    env: { CC: gcc-15, CXX: g++-15 }
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y g++-14 cmake ninja-build ccache
+      - name: Install GCC 15
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-15 cmake ninja-build ccache
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ccache
@@ -45,10 +49,15 @@ jobs:
   build-clang:
     name: build + doctest (clang)
     runs-on: ubuntu-24.04
-    env: { CC: clang-18, CXX: clang++-18 }
+    env: { CC: clang-19, CXX: clang++-19 }
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y clang-18 cmake ninja-build ccache
+      - name: Install Clang 19
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+          sudo apt-get install -y cmake ninja-build ccache
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ccache
@@ -61,10 +70,14 @@ jobs:
   asan:
     name: doctest under asan + ubsan
     runs-on: ubuntu-24.04
-    env: { CC: gcc-14, CXX: g++-14 }
+    env: { CC: gcc-15, CXX: g++-15 }
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y g++-14 cmake ninja-build
+      - name: Install GCC 15
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-15 cmake ninja-build
       - run: cmake --preset asan
       - run: cmake --build --preset asan
       - run: cmake --build --preset asan --target nexenne_tests
@@ -72,17 +85,22 @@ jobs:
   tidy:
     name: clang-tidy
     runs-on: ubuntu-24.04
-    env: { CC: clang-18, CXX: clang++-18 }
+    env: { CC: clang-19, CXX: clang++-19 }
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y clang-18 clang-tidy-18 cmake ninja-build
+      - name: Install Clang 19 and clang-tidy
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+          sudo apt-get install -y clang-tidy-19 cmake ninja-build
       - name: Configure (compile database)
         run: cmake --preset dev
       - name: Run clang-tidy
         run: |
           files=$(git ls-files 'modules/*.hpp' 'modules/*.cpp')
           if [ -n "$files" ]; then
-            run-clang-tidy-18 -p build/dev -quiet $files
+            run-clang-tidy-19 -p build/dev -quiet $files
           else
             echo "no module sources to lint yet"
           fi
@@ -90,10 +108,14 @@ jobs:
   docs:
     name: doxygen (documentation errors)
     runs-on: ubuntu-24.04
-    env: { CC: gcc-14, CXX: g++-14 }
+    env: { CC: gcc-15, CXX: g++-15 }
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y g++-14 cmake ninja-build doxygen graphviz
+      - name: Install GCC 15
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-15 cmake ninja-build doxygen graphviz
       - name: Build docs
         run: |
           cmake -S . -B build/docs -G Ninja \
@@ -105,8 +127,12 @@ jobs:
   install:
     name: install + consumer find_package
     runs-on: ubuntu-24.04
-    env: { CC: gcc-14, CXX: g++-14 }
+    env: { CC: gcc-15, CXX: g++-15 }
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y g++-14 cmake ninja-build
+      - name: Install GCC 15
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-15 cmake ninja-build
       - run: bash scripts/install_smoke.sh
