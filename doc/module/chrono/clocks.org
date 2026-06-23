@@ -48,7 +48,7 @@ struct esp_micro_backend {
     static auto ticks() noexcept -> rep { return esp_timer_get_time(); }
 };
 using clock = nexenne::chrono::tick_clock<esp_micro_backend>;
-// every other chrono type now works with `clock`
+// every other chrono type now works with clock
 #+END_EXAMPLE
 
 ** manual_clock: time that moves only on command

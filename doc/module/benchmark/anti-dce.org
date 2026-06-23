@@ -1,4 +1,4 @@
-#+TITLE: nexenne::benchmark - anti-DCE primitives
+#+TITLE: nexenne::benchmark: anti-DCE primitives
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 

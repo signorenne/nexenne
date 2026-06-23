@@ -1,4 +1,4 @@
-#+TITLE: nexenne::serialization - schema-driven binary
+#+TITLE: nexenne::serialization: schema-driven binary
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
