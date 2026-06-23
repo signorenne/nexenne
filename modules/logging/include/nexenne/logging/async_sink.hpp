@@ -197,7 +197,7 @@ protected:
   auto flush_out() noexcept -> void override {
     {
       auto lk{std::unique_lock{m_mu}};
-      m_drained.wait(lk, [this] { return m_queue.empty() || m_stop; });
+      m_drained.wait(lk, [this] { return (m_queue.empty() && !m_processing) || m_stop; });
     }
     if (m_inner) {
       m_inner->flush();
@@ -227,16 +227,23 @@ private:
         }
         r = std::move(m_queue.front());
         m_queue.pop();
-        if (m_queue.empty()) {
-          // Signal flush_out waiters before releasing the lock so a flush
-          // sees the empty queue rather than racing the next push.
-          m_drained.notify_all();
-        }
+        m_processing = true;  // a record is now in flight, not yet written
       }
       // A slot just freed up; release a producer parked on the block policy.
       m_not_full.notify_one();
       if (m_inner) {
         m_inner->write(r);
+      }
+      {
+        // The write is complete. Only now, with nothing dequeued and nothing
+        // left, is the sink truly drained, so wake flush waiters here rather
+        // than right after the pop, which would let flush return with this
+        // record still unwritten.
+        auto lk{std::unique_lock{m_mu}};
+        m_processing = false;
+        if (m_queue.empty()) {
+          m_drained.notify_all();
+        }
       }
     }
   }
@@ -248,7 +255,8 @@ private:
   std::condition_variable m_not_full;   ///< Blocking producers wait here for space.
   std::condition_variable m_drained;    ///< Flush waiters wait here for an empty queue.
   std::queue<record> m_queue;
-  bool m_stop{false};  ///< Guarded by \c m_mu; set once at shutdown.
+  bool m_stop{false};        ///< Guarded by \c m_mu; set once at shutdown.
+  bool m_processing{false};  ///< Guarded by \c m_mu; a record is dequeued but not yet written.
   std::thread m_worker;
 };
 
