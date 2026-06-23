@@ -2,6 +2,7 @@ nexenne_add_module_tests(utility
     SOURCES
         test_align.cpp
         test_bit.cpp
+        test_buffer_cursor.cpp
         test_defer.cpp
         test_discard.cpp
         test_endian.cpp
