@@ -29,6 +29,7 @@
 #include <cmath>
 #include <concepts>
 #include <cstddef>
+#include <expected>
 
 #include <nexenne/math/error.hpp>
 #include <nexenne/math/power.hpp>

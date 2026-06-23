@@ -17,6 +17,7 @@
  *       individually if a diagnostic string is needed.
  */
 
+#include <expected>
 #include <format>
 #include <string_view>
 
