@@ -105,7 +105,25 @@ template <std::integral Int, chrono_duration ToDur, chrono_duration FromDur>
     using fdur = std::chrono::duration<long double, typename ToDur::period>;
     return detail::saturate_from_ld<Int>(std::chrono::duration_cast<fdur>(d).count());
   } else {
-    auto const c{std::chrono::duration_cast<ToDur>(d).count()};
+    // Clamp the source duration into the ToDur-representable range before the
+    // cast. When ToDur is finer than FromDur (a coarse-to-fine conversion,
+    // e.g. seconds -> microseconds) duration_cast multiplies the count by the
+    // unit ratio in the source rep, which overflows for a large d (undefined
+    // behaviour) before any saturation can run. Bounding d by the FromDur
+    // images of ToDur::max()/min() keeps that multiply in range; the clamped
+    // count then saturates into Int below exactly as an in-range one would.
+    auto clamped{d};
+    if constexpr (std::is_integral_v<typename ToDur::rep>
+                  && std::ratio_greater_v<typename FromDur::period, typename ToDur::period>) {
+      constexpr auto hi{std::chrono::duration_cast<FromDur>(ToDur::max())};
+      constexpr auto lo{std::chrono::duration_cast<FromDur>(ToDur::min())};
+      if (clamped > hi) {
+        clamped = hi;
+      } else if (clamped < lo) {
+        clamped = lo;
+      }
+    }
+    auto const c{std::chrono::duration_cast<ToDur>(clamped).count()};
     using C = decltype(c);
 
     if constexpr (std::is_floating_point_v<C>) {
