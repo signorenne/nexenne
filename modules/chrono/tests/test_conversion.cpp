@@ -230,4 +230,31 @@ TEST_CASE("nexenne::chrono::to_count_sat float rep into a floating ToDur saturat
   CHECK(ch::to_count_sat<std::int32_t, fms>(fsec{2.5}) == 2500);
 }
 
+TEST_CASE("nexenne::chrono::to_count_sat clamps before the cast on a coarse-to-fine extreme (C1)") {
+  // seconds -> microseconds multiplies by 1e6 inside duration_cast; a large
+  // second count overflows the source rep (signed-overflow UB, and previously
+  // returned 0) before saturation unless the duration is clamped first. The
+  // result must saturate high, not wrap.
+  auto const big{std::chrono::seconds{std::numeric_limits<std::int64_t>::max() / 1000}};
+  CHECK(ch::to_us_u32(big) == std::numeric_limits<std::uint32_t>::max());
+  // A wide signed target does not saturate to its own max (the clamped count
+  // fits) but must be a large positive value, never 0 or a wrapped negative.
+  auto const r{ch::to_count_sat<std::int64_t, std::chrono::microseconds>(big)};
+  CHECK(r > std::int64_t{9'000'000'000'000'000'000});
+  // Most-negative coarse extreme saturates low for a signed target and to zero
+  // for an unsigned target, still with no UB.
+  auto const neg{std::chrono::seconds{std::numeric_limits<std::int64_t>::min() / 1000}};
+  auto const rn{ch::to_count_sat<std::int64_t, std::chrono::microseconds>(neg)};
+  CHECK(rn < std::int64_t{-9'000'000'000'000'000'000});
+  CHECK(ch::to_count_sat<std::uint32_t, std::chrono::microseconds>(neg) == 0U);
+}
+
+TEST_CASE("nexenne::chrono::to_count_sat coarse-to-fine clamp is usable at compile time") {
+  constexpr auto v{
+    ch::to_us_u32(std::chrono::seconds{std::numeric_limits<std::int64_t>::max() / 1000})
+  };
+  static_assert(v == std::numeric_limits<std::uint32_t>::max());
+  CHECK(v == std::numeric_limits<std::uint32_t>::max());
+}
+
 }  // namespace
