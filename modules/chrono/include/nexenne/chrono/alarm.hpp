@@ -61,6 +61,11 @@ enum class alarm_mode {
  *
  * @pre None.
  * @post A default-constructed alarm is disarmed with an empty callback.
+ *
+ * @note No \c std::formatter is provided: an alarm stores an absolute
+ *       \c next_fire_time() on a possibly non-steady \p Clock, so a "fires in
+ *       X" rendering would need a caller-supplied \c now(). Format
+ *       \c next_fire_time() directly, or a \c deadline built from it, instead.
  */
 template <clock_like Clock, std::size_t CallbackBytes = 64>
 class alarm {
@@ -210,22 +215,30 @@ public:
    * @param now Current time on \p Clock.
    *
    * @pre None.
-   * @post A one-shot alarm that fired is disarmed; a periodic alarm has
-   *       \c next_fire_time() strictly after \p now unless it disarmed on a
-   *       non-positive period.
+   * @post A one-shot alarm that fired is disarmed unless its callback re-armed
+   *       it; a periodic alarm has \c next_fire_time() strictly after \p now
+   *       unless it disarmed on a non-positive period.
    * @throws Whatever the stored callback throws; it is invoked unguarded.
+   *
+   * @note A one-shot alarm is disarmed before its callback runs, so a callback
+   *       that re-arms the alarm (via \c arm_at, \c arm_after, or
+   *       \c arm_periodic) leaves it armed on return.
    */
   auto poll(time_point const now) -> void {
-    if (!m_armed) {
-      return;
-    }
-    while (now >= m_next) {
+    while (m_armed && now >= m_next) {
+      if (m_mode == alarm_mode::one_shot) {
+        // Disarm before invoking the callback so a re-arm performed from inside
+        // the callback (the self-rescheduling one-shot idiom) survives instead
+        // of being clobbered by a post-call disarm. The callback then owns the
+        // armed state on return.
+        m_armed = false;
+        if (m_cb) {
+          m_cb();
+        }
+        return;
+      }
       if (m_cb) {
         m_cb();
-      }
-      if (m_mode == alarm_mode::one_shot) {
-        m_armed = false;
-        return;
       }
       m_next += m_period;
       // A zero or negative period would never advance past now: disarm rather
