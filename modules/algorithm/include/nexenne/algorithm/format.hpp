@@ -10,6 +10,15 @@
  * with width and alignment specs for free. Keeping the formatters here (rather
  * than in the core error headers) leaves those headers free of \c \<format\>:
  * callers pay for the dependency only when they include this header.
+ *
+ * Formatter policy for the algorithm module: only the values that flow out of a
+ * codec, checksum, or numerical call and are shown to a user, the error enums,
+ * ship a formatter. The compile-time configuration types (\c crc_spec,
+ * \c modular_sum_spec, \c base_n_spec, \c codec_alphabet) and the opaque
+ * streaming engines (\c crc_ctx, \c fnv1a_ctx, \c xxhash_ctx) are template
+ * parameters and internal accumulator state, not printable value types, so they
+ * carry no formatter by design. A computed hash or checksum is a plain integer
+ * and already formats through the standard library.
  */
 
 #include <expected>
