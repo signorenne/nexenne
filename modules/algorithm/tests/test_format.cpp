@@ -31,6 +31,13 @@ TEST_CASE("std::format on numerical_error matches to_string") {
   );
 }
 
+TEST_CASE("std::format on codec_error covers incomplete_input") {
+  CHECK(
+    std::format("{}", algorithm::codec_error::incomplete_input)
+    == algorithm::to_string(algorithm::codec_error::incomplete_input)
+  );
+}
+
 TEST_CASE("std::format honours width and alignment specs on the error name") {
   CHECK(std::format("{:>16}", algorithm::codec_error::invalid_input) == "   invalid_input");
 }
