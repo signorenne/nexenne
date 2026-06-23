@@ -244,7 +244,7 @@ TEST_CASE("nexenne::container::mpmc_queue conserves move-only elements across pr
       });
     }
     for (int c{0}; c < consumers; ++c) {
-      threads.emplace_back([&q, &seen, &consumed, total] {
+      threads.emplace_back([&q, &seen, &consumed] {
         while (consumed.load(std::memory_order_relaxed) < total) {
           if (auto v{q.try_pop()}) {
             REQUIRE(*v != nullptr);
