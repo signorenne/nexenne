@@ -51,6 +51,7 @@
 #include <string_view>
 
 #include <nexenne/serialization/error.hpp>
+#include <nexenne/utility/endian.hpp>
 
 namespace nexenne::serialization::msgpack {
 
@@ -74,25 +75,17 @@ enum class type : std::uint8_t {
 
 namespace detail {
 
-// Store an unsigned value big-endian. On a little-endian host (every MCU target
-// and x86) this is a byteswap plus a memcpy, which the compiler lowers to a
-// single REV/BSWAP and store; on a big-endian host it is a plain memcpy.
+// Store an unsigned value big-endian. The byte order is handled by
+// nexenne::utility, which writes the bytes most-significant-first into the
+// fixed-extent destination span.
 template <std::unsigned_integral U>
 inline auto store_be(std::byte* const dst, U value) noexcept -> void {
-  if constexpr (std::endian::native == std::endian::little) {
-    value = std::byteswap(value);
-  }
-  std::memcpy(dst, &value, sizeof(value));
+  nexenne::utility::write_be(std::span<std::byte, sizeof(U)>{dst, sizeof(U)}, value);
 }
 
 template <std::unsigned_integral U>
 [[nodiscard]] inline auto load_be(std::byte const* const src) noexcept -> U {
-  U value{};
-  std::memcpy(&value, src, sizeof(value));
-  if constexpr (std::endian::native == std::endian::little) {
-    value = std::byteswap(value);
-  }
-  return value;
+  return nexenne::utility::read_be<U>(std::span<std::byte const, sizeof(U)>{src, sizeof(U)});
 }
 
 inline auto store_be16(std::byte* const dst, std::uint16_t const v) noexcept -> void {
