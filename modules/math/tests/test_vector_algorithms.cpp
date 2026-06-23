@@ -10,12 +10,12 @@ TEST_CASE("dot, length, distance") {
   constexpr math::vector3_f a{1, 2, 2};
   static_assert(math::dot(a, a) == 9.0f);
   static_assert(math::length_squared(a) == 9.0f);
-  CHECK(math::length(a) == doctest::Approx(3.0f));
+  CHECK(math::length(a) == doctest::Approx(3.0));
   static_assert(math::dot(math::vector2_f{1, 0}, math::vector2_f{0, 1}) == 0.0f);  // perpendicular
 
   constexpr math::vector3_f b{1, 2, 14};
   static_assert(math::distance_squared(a, b) == 144.0f);
-  CHECK(math::distance(a, b) == doctest::Approx(12.0f));
+  CHECK(math::distance(a, b) == doctest::Approx(12.0));
 }
 
 TEST_CASE("cross products and perpendicular") {
@@ -34,8 +34,8 @@ TEST_CASE("normalize variants") {
   constexpr math::vector3_f v{3, 0, 4};  // length 5
   auto const n{math::normalize(v)};
   REQUIRE(n.has_value());
-  CHECK(math::length(*n) == doctest::Approx(1.0f));
-  CHECK(n->x() == doctest::Approx(0.6f));
+  CHECK(math::length(*n) == doctest::Approx(1.0));
+  CHECK(n->x() == doctest::Approx(0.6));
 
   // Zero vector fails.
   auto const z{math::normalize(math::vector3_f{0, 0, 0})};
@@ -45,7 +45,7 @@ TEST_CASE("normalize variants") {
   // fast_normalize: unit length within fast_inv_sqrt tolerance.
   auto const fn{math::fast_normalize(v)};
   REQUIRE(fn.has_value());
-  CHECK(math::length(*fn) == doctest::Approx(1.0f).epsilon(1e-4));
+  CHECK(math::length(*fn) == doctest::Approx(1.0).epsilon(1e-4));
 
   // normalize_or returns the fallback for a zero vector.
   constexpr math::vector3_f up{0, 1, 0};
@@ -122,12 +122,12 @@ TEST_CASE("normalized wrapper carries the unit-length guarantee") {
   constexpr math::vector3_f v{3, 0, 4};
   auto const n{math::make_normalized(v)};
   REQUIRE(n.has_value());
-  CHECK(math::length(n->value()) == doctest::Approx(1.0f));
+  CHECK(math::length(n->value()) == doctest::Approx(1.0));
   static_assert(std::is_same_v<math::normalized<float, 3>::vector_type, math::vector3_f>);
 
   // The implicit conversion works in non-template contexts.
   math::vector3_f back = *n;
-  CHECK(math::length(back) == doctest::Approx(1.0f));
+  CHECK(math::length(back) == doctest::Approx(1.0));
 
   // make_unchecked trusts a known unit vector.
   constexpr auto up{math::make_unchecked(math::vector3_f{0, 1, 0})};

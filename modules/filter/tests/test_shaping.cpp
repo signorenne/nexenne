@@ -124,8 +124,8 @@ TEST_CASE("nexenne::filter::slew reset to a primed initial rate-limits the next 
 TEST_CASE("nexenne::filter::slew float instantiation behaves identically") {
   auto f{flt::slew<float>{5.0F}};
   static_cast<void>(f.push(0.0F));
-  CHECK(f.push(100.0F) == doctest::Approx(5.0F));
-  CHECK(f.push(100.0F) == doctest::Approx(10.0F));
+  CHECK(f.push(100.0F) == doctest::Approx(5.0));
+  CHECK(f.push(100.0F) == doctest::Approx(10.0));
 }
 
 TEST_CASE("nexenne::filter::debounce first push of an unprimed filter is accepted") {

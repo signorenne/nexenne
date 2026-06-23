@@ -892,7 +892,7 @@ TEST_CASE("view.each may remove components mid-iteration without dangling") {
     r.remove<health>(e);
   });
   CHECK(visited == 50);
-  CHECK(sum == doctest::Approx(50.0f * 49.0f / 2.0f));
+  CHECK(sum == doctest::Approx(50.0 * 49.0 / 2.0));
   for (auto const e : ents) {
     CHECK_FALSE(r.has<health>(e));
     CHECK(r.has<position>(e));
@@ -920,7 +920,7 @@ TEST_CASE("view.each may add components mid-iteration without dangling") {
     }
   });
   CHECK(visited == 30);  // only the originals, none of the 5 added mid-loop
-  CHECK(seen_sum == doctest::Approx(30.0f * 29.0f / 2.0f));
+  CHECK(seen_sum == doctest::Approx(30.0 * 29.0 / 2.0));
   CHECK(r.storage<position>().size() == 35);  // 30 + 5 now live
 }
 
@@ -943,7 +943,7 @@ TEST_CASE("storage values() skips tombstoned slots after erase") {
     ++count;
   }
   CHECK(count == 5);
-  CHECK(sum == doctest::Approx(0.0f + 2.0f + 4.0f + 6.0f + 8.0f));
+  CHECK(sum == doctest::Approx(0.0 + 2.0 + 4.0 + 6.0 + 8.0));
 }
 
 TEST_CASE("listener may structurally modify the same storage without dangling") {
