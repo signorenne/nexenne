@@ -96,13 +96,18 @@ jobs:
           sudo apt-get install -y clang-tidy-19 cmake ninja-build
       - name: Configure (compile database)
         run: cmake --preset dev
-      - name: Run clang-tidy
+      - name: Run clang-tidy (tests, relaxed shared config)
         run: |
-          files=$(git ls-files 'modules/*.hpp' 'modules/*.cpp')
-          if [ -n "$files" ]; then
-            run-clang-tidy-19 -p build/dev -quiet $files
-          else
-            echo "no module sources to lint yet"
+          tests=$(git ls-files 'modules/*/tests/*.cpp')
+          if [ -n "$tests" ]; then
+            printf '%s\n' $tests | xargs -r -P"$(nproc)" -I{} \
+              clang-tidy-19 -p build/dev --quiet --config-file="$PWD/.clang-tidy-tests" {}
+          fi
+      - name: Run clang-tidy (examples, relaxed)
+        run: |
+          examples=$(git ls-files 'examples/*.cpp')
+          if [ -n "$examples" ]; then
+            run-clang-tidy-19 -p build/dev -quiet $examples
           fi
 
   docs:

@@ -1,0 +1,24 @@
+# nexenne clang-tidy configuration for the tests (relaxed), shared by every
+# module's tests. Applied explicitly by passing it as clang-tidy's config file,
+# because the test directories are scattered under modules/*/tests, so one
+# shared file cannot be auto-discovered the way examples/.clang-tidy is.
+#
+# It mirrors the strict library config but drops the opinionated/style families
+# and the bug checks that fire on legitimate test patterns (ignored result<>,
+# move-then-inspect, long doctest cases, NaN self-compare). The core bug-finders
+# stay on. Naming and trailing-return-type are kept.
+InheritParentConfig: true
+
+Checks: >
+  -cppcoreguidelines-*,
+  -hicpp-*,
+  -modernize-*,
+  modernize-use-trailing-return-type,
+  -readability-*,
+  readability-identifier-naming,
+  -bugprone-exception-escape,
+  -bugprone-unused-return-value,
+  -bugprone-use-after-move,
+  -cert-err33-c,
+  -misc-no-recursion,
+  -performance-enum-size
