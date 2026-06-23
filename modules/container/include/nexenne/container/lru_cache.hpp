@@ -29,6 +29,7 @@
 
 #include <nexenne/container/flat_hash_map.hpp>
 #include <nexenne/container/intrusive_list.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::container {
 
@@ -87,7 +88,7 @@ private:
     // which the Capacity >= 1 constraint guarantees.
     auto* const evicted{m_lru.back()};
     m_lru.erase(*evicted);
-    static_cast<void>(m_index.erase(evicted->key));
+    nexenne::utility::discard(m_index.erase(evicted->key));
     return evicted;
   }
 
@@ -219,7 +220,7 @@ public:
     entry->key = std::move(key);
     entry->value = std::move(value);
     m_lru.push_front(*entry);
-    static_cast<void>(m_index.insert(entry->key, entry));
+    nexenne::utility::discard(m_index.insert(entry->key, entry));
   }
 
   /**
@@ -302,7 +303,7 @@ public:
     }
     auto* const entry{*slot};
     m_lru.erase(*entry);
-    static_cast<void>(m_index.erase(key));
+    nexenne::utility::discard(m_index.erase(key));
     m_free.push_back(entry);
     return true;
   }

@@ -28,6 +28,8 @@
 #include <cstdint>
 #include <limits>
 
+#include <nexenne/utility/discard.hpp>
+
 namespace nexenne::random {
 
 class xoshiro256ss {
@@ -53,7 +55,7 @@ private:
           s[2] ^= m_s[2];
           s[3] ^= m_s[3];
         }
-        static_cast<void>(next());
+        nexenne::utility::discard(next());
       }
     }
     m_s = s;

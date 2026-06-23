@@ -32,6 +32,7 @@
 #include <nexenne/container/ring_buffer.hpp>
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/record.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::logging {
 
@@ -207,12 +208,12 @@ protected:
     auto* const out{pick_stream(r.severity)};
     // fwrite is the smallest portable atomic write for FILE*; glibc serialises
     // a full fwrite call.
-    static_cast<void>(std::fwrite(line.data(), 1, line.size(), out));
+    nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), out));
   }
 
   auto flush_out() noexcept -> void override {
-    static_cast<void>(std::fflush(stdout));
-    static_cast<void>(std::fflush(stderr));
+    nexenne::utility::discard(std::fflush(stdout));
+    nexenne::utility::discard(std::fflush(stderr));
   }
 
 private:
@@ -296,20 +297,20 @@ protected:
       return;
     }
     auto const line{default_format(r)};
-    static_cast<void>(std::fwrite(line.data(), 1, line.size(), m_file));
+    nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), m_file));
   }
 
   auto flush_out() noexcept -> void override {
     if (m_file != nullptr) {
-      static_cast<void>(std::fflush(m_file));
+      nexenne::utility::discard(std::fflush(m_file));
     }
   }
 
 private:
   auto close() noexcept -> void {
     if (m_file != nullptr) {
-      static_cast<void>(std::fflush(m_file));
-      static_cast<void>(std::fclose(m_file));
+      nexenne::utility::discard(std::fflush(m_file));
+      nexenne::utility::discard(std::fclose(m_file));
       m_file = nullptr;
     }
   }

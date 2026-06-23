@@ -42,6 +42,7 @@
 
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/record.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::logging {
 
@@ -114,9 +115,9 @@ private:
     auto const tt{std::chrono::system_clock::to_time_t(t)};
     std::tm tm{};
 #ifdef _WIN32
-    static_cast<void>(gmtime_s(&tm, &tt));
+    nexenne::utility::discard(gmtime_s(&tm, &tt));
 #else
-    static_cast<void>(gmtime_r(&tt, &tm));
+    nexenne::utility::discard(gmtime_r(&tt, &tm));
 #endif
     auto const ms{
       std::chrono::duration_cast<std::chrono::milliseconds>(t.time_since_epoch()).count() % 1000

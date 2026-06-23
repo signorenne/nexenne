@@ -55,6 +55,7 @@
 #include <type_traits>
 
 #include <nexenne/serialization/error.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::serialization::binary {
 
@@ -323,7 +324,7 @@ public:
       m_pos += n;
     } else {
       for (auto const& x : xs) {
-        static_cast<void>(write(x));  // sub-write already bounds-checked above
+        nexenne::utility::discard(write(x));  // sub-write already bounds-checked above
       }
     }
     return {};

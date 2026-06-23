@@ -478,7 +478,7 @@ public:
    * @complexity \c O(n) in the number of slots.
    */
   auto emit(Args... args) noexcept -> void {
-    run_emit([&](slot_entry& s) noexcept { static_cast<void>(s.invoke(args...)); });
+    run_emit([&](slot_entry& s) noexcept { s.invoke(args...); });
   }
 
   /**

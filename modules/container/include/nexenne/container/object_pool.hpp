@@ -34,6 +34,7 @@
 
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/static_vector.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::container {
 
@@ -117,7 +118,7 @@ public:
    */
   object_pool() noexcept {
     for (auto i{N}; i > 0; --i) {
-      static_cast<void>(m_free.push_back(&m_slots[i - 1]));
+      nexenne::utility::discard(m_free.push_back(&m_slots[i - 1]));
     }
   }
 
@@ -232,7 +233,7 @@ public:
       return std::unexpected{container_error::full};
     }
     auto* const target{*m_free.back()};
-    static_cast<void>(m_free.pop_back());
+    nexenne::utility::discard(m_free.pop_back());
     m_acquired[static_cast<size_type>(target - m_slots.data())] = true;
     auto const live{N - m_free.size()};
     if (live > m_high_water) {
@@ -266,7 +267,7 @@ public:
       return std::unexpected{container_error::out_of_range};
     }
     m_acquired[index] = false;
-    static_cast<void>(m_free.push_back(&m_slots[index]));
+    nexenne::utility::discard(m_free.push_back(&m_slots[index]));
     return {};
   }
 
@@ -322,7 +323,7 @@ public:
     }
     m_acquired[index] = false;
     std::destroy_at(ptr);
-    static_cast<void>(m_free.push_back(&m_slots[index]));
+    nexenne::utility::discard(m_free.push_back(&m_slots[index]));
     return {};
   }
 };

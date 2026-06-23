@@ -36,6 +36,8 @@
 #include <memory>
 #include <type_traits>
 
+#include <nexenne/utility/discard.hpp>
+
 namespace nexenne::container {
 
 /**
@@ -390,7 +392,7 @@ public:
    * @complexity \c O(1).
    */
   constexpr auto push_back(T& value) noexcept -> void {
-    static_cast<void>(insert(end(), value));
+    nexenne::utility::discard(insert(end(), value));
   }
 
   /**
@@ -404,7 +406,7 @@ public:
    * @complexity \c O(1).
    */
   constexpr auto push_front(T& value) noexcept -> void {
-    static_cast<void>(insert(begin(), value));
+    nexenne::utility::discard(insert(begin(), value));
   }
 
   /**

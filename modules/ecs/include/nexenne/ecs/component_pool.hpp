@@ -37,6 +37,7 @@
 #include <vector>
 
 #include <nexenne/container/stable_vector.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::ecs::detail {
 
@@ -115,7 +116,7 @@ public:
       m_sparse[key] = static_cast<key_type>(slot) + 1;
     } else {
       auto const slot{m_slots.size()};
-      static_cast<void>(m_slots.push_back(slot_type{entry{key, std::move(value)}}));
+      nexenne::utility::discard(m_slots.push_back(slot_type{entry{key, std::move(value)}}));
       m_sparse[key] = static_cast<key_type>(slot) + 1;
     }
     ++m_size;

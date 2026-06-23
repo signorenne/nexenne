@@ -77,6 +77,7 @@
 #include <utility>
 
 #include <nexenne/ecs/registry.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::ecs {
 
@@ -458,7 +459,7 @@ private:
 
   template <std::size_t... Is>
   auto bind_driver(std::size_t const driver_idx, std::index_sequence<Is...>) noexcept -> void {
-    ((driver_idx == Is ? bind_driver_to<Is>() : static_cast<void>(0)), ...);
+    ((driver_idx == Is ? bind_driver_to<Is>() : nexenne::utility::discard(0)), ...);
   }
 };
 

@@ -35,6 +35,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <nexenne/utility/discard.hpp>
+
 namespace nexenne::utility {
 
 /**
@@ -318,7 +320,7 @@ template <typename Resource, typename Invalid, typename Deleter>
   -> unique_resource<Resource, Deleter> {
   auto guard{unique_resource<Resource, Deleter>{std::move(resource), std::move(deleter)}};
   if (guard.get() == invalid) {
-    static_cast<void>(guard.release());
+    discard(guard.release());
   }
   return guard;
 }

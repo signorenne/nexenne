@@ -30,6 +30,7 @@
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/manager.hpp>
 #include <nexenne/logging/record.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::logging {
 
@@ -180,7 +181,9 @@ public:
       return;
     }
     auto msg{std::format(fmt.fmt, std::forward<Args>(args)...)};
-    static_cast<void>(manager_type::instance().push(record{lvl, fmt.loc, m_name, std::move(msg)}));
+    nexenne::utility::discard(
+      manager_type::instance().push(record{lvl, fmt.loc, m_name, std::move(msg)})
+    );
   }
 
   /**

@@ -36,6 +36,7 @@
 #include <string_view>
 
 #include <nexenne/logging/sink.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::logging {
 
@@ -160,13 +161,13 @@ protected:
         return;  // re-open failed
       }
     }
-    static_cast<void>(std::fwrite(line.data(), 1, line.size(), m_file));
+    nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), m_file));
     m_current_size += line.size();
   }
 
   auto flush_out() noexcept -> void override {
     if (m_file != nullptr) {
-      static_cast<void>(std::fflush(m_file));
+      nexenne::utility::discard(std::fflush(m_file));
     }
   }
 
@@ -180,7 +181,7 @@ private:
     m_current_size = 0;
     if (m_file != nullptr) {
       // Seek to the end to pick up the size of a pre-existing file.
-      static_cast<void>(std::fseek(m_file, 0, SEEK_END));
+      nexenne::utility::discard(std::fseek(m_file, 0, SEEK_END));
       auto const pos{std::ftell(m_file)};
       m_current_size = pos > 0 ? static_cast<std::size_t>(pos) : 0;
     }
@@ -188,8 +189,8 @@ private:
 
   auto close_current() noexcept -> void {
     if (m_file != nullptr) {
-      static_cast<void>(std::fflush(m_file));
-      static_cast<void>(std::fclose(m_file));
+      nexenne::utility::discard(std::fflush(m_file));
+      nexenne::utility::discard(std::fclose(m_file));
       m_file = nullptr;
     }
   }
@@ -200,18 +201,18 @@ private:
     if (m_max_files > 0) {
       // Drop the oldest backup so the rename chain stays within the cap.
       auto const oldest{rotated_name(m_max_files)};
-      static_cast<void>(std::remove(oldest.c_str()));
+      nexenne::utility::discard(std::remove(oldest.c_str()));
       // Shift: foo.log.{N-1} -> foo.log.N, down to foo.log.1 -> foo.log.2.
       for (std::size_t i{m_max_files}; i > 1; i = i - 1) {
         auto const src{rotated_name(i - 1)};
         auto const dst{rotated_name(i)};
-        static_cast<void>(std::rename(src.c_str(), dst.c_str()));
+        nexenne::utility::discard(std::rename(src.c_str(), dst.c_str()));
       }
       // Active foo.log -> foo.log.1.
-      static_cast<void>(std::rename(m_base_path.c_str(), rotated_name(1).c_str()));
+      nexenne::utility::discard(std::rename(m_base_path.c_str(), rotated_name(1).c_str()));
     } else {
       // max_files == 0 means "truncate" rather than archive.
-      static_cast<void>(std::remove(m_base_path.c_str()));
+      nexenne::utility::discard(std::remove(m_base_path.c_str()));
     }
     open_current();
   }
