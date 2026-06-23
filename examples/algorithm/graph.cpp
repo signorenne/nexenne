@@ -26,6 +26,7 @@
 #include <nexenne/algorithm/graph/tarjan_scc.hpp>
 #include <nexenne/algorithm/graph/topological_sort.hpp>
 #include <nexenne/container/graph.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace alg = nexenne::algorithm;
 namespace nc = nexenne::container;
@@ -41,12 +42,12 @@ auto main() -> int {
 
   // bfs visits in nondecreasing hop count; the visitor is called once per vertex.
   std::printf("bfs from 0     :");
-  static_cast<void>(alg::bfs(g, V{0}, [](V const u) { std::printf(" %u", u); }));
+  nexenne::utility::discard(alg::bfs(g, V{0}, [](V const u) { std::printf(" %u", u); }));
   std::printf("\n");
 
   // dfs goes deep before wide; same O(V + E) cost, different visit order.
   std::printf("dfs from 0     :");
-  static_cast<void>(alg::dfs(g, V{0}, [](V const u) { std::printf(" %u", u); }));
+  nexenne::utility::discard(alg::dfs(g, V{0}, [](V const u) { std::printf(" %u", u); }));
   std::printf("\n");
 
   // dijkstra: single-source shortest paths with non-negative weights, the
@@ -106,7 +107,7 @@ auto main() -> int {
   // connected_components: dense per-vertex labels via union-find, O(V + E*alpha).
   // Add an isolated vertex 4 to split the graph into two components.
   auto cc_graph{g};
-  static_cast<void>(cc_graph.add_vertex());
+  nexenne::utility::discard(cc_graph.add_vertex());
   auto const cc{alg::connected_components(cc_graph)};
   std::printf("components     = %zu  (vertex 4 stands alone)\n", cc.num_components);
 

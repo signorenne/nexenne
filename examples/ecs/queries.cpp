@@ -21,6 +21,7 @@
 #include <print>
 
 #include <nexenne/ecs/ecs.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace ecs = nexenne::ecs;
 
@@ -116,8 +117,8 @@ auto main() -> int {
   std::println("== 5. range-for over view<position, velocity> ==");
   float sum_x{0.0F};
   for (auto [e, p, v] : reg.view<position, velocity>()) {
-    static_cast<void>(e);
-    static_cast<void>(v);
+    nexenne::utility::discard(e);
+    nexenne::utility::discard(v);
     sum_x += p.x;
   }
   std::println("  sum of mover x-coords: {:.1f}", sum_x);

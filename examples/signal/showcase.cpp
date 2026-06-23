@@ -36,6 +36,7 @@
 #include <nexenne/signal/signal.hpp>
 #include <nexenne/signal/slot.hpp>
 #include <nexenne/signal/static_signal.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace sig = nexenne::signal;
 
@@ -104,7 +105,7 @@ auto main() -> int {
   auto const hud{bus.on_damage().connect([](damage_event const& ev) noexcept {
     std::println("  HUD: -{} hp", ev.amount);
   })};
-  static_cast<void>(hud);
+  nexenne::utility::discard(hud);
 
   // 2. Priority ties systems into a fixed order without them knowing about each
   // other: physics (priority -10) must settle the hit before audio (priority 5)
@@ -116,15 +117,15 @@ auto main() -> int {
   auto const audio{bus.on_damage().connect(
     [](damage_event const&) noexcept { std::println("  audio: play 'hit' sound"); }, 5
   )};
-  static_cast<void>(physics);
-  static_cast<void>(audio);
+  nexenne::utility::discard(physics);
+  nexenne::utility::discard(audio);
 
   // A one-shot achievement hook: connect_once arms it for exactly one emit, then
   // the slot sweeps itself. No wrapper, no manual "remove me after firing" flag.
   auto const first_blood{bus.on_damage().connect_once([](damage_event const& ev) noexcept {
     std::println("  achievement: first blood by {}!", ev.source);
   })};
-  static_cast<void>(first_blood);
+  nexenne::utility::discard(first_blood);
 
   // 3. Lifetime safety. The goblin lives only inside this scope; when it dies,
   // its tracked subscription disappears with it. The bus keeps firing afterward
@@ -150,7 +151,7 @@ auto main() -> int {
     auto const shield{sig::scoped_connection{bus.on_damage().connect(
       [](damage_event const& ev) noexcept { std::println("  shield absorbs {}", ev.amount); }
     )}};
-    static_cast<void>(shield);
+    nexenne::utility::discard(shield);
 
     // emit_blocker mutes the whole damage channel for a scope (an invulnerability
     // frame, say) and restores the prior state on exit - nesting-correct, unlike
@@ -175,9 +176,9 @@ auto main() -> int {
   )};
   auto const spring{bus.on_damage().connect_once([&indicator](damage_event const&) noexcept {
     std::println("  trap springs and disarms the indicator");
-    static_cast<void>(indicator.disconnect());  // safe: deferred to emit end
+    nexenne::utility::discard(indicator.disconnect());  // safe: deferred to emit end
   })};
-  static_cast<void>(spring);
+  nexenne::utility::discard(spring);
   std::println("trigger the trap:");
   bus.deal_damage(damage_event{.source = "tripwire", .amount = 3});
   std::println("next hit (indicator already gone, trap spent):");
@@ -192,9 +193,9 @@ auto main() -> int {
   auto const crit{modifiers.connect([](int base) noexcept { return base > 5 ? 2.0 : 1.0; })};
   auto const vuln{modifiers.connect([](int) noexcept { return 1.5; })};
   auto const armor{modifiers.connect([](int) noexcept { return 0.8; })};
-  static_cast<void>(crit);
-  static_cast<void>(vuln);
-  static_cast<void>(armor);
+  nexenne::utility::discard(crit);
+  nexenne::utility::discard(vuln);
+  nexenne::utility::discard(armor);
   auto const factors{modifiers.emit_and_collect(10)};
   auto product{1.0};
   for (auto const f : factors) {
@@ -216,8 +217,8 @@ auto main() -> int {
     [](std::uint8_t) noexcept { std::println("  fire handler triggers"); }, -1  // fires first
   )};
   auto menu{input.connect([](std::uint8_t) noexcept { std::println("  menu toggles"); })};
-  static_cast<void>(move);
-  static_cast<void>(fire);
+  nexenne::utility::discard(move);
+  nexenne::utility::discard(fire);
 
   std::println("dispatcher full at capacity {}: {}", input.capacity(), input.full());
   auto const overflow{input.connect([](std::uint8_t) noexcept {})};  // no room: signal is full
@@ -238,7 +239,7 @@ auto main() -> int {
     auto transient{sig::static_scoped_connection{input.connect([](std::uint8_t) noexcept {
       std::println("  transient input hook");
     })}};
-    static_cast<void>(transient);
+    nexenne::utility::discard(transient);
     std::println("transient took the freed slot; full() = {}", input.full());
     std::println("dispatch key 13 (transient now in the pool, menu gone):");
     input.emit(std::uint8_t{13});

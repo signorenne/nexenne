@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <nexenne/ecs/ecs.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -42,7 +43,7 @@ auto main() -> int {
       std::println("  despawn entity {} at ({:.1f}, {:.1f})", e.index(), p.x, p.y);
     })
   };
-  static_cast<void>(despawn);
+  nexenne::utility::discard(despawn);
 
   // Spawn five entities; entity 2 is frozen so the movement system skips it.
   auto ents{std::vector<ec::entity_id>{}};

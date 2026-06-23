@@ -15,6 +15,7 @@
 
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/indexed_priority_queue.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -36,12 +37,12 @@ auto main() -> int {
   std::println("A is scheduled for t={}", **schedule.value_at(a));
 
   // Reschedule B far out: update re-heapifies in place; B's handle stays valid.
-  static_cast<void>(schedule.update(b, 200));
+  nexenne::utility::discard(schedule.update(b, 200));
   std::println("after rescheduling B, next: {}", *schedule.top());  // 75 (event C)
 
   // Cancel event C by handle. erase is O(log n); no rescan to locate it.
   std::println("C is queued: {}", schedule.contains(c));
-  static_cast<void>(schedule.erase(c));
+  nexenne::utility::discard(schedule.erase(c));
   std::println("after cancelling C, queued: {}", schedule.contains(c));
 
   // Operating on the now-stale handle c is a checked error, never undefined.

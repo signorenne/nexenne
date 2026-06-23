@@ -49,6 +49,7 @@
 #include <nexenne/random/seed_seq.hpp>
 #include <nexenne/random/uniform.hpp>
 #include <nexenne/random/xoshiro.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace rng = nexenne::random;
 
@@ -167,7 +168,7 @@ auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> s
       rarity_tally[1],
       rarity_tally[2]
     );
-    static_cast<void>(rarity_names);
+    nexenne::utility::discard(rarity_names);
     std::println("  total gold        {:.0f}", total_gold);
   }
 

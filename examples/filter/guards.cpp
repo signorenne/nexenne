@@ -20,6 +20,7 @@
 #include <nexenne/filter/rate_guard.hpp>
 #include <nexenne/filter/stale_detector.hpp>
 #include <nexenne/filter/validator.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -81,17 +82,17 @@ auto main() -> int {
   // of triple modular redundancy. Read a register three times and the odd
   // corrupted read loses 2 to 1.
   auto mj{flt::majority<int, 3>{}};
-  static_cast<void>(mj.push(42));
-  static_cast<void>(mj.push(42));
+  nexenne::utility::discard(mj.push(42));
+  nexenne::utility::discard(mj.push(42));
   std::println("6. majority(3) of 42,42,99: {}", mj.push(99));
 
   // 7. A wider vote tolerates more corruption: majority(5) survives up to two bad
   // reads out of five. We feed three good 7s and two bad reads.
   auto mj5{flt::majority<int, 5>{}};
-  static_cast<void>(mj5.push(7));
-  static_cast<void>(mj5.push(99));
-  static_cast<void>(mj5.push(7));
-  static_cast<void>(mj5.push(13));
+  nexenne::utility::discard(mj5.push(7));
+  nexenne::utility::discard(mj5.push(99));
+  nexenne::utility::discard(mj5.push(7));
+  nexenne::utility::discard(mj5.push(13));
   std::println("7. majority(5) of 7,99,7,13,7: {} (two bad reads outvoted)", mj5.push(7));
 
   // 8. stale_detector flags a sensor that has not changed for 3 reads. It is a
@@ -99,16 +100,16 @@ auto main() -> int {
   // sets is_stale(), so you chain it ahead of a corrective stage and decide what
   // to do (ignore, alarm, power-cycle).
   auto st{flt::stale_detector<int, 3>{}};
-  static_cast<void>(st.push(7));
-  static_cast<void>(st.push(7));
-  static_cast<void>(st.push(7));
+  nexenne::utility::discard(st.push(7));
+  nexenne::utility::discard(st.push(7));
+  nexenne::utility::discard(st.push(7));
   std::println(
     "8. stale_detector(3) after three 7s: stale={} streak={}", st.is_stale(), st.streak()
   );
 
   // 9. A fresh value clears the stale flag and restarts the streak: the sensor
   // is alive again, so the watchdog stands down.
-  static_cast<void>(st.push(8));
+  nexenne::utility::discard(st.push(8));
   std::println("   after a fresh 8: stale={} streak={}", st.is_stale(), st.streak());
   return 0;
 }

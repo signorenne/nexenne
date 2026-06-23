@@ -31,6 +31,7 @@
 #include <vector>
 
 #include <nexenne/ecs/ecs.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace ecs = nexenne::ecs;
 
@@ -133,7 +134,7 @@ auto main() -> int {
       std::println("  [signal] entity {} died with hp {}", e.index(), h.hp);
     })
   };
-  static_cast<void>(death_log);
+  nexenne::utility::discard(death_log);
 
   // 2. Movement system. view<position, velocity>() visits exactly the entities
   // that carry both, and .exclude<frozen>() drops the held-in-place debris. The
