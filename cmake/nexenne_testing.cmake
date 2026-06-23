@@ -31,4 +31,17 @@ if(NOT TARGET doctest::doctest_with_main)
     )
     FetchContent_MakeAvailable(doctest)
     set(CMAKE_POLICY_VERSION_MINIMUM "${_nexenne_prev_policy_min}")
+
+    # Re-expose doctest's headers as SYSTEM includes. doctest declares them as a
+    # plain INTERFACE include directory, so under a warnings-as-errors build the
+    # framework's own diagnostics (for instance clang's -Wdouble-promotion inside
+    # Approx when a test compares a float) would break the test build. Marking
+    # them SYSTEM silences third-party warnings while keeping ours strict.
+    if(TARGET doctest)
+        get_target_property(_nexenne_doctest_inc doctest INTERFACE_INCLUDE_DIRECTORIES)
+        if(_nexenne_doctest_inc)
+            set_target_properties(doctest PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+            target_include_directories(doctest SYSTEM INTERFACE ${_nexenne_doctest_inc})
+        endif()
+    endif()
 endif()
