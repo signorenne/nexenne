@@ -54,6 +54,7 @@
 #include <string_view>
 
 #include <nexenne/serialization/error.hpp>
+#include <nexenne/utility/buffer_cursor.hpp>
 
 namespace nexenne::serialization::json {
 
@@ -219,55 +220,64 @@ public:
   using size_type = std::size_t;
 
 private:
-  std::string_view m_src{};
-  size_type m_pos{0};
+  utility::buffer_cursor<char const> m_cursor;
   size_type m_depth{0};
 
   [[nodiscard]] constexpr auto eof() const noexcept -> bool {
-    return m_pos >= m_src.size();
+    return m_cursor.exhausted();
   }
 
   constexpr auto skip_ws() noexcept -> void {
-    while (m_pos < m_src.size()) {
-      auto const c{m_src[m_pos]};
+    while (!m_cursor.exhausted()) {
+      auto const c{m_cursor.data()[0]};
       if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
-        ++m_pos;
+        m_cursor.advance(1);
       else
         break;
     }
   }
 
-  // Scan a JSON string literal at m_pos starting with '"' and
-  // return a view into the source covering the unescaped raw
+  // Scan a JSON string literal at the cursor starting with '"'
+  // and return a view into the source covering the unescaped raw
   // body (between the quotes). Does NOT decode escapes, the
   // visitor handles that, or the caller uses scan_with_scratch.
   [[nodiscard]] auto scan_string_raw() noexcept -> std::expected<std::string_view, error> {
-    if (eof() || m_src[m_pos] != '"')
+    if (eof() || m_cursor.data()[0] != '"')
       return std::unexpected{error::unexpected_character};
-    ++m_pos;
-    auto const start{m_pos};
-    while (m_pos < m_src.size()) {
-      auto const c{m_src[m_pos]};
+    m_cursor.advance(1);
+    auto const start{m_cursor.position()};
+    while (!m_cursor.exhausted()) {
+      auto const c{m_cursor.data()[0]};
       if (c == '"') {
-        auto const sv{m_src.substr(start, m_pos - start)};
-        ++m_pos;
+        auto const sv{
+          std::string_view{m_cursor.buffer().data() + start, m_cursor.position() - start}
+        };
+        m_cursor.advance(1);
         return sv;
       }
       if (c == '\\') {
-        if (m_pos + 1 >= m_src.size())
+        if (!m_cursor.has(2))
           return std::unexpected{error::invalid_escape};
-        m_pos += 2;
+        m_cursor.advance(2);
         continue;
       }
       if (static_cast<unsigned char>(c) < 0x20)
         return std::unexpected{error::invalid_string};
-      ++m_pos;
+      m_cursor.advance(1);
     }
     return std::unexpected{error::unexpected_end};
   }
 
+  // True when the source at the cursor begins with the keyword literal
+  // \p lit (e.g. "true"). Mirrors the old substr(pos, len) == lit test:
+  // a clamped substr can never equal lit unless len bytes remain.
+  [[nodiscard]] auto matches_literal(std::string_view const lit) const noexcept -> bool {
+    return m_cursor.has(lit.size()) && std::string_view{m_cursor.data(), lit.size()} == lit;
+  }
+
 public:
-  explicit constexpr sax_engine(std::string_view const src) noexcept : m_src{src} {}
+  explicit constexpr sax_engine(std::string_view const src) noexcept
+      : m_cursor{std::span<char const>{src.data(), src.size()}} {}
 
   template <sax_visitor V>
   [[nodiscard]] auto run(V& v) noexcept -> std::expected<void, error> {
@@ -286,7 +296,7 @@ private:
     skip_ws();
     if (eof())
       return std::unexpected{error::unexpected_end};
-    auto const c{m_src[m_pos]};
+    auto const c{m_cursor.data()[0]};
     switch (c) {
       case '{':
         return parse_object(v);
@@ -301,23 +311,23 @@ private:
         return {};
       }
       case 't':
-        if (m_src.substr(m_pos, 4) != "true")
+        if (!matches_literal("true"))
           return std::unexpected{error::unexpected_character};
-        m_pos += 4;
+        m_cursor.advance(4);
         if (!v.on_bool(true))
           return std::unexpected{error::invalid_input};
         return {};
       case 'f':
-        if (m_src.substr(m_pos, 5) != "false")
+        if (!matches_literal("false"))
           return std::unexpected{error::unexpected_character};
-        m_pos += 5;
+        m_cursor.advance(5);
         if (!v.on_bool(false))
           return std::unexpected{error::invalid_input};
         return {};
       case 'n':
-        if (m_src.substr(m_pos, 4) != "null")
+        if (!matches_literal("null"))
           return std::unexpected{error::unexpected_character};
-        m_pos += 4;
+        m_cursor.advance(4);
         if (!v.on_null())
           return std::unexpected{error::invalid_input};
         return {};
@@ -340,43 +350,44 @@ private:
 
   template <sax_visitor V>
   [[nodiscard]] auto parse_number(V& v) noexcept -> std::expected<void, error> {
-    auto const start{m_pos};
+    auto const start{m_cursor.position()};
     auto const is_digit{[this] {
-      return m_pos < m_src.size() && m_src[m_pos] >= '0' && m_src[m_pos] <= '9';
+      return !m_cursor.exhausted() && m_cursor.data()[0] >= '0' && m_cursor.data()[0] <= '9';
     }};
-    if (m_src[m_pos] == '-')
-      ++m_pos;
+    if (m_cursor.data()[0] == '-')
+      m_cursor.advance(1);
     // Integer part (RFC 8259): a single 0, or [1-9][0-9]*. No leading zeros.
     if (!is_digit())
       return std::unexpected{error::invalid_number};
-    if (m_src[m_pos] == '0') {
-      ++m_pos;
+    if (m_cursor.data()[0] == '0') {
+      m_cursor.advance(1);
       if (is_digit())  // a leading zero like "01"
         return std::unexpected{error::invalid_number};
     } else {
       while (is_digit())
-        ++m_pos;
+        m_cursor.advance(1);
     }
     auto is_float{false};
-    if (m_pos < m_src.size() && m_src[m_pos] == '.') {
+    if (!m_cursor.exhausted() && m_cursor.data()[0] == '.') {
       is_float = true;
-      ++m_pos;
+      m_cursor.advance(1);
       if (!is_digit())  // a fraction needs at least one digit
         return std::unexpected{error::invalid_number};
       while (is_digit())
-        ++m_pos;
+        m_cursor.advance(1);
     }
-    if (m_pos < m_src.size() && (m_src[m_pos] == 'e' || m_src[m_pos] == 'E')) {
+    if (!m_cursor.exhausted() && (m_cursor.data()[0] == 'e' || m_cursor.data()[0] == 'E')) {
       is_float = true;
-      ++m_pos;
-      if (m_pos < m_src.size() && (m_src[m_pos] == '+' || m_src[m_pos] == '-'))
-        ++m_pos;
+      m_cursor.advance(1);
+      if (!m_cursor.exhausted() && (m_cursor.data()[0] == '+' || m_cursor.data()[0] == '-'))
+        m_cursor.advance(1);
       if (!is_digit())  // an exponent needs at least one digit
         return std::unexpected{error::invalid_number};
       while (is_digit())
-        ++m_pos;
+        m_cursor.advance(1);
     }
-    auto const text{m_src.substr(start, m_pos - start)};
+    auto const text{std::string_view{m_cursor.buffer().data() + start, m_cursor.position() - start}
+    };
     if (is_float) {
       auto out{0.0};
       auto const r{std::from_chars(text.data(), text.data() + text.size(), out)};
@@ -414,12 +425,12 @@ private:
     if (m_depth >= MaxDepth)
       return std::unexpected{error::depth_limit_exceeded};
     ++m_depth;
-    ++m_pos;  // '['
+    m_cursor.advance(1);  // '['
     if (!v.on_begin_array())
       return std::unexpected{error::invalid_input};
     skip_ws();
-    if (m_pos < m_src.size() && m_src[m_pos] == ']') {
-      ++m_pos;
+    if (!m_cursor.exhausted() && m_cursor.data()[0] == ']') {
+      m_cursor.advance(1);
       --m_depth;
       if (!v.on_end_array())
         return std::unexpected{error::invalid_input};
@@ -431,12 +442,12 @@ private:
       skip_ws();
       if (eof())
         return std::unexpected{error::unexpected_end};
-      if (m_src[m_pos] == ',') {
-        ++m_pos;
+      if (m_cursor.data()[0] == ',') {
+        m_cursor.advance(1);
         continue;
       }
-      if (m_src[m_pos] == ']') {
-        ++m_pos;
+      if (m_cursor.data()[0] == ']') {
+        m_cursor.advance(1);
         --m_depth;
         if (!v.on_end_array())
           return std::unexpected{error::invalid_input};
@@ -451,12 +462,12 @@ private:
     if (m_depth >= MaxDepth)
       return std::unexpected{error::depth_limit_exceeded};
     ++m_depth;
-    ++m_pos;  // '{'
+    m_cursor.advance(1);  // '{'
     if (!v.on_begin_object())
       return std::unexpected{error::invalid_input};
     skip_ws();
-    if (m_pos < m_src.size() && m_src[m_pos] == '}') {
-      ++m_pos;
+    if (!m_cursor.exhausted() && m_cursor.data()[0] == '}') {
+      m_cursor.advance(1);
       --m_depth;
       if (!v.on_end_object())
         return std::unexpected{error::invalid_input};
@@ -470,20 +481,20 @@ private:
       if (!v.on_key(*key))
         return std::unexpected{error::invalid_input};
       skip_ws();
-      if (eof() || m_src[m_pos] != ':')
+      if (eof() || m_cursor.data()[0] != ':')
         return std::unexpected{error::unexpected_character};
-      ++m_pos;
+      m_cursor.advance(1);
       if (auto r{parse_value(v)}; !r)
         return r;
       skip_ws();
       if (eof())
         return std::unexpected{error::unexpected_end};
-      if (m_src[m_pos] == ',') {
-        ++m_pos;
+      if (m_cursor.data()[0] == ',') {
+        m_cursor.advance(1);
         continue;
       }
-      if (m_src[m_pos] == '}') {
-        ++m_pos;
+      if (m_cursor.data()[0] == '}') {
+        m_cursor.advance(1);
         --m_depth;
         if (!v.on_end_object())
           return std::unexpected{error::invalid_input};

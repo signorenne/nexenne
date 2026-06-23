@@ -57,6 +57,7 @@
 #include <string_view>
 
 #include <nexenne/serialization/error.hpp>
+#include <nexenne/utility/buffer_cursor.hpp>
 
 namespace nexenne::serialization::json {
 
@@ -92,32 +93,27 @@ private:
     object_value,      ///< key just written, value expected
   };
 
-  std::span<char> m_buf{};
-  size_type m_pos{0};
+  nexenne::utility::buffer_cursor<char> m_cursor;
   slot m_state{slot::top};
   std::array<bool, MaxDepth> m_is_object{};  // true = object, false = array
   size_type m_depth{0};
 
-  [[nodiscard]] constexpr auto fits(size_type const n) const noexcept -> bool {
-    return n <= m_buf.size() - m_pos;
-  }
-
   auto raw_put(char const c) noexcept -> std::expected<void, error> {
-    if (!fits(1)) [[unlikely]]
+    if (!m_cursor.has(1)) [[unlikely]]
       return std::unexpected{error::buffer_full};
-    m_buf[m_pos++] = c;
+    m_cursor.put(c);
     return {};
   }
 
   auto raw_write(std::string_view const s) noexcept -> std::expected<void, error> {
-    if (!fits(s.size())) [[unlikely]]
+    if (!m_cursor.has(s.size())) [[unlikely]]
       return std::unexpected{error::buffer_full};
     // memcpy with a null pointer is UB even for size 0; an empty string_view's
     // data() may be null.
     if (!s.empty()) {
-      std::memcpy(m_buf.data() + m_pos, s.data(), s.size());
+      std::memcpy(m_cursor.data(), s.data(), s.size());
+      m_cursor.advance(s.size());
     }
-    m_pos += s.size();
     return {};
   }
 
@@ -238,7 +234,7 @@ public:
    *       writer.
    * @post \c bytes_written() is zero and \c depth() is zero.
    */
-  explicit constexpr writer(std::span<char> const buf) noexcept : m_buf{buf} {}
+  explicit constexpr writer(std::span<char> const buf) noexcept : m_cursor{buf} {}
 
   /**
    * @brief Number of characters emitted so far.
@@ -249,7 +245,7 @@ public:
    * @post Result is in the range \c [0, capacity()].
    */
   [[nodiscard]] constexpr auto bytes_written() const noexcept -> size_type {
-    return m_pos;
+    return m_cursor.position();
   }
 
   /**
@@ -261,7 +257,7 @@ public:
    * @post Result plus \c bytes_written() equals \c capacity().
    */
   [[nodiscard]] constexpr auto bytes_remaining() const noexcept -> size_type {
-    return m_buf.size() - m_pos;
+    return m_cursor.remaining();
   }
 
   /**
@@ -273,7 +269,7 @@ public:
    * @post Result is constant for the lifetime of the writer.
    */
   [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
-    return m_buf.size();
+    return m_cursor.size();
   }
 
   /**
@@ -300,7 +296,8 @@ public:
    *          any later emit, \c reset, or destruction of the buffer.
    */
   [[nodiscard]] constexpr auto view() const noexcept -> std::string_view {
-    return {m_buf.data(), m_pos};
+    auto const written{m_cursor.consumed()};
+    return {written.data(), written.size()};
   }
 
   /**
@@ -327,7 +324,7 @@ public:
    *       again expects a top-level value.
    */
   constexpr auto reset() noexcept -> void {
-    m_pos = 0;
+    m_cursor.rewind();
     m_depth = 0;
     m_state = slot::top;
   }

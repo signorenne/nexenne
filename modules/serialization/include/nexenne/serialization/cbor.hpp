@@ -44,6 +44,7 @@
 #include <string_view>
 
 #include <nexenne/serialization/error.hpp>
+#include <nexenne/utility/buffer_cursor.hpp>
 #include <nexenne/utility/endian.hpp>
 
 namespace nexenne::serialization::cbor {
@@ -181,12 +182,7 @@ public:
   using size_type = std::size_t;
 
 private:
-  std::span<byte_type> m_buf{};
-  size_type m_pos{0};
-
-  [[nodiscard]] constexpr auto fits(size_type const n) const noexcept -> bool {
-    return n <= m_buf.size() - m_pos;
-  }
+  nexenne::utility::buffer_cursor<byte_type> m_cursor;
 
   // Write a major-type byte followed by the length argument in CBOR's compact
   // 0/1/2/4/8-byte encoding.
@@ -194,39 +190,39 @@ private:
     -> std::expected<void, error> {
     auto const m{static_cast<std::uint8_t>(major << 5)};
     if (v <= 23) {
-      if (!fits(1))
+      if (!m_cursor.has(1))
         return std::unexpected{error::buffer_full};
-      m_buf[m_pos++] = static_cast<byte_type>(m | static_cast<std::uint8_t>(v));
+      m_cursor.put(static_cast<byte_type>(m | static_cast<std::uint8_t>(v)));
       return {};
     }
     if (v <= 0xFF) {
-      if (!fits(2))
+      if (!m_cursor.has(2))
         return std::unexpected{error::buffer_full};
-      m_buf[m_pos++] = static_cast<byte_type>(m | 24);
-      m_buf[m_pos++] = static_cast<byte_type>(v);
+      m_cursor.put(static_cast<byte_type>(m | 24));
+      m_cursor.put(static_cast<byte_type>(v));
       return {};
     }
     if (v <= 0xFFFF) {
-      if (!fits(3))
+      if (!m_cursor.has(3))
         return std::unexpected{error::buffer_full};
-      m_buf[m_pos++] = static_cast<byte_type>(m | 25);
-      detail::store_be16(m_buf.data() + m_pos, static_cast<std::uint16_t>(v));
-      m_pos += 2;
+      m_cursor.put(static_cast<byte_type>(m | 25));
+      detail::store_be16(m_cursor.data(), static_cast<std::uint16_t>(v));
+      m_cursor.advance(2);
       return {};
     }
     if (v <= 0xFFFFFFFFu) {
-      if (!fits(5))
+      if (!m_cursor.has(5))
         return std::unexpected{error::buffer_full};
-      m_buf[m_pos++] = static_cast<byte_type>(m | 26);
-      detail::store_be32(m_buf.data() + m_pos, static_cast<std::uint32_t>(v));
-      m_pos += 4;
+      m_cursor.put(static_cast<byte_type>(m | 26));
+      detail::store_be32(m_cursor.data(), static_cast<std::uint32_t>(v));
+      m_cursor.advance(4);
       return {};
     }
-    if (!fits(9))
+    if (!m_cursor.has(9))
       return std::unexpected{error::buffer_full};
-    m_buf[m_pos++] = static_cast<byte_type>(m | 27);
-    detail::store_be64(m_buf.data() + m_pos, v);
-    m_pos += 8;
+    m_cursor.put(static_cast<byte_type>(m | 27));
+    detail::store_be64(m_cursor.data(), v);
+    m_cursor.advance(8);
     return {};
   }
 
@@ -240,7 +236,7 @@ public:
    *       writer.
    * @post \c bytes_written() is zero.
    */
-  explicit constexpr writer(std::span<byte_type> const buf) noexcept : m_buf{buf} {}
+  explicit constexpr writer(std::span<byte_type> const buf) noexcept : m_cursor{buf} {}
 
   /**
    * @brief Number of bytes emitted so far.
@@ -251,7 +247,7 @@ public:
    * @post Result is in the range \c [0, capacity of the span].
    */
   [[nodiscard]] constexpr auto bytes_written() const noexcept -> size_type {
-    return m_pos;
+    return m_cursor.position();
   }
 
   /**
@@ -263,7 +259,7 @@ public:
    * @post Result plus \c bytes_written() equals the span size.
    */
   [[nodiscard]] constexpr auto bytes_remaining() const noexcept -> size_type {
-    return m_buf.size() - m_pos;
+    return m_cursor.remaining();
   }
 
   /**
@@ -275,7 +271,7 @@ public:
    * @post The returned span has size \c bytes_written().
    */
   [[nodiscard]] constexpr auto written() const noexcept -> std::span<byte_type const> {
-    return {m_buf.data(), m_pos};
+    return m_cursor.consumed();
   }
 
   /**
@@ -284,7 +280,7 @@ public:
    * @post \c bytes_written() is zero.
    */
   constexpr auto reset() noexcept -> void {
-    m_pos = 0;
+    m_cursor.rewind();
   }
 
   /**
@@ -350,14 +346,14 @@ public:
   auto write_bytes(std::span<byte_type const> const data) noexcept -> std::expected<void, error> {
     if (auto const r{write_head(2, data.size())}; !r)
       return r;
-    if (!fits(data.size()))
+    if (!m_cursor.has(data.size()))
       return std::unexpected{error::buffer_full};
     // memcpy with a null pointer is UB even for size 0; an empty span's data()
     // may be null.
     if (data.size() != 0) {
-      std::memcpy(m_buf.data() + m_pos, data.data(), data.size());
+      std::memcpy(m_cursor.data(), data.data(), data.size());
     }
-    m_pos += data.size();
+    m_cursor.advance(data.size());
     return {};
   }
 
@@ -381,13 +377,13 @@ public:
   auto write_string(std::string_view const s) noexcept -> std::expected<void, error> {
     if (auto const r{write_head(3, s.size())}; !r)
       return r;
-    if (!fits(s.size()))
+    if (!m_cursor.has(s.size()))
       return std::unexpected{error::buffer_full};
     // memcpy with a null pointer is UB even for size 0.
     if (!s.empty()) {
-      std::memcpy(m_buf.data() + m_pos, s.data(), s.size());
+      std::memcpy(m_cursor.data(), s.data(), s.size());
     }
-    m_pos += s.size();
+    m_cursor.advance(s.size());
     return {};
   }
 
@@ -446,9 +442,9 @@ public:
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
   auto write_bool(bool const v) noexcept -> std::expected<void, error> {
-    if (!fits(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_full};
-    m_buf[m_pos++] = static_cast<byte_type>(v ? 0xF5 : 0xF4);
+    m_cursor.put(static_cast<byte_type>(v ? 0xF5 : 0xF4));
     return {};
   }
 
@@ -464,9 +460,9 @@ public:
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
   auto write_null() noexcept -> std::expected<void, error> {
-    if (!fits(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_full};
-    m_buf[m_pos++] = static_cast<byte_type>(0xF6);
+    m_cursor.put(static_cast<byte_type>(0xF6));
     return {};
   }
 
@@ -482,9 +478,9 @@ public:
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
   auto write_undefined() noexcept -> std::expected<void, error> {
-    if (!fits(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_full};
-    m_buf[m_pos++] = static_cast<byte_type>(0xF7);
+    m_cursor.put(static_cast<byte_type>(0xF7));
     return {};
   }
 
@@ -503,11 +499,11 @@ public:
    *         remain.
    */
   auto write_float32(float const v) noexcept -> std::expected<void, error> {
-    if (!fits(5))
+    if (!m_cursor.has(5))
       return std::unexpected{error::buffer_full};
-    m_buf[m_pos++] = static_cast<byte_type>(0xFA);
-    detail::store_be32(m_buf.data() + m_pos, std::bit_cast<std::uint32_t>(v));
-    m_pos += 4;
+    m_cursor.put(static_cast<byte_type>(0xFA));
+    detail::store_be32(m_cursor.data(), std::bit_cast<std::uint32_t>(v));
+    m_cursor.advance(4);
     return {};
   }
 
@@ -526,11 +522,11 @@ public:
    *         remain.
    */
   auto write_float64(double const v) noexcept -> std::expected<void, error> {
-    if (!fits(9))
+    if (!m_cursor.has(9))
       return std::unexpected{error::buffer_full};
-    m_buf[m_pos++] = static_cast<byte_type>(0xFB);
-    detail::store_be64(m_buf.data() + m_pos, std::bit_cast<std::uint64_t>(v));
-    m_pos += 8;
+    m_cursor.put(static_cast<byte_type>(0xFB));
+    detail::store_be64(m_cursor.data(), std::bit_cast<std::uint64_t>(v));
+    m_cursor.advance(8);
     return {};
   }
 };
@@ -549,12 +545,7 @@ public:
   using size_type = std::size_t;
 
 private:
-  std::span<byte_type const> m_buf{};
-  size_type m_pos{0};
-
-  [[nodiscard]] constexpr auto has(size_type const n) const noexcept -> bool {
-    return n <= m_buf.size() - m_pos;
-  }
+  nexenne::utility::buffer_cursor<byte_type const> m_cursor;
 
   [[nodiscard]] auto read_argument(std::uint8_t const ai
   ) noexcept -> std::expected<std::uint64_t, error> {
@@ -562,31 +553,31 @@ private:
       return ai;
     switch (ai) {
       case 24:
-        if (!has(1))
+        if (!m_cursor.has(1))
           return std::unexpected{error::buffer_underrun};
-        return static_cast<std::uint64_t>(static_cast<std::uint8_t>(m_buf[m_pos++]));
+        return static_cast<std::uint64_t>(static_cast<std::uint8_t>(m_cursor.next()));
       case 25:
-        if (!has(2))
+        if (!m_cursor.has(2))
           return std::unexpected{error::buffer_underrun};
         {
-          auto v{detail::load_be16(m_buf.data() + m_pos)};
-          m_pos += 2;
+          auto v{detail::load_be16(m_cursor.data())};
+          m_cursor.advance(2);
           return static_cast<std::uint64_t>(v);
         }
       case 26:
-        if (!has(4))
+        if (!m_cursor.has(4))
           return std::unexpected{error::buffer_underrun};
         {
-          auto v{detail::load_be32(m_buf.data() + m_pos)};
-          m_pos += 4;
+          auto v{detail::load_be32(m_cursor.data())};
+          m_cursor.advance(4);
           return static_cast<std::uint64_t>(v);
         }
       case 27:
-        if (!has(8))
+        if (!m_cursor.has(8))
           return std::unexpected{error::buffer_underrun};
         {
-          auto v{detail::load_be64(m_buf.data() + m_pos)};
-          m_pos += 8;
+          auto v{detail::load_be64(m_cursor.data())};
+          m_cursor.advance(8);
           return v;
         }
       default:
@@ -604,7 +595,7 @@ public:
    * @pre \p buf refers to valid memory for the lifetime of the reader.
    * @post \c bytes_read() is zero.
    */
-  explicit constexpr reader(std::span<byte_type const> const buf) noexcept : m_buf{buf} {}
+  explicit constexpr reader(std::span<byte_type const> const buf) noexcept : m_cursor{buf} {}
 
   /**
    * @brief Number of bytes consumed so far.
@@ -615,7 +606,7 @@ public:
    * @post Result is in the range \c [0, span size].
    */
   [[nodiscard]] constexpr auto bytes_read() const noexcept -> size_type {
-    return m_pos;
+    return m_cursor.position();
   }
 
   /**
@@ -627,7 +618,7 @@ public:
    * @post Result plus \c bytes_read() equals the span size.
    */
   [[nodiscard]] constexpr auto bytes_remaining() const noexcept -> size_type {
-    return m_buf.size() - m_pos;
+    return m_cursor.remaining();
   }
 
   /**
@@ -639,7 +630,7 @@ public:
    * @post Result equals \c (bytes_remaining() == 0).
    */
   [[nodiscard]] constexpr auto at_end() const noexcept -> bool {
-    return m_pos == m_buf.size();
+    return m_cursor.exhausted();
   }
 
   /**
@@ -657,9 +648,9 @@ public:
    *         or an unrecognised simple value.
    */
   [[nodiscard]] auto peek_type() const noexcept -> std::expected<type, error> {
-    if (!has(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
-    auto const b{static_cast<std::uint8_t>(m_buf[m_pos])};
+    auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     switch (b >> 5) {
       case 0:
         return type::unsigned_int;
@@ -710,12 +701,12 @@ public:
    *         type 0, or \c error::invalid_input on a malformed argument.
    */
   [[nodiscard]] auto read_uint() noexcept -> std::expected<std::uint64_t, error> {
-    if (!has(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
-    auto const b{static_cast<std::uint8_t>(m_buf[m_pos])};
+    auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     if ((b >> 5) != 0)
       return std::unexpected{error::type_mismatch};
-    ++m_pos;
+    m_cursor.advance(1);
     return read_argument(b & 0x1F);
   }
 
@@ -735,13 +726,13 @@ public:
    *         0 nor 1 or its argument overflows \c int64_t.
    */
   [[nodiscard]] auto read_int() noexcept -> std::expected<std::int64_t, error> {
-    if (!has(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
-    auto const b{static_cast<std::uint8_t>(m_buf[m_pos])};
+    auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     auto const mt{static_cast<std::uint8_t>(b >> 5)};
     if (mt != 0 && mt != 1)
       return std::unexpected{error::type_mismatch};
-    ++m_pos;
+    m_cursor.advance(1);
     auto arg{read_argument(b & 0x1F)};
     if (!arg)
       return std::unexpected{arg.error()};
@@ -776,22 +767,22 @@ public:
    *          destroyed or modified.
    */
   [[nodiscard]] auto read_string() noexcept -> std::expected<std::string_view, error> {
-    if (!has(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
-    auto const b{static_cast<std::uint8_t>(m_buf[m_pos])};
+    auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     if ((b >> 5) != 3)
       return std::unexpected{error::type_mismatch};
-    ++m_pos;
+    m_cursor.advance(1);
     auto const n{read_argument(b & 0x1F)};
     if (!n)
       return std::unexpected{n.error()};
     auto const len{detail::length_to_size<size_type>(*n)};
     if (!len)
       return std::unexpected{len.error()};
-    if (!has(*len))
+    if (!m_cursor.has(*len))
       return std::unexpected{error::buffer_underrun};
-    auto const sv{std::string_view{reinterpret_cast<char const*>(m_buf.data() + m_pos), *len}};
-    m_pos += *len;
+    auto const sv{std::string_view{reinterpret_cast<char const*>(m_cursor.data()), *len}};
+    m_cursor.advance(*len);
     return sv;
   }
 
@@ -814,22 +805,21 @@ public:
    *          destroyed or modified.
    */
   [[nodiscard]] auto read_bytes() noexcept -> std::expected<std::span<byte_type const>, error> {
-    if (!has(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
-    auto const b{static_cast<std::uint8_t>(m_buf[m_pos])};
+    auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     if ((b >> 5) != 2)
       return std::unexpected{error::type_mismatch};
-    ++m_pos;
+    m_cursor.advance(1);
     auto const n{read_argument(b & 0x1F)};
     if (!n)
       return std::unexpected{n.error()};
     auto const len{detail::length_to_size<size_type>(*n)};
     if (!len)
       return std::unexpected{len.error()};
-    if (!has(*len))
+    if (!m_cursor.has(*len))
       return std::unexpected{error::buffer_underrun};
-    auto const out{std::span{m_buf.data() + m_pos, *len}};
-    m_pos += *len;
+    auto const out{m_cursor.take(*len)};
     return out;
   }
 
@@ -849,12 +839,12 @@ public:
    *         type 4.
    */
   [[nodiscard]] auto read_array_header() noexcept -> std::expected<std::uint64_t, error> {
-    if (!has(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
-    auto const b{static_cast<std::uint8_t>(m_buf[m_pos])};
+    auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     if ((b >> 5) != 4)
       return std::unexpected{error::type_mismatch};
-    ++m_pos;
+    m_cursor.advance(1);
     return read_argument(b & 0x1F);
   }
 
@@ -874,12 +864,12 @@ public:
    *         type 5.
    */
   [[nodiscard]] auto read_map_header() noexcept -> std::expected<std::uint64_t, error> {
-    if (!has(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
-    auto const b{static_cast<std::uint8_t>(m_buf[m_pos])};
+    auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     if ((b >> 5) != 5)
       return std::unexpected{error::type_mismatch};
-    ++m_pos;
+    m_cursor.advance(1);
     return read_argument(b & 0x1F);
   }
 
@@ -897,15 +887,15 @@ public:
    *         boolean.
    */
   [[nodiscard]] auto read_bool() noexcept -> std::expected<bool, error> {
-    if (!has(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
-    auto const b{static_cast<std::uint8_t>(m_buf[m_pos])};
+    auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     if (b == 0xF4) {
-      ++m_pos;
+      m_cursor.advance(1);
       return false;
     }
     if (b == 0xF5) {
-      ++m_pos;
+      m_cursor.advance(1);
       return true;
     }
     return std::unexpected{error::type_mismatch};
@@ -924,10 +914,10 @@ public:
    *         not 0xF6 (also returned at end of input).
    */
   auto read_null() noexcept -> std::expected<void, error> {
-    if (!has(1) || static_cast<std::uint8_t>(m_buf[m_pos]) != 0xF6) {
+    if (!m_cursor.has(1) || static_cast<std::uint8_t>(m_cursor.data()[0]) != 0xF6) {
       return std::unexpected{error::type_mismatch};
     }
-    ++m_pos;
+    m_cursor.advance(1);
     return {};
   }
 
@@ -948,31 +938,31 @@ public:
    *         float.
    */
   [[nodiscard]] auto read_float() noexcept -> std::expected<double, error> {
-    if (!has(1))
+    if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
-    auto const b{static_cast<std::uint8_t>(m_buf[m_pos])};
+    auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     if (b == 0xF9) {  // half precision
-      if (!has(3))
+      if (!m_cursor.has(3))
         return std::unexpected{error::buffer_underrun};
-      ++m_pos;
-      auto const h{detail::load_be16(m_buf.data() + m_pos)};
-      m_pos += 2;
+      m_cursor.advance(1);
+      auto const h{detail::load_be16(m_cursor.data())};
+      m_cursor.advance(2);
       return detail::half_to_double(h);
     }
     if (b == 0xFA) {
-      if (!has(5))
+      if (!m_cursor.has(5))
         return std::unexpected{error::buffer_underrun};
-      ++m_pos;
-      auto const u{detail::load_be32(m_buf.data() + m_pos)};
-      m_pos += 4;
+      m_cursor.advance(1);
+      auto const u{detail::load_be32(m_cursor.data())};
+      m_cursor.advance(4);
       return static_cast<double>(std::bit_cast<float>(u));
     }
     if (b == 0xFB) {
-      if (!has(9))
+      if (!m_cursor.has(9))
         return std::unexpected{error::buffer_underrun};
-      ++m_pos;
-      auto const u{detail::load_be64(m_buf.data() + m_pos)};
-      m_pos += 8;
+      m_cursor.advance(1);
+      auto const u{detail::load_be64(m_cursor.data())};
+      m_cursor.advance(8);
       return std::bit_cast<double>(u);
     }
     return std::unexpected{error::type_mismatch};
