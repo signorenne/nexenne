@@ -85,7 +85,7 @@ xxh32_round(std::uint32_t acc, std::uint32_t const input) noexcept -> std::uint3
 
   h += static_cast<std::uint32_t>(len);
 
-  while (p + 4 <= end) {
+  while (end - p >= 4) {
     h += xxh32_read32(p) * xxh32_prime3;
     h = std::rotl(h, 17) * xxh32_prime4;
     p += 4;
@@ -181,13 +181,13 @@ xxh64_merge_round(std::uint64_t acc, std::uint64_t val) noexcept -> std::uint64_
 
   h += static_cast<std::uint64_t>(len);
 
-  while (p + 8 <= end) {
+  while (end - p >= 8) {
     auto const k1{xxh64_round(0, xxh64_read64(p))};
     h ^= k1;
     h = std::rotl(h, 27) * xxh64_prime1 + xxh64_prime4;
     p += 8;
   }
-  if (p + 4 <= end) {
+  if (end - p >= 4) {
     h ^= static_cast<std::uint64_t>(xxh64_read32(p)) * xxh64_prime1;
     h = std::rotl(h, 23) * xxh64_prime2 + xxh64_prime3;
     p += 4;
@@ -449,7 +449,7 @@ public:
       h += static_cast<value_type>(m_total);
       auto const* p{m_buf.data()};
       auto const* const end{p + m_buf_n};
-      while (p + 4 <= end) {
+      while (end - p >= 4) {
         h += detail::xxh32_read32(p) * detail::xxh32_prime3;
         h = std::rotl(h, 17) * detail::xxh32_prime4;
         p += 4;
@@ -479,13 +479,13 @@ public:
       h += static_cast<value_type>(m_total);
       auto const* p{m_buf.data()};
       auto const* const end{p + m_buf_n};
-      while (p + 8 <= end) {
+      while (end - p >= 8) {
         auto const k1{detail::xxh64_round(0, detail::xxh64_read64(p))};
         h ^= k1;
         h = std::rotl(h, 27) * detail::xxh64_prime1 + detail::xxh64_prime4;
         p += 8;
       }
-      if (p + 4 <= end) {
+      if (end - p >= 4) {
         h ^= static_cast<value_type>(detail::xxh64_read32(p)) * detail::xxh64_prime1;
         h = std::rotl(h, 23) * detail::xxh64_prime2 + detail::xxh64_prime3;
         p += 4;
