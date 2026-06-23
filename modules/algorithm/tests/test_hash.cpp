@@ -325,6 +325,25 @@ TEST_CASE("nexenne::algorithm::xxhash_ctx streaming matches one-shot (all length
   CHECK(ctx.value() != v);
 }
 
+TEST_CASE("nexenne::algorithm::xxhash_ctx honours a non-zero seed and reset") {
+  auto gen{lcg{}};
+  auto buf{std::vector<std::uint8_t>{}};
+  for (auto i{0}; i < 40; ++i) {  // longer than a stripe so the body path runs
+    buf.push_back(gen.byte());
+  }
+  auto const span{std::span<std::uint8_t const>{buf}};
+  auto const seed{std::uint64_t{0x9E3779B97F4A7C15ull}};
+  auto const oneshot{alg::xxhash<64>(span, seed)};
+  auto ctx{alg::xxhash_ctx<64>{seed}};
+  ctx.update(span);
+  CHECK(ctx.value() == oneshot);
+  // reset(seed) restores the seeded empty state and lets the context be reused.
+  ctx.reset(seed);
+  CHECK(ctx.value() == alg::xxhash<64>(std::span<std::uint8_t const>{}, seed));
+  ctx.update(span);
+  CHECK(ctx.value() == oneshot);
+}
+
 TEST_CASE("nexenne::algorithm hashes: distribution of low bits is roughly uniform") {
   // Hash 0..N-1 (as 4 little-endian bytes) and bucket the low byte; a structural
   // bias would skew the chi-square well past the threshold.
