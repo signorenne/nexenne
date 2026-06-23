@@ -3,6 +3,7 @@ nexenne_add_module_tests(utility
         test_align.cpp
         test_bit.cpp
         test_defer.cpp
+        test_discard.cpp
         test_enum_to_string.cpp
         test_expected_utils.cpp
         test_flags.cpp

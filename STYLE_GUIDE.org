@@ -156,8 +156,11 @@ Forbidden: =T x(...)=, =auto x = expr=, =int x = 0=. Members default with
 - Prefer =std::ranges= algorithms and =std::views= over raw loops.
 - =std::array= over C arrays; smart pointers over =new= / =delete=.
 - Never a C-style =(T)x= or functional =T(x)= cast: use =static_cast= (and
-  =reinterpret_cast= / =const_cast= when unavoidable), or =static_cast<void>(x)=
-  to discard a value.
+  =reinterpret_cast= / =const_cast= when unavoidable).
+- *Never discard a value with a void cast.* Both =(void)x= and =static_cast<void>(x)=
+  are banned. To drop an unnamed result (a =[[nodiscard]]= return, or a variable
+  you keep alive on purpose) call =nexenne::utility::discard(x...)=; to silence an
+  unused *named* declaration use the =[[maybe_unused]]= attribute.
 - Mark =constexpr= / =noexcept=; avoid needless allocations; =std::move= only
   on a genuine ownership transfer (never a =const= or a return value).
 - Mark a potentially-empty stored member (a stateless deleter, comparator, or
