@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <nexenne/utility/defer.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -29,7 +30,7 @@ TEST_CASE("nexenne::utility::defer runs exactly once, never more") {
   auto runs{0};
   for (auto i{0}; i < 5; ++i) {
     auto const guard{nexenne::utility::defer{[&] { ++runs; }}};
-    static_cast<void>(guard);
+    nexenne::utility::discard(guard);
   }
   CHECK(runs == 5);  // exactly one run per scope entry, no extras
 }

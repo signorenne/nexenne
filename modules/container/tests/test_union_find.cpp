@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <nexenne/container/union_find.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -54,18 +55,18 @@ TEST_CASE("nexenne::container::union_find unite merges and drops the count") {
 TEST_CASE("nexenne::container::union_find connected") {
   uf u{4};
   CHECK_FALSE(*u.connected(0, 3));
-  static_cast<void>(u.unite(0, 1));
-  static_cast<void>(u.unite(1, 3));  // 0, 1, 3 now connected
+  nexenne::utility::discard(u.unite(0, 1));
+  nexenne::utility::discard(u.unite(1, 3));  // 0, 1, 3 now connected
   CHECK(*u.connected(0, 3));
   CHECK_FALSE(*u.connected(0, 2));
 }
 
 TEST_CASE("nexenne::container::union_find size_of grows on union by size") {
   uf u{4};
-  static_cast<void>(u.unite(0, 1));  // {0, 1}
-  static_cast<void>(u.unite(2, 3));  // {2, 3}
+  nexenne::utility::discard(u.unite(0, 1));  // {0, 1}
+  nexenne::utility::discard(u.unite(2, 3));  // {2, 3}
   CHECK(*u.size_of(0) == 2);
-  static_cast<void>(u.unite(0, 2));  // {0, 1, 2, 3}
+  nexenne::utility::discard(u.unite(0, 2));  // {0, 1, 2, 3}
   CHECK(*u.size_of(0) == 4);
   CHECK(*u.size_of(3) == 4);
 }
@@ -87,7 +88,7 @@ TEST_CASE("nexenne::container::union_find make_set, reset, clear") {
   CHECK(b == 1);
   CHECK(u.size() == 2);
   CHECK(u.count() == 2);
-  static_cast<void>(u.unite(a, b));
+  nexenne::utility::discard(u.unite(a, b));
   CHECK(u.count() == 1);
 
   u.reset(3);
@@ -101,9 +102,9 @@ TEST_CASE("nexenne::container::union_find make_set, reset, clear") {
 
 TEST_CASE("nexenne::container::union_find root_of is const and consistent") {
   uf u{4};
-  static_cast<void>(u.unite(0, 1));
-  static_cast<void>(u.unite(2, 3));
-  static_cast<void>(u.unite(0, 2));  // all four together
+  nexenne::utility::discard(u.unite(0, 1));
+  nexenne::utility::discard(u.unite(2, 3));
+  nexenne::utility::discard(u.unite(0, 2));  // all four together
   uf const& view{u};
   auto const root{view.root_of(3)};
   CHECK(view.root_of(0) == root);
@@ -124,9 +125,9 @@ TEST_CASE("nexenne::container::union_find same_partition ignores history and ord
   uf b{4};
   CHECK(a.same_partition(b));  // both all singletons
 
-  static_cast<void>(a.unite(0, 1));
+  nexenne::utility::discard(a.unite(0, 1));
   CHECK_FALSE(a.same_partition(b));
-  static_cast<void>(b.unite(1, 0));  // same grouping, opposite argument order
+  nexenne::utility::discard(b.unite(1, 0));  // same grouping, opposite argument order
   CHECK(a.same_partition(b));
 
   uf const c{5};
@@ -135,7 +136,7 @@ TEST_CASE("nexenne::container::union_find same_partition ignores history and ord
 
 TEST_CASE("nexenne::container::union_find works with 16-bit indices") {
   cn::union_find_u16 u{3};
-  static_cast<void>(u.unite(0, 2));
+  nexenne::utility::discard(u.unite(0, 2));
   CHECK(*u.connected(0, 2));
   CHECK(u.count() == 2);
 }
@@ -153,12 +154,12 @@ TEST_CASE("nexenne::container::union_find uniting a node with itself is a no-op"
 
 TEST_CASE("nexenne::container::union_find union by size hangs the smaller tree under the larger") {
   uf u{5};
-  static_cast<void>(u.unite(0, 1));  // {0, 1} size 2
-  static_cast<void>(u.unite(0, 2));  // {0, 1, 2} size 3
+  nexenne::utility::discard(u.unite(0, 1));  // {0, 1} size 2
+  nexenne::utility::discard(u.unite(0, 2));  // {0, 1, 2} size 3
   // 3 is a singleton; uniting it with the size-3 set must hang 3 under that set's
   // root, not the reverse, so 3's root becomes the larger set's root.
   auto const big_root{*u.find(0)};
-  static_cast<void>(u.unite(3, 0));
+  nexenne::utility::discard(u.unite(3, 0));
   CHECK(*u.find(3) == big_root);  // 3 was hung under the bigger tree's root
   CHECK(*u.size_of(3) == 4);
   CHECK(u.count() == 2);  // {0,1,2,3} and {4}
@@ -168,12 +169,12 @@ TEST_CASE("nexenne::container::union_find find flattens the parent chain via pat
   uf u{6};
   // Build a deliberately deep-ish chain by uniting equal-size sets so the tree is
   // not pre-flattened, then confirm find rewrites parents toward the root.
-  static_cast<void>(u.unite(0, 1));
-  static_cast<void>(u.unite(2, 3));
-  static_cast<void>(u.unite(0, 2));  // a two-level tree forms
-  static_cast<void>(u.unite(4, 5));
-  static_cast<void>(u.unite(0, 4));  // join again, deepening some chains
-  auto const root{*u.find(5)};       // a find that triggers compression
+  nexenne::utility::discard(u.unite(0, 1));
+  nexenne::utility::discard(u.unite(2, 3));
+  nexenne::utility::discard(u.unite(0, 2));  // a two-level tree forms
+  nexenne::utility::discard(u.unite(4, 5));
+  nexenne::utility::discard(u.unite(0, 4));  // join again, deepening some chains
+  auto const root{*u.find(5)};               // a find that triggers compression
   // Every node resolves to the one root.
   for (std::uint32_t i{0}; i < u.size(); ++i) {
     CHECK(*u.find(i) == root);
@@ -182,7 +183,7 @@ TEST_CASE("nexenne::container::union_find find flattens the parent chain via pat
   // every node's direct parent to the root (the array is fully flattened).
   for (int pass{0}; pass < 3; ++pass) {
     for (std::uint32_t i{0}; i < u.size(); ++i) {
-      static_cast<void>(u.find(i));
+      nexenne::utility::discard(u.find(i));
     }
   }
   auto const parents{u.parents()};
@@ -193,8 +194,8 @@ TEST_CASE("nexenne::container::union_find find flattens the parent chain via pat
 
 TEST_CASE("nexenne::container::union_find set_sizes records the size on the root only") {
   uf u{4};
-  static_cast<void>(u.unite(0, 1));
-  static_cast<void>(u.unite(0, 2));  // {0, 1, 2}, {3}
+  nexenne::utility::discard(u.unite(0, 1));
+  nexenne::utility::discard(u.unite(0, 2));  // {0, 1, 2}, {3}
   auto const root{*u.find(0)};
   auto const sizes{u.set_sizes()};
   CHECK(sizes[root] == 3);
@@ -212,14 +213,14 @@ TEST_CASE("nexenne::container::union_find set_sizes records the size on the root
 
 TEST_CASE("nexenne::container::union_find make_set continues an existing partition") {
   uf u{2};
-  static_cast<void>(u.unite(0, 1));  // {0, 1}
+  nexenne::utility::discard(u.unite(0, 1));  // {0, 1}
   CHECK(u.count() == 1);
   auto const n{u.make_set()};  // append node 2 as a singleton
   CHECK(n == 2);
   CHECK(u.size() == 3);
   CHECK(u.count() == 2);
   CHECK_FALSE(*u.connected(0, 2));
-  static_cast<void>(u.unite(1, 2));  // merge the new node in
+  nexenne::utility::discard(u.unite(1, 2));  // merge the new node in
   CHECK(*u.connected(0, 2));
   CHECK(u.count() == 1);
   CHECK(*u.size_of(2) == 3);
@@ -227,7 +228,7 @@ TEST_CASE("nexenne::container::union_find make_set continues an existing partiti
 
 TEST_CASE("nexenne::container::union_find reserve and shrink_to_fit keep the partition") {
   uf u{3};
-  static_cast<void>(u.unite(0, 1));
+  nexenne::utility::discard(u.unite(0, 1));
   u.reserve(100);
   CHECK(u.size() == 3);
   CHECK(u.count() == 2);
@@ -302,8 +303,8 @@ TEST_CASE("nexenne::container::union_find find on an empty structure is out of r
 
 TEST_CASE("nexenne::container::union_find works with 64-bit indices") {
   cn::union_find_u64 u{4};
-  static_cast<void>(u.unite(0, 3));
-  static_cast<void>(u.unite(1, 2));
+  nexenne::utility::discard(u.unite(0, 3));
+  nexenne::utility::discard(u.unite(1, 2));
   CHECK(u.count() == 2);
   CHECK(*u.connected(0, 3));
   CHECK_FALSE(*u.connected(0, 1));

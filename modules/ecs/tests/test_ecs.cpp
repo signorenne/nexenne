@@ -15,6 +15,7 @@
 
 #include <nexenne/ecs/ecs.hpp>
 #include <nexenne/signal/connection.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -237,8 +238,8 @@ TEST_CASE("registry iterator skips destroyed entities") {
   }
   CHECK(count == 2);
   CHECK(r.alive() == 2);
-  (void)a;
-  (void)c;
+  nexenne::utility::discard(a);
+  nexenne::utility::discard(c);
 }
 
 TEST_CASE("registry satisfies std::ranges::input_range") {
@@ -279,7 +280,7 @@ TEST_CASE("registry on_construct fires after first add<T>") {
 
   REQUIRE(seen.size() == 1);
   CHECK(seen[0] == a);
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry on_construct does NOT fire on replacement") {
@@ -294,7 +295,7 @@ TEST_CASE("registry on_construct does NOT fire on replacement") {
   r.add<position>(a, {2.0f, 0.0f});  // replacement, not construct
 
   CHECK(construct_count == 1);
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry on_update fires when add replaces") {
@@ -313,7 +314,7 @@ TEST_CASE("registry on_update fires when add replaces") {
 
   CHECK(update_count == 2);
   CHECK(last_value == 9.0f);
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry patch fires on_update with mutated value") {
@@ -330,7 +331,7 @@ TEST_CASE("registry patch fires on_update with mutated value") {
   CHECK(ok);
   CHECK(seen_x == 42.0f);
   CHECK(r.get<position>(a).value().get().x == 42.0f);
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("patch on missing component returns false and does not fire") {
@@ -343,7 +344,7 @@ TEST_CASE("patch on missing component returns false and does not fire") {
   auto const ok{r.patch<position>(a, [](position& p) noexcept { p.x = 1; })};
   CHECK_FALSE(ok);
   CHECK_FALSE(fired);
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry on_destroy fires before remove<T>") {
@@ -362,7 +363,7 @@ TEST_CASE("registry on_destroy fires before remove<T>") {
   CHECK(seen_value == 7.0f);
   CHECK(still_valid);
   CHECK_FALSE(r.has<position>(a));
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry destroy fires on_destroy for every component") {
@@ -381,8 +382,8 @@ TEST_CASE("registry destroy fires on_destroy for every component") {
 
   CHECK(pos_count == 1);
   CHECK(vel_count == 1);
-  (void)c1;
-  (void)c2;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
 }
 
 TEST_CASE("destroy does NOT fire on_destroy for components the entity lacks") {
@@ -401,8 +402,8 @@ TEST_CASE("destroy does NOT fire on_destroy for components the entity lacks") {
 
   CHECK(pos_count == 1);
   CHECK(vel_count == 0);
-  (void)c1;
-  (void)c2;
+  nexenne::utility::discard(c1);
+  nexenne::utility::discard(c2);
 }
 
 TEST_CASE("subscribing before any entity has the component works") {
@@ -415,7 +416,7 @@ TEST_CASE("subscribing before any entity has the component works") {
   auto const a{r.create()};
   r.add<position>(a, {});
   CHECK(fired);
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("scoped_connection auto-disconnects on scope exit") {
@@ -442,7 +443,7 @@ TEST_CASE("on_construct sink cannot fire the signal directly") {
   // compile-time guarantee, not a runtime check. We just verify the
   // sink exposes connect.
   auto conn{sink.connect([](entity_id, position const&) noexcept {})};
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 // type_id
@@ -721,8 +722,8 @@ TEST_CASE("registry.each(callback) walks live entities") {
     ++count;
   });
   CHECK(count == 3);
-  (void)a;
-  (void)b;
+  nexenne::utility::discard(a);
+  nexenne::utility::discard(b);
 }
 
 TEST_CASE("registry.all_of / any_of") {
@@ -834,7 +835,7 @@ TEST_CASE("destroy is safe when an on_destroy listener registers a new component
   auto conn{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept {
     r.add<health>(other, {42});
   })};
-  (void)conn;
+  nexenne::utility::discard(conn);
 
   CHECK(r.destroy(victim));
   CHECK_FALSE(r.valid(victim));
@@ -966,7 +967,7 @@ TEST_CASE("listener may structurally modify the same storage without dangling") 
       observed_x = p.x;  // read AFTER the storage grew under us
     }
   })};
-  static_cast<void>(conn);
+  nexenne::utility::discard(conn);
 
   r.add<position>(first, {123.0f, 0.0f, 0.0f});
   CHECK(observed_x == 123.0f);  // reference stayed valid mid-growth
@@ -1039,9 +1040,9 @@ TEST_CASE("multiple listeners on the same on_construct signal all fire") {
   CHECK(count_a == 1);
   CHECK(count_b == 1);
   CHECK(count_c == 1);
-  (void)ca;
-  (void)cb;
-  (void)cc;
+  nexenne::utility::discard(ca);
+  nexenne::utility::discard(cb);
+  nexenne::utility::discard(cc);
 }
 
 TEST_CASE("manually disconnected connection stops firing") {
@@ -1081,7 +1082,7 @@ TEST_CASE("one of several listeners can be dropped, the rest keep firing") {
   r.add<position>(r.create(), {});
   CHECK(kept == 2);     // survivor keeps firing
   CHECK(dropped == 1);  // dropped one stayed silent
-  (void)keep_conn;
+  nexenne::utility::discard(keep_conn);
 }
 
 TEST_CASE("on_update listener may read another component of the entity") {
@@ -1098,7 +1099,7 @@ TEST_CASE("on_update listener may read another component of the entity") {
   r.add<position>(e, {1.0f, 0.0f});  // construct, no update
   r.add<position>(e, {2.0f, 0.0f});  // replace -> on_update reads health
   CHECK(observed_hp == 77);
-  (void)conn;
+  nexenne::utility::discard(conn);
 }
 
 // added: all_of / any_of edge cases
@@ -1465,10 +1466,10 @@ TEST_CASE(
   // this fires (so it is appended past the storages the destroy loop captured).
   // destroy must still leave the freed index component-free.
   auto conn{r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
-    static_cast<void>(r.add<position>(e, position{.x = 9.0F, .y = 9.0F, .z = 9.0F}));
+    nexenne::utility::discard(r.add<position>(e, position{.x = 9.0F, .y = 9.0F, .z = 9.0F}));
   })};
   auto const a{r.create()};
-  static_cast<void>(r.add<health>(a, health{.hp = 100}));
+  nexenne::utility::discard(r.add<health>(a, health{.hp = 100}));
   auto const a_index{a.index()};
 
   CHECK(r.destroy(a));

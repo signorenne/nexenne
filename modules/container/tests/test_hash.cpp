@@ -10,6 +10,7 @@
 #include <unordered_set>
 
 #include <nexenne/container/hash.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -154,18 +155,18 @@ TEST_CASE("nexenne::container::hash binary_tree equal trees hash equal") {
 
 TEST_CASE("nexenne::container::hash ring_buffer hashes in FIFO order") {
   cn::ring_buffer<int, 4> a;
-  static_cast<void>(a.push(1));
-  static_cast<void>(a.push(2));
+  nexenne::utility::discard(a.push(1));
+  nexenne::utility::discard(a.push(2));
   cn::ring_buffer<int, 4> b;
-  static_cast<void>(b.push(1));
-  static_cast<void>(b.push(2));
+  nexenne::utility::discard(b.push(1));
+  nexenne::utility::discard(b.push(2));
   std::hash<cn::ring_buffer<int, 4>> const h;
   CHECK(h(a) == h(b));
   CHECK(h(a) == h(a));  // deterministic
 
   cn::ring_buffer<int, 4> reversed;
-  static_cast<void>(reversed.push(2));
-  static_cast<void>(reversed.push(1));  // same elements, different FIFO order
+  nexenne::utility::discard(reversed.push(2));
+  nexenne::utility::discard(reversed.push(1));  // same elements, different FIFO order
   CHECK(h(a) != h(reversed));
 
   cn::ring_buffer<int, 4> const empty1;

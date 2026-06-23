@@ -20,6 +20,7 @@
 #include <nexenne/logging/manager.hpp>
 #include <nexenne/logging/record.hpp>
 #include <nexenne/logging/sink.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -77,8 +78,8 @@ TEST_CASE("nexenne::logging sync manager dispatches inline to every registered s
   mgr.add_sink(cap);
   CHECK(mgr.sink_count() == 1);
 
-  static_cast<void>(mgr.push(rec("a")));
-  static_cast<void>(mgr.push(rec("b")));
+  nexenne::utility::discard(mgr.push(rec("a")));
+  nexenne::utility::discard(mgr.push(rec("b")));
   CHECK(cap->count() == 2);  // synchronous: no flush needed
   CHECK(mgr.dropped_count() == 0);
 
@@ -110,7 +111,7 @@ TEST_CASE("nexenne::logging async manager drains every pushed record after flush
 
   constexpr std::size_t total{500};
   for (std::size_t i{0}; i < total; ++i) {
-    static_cast<void>(mgr.push(rec(std::to_string(i))));
+    nexenne::utility::discard(mgr.push(rec(std::to_string(i))));
   }
   mgr.flush();
   CHECK(cap->count() == total);

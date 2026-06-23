@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <nexenne/container/flat_hash_map.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -409,7 +410,7 @@ TEST_CASE("nexenne::container::flat_hash_map differential against std::unordered
   }
   std::size_t flat_count{0};
   for (auto const& entry : flat) {
-    static_cast<void>(entry);
+    nexenne::utility::discard(entry);
     ++flat_count;
   }
   CHECK(flat_count == ref.size());

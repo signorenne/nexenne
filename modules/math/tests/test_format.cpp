@@ -9,6 +9,7 @@
 #include <nexenne/math/normalized.hpp>
 #include <nexenne/math/quaternion.hpp>
 #include <nexenne/math/vector.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace math = nexenne::math;
 
@@ -59,5 +60,7 @@ TEST_CASE("formatters forward the spec to each component") {
 
   // An invalid component spec is rejected by the component formatter.
   math::vector3_d const v{1, 2, 3};
-  CHECK_THROWS_AS((void)std::vformat("{:Z}", std::make_format_args(v)), std::format_error);
+  CHECK_THROWS_AS(
+    nexenne::utility::discard(std::vformat("{:Z}", std::make_format_args(v))), std::format_error
+  );
 }

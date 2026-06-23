@@ -24,6 +24,7 @@
 #include <nexenne/algorithm/encoding/cobs.hpp>
 #include <nexenne/algorithm/encoding/codec_error.hpp>
 #include <nexenne/algorithm/encoding/url.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -527,7 +528,8 @@ TEST_CASE("nexenne::algorithm exhaustive 1- and 2-byte round-trip") {
 TEST_CASE("nexenne::algorithm::base_n decode is constexpr-evaluable") {
   static constexpr auto decoded{[] {
     auto out{std::array<std::uint8_t, 3>{}};
-    static_cast<void>(alg::base_n_decode<alg::base64_std_spec>("Zm9v", std::span<std::uint8_t>{out})
+    nexenne::utility::discard(
+      alg::base_n_decode<alg::base64_std_spec>("Zm9v", std::span<std::uint8_t>{out})
     );
     return out;
   }()};

@@ -14,6 +14,7 @@
 
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/stream_logger.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -38,7 +39,7 @@ TEST_CASE("nexenne::logging::stream_logger writes a formatted line to a FILE*") 
     lg::stream_logger log{"dev", lg::level::trace, lg::file_writer{f}};
     log.info("value={}", 7);
   }
-  static_cast<void>(std::fclose(f));
+  nexenne::utility::discard(std::fclose(f));
 
   auto const s{read_all(path)};
   CHECK(s.find("[INFO ]") != std::string::npos);
@@ -58,7 +59,7 @@ TEST_CASE("nexenne::logging::stream_logger truncates an overlong message with an
     lg::basic_stream_logger<lg::file_writer, 64> log{"x", lg::level::trace, lg::file_writer{f}};
     log.info("{}", std::string(200, 'A'));
   }
-  static_cast<void>(std::fclose(f));
+  nexenne::utility::discard(std::fclose(f));
 
   auto const s{read_all(path)};
   CHECK(s.size() <= 64);                      // never exceeds the stack buffer
@@ -76,7 +77,7 @@ TEST_CASE("nexenne::logging::stream_logger respects the runtime level filter") {
     log.info("dropped");
     log.warn("kept");
   }
-  static_cast<void>(std::fclose(f));
+  nexenne::utility::discard(std::fclose(f));
 
   auto const s{read_all(path)};
   CHECK(s.find("dropped") == std::string::npos);

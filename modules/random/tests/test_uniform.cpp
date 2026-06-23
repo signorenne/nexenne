@@ -13,6 +13,7 @@
 #include <nexenne/random/pcg.hpp>
 #include <nexenne/random/uniform.hpp>
 #include <nexenne/random/xoshiro.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -360,7 +361,7 @@ TEST_CASE("nexenne::random::bernoulli(p) at the boundary probabilities") {
   CHECK_FALSE(rnd::bernoulli(g, 0.0));
   CHECK(rnd::bernoulli(g, 1.0));
   auto const nan{std::numeric_limits<double>::quiet_NaN()};
-  static_cast<void>(rnd::bernoulli(g, nan));  // must not assert/trap
+  nexenne::utility::discard(rnd::bernoulli(g, nan));  // must not assert/trap
 
   // A probability just below 1 should almost always be true; just above 0
   // almost always false. Confirms the comparison direction is correct.

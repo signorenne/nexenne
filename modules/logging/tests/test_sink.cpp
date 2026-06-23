@@ -16,6 +16,7 @@
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/record.hpp>
 #include <nexenne/logging/sink.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -124,9 +125,9 @@ TEST_CASE("nexenne::logging::console_sink constructs with each routing policy") 
   lg::console_sink def{};
   lg::console_sink out{lg::console_sink::stream::stdout_only};
   lg::console_sink err{lg::console_sink::stream::stderr_only};
-  static_cast<void>(def);
-  static_cast<void>(out);
-  static_cast<void>(err);
+  nexenne::utility::discard(def);
+  nexenne::utility::discard(out);
+  nexenne::utility::discard(err);
   CHECK(true);
 }
 

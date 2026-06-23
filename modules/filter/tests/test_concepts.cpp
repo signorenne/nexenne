@@ -16,6 +16,7 @@
 #include <string>
 
 #include <nexenne/filter/filter.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -181,85 +182,85 @@ TEST_CASE("nexenne::filter umbrella exposes every family and they run") {
   // Linear smoothers.
   {
     auto f{flt::ema{0.5}};
-    static_cast<void>(f.push(1.0));
+    nexenne::utility::discard(f.push(1.0));
     CHECK(f.value() == doctest::Approx(1.0));
     f.reset();
   }
   {
     auto f{flt::sma<double, 4>{}};
-    static_cast<void>(f.push(2.0));
+    nexenne::utility::discard(f.push(2.0));
     CHECK(f.value() == doctest::Approx(2.0));
     f.reset();
   }
   {
     auto f{flt::lowpass{10.0, 1000.0}};
-    static_cast<void>(f.push(3.0));
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(3.0));
+    nexenne::utility::discard(f.value());
     f.reset();
   }
   {
     auto f{flt::highpass{10.0, 1000.0}};
-    static_cast<void>(f.push(3.0));
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(3.0));
+    nexenne::utility::discard(f.value());
     f.reset();
   }
   {
     auto f{flt::biquad<double>::make_lowpass(50.0, 1000.0)};
-    static_cast<void>(f.push(1.0));
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(1.0));
+    nexenne::utility::discard(f.value());
     f.reset();
   }
   {
     auto f{flt::butterworth<double, 2>{}};
-    static_cast<void>(f.push(1.0));
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(1.0));
+    nexenne::utility::discard(f.value());
     f.reset();
   }
   {
     auto const coeffs{std::array<double, 3>{0.5, 0.25, 0.25}};
     auto f{flt::fir<double, 3>{std::span<double const, 3>{coeffs}}};
-    static_cast<void>(f.push(1.0));
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(1.0));
+    nexenne::utility::discard(f.value());
     f.reset();
   }
 
   // Nonlinear and robust.
   {
     auto f{flt::median<double, 3>{}};
-    static_cast<void>(f.push(5.0));
+    nexenne::utility::discard(f.push(5.0));
     CHECK(f.value() == doctest::Approx(5.0));
     f.reset();
   }
   {
     auto f{flt::kalman{0.01, 0.1}};
-    static_cast<void>(f.push(42.0));
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(42.0));
+    nexenne::utility::discard(f.value());
     f.reset();
   }
   {
     auto f{flt::complementary{0.98}};
-    static_cast<void>(f.push(10.0, 9.5));  // two-sensor fusion overload
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(10.0, 9.5));  // two-sensor fusion overload
+    nexenne::utility::discard(f.value());
     f.reset();
   }
   {
     auto f{flt::lms<double, 4>{}};
-    static_cast<void>(f.push(1.0, 5.0));  // input, desired
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(1.0, 5.0));  // input, desired
+    nexenne::utility::discard(f.value());
     f.reset();
   }
 
   // Control and shaping.
   {
     auto f{flt::slew{5.0}};
-    static_cast<void>(f.push(0.0));
+    nexenne::utility::discard(f.push(0.0));
     CHECK(f.push(100.0) == doctest::Approx(5.0));
     f.reset();
   }
   {
     auto f{flt::debounce<bool, 3>{}};
-    static_cast<void>(f.push(false));
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(false));
+    nexenne::utility::discard(f.value());
     f.reset();
   }
   {
@@ -271,8 +272,8 @@ TEST_CASE("nexenne::filter umbrella exposes every family and they run") {
   }
   {
     auto f{flt::glitch<bool, 3>{}};
-    static_cast<void>(f.push(false));
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(false));
+    nexenne::utility::discard(f.value());
     f.reset();
   }
   {
@@ -303,13 +304,13 @@ TEST_CASE("nexenne::filter umbrella exposes every family and they run") {
   }
   {
     auto f{flt::majority<int, 3>{}};
-    static_cast<void>(f.push(42));
-    static_cast<void>(f.value());
+    nexenne::utility::discard(f.push(42));
+    nexenne::utility::discard(f.value());
     f.reset();
   }
   {
     auto f{flt::stale_detector<int, 3>{}};
-    static_cast<void>(f.push(7));
+    nexenne::utility::discard(f.push(7));
     CHECK(f.value() == 7);
     f.reset();
   }

@@ -8,6 +8,7 @@
 #include <string>
 
 #include <nexenne/container/bimap.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -93,7 +94,7 @@ TEST_CASE("nexenne::container::bimap iterates left-to-right pairs") {
   for (auto const& [l, r] : b) {
     key_sum += l;
     ++count;
-    static_cast<void>(r);
+    nexenne::utility::discard(r);
   }
   CHECK(key_sum == 3);
   CHECK(count == 2);

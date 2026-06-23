@@ -10,6 +10,7 @@
 #include <string>
 
 #include <nexenne/container/format.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -67,7 +68,7 @@ TEST_CASE("nexenne::container::format trie prints quoted keys") {
 
 TEST_CASE("nexenne::container::format graph prints adjacency") {
   cn::graph<int> g{2};
-  static_cast<void>(g.add_edge(0, 1, 9));
+  nexenne::utility::discard(g.add_edge(0, 1, 9));
   CHECK(cn::to_string(g) == "graph{0:[1(9)], 1:[]}");
 }
 
@@ -100,9 +101,9 @@ TEST_CASE("nexenne::container::format stable_vector and small_vector print as se
 
 TEST_CASE("nexenne::container::format ring_buffer prints in FIFO order") {
   cn::ring_buffer<int, 4> r;
-  static_cast<void>(r.push(1));
-  static_cast<void>(r.push(2));
-  static_cast<void>(r.push(3));
+  nexenne::utility::discard(r.push(1));
+  nexenne::utility::discard(r.push(2));
+  nexenne::utility::discard(r.push(3));
   CHECK(cn::to_string(r) == "ring_buffer[1, 2, 3]");
   CHECK(std::format("{}", r) == "ring_buffer[1, 2, 3]");
 
@@ -135,7 +136,7 @@ TEST_CASE("nexenne::container::format binary_tree prints in sorted order") {
 
 TEST_CASE("nexenne::container::format union_find groups members by root") {
   cn::union_find<unsigned> uf{4};
-  static_cast<void>(uf.unite(0, 1));
+  nexenne::utility::discard(uf.unite(0, 1));
   auto const str{cn::to_string(uf)};
   CHECK(str.starts_with("union_find["));
   CHECK(str.find("{0, 1}") != std::string::npos);  // 0 and 1 share a set
@@ -146,14 +147,14 @@ TEST_CASE("nexenne::container::format union_find groups members by root") {
 
 TEST_CASE("nexenne::container::format dense_map prints key: value") {
   cn::dense_map<unsigned, int> m;
-  static_cast<void>(m.insert(3u, 30));
+  nexenne::utility::discard(m.insert(3u, 30));
   CHECK(cn::to_string(m) == "dense_map{3: 30}");
   CHECK(std::format("{}", m) == "dense_map{3: 30}");
 }
 
 TEST_CASE("nexenne::container::format flat_hash_set prints set-like") {
   cn::flat_hash_set<int> s;
-  static_cast<void>(s.insert(5));
+  nexenne::utility::discard(s.insert(5));
   CHECK(cn::to_string(s) == "flat_hash_set{5}");
   CHECK(std::format("{}", s) == "flat_hash_set{5}");
 
@@ -205,7 +206,7 @@ TEST_CASE("nexenne::container::format gap_buffer prints as a sequence") {
 
 TEST_CASE("nexenne::container::format operator<< matches to_string across types") {
   cn::ring_buffer<int, 4> r;
-  static_cast<void>(r.push(9));
+  nexenne::utility::discard(r.push(9));
   std::ostringstream os;
   os << r;
   CHECK(os.str() == cn::to_string(r));
