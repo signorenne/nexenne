@@ -32,6 +32,7 @@
 #include <nexenne/logging/config.hpp>
 #include <nexenne/logging/record.hpp>
 #include <nexenne/logging/sink.hpp>
+#include <nexenne/utility/for_each_non_null.hpp>
 
 namespace nexenne::logging {
 
@@ -96,11 +97,7 @@ private:
 
   auto dispatch(record const& r) noexcept -> void {
     auto const guard{std::lock_guard{m_sinks_mutex}};
-    for (auto& s : m_sinks) {
-      if (s != nullptr) {
-        s->write(r);
-      }
-    }
+    nexenne::utility::for_each_non_null(m_sinks, [&r](sink& s) { s.write(r); });
   }
 
   container::mpmc_queue<record, Config::queue_size> m_queue{};
@@ -253,11 +250,7 @@ public:
       std::this_thread::yield();
     }
     auto const guard{std::lock_guard{m_sinks_mutex}};
-    for (auto& s : m_sinks) {
-      if (s != nullptr) {
-        s->flush();
-      }
-    }
+    nexenne::utility::for_each_non_null(m_sinks, [](sink& s) { s.flush(); });
   }
 
   /**
@@ -280,11 +273,7 @@ public:
     }
     drain_queue();
     auto const guard{std::lock_guard{m_sinks_mutex}};
-    for (auto& s : m_sinks) {
-      if (s != nullptr) {
-        s->flush();
-      }
-    }
+    nexenne::utility::for_each_non_null(m_sinks, [](sink& s) { s.flush(); });
   }
 
 private:
@@ -325,11 +314,7 @@ private:
 
   auto dispatch(record const& r) noexcept -> void {
     auto const guard{std::lock_guard{m_sinks_mutex}};
-    for (auto& s : m_sinks) {
-      if (s != nullptr) {
-        s->write(r);
-      }
-    }
+    nexenne::utility::for_each_non_null(m_sinks, [&r](sink& s) { s.write(r); });
   }
 
   mutable std::mutex m_sinks_mutex;
@@ -444,11 +429,7 @@ public:
    */
   auto flush() noexcept -> void {
     auto const guard{std::lock_guard{m_sinks_mutex}};
-    for (auto& s : m_sinks) {
-      if (s != nullptr) {
-        s->flush();
-      }
-    }
+    nexenne::utility::for_each_non_null(m_sinks, [](sink& s) { s.flush(); });
   }
 
   /**
