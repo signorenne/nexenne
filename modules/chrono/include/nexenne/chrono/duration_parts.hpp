@@ -24,8 +24,12 @@
  *
  * When the format string contains no \c {ms}, the value is rounded
  * to the nearest second (ties away from zero). With
- * \c suppress_zero = true, leading zero components are dropped and
- * the surviving components are joined with \c ':'.
+ * \c suppress_zero = true, only the components whose token appears in
+ * the format string are candidates, leading zero components are
+ * dropped, an interior zero (one with a coarser non-zero component
+ * already shown) is kept, and the surviving components are joined
+ * with \c ':' using canonical unit labels. With \c suppress_zero =
+ * false the format string is honored literally, separators and all.
  *
  * \c format_scaled is the complementary formatter for the other end of the
  * range: it renders a single auto-scaled SI unit (ns / us / ms / s), keeping
@@ -58,6 +62,8 @@ namespace nexenne::chrono {
  * @post None.
  */
 struct duration_parts {
+  using value_type = std::int64_t;  ///< Underlying type of the magnitude components.
+
   int sign{0};              ///< -1, 0, or +1.
   std::int64_t days{0};     ///< Whole days, non-negative.
   std::int64_t hours{0};    ///< Hours within the day, 0 to 23.
@@ -201,12 +207,16 @@ inline auto replace_all(
  * Substitutes the placeholders \c {s+}, \c {s-}, \c {d}, \c {h}, \c {m},
  * \c {s}, and \c {ms} in \p fmt with the corresponding zero-padded
  * components. When \p fmt contains no \c {ms}, the value is rounded to the
- * nearest second, ties away from zero. With \p suppress_zero, leading zero
- * components are dropped and the survivors are joined with \c ':'.
+ * nearest second, ties away from zero. With \p suppress_zero, a component
+ * renders only when its token is present in \p fmt, leading zero components
+ * are dropped while an interior zero is kept, and the survivors are joined
+ * with \c ':' using canonical unit labels rather than the spec's separators.
+ * With \p suppress_zero false the spec is honored literally.
  *
  * @param ms Duration to render.
  * @param fmt Token format string.
- * @param suppress_zero Whether to drop leading zero components.
+ * @param suppress_zero Whether to drop leading zero components and select
+ *                      components by token presence.
  * @param pos_sign Text emitted for a positive value at \c {s+}.
  * @param neg_sign Text emitted for a negative value at \c {s-}.
  *
@@ -261,19 +271,30 @@ inline auto replace_all(
     sign_out = std::string{neg_sign};
   }
 
-  auto const part_d{parts.days != 0 ? std::format("{}d", s_d) : std::string{}};
-  auto const part_h{
-    (parts.hours != 0 || !part_d.empty())
-      ? (parts.hours != 0 ? std::format("{}h", s_h) : std::string{})
-      : std::string{}
-  };
-  auto const part_m{
-    (parts.minutes != 0 || !part_d.empty() || !part_h.empty())
-      ? (parts.minutes != 0 ? std::format("{}m", s_m) : std::string{})
-      : std::string{}
-  };
-  auto const part_s{std::format("{}s", s_s)};
-  auto const part_ms{(want_ms && parts.millis != 0) ? std::format("{}ms", s_ms) : std::string{}};
+  // A component renders only when its token appears in \p fmt, so a caller that
+  // excludes a component from the layout (for example "{h}h:{m}m") never gets
+  // it back. The survivors are joined with ':' using canonical unit labels;
+  // the spec's own separators and labels apply only when suppress_zero is
+  // false. The {ms} token is detected via want_ms above.
+  auto const has_d{fmt.find("{d}") != std::string_view::npos};
+  auto const has_h{fmt.find("{h}") != std::string_view::npos};
+  auto const has_m{fmt.find("{m}") != std::string_view::npos};
+  auto const has_s{fmt.find("{s}") != std::string_view::npos};
+
+  // Leading zero components are dropped, but a zero component is kept once a
+  // coarser one is already shown, so an interior zero is never silently lost.
+  // Seconds are the anchor and always render when their token is present.
+  auto const show_d{has_d && parts.days != 0};
+  auto const show_h{has_h && (parts.hours != 0 || show_d)};
+  auto const show_m{has_m && (parts.minutes != 0 || show_d || show_h)};
+  auto const show_s{has_s};
+  auto const show_ms{want_ms && parts.millis != 0};
+
+  auto const part_d{show_d ? std::format("{}d", s_d) : std::string{}};
+  auto const part_h{show_h ? std::format("{}h", s_h) : std::string{}};
+  auto const part_m{show_m ? std::format("{}m", s_m) : std::string{}};
+  auto const part_s{show_s ? std::format("{}s", s_s) : std::string{}};
+  auto const part_ms{show_ms ? std::format("{}ms", s_ms) : std::string{}};
 
   auto body{std::string{}};
   body.reserve(part_d.size() + part_h.size() + part_m.size() + part_s.size() + part_ms.size() + 4);
