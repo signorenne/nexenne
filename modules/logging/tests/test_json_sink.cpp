@@ -130,14 +130,23 @@ TEST_CASE("nexenne::logging::json_sink timestamp is RFC 3339 UTC with millisecon
 }
 
 TEST_CASE("nexenne::logging::json_sink to an external FILE* does not close it") {
-  // Smoke: writing to stdout via the FILE* constructor must not crash, and the
-  // sink must not take ownership (we keep using the stream after).
-  lg::json_sink s{stdout};
-  CHECK(s.is_open());
-  s.write(make_record(lg::level::info, "external"));
-  s.flush();
-  // stdout is still usable; no ownership was taken.
-  CHECK(std::fflush(stdout) == 0);
+  // Use a temp FILE* the test owns (not stdout, which would pollute the test
+  // output) to verify the FILE* constructor takes no ownership: the sink must
+  // not close the stream, so it stays usable after the sink is destroyed.
+  auto const path{std::filesystem::temp_directory_path() / "nexenne_logging_json_sink_ext.log"};
+  std::filesystem::remove(path);
+  auto* const out{std::fopen(path.string().c_str(), "wb")};
+  REQUIRE(out != nullptr);
+  {
+    lg::json_sink s{out};
+    CHECK(s.is_open());
+    s.write(make_record(lg::level::info, "external"));
+    s.flush();
+  }  // sink destructor runs here; it must not close `out`
+  // The stream is still open and usable, proving no ownership was taken.
+  CHECK(std::fflush(out) == 0);
+  CHECK(std::fclose(out) == 0);
+  std::filesystem::remove(path);
 }
 
 TEST_CASE("nexenne::logging::json_sink reports a failed open") {
