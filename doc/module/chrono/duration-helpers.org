@@ -33,12 +33,17 @@ second, ties away from zero.
 specifiers so the two do not collide: ={d}= ={h}= ={m}= ={s}= are
 zero-padded width 2, ={ms}= is width 3, and ={s+}= / ={s-}= are the sign.
 When the format omits ={ms}= the value rounds to whole seconds. With
-=suppress_zero= (the default) leading zero components are dropped and the
-survivors are joined with =':'=.
+=suppress_zero= (the default) a component renders only when its token is present
+in the format string, leading zero components are dropped, an interior zero (one
+sitting after a coarser component that is shown) is kept, and the survivors are
+joined with =':'= using canonical unit labels. Pass =suppress_zero = false= to
+honor the format string literally, separators and all.
 
 #+BEGIN_EXAMPLE
 format(milliseconds{90'061'500})  ->  "01d:01h:01m:01s:500ms"
-format(seconds{65})               ->  "01m:05s"      (days/hours dropped)
+format(seconds{65})               ->  "01m:05s"      (leading days/hours dropped)
+format(hours{24}+minutes{5}+seconds{34}) -> "01d:00h:05m:34s"  (interior 0h kept)
+format(milliseconds{3'750'000}, "{h}h:{m}m") -> "01h:02m"      (seconds excluded)
 #+END_EXAMPLE
 
 A =std::formatter<duration_parts>= is provided too, so =std::format("{}", parts)=
