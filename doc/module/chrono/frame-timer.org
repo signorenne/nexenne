@@ -4,10 +4,12 @@
 
 * Purpose
 
-=frame_timer<Clock, WindowSize>= measures the time between successive ticks (the
+=frame_timer<WindowSize, Clock>= measures the time between successive ticks (the
 per-frame delta) and reports a moving-average frames-per-second over the last
 =WindowSize= frames. It is the timer a game loop or render loop calls once per
-frame to get =dt= for integration and a smoothed FPS for display.
+frame to get =dt= for integration and a smoothed FPS for display. The window
+size comes first (as in =static_stopwatch=), so =frame_timer<120>= widens the
+window while keeping the default clock.
 
 * The idea
 
