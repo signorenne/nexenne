@@ -9,7 +9,7 @@
  * poll late). The callback lives in an in_place_function with inline storage, so
  * the alarm never allocates. The manual clock keeps the timing deterministic.
  *
- * Note: poll() takes an explicit `now` time_point rather than reading the clock
+ * Note: poll() takes an explicit now time_point rather than reading the clock
  * itself - that is what makes the catch-up behaviour testable and lets you drive
  * many alarms from one shared now() snapshot.
  */
