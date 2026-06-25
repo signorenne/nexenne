@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstdint>
 #include <limits>
+#include <ratio>
 
 #include <nexenne/chrono/frequency.hpp>
 
@@ -167,6 +168,17 @@ TEST_CASE("nexenne::chrono::period_ns_from handles the very low frequency of 1 H
   CHECK(ch::period_ns_from(4) == std::chrono::nanoseconds{250'000'000});
   // hz_from_ns recovers the exact divisor frequency.
   CHECK(ch::hz_from_ns(std::chrono::nanoseconds{500'000'000}) == 2);
+}
+
+TEST_CASE("nexenne::chrono::hertz_from guards a product overflow without UB (m1)") {
+  // num * count reaches 2^64 and wraps to zero, which would divide by zero. The
+  // period is far below one hertz, so the truncated frequency is zero.
+  using big_period = std::chrono::duration<std::int64_t, std::ratio<4'294'967'296, 1>>;
+  CHECK(ch::hertz_from(big_period{4'294'967'296}) == 0);
+  // A sub-hertz period still truncates cleanly, and an ordinary period divides
+  // exactly.
+  CHECK(ch::hertz_from(std::chrono::seconds{2}) == 0);      // 0.5 Hz -> 0
+  CHECK(ch::hertz_from(std::chrono::milliseconds{1}) == 1000);
 }
 
 }  // namespace

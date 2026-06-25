@@ -90,7 +90,7 @@ static_assert(std::is_same_v<decltype(second_clock::is_steady), bool const>);
 // now()/from_ticks/to_ticks signatures and noexcept-ness.
 static_assert(noexcept(fake_clock::now()));
 static_assert(noexcept(fake_clock::from_ticks(0)));
-// declval isolates to_ticks's own noexcept: a literal `time_point{}` argument
+// declval isolates to_ticks's own noexcept: a literal time_point{} argument
 // is not itself noexcept-constructible in libstdc++ (its chrono default ctors
 // are unmarked), which would otherwise poison the noexcept expression.
 static_assert(noexcept(fake_clock::to_ticks(std::declval<fake_clock::time_point>())));
