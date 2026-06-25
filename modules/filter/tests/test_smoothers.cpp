@@ -15,6 +15,7 @@
 #include <limits>
 #include <numbers>
 #include <span>
+#include <type_traits>
 
 #include <nexenne/filter/filter.hpp>
 #include <nexenne/utility/discard.hpp>
@@ -795,6 +796,32 @@ TEST_CASE("nexenne::filter::lowpass very long constant run holds DC exactly") {
     nexenne::utility::discard(lp.push(2.5));
   }
   CHECK(lp.value() == doctest::Approx(2.5).epsilon(1e-9));
+}
+
+// Major M1: without the periodic resum a large-magnitude burst permanently
+// poisons the running sum, and value() never returns to the true window mean.
+TEST_CASE("nexenne::filter::sma recovers exactly after a large-magnitude burst (M1)") {
+  auto f{flt::sma<float, 8>{}};
+  for (auto i{0}; i < 8; ++i) {
+    nexenne::utility::discard(f.push(1e8f));
+  }
+  // Flush the window with small samples; after 8 pushes it holds only 1.0f.
+  for (auto i{0}; i < 100; ++i) {
+    nexenne::utility::discard(f.push(1.0f));
+  }
+  CHECK(f.value() == doctest::Approx(1.0f));  // exact mean of eight 1.0f samples
+}
+
+// Major M2: the dead kind enum is gone; the two design functions carry the
+// response shape directly, and the class defaults T = double and SectionsN = 2.
+TEST_CASE("nexenne::filter::butterworth default arguments and shape-carrying designers (M2)") {
+  auto f{flt::butterworth{}};  // defaulted T = double, SectionsN = 2
+  static_assert(std::is_same_v<decltype(f)::value_type, double>);
+  static_assert(decltype(f)::sections == 2);
+  static_assert(decltype(f)::order == 4);
+  f.design_low_pass(100.0, 1000.0);
+  nexenne::utility::discard(f.push(1.0));
+  CHECK(std::isfinite(f.value()));
 }
 
 }  // namespace
