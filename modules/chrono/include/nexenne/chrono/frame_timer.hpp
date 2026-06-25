@@ -24,8 +24,8 @@
  * }
  * \endcode
  *
- * @tparam Clock Steady clock to time with.
  * @tparam WindowSize Number of recent frames to average over.
+ * @tparam Clock Steady clock to time with.
  */
 
 #include <array>
@@ -46,13 +46,17 @@ namespace nexenne::chrono {
  * running sum is maintained incrementally, keeping \c fps() constant time, and
  * the type never allocates.
  *
- * @tparam Clock Steady clock to time with.
  * @tparam WindowSize Number of recent frames to average over; must be positive.
+ * @tparam Clock Steady clock to time with.
  *
  * @pre \p WindowSize is greater than zero.
  * @post A default-constructed frame_timer has not yet started.
+ *
+ * @note The size-first parameter order matches \c static_stopwatch, so the
+ *       clock keeps its default when only the window is named
+ *       (\c frame_timer<120>).
  */
-template <steady_clock_like Clock = std::chrono::steady_clock, std::size_t WindowSize = 60>
+template <std::size_t WindowSize = 60, steady_clock_like Clock = std::chrono::steady_clock>
   requires(WindowSize > 0)
 class frame_timer {
 public:
