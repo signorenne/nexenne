@@ -92,6 +92,8 @@ public:
    * @post None.
    */
   struct stats {
+    using value_type = duration;  ///< Duration type of the accumulated samples.
+
     std::uint64_t count{0};            ///< Number of recorded samples.
     duration total{duration::zero()};  ///< Sum of all samples.
     duration min{duration::max()};     ///< Smallest sample seen.

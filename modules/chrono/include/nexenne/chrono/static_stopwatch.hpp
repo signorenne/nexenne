@@ -37,10 +37,14 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <optional>
+#include <ranges>
 #include <span>
+#include <string>
 
 #include <nexenne/chrono/concepts.hpp>
+#include <nexenne/chrono/duration_parts.hpp>
 
 namespace nexenne::chrono {
 
@@ -325,6 +329,26 @@ public:
   }
 
   /**
+   * @brief Close the current lap and return its duration in units \p D.
+   *
+   * @tparam D Duration type the result is cast to.
+   *
+   * @return The closed segment in units \p D, or \c std::nullopt when idle.
+   *
+   * @pre None.
+   * @post When not idle, \c lap_count() has grown by one; \c stored_lap_count()
+   *       grew by one if there was room, else \c laps_dropped() grew by one.
+   */
+  template <chrono_duration D>
+  [[nodiscard]] auto lap() noexcept -> std::optional<D> {
+    auto const r{lap()};
+    if (!r) {
+      return std::nullopt;
+    }
+    return std::chrono::duration_cast<D>(*r);
+  }
+
+  /**
    * @brief Duration of the in-progress lap without closing it.
    *
    * @return The current open segment, or \c std::nullopt when idle.
@@ -505,3 +529,64 @@ public:
 };
 
 }  // namespace nexenne::chrono
+
+/**
+ * @brief \c std::format support for \c static_stopwatch.
+ *
+ * Formats the current elapsed time using the same token layout as
+ * \c nexenne::chrono::format. A leading \c '!' disables suppress-zero.
+ *
+ * @tparam N Lap-buffer capacity of the formatted stopwatch.
+ * @tparam Clock Steady clock of the formatted stopwatch.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::size_t N, nexenne::chrono::steady_clock_like Clock>
+struct std::formatter<nexenne::chrono::static_stopwatch<N, Clock>, char> {
+private:
+  bool suppress_zero{true};
+
+public:
+  /**
+   * @brief Parse the format spec flags.
+   *
+   * @param ctx The format parse context.
+   *
+   * @return Iterator past the consumed spec.
+   *
+   * @pre None.
+   * @post The \c '!' flag, if present, has been consumed.
+   */
+  constexpr auto parse(std::format_parse_context& ctx) {
+    auto it{ctx.begin()};
+    auto const end{ctx.end()};
+    if (it != end && *it == '!') {
+      suppress_zero = false;
+      ++it;
+    }
+    return it;
+  }
+
+  /**
+   * @brief Write the formatted stopwatch to the output.
+   *
+   * @tparam Out Output iterator type of the format context.
+   * @param sw The stopwatch to format.
+   * @param ctx The format context to write into.
+   *
+   * @return Iterator past the written output.
+   *
+   * @pre None.
+   * @post None.
+   */
+  template <class Out>
+  auto format(
+    nexenne::chrono::static_stopwatch<N, Clock> const& sw,
+    std::basic_format_context<Out, char>& ctx
+  ) const {
+    auto const ms{sw.template elapsed<std::chrono::milliseconds>()};
+    auto const s{nexenne::chrono::format(ms, "{s-}{d}d:{h}h:{m}m:{s}s.{ms}", suppress_zero)};
+    return std::ranges::copy(s, ctx.out()).out;
+  }
+};
