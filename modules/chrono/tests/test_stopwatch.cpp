@@ -463,6 +463,31 @@ TEST_CASE("nexenne::chrono::stopwatch formatter renders zero elapsed") {
   CHECK(std::format("{}", sw) == "00s");
 }
 
+TEST_CASE("nexenne::chrono::static_stopwatch std::format renders elapsed time (m3)") {
+  using clk = ch::basic_manual_clock<struct fsw_fmt_tag>;
+  clk::reset();
+  ch::static_stopwatch<4, clk> sw;
+  sw.start();
+  clk::advance(65s);
+  CHECK(std::format("{}", sw) == "01m:05s");
+  CHECK(std::format("{:!}", sw) == "00d:00h:01m:05s.000");  // '!' shows every field
+  ch::static_stopwatch<4, clk> const idle;                  // idle, zero elapsed
+  CHECK(std::format("{}", idle) == "00s");
+}
+
+TEST_CASE("nexenne::chrono::static_stopwatch has the typed lap<D>() overload (m7)") {
+  using clk = ch::basic_manual_clock<struct fsw_typedlap_tag>;
+  clk::reset();
+  ch::static_stopwatch<4, clk> sw;
+  sw.start();
+  clk::advance(1500ms);
+  auto const seg{sw.template lap<ms>()};  // typed lap forwards to the untyped one
+  REQUIRE(seg.has_value());
+  CHECK(*seg == 1500ms);
+  ch::static_stopwatch<4, clk> idle;
+  CHECK_FALSE(idle.template lap<ms>().has_value());  // idle yields nullopt
+}
+
 static_assert(ch::static_stopwatch<4>::capacity == 4);
 static_assert(ch::static_stopwatch<1>::capacity == 1);
 
