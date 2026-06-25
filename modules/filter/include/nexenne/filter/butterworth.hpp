@@ -6,6 +6,7 @@
  */
 
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstddef>
@@ -27,31 +28,21 @@ namespace nexenne::filter {
  * Currently provides low-pass and high-pass designs. For band-pass /
  * band-stop, cascade an LP and an HP at the appropriate corners.
  *
- * @tparam T Floating-point sample type
- * @tparam SectionsN Number of biquad sections (filter order is 2*SectionsN)
+ * @tparam T Floating-point sample type. Default \c double.
+ * @tparam SectionsN Number of biquad sections (filter order is 2*SectionsN).
+ * Default \c 2 (a fourth-order cascade).
  *
  * @note Reach for this when you need a steeper yet ripple-free rolloff than
  * one biquad gives. More sections give a steeper rolloff at the cost
  * of latency and compute.
  */
-template <std::floating_point T, std::size_t SectionsN>
+template <std::floating_point T = double, std::size_t SectionsN = 2>
   requires(SectionsN > 0)
 class butterworth {
 public:
   using value_type = T;
   static constexpr std::size_t sections{SectionsN};
   static constexpr std::size_t order{2 * SectionsN};
-
-  /**
-   * @brief Selects the response shape of a Butterworth design.
-   *
-   * @pre None.
-   * @post None.
-   */
-  enum class kind {
-    low_pass,  ///< passes frequencies below the cutoff
-    high_pass  ///< passes frequencies above the cutoff
-  };
 
 private:
   std::array<biquad<T>, SectionsN> m_sections{};
@@ -60,7 +51,12 @@ private:
   /**
    * @brief Per-section Q for an order-2N Butterworth cascade.
    *
-   * Q_k = 1 / (2 * sin((2k+1) * pi / (4N))).
+   * Q_k = 1 / (2 * sin((2k+1) * pi / (4N))), the standard pole-angle
+   * form for factoring an order-2N Butterworth polynomial into
+   * second-order sections. See Paarmann, Design and Analysis of
+   * Analog Filters (2001), section 4.3, or the Butterworth pole
+   * placement in Oppenheim and Schafer, Discrete-Time Signal
+   * Processing.
    */
   [[nodiscard]] static auto section_q(std::size_t const section_idx) noexcept -> T {
     auto const n{static_cast<T>(SectionsN)};
@@ -99,6 +95,10 @@ public:
    * @complexity \c O(SectionsN).
    */
   auto design_low_pass(T const cutoff_hz, T const sample_rate_hz) noexcept -> void {
+    assert(
+      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2} &&
+      "butterworth::design_low_pass requires a positive sample rate and a sub-Nyquist cutoff"
+    );
     for (std::size_t i{0}; i < SectionsN; ++i) {
       m_sections[i] = biquad<T>::make_lowpass(cutoff_hz, sample_rate_hz, section_q(i));
     }
@@ -118,6 +118,10 @@ public:
    * @complexity \c O(SectionsN).
    */
   auto design_high_pass(T const cutoff_hz, T const sample_rate_hz) noexcept -> void {
+    assert(
+      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2} &&
+      "butterworth::design_high_pass requires a positive sample rate and a sub-Nyquist cutoff"
+    );
     for (std::size_t i{0}; i < SectionsN; ++i) {
       m_sections[i] = biquad<T>::make_highpass(cutoff_hz, sample_rate_hz, section_q(i));
     }
