@@ -38,6 +38,8 @@ namespace nexenne::chrono {
  */
 template <std::uint64_t Hz>
 struct hertz {
+  using value_type = std::uint64_t;  ///< Type of the wrapped frequency value.
+
   static constexpr std::uint64_t value = Hz;  ///< The wrapped frequency in hertz.
 };
 
@@ -87,6 +89,12 @@ template <typename Rep, typename Period>
   auto const num{static_cast<std::uint64_t>(Period::num)};
   auto const den{static_cast<std::uint64_t>(Period::den)};
   auto const count{static_cast<std::uint64_t>(period.count())};
+  // Guard the product: num * count above 2^64 wraps, which either divides by a
+  // wrong nonzero value or (when it wraps exactly to zero) divides by zero.
+  // Such a period is far below one hertz, so the truncated frequency is zero.
+  if (num == 0 || count > std::numeric_limits<std::uint64_t>::max() / num) {
+    return 0;
+  }
   return den / (num * count);
 }
 
@@ -100,6 +108,9 @@ template <typename Rep, typename Period>
  *
  * @pre None.
  * @post None.
+ *
+ * @note Integer truncation: a rate above one gigahertz has a sub-nanosecond
+ *       period and returns zero nanoseconds, not a rounded-up single tick.
  */
 [[nodiscard]] constexpr auto period_ns_from(std::uint64_t const hz
 ) noexcept -> std::chrono::nanoseconds {
@@ -119,6 +130,9 @@ template <typename Rep, typename Period>
  *
  * @pre None.
  * @post None.
+ *
+ * @note Integer truncation: a rate above one megahertz has a sub-microsecond
+ *       period and returns zero microseconds, not a rounded-up single tick.
  */
 [[nodiscard]] constexpr auto period_us_from(std::uint64_t const hz
 ) noexcept -> std::chrono::microseconds {
