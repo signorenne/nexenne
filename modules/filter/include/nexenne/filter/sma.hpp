@@ -18,14 +18,17 @@ namespace nexenne::filter {
  * their arithmetic mean. Useful for smoothing noisy sensor data
  * with a guaranteed-bounded delay of \c N/2 samples.
  *
- * The running sum is maintained incrementally so \c push is
- * O(1), with no full-window re-scan on every sample.
+ * The running sum is maintained incrementally, and re-derived from
+ * the window once per wrap (every \c N pushes) so that the
+ * incremental add and subtract cannot let floating-point rounding
+ * drift the sum permanently after a large-magnitude sample. \c push
+ * is therefore amortised \c O(1).
  *
  * Zero heap: the window is a \c std::array. For a runtime-sized
  * window, use \c ema (which approximates SMA with exponential
  * decay and needs no buffer).
  *
- * @tparam T Arithmetic sample type. Default \c double.
+ * @tparam T Floating-point sample type. Default \c double.
  * @tparam N Window size (number of samples to average over).
  *
  * @note Reach for this when every sample in a fixed window should count
@@ -61,7 +64,11 @@ public:
    *
    * Maintains the running sum incrementally: when the window is full
    * the oldest sample is subtracted before the newest is added, so
-   * the cost is constant regardless of \c N.
+   * the cost is constant on most pushes. Every \c N pushes, when the
+   * write index wraps over a full window, the sum is re-derived from
+   * the buffer: an incremental add and subtract lets floating-point
+   * rounding accumulate permanently once the sum is large relative to
+   * a sample, so the periodic resum bounds that drift.
    *
    * @param sample New input sample.
    *
@@ -72,7 +79,8 @@ public:
    * @post \c count() is \c min(previous_count + 1, N) and \c value()
    * returns the value returned here.
    *
-   * @complexity \c O(1).
+   * @complexity Amortised \c O(1); \c O(N) on the one push in every
+   * \c N that resums the full window.
    */
   [[nodiscard]] constexpr auto push(value_type const sample) noexcept -> value_type {
     // Drop the oldest sample from the running sum before overwriting it.
@@ -84,6 +92,13 @@ public:
     m_buf[m_idx] = sample;
     m_sum += sample;
     m_idx = (m_idx + 1) % N;
+    if (m_idx == 0 && m_count == N) {
+      value_type sum{};
+      for (auto const stored : m_buf) {
+        sum += stored;
+      }
+      m_sum = sum;
+    }
     return m_sum / static_cast<value_type>(m_count);
   }
 
