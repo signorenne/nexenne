@@ -50,7 +50,10 @@ concept chrono_duration =
  * @brief Satisfied by a Chrono-style clock type.
  *
  * Requires the nested \c rep, \c period, \c duration, and \c time_point
- * types and a static \c now() returning that \c time_point.
+ * types and a static \c now() that is \c noexcept and returns that
+ * \c time_point. The \c noexcept requirement makes the module's blanket
+ * \c noexcept on every method that reads \c Clock::now() honest, and every
+ * standard and in-repo clock already qualifies.
  *
  * @tparam C Type under test.
  *
@@ -63,7 +66,7 @@ concept clock_like = requires {
   typename C::period;
   typename C::duration;
   typename C::time_point;
-  { C::now() } -> std::same_as<typename C::time_point>;
+  { C::now() } noexcept -> std::same_as<typename C::time_point>;
 };
 
 /**
