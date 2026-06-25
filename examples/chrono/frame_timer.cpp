@@ -25,7 +25,7 @@ auto main() -> int {
   using namespace std::chrono_literals;
 
   clk::reset();
-  ch::frame_timer<clk, 8> ft;  // 8-frame averaging window
+  ch::frame_timer<8, clk> ft;  // 8-frame averaging window
 
   nexenne::utility::discard(ft.tick());  // first tick: establishes the baseline (dt 0)
   for (int i{0}; i < 8; ++i) {

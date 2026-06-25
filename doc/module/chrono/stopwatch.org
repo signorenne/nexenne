@@ -50,7 +50,11 @@ throw =std::bad_alloc= on growth (everything else is =noexcept=). =reserve_laps(
 up front avoids that. =static_stopwatch<N>= instead stores up to =N= laps inline
 and *counts the overflow*: =stored_lap_count()= caps at =N=, =lap_count()= is the
 true total, and =laps_dropped()= reports how many did not fit, so a full buffer
-is visible rather than silently truncated. It never allocates.
+is visible rather than silently truncated. It never allocates. Both variants
+share the same surface: the typed =lap<D>()= overload and a
+=std::formatter= that prints the elapsed time (=std::format("{}", sw)=, a
+leading =!= showing every component) work on =static_stopwatch= just as on
+=stopwatch=.
 
 * Complexity
 

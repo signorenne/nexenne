@@ -18,7 +18,7 @@
  * use the default std::chrono::steady_clock and let real wall time pass; here we
  * drive a manual_clock by hand so every number below is exactly reproducible -
  * no sleeps, no flakiness, no dependence on how fast the machine is. Swapping
- * `clk` for std::chrono::steady_clock is the only change needed to make this a
+ * clk for std::chrono::steady_clock is the only change needed to make this a
  * live loop.
  *
  * Each step notes *why* a given API is the right tool. Read it top to bottom.
@@ -95,7 +95,7 @@ auto main() -> int {
   // (here 4) is a template parameter: small enough to react, large enough to
   // smooth.
   std::println("== 1. Frame loop ==");
-  ch::frame_timer<clk, 4> frames;
+  ch::frame_timer<4, clk> frames;
 
   // 2. The frame-rate cap.
   //
