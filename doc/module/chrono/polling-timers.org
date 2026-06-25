@@ -40,7 +40,10 @@ countdown{100ms}; start();
 target=, and =remaining()= clamps an overdue deadline to zero so callers need not
 special-case the past. It is =<=>=-comparable by target time, so deadlines sort
 into a priority queue (use =std::greater= for soonest-first, since the standard
-queue is a max-heap).
+queue is a max-heap). =after(d)= saturates to =time_point::max()= rather than
+overflowing when =d= is near =duration::max= (a "never expires" idiom). A
+=std::formatter<deadline>= renders =remaining()= (a leading =!= shows every
+component), so =std::format("{}", dl)= prints the time left.
 
 * interval: fixed-period boundaries
 
@@ -64,7 +67,9 @@ an =in_place_function=, so no allocation). =arm_at= / =arm_after= set a one-shot
 =arm_periodic= sets a repeating timer. Each =poll(now)= fires the callback when
 the time is reached, once for a one-shot (then it disarms), and once per elapsed
 cycle for a periodic alarm (rearming to the next boundary, catching up if you
-polled late). A non-positive period disarms rather than looping forever. Use
+polled late). A one-shot disarms *before* it runs its callback, so a callback
+that re-arms the alarm (the self-rescheduling idiom) leaves it armed rather than
+being clobbered. A non-positive period disarms rather than looping forever. Use
 =alarm= when you want the "what to do on expiry" baked into the timer;
 use =countdown= / =deadline= when the polling caller decides.
 

@@ -35,7 +35,8 @@ token every 1.5 s) are exact. Several robustness details:
 
 =tokens()= reports the available count after a refill. =until_next_token(n)=
 returns how long to wait for =n= tokens (zero if already available,
-=duration::max()= if the rate is zero and the bucket is short, otherwise the
+=duration::max()= when =n= can never be reached, either because =n= exceeds
+=capacity= or the rate is zero and the bucket is short, otherwise the
 rounded-*up* wait so a caller that sleeps then retries does not wake one ULP
 early). =reset()= refills to full, =drain()= empties.
 
