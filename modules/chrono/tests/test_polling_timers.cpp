@@ -7,7 +7,9 @@
 #include <doctest/doctest.h>
 
 #include <chrono>
+#include <format>
 #include <limits>
+#include <string>
 
 #include <nexenne/chrono/alarm.hpp>
 #include <nexenne/chrono/countdown.hpp>
@@ -494,6 +496,34 @@ TEST_CASE("nexenne::chrono::deadline can be reassigned to a new target") {
   CHECK(dl.reached());
 }
 
+TEST_CASE("nexenne::chrono::deadline after() saturates a near-max offset (m6)") {
+  using clk = ch::basic_manual_clock<struct dl_overflow_tag>;
+  clk::reset();
+  clk::advance(1s);  // a positive now, so now + max would overflow the time point
+  // A "never expires" offset must not wrap into the past: it saturates high and
+  // reads as not reached with a huge positive remaining.
+  auto const dl{ch::deadline<clk>::after(clk::duration::max())};
+  CHECK_FALSE(dl.reached());
+  CHECK(dl.when() == clk::time_point::max());
+  CHECK(dl.remaining() > clk::duration::zero());
+  // A near-min negative offset saturates low and is already reached.
+  auto const past{ch::deadline<clk>::after(clk::duration::min())};
+  CHECK(past.reached());
+  CHECK(past.remaining() == clk::duration::zero());
+}
+
+TEST_CASE("nexenne::chrono::deadline std::formatter renders remaining time (m5)") {
+  using clk = ch::basic_manual_clock<struct dl_format_tag>;
+  clk::reset();
+  auto const dl{ch::deadline<clk>::after(65s)};
+  CHECK(std::format("{}", dl) == "01m:05s");
+  // '!' disables suppress-zero, showing every component.
+  CHECK(std::format("{:!}", dl) == "00d:00h:01m:05s.000");
+  // An overdue deadline clamps remaining to zero.
+  clk::advance(2min);
+  CHECK(std::format("{}", dl) == "00s");
+}
+
 TEST_CASE("nexenne::chrono::deadline orders by absolute target time") {
   using clk = ch::basic_manual_clock<struct dl_order_tag>;
   clk::reset();
@@ -672,6 +702,34 @@ TEST_CASE("nexenne::chrono::alarm re-arm from one-shot to periodic switches mode
   CHECK(a.is_armed());
   a.arm_at(clk::now() + std::chrono::duration_cast<clk::duration>(50ms));  // back to one-shot
   CHECK(a.mode() == ch::alarm_mode::one_shot);
+}
+
+TEST_CASE("nexenne::chrono::alarm one-shot callback can re-arm itself (M2)") {
+  using clk = ch::basic_manual_clock<struct al_selfrearm_tag>;
+  clk::reset();
+  int fires{0};
+  ch::alarm<clk> a;
+  a.set_callback([&a, &fires] {
+    ++fires;
+    if (fires < 3) {
+      // Self-rescheduling one-shot: arm the next occurrence from inside the
+      // callback. The disarm-before-callback order must let this survive.
+      a.arm_at(clk::now() + std::chrono::duration_cast<clk::duration>(50ms));
+    }
+  });
+  a.arm_after(clk::now(), 50ms);
+  clk::advance(50ms);
+  a.poll(clk::now());
+  CHECK(fires == 1);
+  CHECK(a.is_armed());  // re-arm from inside the callback was not clobbered
+  clk::advance(50ms);
+  a.poll(clk::now());
+  CHECK(fires == 2);
+  CHECK(a.is_armed());
+  clk::advance(50ms);
+  a.poll(clk::now());
+  CHECK(fires == 3);
+  CHECK_FALSE(a.is_armed());  // the final fire did not re-arm, so it stays disarmed
 }
 
 TEST_CASE("nexenne::chrono::alarm callback can be replaced while armed") {
@@ -875,6 +933,25 @@ TEST_CASE("nexenne::chrono::rate_limiter supports fractional refill rates") {
   clk::advance(1s);  // another half
   CHECK(rl.tokens() == doctest::Approx(1.0));
   CHECK(rl.try_acquire());
+}
+
+TEST_CASE("nexenne::chrono::rate_limiter until_next_token is unreachable above capacity (M3)") {
+  using clk = ch::basic_manual_clock<struct rl_unreachable_tag>;
+  clk::reset();
+  ch::rate_limiter<clk> rl{5.0, 10.0};  // capacity 5, refill 10/s
+  // refill() caps m_tokens at capacity 5, so 8 tokens can never be available:
+  // the wait must be the unreachable sentinel, not a finite (but futile) wait.
+  CHECK(rl.until_next_token(8.0) == clk::duration::max());
+  clk::advance(10s);  // still unreachable no matter how long we wait
+  CHECK(rl.until_next_token(8.0) == clk::duration::max());
+  CHECK_FALSE(rl.try_acquire(8.0));
+
+  // A request within capacity still returns a finite, reachable wait.
+  ch::rate_limiter<clk> rl2{5.0, 10.0};
+  CHECK(rl2.try_acquire(5.0));  // drain to empty
+  auto const wait{rl2.until_next_token(5.0)};
+  CHECK(wait > clk::duration::zero());
+  CHECK(wait != clk::duration::max());
 }
 
 }  // namespace
