@@ -67,4 +67,9 @@
 #include <nexenne/filter/timed_debounce.hpp>
 #include <nexenne/filter/validator.hpp>
 
+// Formatting support depends on every filter type above, so it is included
+// last. It pulls in <format>, which is heavy, but the umbrella already opts
+// into the whole module; include a single leaf header directly to avoid it.
+#include <nexenne/filter/format.hpp>
+
 namespace nexenne::filter {}
