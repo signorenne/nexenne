@@ -5,4 +5,5 @@ nexenne_add_module_tests(filter
         test_shaping.cpp
         test_guards.cpp
         test_concepts.cpp
+        test_format.cpp
 )
