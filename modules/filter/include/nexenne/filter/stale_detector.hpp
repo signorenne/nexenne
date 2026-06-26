@@ -33,6 +33,10 @@ namespace nexenne::filter {
  *
  * @note Reach for this as a liveness watchdog on a sensor that should
  * keep changing, to flag a frozen or disconnected source.
+ * @note For a floating-point \c T, a source frozen at NaN (a common
+ * dead-sensor or dead-bus signature) counts as identical to a previous
+ * NaN even though NaN never equals itself under IEEE 754, so such a
+ * source is correctly reported stale.
  */
 template <std::equality_comparable T = double, std::size_t N = 10>
   requires(N > 0)
@@ -47,6 +51,33 @@ private:
   std::size_t m_streak{0};
   bool m_stale{false};
   bool m_primed{false};
+
+  /**
+   * @brief Reports whether two samples count as the same reading.
+   *
+   * For a floating-point \c T two NaNs are treated as identical so a
+   * source frozen at NaN registers as stuck; otherwise plain equality
+   * applies.
+   *
+   * @param a First sample.
+   * @param b Second sample.
+   *
+   * @return \c true when \p a and \p b are equal, or both NaN for a
+   * floating-point \c T.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] static constexpr auto same_value(value_type const a, value_type const b) noexcept
+    -> bool {
+    if constexpr (std::floating_point<value_type>) {
+      // A self-comparison is false only for NaN, so (a != a && b != b)
+      // detects the both-NaN case that plain == would miss.
+      return a == b || (a != a && b != b);
+    } else {
+      return a == b;
+    }
+  }
 
 public:
   /**
@@ -81,7 +112,7 @@ public:
       m_last = sample;
       m_streak = 1;
       m_primed = true;
-    } else if (sample == m_last) {
+    } else if (same_value(sample, m_last)) {
       if (m_streak < N) {
         ++m_streak;
       }

@@ -5,6 +5,7 @@
  * @brief Hysteresis (Schmitt trigger) filter.
  */
 
+#include <cassert>
 #include <concepts>
 
 namespace nexenne::filter {
@@ -15,8 +16,8 @@ namespace nexenne::filter {
  * Converts a noisy analogue signal into a clean boolean by
  * using two thresholds instead of one:
  *
- * - Output goes \c true when input rises above \c high.
- * - Output goes \c false when input falls below \c low.
+ * - Output goes \c true when input is at or above \c high.
+ * - Output goes \c false when input is at or below \c low.
  * - Between \c low and \c high, the output holds its previous
  * value (the "dead band").
  *
@@ -73,7 +74,9 @@ public:
    * returns \p high, and \c value() returns \c false.
    */
   constexpr hysteresis(input_type const low, input_type const high) noexcept
-      : m_low{low}, m_high{high} {}
+      : m_low{low}, m_high{high} {
+    assert(low <= high && "hysteresis requires low <= high");
+  }
 
   /**
    * @brief Feeds one sample and returns the trigger output.
