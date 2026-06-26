@@ -231,10 +231,11 @@ it with one of:
 
 These assign every section the same cutoff but a different per-section =q=, the
 exact set =Q_k = 1 / (2 * sin((2k+1) * pi / (4N)))= that places the poles evenly
-on the Butterworth circle. A =kind= enum (=low_pass=, =high_pass=) names the two
-response shapes. For band-pass or band-stop, cascade a low-pass and a high-pass
-at the two corners. Note that the design functions do *not* clear the section
-state, so call =reset()= after a re-design to flush any transient.
+on the Butterworth circle. The two design functions carry the response shape
+directly, so no separate selector is needed. For band-pass or band-stop, cascade
+a low-pass and a high-pass at the two corners. Note that the design functions do
+*not* clear the section state, so call =reset()= after a re-design to flush any
+transient.
 
 #+BEGIN_EXAMPLE
 magnitude                order 2 (1 section):  -.
