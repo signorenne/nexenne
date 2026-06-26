@@ -54,10 +54,13 @@ the guard is still unprimed and the very first sample is out of range, it is
 defined in-range state instead of holding a value-initialised =T=. Once primed,
 every later out-of-range sample is *rejected and held*, never clamped. So the
 first bad sample is pulled to a bound, but the second bad sample reuses the last
-good reading. =last_accepted()= reports whether the guard has primed yet.
-=range(lo, hi)= swaps the bounds at run time and leaves the held value untouched
-even if it now falls outside. =reset()= clears the output to =T{}= and returns to
-the unprimed state, so the next out-of-range =push= is clamped again.
+good reading. =primed()= reports whether the guard has primed yet (it latches
+true on the first push and stays true until =reset()=), while =accepted()= reports
+per push whether the *most recent* sample passed the range check, so fault
+handling can tell an ongoing rejection run from a one-off. =range(lo, hi)= swaps
+the bounds at run time and leaves the held value untouched even if it now falls
+outside. =reset()= clears the output to =T{}= and returns to the unprimed state,
+so the next out-of-range =push= is clamped again.
 
 #+BEGIN_EXAMPLE
 range_guard{0, 100}, samples arriving left to right:
@@ -85,6 +88,17 @@ period. =max_delta(v)= changes the limit at run time. There are two resets:
 =reset()= returns to zero and unprimed so the next =push= seeds again, while
 =reset(initial)= jumps straight to a known primed value so the next =push= is
 rate-limited against =initial=. Both preserve the limit.
+
+A genuine step larger than =max_delta= (a setpoint change, a sensor rescale, or a
+corrupted first sample that primed the guard with garbage) would otherwise lock
+the output forever, since every later reading now differs by more than the limit.
+The optional escape hatch breaks that deadlock: pass a rejection count as the
+second constructor argument, =rate_guard{max_delta, escape_after}= (or set it
+later with =escape_after(n)=), and after that many consecutive rejections the next
+sample is accepted and the guard re-centres on it. An =escape_after= of zero (the
+default) keeps the strict behaviour, so =reset()= is then the only recovery. For
+observability, =accepted()= reports whether the last =push= was accepted and
+=rejected_streak()= reports the current run of consecutive rejections.
 
 #+BEGIN_EXAMPLE
 rate_guard{5.0}: a spike train where the guard holds the last good value.
@@ -157,6 +171,12 @@ corrective guard and consult =is_stale()= to decide whether to ignore the read,
 raise an alarm, or power-cycle the sensor. =reset()= unprimes the detector,
 clears =is_stale()= to =false=, and returns =streak()= to zero. Per-sample cost
 is =O(1)=.
+
+For a floating-point =T=, a source frozen at NaN is a common dead-sensor and
+dead-bus signature. Under IEEE 754 a NaN never equals itself, so a naive equality
+test would restart the run on every NaN and never flag the very fault the detector
+exists to catch. The detector therefore treats NaN-after-NaN as identical, so a
+sensor stuck at NaN is correctly reported stale.
 
 * When to use it
 
