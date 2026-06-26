@@ -6,6 +6,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <concepts>
 
 namespace nexenne::filter {
@@ -43,6 +44,7 @@ private:
   value_type m_hi{};
   value_type m_value{};
   bool m_primed{false};
+  bool m_accepted{false};
 
 public:
   /**
@@ -55,7 +57,9 @@ public:
    * @post \c lo() returns \p lo, \c hi() returns \p hi, and the guard
    * is unprimed.
    */
-  constexpr range_guard(value_type const lo, value_type const hi) noexcept : m_lo{lo}, m_hi{hi} {}
+  constexpr range_guard(value_type const lo, value_type const hi) noexcept : m_lo{lo}, m_hi{hi} {
+    assert(lo <= hi && "range_guard requires lo <= hi");
+  }
 
   /**
    * @brief Feeds one sample, rejecting values outside the range.
@@ -70,12 +74,14 @@ public:
    * @return The current accepted (in-range) value.
    *
    * @pre None.
-   * @post \c value() returns the value returned here.
+   * @post \c value() returns the value returned here and \c accepted()
+   * reports whether \p sample was in range.
    *
    * @complexity \c O(1).
    */
   [[nodiscard]] constexpr auto push(value_type const sample) noexcept -> value_type {
-    if (sample >= m_lo && sample <= m_hi) {
+    m_accepted = sample >= m_lo && sample <= m_hi;
+    if (m_accepted) {
       m_value = sample;
       m_primed = true;
     } else if (!m_primed) {
@@ -102,17 +108,22 @@ public:
    * @brief Clears the guard back to the unprimed condition.
    *
    * @pre None.
-   * @post \c value() returns a value-initialised \c T,
-   * \c last_accepted() returns \c false, and the next
-   * out-of-range \c push is clamped rather than rejected.
+   * @post \c value() returns a value-initialised \c T, \c primed() and
+   * \c accepted() return \c false, and the next out-of-range \c push is
+   * clamped rather than rejected.
    */
   constexpr auto reset() noexcept -> void {
     m_value = T{};
     m_primed = false;
+    m_accepted = false;
   }
 
   /**
-   * @brief Reports whether the guard has ever accepted a value.
+   * @brief Reports whether the guard has ever accepted or clamped a value.
+   *
+   * This latches \c true on the first \c push (accepted or first-sample
+   * clamped) and stays \c true until \c reset(). For whether the most
+   * recent sample passed the range check, use \c accepted() instead.
    *
    * @return \c true once at least one sample has been accepted or the
    * first sample has been clamped, \c false while still
@@ -121,8 +132,26 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto last_accepted() const noexcept -> bool {
+  [[nodiscard]] constexpr auto primed() const noexcept -> bool {
     return m_primed;
+  }
+
+  /**
+   * @brief Reports whether the most recent \c push was in range.
+   *
+   * Unlike \c primed(), this reflects a single push: it is \c true only
+   * when the last sample fell inside \c [lo, hi], and \c false when it
+   * was rejected or first-sample clamped. It is \c false before any
+   * \c push.
+   *
+   * @return \c true when the last sample was accepted (in range),
+   * \c false otherwise.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto accepted() const noexcept -> bool {
+    return m_accepted;
   }
 
   /**
@@ -136,6 +165,7 @@ public:
    * value is unchanged even if it now falls outside the range.
    */
   constexpr auto range(value_type const lo, value_type const hi) noexcept -> void {
+    assert(lo <= hi && "range_guard requires lo <= hi");
     m_lo = lo;
     m_hi = hi;
   }

@@ -98,13 +98,16 @@ public:
    *
    * @return The current accepted (held) value.
    *
-   * @pre Invoking the predicate on \p sample does not throw (the
-   * method is \c noexcept).
+   * @pre None.
    * @post \c value() returns the value returned here.
+   * @throws Propagates any exception thrown by invoking the predicate
+   * on \p sample. \c push is \c noexcept exactly when the predicate is
+   * nothrow-invocable on \c value_type const&.
    *
    * @complexity \c O(1) plus the cost of one predicate call.
    */
-  [[nodiscard]] constexpr auto push(value_type const sample) noexcept -> value_type {
+  [[nodiscard]] constexpr auto push(value_type const sample
+  ) noexcept(std::is_nothrow_invocable_v<predicate_type&, value_type const&>) -> value_type {
     if (m_pred(sample) || !m_primed) {
       m_value = sample;
       m_primed = true;
