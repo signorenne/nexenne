@@ -31,11 +31,11 @@ static_assert(flt::filter_like<flt::stale_detector<double, 10>>);
 
 TEST_CASE("nexenne::filter::range_guard accepts in-range and holds last valid") {
   auto f{flt::range_guard{0.0, 100.0}};
-  CHECK(f.last_accepted() == false);
+  CHECK(f.primed() == false);
   CHECK(f.value() == doctest::Approx(0.0));
 
   CHECK(f.push(50.0) == doctest::Approx(50.0));
-  CHECK(f.last_accepted() == true);
+  CHECK(f.primed() == true);
   CHECK(f.push(200.0) == doctest::Approx(50.0));  // above hi -> rejected, holds
   CHECK(f.push(75.0) == doctest::Approx(75.0));   // back in range -> accepted
   CHECK(f.push(-10.0) == doctest::Approx(75.0));  // below lo -> rejected, holds
@@ -54,11 +54,11 @@ TEST_CASE("nexenne::filter::range_guard exact boundaries lo and hi are inclusive
 TEST_CASE("nexenne::filter::range_guard clamps an out-of-range first sample to nearest bound") {
   auto above{flt::range_guard{10.0, 90.0}};
   CHECK(above.push(200.0) == doctest::Approx(90.0));  // clamped up to hi
-  CHECK(above.last_accepted() == true);
+  CHECK(above.primed() == true);
 
   auto below{flt::range_guard{10.0, 90.0}};
   CHECK(below.push(-5.0) == doctest::Approx(10.0));  // clamped down to lo
-  CHECK(below.last_accepted() == true);
+  CHECK(below.primed() == true);
   // Once primed by the clamp, a later out-of-range sample is rejected, not clamped.
   CHECK(below.push(1000.0) == doctest::Approx(10.0));
 }
@@ -67,11 +67,11 @@ TEST_CASE("nexenne::filter::range_guard reset re-arms the first-sample clamp") {
   auto f{flt::range_guard{0.0, 10.0}};
   CHECK(f.push(5.0) == doctest::Approx(5.0));
   f.reset();
-  CHECK(f.last_accepted() == false);
+  CHECK(f.primed() == false);
   CHECK(f.value() == doctest::Approx(0.0));
   // After reset the first out-of-range sample clamps again rather than rejecting.
   CHECK(f.push(20.0) == doctest::Approx(10.0));
-  CHECK(f.last_accepted() == true);
+  CHECK(f.primed() == true);
 }
 
 TEST_CASE("nexenne::filter::range_guard degenerate range lo == hi admits only that value") {
@@ -81,7 +81,7 @@ TEST_CASE("nexenne::filter::range_guard degenerate range lo == hi admits only th
   CHECK(f.push(6.0) == doctest::Approx(5.0));  // rejected, holds
 }
 
-// Note: an inverted range (lo > hi) violates the documented `@pre lo <= hi`
+// Note: an inverted range (lo > hi) violates the documented @pre lo <= hi
 // and feeds std::clamp a precondition violation, so it is intentionally NOT
 // tested (it is undefined by contract). The lo == hi degenerate case is valid
 // and is covered above.
@@ -113,7 +113,7 @@ TEST_CASE("nexenne::filter::range_guard NaN never passes and never clamps to a n
   // stays NaN.
   auto first{flt::range_guard{0.0, 10.0}};
   CHECK(std::isnan(first.push(nan)));
-  CHECK(first.last_accepted() == true);
+  CHECK(first.primed() == true);
 
   // NaN after a good value is rejected and holds the last good value.
   auto later{flt::range_guard{0.0, 10.0}};
@@ -477,6 +477,69 @@ TEST_CASE("nexenne::filter::stale_detector alternating values never go stale") {
     CHECK(f.is_stale() == false);
     CHECK(f.streak() == 1);
   }
+}
+
+// Major M3: primed() latches on the first push, but accepted() tracks whether
+// the most recent sample actually passed the range check.
+TEST_CASE("nexenne::filter::range_guard accepted() reflects the last push, primed() latches (M3)") {
+  auto f{flt::range_guard{0.0, 10.0}};
+  CHECK(f.primed() == false);
+  CHECK(f.accepted() == false);
+
+  nexenne::utility::discard(f.push(5.0));  // in range
+  CHECK(f.primed() == true);
+  CHECK(f.accepted() == true);
+
+  nexenne::utility::discard(f.push(50.0));  // rejected, but primed stays true
+  CHECK(f.primed() == true);
+  CHECK(f.accepted() == false);
+
+  nexenne::utility::discard(f.push(6.0));  // accepted again
+  CHECK(f.accepted() == true);
+}
+
+// Major M4: with the escape hatch a genuine step no longer locks the output
+// forever; without it (default) the guard still holds, as observability shows.
+TEST_CASE("nexenne::filter::rate_guard escape hatch recovers from a genuine step (M4)") {
+  auto locked{flt::rate_guard{1.0}};  // escape disabled by default
+  nexenne::utility::discard(locked.push(0.0));
+  for (auto i{0}; i < 100; ++i) {
+    nexenne::utility::discard(locked.push(50.0));  // real step, always rejected
+  }
+  CHECK(locked.value() == doctest::Approx(0.0));  // locked out
+  CHECK(locked.accepted() == false);
+  CHECK(locked.rejected_streak() == 100);
+
+  auto escaping{flt::rate_guard{1.0, 3}};  // accept after 3 consecutive rejects
+  nexenne::utility::discard(escaping.push(0.0));
+  CHECK(escaping.push(50.0) == doctest::Approx(0.0));  // reject 1
+  CHECK(escaping.push(50.0) == doctest::Approx(0.0));  // reject 2
+  CHECK(escaping.push(50.0) == doctest::Approx(50.0));  // reject 3 -> force accept
+  CHECK(escaping.accepted() == true);
+  CHECK(escaping.rejected_streak() == 0);
+  CHECK(escaping.push(51.0) == doctest::Approx(51.0));  // now re-centred on 50
+}
+
+// Major M5: a sensor frozen at NaN is a frozen source and must be reported stale.
+TEST_CASE("nexenne::filter::stale_detector flags a source frozen at NaN (M5)") {
+  auto const nan{std::numeric_limits<double>::quiet_NaN()};
+  auto f{flt::stale_detector<double, 3>{}};
+  for (auto i{0}; i < 10; ++i) {
+    nexenne::utility::discard(f.push(nan));
+  }
+  CHECK(f.is_stale() == true);
+  CHECK(f.streak() == 3);  // saturated at N
+}
+
+// Major M6: push is noexcept exactly when the predicate is nothrow-invocable.
+TEST_CASE("nexenne::filter::validator push is conditionally noexcept (M6)") {
+  auto const nothrow_pred{[](int const& x) noexcept { return x > 0; }};
+  auto const throwing_pred{[](int const& x) { return x > 0; }};
+  auto nothrow_val{flt::validator<int, decltype(nothrow_pred)>{nothrow_pred}};
+  auto throwing_val{flt::validator<int, decltype(throwing_pred)>{throwing_pred}};
+  static_assert(noexcept(nothrow_val.push(1)));
+  static_assert(!noexcept(throwing_val.push(1)));
+  CHECK(nothrow_val.push(1) == 1);
 }
 
 }  // namespace
