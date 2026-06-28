@@ -5,6 +5,7 @@
  * @brief General second-order IIR (biquad) filter.
  */
 
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <numbers>
@@ -25,9 +26,12 @@ namespace nexenne::filter {
  *
  * (a0 is normalised to 1.)
  *
- * Static named constructors (\c lowpass, \c highpass, \c bandpass,
- * \c notch) compute the standard Audio EQ Cookbook coefficients
- * from cutoff frequency, sample rate, and Q factor.
+ * Static named constructors (\c make_lowpass, \c make_highpass,
+ * \c make_bandpass, \c make_notch) compute the standard Audio EQ
+ * Cookbook coefficients from cutoff frequency, sample rate, and Q
+ * factor. The coefficient formulas follow Robert Bristow-Johnson,
+ * Cookbook formulae for audio equalizer biquad filter coefficients,
+ * https://www.w3.org/TR/audio-eq-cookbook/.
  *
  * Two delay elements (Direct Form I), zero allocation.
  *
@@ -65,9 +69,8 @@ private:
   coefficients m_c{};
   value_type m_x1{value_type{0}};  ///< x[n-1]
   value_type m_x2{value_type{0}};  ///< x[n-2]
-  value_type m_y1{value_type{0}};  ///< y[n-1]
+  value_type m_y1{value_type{0}};  ///< y[n-1], also the current output
   value_type m_y2{value_type{0}};  ///< y[n-2]
-  value_type m_value{value_type{0}};
 
 public:
   /**
@@ -116,7 +119,6 @@ public:
     m_x1 = x;
     m_y2 = m_y1;
     m_y1 = y;
-    m_value = y;
     return y;
   }
 
@@ -130,7 +132,7 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto value() const noexcept -> T {
-    return m_value;
+    return m_y1;
   }
 
   /**
@@ -141,7 +143,7 @@ public:
    * \c value() returns zero; the coefficients are unchanged.
    */
   constexpr auto reset() noexcept -> void {
-    m_x1 = m_x2 = m_y1 = m_y2 = m_value = T{0};
+    m_x1 = m_x2 = m_y1 = m_y2 = T{0};
   }
 
   /**
@@ -190,6 +192,10 @@ public:
   [[nodiscard]] static auto
   make_lowpass(T const cutoff_hz, T const sample_rate_hz, T const q = T{1} / std::numbers::sqrt2_v<T>) noexcept
     -> biquad {
+    assert(
+      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2} && q > T{0} &&
+      "biquad::make_lowpass requires a positive sample rate, a sub-Nyquist cutoff, and a positive q"
+    );
     auto const w0{T{2} * std::numbers::pi_v<T> * cutoff_hz / sample_rate_hz};
     auto const sin_w{std::sin(w0)};
     auto const cos_w{std::cos(w0)};
@@ -225,6 +231,10 @@ public:
   [[nodiscard]] static auto
   make_highpass(T const cutoff_hz, T const sample_rate_hz, T const q = T{1} / std::numbers::sqrt2_v<T>) noexcept
     -> biquad {
+    assert(
+      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2} && q > T{0} &&
+      "biquad::make_highpass requires a positive sample rate, a sub-Nyquist cutoff, and a positive q"
+    );
     auto const w0{T{2} * std::numbers::pi_v<T> * cutoff_hz / sample_rate_hz};
     auto const sin_w{std::sin(w0)};
     auto const cos_w{std::cos(w0)};
@@ -260,6 +270,10 @@ public:
    */
   [[nodiscard]] static auto
   make_bandpass(T const center_hz, T const sample_rate_hz, T const q = T{1}) noexcept -> biquad {
+    assert(
+      sample_rate_hz > T{0} && center_hz > T{0} && center_hz < sample_rate_hz / T{2} && q > T{0} &&
+      "biquad::make_bandpass requires a positive sample rate, a sub-Nyquist centre, and a positive q"
+    );
     auto const w0{T{2} * std::numbers::pi_v<T> * center_hz / sample_rate_hz};
     auto const sin_w{std::sin(w0)};
     auto const cos_w{std::cos(w0)};
@@ -296,6 +310,10 @@ public:
    */
   [[nodiscard]] static auto
   make_notch(T const center_hz, T const sample_rate_hz, T const q = T{1}) noexcept -> biquad {
+    assert(
+      sample_rate_hz > T{0} && center_hz > T{0} && center_hz < sample_rate_hz / T{2} && q > T{0} &&
+      "biquad::make_notch requires a positive sample rate, a sub-Nyquist centre, and a positive q"
+    );
     auto const w0{T{2} * std::numbers::pi_v<T> * center_hz / sample_rate_hz};
     auto const sin_w{std::sin(w0)};
     auto const cos_w{std::cos(w0)};

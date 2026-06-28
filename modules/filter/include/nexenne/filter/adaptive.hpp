@@ -6,6 +6,7 @@
  */
 
 #include <array>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <span>
@@ -22,7 +23,8 @@ namespace nexenne::filter {
  * equalisation. O(N) per sample for both filtering AND coefficient
  * update.
  *
- * Update rule:
+ * Update rule (Widrow and Hoff, Adaptive switching circuits, 1960;
+ * see also Haykin, Adaptive Filter Theory):
  * y[n] = sum(w[i] * x[n - i])
  * e[n] = d[n] - y[n]
  * w[i] += mu * e[n] * x[n - i]
@@ -76,7 +78,9 @@ public:
    * \c 0.1).
    * @post \c step_size() returns \p step_size and all taps are zero.
    */
-  constexpr explicit lms(T const step_size) noexcept : m_step_size{step_size} {}
+  constexpr explicit lms(T const step_size) noexcept : m_step_size{step_size} {
+    assert(step_size > T{0} && "lms step size must be positive");
+  }
 
   /**
    * @brief Replaces the adaptation step size.
@@ -88,6 +92,7 @@ public:
    * @post \c step_size() returns \p mu; taps and history are unchanged.
    */
   constexpr auto step_size(value_type const mu) noexcept -> void {
+    assert(mu > value_type{0} && "lms step size must be positive");
     m_step_size = mu;
   }
 

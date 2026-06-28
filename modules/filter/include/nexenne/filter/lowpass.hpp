@@ -5,6 +5,7 @@
  * @brief First-order IIR low-pass filter.
  */
 
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <numbers>
@@ -66,7 +67,13 @@ public:
    * unprimed.
    */
   constexpr lowpass(value_type const cutoff_hz, value_type const sample_rate_hz) noexcept
-      : m_alpha{compute_alpha(cutoff_hz, sample_rate_hz)} {}
+      : m_alpha{compute_alpha(cutoff_hz, sample_rate_hz)} {
+    assert(
+      sample_rate_hz > value_type{0} && cutoff_hz > value_type{0} &&
+      cutoff_hz < sample_rate_hz / value_type{2} &&
+      "lowpass requires a positive sample rate and a sub-Nyquist cutoff"
+    );
+  }
 
   /**
    * @brief Feeds one sample and returns the low-pass output.

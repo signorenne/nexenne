@@ -5,6 +5,7 @@
  * @brief Complementary filter for two-sensor fusion.
  */
 
+#include <cassert>
 #include <concepts>
 
 namespace nexenne::filter {
@@ -46,14 +47,17 @@ public:
   /**
    * @brief Constructs a complementary filter with blend weight \p alpha.
    *
-   * @param alpha Weight of the fast sensor in \c (0, 1). Larger
+   * @param alpha Weight of the fast sensor in \c [0, 1]. Larger
    * values trust the fast sensor more; the slow sensor
-   * receives weight \c 1 - alpha.
+   * receives weight \c 1 - alpha. The extremes select one source
+   * exactly (\c 1 the fast, \c 0 the slow).
    *
-   * @pre \p alpha lies in \c (0, 1).
+   * @pre \p alpha lies in \c [0, 1].
    * @post \c alpha() returns \p alpha and \c value() returns zero.
    */
-  constexpr explicit complementary(T const alpha) noexcept : m_alpha{alpha} {}
+  constexpr explicit complementary(T const alpha) noexcept : m_alpha{alpha} {
+    assert(alpha >= T{0} && alpha <= T{1} && "complementary alpha must lie in [0, 1]");
+  }
 
   /**
    * @brief Fuses a fast and a slow sensor reading.
@@ -90,6 +94,12 @@ public:
    *
    * @pre None.
    * @post \c value() returns the value returned here.
+   *
+   * @note Unlike \c ema or \c lowpass, this overload does not seed
+   * from the first sample: the previous output starts at zero, so the
+   * first output is \c alpha * sample and the response ramps up from
+   * zero over the following samples. Call \c reset(initial) before the
+   * first \c push to start from a known value and avoid that transient.
    *
    * @complexity \c O(1).
    */
@@ -148,12 +158,13 @@ public:
   /**
    * @brief Replaces the blend weight for subsequent samples.
    *
-   * @param a New blend weight in \c (0, 1).
+   * @param a New blend weight in \c [0, 1].
    *
-   * @pre \p a lies in \c (0, 1).
+   * @pre \p a lies in \c [0, 1].
    * @post \c alpha() returns \p a; the stored output is unchanged.
    */
   constexpr auto alpha(value_type const a) noexcept -> void {
+    assert(a >= T{0} && a <= T{1} && "complementary alpha must lie in [0, 1]");
     m_alpha = a;
   }
 };

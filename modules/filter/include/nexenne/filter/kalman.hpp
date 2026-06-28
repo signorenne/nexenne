@@ -5,6 +5,7 @@
  * @brief Simplified one-dimensional Kalman filter.
  */
 
+#include <cassert>
 #include <concepts>
 
 namespace nexenne::filter {
@@ -35,6 +36,10 @@ namespace nexenne::filter {
  * Common uses: smoothing noisy sensor readings (temperature,
  * distance, voltage) while tracking gradual real changes
  * faster than an EMA with the same smoothness.
+ *
+ * The predict-update recurrence follows Greg Welch and Gary Bishop,
+ * An Introduction to the Kalman Filter, University of North Carolina
+ * TR 95-041, specialised to a scalar state with an identity model.
  *
  * @tparam T Floating-point sample type. Default \c double.
  *
@@ -71,9 +76,10 @@ public:
    * @param initial_estimate Starting state estimate.
    * @param initial_covariance Starting error covariance.
    *
-   * @pre \p process_noise and \p measurement_noise are non-negative
-   * and not both zero (a zero denominator in the gain occurs
-   * only when \c P + Q + R is zero).
+   * @pre \p process_noise and \p measurement_noise are non-negative.
+   * When \c P + Q + R is zero the gain would divide by zero, but the
+   * update guards that case (gain zero, estimate held), so all-zero
+   * noise is permitted rather than undefined.
    * @pre \p initial_covariance is non-negative.
    * @post \c value() returns \p initial_estimate and \c covariance()
    * returns \p initial_covariance until the first \c push.
@@ -87,7 +93,12 @@ public:
       : m_q{process_noise}
       , m_r{measurement_noise}
       , m_estimate{initial_estimate}
-      , m_covariance{initial_covariance} {}
+      , m_covariance{initial_covariance} {
+    assert(
+      process_noise >= T{0} && measurement_noise >= T{0} && initial_covariance >= T{0} &&
+      "kalman noise covariances and initial covariance must be non-negative"
+    );
+  }
 
   /**
    * @brief Feeds one measurement and returns the updated estimate.
@@ -102,8 +113,10 @@ public:
    * \p measurement.
    *
    * @pre None.
-   * @post \c value() returns the value returned here; \c covariance()
-   * reflects the post-update error covariance.
+   * @post \c value() returns the value returned here. On a normal
+   * update \c covariance() reflects the post-update error covariance;
+   * on the seeding first \c push the covariance is left unchanged at
+   * its constructor or \c reset() value.
    *
    * @complexity \c O(1).
    */
@@ -184,6 +197,7 @@ public:
    * measurement.
    */
   constexpr auto reset(T const estimate = T{0}, T const cov = T{1}) noexcept -> void {
+    assert(cov >= T{0} && "kalman reset covariance must be non-negative");
     m_estimate = estimate;
     m_covariance = cov;
     m_primed = false;
@@ -200,6 +214,7 @@ public:
    * stored estimate and covariance are unchanged.
    */
   constexpr auto noise(T const q, T const r) noexcept -> void {
+    assert(q >= T{0} && r >= T{0} && "kalman noise covariances must be non-negative");
     m_q = q;
     m_r = r;
   }

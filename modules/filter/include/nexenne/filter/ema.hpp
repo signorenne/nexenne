@@ -5,6 +5,7 @@
  * @brief Exponential Moving Average (EMA).
  */
 
+#include <cassert>
 #include <concepts>
 
 namespace nexenne::filter {
@@ -24,11 +25,15 @@ namespace nexenne::filter {
  *
  * Zero allocation, zero heap, one multiply + one add per sample.
  *
- * @tparam T Arithmetic sample type. Default \c double.
+ * @tparam T Floating-point sample type. Default \c double.
  *
  * @note Reach for this as the default lightweight smoother when you want
  * "less jitter, a little lag" and do not need an exact cutoff. An
  * \c alpha of about \c 2 / (window + 1) mimics an N-sample average.
+ * @note The IIR feedback path performs no denormal flush: as the output
+ * decays toward zero it passes through subnormal values, which are slow
+ * on targets without hardware flush-to-zero. The same applies to
+ * \c lowpass, \c highpass, \c biquad, and \c butterworth.
  */
 template <std::floating_point T = double>
 class ema {
@@ -47,17 +52,18 @@ public:
    * The filter starts unprimed: the first \c push seeds the running
    * value directly so the output has no startup lag.
    *
-   * @param alpha Smoothing factor in \c (0, 1]. A value of \c 1
-   * disables smoothing (output equals input); smaller
-   * values smooth more aggressively.
+   * @param alpha Smoothing factor in \c [0, 1]. A value of \c 1
+   * disables smoothing (output equals input), \c 0 freezes the
+   * output at the seed, and smaller values smooth more aggressively.
    *
-   * @pre \p alpha lies in \c (0, 1]. Values outside this range are
-   * stored verbatim and yield an unstable or non-smoothing
-   * filter.
+   * @pre \p alpha lies in \c [0, 1]. Outside this range the feedback
+   * blend is unstable or non-smoothing.
    * @post \c alpha() returns \p alpha and \c value() returns zero
    * until the first \c push.
    */
-  constexpr explicit ema(value_type const alpha) noexcept : m_alpha{alpha} {}
+  constexpr explicit ema(value_type const alpha) noexcept : m_alpha{alpha} {
+    assert(alpha >= value_type{0} && alpha <= value_type{1} && "ema alpha must lie in [0, 1]");
+  }
 
   /**
    * @brief Feeds one sample and returns the updated filtered output.
@@ -139,12 +145,13 @@ public:
   /**
    * @brief Replaces the smoothing factor for subsequent samples.
    *
-   * @param a New smoothing factor in \c (0, 1].
+   * @param a New smoothing factor in \c [0, 1].
    *
-   * @pre \p a lies in \c (0, 1].
+   * @pre \p a lies in \c [0, 1].
    * @post \c alpha() returns \p a; the stored output is unchanged.
    */
   constexpr auto alpha(value_type const a) noexcept -> void {
+    assert(a >= value_type{0} && a <= value_type{1} && "ema alpha must lie in [0, 1]");
     m_alpha = a;
   }
 };
