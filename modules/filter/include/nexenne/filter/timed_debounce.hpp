@@ -38,6 +38,10 @@ namespace nexenne::filter {
  * @tparam Duration Monotonic duration type for the period and
  * timestamps (defaults to \c std::chrono::nanoseconds).
  *
+ * @note Unlike the same-type smoothers, this filter does not model
+ * \c filter_like: it exposes \c update(timestamp, level) rather than
+ * \c push(sample), carries no \c value_type, and has no reset-to-value
+ * overload. Use \c stable_value() and \c has_stable() to read its state.
  * @note Reach for this when you want the same intent as \c debounce but
  * gated by an elapsed real duration, so it stays robust to a varying or
  * unknown sample rate.

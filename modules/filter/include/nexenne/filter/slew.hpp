@@ -6,7 +6,6 @@
  */
 
 #include <algorithm>
-#include <cmath>
 #include <concepts>
 
 namespace nexenne::filter {
@@ -26,7 +25,7 @@ namespace nexenne::filter {
  * - Ramping LED brightness to avoid flicker.
  * - Limiting joystick / control-surface response.
  *
- * @tparam T Arithmetic sample type. Default \c double.
+ * @tparam T Floating-point sample type. Default \c double.
  *
  * @note Reach for this to ramp a setpoint or to protect an actuator
  * or motor from a sudden jump by capping the change per sample.
@@ -73,9 +72,19 @@ public:
    * @post \c value() returns the value returned here, which differs
    * from the previous output by at most \c max_rate().
    *
+   * @note A NaN target is rejected and the previous output is held: a
+   * NaN would otherwise poison the output and make the next \c push
+   * call \c std::clamp with NaN bounds, which violates its \c lo <= hi
+   * requirement and is undefined behaviour.
+   *
    * @complexity \c O(1).
    */
   [[nodiscard]] constexpr auto push(T const target) noexcept -> T {
+    // A self-comparison is false only for NaN; hold the output on NaN so
+    // clamp never sees NaN bounds on the following push.
+    if (target != target) {
+      return m_value;
+    }
     if (!m_primed) {
       m_value = target;
       m_primed = true;
