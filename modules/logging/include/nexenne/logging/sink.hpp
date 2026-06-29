@@ -27,6 +27,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <nexenne/container/ring_buffer.hpp>
@@ -84,15 +85,20 @@ protected:
    * @post None.
    * @throws std::bad_alloc if the formatting allocation fails.
    *
+   * @note The date and time fields are rendered in UTC, not local time, and the
+   *       line carries no zone marker; a reader must treat them as UTC.
+   *
    * @complexity \c O(line length).
    */
   [[nodiscard]] static auto default_format(record const& r) -> std::string {
     // Floor to whole seconds for the date-time part, then append the
     // milliseconds by hand: formatting %T on the full-precision time point
-    // would already print a fraction, duplicating the sub-second digits.
+    // would already print a fraction, duplicating the sub-second digits. floor
+    // (not time_point_cast, which truncates toward zero) keeps the split correct
+    // for pre-epoch timestamps.
     auto const tp{r.timestamp};
-    auto const tp_sec{std::chrono::time_point_cast<std::chrono::seconds>(tp)};
-    auto const tp_ms{std::chrono::time_point_cast<std::chrono::milliseconds>(tp)};
+    auto const tp_sec{std::chrono::floor<std::chrono::seconds>(tp)};
+    auto const tp_ms{std::chrono::floor<std::chrono::milliseconds>(tp)};
     auto const ms_part{(tp_ms - tp_sec).count()};
     auto const* const file{r.location.file_name() != nullptr ? r.location.file_name() : "?"};
     return std::format(
@@ -237,8 +243,8 @@ private:
  *
  * Opens the file in append mode at construction (via \c std::fopen rather than
  * the C++ \c fstream stream classes, to stay light and embedded-portable) and
- * closes it on destruction. Move-only: ownership of the handle transfers and the
- * moved-from sink is left closed.
+ * closes it on destruction. Not copyable or movable: the sink is always owned
+ * through a \c shared_ptr, matching the base \c sink.
  *
  * @pre None.
  * @post None.
@@ -262,18 +268,10 @@ public:
   file_sink(file_sink const&) = delete;
   auto operator=(file_sink const&) -> file_sink& = delete;
 
-  file_sink(file_sink&& other) noexcept : m_file{other.m_file} {
-    other.m_file = nullptr;
-  }
-
-  auto operator=(file_sink&& other) noexcept -> file_sink& {
-    if (this != &other) {
-      close();
-      m_file = other.m_file;
-      other.m_file = nullptr;
-    }
-    return *this;
-  }
+  // Move operations are intentionally not declared: a sink is always owned
+  // through a shared_ptr, never moved by value, matching the base sink. Declaring
+  // moves here would default-construct the sink base subobject and silently reset
+  // the per-sink min_level filter to trace.
 
   ~file_sink() noexcept override {
     close();
@@ -373,8 +371,11 @@ public:
 
 protected:
   auto write_out(record const& r) noexcept -> void override {
+    // Format outside the lock so a concurrent snapshot/size only waits on the
+    // push, not on the allocation and formatting.
+    auto line{default_format(r)};
     auto const guard{std::lock_guard{m_mutex}};
-    m_buf.push_overwrite(default_format(r));
+    m_buf.push_overwrite(std::move(line));
   }
 
   auto flush_out() noexcept -> void override {}
