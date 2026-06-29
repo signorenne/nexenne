@@ -11,6 +11,7 @@
 #include <source_location>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include <nexenne/logging/level.hpp>
@@ -105,18 +106,29 @@ TEST_CASE("nexenne::logging::file_sink appends formatted lines and round-trips")
   std::filesystem::remove(path);
 }
 
-TEST_CASE("nexenne::logging::file_sink reports a failed open and moves cleanly") {
+TEST_CASE("nexenne::logging::file_sink reports a failed open") {
   // A path that cannot be opened for append (a directory) reports not-open.
   lg::file_sink bad{std::filesystem::temp_directory_path().string()};
   CHECK_FALSE(bad.is_open());
+}
 
-  auto const path{std::filesystem::temp_directory_path() / "nexenne_logging_file_sink_move.log"};
+// Regression for M1: file_sink used to define move operations that
+// default-constructed the sink base subobject and silently reset the per-sink
+// min_level filter back to trace, so a moved file_sink wrote records the user
+// had filtered out. The moves are now deleted (the sink is owned through a
+// shared_ptr, like the base), so the type is not movable and a level set on it
+// cannot be lost.
+TEST_CASE("nexenne::logging::file_sink is not movable and keeps its level filter") {
+  static_assert(!std::is_move_constructible_v<lg::file_sink>);
+  static_assert(!std::is_move_assignable_v<lg::file_sink>);
+  static_assert(!std::is_copy_constructible_v<lg::file_sink>);
+
+  auto const path{std::filesystem::temp_directory_path() / "nexenne_logging_file_sink_level.log"};
   std::filesystem::remove(path);
-  lg::file_sink a{path.string()};
-  REQUIRE(a.is_open());
-  lg::file_sink b{std::move(a)};
-  CHECK(b.is_open());
-  CHECK_FALSE(a.is_open());  // moved-from is closed
+  lg::file_sink f{path.string()};
+  REQUIRE(f.is_open());
+  f.set_min_level(lg::level::error);
+  CHECK(f.min_level() == lg::level::error);  // no move path can silently reset it
   std::filesystem::remove(path);
 }
 
