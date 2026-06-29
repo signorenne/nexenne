@@ -67,6 +67,10 @@ static_assert(!flt::filter_like<flt::hysteresis<double>>);
 // single-argument push, so it does not satisfy the requires-expression.
 static_assert(!flt::filter_like<flt::lms<double, 4>>);
 
+// timed_debounce exposes update(timestamp, level) instead of push(sample) and
+// carries no value_type, so it deliberately does not model filter_like.
+static_assert(!flt::filter_like<flt::timed_debounce<std::chrono::nanoseconds>>);
+
 // A type with the methods but no value_type member type.
 struct no_value_type {
   auto push(double s) -> double {
