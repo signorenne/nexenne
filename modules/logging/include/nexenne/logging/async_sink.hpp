@@ -32,6 +32,7 @@
  */
 
 #include <atomic>
+#include <cassert>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -61,11 +62,13 @@ enum class overflow_action : std::uint8_t {
 /**
  * @brief Configuration for \c async_sink.
  *
- * @pre None.
+ * @pre \c queue_size_limit is at least 1. A limit of 0 is degenerate: under
+ *      \c drop_oldest the first write would pop an empty queue, and under
+ *      \c block a producer would park on a predicate that can never hold.
  * @post None.
  */
 struct async_sink_config {
-  std::size_t queue_size_limit{1024};                   ///< Maximum number of queued records.
+  std::size_t queue_size_limit{1024};                   ///< Maximum number of queued records (>= 1).
   overflow_action on_overflow{overflow_action::block};  ///< Action when the queue is full.
 };
 
@@ -105,10 +108,18 @@ public:
    * @param cfg Queue and overflow configuration.
    *
    * @pre \p inner is a valid non-null sink.
+   * @pre \p cfg.queue_size_limit is at least 1.
    * @post The background thread is running and ready to drain records.
+   *
+   * @warning The inner sink's \c write_out must not log back through this same
+   *          \c async_sink: the worker thread that drains the queue would become
+   *          a producer into it and, under the \c block policy with a full queue,
+   *          deadlock waiting on space only it can free.
    */
   explicit async_sink(std::unique_ptr<sink> inner, config const cfg = config{})
       : m_inner{std::move(inner)}, m_cfg{cfg} {
+    assert(m_inner != nullptr && "async_sink requires a non-null inner sink");
+    assert(m_cfg.queue_size_limit >= 1 && "async_sink queue_size_limit must be at least 1");
     m_worker = std::thread{[this] { run(); }};
   }
 
