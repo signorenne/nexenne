@@ -7,9 +7,16 @@
  * Each macro compiles to nothing when its severity is below
  * \c NEXENNE_LOG_MIN_LEVEL. When the level is enabled at compile time the macro
  * expands into a runtime-checked logger call; a level disabled at runtime costs
- * a single relaxed atomic load. The source location is captured through the
- * \c format_string wrapper the logger overloads accept, so callers never thread
- * \c std::source_location explicitly.
+ * a single relaxed atomic load plus the evaluation of the message arguments. The
+ * source location is captured through the \c format_string wrapper the logger
+ * overloads accept, so callers never thread \c std::source_location explicitly.
+ *
+ * Cost note: only the formatting is skipped for a runtime-filtered call, not the
+ * argument evaluation. The macro passes the arguments to a normal function call,
+ * so \c LOG_DEBUG("{}", expensive()) still evaluates \c expensive() even when the
+ * runtime level drops the record. Guard a genuinely expensive argument behind
+ * \c logger.enabled(level) at the call site, or gate it out at compile time with
+ * \c NEXENNE_LOG_MIN_LEVEL.
  *
  * Two flavours: \c LOG_INFO(fmt, ...) targets the default logger, while
  * \c LOG_INFO_TO(lgr, fmt, ...) targets a supplied logger.

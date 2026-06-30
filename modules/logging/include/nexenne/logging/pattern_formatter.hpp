@@ -17,6 +17,7 @@
  *   - \c %f  short source file (basename only)
  *   - \c %#  source line number
  *   - \c %s  source function name
+ *   - \c %o  producing thread id
  *   - \c %%  literal percent sign
  *   - any other character: emitted verbatim (the percent is kept)
  *
@@ -25,10 +26,10 @@
  * formatter never allocates per character; \c std::format and string appends are
  * bound to the output buffer.
  *
- * The level names here are deliberately unpadded and the long critical spelling
- * is used, so they differ from \c to_string and \c to_char in \c level.hpp,
- * which pad to a fixed column for aligned default-formatted lines. Hence the
- * local helpers rather than reuse.
+ * The full level name (\c %l) comes from \c to_token in \c level.hpp, the same
+ * unpadded vocabulary \c json_sink emits, so a severity spells identically across
+ * both structured emitters. The single-char tag (\c %L) uses a local helper
+ * because it renders \c off as '-' rather than the space \c to_char yields.
  */
 
 #include <chrono>
@@ -38,6 +39,7 @@
 #include <iterator>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 
 #include <nexenne/logging/level.hpp>
@@ -89,39 +91,21 @@ private:
     return '?';
   }
 
-  [[nodiscard]] static auto level_name(level const l) noexcept -> std::string_view {
-    switch (l) {
-      case level::trace:
-        return "TRACE";
-      case level::debug:
-        return "DEBUG";
-      case level::info:
-        return "INFO";
-      case level::warn:
-        return "WARN";
-      case level::error:
-        return "ERROR";
-      case level::critical:
-        return "CRITICAL";
-      case level::off:
-        return "OFF";
-    }
-    return "UNKNOWN";
-  }
-
   static auto append_time(
     std::string& out, std::chrono::system_clock::time_point const t, bool const include_date
   ) -> void {
-    auto const tt{std::chrono::system_clock::to_time_t(t)};
+    // floor (not to_time_t / duration_cast, which truncate toward zero) so the
+    // seconds and the millisecond remainder agree and stay non-negative for
+    // pre-epoch timestamps.
+    auto const secs{std::chrono::floor<std::chrono::seconds>(t)};
+    auto const tt{std::chrono::system_clock::to_time_t(secs)};
     std::tm tm{};
 #ifdef _WIN32
     nexenne::utility::discard(gmtime_s(&tm, &tt));
 #else
     nexenne::utility::discard(gmtime_r(&tt, &tm));
 #endif
-    auto const ms{
-      std::chrono::duration_cast<std::chrono::milliseconds>(t.time_since_epoch()).count() % 1000
-    };
+    auto const ms{(std::chrono::floor<std::chrono::milliseconds>(t) - secs).count()};
     if (include_date) {
       std::format_to(
         std::back_inserter(out),
@@ -222,7 +206,7 @@ public:
           append_time(out, r.timestamp, false);
           break;
         case 'l':
-          out += level_name(r.severity);
+          out += to_token(r.severity);
           break;
         case 'L':
           out.push_back(level_short(r.severity));
@@ -246,6 +230,9 @@ public:
           out += fn != nullptr ? std::string_view{fn} : std::string_view{"?"};
           break;
         }
+        case 'o':
+          std::format_to(std::back_inserter(out), "{}", r.thread_id);
+          break;
         case '%':
           out.push_back('%');
           break;

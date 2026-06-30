@@ -56,6 +56,11 @@ public:
    * @post \c child_count() has grown by one when \p child is non-null.
    * @throws std::bad_alloc if the child vector cannot grow.
    *
+   * @warning Not synchronized against \c write or \c flush. Attach every child
+   *          before wiring the \c multi_sink into a logger or manager: an \c add
+   *          concurrent with a backend fan-out reallocates the child vector under
+   *          the iterating \c write_out and is a data race.
+   *
    * @complexity Amortised \c O(1).
    */
   auto add(std::unique_ptr<sink> child) -> void {

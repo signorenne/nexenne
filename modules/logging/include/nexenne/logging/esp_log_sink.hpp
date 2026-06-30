@@ -24,6 +24,11 @@
     "nexenne/logging/esp_log_sink.hpp requires ESP-IDF (esp_log.h); include it only on an ESP-IDF target, not on host builds."
 #endif
 
+#include <algorithm>
+#include <array>
+#include <cstring>
+#include <string_view>
+
 #include <esp_log.h>
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/record.hpp>
@@ -40,10 +45,16 @@ namespace nexenne::logging {
 class esp_log_sink final : public sink {
 protected:
   auto write_out(record const& r) noexcept -> void override {
-    // r.logger_name is an interned view (null-terminated storage); fall back to
-    // a fixed tag when empty so esp_log_write never sees a null pointer.
-    auto const* const tag{r.logger_name.empty() ? "log" : r.logger_name.data()};
-    esp_log_write(map_level(r.severity), tag, "%s\n", r.message.c_str());
+    // record only guarantees the name outlives the record, not that it is
+    // null-terminated, so copy it into a bounded, explicitly terminated buffer
+    // rather than handing esp_log_write a possibly-unterminated data() pointer
+    // (a non-interned view built with substr would otherwise read past its end).
+    auto tag{std::array<char, 32>{}};
+    auto const name{r.logger_name.empty() ? std::string_view{"log"} : r.logger_name};
+    auto const n{std::min(name.size(), tag.size() - 1)};
+    std::memcpy(tag.data(), name.data(), n);
+    tag[n] = '\0';
+    esp_log_write(map_level(r.severity), tag.data(), "%s\n", r.message.c_str());
   }
 
   auto flush_out() noexcept -> void override {}

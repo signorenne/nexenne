@@ -18,11 +18,16 @@
  *   "logger": "net",
  *   "file":   "foo.cpp",
  *   "line":   42,
+ *   "tid":    "140245123",
  *   "msg":    "connect failed: timeout"
  * }
  * \endcode
  *
- * The "ts" field is RFC 3339 UTC with millisecond precision. The destination is
+ * The "level" field is the canonical unpadded token from \c to_token: one of
+ * TRACE, DEBUG, INFO, WARN, ERROR, CRITICAL, OFF, the same vocabulary
+ * \c pattern_formatter emits. The "tid" field is the producing thread's id as a
+ * platform-defined string. The "ts" field is RFC 3339 UTC with millisecond
+ * precision. The destination is
  * either a path (opened in append mode) or an externally-owned FILE* (for
  * example \c stdout for container deployments that ship logs via the runtime).
  *
@@ -40,6 +45,7 @@
 #include <format>
 #include <string>
 #include <string_view>
+#include <thread>
 
 #include <nexenne/logging/sink.hpp>
 #include <nexenne/utility/discard.hpp>
@@ -130,13 +136,9 @@ protected:
     line += format_timestamp(r.timestamp);
 
     line += R"(","level":")";
-    // to_string pads the level name for alignment in the human-readable
-    // formatter; JSON wants the bare token, so trim the trailing padding.
-    auto lvl{to_string(r.severity)};
-    while (!lvl.empty() && lvl.back() == ' ') {
-      lvl.remove_suffix(1);
-    }
-    line += lvl;
+    // Emit the canonical unpadded token shared with pattern_formatter, so a
+    // severity spells the same across both structured emitters.
+    line += to_token(r.severity);
 
     line += R"(","logger":")";
     append_escaped(line, r.logger_name);
@@ -146,6 +148,10 @@ protected:
     append_escaped(line, file);
 
     line += std::format(R"(","line":{})", r.location.line());
+
+    // Thread id as a string: its textual form is platform-defined and may not be
+    // a bare integer, so quoting keeps the field valid JSON everywhere.
+    line += std::format(R"(,"tid":"{}")", r.thread_id);
 
     line += R"(,"msg":")";
     append_escaped(line, r.message);
@@ -233,8 +239,10 @@ private:
     // fraction by hand. Formatting a sub-second time point with %T would already
     // print fractional seconds, so the explicit ".mmm" must be built from a
     // second-precision point to avoid a duplicated fraction.
-    auto const tp_ms{std::chrono::time_point_cast<std::chrono::milliseconds>(tp)};
-    auto const tp_sec{std::chrono::time_point_cast<std::chrono::seconds>(tp_ms)};
+    // floor (not time_point_cast, which truncates toward zero) so the second and
+    // millisecond split stays correct and non-negative for pre-epoch timestamps.
+    auto const tp_ms{std::chrono::floor<std::chrono::milliseconds>(tp)};
+    auto const tp_sec{std::chrono::floor<std::chrono::seconds>(tp_ms)};
     auto const ms_part{(tp_ms - tp_sec).count()};
     return std::format("{:%FT%T}.{:03}Z", tp_sec, ms_part);
   }
