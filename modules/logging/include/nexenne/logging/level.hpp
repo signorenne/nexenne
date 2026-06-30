@@ -73,6 +73,43 @@ enum class level : std::uint8_t {
 }
 
 /**
+ * @brief Canonical unpadded upper-case token of a severity level.
+ *
+ * Unlike \c to_string, which pads to a fixed width for column-aligned lines,
+ * this returns the bare upper-case name with no trailing spaces. It is the one
+ * canonical vocabulary shared by \c json_sink and \c pattern_formatter, so a
+ * given severity spells the same across every structured emitter.
+ *
+ * @param l Level to name.
+ *
+ * @return The unpadded upper-case token, or "UNKNOWN" for an invalid value.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @complexity \c O(1).
+ */
+[[nodiscard]] constexpr auto to_token(level const l) noexcept -> std::string_view {
+  switch (l) {
+    case level::trace:
+      return "TRACE";
+    case level::debug:
+      return "DEBUG";
+    case level::info:
+      return "INFO";
+    case level::warn:
+      return "WARN";
+    case level::error:
+      return "ERROR";
+    case level::critical:
+      return "CRITICAL";
+    case level::off:
+      return "OFF";
+  }
+  return "UNKNOWN";
+}
+
+/**
  * @brief Single-character tag of a severity level, for compact log lines.
  *
  * @param l Level to name.
