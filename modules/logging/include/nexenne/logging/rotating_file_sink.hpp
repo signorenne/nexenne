@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <format>
+#include <mutex>
 #include <string>
 #include <string_view>
 
@@ -107,6 +108,7 @@ public:
    * @post None.
    */
   [[nodiscard]] auto is_open() const noexcept -> bool {
+    auto const guard{std::lock_guard{m_mutex}};
     return m_file != nullptr;
   }
 
@@ -119,6 +121,7 @@ public:
    * @post None.
    */
   [[nodiscard]] auto current_size() const noexcept -> std::size_t {
+    auto const guard{std::lock_guard{m_mutex}};
     return m_current_size;
   }
 
@@ -137,17 +140,25 @@ public:
   /**
    * @brief Forces an immediate rotation regardless of current size.
    *
-   * Useful at process startup or on a SIGHUP-style external signal.
+   * Useful at process startup or on a SIGHUP-style external signal. Takes the
+   * internal mutex, so it is safe to call from a thread other than the one
+   * driving writes: it will not race the backend's \c write_out or \c flush_out.
    *
    * @pre None.
    * @post A new active file has been opened and the previous file archived.
+   *
+   * @warning Do not call from an actual signal handler: it runs \c stdio and
+   *          allocation, which are not async-signal-safe. A SIGHUP handler should
+   *          set a flag the owning thread observes and then calls this.
    */
   auto force_rotate() noexcept -> void {
+    auto const guard{std::lock_guard{m_mutex}};
     rotate();
   }
 
 protected:
   auto write_out(record const& r) noexcept -> void override {
+    auto const guard{std::lock_guard{m_mutex}};
     if (m_file == nullptr) {
       return;
     }
@@ -166,6 +177,7 @@ protected:
   }
 
   auto flush_out() noexcept -> void override {
+    auto const guard{std::lock_guard{m_mutex}};
     if (m_file != nullptr) {
       nexenne::utility::discard(std::fflush(m_file));
     }
@@ -217,6 +229,9 @@ private:
     open_current();
   }
 
+  // Guards m_file and m_current_size against a force_rotate from another thread
+  // racing the backend's write_out/flush_out, per the sink cross-thread contract.
+  mutable std::mutex m_mutex;
   std::string m_base_path;
   std::size_t m_max_bytes;
   std::size_t m_max_files;
