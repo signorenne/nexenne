@@ -5,11 +5,13 @@
 
 #include <doctest/doctest.h>
 
+#include <atomic>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <source_location>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -167,6 +169,32 @@ TEST_CASE("nexenne::logging::rotating_file_sink with max_files == 0 truncates in
   auto const active{read_file(base)};
   CHECK(active.find("-- kept") != std::string::npos);
   CHECK(active.find("-- gone") == std::string::npos);  // previous content dropped
+  cleanup(base);
+}
+
+TEST_CASE("nexenne::logging::rotating_file_sink force_rotate is safe against concurrent writes") {
+  // Regression for M4: force_rotate closes the active FILE* and resets the size
+  // counter; without the internal mutex a concurrent backend write_out could use
+  // the closed handle and tear the counter, a data race the sanitizers flag. The
+  // mutex now serialises them, so driving both paths from two threads must finish
+  // without a crash, a hang, or a sanitizer report.
+  auto const base{fresh_base("nexenne_rfs_race.log")};
+  {
+    lg::rotating_file_sink s{base.string(), 512, 4};
+    REQUIRE(s.is_open());
+    std::atomic<bool> stop{false};
+    auto writer{std::thread{[&s, &stop] {
+      for (std::size_t i{0}; !stop.load(std::memory_order_acquire); ++i) {
+        s.write(make_record(lg::level::info, std::to_string(i)));
+      }
+    }}};
+    for (std::size_t r{0}; r < 50; ++r) {
+      s.force_rotate();
+    }
+    stop.store(true, std::memory_order_release);
+    writer.join();
+    CHECK(s.is_open());
+  }
   cleanup(base);
 }
 
