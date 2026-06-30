@@ -177,6 +177,44 @@ TEST_CASE("nexenne::logging::async_sink shuts down cleanly with pending records"
   CHECK(state.count.load() == total);
 }
 
+TEST_CASE("nexenne::logging::async_sink handles the queue_size_limit == 1 boundary") {
+  // Regression for M3: queue_size_limit 0 was undefined behaviour under
+  // drop_oldest (pop on an empty queue) and a permanent producer stall under
+  // block (waiting on a predicate that can never hold). The documented lower
+  // bound is 1; that minimal single-slot queue must deliver correctly and never
+  // pop an empty queue.
+  SUBCASE("block delivers every record through a single-slot queue") {
+    capture_state state;
+    lg::async_sink::config cfg{};
+    cfg.queue_size_limit = 1;
+    cfg.on_overflow = lg::overflow_action::block;
+    constexpr std::size_t total{50};
+    {
+      lg::async_sink async{std::make_unique<capture_sink>(state), cfg};
+      for (std::size_t i{0}; i < total; ++i) {
+        async.write(make_record(std::to_string(i)));
+      }
+    }
+    CHECK(state.count.load() == total);  // block with a 1-slot queue loses nothing
+  }
+
+  SUBCASE("drop_oldest never pops an empty single-slot queue") {
+    slow_state state;
+    lg::async_sink::config cfg{};
+    cfg.queue_size_limit = 1;
+    cfg.on_overflow = lg::overflow_action::drop_oldest;
+    {
+      lg::async_sink async{std::make_unique<slow_sink>(state), cfg};
+      for (std::size_t i{0}; i < 100; ++i) {
+        async.write(make_record(std::to_string(i)));
+      }
+      state.release.store(true, std::memory_order_release);
+    }
+    // Reaching here without a crash or hang proves the empty-pop UB is gone.
+    CHECK(state.seen.load() >= 1);
+  }
+}
+
 TEST_CASE("nexenne::logging::async_sink accepts records from many producer threads") {
   capture_state state;
   constexpr std::size_t producers{4};
