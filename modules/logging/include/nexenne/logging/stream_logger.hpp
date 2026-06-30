@@ -72,15 +72,20 @@ struct file_writer {
  *
  * @tparam Writer Callable invoked with the formatted bytes (\c std::span of
  *         \c char); defaults to \c file_writer. Resolved at compile time, so the
- *         write inlines with no indirection.
+ *         write inlines with no indirection. It must be nothrow-invocable, since
+ *         \c log is \c noexcept and a throw would terminate the process.
  * @tparam BufferSize Per-call stack buffer size in bytes (default 256); messages
  *         longer than this are truncated.
  *
- * @pre \p BufferSize >= 32 and \p Writer is invocable with \c std::span<char const>.
+ * @pre \p BufferSize >= 32 and \p Writer is nothrow-invocable with
+ *      \c std::span<char const>.
  * @post None.
+ *
+ * @warning A user-supplied argument formatter must not throw either: it runs
+ *          inside the \c noexcept \c log frame, so a throw terminates.
  */
 template <typename Writer = file_writer, std::size_t BufferSize = 256>
-  requires(BufferSize >= 32) && std::invocable<Writer&, std::span<char const>>
+  requires(BufferSize >= 32) && std::is_nothrow_invocable_v<Writer&, std::span<char const>>
 class basic_stream_logger {
 public:
   using size_type = std::size_t;
@@ -273,10 +278,12 @@ public:
       out_it[-1] = '.';
     }
 
-    if (out_it < end_it) {
-      *out_it = '\n';
-      out_it += 1;
-    }
+    // Write the newline unconditionally. out_it is clamped to at most end_it and
+    // *end_it is the byte reserved for the terminator (the buffer holds
+    // BufferSize bytes, end_it is data + size - 1), so even a truncated line ends
+    // in '\n' and consecutive truncated lines do not merge into one.
+    *out_it = '\n';
+    out_it += 1;
     m_writer(std::span<char const>{buf.data(), static_cast<std::size_t>(out_it - buf.data())});
   }
 
