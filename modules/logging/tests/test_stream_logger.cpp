@@ -5,6 +5,7 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -65,6 +66,32 @@ TEST_CASE("nexenne::logging::stream_logger truncates an overlong message with an
   CHECK(s.size() <= 64);                      // never exceeds the stack buffer
   CHECK(s.find("...") != std::string::npos);  // truncation marker
   std::filesystem::remove(path);
+}
+
+TEST_CASE("nexenne::logging::stream_logger terminates a truncated line, so two do not merge") {
+  // Regression for M2: a truncated line used to drop its trailing newline (the
+  // reserved last byte was guarded by out_it < end_it, which is false exactly on
+  // truncation), so two truncated messages concatenated into a single line.
+  struct buffer_writer {
+    std::string* out;
+
+    auto operator()(std::span<char const> const bytes) const noexcept -> void {
+      out->append(bytes.data(), bytes.size());
+    }
+  };
+
+  std::string captured;
+  {
+    lg::basic_stream_logger<buffer_writer, 64> log{"x", lg::level::trace, buffer_writer{&captured}};
+    log.info("{}", std::string(200, 'A'));
+    log.info("{}", std::string(200, 'B'));
+  }
+
+  // Two truncated messages must yield two newline-terminated lines, not one.
+  CHECK(std::ranges::count(captured, '\n') == 2);
+  CHECK(captured.back() == '\n');
+  CHECK(captured.find("...") != std::string::npos);   // truncation still marked
+  CHECK(captured.find("A...\n") != std::string::npos);  // the first line closes
 }
 
 TEST_CASE("nexenne::logging::stream_logger respects the runtime level filter") {
