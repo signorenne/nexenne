@@ -6,9 +6,11 @@
 #include <doctest/doctest.h>
 
 #include <chrono>
+#include <format>
 #include <source_location>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 
 #include <nexenne/logging/level.hpp>
@@ -120,6 +122,16 @@ TEST_CASE("nexenne::logging::pattern_formatter %s renders the function name") {
   // The function name string is compiler-specific; just require it is non-empty
   // and matches what the location reports.
   CHECK(out == std::string_view{r.location.function_name()});
+  CHECK_FALSE(out.empty());
+}
+
+TEST_CASE("nexenne::logging::pattern_formatter %o renders the producing thread id") {
+  // Regression for m13: the record captured a thread id that no formatter could
+  // render; %o now emits it. make_record stamps the id on this thread.
+  auto const f{lg::pattern_formatter{std::string{"%o"}}};
+  auto const r{make_record(lg::level::info, "x", "m")};
+  auto const out{f.format(r)};
+  CHECK(out == std::format("{}", std::this_thread::get_id()));
   CHECK_FALSE(out.empty());
 }
 

@@ -71,6 +71,14 @@ TEST_CASE("nexenne::logging::json_sink trims the level-name padding") {
   );
 }
 
+TEST_CASE("nexenne::logging::json_sink emits the canonical CRITICAL token and a tid field") {
+  // Regression for m11 (json emitted "CRIT" while pattern_formatter emitted
+  // "CRITICAL") and m13 (thread id was captured but never rendered).
+  auto const line{emit_line(make_record(lg::level::critical, "boom"))};
+  CHECK(line.find("\"level\":\"CRITICAL\"") != std::string::npos);
+  CHECK(line.find("\"tid\":\"") != std::string::npos);
+}
+
 TEST_CASE("nexenne::logging::json_sink escapes JSON-significant characters in the message") {
   // Quote, backslash, newline, tab, and a control byte (0x01).
   auto const msg{std::string{"a\"b\\c\nd\te"} + std::string(1, '\x01') + "f"};
@@ -142,7 +150,7 @@ TEST_CASE("nexenne::logging::json_sink to an external FILE* does not close it") 
     CHECK(s.is_open());
     s.write(make_record(lg::level::info, "external"));
     s.flush();
-  }  // sink destructor runs here; it must not close `out`
+  }  // sink destructor runs here; it must not close out
   // The stream is still open and usable, proving no ownership was taken.
   CHECK(std::fflush(out) == 0);
   CHECK(std::fclose(out) == 0);
