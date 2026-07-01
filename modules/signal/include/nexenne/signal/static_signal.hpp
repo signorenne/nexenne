@@ -53,6 +53,28 @@
 
 namespace nexenne::signal {
 
+namespace detail {
+
+/**
+ * @brief A callable a signal slot with return type \p R can store and invoke.
+ *
+ * Mirrors \c in_place_function's converting-constructor contract, so a misuse
+ * (wrong return type, or a callable too large, over-aligned, or not
+ * nothrow-move-constructible for the inline slot storage) is rejected at the
+ * \c connect signature with a readable constraint failure instead of a deep
+ * instantiation error inside the slot storage.
+ *
+ * @tparam Fn Candidate callable type.
+ * @tparam SlotFn The slot's \c in_place_function storage type.
+ * @tparam R Slot return type.
+ * @tparam Args Slot argument types.
+ */
+template <typename Fn, typename SlotFn, typename R, typename... Args>
+concept slot_connectable =
+  std::is_invocable_r_v<R, std::decay_t<Fn>&, Args...> && std::constructible_from<SlotFn, Fn>;
+
+}  // namespace detail
+
 /**
  * @brief Token handle to a slot on a \c static_signal.
  *
@@ -65,7 +87,7 @@ namespace nexenne::signal {
 class static_connection {
 public:
   using id_type = std::uint64_t;  ///< Slot identifier type.
-  using disconnect_fn_type = auto (*)(void*, id_type) noexcept -> bool;
+  using disconnect_fn_type = auto (*)(void*, id_type) noexcept -> bool;  ///< Disconnect dispatcher.
 
 private:
   void* m_signal{nullptr};
@@ -186,7 +208,9 @@ public:
    */
   static_scoped_connection(static_connection c) noexcept : m_conn{c} {}
 
+  /// @brief Deleted copy constructor; ownership is unique (move-only).
   static_scoped_connection(static_scoped_connection const&) = delete;
+  /// @brief Deleted copy assignment; ownership is unique (move-only).
   auto operator=(static_scoped_connection const&) -> static_scoped_connection& = delete;
 
   /**
@@ -275,10 +299,23 @@ public:
   /// @brief Constructs an empty tracker.
   constexpr static_slot() noexcept = default;
 
+  /// @brief Deleted copy constructor; a tracker uniquely owns its connections (move-only).
   static_slot(static_slot const&) = delete;
+  /**
+   * @brief Deleted copy assignment; a tracker uniquely owns its connections (move-only).
+   *
+   * @return Deleted; the overload cannot be called.
+   */
   auto operator=(static_slot const&) -> static_slot& = delete;
+  /// @brief Move-constructs, transferring the tracked connections; the source is left empty.
   static_slot(static_slot&&) noexcept = default;
+  /**
+   * @brief Move-assigns, transferring the tracked connections; the source is left empty.
+   *
+   * @return Reference to this tracker.
+   */
   auto operator=(static_slot&&) noexcept -> static_slot& = default;
+  /// @brief Destroys the tracker, disconnecting every tracked connection.
   ~static_slot() noexcept = default;
 
   /**
@@ -389,6 +426,14 @@ class static_signal<R(Args...), MaxSlots, SlotCapacity> {
     (... && !std::is_rvalue_reference_v<Args>),
     "static_signal parameters cannot be rvalue references"
   );
+  // A by-value parameter is fanned out to every slot by const reference, so each
+  // slot's own by-value copy needs a copy constructor. Reject a move-only
+  // by-value parameter here rather than deep inside the forwarder; declare an
+  // expensive-to-copy parameter as a const reference instead.
+  static_assert(
+    (... && (std::is_reference_v<Args> || std::is_copy_constructible_v<Args>)),
+    "static_signal by-value parameters must be copyable; declare the parameter as a const reference"
+  );
 
 public:
   using id_type = static_connection::id_type;
@@ -401,6 +446,7 @@ private:
     int priority{0};
     bool alive{true};
     bool once{false};
+    bool executing{false};  // its invoke is on the stack; do not reclaim this entry
     slot_fn_type fn_obj{};
 
     // By const reference: a by-value slot parameter is copied once, at the
@@ -415,15 +461,28 @@ private:
   int m_emit_depth{0};
   bool m_blocked{false};
   bool m_dirty{false};  ///< slots appended during an emit need a re-sort
+  /**
+   * @brief Ids at or past this value name slots connected during the current emit.
+   *
+   * Captured from \c m_next_id when the outermost emit begins, so every emit
+   * nested in it skips mid-emit connects by id, mirroring \c signal, whose
+   * parked pending connects are invisible until the outermost emit merges them.
+   */
+  id_type m_emit_id_watermark{0};
 
 public:
   /// @brief Constructs an empty signal.
   constexpr static_signal() noexcept = default;
 
+  /// @brief Deleted copy constructor; the signal is pinned (its address backs every handle).
   static_signal(static_signal const&) = delete;
+  /// @brief Deleted move constructor; the signal is pinned (its address backs every handle).
   static_signal(static_signal&&) = delete;
+  /// @brief Deleted copy assignment; the signal is pinned (its address backs every handle).
   auto operator=(static_signal const&) -> static_signal& = delete;
+  /// @brief Deleted move assignment; the signal is pinned (its address backs every handle).
   auto operator=(static_signal&&) -> static_signal& = delete;
+  /// @brief Destroys the signal; outstanding token handles must not outlive it.
   ~static_signal() noexcept = default;
 
   /**
@@ -435,17 +494,18 @@ public:
    * @param fn Callable to connect.
    * @param priority Ordering key; lower fires first. Default 0.
    *
-   * @return A connection handle, or an invalid handle when the signal is full
-   *         (\c MaxSlots slots) or the callable exceeds \c SlotCapacity.
+   * @return A connection handle, or an invalid handle when the signal is full:
+   *         \c MaxSlots slots are live and, during an emit, no dead-but-unswept
+   *         slot is available to reclaim.
    *
-   * @pre \p fn fits in \c SlotCapacity inline storage.
+   * @pre \p fn fits in \c SlotCapacity inline storage (enforced at compile time).
    * @post On success \c size() has increased by one. A connect during an
-   *       in-progress emit is not visited by that emit.
+   *       in-progress emit is not visited by that emit or any emit nested in it.
    *
    * @complexity \c O(MaxSlots) to insert into the priority-sorted list.
    */
   template <typename Fn>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<Fn, slot_fn_type, R, Args...>
   [[nodiscard]] auto connect(Fn&& fn, int const priority = 0) -> static_connection {
     return connect_impl(std::forward<Fn>(fn), priority, /*once=*/false);
   }
@@ -465,7 +525,7 @@ public:
    * @complexity \c O(MaxSlots).
    */
   template <typename Fn>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<Fn, slot_fn_type, R, Args...>
   [[nodiscard]] auto connect_once(Fn&& fn, int const priority = 0) -> static_connection {
     return connect_impl(std::forward<Fn>(fn), priority, /*once=*/true);
   }
@@ -487,7 +547,7 @@ public:
    * @complexity \c O(MaxSlots).
    */
   template <typename Fn, std::size_t Capacity>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<Fn, slot_fn_type, R, Args...>
   auto connect(Fn&& fn, static_slot<Capacity>& owner, int const priority = 0) -> static_connection {
     auto c{connect(std::forward<Fn>(fn), priority)};
     nexenne::utility::discard(owner.track(c));
@@ -599,7 +659,10 @@ public:
    * @param args Arguments forwarded to each slot.
    *
    * @pre The signal is not destroyed by any slot during the emit.
-   * @post Every slot alive at the start was invoked once.
+   * @post Every slot alive at the start of this emit, and not disconnected
+   *       earlier in it, was invoked once. A slot connected during this emit is
+   *       not visited by it. One-shot and disconnected slots are swept after the
+   *       outermost emit.
    *
    * @complexity \c O(MaxSlots), plus an in-place re-sort if a slot connected.
    */
@@ -608,6 +671,11 @@ public:
       return;
     }
     ++m_emit_depth;
+    if (m_emit_depth == 1) {
+      // Ids minted from here on name slots connected during this emit; both this
+      // frame and any nested in it must skip them.
+      m_emit_id_watermark = m_next_id;
+    }
     auto const at_exit{nexenne::utility::defer{[this] {
       if (--m_emit_depth == 0) {
         if (m_dirty) {
@@ -620,11 +688,18 @@ public:
     auto const n{m_slots.size()};
     for (auto i{std::size_t{0}}; i < n; ++i) {
       auto& slot{m_slots[i]};
-      if (slot.alive) {
+      // Skip slots connected during this outer emit (id at or past the watermark):
+      // the captured length hides them from this frame, and the id check hides
+      // them from a nested frame that would otherwise walk the grown list.
+      if (slot.alive && slot.id < m_emit_id_watermark) {
         if (slot.once) {
           slot.alive = false;
         }
+        // Flag the running slot so a reclaim from inside its body (a connect at
+        // capacity) never overwrites the callable currently on the stack.
+        slot.executing = true;
         slot.invoke(args...);
+        slot.executing = false;
       }
     }
   }
@@ -691,7 +766,8 @@ public:
    * @brief Reports whether the slot list is at capacity.
    *
    * @return \c true when \c MaxSlots slot entries are held, so the next
-   *         \c connect fails.
+   *         \c connect fails (unless, during an emit, a dead-but-unswept slot can
+   *         be reclaimed).
    *
    * @pre None.
    * @post None.
@@ -723,6 +799,15 @@ private:
   template <typename Fn>
   auto connect_impl(Fn&& fn, int const priority, bool const once) -> static_connection {
     if (m_slots.size() == MaxSlots) {
+      // Physically full. During an emit some entries may be dead but not yet
+      // swept (a slot disconnected during the emit, or a fired once-slot); reclaim
+      // one in place so a slot that reconnects from inside an emit (the
+      // reschedule-from-a-once-slot pattern) is not rejected while fewer than
+      // MaxSlots slots are actually live. The entry currently on the stack is
+      // never reused: its callable is still running.
+      if (m_emit_depth > 0) {
+        return reclaim_dead_slot(std::forward<Fn>(fn), priority, once);
+      }
       return static_connection{};  // full: invalid handle, callable not stored
     }
     auto const id{m_next_id++};
@@ -730,14 +815,39 @@ private:
     entry.fn_obj = slot_fn_type{std::forward<Fn>(fn)};
     nexenne::utility::discard(m_slots.push_back(std::move(entry)));
     if (m_emit_depth > 0) {
-      // Append only: the live prefix must not move while an emit iterates it.
-      // The new slot sits past the captured length, so this emit skips it, and
-      // the outermost emit re-sorts before the next one.
+      // Append only: the live prefix must not move while an emit iterates it. The
+      // new slot's id sits at or past the emit watermark, so this emit and any
+      // nested in it skip it, and the outermost emit re-sorts before the next one.
       m_dirty = true;
     } else {
       bubble_last_into_position();
     }
     return static_connection{this, &disconnect_thunk, id};
+  }
+
+  /**
+   * @brief Reuses a dead-but-unswept slot at capacity for a connect during an emit.
+   *
+   * Overwrites the first entry that is dead and not currently executing with the
+   * new callable and a fresh id. The new id is past the emit watermark, so the
+   * emit in progress skips it like any mid-emit connect, and the outermost emit
+   * re-sorts it into priority order.
+   */
+  template <typename Fn>
+  auto reclaim_dead_slot(Fn&& fn, int const priority, bool const once) -> static_connection {
+    for (auto& e : m_slots) {
+      if (!e.alive && !e.executing) {
+        auto const id{m_next_id++};
+        e.id = id;
+        e.priority = priority;
+        e.alive = true;
+        e.once = once;
+        e.fn_obj = slot_fn_type{std::forward<Fn>(fn)};
+        m_dirty = true;
+        return static_connection{this, &disconnect_thunk, id};
+      }
+    }
+    return static_connection{};  // every slot is live or executing: genuinely full
   }
 
   static auto disconnect_thunk(void* const self, id_type const id) noexcept -> bool {
