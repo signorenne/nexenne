@@ -5,21 +5,26 @@
 * The sink interface
 
 A =sink= is where a formatted line ends up. Derive from it and implement
-=write_impl= and =flush_impl=; reuse =default_format= for the standard line
+=write_out= and =flush_out=; reuse =default_format= for the standard line
 shape =[time] [logger] [LEVEL] file:line -- msg=. The base owns a per-sink
 =min_level= filter (an atomic, so it is reconfigurable at runtime) applied by
-=write=, which drops anything below the threshold before calling =write_impl=.
+=write=, which drops anything below the threshold before calling =write_out=.
 
-=write_impl= is =noexcept= on purpose: the backend thread has nowhere to
+=write_out= is =noexcept= on purpose: the backend thread has nowhere to
 propagate an exception, so a formatting OOM terminates rather than unwinding the
 backend. Record *creation* on the producer side does propagate =bad_alloc=.
+
+=default_format= renders the date and time in UTC, not local time, and the line
+carries no zone marker, so read the timestamp as UTC. =json_sink= and
+=pattern_formatter= are UTC too.
 
 * Bundled sinks
 
 - =console_sink= : writes to stdout/stderr, with a routing policy
   (=stdout_only=, =stderr_only=, =auto_split= sending warnings and up to stderr).
 - =file_sink= : appends to a file via =std::fopen= / =std::fwrite= (not
-  =<fstream>=, to stay light and embedded-portable). Move-only; check =is_open=.
+  =<fstream>=, to stay light and embedded-portable). Not copyable or movable
+  (owned through a =shared_ptr=, like the base sink); check =is_open=.
 - =ring_sink<N>= : keeps the last =N= formatted lines in a
   =container::ring_buffer=, mutex-guarded so =snapshot= / =size= are callable
   from any thread. Ideal for crash dumps of recent activity.

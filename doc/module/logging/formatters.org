@@ -6,15 +6,19 @@
 
 =pattern_formatter= turns a =record= into a line driven by a user pattern of
 =%=-tokens, an alternative to a sink's fixed =default_format=. Tokens cover the
-timestamp, level (name or single char), logger name, source file (basename) and
-line, function, thread id, and the message, plus a literal =%%=.
+timestamp (=%t= with date, =%T= time only), level (=%l= full name or =%L= single
+char), logger name (=%n=), source file basename (=%f=) and line (=%#=), function
+(=%s=), producing thread id (=%o=), and the message (=%m=), plus a literal =%%=.
 
-A null source-location file or function name is rendered as =?= rather than
-dereferenced (the port fixed a null-pointer UB the reference had on the =%f= and
-=%s= tokens). Construction copies the pattern string, so the constructor is not
-=noexcept= (allocation may propagate); =set_pattern= only move-assigns.
+The =%l= full level name comes from =to_token=, the same unpadded vocabulary
+=json_sink= emits (TRACE, DEBUG, INFO, WARN, ERROR, CRITICAL, OFF), so a severity
+spells identically across both. A null source-location file or function name is
+rendered as =?= rather than dereferenced (the port fixed a null-pointer UB the
+reference had on the =%f= and =%s= tokens). Construction copies the pattern
+string, so the constructor is not =noexcept= (allocation may propagate);
+=set_pattern= only move-assigns.
 
 #+BEGIN_SRC cpp
-nexenne::logging::pattern_formatter fmt{"%t [%L] %n: %v"};
+nexenne::logging::pattern_formatter fmt{"%T [%L] %n: %m"};
 auto const line = fmt.format(rec);  // "12:34:56.789 [W] net: link down"
 #+END_SRC
