@@ -33,7 +33,7 @@
 namespace lg = nexenne::logging;
 
 // A custom sink: instead of writing text anywhere, it tallies records by
-// severity. This is the whole reason a sink consumes a `record` and not a
+// severity. This is the whole reason a sink consumes a record and not a
 // pre-rendered string - a sink can route on the structured fields (severity,
 // logger name, source location) without ever paying to format the line. The
 // backend calls write_out serially, so the plain counters need no locking for
