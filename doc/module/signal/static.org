@@ -59,9 +59,24 @@ because the storage never reallocates, the live slot list is at a stable address
 for the whole emit, so a slot may disconnect (the slot is flagged dead and swept
 when the outermost emit ends) or connect (the new slot is appended past the
 current length, not visited this emit, and the list is re-sorted in place before
-the next one). A one-shot slot is marked dead before it runs, so it cannot
-re-fire itself through a re-entrant =emit=. The one thing it must not do is
-destroy the signal.
+the next one). A slot connected mid-emit is skipped by its id: =emit= captures an
+id watermark when the outermost emit begins, so a nested emit skips the same
+mid-emit connects rather than walking them out of priority order, exactly as
+=signal='s parked pending connects stay invisible until the outermost emit merges
+them. A one-shot slot is marked dead before it runs, so it cannot re-fire itself
+through a re-entrant =emit=. The one thing it must not do is destroy the signal.
+
+Two mechanical differences from =signal= remain, both harmless. First, =size()=
+counts the appended slot immediately (the slot list is the storage, so a mid-emit
+connect is present at once even though it will not fire until the next emit),
+whereas =signal='s deferred connect is parked off to one side and =size()= grows
+only after the outermost emit. Second, because a disconnected or fired once-slot
+holds its array entry until the outermost emit sweeps it, a =connect= that finds
+=MaxSlots= entries during an emit reclaims such a dead-but-unswept entry in place
+rather than failing: the reschedule-from-a-once-slot pattern is not rejected
+while fewer than =MaxSlots= slots are actually live. Outside an emit a full signal
+still rejects the connect. Size =MaxSlots= with headroom when slots reconnect
+from inside an emit.
 
 #+BEGIN_EXAMPLE
 static_signal<void(int), 8, 32>:  8 inline slots, 32-byte functors, zero heap
