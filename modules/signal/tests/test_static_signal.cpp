@@ -2,10 +2,12 @@
 
 #include <cstddef>
 #include <new>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include <nexenne/signal/emit_blocker.hpp>
+#include <nexenne/signal/format.hpp>
 #include <nexenne/signal/static_signal.hpp>
 #include <nexenne/utility/discard.hpp>
 
@@ -927,6 +929,116 @@ TEST_CASE("nexenne::signal::static_connection equality compares signal and slot"
   CHECK_FALSE(a == other);                            // different signal
   CHECK(static_connection{} == static_connection{});  // both target nothing
   CHECK_FALSE(a == static_connection{});
+}
+
+// Review findings
+
+TEST_CASE("nexenne::signal::static_signal [M2] a nested emit does not visit a slot connected "
+          "mid-emit, matching signal") {
+  // A connect during an emit must be invisible to that emit AND to any emit
+  // nested in it, so a nested emit never runs a lower-priority newcomer ahead of
+  // a higher-priority running slot. Before the fix the nested emit walked the
+  // grown slot list and fired the newcomer out of priority order.
+  auto sig{static_signal<void(), 8>{}};
+  auto order{std::vector<int>{}};
+  auto connected{false};
+  auto reentered{false};
+  auto a{sig.connect(
+    [&] noexcept {
+      order.push_back(10);
+      if (!connected) {
+        connected = true;
+        // priority -5: sorts BEFORE this slot, but must not be seen this emit.
+        nexenne::utility::discard(sig.connect([&] noexcept { order.push_back(-5); }, -5));
+      }
+      if (!reentered) {
+        reentered = true;
+        sig.emit();  // nested emit: must NOT visit the mid-emit connect
+      }
+    },
+    10
+  )};
+  nexenne::utility::discard(a);
+
+  sig.emit();
+  // Outer runs A, connects B, re-enters; the nested emit runs only A again, so no
+  // -5 appears until a later top-level emit re-sorts B into place.
+  REQUIRE(order == std::vector{10, 10});
+
+  order.clear();
+  sig.emit();  // B now merged and re-sorted: fires before A.
+  REQUIRE(order == std::vector{-5, 10});
+}
+
+TEST_CASE("nexenne::signal::static_signal [M4] connect at capacity during emit reclaims a dead "
+          "slot instead of failing") {
+  // Capacity 2: a fired once-slot (a) leaves a dead-but-unswept entry while b is
+  // executing. b reconnects a replacement; the physical list is full but only a
+  // dead entry is at capacity, so connect must reclaim it rather than reject
+  // against the live bound.
+  auto sig{static_signal<void(), 2>{}};
+  auto runs{0};
+  auto replacement_valid{false};
+  auto reconnected{false};
+  auto a{sig.connect_once([&] noexcept { ++runs; })};  // fires once, then dead
+  auto b{sig.connect([&] noexcept {
+    ++runs;
+    if (!reconnected) {
+      reconnected = true;
+      auto const r{sig.connect([&] noexcept { ++runs; })};  // full: must reclaim a's slot
+      replacement_valid = r.has_target();
+    }
+  })};
+  nexenne::utility::discard(a);
+  nexenne::utility::discard(b);
+  CHECK(sig.full());
+
+  sig.emit();
+  CHECK(replacement_valid);  // reclaimed a's dead entry, not an invalid handle
+  CHECK(runs == 2);          // a and b this emit; the replacement is deferred
+  CHECK(sig.size() == 2);    // b plus the reclaimed replacement
+
+  runs = 0;
+  sig.emit();
+  CHECK(runs == 2);  // b and the replacement
+}
+
+TEST_CASE("nexenne::signal::static_signal [M4] connect stays rejected at capacity outside an emit") {
+  // No emit in flight means no dead-but-unswept entries, so a full signal still
+  // rejects a connect with an invalid handle.
+  auto sig{static_signal<void(), 2>{}};
+  auto const a{sig.connect([] noexcept {})};
+  auto const b{sig.connect([] noexcept {})};
+  nexenne::utility::discard(a);
+  nexenne::utility::discard(b);
+  CHECK(sig.full());
+  auto const c{sig.connect([] noexcept {})};
+  CHECK_FALSE(c.has_target());
+}
+
+TEST_CASE("nexenne::signal::static_signal [m1] size() reflects a mid-emit connect immediately") {
+  // Divergence from signal, whose deferred connect is parked and uncounted until
+  // the outermost emit: static_signal appends to its slot storage at once, so
+  // size() grows immediately even though the new slot is not visited this emit.
+  auto sig{static_signal<void(), 8>{}};
+  auto size_during{std::size_t{0}};
+  auto a{sig.connect([&] noexcept {
+    nexenne::utility::discard(sig.connect([] noexcept {}));
+    size_during = sig.size();
+  })};
+  nexenne::utility::discard(a);
+
+  sig.emit();
+  CHECK(size_during == 2);  // a plus the just-added slot, counted right away
+}
+
+TEST_CASE("nexenne::signal::static_signal [m4] static_connection formats via to_string and format") {
+  auto sig{static_signal<void()>{}};
+  auto const c{sig.connect([] noexcept {})};
+  CHECK(to_string(c).starts_with("static_connection(id="));
+  CHECK(std::format("{}", c) == to_string(c));
+  CHECK(to_string(static_connection{}) == "static_connection(id=0, has_target=false)");
+  nexenne::utility::discard(c);
 }
 
 }  // namespace
