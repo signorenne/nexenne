@@ -1190,4 +1190,47 @@ TEST_CASE("nexenne::signal::signal survives destroy-during-emit (slot pulls the 
   nexenne::utility::discard(conn);
 }
 
+// Review findings
+
+TEST_CASE("nexenne::signal::signal [M1] emit @post: a slot disconnected earlier in the emit does "
+          "not run, and one connected during it is not visited") {
+  auto sig{signal<void()>{}};
+  auto log{std::vector<int>{}};
+  auto c_target{connection{}};
+  auto first{sig.connect([&] noexcept {
+    log.push_back(1);
+    c_target.disconnect();  // a not-yet-fired slot: marked dead before it runs
+    nexenne::utility::discard(sig.connect([&] noexcept { log.push_back(99); }));  // mid-emit connect
+  })};
+  // Alive at the start of the emit, but disconnected earlier in it, so it must
+  // not be invoked, contradicting the old @post ("every slot alive at the start").
+  c_target = sig.connect([&] noexcept { log.push_back(2); });
+
+  sig.emit();
+  REQUIRE(log.size() == 1);
+  CHECK(log[0] == 1);
+  CHECK(sig.size() == 2);  // first plus the merged mid-emit connect
+
+  nexenne::utility::discard(first);
+}
+
+TEST_CASE("nexenne::signal::signal [M3] the umbrella header delivers static_signal and the "
+          "formatters") {
+  // This translation unit includes <nexenne/signal/signal.hpp> for the signal
+  // types but never static_signal.hpp or format.hpp: both must reach it through
+  // the umbrella, the whole point of M3.
+  auto ssig{nexenne::signal::static_signal<void(int)>{}};
+  auto got{0};
+  auto const sc{ssig.connect([&](int v) noexcept { got = v; })};
+  CHECK(sc.has_target());
+  ssig.emit(7);
+  CHECK(got == 7);
+
+  auto sig{signal<void()>{}};
+  auto const c{sig.connect([] noexcept {})};
+  CHECK(nexenne::signal::to_string(c).starts_with("connection(id="));
+  CHECK(nexenne::signal::to_string(sc).starts_with("static_connection(id="));
+  nexenne::utility::discard(c);
+}
+
 }  // namespace
