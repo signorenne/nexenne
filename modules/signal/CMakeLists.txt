@@ -24,6 +24,7 @@ nexenne_add_module(signal
         include/nexenne/signal/connection.hpp
         include/nexenne/signal/slot.hpp
         include/nexenne/signal/emit_blocker.hpp
+        include/nexenne/signal/format.hpp
         include/nexenne/signal/signal.hpp
         include/nexenne/signal/static_signal.hpp
 )
