@@ -19,6 +19,14 @@
  * sig.emit();                             // still blocked by outer
  * \endcode
  *
+ * The save-and-restore is compositional only under last-in-first-out
+ * destruction (matching \c QSignalBlocker and the usual nested-scope use).
+ * Because the guard is movable (into an \c optional or a container), non-LIFO
+ * teardown is reachable and then each guard restores the state it captured, not
+ * the current one: destroying an outer guard before an inner one can unblock the
+ * signal while the inner guard is still alive, or leave it blocked with no guard
+ * alive. Destroy guards in reverse construction order.
+ *
  * Move-only. Zero heap. Cheap enough to drop into hot paths.
  */
 
@@ -54,6 +62,10 @@ concept blockable = requires(S& s) {
  *
  * @tparam Signal A \c blockable type providing \c is_blocked, \c block, and
  *         \c unblock (typically \c nexenne::signal::signal).
+ *
+ * @warning Guards must be destroyed in last-in-first-out order for the restore
+ *          to compose. Because the guard is movable, non-LIFO teardown is
+ *          reachable and then leaves the signal in the wrong blocked state.
  */
 template <blockable Signal>
 class emit_blocker {

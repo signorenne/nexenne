@@ -48,10 +48,14 @@ using disconnect_fn_type = auto (*)(void*, slot_id_type) noexcept -> bool;
  * \c disconnect() (the first wins; subsequent calls report \c false).
  */
 class connection {
+public:
+  using id_type = detail::slot_id_type;                   ///< Slot identifier type.
+  using disconnect_fn_type = detail::disconnect_fn_type;  ///< Disconnect dispatcher type.
+
 private:
   std::weak_ptr<void> m_core{};
-  detail::disconnect_fn_type m_disconnect_fn{nullptr};
-  detail::slot_id_type m_slot_id{0};
+  disconnect_fn_type m_disconnect_fn{nullptr};
+  id_type m_slot_id{0};
 
 public:
   /**
@@ -78,9 +82,7 @@ public:
    *       \p core is still alive.
    */
   connection(
-    std::weak_ptr<void> core,
-    detail::disconnect_fn_type const fn,
-    detail::slot_id_type const slot_id
+    std::weak_ptr<void> core, disconnect_fn_type const fn, id_type const slot_id
   ) noexcept
       : m_core{std::move(core)}, m_disconnect_fn{fn}, m_slot_id{slot_id} {}
 
@@ -127,7 +129,7 @@ public:
    * @pre None.
    * @post The connection is unchanged.
    */
-  [[nodiscard]] constexpr auto slot_id() const noexcept -> detail::slot_id_type {
+  [[nodiscard]] constexpr auto slot_id() const noexcept -> id_type {
     return m_slot_id;
   }
 

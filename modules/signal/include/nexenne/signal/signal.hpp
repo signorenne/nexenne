@@ -87,6 +87,12 @@
  *
  * Thread safety: single-threaded (standard library convention).
  * For thread-safe signals, wrap with external synchronisation.
+ *
+ * This header doubles as the module umbrella: its path
+ * \c nexenne/signal/signal.hpp matches the module name, so it also includes
+ * every other leaf header (\c connection.hpp, \c emit_blocker.hpp,
+ * \c format.hpp, \c slot.hpp, \c static_signal.hpp) so that including
+ * \c nexenne/signal/signal.hpp delivers the whole module.
  */
 
 #include <algorithm>
@@ -101,7 +107,9 @@
 #include <nexenne/container/small_vector.hpp>
 #include <nexenne/signal/connection.hpp>
 #include <nexenne/signal/emit_blocker.hpp>
+#include <nexenne/signal/format.hpp>
 #include <nexenne/signal/slot.hpp>
+#include <nexenne/signal/static_signal.hpp>
 #include <nexenne/utility/defer.hpp>
 #include <nexenne/utility/in_place_function.hpp>
 
@@ -151,6 +159,14 @@ class signal<R(Args...), SlotCapacity> {
   // deep inside the by-const-reference forwarder only when emit is instantiated.
   static_assert(
     (... && !std::is_rvalue_reference_v<Args>), "signal parameters cannot be rvalue references"
+  );
+  // A by-value parameter is fanned out to every slot by const reference, so each
+  // slot's own by-value copy needs a copy constructor. Reject a move-only
+  // by-value parameter here rather than deep inside the forwarder; declare an
+  // expensive-to-copy parameter as a const reference instead.
+  static_assert(
+    (... && (std::is_reference_v<Args> || std::is_copy_constructible_v<Args>)),
+    "signal by-value parameters must be copyable; declare the parameter as a const reference"
   );
 
 private:
@@ -259,14 +275,15 @@ public:
    * @pre \p fn fits in the signal's \c SlotCapacity inline storage
    *      when it is not convertible to a raw function pointer
    *      (rejected at compile time otherwise).
-   * @post \c size() has increased by one. Connecting during an
-   *       in-progress \c emit does not add \p fn to that emit's visit
+   * @post \c size() has increased by one, deferred to the end of the
+   *       outermost emit when connecting during an emit. Connecting during
+   *       an in-progress \c emit does not add \p fn to that emit's visit
    *       list.
    *
    * @complexity \c O(n) to insert into the priority-sorted slot list.
    */
   template <typename Fn>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<Fn, slot_fn_type, R, Args...>
   [[nodiscard]] auto connect(Fn&& fn, int const priority = 0) -> connection {
     auto& c{ensure_core()};
     return connect_into(c, std::forward<Fn>(fn), priority, /*once=*/false);
@@ -292,7 +309,7 @@ public:
    * @complexity \c O(n) to insert into the priority-sorted slot list.
    */
   template <typename Fn>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<Fn, slot_fn_type, R, Args...>
   [[nodiscard]] auto connect_once(Fn&& fn, int const priority = 0) -> connection {
     auto& c{ensure_core()};
     return connect_into(c, std::forward<Fn>(fn), priority, /*once=*/true);
@@ -314,13 +331,14 @@ public:
    * @return A copy of the tracked \c connection.
    *
    * @pre Same storage constraint as \c connect.
-   * @post The connection is owned by \p owner when it had room;
-   *       \c size() has increased by one regardless.
+   * @post The connection is owned by \p owner when it had room; \c size()
+   *       has increased by one, deferred to the end of the outermost emit
+   *       when connecting during an emit.
    *
    * @complexity \c O(n) to insert into the priority-sorted slot list.
    */
   template <typename Fn, std::size_t Capacity>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<Fn, slot_fn_type, R, Args...>
   auto connect(Fn&& fn, slot<Capacity>& owner, int const priority = 0) -> connection {
     auto c{connect(std::forward<Fn>(fn), priority)};
     [[maybe_unused]] auto const _{owner.track(c)};
@@ -371,8 +389,9 @@ public:
    *
    * @pre \p obj outlives the connection. Typically \p owner is a
    *      member of \p obj so both die together.
-   * @post The connection is owned by \p owner when it had room;
-   *       \c size() has increased by one regardless.
+   * @post The connection is owned by \p owner when it had room; \c size()
+   *       has increased by one, deferred to the end of the outermost emit
+   *       when connecting during an emit.
    *
    * @complexity \c O(n) to insert into the priority-sorted slot list.
    */
@@ -462,8 +481,9 @@ public:
    *
    * @pre None. Reentrant \c emit and self-disconnect from within a
    *      slot are supported.
-   * @post Every slot alive at the start of this emit (and not a
-   *       deferred addition) was invoked once. One-shot and explicitly
+   * @post Every slot alive at the start of this emit, and not
+   *       disconnected earlier in it, was invoked once. A slot connected
+   *       during this emit is not visited by it. One-shot and explicitly
    *       disconnected slots are removed after the outermost emit.
    *
    * @note A plain \c emit allocates nothing. The exception is when a slot
@@ -510,6 +530,11 @@ public:
    * @pre Same reentrancy guarantees as \c emit.
    * @post Same slot-lifecycle effects as \c emit. The returned vector
    *       has one element per slot that fired.
+   *
+   * @note Unlike \c emit this always allocates the result vector, plus the
+   *       possible pending merge when a slot connects during the collection.
+   *       Since it is \c noexcept, an allocation failure terminates (the
+   *       standard embedded policy).
    *
    * @complexity \c O(n) in the number of slots, plus the vector
    *             allocation.
