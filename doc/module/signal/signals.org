@@ -54,7 +54,8 @@ insertion-bubble on each connect, so =emit= never sorts. There are four shapes:
 
 =emit(args...)= invokes every alive slot in order. =operator()= is an alias. For
 a non-void =R=, =emit_and_collect(args...)= returns a =std::vector<R>= of the
-results in fire order (the one path that allocates, since the count is dynamic).
+results in fire order (the one steady-state allocating path, since the count is
+dynamic).
 
 #+BEGIN_EXAMPLE
 priority:   -1        0         0        10

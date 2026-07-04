@@ -10,6 +10,11 @@ lifetime automatic and safe from both ends: =connection= and =scoped_connection=
 (the producer-to-subscriber link), =slot= (the subscriber's own tracker), and
 =emit_blocker= (a scoped mute). None of them allocate.
 
+For debug printing, =nexenne/signal/format.hpp= adds =to_string=, an =ostream=
+inserter, and a =std::formatter= for =connection= and =static_connection= (slot
+id plus liveness or target state); it is opt-in because it pulls in the heavy
+=<format>= header.
+
 * The idea
 
 A connection links two independent objects, the signal and the subscriber, and
@@ -80,6 +85,13 @@ restores the prior state on destruction. Because it saves and restores rather
 than forcing unblocked, nested blockers compose correctly: an inner guard's
 destructor restores the outer block, not the unblocked baseline. It is move-only
 and holds only a pointer and a bool (zero heap), cheap enough for a hot path.
+
+The save-and-restore composes only under last-in-first-out destruction, the
+natural nested-scope case. Because the guard is movable (into an =optional= or a
+container), non-LIFO teardown is reachable, and then each guard restores the
+state it captured, not the current one: destroying an outer guard before an inner
+one can unblock the signal while the inner guard is still alive, or leave it
+blocked with no guard left. Destroy guards in reverse construction order.
 
 * When to use it
 
