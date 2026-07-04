@@ -12,6 +12,12 @@
  *   auto r1{nexenne::benchmark::run("vector_3 cross", [] noexcept {
  *       auto a{nexenne::math::vector_3_f{1, 2, 3}};
  *       auto b{nexenne::math::vector_3_f{4, 5, 6}};
+ *       // Feed the inputs through do_not_optimize first, or the compiler folds
+ *       // cross(a, b) at compile time and the loop measures nothing. It only
+ *       // stops DELETION of the result, not PRE-COMPUTATION of it from
+ *       // visible constants (see anti-dce.org).
+ *       nexenne::benchmark::do_not_optimize(a);
+ *       nexenne::benchmark::do_not_optimize(b);
  *       auto c{nexenne::math::cross(a, b)};
  *       nexenne::benchmark::do_not_optimize(c);
  *   })};
@@ -25,9 +31,10 @@
  * \endcode
  *
  * What it does:
- *   - Auto-tunes the iteration count. A calibration pass measures the
- *     single-call cost, then picks how many iterations fit in a target
- *     measurement window (default 100 ms).
+ *   - Auto-tunes the iteration count. A calibration pass grows the batch size
+ *     until one batch is long enough to time reliably, then picks how many
+ *     iterations fit in a target measurement window (default 100 ms) from that
+ *     hot reading.
  *   - Multi-sample statistics. Runs N independent batches (default 10) and
  *     reports mean, median, stddev, min, max, and coefficient of variation
  *     (cv = stddev/mean, a noise gauge).
@@ -47,6 +54,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cmath>
 #include <concepts>
@@ -103,6 +111,57 @@ namespace detail {
   return static_cast<std::size_t>(bounded);
 }
 
+/// @brief Batch time a calibration must reach before its reading is trusted.
+inline constexpr double calibration_min_ns{1'000'000.0};  // 1 ms, far above any clock tick
+
+/// @brief Ceiling on the calibration iteration count so growth always terminates.
+inline constexpr std::size_t calibration_max_iters{100'000'000};  // 1e8
+
+/**
+ * @brief Outcome of a calibration growth loop: the batch size reached and its
+ *        measured wall time.
+ */
+struct calibration {
+  std::size_t iterations{1};  ///< Iterations the final calibration batch ran.
+  double elapsed_ns{0.0};     ///< Wall time of that batch, in nanoseconds.
+};
+
+/**
+ * @brief Grows the batch size until one batch is long enough to time reliably.
+ *
+ * Repeatedly invokes \p run_batch with a geometrically increasing iteration
+ * count, starting at one, until a batch takes at least \c calibration_min_ns or
+ * the count reaches \c calibration_max_iters. Deriving the per-call cost from
+ * the returned hot, amortised reading (rather than a single cold call) fixes
+ * both the cold-call skew and the coarse-clock zero-reading trap: a body too
+ * fast for the clock simply grows until it is measurable.
+ *
+ * @tparam Batch Invocable taking the iteration count and returning the batch
+ *         wall time in nanoseconds.
+ * @param run_batch Callable that runs the body \p n times and returns the
+ *        elapsed nanoseconds.
+ *
+ * @return The final batch size and its measured wall time.
+ *
+ * @pre \p run_batch returns a non-negative nanosecond count.
+ * @post The returned iteration count is at least one and at most
+ *       \c calibration_max_iters.
+ *
+ * @complexity Runs the body about \c 1.1 times the returned iteration count in
+ *             total across the growth passes.
+ */
+template <std::invocable<std::size_t> Batch>
+[[nodiscard]] auto grow_until_measurable(Batch&& run_batch) -> calibration {
+  auto iters{std::size_t{1}};
+  while (true) {
+    auto const elapsed_ns{run_batch(iters)};
+    if (elapsed_ns >= calibration_min_ns || iters >= calibration_max_iters) {
+      return calibration{.iterations = iters, .elapsed_ns = elapsed_ns};
+    }
+    iters = iters <= calibration_max_iters / 10 ? iters * 10 : calibration_max_iters;
+  }
+}
+
 }  // namespace detail
 
 /**
@@ -131,6 +190,10 @@ struct config {
  * common-case summary.
  */
 class result {
+public:
+  /// @brief Element type of a per-sample mean, the unit the statistics report.
+  using value_type = double;
+
 private:
   std::string m_name{};
   std::vector<double> m_sample_means_ns{};
@@ -248,9 +311,11 @@ public:
    * @pre None.
    * @post The result is unchanged; the returned value is non-negative.
    *
+   * @throws std::bad_alloc if allocating the sorted copy fails.
+   *
    * @complexity \c O(n log n) in the number of samples.
    */
-  [[nodiscard]] auto median() const noexcept -> double {
+  [[nodiscard]] auto median() const -> double {
     if (m_sample_means_ns.empty()) {
       return 0.0;
     }
@@ -261,6 +326,48 @@ public:
       return sorted[n / 2];
     }
     return (sorted[n / 2 - 1] + sorted[n / 2]) * 0.5;
+  }
+
+  /**
+   * @brief Percentile of the per-sample means, in ns per iteration.
+   *
+   * Sorts a copy of the samples and interpolates linearly between the two ranks
+   * straddling the \p p percentile position, so \c percentile(0) is the
+   * minimum, \c percentile(100) the maximum, and \c percentile(50) matches
+   * \c median. Frame-time reports lead with \c percentile(99) (the tail) and
+   * \c percentile(50); the stored data is untouched.
+   *
+   * @param p Percentile to compute, in the closed range 0 to 100.
+   *
+   * @return The interpolated percentile in nanoseconds per iteration, or 0 when
+   *         there are no samples.
+   *
+   * @pre \p p is in the closed range 0 to 100.
+   * @post The result is unchanged; the returned value is non-negative.
+   *
+   * @throws std::bad_alloc if allocating the sorted copy fails.
+   *
+   * @complexity \c O(n log n) in the number of samples.
+   */
+  [[nodiscard]] auto percentile(double const p) const -> double {
+    assert(p >= 0.0 && p <= 100.0 && "percentile: p must be in [0, 100]");
+    if (m_sample_means_ns.empty()) {
+      return 0.0;
+    }
+    auto sorted{m_sample_means_ns};
+    std::ranges::sort(sorted);
+    auto const n{sorted.size()};
+    if (n == 1) {
+      return sorted.front();
+    }
+    // Linear interpolation between the two ranks straddling the position, the
+    // numpy default: rank runs 0 at p=0 to n-1 at p=100, so endpoints are exact
+    // and the midpoint reproduces the median.
+    auto const rank{(p / 100.0) * static_cast<double>(n - 1)};
+    auto const lo{static_cast<std::size_t>(std::floor(rank))};
+    auto const hi{static_cast<std::size_t>(std::ceil(rank))};
+    auto const frac{rank - static_cast<double>(lo)};
+    return sorted[lo] + frac * (sorted[hi] - sorted[lo]);
   }
 
   /**
@@ -500,7 +607,11 @@ public:
         os.write(buf.data(), static_cast<std::streamsize>(w.bytes_written()));
         return;
       } else if (r.error() != serialization::error::buffer_full) {
-        return;  // not a sizing problem, nothing further can be emitted
+        // The emit sequence is well-formed and only two levels deep, so
+        // buffer_full is the sole reachable writer error; anything else is a
+        // logic error rather than a sizing problem, and growing cannot help.
+        assert(false && "benchmark::result::to_json: unexpected writer error");
+        return;
       }
       buf.resize(buf.size() * 2);
     }
@@ -597,6 +708,16 @@ public:
    */
   constexpr comparison(result const& baseline, result const& candidate) noexcept
       : m_baseline{&baseline}, m_candidate{&candidate} {}
+
+  /// @cond INTERNAL
+  // A comparison only stores pointers, so binding a temporary result would
+  // dangle the moment the full expression ends. Delete every overload that
+  // would bind an rvalue so the mistake is a compile error, not a silent
+  // use-after-free.
+  comparison(result const&& baseline, result const& candidate) = delete;
+  comparison(result const& baseline, result const&& candidate) = delete;
+  comparison(result const&& baseline, result const&& candidate) = delete;
+  /// @endcond
 
   /**
    * @brief Ratio of candidate mean to baseline mean.
@@ -730,6 +851,42 @@ compare(result const& baseline, result const& candidate) noexcept -> comparison 
   return comparison{baseline, candidate};
 }
 
+/// @cond INTERNAL
+// The returned comparison stores pointers, so a temporary result argument would
+// dangle immediately. Delete the rvalue overloads to reject compare(run(...),
+// run(...)) at compile time.
+auto compare(result const&& baseline, result const& candidate) -> comparison = delete;
+auto compare(result const& baseline, result const&& candidate) -> comparison = delete;
+auto compare(result const&& baseline, result const&& candidate) -> comparison = delete;
+/// @endcond
+
+/**
+ * @brief Builds a \c result from externally collected per-sample means.
+ *
+ * The ingestion point for workloads that own their samples already, for example
+ * a frame loop timing each present with \c chrono::scope_timer, or any code that
+ * cannot express itself as a re-invocable callable for \c run. The result then
+ * offers the same \c mean, \c median, \c percentile, throughput, printing, and
+ * JSON surface as a \c run result.
+ *
+ * @param name Label shown in \c print and \c to_json output.
+ * @param sample_means_ns Per-sample mean timings, in nanoseconds per iteration,
+ *        one entry per sample.
+ * @param total_iterations Total iterations summed across every sample.
+ *
+ * @return A \c result carrying the supplied samples and statistics over them.
+ *
+ * @pre Each entry of \p sample_means_ns is a finite, non-negative nanosecond
+ *      timing.
+ * @post \c name() equals \p name, \c samples() views the moved-in data, and
+ *       \c total_iterations() equals \p total_iterations.
+ */
+[[nodiscard]] inline auto from_samples(
+  std::string name, std::vector<double> sample_means_ns, std::size_t const total_iterations
+) -> result {
+  return result{std::move(name), std::move(sample_means_ns), total_iterations};
+}
+
 /**
  * @brief Runs \p fn enough times to fill the time budget per sample, repeats
  *        for \c sample_count samples, and returns the statistics.
@@ -738,10 +895,12 @@ compare(result const& baseline, result const& candidate) noexcept -> comparison 
  * need, and call \c do_not_optimize on at least one output so the compiler
  * cannot fold the call away.
  *
- * A calibration pass measures the single-call cost and derives the iteration
- * count; an optional warmup batch is then discarded before the timed batches.
+ * A calibration pass grows the batch size until one batch is long enough to
+ * time reliably, then derives the iteration count from that hot reading; an
+ * optional warmup batch is then discarded before the timed batches.
  *
- * @tparam Fn Any \c std::invocable<>.
+ * @tparam Fn Callable invocable as an lvalue with no arguments, matching how
+ *         the body invokes it.
  * @param name Label for the result, shown in \c print output.
  * @param fn Routine to benchmark.
  * @param cfg Optional config overrides.
@@ -758,24 +917,34 @@ compare(result const& baseline, result const& candidate) noexcept -> comparison 
  * @complexity Runs \p fn roughly \c cfg.sample_count times the per-batch
  *             iteration count, plus calibration and optional warmup.
  */
-template <std::invocable Fn>
+template <typename Fn>
+  requires std::invocable<Fn&>
 [[nodiscard]] auto run(std::string_view const name, Fn&& fn, config const cfg = {}) -> result {
   using ns_d = std::chrono::duration<double, std::nano>;
   auto timer{chrono::stopwatch{}};
 
-  // Calibration: measure the single-call cost, derive the iteration count.
-  timer.restart();
-  fn();
-  auto const single_ns{timer.elapsed<ns_d>().count()};
+  // Calibration: grow the batch until it is long enough to time reliably, then
+  // derive the iteration count from that hot, amortised reading. A single cold
+  // call reads high from cold caches and reads zero on a coarse clock, either of
+  // which skews the per-batch budget.
+  auto const cal{detail::grow_until_measurable([&](std::size_t const n) -> double {
+    timer.restart();
+    for (auto i{std::size_t{0}}; i < n; ++i) {
+      fn();
+    }
+    return timer.elapsed<ns_d>().count();
+  })};
+  auto const per_call_ns{cal.elapsed_ns / static_cast<double>(cal.iterations)};
 
   auto const target_ns{static_cast<double>(cfg.target_duration.count())};
   auto iters_per_sample{cfg.min_iterations};
-  if (single_ns > 0.0) {
-    auto const estimated{detail::iters_from_ratio(target_ns / single_ns)};
+  if (per_call_ns > 0.0) {
+    auto const estimated{detail::iters_from_ratio(target_ns / per_call_ns)};
     iters_per_sample = std::max(iters_per_sample, estimated);
   } else {
-    // Single call too fast to measure; use a healthy default.
-    iters_per_sample = std::max(iters_per_sample, std::size_t{1024});
+    // Body too fast to measure even at the calibration ceiling; reuse that
+    // grown count so the timed batches still attempt real work.
+    iters_per_sample = std::max(iters_per_sample, cal.iterations);
   }
   // Never let the per-batch divisor reach zero (e.g. min_iterations set to 0
   // with a target shorter than a single call), which would yield NaN timings.
@@ -818,12 +987,14 @@ template <std::invocable Fn>
  * longer; for sub-100 ns benchmarks prefer plain \c run with a different state
  * strategy.
  *
- * Calibration measures \p fn alone for the reported timing but caps the
- * iteration count by the combined setup-plus-fn wall cost, so an expensive
- * \p setup cannot make a run unbounded.
+ * Calibration grows the batch to a reliably timeable size, deriving \p fn alone
+ * for the reported timing but capping the iteration count by the combined
+ * setup-plus-fn wall cost, so an expensive \p setup cannot make a run unbounded.
  *
- * @tparam Setup Any \c std::invocable<> run before each timed call.
- * @tparam Fn Any \c std::invocable<> whose cost is measured.
+ * @tparam Setup Callable invocable as an lvalue with no arguments, run before
+ *         each timed call.
+ * @tparam Fn Callable invocable as an lvalue with no arguments whose cost is
+ *         measured.
  * @param name Label for the result, shown in \c print output.
  * @param setup Routine run before every iteration; not timed.
  * @param fn Routine to benchmark; only this is timed.
@@ -842,7 +1013,8 @@ template <std::invocable Fn>
  * @complexity Runs \p setup and \p fn together roughly \c cfg.sample_count
  *             times the per-batch iteration count, plus calibration and warmup.
  */
-template <std::invocable Setup, std::invocable Fn>
+template <typename Setup, typename Fn>
+  requires std::invocable<Setup&> && std::invocable<Fn&>
 [[nodiscard]] auto run_with_setup(
   std::string_view const name, Setup&& setup, Fn&& fn, config const cfg = {}
 ) -> result {
@@ -850,15 +1022,26 @@ template <std::invocable Setup, std::invocable Fn>
   auto fn_timer{chrono::stopwatch{}};
   auto iter_timer{chrono::stopwatch{}};
 
-  // Calibration: time fn alone (fn_timer) for the reported cost, and the whole
-  // setup-plus-fn iteration (iter_timer) for the cap, so an expensive setup
-  // cannot make a run unbounded.
-  iter_timer.restart();
-  setup();
-  fn_timer.restart();
-  fn();
-  auto const single_ns{fn_timer.elapsed<ns_d>().count()};
-  auto const iteration_ns{iter_timer.elapsed<ns_d>().count()};
+  // Calibration: grow the batch until the whole setup-plus-fn wall time is long
+  // enough to time reliably, accumulating fn alone (fn_timer) for the reported
+  // cost and the whole iteration (iter_timer) for the cap, so an expensive setup
+  // cannot make a run unbounded. Growing (rather than a single cold call) keeps
+  // the estimate honest on cold caches and coarse clocks alike.
+  auto fn_accumulated_ns{0.0};
+  auto const cal{detail::grow_until_measurable([&](std::size_t const n) -> double {
+    fn_accumulated_ns = 0.0;
+    iter_timer.restart();
+    for (auto i{std::size_t{0}}; i < n; ++i) {
+      setup();
+      fn_timer.restart();
+      fn();
+      fn_accumulated_ns += fn_timer.elapsed<ns_d>().count();
+    }
+    return iter_timer.elapsed<ns_d>().count();
+  })};
+  auto const iters_d{static_cast<double>(cal.iterations)};
+  auto const single_ns{fn_accumulated_ns / iters_d};
+  auto const iteration_ns{cal.elapsed_ns / iters_d};
 
   auto const target_ns{static_cast<double>(cfg.target_duration.count())};
   auto iters_per_sample{cfg.min_iterations};
@@ -866,7 +1049,7 @@ template <std::invocable Setup, std::invocable Fn>
     auto const estimated{detail::iters_from_ratio(target_ns / single_ns)};
     iters_per_sample = std::max(iters_per_sample, estimated);
   } else {
-    iters_per_sample = std::max(iters_per_sample, std::size_t{1024});
+    iters_per_sample = std::max(iters_per_sample, cal.iterations);
   }
   if (iteration_ns > 0.0) {
     auto const wall_limited{
@@ -992,5 +1175,58 @@ struct std::formatter<nexenne::benchmark::comparison> {
    */
   static auto format(nexenne::benchmark::comparison const& c, auto& ctx) {
     return std::format_to(ctx.out(), "{}", c.to_string());
+  }
+};
+
+/**
+ * @brief \c std::format support for \c nexenne::benchmark::config.
+ *
+ * Makes \c std::format("{}", cfg) render the four knobs a result was produced
+ * with, so a harness can log its settings. The target duration is auto-scaled
+ * through \c chrono::format_scaled. Accepts an empty format spec only.
+ */
+template <>
+struct std::formatter<nexenne::benchmark::config> {
+  /**
+   * @brief Parses the format spec, which must be empty.
+   *
+   * @param ctx Format parse context positioned at the spec.
+   *
+   * @return Iterator to the closing brace of the spec.
+   *
+   * @pre The format spec for this type is empty.
+   * @post The parse context is unchanged.
+   */
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    auto const it{ctx.begin()};
+    if (it != ctx.end() && *it != '}') {
+      throw std::format_error{"nexenne::benchmark formatter accepts no format spec"};
+    }
+    return it;
+  }
+
+  /**
+   * @brief Writes \p cfg as its four knobs into the output.
+   *
+   * @param cfg Config to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the written text.
+   *
+   * @pre None.
+   * @post The knobs of \p cfg have been written through \p ctx; \p cfg is
+   *       unchanged.
+   *
+   * @throws std::bad_alloc if building the output fails.
+   */
+  static auto format(nexenne::benchmark::config const& cfg, auto& ctx) {
+    return std::format_to(
+      ctx.out(),
+      "{{target: {}, sample_count: {}, min_iterations: {}, warmup: {}}}",
+      nexenne::chrono::format_scaled(cfg.target_duration),
+      cfg.sample_count,
+      cfg.min_iterations,
+      cfg.warmup ? "on" : "off"
+    );
   }
 };
