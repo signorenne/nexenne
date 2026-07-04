@@ -29,9 +29,12 @@
  *     so the compiler flushes pending stores and may not reorder memory
  *     accesses across this point.
  *
- * On MSVC we fall back to volatile reads and \c _ReadWriteBarrier (deprecated
- * in newer MSVC but still effective here); the codegen is slightly worse than
- * the GCC and Clang variants but still defeats dead-code elimination.
+ * On MSVC we fall back to forcing the value into memory (take its address,
+ * launder it through a \c char pointer parked in a volatile sink) followed by
+ * \c _ReadWriteBarrier (deprecated in newer MSVC but still effective here). The
+ * address escape is what makes it work for class-type results, not only
+ * scalars: the codegen is slightly worse than the GCC and Clang variants but it
+ * still defeats dead-code elimination.
  */
 
 #if defined(_MSC_VER)
@@ -121,9 +124,13 @@ NEXENNE_BENCHMARK_FORCE_INLINE auto clobber_memory() noexcept -> void {
 /**
  * @brief Keeps \p value computed and alive at this point against DCE.
  *
- * MSVC fallback. Reads \p value through a volatile reference and then issues a
- * \c _ReadWriteBarrier so the read cannot be elided. Codegen is slightly worse
- * than the GCC and Clang inline-asm form but still defeats DCE.
+ * MSVC fallback. Takes the address of \p value, launders it through a
+ * \c char const volatile pointer parked in a volatile sink, then issues a
+ * \c _ReadWriteBarrier. Taking the address forces \p value into memory and the
+ * volatile store cannot be elided, so the computation that produced \p value
+ * survives for class-type results as well as scalars. Mirrors
+ * google/benchmark's MSVC form; codegen is slightly worse than the GCC and
+ * Clang inline-asm form but still defeats DCE.
  *
  * @tparam T Type of the value to protect.
  * @param value Read-only value to keep live.
@@ -133,17 +140,19 @@ NEXENNE_BENCHMARK_FORCE_INLINE auto clobber_memory() noexcept -> void {
  */
 template <typename T>
 NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T const& value) noexcept -> void {
-  auto const volatile& sink{value};
-  static_cast<void>(sink);
+  [[maybe_unused]] char const volatile* volatile sink{
+    &reinterpret_cast<char const volatile&>(value)
+  };
   _ReadWriteBarrier();
 }
 
 /**
  * @brief Keeps a mutable \p value live across this point against DCE.
  *
- * MSVC non-const lvalue overload. Binds \p value to a volatile reference and
- * issues a \c _ReadWriteBarrier so neither the access nor surrounding stores
- * are reordered away.
+ * MSVC non-const lvalue overload. Forces \p value into memory through its
+ * address, parked in a volatile sink, then issues a \c _ReadWriteBarrier so
+ * neither the access nor surrounding stores are reordered away. The address
+ * escape keeps class-type results live, not only scalars.
  *
  * @tparam T Type of the value to protect.
  * @param value Mutable value to keep live.
@@ -153,8 +162,7 @@ NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T const& value) noexcept -> 
  */
 template <typename T>
 NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T& value) noexcept -> void {
-  auto volatile& sink{value};
-  static_cast<void>(sink);
+  [[maybe_unused]] char volatile* volatile sink{&reinterpret_cast<char volatile&>(value)};
   _ReadWriteBarrier();
 }
 
@@ -178,10 +186,11 @@ NEXENNE_BENCHMARK_FORCE_INLINE auto clobber_memory() noexcept -> void {
 /**
  * @brief Keeps \p value computed and alive at this point against DCE.
  *
- * Best-effort fallback for unknown compilers. Reads \p value through a volatile
- * reference. Without an inline-asm or intrinsic barrier this is weaker than the
- * GCC, Clang, and MSVC forms, but the volatile read still discourages dead-code
- * elimination of the value.
+ * Best-effort fallback for unknown compilers. Takes the address of \p value and
+ * parks it in a volatile sink, forcing \p value into memory. Without an
+ * inline-asm or intrinsic barrier this is weaker than the GCC, Clang, and MSVC
+ * forms, but the volatile store of the escaped address still discourages
+ * dead-code elimination of the value.
  *
  * @tparam T Type of the value to protect.
  * @param value Read-only value to keep live.
@@ -195,16 +204,18 @@ NEXENNE_BENCHMARK_FORCE_INLINE auto clobber_memory() noexcept -> void {
  */
 template <typename T>
 NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T const& value) noexcept -> void {
-  auto const volatile& sink{value};
-  static_cast<void>(sink);
+  [[maybe_unused]] char const volatile* volatile sink{
+    &reinterpret_cast<char const volatile&>(value)
+  };
 }
 
 /**
  * @brief Keeps a mutable \p value live across this point against DCE.
  *
- * Best-effort fallback for unknown compilers. Binds \p value to a volatile
- * reference. Weaker than the supported-compiler forms but still discourages
- * elimination of the value.
+ * Best-effort fallback for unknown compilers. Forces \p value into memory
+ * through its address, parked in a volatile sink. Weaker than the
+ * supported-compiler forms but still discourages elimination of the value, for
+ * class-type results as well as scalars.
  *
  * @tparam T Type of the value to protect.
  * @param value Mutable value to keep live.
@@ -216,8 +227,7 @@ NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T const& value) noexcept -> 
  */
 template <typename T>
 NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T& value) noexcept -> void {
-  auto volatile& sink{value};
-  static_cast<void>(sink);
+  [[maybe_unused]] char volatile* volatile sink{&reinterpret_cast<char volatile&>(value)};
 }
 
 /**
