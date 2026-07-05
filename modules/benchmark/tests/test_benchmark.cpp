@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <format>
 #include <sstream>
 #include <string>
@@ -421,15 +422,135 @@ TEST_CASE("nexenne::benchmark::run handles a no-op body with a positive iteratio
   CHECK(r.mean() >= 0.0);
 }
 
-TEST_CASE("nexenne::benchmark::run picks a large default count when a call is unmeasurable") {
-  // An empty body times as 0 ns in calibration, so the runner falls back to its
-  // 1024-iteration default; with no warmup that is exactly the per-sample count.
+TEST_CASE("nexenne::benchmark::run grows to a large iteration count for an unmeasurable body") {
+  // An empty body times as ~0 ns, so calibration grows the batch (up to its
+  // ceiling) rather than locking a fixed fallback constant; either way the timed
+  // batches run a large, budget-filling count instead of a token few.
   auto cfg{fast_cfg};
   cfg.sample_count = 1;
   cfg.min_iterations = 1;
   cfg.warmup = false;
   auto const r{bm::run("unmeasurable", [] noexcept {}, cfg)};
-  CHECK(r.total_iterations() >= 1024);
+  CHECK(r.total_iterations() >= 1024);  // far more than a handful
+  CHECK(std::isfinite(r.mean()));
+}
+
+TEST_CASE("nexenne::benchmark::run calibration converges to a sensible count for fast work") {
+  // M1: a cheap but non-elided body must calibrate to many iterations per batch
+  // (filling the target budget from a hot, amortised reading), not to a fixed
+  // fallback constant, and the per-sample means stay finite and positive.
+  auto cfg{bm::config{
+    .target_duration = std::chrono::milliseconds{5},
+    .sample_count = 4,
+    .min_iterations = 1,
+    .warmup = false,
+  }};
+  auto acc{std::uint64_t{1}};
+  auto const r{bm::run(
+    "fast converge",
+    [&] noexcept {
+      acc = acc * 6364136223846793005ull + 1442695040888963407ull;  // one LCG step
+      bm::do_not_optimize(acc);
+    },
+    cfg
+  )};
+  CHECK(r.samples().size() == 4);
+  CHECK(r.total_iterations() > 4u * 1024u);  // a sub-ns body fills far more than the old 1024
+  CHECK(std::isfinite(r.mean()));
+  CHECK(r.mean() > 0.0);
+}
+
+TEST_CASE("nexenne::benchmark::do_not_optimize makes protected work outweigh an empty body") {
+  // M1/M2: at -O2 an empty body is elided to nothing, while a real computation
+  // whose output is fed to do_not_optimize cannot be, so it must time strictly
+  // higher. This is the measurement-validity check the DCE primitives exist for.
+  auto cfg{bm::config{
+    .target_duration = std::chrono::milliseconds{5},
+    .sample_count = 5,
+    .min_iterations = 1,
+    .warmup = true,
+  }};
+  auto data{std::vector<std::uint32_t>(4096)};
+  auto seed{std::uint32_t{0x9e3779b9}};
+  for (auto& x : data) {
+    seed = seed * 1664525u + 1013904223u;
+    x = seed;
+  }
+  auto const empty{bm::run("empty", [] noexcept {}, cfg)};
+  auto const real{bm::run(
+    "sum protected",
+    [&] noexcept {
+      auto total{std::uint64_t{0}};
+      for (auto const x : data) {
+        total += x;
+      }
+      bm::do_not_optimize(total);
+    },
+    cfg
+  )};
+  CHECK(real.mean() > empty.mean());
+}
+
+TEST_CASE("nexenne::benchmark::result median is not noexcept because it allocates a sorted copy") {
+  // M4: median copies the sample vector before sorting, so allocation failure
+  // must propagate as bad_alloc rather than terminate; it cannot be noexcept.
+  // percentile allocates likewise.
+  auto const r{bm::result{std::string{"m"}, std::vector<double>{1.0, 2.0}, 2}};
+  static_assert(!noexcept(r.median()));
+  static_assert(!noexcept(r.percentile(50.0)));
+  CHECK(r.median() == doctest::Approx{1.5});
+}
+
+TEST_CASE("nexenne::benchmark::from_samples builds a result from externally collected samples") {
+  // m8: ingestion point for workloads that own their samples already.
+  auto const r{bm::from_samples("frames", std::vector<double>{10.0, 20.0, 30.0, 40.0}, 4)};
+  CHECK(r.name() == "frames");
+  CHECK(r.samples().size() == 4);
+  CHECK(r.total_iterations() == 4);
+  CHECK(r.mean() == doctest::Approx{25.0});
+  CHECK(r.median() == doctest::Approx{25.0});  // (20 + 30) / 2
+  CHECK(r.min() == doctest::Approx{10.0});
+  CHECK(r.max() == doctest::Approx{40.0});
+}
+
+TEST_CASE("nexenne::benchmark::result percentile interpolates and agrees with the edges and median") {
+  auto const r{bm::from_samples("p", std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0}, 5)};
+  CHECK(r.percentile(0.0) == doctest::Approx{1.0});    // min
+  CHECK(r.percentile(100.0) == doctest::Approx{5.0});  // max
+  CHECK(r.percentile(50.0) == doctest::Approx{3.0});   // median of an odd count
+  CHECK(r.percentile(50.0) == doctest::Approx{r.median()});
+  CHECK(r.percentile(25.0) == doctest::Approx{2.0});  // rank 1.0 -> element index 1
+  CHECK(r.percentile(10.0) == doctest::Approx{1.4});  // rank 0.4 -> 1 + 0.4 * (2 - 1)
+}
+
+TEST_CASE("nexenne::benchmark::result percentile matches median on an even sample count") {
+  auto const r{
+    bm::from_samples("even", std::vector<double>{2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0}, 8)
+  };
+  CHECK(r.percentile(50.0) == doctest::Approx{r.median()});  // 4.5
+  CHECK(r.percentile(0.0) == doctest::Approx{2.0});
+  CHECK(r.percentile(100.0) == doctest::Approx{9.0});
+}
+
+TEST_CASE("nexenne::benchmark::result percentile returns zero on an empty result") {
+  auto const empty{bm::result{}};
+  CHECK(empty.percentile(50.0) == 0.0);
+  CHECK(empty.percentile(99.0) == 0.0);
+}
+
+TEST_CASE("nexenne::benchmark::config is formattable via std::format") {
+  // m3: a harness can log the knobs a result was produced with.
+  auto const cfg{bm::config{
+    .target_duration = std::chrono::milliseconds{100},
+    .sample_count = 10,
+    .min_iterations = 1,
+    .warmup = true,
+  }};
+  auto const s{std::format("{}", cfg)};
+  CHECK(s.find("target: 100.00 ms") != std::string::npos);
+  CHECK(s.find("sample_count: 10") != std::string::npos);
+  CHECK(s.find("min_iterations: 1") != std::string::npos);
+  CHECK(s.find("warmup: on") != std::string::npos);
 }
 
 TEST_CASE("nexenne::benchmark::run honours min_iterations exactly with no warmup") {
