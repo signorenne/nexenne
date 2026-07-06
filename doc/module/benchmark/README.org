@@ -2,7 +2,8 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-A small, focused micro-benchmark runner with no dependencies. You hand it a
+A small, focused micro-benchmark runner with no third-party dependencies (it
+builds only on =nexenne::chrono= and =nexenne::serialization=). You hand it a
 callable, it auto-tunes how many times to call it, runs several independent
 sample batches, and reports mean, median, stddev, min, max, and a coefficient of
 variation so you can tell signal from noise. It also ships the two anti-dead-code

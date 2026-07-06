@@ -152,6 +152,20 @@ auto main() -> int {
   std::println("  std::unordered_map {:>14.3e}", r_hash.items_per_second(probe_count));
   std::println("  flat map           {:>14.3e}", r_flat.items_per_second(probe_count));
 
+  // Percentiles of the per-sample means: p50 (the median) and p99 (the tail).
+  // Any result exposes them, so a distribution-shaped report needs no hand-rolled
+  // statistics. from_samples builds the same result from timings you collected
+  // yourself, for example a frame loop that already owns its per-frame numbers.
+  std::println("== Distribution of the flat-map samples (ns/iter) ==");
+  std::println(
+    "  p50 {:.1f}   p99 {:.1f}   max {:.1f}",
+    r_flat.percentile(50.0),
+    r_flat.percentile(99.0),
+    r_flat.percentile(100.0)
+  );
+  auto const ingested{bench::from_samples("ingested frame times", {16.6, 16.7, 33.2, 16.5}, 4)};
+  std::println("  from_samples p50 {:.1f} ns/iter over its own samples", ingested.percentile(50.0));
+
   // compare() reports the candidate against a baseline as a speedup factor.
   // There is no statistical test, so we read the cv first: above ~10% the run
   // was too noisy to trust and the verdict is meaningless.
