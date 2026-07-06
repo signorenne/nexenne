@@ -14,7 +14,7 @@
  * header is for.
  *
  * Integer uniform: Lemire's nearly-divisionless method
- * (https://arxiv.orgabs1805.10941). On modern CPUs this saves
+ * (https://arxiv.org/abs/1805.10941). On modern CPUs this saves
  * a 64-bit divide on most iterations and matches the spec exactly.
  *
  * Real uniform: extract 53 random bits and divide by 2^53. The
@@ -27,6 +27,7 @@
  * xoshiro256** both qualify out of the box.
  */
 
+#include <cassert>
 #include <concepts>
 #include <cstdint>
 #include <limits>
@@ -83,6 +84,12 @@ concept rng_engine = requires(G g) {
  */
 template <std::integral Int, rng_engine G>
 [[nodiscard]] constexpr auto uniform_int(G& g, Int const lo, Int const hi) noexcept -> Int {
+  // Confined to the runtime path via \c if \c !consteval so a valid
+  // constant-evaluated draw stays well formed under UBSan instrumentation,
+  // matching the utility::non_null precedent.
+  if !consteval {
+    assert(lo <= hi && "uniform_int bounds: lo must be <= hi");
+  }
   using U = std::make_unsigned_t<Int>;
   auto const lo_u{static_cast<U>(lo)};
   auto const range{static_cast<U>(static_cast<U>(hi) - lo_u + U{1})};
@@ -207,6 +214,11 @@ template <rng_engine G>
  *
  * @pre None. \p p is effectively clamped to \c [0, 1].
  * @post None.
+ *
+ * @note A NaN \p p is neither at or below zero nor at or above one, so it
+ *       falls through to the comparison and yields \c false while consuming
+ *       one \c uniform_real draw. Pass a finite probability to get a
+ *       meaningful result.
  *
  * @complexity \c O(1).
  */
