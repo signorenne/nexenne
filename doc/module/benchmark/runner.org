@@ -24,24 +24,33 @@ third to you via =do_not_optimize=.
 
 ** Calibration picks the iteration count
 
-The runner does not ask you how many times to call =fn=; it measures. One
-calibration call is timed:
+The runner does not ask you how many times to call =fn=; it measures. Rather
+than trust a single cold call (which reads high from cold caches and reads zero
+on a coarse clock), calibration *grows* the batch until one batch is long enough
+to time reliably, then scales from that hot, amortised reading:
 
 #+BEGIN_EXAMPLE
-  t0 = clock::now();  fn();  t1 = clock::now();
-  single_ns = t1 - t0;             // rough cost of one call
-  iters = target_duration / single_ns;   // calls that fit the budget
+  n = 1
+  repeat:
+      t0 = clock::now();  repeat n times: fn();  t1 = clock::now()
+      batch_ns = t1 - t0
+      if batch_ns >= 1 ms or n >= 1e8: break     // measurable, or the ceiling
+      n *= 10                                     // too fast, grow and retry
+  per_call_ns = batch_ns / n                      // hot cost of one call
+  iters = target_duration / per_call_ns           // calls that fit the budget
 #+END_EXAMPLE
 
 So a 10 ns routine against the default 100 ms budget runs about 10 million times
 per sample; a 1 ms routine runs about 100 times. Each sample batch then aims to
-take =target_duration=, regardless of how fast =fn= is. Two edge cases are
-handled: if the single call is too fast to register (=single_ns == 0=), the
-runner falls back to 1024 iterations and lets the real timing refine the picture;
-and =min_iterations= sets a hard floor so a batch always runs at least that many
-calls. The iteration count is finally clamped to at least one, so even a
-zero =min_iterations= against a tiny budget cannot produce a divide-by-zero in
-the per-batch mean.
+take =target_duration=, regardless of how fast =fn= is. The growth loop is what
+makes this honest: a body below the clock's resolution simply grows until it
+crosses the 1 ms floor, so there is no fixed fallback count that could miss the
+budget by an integer factor. Two floors still apply: =min_iterations= sets a hard
+minimum so a batch always runs at least that many calls, and the count is finally
+clamped to at least one, so even a zero =min_iterations= against a tiny budget
+cannot produce a divide-by-zero in the per-batch mean. Only a body the clock
+still cannot see at the growth ceiling (a fully elided no-op) falls back to that
+ceiling count.
 
 ** Sample batches produce the statistics
 
@@ -89,7 +98,23 @@ expensive =setup= cannot make a run unbounded.
 nothing, so both must outlive it) and exposes =ratio()= (candidate / baseline)
 and =speedup()= (baseline / candidate). Its =to_string= prints both summaries
 and a final line normalised to read at least =1.00x=, naming the direction
-("faster" / "slower") explicitly so it cannot be misread.
+("faster" / "slower") explicitly so it cannot be misread. Because it holds only
+pointers, the rvalue overloads are deleted: =compare(run(...), run(...))= is a
+compile error, not a silent dangle, so you must name the two results first.
+
+** Ingesting samples you collected yourself
+
+Some workloads own their samples already: a frame loop times each present with
+=chrono::scope_timer=, or you have a vector of timings from a source =run= cannot
+drive as a re-invocable callable. =from_samples(name, means_ns, total_iters)=
+builds a =result= directly from that vector, so it gets the same =mean=,
+=median=, throughput, printing, and JSON surface as a measured run. On top of the
+=median=, =result= also offers =percentile(p)= (linearly interpolated, so
+=percentile(0)= is the min, =percentile(100)= the max, and =percentile(50)=
+matches =median=): the p50 and p99 that every frame-time report leads with.
+
+State-by-reference pause/resume (pausing the clock mid-iteration) is deliberately
+out of scope; collect your own timings and hand them to =from_samples= instead.
 
 * Complexity
 

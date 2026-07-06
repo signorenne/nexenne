@@ -27,6 +27,28 @@ the whole loop and leave you timing nothing. The classic trap:
 =do_not_optimize= breaks the as-if reasoning by introducing a fake observation
 the compiler must honour, without emitting any real instruction.
 
+** What do_not_optimize does NOT do
+
+=do_not_optimize= prevents *deletion* of a value, not its *pre-computation*. It
+forces the result to be materialised at that point; it does not stop the
+compiler computing that result at compile time, nor hoisting loop-invariant work
+out of the timed loop, when the inputs are visible constants. So this still
+measures nothing:
+
+#+BEGIN_EXAMPLE
+  bm::run("cross", [] noexcept {
+      auto c = cross(vector_3_f{1,2,3}, vector_3_f{4,5,6});  // all literals
+      bm::do_not_optimize(c);   // c is materialised... but folded at compile time
+  });
+  // constexpr cross over constants: the result is a compile-time constant.
+#+END_EXAMPLE
+
+Feed the inputs through =do_not_optimize= first (=do_not_optimize(a)=,
+=do_not_optimize(b)= on mutable locals) so they become opaque to the optimiser,
+or read the data from a non-=constexpr= source at run time, as the =showcase= and
+=compare_sorts= examples do with heap vectors and LCG-filled input. The barrier
+protects the *output*; you must also make the *input* non-foldable.
+
 * How it works
 
 ** do_not_optimize(value) on GCC and Clang
@@ -67,12 +89,15 @@ contents are never read back, so the stores are not store-merged into oblivion.
 
 ** Other compilers
 
-On MSVC the value is bound to a =volatile= reference (a read the compiler may not
-elide) followed by =_ReadWriteBarrier()=, an intrinsic compiler barrier;
-slightly worse codegen than the inline-asm form but enough to defeat DCE. On an
-unrecognised compiler only the volatile read remains, with a no-op barrier and a
-documented warning that numbers may be unreliable, so prefer a supported
-toolchain. All three forms are force-inlined (=[[gnu::always_inline]]= /
+On MSVC the value's *address* is taken, laundered through a =char const volatile=
+pointer parked in a volatile sink, then followed by =_ReadWriteBarrier()=, an
+intrinsic compiler barrier. Escaping the address (rather than a plain volatile
+read, which the standard guarantees only for scalar discarded values) is what
+forces a class-type result into memory, so a struct-returning computation is
+protected too; slightly worse codegen than the inline-asm form but enough to
+defeat DCE for both scalars and aggregates. On an unrecognised compiler the same
+address escape remains, with a no-op barrier and a documented warning that
+numbers may be unreliable, so prefer a supported toolchain. All three forms are force-inlined (=[[gnu::always_inline]]= /
 =__forceinline=): a primitive that became a real function call would dwarf the
 cost it is meant to protect.
 
