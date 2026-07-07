@@ -38,7 +38,8 @@ threshold =(2^32 mod n)= is itself only needed on the rare branch, so the common
 case is one widening multiply and one compare, no division. For a wider range it
 falls back to classic modulo-with-rejection on a 64-bit slice (concatenating two
 draws from a 32-bit engine). The full-range case (=lo= = min, =hi= = max) takes one
-draw with no rejection at all. Every path is exactly unbiased.
+draw per engine word with no rejection at all (so a 64-bit result from a 32-bit
+engine consumes two draws). Every path is exactly unbiased.
 
 #+BEGIN_EXAMPLE
 uniform_int(g, 1, 6)   ->  a fair die, every face exactly 1/6
@@ -49,7 +50,10 @@ uniform_int(g, lo, hi) ->  uniform over the closed [lo, hi]
 
 Takes the top 53 bits of a 64-bit engine output (or two draws from a 32-bit
 engine) and divides by 2^53, the largest mantissa a double can hold exactly, so
-every representable value in =[0, 1)= is reachable with the correct probability.
+each of the 2^53 evenly spaced doubles =k / 2^53= (for k in =[0, 2^53)=) is drawn
+with equal probability. Representable doubles that are not such a multiple (the
+finer-grained values near zero) are never produced; this is the largest-period
+representation consistent with IEEE-754 rounding, not every representable value.
 
 ** bernoulli
 
