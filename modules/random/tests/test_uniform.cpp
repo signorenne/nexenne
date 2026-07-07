@@ -110,11 +110,11 @@ TEST_CASE("nexenne::random::bernoulli is fair, and the weighted form clamps") {
 // unbiasedness: the headline property
 
 TEST_CASE("nexenne::random::uniform_int is unbiased over a non-power-of-two range (chi-square)") {
-  // [0, 6] has width 7. A naive `engine % 7` would be biased because 2^32 is
+  // [0, 6] has width 7. A naive engine % 7 would be biased because 2^32 is
   // not a multiple of 7; Lemire's rejection sampler must remove that bias.
   // Goodness-of-fit: with 7 buckets there are 6 degrees of freedom; the
   // chi-square 0.999 critical value is ~22.46, so a fair sampler comfortably
-  // clears a generous threshold of 30 (a biased `% 7` would blow far past it).
+  // clears a generous threshold of 30 (a biased % 7 would blow far past it).
   rnd::pcg32 g{20240619u, 42u};
   constexpr int buckets{7};
   constexpr long n{7'000'000};
@@ -134,7 +134,7 @@ TEST_CASE("nexenne::random::uniform_int is unbiased over a non-power-of-two rang
   CHECK(chi_square < 30.0);
 
   // Per-bucket band as a second, independent check: each count is within
-  // ~0.5% of the mean. A `% 7` bias would push the under-represented buckets
+  // ~0.5% of the mean. A % 7 bias would push the under-represented buckets
   // outside this band, so this both detects bias and pins the magnitude.
   for (auto const h : hits) {
     CHECK(static_cast<double>(h) == doctest::Approx(expected).epsilon(0.005));
@@ -378,6 +378,22 @@ TEST_CASE("nexenne::random::bernoulli(p) at the boundary probabilities") {
   }
   CHECK(near_one > n - 500);  // ~99.9% true
   CHECK(near_zero < 500);     // ~0.1% true
+}
+
+TEST_CASE("nexenne::random::uniform_int honours its lo <= hi precondition (M1)") {
+  // The documented @pre is lo <= hi; a violation asserts (debug) and is UB in
+  // release, so only the valid regime is exercised here. Equal bounds are the
+  // boundary of the precondition and must always return that single value.
+  rnd::pcg32 g{1, 1};
+  for (int i{0}; i < 100; ++i) {
+    CHECK(rnd::uniform_int<int>(g, 5, 5) == 5);
+  }
+  // An ordered range stays within its closed bounds.
+  for (int i{0}; i < 2000; ++i) {
+    auto const v{rnd::uniform_int<int>(g, -3, 7)};
+    CHECK(v >= -3);
+    CHECK(v <= 7);
+  }
 }
 
 }  // namespace
