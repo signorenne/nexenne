@@ -42,6 +42,7 @@
  * @tparam T Floating-point sample type. Default \c double.
  */
 
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <limits>
@@ -94,6 +95,11 @@ public:
    *
    * @pre None.
    * @post \p g has advanced; a second variate may now be cached.
+   *
+   * @note The cached variate is plain engine-agnostic state: it was computed
+   *       from whichever engine produced the previous pair. When switching to
+   *       a different engine or stream between calls, or re-seeding the engine,
+   *       call \c reset first so the cache does not leak across streams.
    *
    * @complexity Amortised \c O(1); the trigonometric transform runs on
    *             every other call.
@@ -184,6 +190,7 @@ public:
  */
 template <std::floating_point T = double, rng_engine G>
 [[nodiscard]] auto normal(G& g, T const mean = T{0}, T const stddev = T{1}) noexcept -> T {
+  assert(stddev >= T{0} && "normal stddev must be non-negative");
   auto u1{uniform_real(g)};
   if (u1 == 0.0) {
     u1 = std::numeric_limits<double>::min();

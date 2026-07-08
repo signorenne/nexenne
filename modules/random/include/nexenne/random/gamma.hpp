@@ -18,6 +18,7 @@
  * @tparam T Floating-point sample type. Default \c double.
  */
 
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <numbers>
@@ -87,6 +88,7 @@ public:
    */
   explicit gamma_distribution(T const shape = T{1}, T const scale = T{1}) noexcept
       : m_shape{shape}, m_scale{scale} {
+    assert(shape > T{0} && scale > T{0} && "gamma_distribution shape and scale must be positive");
     // The Marsaglia-Tsang core always runs at an alpha of at least one: shape
     // itself when shape >= 1, or shape + 1 for the boost path used below it.
     auto const effective_alpha{shape >= T{1} ? shape : shape + T{1}};

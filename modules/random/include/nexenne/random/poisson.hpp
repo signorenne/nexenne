@@ -15,6 +15,7 @@
  * @tparam T Result integer type. Default \c std::uint32_t.
  */
 
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstdint>
@@ -31,7 +32,8 @@ public:
 
 private:
   double m_lambda{0.0};
-  double m_exp_neg_lambda{0.0};  ///< precomputed exp(-lambda) for the small-lambda path
+  // Precomputed exp(-lambda) for the small-lambda Knuth path.
+  double m_exp_neg_lambda{0.0};
 
 public:
   /**
@@ -48,7 +50,12 @@ public:
    */
   // Not constexpr: std::exp is not usable in a constant expression before C++26.
   explicit poisson_distribution(double const lambda = 1.0) noexcept
-      : m_lambda{lambda}, m_exp_neg_lambda{lambda < 30.0 ? std::exp(-lambda) : 0.0} {}
+      : m_lambda{lambda}, m_exp_neg_lambda{lambda < 30.0 ? std::exp(-lambda) : 0.0} {
+    assert(
+      lambda >= 0.0 && std::isfinite(lambda)
+      && "poisson_distribution lambda must be non-negative and finite"
+    );
+  }
 
   /**
    * @brief Returns the configured mean.
