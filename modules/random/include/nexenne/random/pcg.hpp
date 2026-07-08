@@ -13,7 +13,7 @@
  *
  * Output: a single \c std::uint32_t per \c next() call. To
  * extract bounded integers or \c [0,1) doubles, see
- * \c nexennerandomuniform.hpp.
+ * \c nexenne/random/uniform.hpp.
  *
  * This implementation models the engine concept just enough to
  * cooperate with the C++ \c \<random\> distributions when you want
@@ -41,8 +41,12 @@ namespace nexenne::random {
 class pcg32 {
 public:
   using result_type = std::uint32_t;
+  using value_type = result_type;
 
+  /// @brief Default seeding state used by the default constructor.
   static constexpr auto default_state{std::uint64_t{0x853c'49e6'748f'ea9bULL}};
+
+  /// @brief Default stream-selection value used by the default constructor.
   static constexpr auto default_sequence{std::uint64_t{0xda3e'39cb'94b9'5bdbULL}};
 
 private:
