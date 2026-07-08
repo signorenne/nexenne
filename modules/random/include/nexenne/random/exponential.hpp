@@ -16,6 +16,7 @@
  * @tparam T Floating-point sample type. Default \c double.
  */
 
+#include <cassert>
 #include <cmath>
 #include <concepts>
 
@@ -42,7 +43,13 @@ public:
    *       sampled value non-positive or non-finite.
    * @post \c rate() returns \p rate.
    */
-  constexpr explicit exponential_distribution(T const rate = T{1}) noexcept : m_rate{rate} {}
+  constexpr explicit exponential_distribution(T const rate = T{1}) noexcept : m_rate{rate} {
+    // Confined to the runtime path so a valid constant-evaluated construction
+    // stays well formed, matching the utility::non_null precedent.
+    if !consteval {
+      assert(rate > T{0} && "exponential_distribution rate must be strictly positive");
+    }
+  }
 
   /**
    * @brief Returns the configured rate parameter.
