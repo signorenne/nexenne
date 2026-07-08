@@ -60,7 +60,7 @@ auto main() -> int {
   std::println("exponential(4):     mean {:.3f} (~0.250), var {:.4f} (~0.0625)", e_mean, e_var);
 
   // --- Gamma: positive, right-skewed payout -----------------------------------
-  // A sum of `shape` exponentials: strictly positive with an adjustable skew.
+  // A sum of shape exponentials: strictly positive with an adjustable skew.
   // Mean = shape*scale, variance = shape*scale^2. Good for gold drops, service
   // times, Bayesian priors - anything positive with a typical value and a tail.
   rnd::gamma_distribution<double> payout{2.0, 100.0};  // mean 200, var 20000

@@ -43,3 +43,14 @@ Seed an engine explicitly and the stream is fixed: same seed, same sequence, on
 every run and every platform. Use =seed_sequence<N>(master)= to fan one seed out
 into =N= uncorrelated streams (one per worker) deterministically. None of this is
 cryptographically secure; it is for simulation and procedural use, not secrets.
+
+* Formatting
+
+=format.hpp= adds the three-layer printing support (=to_string=, =operator<<=,
+and a =std::formatter= specialization) for both engines (name plus internal
+state) and all five distributions (name plus parameters), so an engine's exact
+position or a distribution's configuration can be logged in a reproducibility
+report with no caller-written helper. It is opt-in because =<format>= is heavy:
+include =nexenne/random/format.hpp= (or the umbrella =random.hpp=) where you need
+it. The distribution formatters forward the format spec to each numeric
+parameter, so =std::format("{:.2f}", dist)= applies to its values.
