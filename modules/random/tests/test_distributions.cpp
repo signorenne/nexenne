@@ -573,4 +573,23 @@ TEST_CASE("nexenne::random::discrete_distribution is reproducible across equal-s
   }
 }
 
+TEST_CASE("distributions accept their documented positive parameters (M2)") {
+  // Each constructor documents a strict-positivity precondition that now
+  // asserts (debug) on violation; only the valid regime is exercised here.
+  rnd::pcg32 g{2, 1};
+
+  rnd::exponential_distribution<double> const e{2.0};
+  CHECK(e.rate() == doctest::Approx(2.0));
+  CHECK(e.sample(g) >= 0.0);
+
+  rnd::gamma_distribution<double> const ga{2.0, 3.0};
+  CHECK(ga.shape() == doctest::Approx(2.0));
+  CHECK(ga.scale() == doctest::Approx(3.0));
+  CHECK(ga.sample(g) >= 0.0);
+
+  rnd::poisson_distribution<> const p{4.0};
+  CHECK(p.mean() == doctest::Approx(4.0));
+  nexenne::utility::discard(p.sample(g));  // a non-negative event count
+}
+
 }  // namespace
