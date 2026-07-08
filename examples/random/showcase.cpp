@@ -42,6 +42,7 @@
 
 #include <nexenne/random/discrete.hpp>
 #include <nexenne/random/exponential.hpp>
+#include <nexenne/random/format.hpp>
 #include <nexenne/random/gamma.hpp>
 #include <nexenne/random/normal.hpp>
 #include <nexenne/random/poisson.hpp>
@@ -315,6 +316,15 @@ auto main() -> int {
     std::println("DETERMINISM BROKEN");
     return 1;
   }
+
+  // Formatting: format.hpp prints an engine's exact state and a distribution's
+  // parameters with no hand-rolled helper, ideal for a reproducibility report.
+  // It is opt-in through nexenne/random/format.hpp because std::format is heavy.
+  rng::xoshiro256ss const reporter{0x00C0'FFEEu};
+  rng::normal_distribution<double> const scores{10.0, 3.0};
+  std::println("== formatting ==");
+  std::println("  engine   {}", reporter);
+  std::println("  scores   {}", scores);
 
   std::println("\nThat is the whole module in one expedition: seeding, uniform and");
   std::println("weighted draws, gamma/normal/exponential/poisson distributions,");
