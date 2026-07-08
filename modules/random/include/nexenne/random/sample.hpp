@@ -43,10 +43,15 @@ namespace nexenne::random {
  * @post \p range holds a uniformly random permutation of its original
  *       elements; \p g has advanced once per swap.
  *
+ * @note The \c noexcept guarantee is conditional on the element swap being
+ *       nothrow: a range of a type whose swap can throw propagates that
+ *       exception instead of terminating, mirroring \c std::ranges::shuffle.
+ *
  * @complexity \c O(n) swaps for a range of \c n elements.
  */
 template <std::ranges::random_access_range R, rng_engine G>
-constexpr auto shuffle(R&& range, G& g) noexcept -> void {
+constexpr auto shuffle(R&& range, G& g)
+  noexcept(std::is_nothrow_swappable_v<std::ranges::range_value_t<R>>) -> void {
   auto const n{std::ranges::size(range)};
   if (n < 2) {
     return;
