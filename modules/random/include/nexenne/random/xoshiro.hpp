@@ -6,7 +6,7 @@
  *        Blackman and Vigna.
  *
  * Faster than PCG64 on most pipelines, with a longer period
- * (2^256, 1) and excellent statistical quality. Use this when:
+ * (2^256 - 1) and excellent statistical quality. Use this when:
  *
  *   - You want a 64-bit-native output (\c pcg32 is 32-bit).
  *   - You're sampling huge numbers of values where the
@@ -35,6 +35,7 @@ namespace nexenne::random {
 class xoshiro256ss {
 public:
   using result_type = std::uint64_t;
+  using value_type = result_type;
 
 private:
   static constexpr auto splitmix64(std::uint64_t& s) noexcept -> std::uint64_t {

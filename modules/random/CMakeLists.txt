@@ -20,6 +20,7 @@ nexenne_add_module(random
     HEADERS
         include/nexenne/random/discrete.hpp
         include/nexenne/random/exponential.hpp
+        include/nexenne/random/format.hpp
         include/nexenne/random/gamma.hpp
         include/nexenne/random/normal.hpp
         include/nexenne/random/pcg.hpp
