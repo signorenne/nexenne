@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <nexenne/random/pcg.hpp>
@@ -18,6 +19,30 @@
 namespace {
 
 namespace rnd = nexenne::random;
+
+// A type whose swap can throw, so std::is_nothrow_swappable_v is false. Used to
+// pin the conditional noexcept on shuffle (M3): a throwing element swap must
+// propagate, not terminate.
+struct throwing_swap {
+  int value{0};
+  throwing_swap() = default;
+  throwing_swap(throwing_swap const&) = default;
+  throwing_swap(throwing_swap&&) noexcept(false) {}  // NOLINT(*-noexcept-move*)
+  auto operator=(throwing_swap const&) -> throwing_swap& = default;
+  auto operator=(throwing_swap&&) noexcept(false) -> throwing_swap& {  // NOLINT(*-noexcept-move*)
+    return *this;
+  }
+};
+
+// M3: shuffle's noexcept is conditional on the element swap being nothrow.
+static_assert(
+  noexcept(rnd::shuffle(std::declval<std::vector<int>&>(), std::declval<rnd::pcg32&>())),
+  "shuffle over a nothrow-swappable element type must be noexcept"
+);
+static_assert(
+  !noexcept(rnd::shuffle(std::declval<std::vector<throwing_swap>&>(), std::declval<rnd::pcg32&>())),
+  "shuffle over a throwing-swap element type must not be noexcept"
+);
 
 TEST_CASE("nexenne::random::shuffle permutes without losing or duplicating elements") {
   std::vector<int> v{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
