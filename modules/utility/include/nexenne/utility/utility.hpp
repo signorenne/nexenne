@@ -8,6 +8,7 @@
 #include <nexenne/utility/align.hpp>
 #include <nexenne/utility/bit.hpp>
 #include <nexenne/utility/buffer_cursor.hpp>
+#include <nexenne/utility/cobs.hpp>
 #include <nexenne/utility/defer.hpp>
 #include <nexenne/utility/discard.hpp>
 #include <nexenne/utility/endian.hpp>

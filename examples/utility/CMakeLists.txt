@@ -6,6 +6,7 @@ set(_utility_examples
     align
     bit
     buffer_cursor
+    cobs
     defer
     discard
     endian
