@@ -328,6 +328,14 @@ public:
    *
    * @pre None.
    * @post \c is_array() is \c true.
+   *
+   * @warning This converting constructor is implicit on purpose so nested DOM
+   *          literals such as \c json::array{json::object{{"k", v}}} read
+   *          naturally. A consequence is that \c auto \c x{json::array{}}
+   *          deduces \c x as a one-element \c array_type (the braced element is
+   *          taken as an \c initializer_list<value> holding one default-array
+   *          value), not as an empty array. Write \c json::array \c x; to
+   *          default-construct an empty array.
    */
   value(array_type a)  // NOLINT
       : m_data{std::move(a)} {}
