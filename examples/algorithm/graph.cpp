@@ -35,10 +35,10 @@ using V = std::uint32_t;
 auto main() -> int {
   // A weighted DAG: 0 -> 1 -> 3, 0 -> 2 -> 3. Two paths to vertex 3, costs 3 and 5.
   auto g{nc::graph<double, V>(4)};
-  g.add_edge(0, 1, 1.0);
-  g.add_edge(0, 2, 4.0);
-  g.add_edge(1, 3, 2.0);
-  g.add_edge(2, 3, 1.0);
+  nexenne::utility::discard(g.add_edge(0, 1, 1.0));
+  nexenne::utility::discard(g.add_edge(0, 2, 4.0));
+  nexenne::utility::discard(g.add_edge(1, 3, 2.0));
+  nexenne::utility::discard(g.add_edge(2, 3, 1.0));
 
   // bfs visits in nondecreasing hop count; the visitor is called once per vertex.
   std::printf("bfs from 0     :");
@@ -59,9 +59,9 @@ auto main() -> int {
   // bellman_ford is slower (O(V*E)) but the right call when weights may be
   // negative; it also reports a negative cycle (here: none, so the result holds).
   auto neg{nc::graph<double, V>(3)};
-  neg.add_edge(0, 1, 4.0);
-  neg.add_edge(0, 2, 5.0);
-  neg.add_edge(1, 2, -3.0);  // a negative edge dijkstra could not handle
+  nexenne::utility::discard(neg.add_edge(0, 1, 4.0));
+  nexenne::utility::discard(neg.add_edge(0, 2, 5.0));
+  nexenne::utility::discard(neg.add_edge(1, 2, -3.0));  // a negative edge dijkstra could not handle
   if (auto const bf{alg::bellman_ford(neg, V{0})}) {
     std::printf("bellman 0->2   = %.1f  (via 1: 4 + -3 = 1)\n", bf.value()[2]);
   } else {
