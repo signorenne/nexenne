@@ -271,7 +271,20 @@ widely-included headers, so formatting is opt-in by including =format.hpp=.
 - *No HTML* in comments.
 - In function bodies, comment the /why/, never the /what/. Default to none.
 
-** Doxygen on every public symbol
+** Doxygen on every symbol, public or not
+
+*Every function carries a full Javadoc block*, not only the public API:
+=detail=-namespace helpers, anonymous-namespace helpers, static file-local
+functions, and named function objects all get the same =/** ... */= block
+(brief, =@tparam= / =@param=, =@return=, =@pre= / =@post=) in the same house
+style. A reader opening any function, however internal, finds its contract
+stated. The only functions without their own block are C++ lambdas written
+inline (document the enclosing function and, where the lambda is non-obvious,
+a plain =//= comment above it). To keep the =FAIL_ON_WARNINGS= docs build
+clean, wrap a =detail= or anonymous helper (and its block) in =/// @cond
+INTERNAL= ... =/// @endcond= so Doxygen skips rendering it while the source
+block stays in place; the block must still be complete (Doxygen validates
+=@param= / =@return= on anything it does render).
 
 Javadoc-flavored =/** ... */=, no HTML, no backticks (use =\c= for an
 identifier, =\p= for a parameter). The block is always built from the same
