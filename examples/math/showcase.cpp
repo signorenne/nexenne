@@ -71,7 +71,7 @@ auto main() -> int {
 
   // perspective maps the view frustum to clip space; it takes the vertical field
   // of view in radians and keeps clip z in [-1, 1] (the OpenGL convention).
-  auto const proj{nm::perspective(nm::half_pi * 0.5, 16.0 / 9.0, 0.1, 100.0)};
+  auto const proj{nm::perspective(nm::radians{nm::half_pi * 0.5}, 16.0 / 9.0, 0.1, 100.0)};
 
   // 2. The model transform, composed right-to-left: scale, then spin, then move.
   // The spin is a quaternion (gimbal-lock-free, cheap to compose); rotation3 turns

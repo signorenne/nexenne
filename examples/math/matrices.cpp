@@ -32,7 +32,7 @@ auto main() -> int {
   std::println("a.data() = [{}, {}, {}, {}]", a.data()[0], a.data()[1], a.data()[2], a.data()[3]);
 
   // A perspective projection (60 deg vertical FOV, 16:9).
-  auto const proj{nm::perspective(nm::to_radians(60.0).value(), 16.0 / 9.0, 0.1, 100.0)};
+  auto const proj{nm::perspective(nm::to_radians(60.0), 16.0 / 9.0, 0.1, 100.0)};
   std::println("");
   std::println(
     "perspective m(0,0)={:.4f} m(1,1)={:.4f} m(3,2)={}", proj(0, 0), proj(1, 1), proj(3, 2)

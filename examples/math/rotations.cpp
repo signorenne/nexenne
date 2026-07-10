@@ -66,7 +66,7 @@ auto main() -> int {
   }
 
   // Euler angles (aerospace yaw-pitch-roll) to a quaternion and back to an axis.
-  auto const aircraft{nm::from_ypr(0.4, -0.2, 0.9)};
+  auto const aircraft{nm::from_ypr(nm::radians{0.4}, nm::radians{-0.2}, nm::radians{0.9})};
   auto const aa{nm::to_axis_angle(aircraft)};
   std::println("{:<28} {:.4f}", "from_ypr -> rotation axis", aa.axis());
   std::println("from_ypr -> angle = {:.4f} rad", aa.angle().value());
