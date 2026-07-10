@@ -1,0 +1,138 @@
+#+TITLE: cobs
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::cobs= is Consistent Overhead Byte Stuffing: it rewrites a
+byte payload into a form that contains no =0x00=, so a single =0x00= can delimit
+frames on a byte stream. It is the one canonical COBS codec in the repo; the
+=serialization= and =algorithm= modules wrap it and only remap the error enum.
+
+* The problem it solves
+
+A byte stream (UART, RS-485, USB-CDC, a TCP framing layer) carries
+variable-length packets back to back, and the receiver needs to know where one
+packet ends and the next begins. The clean answer is a reserved delimiter byte,
+and =0x00= is the natural choice, but a raw payload can contain =0x00= anywhere,
+so the delimiter is ambiguous. COBS removes every =0x00= from the payload for a
+bounded, content-independent cost (at most one byte per 254 payload bytes, plus
+one), leaving =0x00= free to mark frame boundaries. That "consistent overhead"
+is what distinguishes it from escape schemes whose worst case doubles the size.
+
+* How it works
+
+** Runs between zeros, and a code byte that jumps to the next zero
+
+COBS views the payload as a sequence of /runs/ of non-zero bytes separated by
+zeros. It drops each separating zero and, in its place, writes a single =code=
+byte that says how far it is to the next zero: =code= is the number of bytes
+until (and including the slot of) the next zero. Decoding walks =code= bytes
+forward, emitting the data verbatim, then emits a =0x00= (because a zero is
+exactly what the code replaced) and repeats. A code byte is therefore always in
+=1..0xFF= and never =0x00=, and no data byte is =0x00= either, so the whole
+frame is zero-free.
+
+#+BEGIN_EXAMPLE
+  payload   11 22 00 33
+            \___/  ^  \_/
+             run   zero run
+
+  encoded   03 11 22 02 33
+            ^        ^
+            code=3: two data bytes then a zero
+                     code=2: one data byte then the end (no trailing zero)
+
+  index:     0    1    2    3    4
+           +----+----+----+----+----+
+           | 03 | 11 | 22 | 02 | 33 |
+           +----+----+----+----+----+
+             ^                   ^
+             first code byte     last run's code, no zero implied after it
+#+END_EXAMPLE
+
+The leading byte is always a code byte, so an empty payload encodes to the
+single byte ={0x01}= (a code that reaches the end with no data). That is why no
+COBS frame is ever empty, and why the reader can treat a bare delimiter as an
+idle line rather than a real packet.
+
+** The 254-byte block and the implicit-zero rule
+
+A code byte is one octet, so it can reach at most 254 data bytes ahead
+(=0xFF= means "254 data bytes, and do NOT emit a trailing zero"). A run longer
+than 254 non-zero bytes is split into =0xFF= blocks. The subtle rule the decoder
+must honour: a block whose code is exactly =0xFF= is /not/ followed by an
+implicit zero, because it ended by hitting the length limit, not by hitting a
+zero. Every other block (code =< 0xFF=) does imply a trailing zero, unless it is
+the final block of the frame. A 254-byte non-zero payload therefore encodes to
+=0xFF= plus 254 data bytes plus a trailing =0x01= (an empty final block), 256
+bytes in all.
+
+** Zero rejection on decode
+
+A conformant frame is zero-free by construction, so this decoder treats any
+=0x00= it meets, in a code position or a data position, as a lost delimiter or a
+bit error and returns =error::invalid_input= rather than passing it through. A
+code byte that points past the end of the frame returns =error::truncated_input=,
+and an exhausted destination returns =error::output_too_small=. All three are
+reported through =std::expected=; nothing throws.
+
+* API tour
+
+Everything lives in =nexenne::utility::cobs= and operates on
+=std::span<std::byte>=; both directions are =constexpr= and allocation-free.
+
+- =max_encoded_size(payload_len)= : worst-case encoded byte count (no delimiter).
+- =encode(in, out)= : write the zero-free encoding of =in=; returns the byte
+  count or =error::output_too_small=.
+- =decode(in, out)= : recover the payload from one frame (delimiter excluded);
+  returns the byte count or =error::invalid_input= / =error::truncated_input= /
+  =error::output_too_small=.
+- =error= : the failure enum, with =to_string= and a =std::formatter=.
+
+* Usage
+
+Frame each payload, append a =0x00= delimiter, and split the stream on =0x00= to
+decode:
+
+#+BEGIN_SRC cpp
+namespace cobs = nexenne::utility::cobs;
+
+// Encode one payload and append the delimiter.
+std::vector<std::byte> encoded(cobs::max_encoded_size(payload.size()));
+auto const n{cobs::encode(payload, encoded)};
+encoded.resize(*n);
+stream.insert(stream.end(), encoded.begin(), encoded.end());
+stream.push_back(std::byte{0});  // guaranteed absent from the frame
+
+// Decode a single frame (the bytes between two delimiters).
+std::vector<std::byte> decoded(frame.size());  // never longer than the frame
+auto const m{cobs::decode(frame, decoded)};
+decoded.resize(*m);
+#+END_SRC
+
+* Pitfalls
+
+- *The delimiter is not part of a frame.* =encode= writes no trailing =0x00=,
+  and =decode= expects the bytes /between/ two delimiters. Append the delimiter
+  yourself when framing, and strip it before decoding.
+- *An empty frame is not a real packet.* An empty payload still encodes to
+  ={0x01}=; a bare delimiter (an empty frame) never comes from =encode=. Reject
+  it in the framing layer if an idle line and a genuine empty packet must differ.
+- *A =0xFF= block implies no trailing zero.* When hand-building or auditing
+  frames, remember the full-block exception, or a round trip gains a phantom
+  zero.
+- *Size the encode buffer with =max_encoded_size=.* The exact size is usually
+  smaller, but the bound is what guarantees =encode= never returns
+  =error::output_too_small= for valid input.
+
+* Comparison with the standard library
+
+The standard library has no framing codec: =std::span= and =std::byte= give the
+byte-level vocabulary, but stuffing and delimiting a stream is left to the
+caller. COBS is the compact, worst-case-bounded way to do it, which is why the
+=serialization= (JSON, binary, CBOR) and =algorithm= (encoding) modules both
+build their COBS surface on this one implementation rather than re-deriving the
+tricky =0xFF=-block edge cases twice.
+
+Runnable: [[file:../../../examples/utility/cobs.cpp][examples/utility/cobs.cpp]]
