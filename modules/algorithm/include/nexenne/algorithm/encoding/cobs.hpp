@@ -11,22 +11,55 @@
  * guaranteed to contain no \c 0x00. Reference: Cheshire and Baker, "Consistent
  * Overhead Byte Stuffing", IEEE/ACM Transactions on Networking, 1999.
  *
- * Decode expects the bytes between two delimiters with the delimiters excluded,
- * not a trailing \c 0x00. A conformant COBS frame is zero-free by construction,
- * so decode rejects any \c 0x00 it meets, in a code position or a data position,
- * as a lost delimiter or bit error rather than accepting it as payload. Both
- * directions are heap-free, \c constexpr, and return \c codec_result. The decoded
- * payload is always one byte shorter than its encoded input.
+ * These functions are a thin wrapper over the canonical codec in
+ * \c nexenne::utility::cobs: the algorithm lives there once, and this layer only
+ * adapts the \c std::uint8_t span surface (via \c std::as_bytes) and remaps
+ * \c nexenne::utility::cobs::error onto \c codec_error. Decode expects the bytes
+ * between two delimiters with the delimiters excluded, not a trailing \c 0x00. A
+ * conformant COBS frame is zero-free by construction, so decode rejects any
+ * \c 0x00 it meets, in a code position or a data position, as a lost delimiter
+ * or bit error rather than accepting it as payload. Both directions are heap-free
+ * and return \c codec_result. The decoded payload is always one byte shorter than
+ * its encoded input.
  */
 
 #include <cstddef>
 #include <cstdint>
-#include <expected>
 #include <span>
 
 #include <nexenne/algorithm/encoding/codec_error.hpp>
+#include <nexenne/utility/cobs.hpp>
 
 namespace nexenne::algorithm {
+
+/// @cond INTERNAL
+namespace detail {
+
+/**
+ * @brief Maps a canonical COBS error onto the \c codec_error vocabulary.
+ *
+ * @param e Canonical error reported by \c nexenne::utility::cobs.
+ *
+ * @return The matching \c codec_error enumerator.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] constexpr auto cobs_to_codec_error(nexenne::utility::cobs::error const e) noexcept
+  -> codec_error {
+  switch (e) {
+    case nexenne::utility::cobs::error::invalid_input:
+      return codec_error::invalid_input;
+    case nexenne::utility::cobs::error::truncated_input:
+      return codec_error::incomplete_input;
+    case nexenne::utility::cobs::error::output_too_small:
+      return codec_error::buffer_too_small;
+  }
+  return codec_error::invalid_input;
+}
+
+}  // namespace detail
+/// @endcond
 
 /**
  * @brief Upper bound on the COBS-encoded size of a \p n_bytes payload.
@@ -41,7 +74,7 @@ namespace nexenne::algorithm {
  */
 [[nodiscard]] constexpr auto cobs_encoded_max_size(std::size_t const n_bytes
 ) noexcept -> std::size_t {
-  return n_bytes + n_bytes / 254u + 1u;
+  return nexenne::utility::cobs::max_encoded_size(n_bytes);
 }
 
 /**
@@ -55,7 +88,7 @@ namespace nexenne::algorithm {
  * @param out Destination byte buffer.
  *
  * @return The number of bytes written, or \c codec_error::buffer_too_small when
- *         \p out is shorter than \c cobs_encoded_max_size of \p in size.
+ *         \p out is too small to hold the encoding of \p in.
  *
  * @pre \p in and \p out do not overlap.
  * @post On success \p out contains no \c 0x00 byte and the written count is at
@@ -67,33 +100,8 @@ namespace nexenne::algorithm {
 [[nodiscard]] constexpr auto cobs_encode(
   std::span<std::uint8_t const> const in, std::span<std::uint8_t> const out
 ) noexcept -> codec_result {
-  if (out.size() < cobs_encoded_max_size(in.size())) {
-    return std::unexpected{codec_error::buffer_too_small};
-  }
-
-  auto out_i{std::size_t{1}};  // Slot 0 holds the first code byte.
-  auto code_i{std::size_t{0}};
-  auto code{std::uint8_t{1}};
-
-  auto const finish_block{[&]() noexcept {
-    out[code_i] = code;
-    code_i = out_i++;
-    code = 1;
-  }};
-
-  for (auto const b : in) {
-    if (b == 0u) {
-      finish_block();
-    } else {
-      out[out_i++] = b;
-      ++code;
-      if (code == 0xFFu) {
-        finish_block();
-      }
-    }
-  }
-  out[code_i] = code;
-  return out_i;
+  return nexenne::utility::cobs::encode(std::as_bytes(in), std::as_writable_bytes(out))
+    .transform_error(detail::cobs_to_codec_error);
 }
 
 /**
@@ -120,38 +128,8 @@ namespace nexenne::algorithm {
 [[nodiscard]] constexpr auto cobs_decode(
   std::span<std::uint8_t const> const in, std::span<std::uint8_t> const out
 ) noexcept -> codec_result {
-  auto in_i{std::size_t{0}};
-  auto out_i{std::size_t{0}};
-
-  while (in_i < in.size()) {
-    auto const code{in[in_i++]};
-    if (code == 0u) {
-      return std::unexpected{codec_error::invalid_input};
-    }
-    for (auto k{std::uint8_t{1}}; k < code; ++k) {
-      if (in_i >= in.size()) {
-        return std::unexpected{codec_error::incomplete_input};
-      }
-      auto const data_byte{in[in_i++]};
-      if (data_byte == 0u) {
-        // A conformant COBS frame never contains 0x00, so a zero in a data
-        // position is a lost delimiter or bit error. Reject it, matching
-        // nexenne::serialization::cobs::decode, rather than passing it through.
-        return std::unexpected{codec_error::invalid_input};
-      }
-      if (out_i >= out.size()) {
-        return std::unexpected{codec_error::buffer_too_small};
-      }
-      out[out_i++] = data_byte;
-    }
-    if (code < 0xFFu && in_i < in.size()) {
-      if (out_i >= out.size()) {
-        return std::unexpected{codec_error::buffer_too_small};
-      }
-      out[out_i++] = 0u;
-    }
-  }
-  return out_i;
+  return nexenne::utility::cobs::decode(std::as_bytes(in), std::as_writable_bytes(out))
+    .transform_error(detail::cobs_to_codec_error);
 }
 
 }  // namespace nexenne::algorithm
