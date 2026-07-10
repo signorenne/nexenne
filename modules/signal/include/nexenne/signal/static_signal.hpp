@@ -449,8 +449,19 @@ private:
     bool executing{false};  // its invoke is on the stack; do not reclaim this entry
     slot_fn_type fn_obj{};
 
-    // By const reference: a by-value slot parameter is copied once, at the
-    // slot's own call boundary, not again here.
+    /**
+     * @brief Invokes the stored callable with \p args.
+     *
+     * By const reference: a by-value slot parameter is copied once, at the
+     * slot's own call boundary, not again here.
+     *
+     * @param args Arguments forwarded to the slot callable.
+     *
+     * @return The callable's result of type \c R.
+     *
+     * @pre The entry holds a callable object.
+     * @post None.
+     */
     auto invoke(Args const&... args) -> R {
       return fn_obj(args...);
     }
@@ -503,6 +514,18 @@ public:
    *       in-progress emit is not visited by that emit or any emit nested in it.
    *
    * @complexity \c O(MaxSlots) to insert into the priority-sorted list.
+   *
+   * @note A full signal is reported by an invalid handle (\c has_target() is
+   *       \c false), not by \c std::expected. This is a deliberate exception to
+   *       the module error policy for handle-returning connect APIs: the handle
+   *       is both the success value and the failure signal, so a token keeps the
+   *       common connect path allocation-free and branch-light, and keeps
+   *       \c static_signal source-compatible with its heap sibling \c signal,
+   *       whose \c connect grows and so never fails. The overload is
+   *       \c [[nodiscard]] and \c has_target() distinguishes the two outcomes;
+   *       check it (or track through a \c static_slot) where running at capacity
+   *       is reachable. Every connect overload here and on \c static_sink shares
+   *       this contract. See \c doc/module/signal/static.org for the rationale.
    */
   template <typename Fn>
     requires detail::slot_connectable<Fn, slot_fn_type, R, Args...>
@@ -523,6 +546,9 @@ public:
    * @post The slot is removed after the first emit reaches it.
    *
    * @complexity \c O(MaxSlots).
+   *
+   * @note A full signal returns an invalid handle rather than \c std::expected;
+   *       see \c connect for the rationale.
    */
   template <typename Fn>
     requires detail::slot_connectable<Fn, slot_fn_type, R, Args...>
@@ -568,6 +594,9 @@ public:
    * @post On success \c size() has increased by one.
    *
    * @complexity \c O(MaxSlots).
+   *
+   * @note A full signal returns an invalid handle rather than \c std::expected;
+   *       see \c connect for the rationale.
    *
    * @warning No lifetime tie: prefer the \c static_slot overload.
    */
@@ -789,6 +818,21 @@ public:
   }
 
 private:
+  /**
+   * @brief Wraps a pointer-to-member call as a slot-shaped callable bound to \p obj.
+   *
+   * Bound by reference and shared by both member-function connect overloads.
+   * \p obj must outlive the resulting connection.
+   *
+   * @tparam MemberFn Pointer-to-member-function to invoke.
+   * @tparam T Owning object type.
+   * @param obj Object the member function is called on.
+   *
+   * @return A lambda invoking \c obj.*MemberFn with the slot arguments.
+   *
+   * @pre \p obj outlives the returned callable.
+   * @post None.
+   */
   template <auto MemberFn, typename T>
   static auto bind_member(T& obj) noexcept {
     return [&obj](Args... args) noexcept(noexcept((obj.*MemberFn)(args...))) -> R {
@@ -796,6 +840,24 @@ private:
     };
   }
 
+  /**
+   * @brief Shared connect engine for \c connect and \c connect_once.
+   *
+   * Stores \p fn in a new slot entry, reclaiming a dead-but-unswept entry when
+   * physically full during an emit. During an emit it appends without moving the
+   * live prefix (marking the list dirty for a post-emit re-sort); otherwise it
+   * bubbles the entry into priority order.
+   *
+   * @tparam Fn Callable invocable as \c Fn(Args...).
+   * @param fn Callable to store.
+   * @param priority Ordering key; lower fires first.
+   * @param once Whether the slot auto-disconnects after its first invocation.
+   *
+   * @return A connection handle, or an invalid handle when the signal is full.
+   *
+   * @pre \p fn satisfies the slot storage constraint.
+   * @post On success \c size() has increased by one and \c m_next_id has advanced.
+   */
   template <typename Fn>
   auto connect_impl(Fn&& fn, int const priority, bool const once) -> static_connection {
     if (m_slots.size() == MaxSlots) {
@@ -850,10 +912,36 @@ private:
     return static_connection{};  // every slot is live or executing: genuinely full
   }
 
+  /**
+   * @brief Type-erased disconnect entry point stored in each \c static_connection.
+   *
+   * Recovers the signal from the void pointer and forwards to \c disconnect_by_id.
+   *
+   * @param self Type-erased pointer to the owning signal.
+   * @param id Identifier of the slot to remove.
+   *
+   * @return \c true when the slot was removed, \c false when it was not found.
+   *
+   * @pre \p self points to a live \c static_signal.
+   * @post The named slot is removed if it was live.
+   */
   static auto disconnect_thunk(void* const self, id_type const id) noexcept -> bool {
     return static_cast<static_signal*>(self)->disconnect_by_id(id);
   }
 
+  /**
+   * @brief Removes the slot named by \p id, honouring the emit deferral rules.
+   *
+   * During an emit a match is marked dead for the post-emit sweep; outside an
+   * emit it is erased in place.
+   *
+   * @param id Identifier of the slot to remove.
+   *
+   * @return \c true when a live slot was found and removed, \c false otherwise.
+   *
+   * @pre None.
+   * @post The named slot will not fire again once any in-progress emit completes.
+   */
   auto disconnect_by_id(id_type const id) noexcept -> bool {
     for (auto i{std::size_t{0}}; i < m_slots.size(); ++i) {
       if (m_slots[i].id == id && m_slots[i].alive) {
@@ -898,6 +986,16 @@ private:
     }
   }
 
+  /**
+   * @brief Erases the slot at \p pos, shifting the tail down to stay stable.
+   *
+   * Preserves the relative order of the remaining priority-sorted slots.
+   *
+   * @param pos Index of the slot to remove.
+   *
+   * @pre \p pos is a valid index into \c m_slots.
+   * @post \c m_slots has one fewer entry and its order is otherwise unchanged.
+   */
   auto erase_at(std::size_t const pos) noexcept -> void {
     for (auto i{pos}; i + 1 < m_slots.size(); ++i) {
       m_slots[i] = std::move(m_slots[i + 1]);
@@ -905,6 +1003,15 @@ private:
     nexenne::utility::discard(m_slots.pop_back());
   }
 
+  /**
+   * @brief Compacts the slot list, dropping every entry marked not alive.
+   *
+   * Stable stream-compaction run once the outermost emit finishes, so one-shot
+   * and disconnected slots leave the list without disturbing the survivors.
+   *
+   * @pre No emit is iterating \c m_slots.
+   * @post \c m_slots holds only the alive entries, in their prior relative order.
+   */
   auto sweep_dead() noexcept -> void {
     auto write{std::size_t{0}};
     for (auto read{std::size_t{0}}; read < m_slots.size(); ++read) {

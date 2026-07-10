@@ -88,26 +88,76 @@ inline auto operator<<(std::ostream& os, static_connection const& c) -> std::ost
 
 }  // namespace nexenne::signal
 
-/// Formats a \c connection via \c nexenne::signal::to_string.
+/**
+ * @brief Formats a \c connection via \c nexenne::signal::to_string.
+ */
 template <>
 struct std::formatter<nexenne::signal::connection> {
+  /**
+   * @brief Accepts an empty format spec.
+   *
+   * @param ctx Parse context positioned at the format spec.
+   *
+   * @return Iterator to the end of the parsed spec.
+   *
+   * @pre The spec between the braces is empty.
+   * @post None.
+   */
   static constexpr auto parse(std::format_parse_context& ctx) {
     return ctx.begin();
   }
 
-  static auto format(nexenne::signal::connection const& c, auto& ctx) {
+  /**
+   * @brief Writes the connection's debug string to the output context.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param c Connection to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post \p c is unchanged; its debug string has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  static auto format(nexenne::signal::connection const& c, FormatContext& ctx) {
     return std::format_to(ctx.out(), "{}", nexenne::signal::to_string(c));
   }
 };
 
-/// Formats a \c static_connection via \c nexenne::signal::to_string.
+/**
+ * @brief Formats a \c static_connection via \c nexenne::signal::to_string.
+ */
 template <>
 struct std::formatter<nexenne::signal::static_connection> {
+  /**
+   * @brief Accepts an empty format spec.
+   *
+   * @param ctx Parse context positioned at the format spec.
+   *
+   * @return Iterator to the end of the parsed spec.
+   *
+   * @pre The spec between the braces is empty.
+   * @post None.
+   */
   static constexpr auto parse(std::format_parse_context& ctx) {
     return ctx.begin();
   }
 
-  static auto format(nexenne::signal::static_connection const& c, auto& ctx) {
+  /**
+   * @brief Writes the connection's debug string to the output context.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param c Connection to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post \p c is unchanged; its debug string has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  static auto format(nexenne::signal::static_connection const& c, FormatContext& ctx) {
     return std::format_to(ctx.out(), "{}", nexenne::signal::to_string(c));
   }
 };
