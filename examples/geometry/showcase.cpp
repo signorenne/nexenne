@@ -83,7 +83,7 @@ auto main() -> int {
   // 3. Cull. A camera looking down -z keeps only the objects inside its frustum.
   std::println("\n== 3. Frustum culling ==");
   auto const view{*nm::look_at(vec3{0, 0, 8}, vec3{0, 0, 0}, vec3{0, 1, 0})};
-  auto const proj{nm::perspective(nm::radians<float>{1.0f}.value(), 1.0f, 0.1f, 50.0f)};
+  auto const proj{nm::perspective(nm::radians<float>{1.0f}, 1.0f, 0.1f, 50.0f)};
   auto const camera{geo::frustum_from_view_projection(proj * view)};
   for (auto const& [name, sphere] : {std::pair{"ball", ball}, std::pair{"far_ball", far_ball}}) {
     std::println("  {} visible: {}", name, intersects(camera, sphere));
