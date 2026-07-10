@@ -42,6 +42,7 @@ Include a single header (=nexenne/utility/<name>.hpp=) or the umbrella
 
 - [[file:endian.org][endian]] : read and write integers in big- or little-endian order.
 - [[file:buffer_cursor.org][buffer_cursor]] : bounds-tracked read/write position in a byte span.
+- [[file:cobs.org][cobs]] : zero-eliminating byte framing (COBS) for delimited streams.
 
 * Distinct types
 
