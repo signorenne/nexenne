@@ -17,6 +17,7 @@
 #include <cmath>
 #include <concepts>
 
+#include <nexenne/math/angle.hpp>
 #include <nexenne/math/matrix.hpp>
 
 namespace nexenne::math {
@@ -40,18 +41,13 @@ namespace nexenne::math {
  * @pre \p near_z and \p far_z are distinct, with \p far_z greater than \p near_z.
  * @post The returned matrix maps the frustum to the OpenGL clip cube.
  *
- * @warning \p fovy_rad is in RADIANS and is accepted as a raw \c Real with no unit
- *          check: passing a degree value (for example \c perspective(60, ...))
- *          compiles and silently builds a nearly degenerate frustum. Convert with
- *          \c to_radians first.
- *
  * @note Not \c constexpr: it calls libm \c std::tan, which is not \c constexpr
  *       in C++23 (GCC accepts it as a builtin, clang does not). The orthographic
  *       builders use no transcendental and are \c constexpr.
  */
 template <std::floating_point Real>
 [[nodiscard]] auto perspective(
-  Real const fovy_rad, Real const aspect, Real const near_z, Real const far_z
+  radians<Real> const fovy_rad, Real const aspect, Real const near_z, Real const far_z
 ) noexcept -> matrix<Real, 4> {
   // f = cot(fovy/2) is the focal length: it scales y so a point at the top of the
   // frustum lands at clip y = 1, and f/aspect does the same for x. The m(3,2) =
@@ -64,7 +60,7 @@ template <std::floating_point Real>
   // A = (far+near)/(near-far) = m(2,2) and then B = 2*far*near/(near-far) = m(2,3).
   // Hence the (near - far) denominator.
   // https://www.songho.ca/opengl/gl_projectionmatrix.html
-  auto const f{Real{1} / std::tan(fovy_rad / Real{2})};
+  auto const f{Real{1} / std::tan(fovy_rad.value() / Real{2})};
   auto const range_inv{Real{1} / (near_z - far_z)};
 
   matrix<Real, 4> m{};
@@ -95,19 +91,15 @@ template <std::floating_point Real>
  * @pre \p near_z and \p far_z are distinct, with \p far_z greater than \p near_z.
  * @post The returned matrix maps the frustum to the [0, 1] depth clip volume.
  *
- * @warning \p fovy_rad is in RADIANS and is accepted as a raw \c Real with no unit
- *          check: a degree value compiles and silently builds a degenerate
- *          frustum. Convert with \c to_radians first.
- *
  * @note Not \c constexpr: it calls libm \c std::tan (see \c perspective).
  */
 template <std::floating_point Real>
 [[nodiscard]] auto perspective_zo(
-  Real const fovy_rad, Real const aspect, Real const near_z, Real const far_z
+  radians<Real> const fovy_rad, Real const aspect, Real const near_z, Real const far_z
 ) noexcept -> matrix<Real, 4> {
   // Same as perspective() except row 2 maps z onto [0, 1] instead of [-1, 1], so
   // the depth coefficients lose the factor that produced the negative half.
-  auto const f{Real{1} / std::tan(fovy_rad / Real{2})};
+  auto const f{Real{1} / std::tan(fovy_rad.value() / Real{2})};
   auto const range_inv{Real{1} / (near_z - far_z)};
 
   matrix<Real, 4> m{};
