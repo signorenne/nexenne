@@ -27,7 +27,22 @@ namespace nexenne::random {
 
 namespace detail {
 
-// SplitMix64 finaliser (Sebastiano Vigna, public domain): a fast 64-bit mix.
+/// @cond INTERNAL
+
+/**
+ * @brief SplitMix64 mixing step (Sebastiano Vigna, public domain).
+ *
+ * A fast, fully mixed 64-bit hash step: bumps \p x by the golden-ratio
+ * increment and applies the SplitMix64 finaliser. Shared by every seed
+ * helper so their mixing chains stay in lock-step.
+ *
+ * @param x Input word to mix.
+ *
+ * @return The mixed 64-bit output.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] constexpr auto splitmix64(std::uint64_t x) noexcept -> std::uint64_t {
   x += 0x9E3779B97F4A7C15ULL;
   auto z{x};
@@ -35,6 +50,8 @@ namespace detail {
   z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
   return z ^ (z >> 31);
 }
+
+/// @endcond
 
 }  // namespace detail
 

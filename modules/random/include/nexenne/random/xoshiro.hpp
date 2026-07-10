@@ -24,6 +24,7 @@
 
 #include <array>
 #include <bit>
+#include <cassert>
 #include <concepts>
 #include <cstdint>
 #include <limits>
@@ -38,6 +39,21 @@ public:
   using value_type = result_type;
 
 private:
+  /**
+   * @brief Advances a SplitMix64 state and returns the next mixed word.
+   *
+   * The stateful (by-reference) SplitMix64 variant that expands one seed
+   * across the four lanes: each call bumps \p s by the golden-ratio
+   * increment and finalises it, so successive calls yield decorrelated
+   * words.
+   *
+   * @param s SplitMix64 state, advanced in place by one step.
+   *
+   * @return The mixed 64-bit output for the advanced state.
+   *
+   * @pre None.
+   * @post \p s has advanced by one SplitMix64 step.
+   */
   static constexpr auto splitmix64(std::uint64_t& s) noexcept -> std::uint64_t {
     s += std::uint64_t{0x9e37'79b9'7f4a'7c15ULL};
     auto z{s};
@@ -46,6 +62,20 @@ private:
     return z ^ (z >> 31u);
   }
 
+  /**
+   * @brief Applies a xoshiro256** jump polynomial to the current state.
+   *
+   * Advances the engine by the number of steps encoded in \p j (2^128 for
+   * \c jump, 2^192 for \c long_jump) in constant time: it accumulates the
+   * state contributions selected by the polynomial's set bits while
+   * stepping the generator, then installs the accumulated result.
+   *
+   * @param j The 256-bit jump polynomial, as four 64-bit words.
+   *
+   * @pre The state is not all zero.
+   * @post The state equals what the encoded number of \c next calls would
+   *       have produced.
+   */
   constexpr auto apply_jump(std::array<std::uint64_t, 4> const& j) noexcept -> void {
     auto s{std::array<std::uint64_t, 4>{0, 0, 0, 0}};
     for (auto const word : j) {
@@ -95,6 +125,35 @@ public:
     for (auto& lane : m_s) {
       lane = splitmix64(seed);
     }
+  }
+
+  /**
+   * @brief Reconstructs an engine from a previously saved raw state.
+   *
+   * Installs the four state lanes exactly as returned by \c state, so a
+   * serialized engine resumes its sequence bit-for-bit. Unlike the seeding
+   * constructor it applies no SplitMix64 expansion: the lanes are the
+   * engine's exact internal position.
+   *
+   * @param state The four 64-bit lanes to restore, as produced by \c state.
+   *
+   * @return An engine whose \c state equals \p state.
+   *
+   * @pre \p state is not the all-zero state, which the algorithm forbids;
+   *       every value returned by \c state satisfies this.
+   * @post \c state() equals \p state.
+   */
+  [[nodiscard]] static constexpr auto from_state(std::array<std::uint64_t, 4> const& state
+  ) noexcept -> xoshiro256ss {
+    // Confined to the runtime path so a valid constant-evaluated restore stays
+    // well formed, matching the utility::non_null precedent.
+    if !consteval {
+      auto const all_zero{std::array<std::uint64_t, 4>{0, 0, 0, 0}};
+      assert(state != all_zero && "xoshiro256ss::from_state state must not be all zero");
+    }
+    auto engine{xoshiro256ss{}};
+    engine.m_s = state;
+    return engine;
   }
 
   /**
