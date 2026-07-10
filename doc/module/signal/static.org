@@ -84,6 +84,18 @@ static_signal<void(int), 8, 32>:  8 inline slots, 32-byte functors, zero heap
   connect (9th)             -> invalid handle (has_target() == false)
 #+END_EXAMPLE
 
+A full signal reports the failure with an invalid handle, not with the
+=std::expected= the module error policy asks for elsewhere. This is a considered
+exception for the handle-returning connect APIs: the =static_connection= the call
+returns is already both the success value and the failure signal, so a token
+keeps the common connect path allocation-free and branch-light, and it keeps
+=static_signal= source-compatible with its heap sibling =signal=, whose =connect=
+grows and so never fails at all. Wrapping only =static_signal::connect= in
+=std::expected= would split two APIs that are meant to read identically. The
+=connect= overloads are =[[nodiscard]]= and =has_target()= tells the two outcomes
+apart, so a caller that can hit capacity still has a checked path; a caller that
+sizes =MaxSlots= for the worst case never sees the failure.
+
 ** Connections and teardown
 
 =connect= returns a =static_connection=: a type-erased pointer to the signal, a
