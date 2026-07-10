@@ -181,10 +181,21 @@ private:
     bool alive{true};
     bool once{false};
 
-    // Takes the arguments by const reference so a by-value signal parameter is
-    // copied only once, at the slot's own call boundary, not again into this
-    // forwarder. For a reference-typed parameter the const collapses away
-    // (\c int& stays \c int&), so a slot taking a mutable reference still can.
+    /**
+     * @brief Invokes the stored callable, preferring the raw function pointer.
+     *
+     * Takes the arguments by const reference so a by-value signal parameter is
+     * copied only once, at the slot's own call boundary, not again into this
+     * forwarder. For a reference-typed parameter the const collapses away
+     * (\c int& stays \c int&), so a slot taking a mutable reference still can.
+     *
+     * @param args Arguments forwarded to the slot callable.
+     *
+     * @return The callable's result of type \c R.
+     *
+     * @pre The entry holds a function pointer or a callable object.
+     * @post None.
+     */
     auto invoke(Args const&... args) -> R {
       if (fn_ptr != nullptr) {
         return fn_ptr(args...);
@@ -207,6 +218,21 @@ private:
     bool blocked{false};
     signal* owner{nullptr};
 
+    /**
+     * @brief Type-erased disconnect entry point stored in each \c connection.
+     *
+     * Recovers the \c core from the void pointer and forwards to the owning
+     * signal's \c disconnect_by_id, or reports failure when the signal is gone.
+     *
+     * @param core_ptr Type-erased pointer to this \c core.
+     * @param id Identifier of the slot to remove.
+     *
+     * @return \c true when the slot was removed, \c false when the owning signal
+     *         is gone or the slot was already disconnected.
+     *
+     * @pre \p core_ptr points to a live \c core.
+     * @post The named slot is removed when the owning signal is still alive.
+     */
     static auto
     disconnect_thunk(void* const core_ptr, detail::slot_id_type const id) noexcept -> bool {
       auto* const c{static_cast<core*>(core_ptr)};
@@ -599,6 +625,17 @@ public:
   }
 
 private:
+  /**
+   * @brief Returns the shared core, allocating it on first use.
+   *
+   * Lazily creates the core and wires its owner back-pointer to this signal, so
+   * a never-connected signal pays no heap cost.
+   *
+   * @return Reference to the live core.
+   *
+   * @pre None.
+   * @post \c m_core is non-null and its owner points to this signal.
+   */
   auto ensure_core() -> core& {
     if (!m_core) {
       m_core = std::make_shared<core>();
@@ -667,6 +704,25 @@ private:
     }
   }
 
+  /**
+   * @brief Builds a slot entry for \p fn and inserts it into the core.
+   *
+   * Stores a raw function pointer on the fast path, otherwise type-erases into
+   * inline storage. During an emit the entry is parked in the pending list and
+   * merged after the outermost emit; otherwise it is bubbled into priority order.
+   *
+   * @tparam Fn Callable invocable as \c Fn(Args...).
+   * @param c The live core to insert into.
+   * @param fn Callable to store.
+   * @param priority Ordering key; lower fires first.
+   * @param once Whether the slot auto-disconnects after its first invocation.
+   *
+   * @return A \c connection handle naming the new slot.
+   *
+   * @pre \p fn satisfies the slot storage constraint.
+   * @post The slot is live, or parked as pending during an emit, and
+   *       \c c.next_id has advanced.
+   */
   template <typename Fn>
   auto connect_into(core& c, Fn&& fn, int const priority, bool const once) -> connection {
     auto const id{c.next_id++};
@@ -693,12 +749,38 @@ private:
     return make_connection(id);
   }
 
+  /**
+   * @brief Mints a \c connection bound to this signal's core and slot \p id.
+   *
+   * @param id Identifier of the slot the handle refers to.
+   *
+   * @return A \c connection carrying a weak reference to the core and the
+   *         type-erased disconnect thunk.
+   *
+   * @pre \c m_core is non-null.
+   * @post None.
+   */
   [[nodiscard]] auto make_connection(detail::slot_id_type const id) noexcept -> connection {
     return connection{
       std::weak_ptr<void>{std::static_pointer_cast<void>(m_core)}, &core::disconnect_thunk, id
     };
   }
 
+  /**
+   * @brief Removes the slot named by \p id, honouring the emit deferral rules.
+   *
+   * Searches the live list first; during an emit a match is marked dead for the
+   * post-emit sweep instead of erased, and an id still parked in the pending list
+   * is marked so the merge drops it. Outside an emit the slot is erased in place.
+   *
+   * @param id Identifier of the slot to remove.
+   *
+   * @return \c true when a live or pending slot was found and removed, \c false
+   *         otherwise.
+   *
+   * @pre None.
+   * @post The named slot will not fire again once any in-progress emit completes.
+   */
   auto disconnect_by_id(detail::slot_id_type const id) noexcept -> bool {
     if (!m_core)
       return false;
@@ -750,6 +832,17 @@ private:
     }
   }
 
+  /**
+   * @brief Erases the slot at \p pos, shifting the tail down to stay stable.
+   *
+   * Preserves the relative order of the remaining priority-sorted slots.
+   *
+   * @param c The core whose slot list is edited.
+   * @param pos Index of the slot to remove.
+   *
+   * @pre \p pos is a valid index into \c c.slots.
+   * @post \c c.slots has one fewer entry and its order is otherwise unchanged.
+   */
   static auto stable_erase_at(core& c, std::size_t const pos) noexcept -> void {
     for (auto i{pos}; i + 1 < c.slots.size(); ++i) {
       c.slots[i] = std::move(c.slots[i + 1]);
@@ -774,6 +867,17 @@ private:
     c.pending.clear();
   }
 
+  /**
+   * @brief Compacts the slot list, dropping every entry marked not alive.
+   *
+   * Stable stream-compaction run once the outermost emit finishes, so one-shot
+   * and disconnected slots leave the list without disturbing the survivors.
+   *
+   * @param c The core whose slot list is compacted.
+   *
+   * @pre No emit is iterating \c c.slots.
+   * @post \c c.slots holds only the alive entries, in their prior relative order.
+   */
   static auto sweep_dead(core& c) noexcept -> void {
     auto write{std::size_t{0}};
     for (auto read{std::size_t{0}}; read < c.slots.size(); ++read) {
