@@ -10,21 +10,53 @@
  * regardless of content, hence "consistent overhead". This is the standard
  * link-layer framing primitive for embedded serial protocols.
  *
- * Both functions write into a caller-provided buffer (no allocation) and return
- * the number of bytes produced, or an \c error. Size your output buffer with
- * \c max_encoded_size for encoding; a decode never produces more than its
- * input. The encoded form contains no \c 0x00, so append one yourself as the
- * delimiter when framing a stream.
+ * These functions are a thin wrapper over the canonical codec in
+ * \c nexenne::utility::cobs: the algorithm lives there once, and this layer only
+ * remaps \c nexenne::utility::cobs::error onto the module-wide
+ * \c nexenne::serialization::error vocabulary so serialization callers stay on
+ * one error enum. Both directions write into a caller-provided buffer (no
+ * allocation) and return the number of bytes produced, or an \c error. Size your
+ * output buffer with \c max_encoded_size for encoding; a decode never produces
+ * more than its input. The encoded form contains no \c 0x00, so append one
+ * yourself as the delimiter when framing a stream.
  */
 
 #include <cstddef>
-#include <cstdint>
 #include <expected>
 #include <span>
 
 #include <nexenne/serialization/error.hpp>
+#include <nexenne/utility/cobs.hpp>
 
 namespace nexenne::serialization::cobs {
+
+/// @cond INTERNAL
+namespace detail {
+
+/**
+ * @brief Maps a canonical COBS error onto the serialization error vocabulary.
+ *
+ * @param e Canonical error reported by \c nexenne::utility::cobs.
+ *
+ * @return The matching \c nexenne::serialization::error enumerator.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] constexpr auto to_error(nexenne::utility::cobs::error const e) noexcept -> error {
+  switch (e) {
+    case nexenne::utility::cobs::error::invalid_input:
+      return error::invalid_input;
+    case nexenne::utility::cobs::error::truncated_input:
+      return error::buffer_underrun;
+    case nexenne::utility::cobs::error::output_too_small:
+      return error::buffer_full;
+  }
+  return error::invalid_input;
+}
+
+}  // namespace detail
+/// @endcond
 
 /**
  * @brief Worst-case encoded size for \p payload_len bytes (excludes delimiter).
@@ -40,7 +72,7 @@ namespace nexenne::serialization::cobs {
  */
 [[nodiscard]] constexpr auto max_encoded_size(std::size_t const payload_len
 ) noexcept -> std::size_t {
-  return payload_len + payload_len / 254 + 1;
+  return nexenne::utility::cobs::max_encoded_size(payload_len);
 }
 
 /**
@@ -82,39 +114,7 @@ namespace nexenne::serialization::cobs {
 [[nodiscard]] inline auto encode(
   std::span<std::byte const> const in, std::span<std::byte> const out
 ) noexcept -> std::expected<std::size_t, error> {
-  auto const* const src{reinterpret_cast<std::uint8_t const*>(in.data())};
-  auto* const dst{reinterpret_cast<std::uint8_t*>(out.data())};
-  auto const cap{out.size()};
-
-  if (cap < 1)
-    return std::unexpected{error::buffer_full};
-
-  std::size_t write{1};  // out[0] reserved for the first code byte
-  std::size_t code_idx{0};
-  std::uint8_t code{1};
-
-  for (std::size_t read{0}; read < in.size(); ++read) {
-    if (src[read] != 0) {
-      if (write >= cap)
-        return std::unexpected{error::buffer_full};
-      dst[write++] = src[read];
-      if (++code == 0xFF) {
-        dst[code_idx] = code;
-        if (write >= cap)
-          return std::unexpected{error::buffer_full};
-        code_idx = write++;
-        code = 1;
-      }
-    } else {
-      dst[code_idx] = code;
-      if (write >= cap)
-        return std::unexpected{error::buffer_full};
-      code_idx = write++;
-      code = 1;
-    }
-  }
-  dst[code_idx] = code;
-  return write;
+  return nexenne::utility::cobs::encode(in, out).transform_error(detail::to_error);
 }
 
 /**
@@ -134,43 +134,12 @@ namespace nexenne::serialization::cobs {
  * @pre \p in does not include the \c 0x00 delimiter.
  * @post On success \p out[0..return) is the decoded payload.
  *
- * @note \c nexenne::algorithm::cobs_decode is a lenient sibling of this
- *       decoder (it accepts a \c 0x00 inside a frame instead of rejecting it);
- *       the two are to be unified in a later cross-module pass.
- *
  * @complexity \c O(in.size()).
  */
 [[nodiscard]] inline auto decode(
   std::span<std::byte const> const in, std::span<std::byte> const out
 ) noexcept -> std::expected<std::size_t, error> {
-  auto const* const src{reinterpret_cast<std::uint8_t const*>(in.data())};
-  auto* const dst{reinterpret_cast<std::uint8_t*>(out.data())};
-  auto const n{in.size()};
-
-  std::size_t read{0};
-  std::size_t write{0};
-
-  while (read < n) {
-    std::uint8_t const code{src[read++]};
-    if (code == 0)
-      return std::unexpected{error::invalid_input};  // no zeros in COBS
-    for (std::uint8_t i{1}; i < code; ++i) {
-      if (read >= n)
-        return std::unexpected{error::buffer_underrun};
-      std::uint8_t const b{src[read++]};
-      if (b == 0)
-        return std::unexpected{error::invalid_input};  // a valid frame has no zeros
-      if (write >= out.size())
-        return std::unexpected{error::buffer_full};
-      dst[write++] = b;
-    }
-    if (code != 0xFF && read < n) {
-      if (write >= out.size())
-        return std::unexpected{error::buffer_full};
-      dst[write++] = 0;
-    }
-  }
-  return write;
+  return nexenne::utility::cobs::decode(in, out).transform_error(detail::to_error);
 }
 
 }  // namespace nexenne::serialization::cobs
