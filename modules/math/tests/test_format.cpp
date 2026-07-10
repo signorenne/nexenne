@@ -114,7 +114,7 @@ TEST_CASE("axis_angle prints through all three layers (math-core routed)") {
 }
 
 TEST_CASE("euler_angles prints through all three layers (math-core routed)") {
-  math::euler_angles<double> const e{0.5, 1.0, -0.25};
+  math::euler_angles<double> const e{math::radians{0.5}, math::radians{1.0}, math::radians{-0.25}};
   CHECK(math::to_string(e) == "euler_angles(x=0.5, y=1, z=-0.25 rad)");
   CHECK(std::format("{}", e) == "euler_angles(x=0.5, y=1, z=-0.25 rad)");
   CHECK(std::format("{:.2f}", e) == "euler_angles(x=0.50, y=1.00, z=-0.25 rad)");

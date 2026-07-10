@@ -6,7 +6,7 @@
 namespace math = nexenne::math;
 
 TEST_CASE("perspective maps the frustum corners into the clip cube") {
-  auto const p{math::perspective(math::half_pi, 16.0 / 9.0, 0.1, 100.0)};
+  auto const p{math::perspective(math::radians{math::half_pi}, 16.0 / 9.0, 0.1, 100.0)};
   // fovy = 90 deg => f = cot(45) = 1, so m(1,1) == 1 and m(0,0) == 1/aspect.
   CHECK(p(1, 1) == doctest::Approx(1.0));
   CHECK(p(0, 0) == doctest::Approx(9.0 / 16.0));
@@ -22,7 +22,7 @@ TEST_CASE("perspective maps the frustum corners into the clip cube") {
 }
 
 TEST_CASE("perspective_zo maps depth to [0, 1]") {
-  auto const p{math::perspective_zo(math::half_pi, 1.0, 0.1, 100.0)};
+  auto const p{math::perspective_zo(math::radians{math::half_pi}, 1.0, 0.1, 100.0)};
   auto const near_pt{p * math::vector4_d{0, 0, -0.1, 1}};
   auto const far_pt{p * math::vector4_d{0, 0, -100.0, 1}};
   CHECK(near_pt.z() / near_pt.w() == doctest::Approx(0.0).epsilon(1e-6));

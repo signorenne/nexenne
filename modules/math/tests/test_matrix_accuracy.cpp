@@ -85,7 +85,7 @@ TEST_CASE("perspective maps all frustum corners onto the GL clip cube") {
   double const aspect{16.0 / 9.0};
   double const n{0.25};
   double const f{80.0};
-  auto const p{math::perspective(fovy, aspect, n, f)};
+  auto const p{math::perspective(math::radians{fovy}, aspect, n, f)};
 
   double const th{std::tan(fovy / 2.0)};
   // Eight frustum corners (x, y at the near and far planes), each must land on a
