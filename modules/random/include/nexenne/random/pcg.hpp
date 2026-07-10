@@ -30,6 +30,7 @@
  */
 
 #include <bit>
+#include <cassert>
 #include <concepts>
 #include <cstdint>
 #include <limits>
@@ -85,6 +86,35 @@ public:
     nexenne::utility::discard(next());
     m_state += state;
     nexenne::utility::discard(next());
+  }
+
+  /**
+   * @brief Reconstructs an engine from a previously saved raw state and stream.
+   *
+   * Installs \p state and \p stream verbatim, so an engine saved with
+   * \c state and \c stream resumes its sequence bit-for-bit. Unlike the
+   * \c (state, sequence) constructor it runs no seeding steps: the words are
+   * the engine's exact internal position.
+   *
+   * @param state The 64-bit state word, as produced by \c state.
+   * @param stream The 64-bit increment, as produced by \c stream.
+   *
+   * @return An engine whose \c state and \c stream equal the arguments.
+   *
+   * @pre \p stream is odd, which every value returned by \c stream is.
+   * @post \c state() equals \p state and \c stream() equals \p stream.
+   */
+  [[nodiscard]] static constexpr auto
+  from_state(std::uint64_t const state, std::uint64_t const stream) noexcept -> pcg32 {
+    // Confined to the runtime path so a valid constant-evaluated restore stays
+    // well formed, matching the utility::non_null precedent.
+    if !consteval {
+      assert((stream & 1u) != 0u && "pcg32::from_state stream increment must be odd");
+    }
+    auto engine{pcg32{}};
+    engine.m_state = state;
+    engine.m_inc = stream;
+    return engine;
   }
 
   /**
@@ -192,6 +222,23 @@ public:
    */
   [[nodiscard]] constexpr auto state() const noexcept -> std::uint64_t {
     return m_state;
+  }
+
+  /**
+   * @brief Returns the stream increment selecting the output sequence.
+   *
+   * Together with \c state this is the engine's full position: the
+   * increment is odd, fixes the output stream, and never changes as the
+   * engine advances. Pair it with \c state to restore an engine exactly
+   * via \c from_state.
+   *
+   * @return The 64-bit odd increment.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto stream() const noexcept -> std::uint64_t {
+    return m_inc;
   }
 };
 

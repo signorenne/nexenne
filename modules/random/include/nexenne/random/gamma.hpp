@@ -41,6 +41,22 @@ private:
   T m_d{};
   T m_c{};
 
+  /**
+   * @brief Draws one standard-normal variate via Box-Muller.
+   *
+   * Generates a single \c N(0, 1) sample from a pair of uniforms and
+   * discards the transform's second variate. The Marsaglia-Tsang core
+   * needs a fresh normal per acceptance trial, so caching the pair would
+   * not pay off here.
+   *
+   * @tparam Engine Engine type satisfying \c rng_engine.
+   * @param engine Engine to draw uniforms from.
+   *
+   * @return A standard-normal variate.
+   *
+   * @pre None.
+   * @post \p engine has advanced.
+   */
   template <rng_engine Engine>
   [[nodiscard]] static auto sample_unit_normal(Engine& engine) noexcept -> T {
     // Box-Muller (one variate per call, wastes the second).
@@ -53,6 +69,21 @@ private:
     return std::sqrt(T{-2} * std::log(u1)) * std::cos(two_pi * u2);
   }
 
+  /**
+   * @brief Draws a unit-scale gamma variate via Marsaglia-Tsang.
+   *
+   * Runs the Marsaglia-Tsang squeeze against the cached \c m_d and \c m_c
+   * constants, which are computed for the effective alpha (at least one).
+   * The caller applies the scale and the sub-one-shape boost.
+   *
+   * @tparam Engine Engine type satisfying \c rng_engine.
+   * @param engine Engine to draw uniforms and normals from.
+   *
+   * @return A unit-scale gamma variate for the cached effective alpha.
+   *
+   * @pre \c m_d and \c m_c are set for an effective alpha of at least one.
+   * @post \p engine has advanced.
+   */
   template <rng_engine Engine>
   [[nodiscard]] auto sample_marsaglia_tsang(Engine& engine) const noexcept -> T {
     // Marsaglia-Tsang for the cached effective alpha (>= 1).
