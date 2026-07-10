@@ -86,7 +86,7 @@ TEST_CASE("polygon2: area, perimeter, centroid, containment, convexity") {
 
 TEST_CASE("frustum3: planes extracted from a perspective matrix cull correctly") {
   // A standard perspective camera looking down -z.
-  auto const proj{nm::perspective(nm::half_pi * 0.5, 1.0, 0.5, 100.0)};
+  auto const proj{nm::perspective(nm::radians{nm::half_pi * 0.5}, 1.0, 0.5, 100.0)};
   auto const f{geo::frustum_from_view_projection(proj)};
 
   // A sphere a little down -z, inside the frustum, is visible.
@@ -105,7 +105,7 @@ TEST_CASE("frustum3: planes extracted from a perspective matrix cull correctly")
 TEST_CASE("frustum3: the near plane sits at z = -near for a GL matrix, not for ZO (M1)") {
   auto const near_z{0.5};
   auto const far_z{100.0};
-  auto const gl{nm::perspective(nm::half_pi * 0.5, 1.0, near_z, far_z)};
+  auto const gl{nm::perspective(nm::radians{nm::half_pi * 0.5}, 1.0, near_z, far_z)};
   auto const fg{geo::frustum_from_view_projection(gl)};
   auto const near_pl{geo::plane_of(fg, geo::frustum_plane::near_plane)};
 
@@ -118,7 +118,7 @@ TEST_CASE("frustum3: the near plane sits at z = -near for a GL matrix, not for Z
 
   // A zero-to-one (D3D/Vulkan) matrix misplaces the near plane: it is NOT at
   // z = -near. This pins the documented limitation the contract now restricts.
-  auto const zo{nm::perspective_zo(nm::half_pi * 0.5, 1.0, near_z, far_z)};
+  auto const zo{nm::perspective_zo(nm::radians{nm::half_pi * 0.5}, 1.0, near_z, far_z)};
   auto const fz{geo::frustum_from_view_projection(zo)};
   auto const near_zo{geo::plane_of(fz, geo::frustum_plane::near_plane)};
   CHECK(nm::abs(geo::signed_distance(near_zo, vec3{0, 0, -near_z})) > 0.1);
