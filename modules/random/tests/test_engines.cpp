@@ -112,26 +112,10 @@ TEST_CASE("nexenne::random::xoshiro256ss matches the canonical reference vector 
 ) {
   // The reference xoshiro256** C implementation (Blackman & Vigna) initialised
   // with the canonical raw state s = {1, 2, 3, 4} emits this exact sequence.
-  // The public ctor reseeds via SplitMix64 and there is no raw-state setter, so
-  // we replay the published next() step here against the canonical literals as
-  // a third-party oracle that guards the core transform.
-  struct raw256ss {
-    std::array<std::uint64_t, 4> s{};
-
-    auto next() noexcept -> std::uint64_t {
-      auto const out{std::rotl(s[1] * 5, 7) * 9};
-      auto const t{s[1] << 17u};
-      s[2] ^= s[0];
-      s[3] ^= s[1];
-      s[1] ^= s[2];
-      s[0] ^= s[3];
-      s[2] ^= t;
-      s[3] = std::rotl(s[3], 45);
-      return out;
-    }
-  };
-
-  raw256ss ref{{1, 2, 3, 4}};
+  // from_state installs the raw lanes verbatim, so this drives the real engine
+  // class against the published literals as a third-party oracle that guards
+  // the core transform (not a local reimplementation).
+  auto ref{rnd::xoshiro256ss::from_state({1, 2, 3, 4})};
   std::array<std::uint64_t, 8> const canonical{
     0x0000000000002d00ULL,
     0x0000000000000000ULL,
@@ -470,6 +454,43 @@ TEST_CASE("nexenne::random::seed helpers seed an engine and yield distinct strea
   CHECK(v0 != v1);
   CHECK(v1 != v2);
   CHECK(v0 != v2);
+}
+
+TEST_CASE("nexenne::random::xoshiro256ss from_state restores a saved engine exactly") {
+  rnd::xoshiro256ss src{0x1234567};
+  for (int i{0}; i < 37; ++i) {
+    nexenne::utility::discard(src.next());  // advance to an arbitrary mid-stream point
+  }
+  auto const saved{src.state()};
+  auto restored{rnd::xoshiro256ss::from_state(saved)};
+  CHECK(restored.state() == saved);  // raw lanes installed verbatim, no reseed
+  for (int i{0}; i < 64; ++i) {
+    CHECK(restored.next() == src.next());  // resumes the identical sequence
+  }
+}
+
+TEST_CASE("nexenne::random::pcg32 from_state restores a saved engine exactly") {
+  rnd::pcg32 src{0xABCDEF, 9};
+  for (int i{0}; i < 37; ++i) {
+    nexenne::utility::discard(src.next());
+  }
+  auto const saved_state{src.state()};
+  auto const saved_stream{src.stream()};
+  auto restored{rnd::pcg32::from_state(saved_state, saved_stream)};
+  CHECK(restored.state() == saved_state);    // state word installed verbatim
+  CHECK(restored.stream() == saved_stream);  // stream increment installed verbatim
+  for (int i{0}; i < 64; ++i) {
+    CHECK(restored.next() == src.next());  // resumes the identical sequence
+  }
+}
+
+TEST_CASE("nexenne::random::engines from_state is usable in a constant expression") {
+  // Raw restore is constexpr: the assert is confined to the runtime path.
+  constexpr auto x{rnd::xoshiro256ss::from_state({1, 2, 3, 4})};
+  static_assert(x.state() == std::array<std::uint64_t, 4>{1, 2, 3, 4});
+  constexpr auto p{rnd::pcg32::from_state(0x1234, 0x9ABD)};
+  static_assert(p.state() == 0x1234u);
+  static_assert(p.stream() == 0x9ABDu);
 }
 
 }  // namespace
