@@ -57,6 +57,13 @@ private:
    * Analog Filters (2001), section 4.3, or the Butterworth pole
    * placement in Oppenheim and Schafer, Discrete-Time Signal
    * Processing.
+   *
+   * @param section_idx Zero-based section index in \c [0, SectionsN).
+   *
+   * @return The quality factor for that section.
+   *
+   * @pre \p section_idx is less than \c SectionsN.
+   * @post None.
    */
   [[nodiscard]] static auto section_q(std::size_t const section_idx) noexcept -> T {
     auto const n{static_cast<T>(SectionsN)};

@@ -33,6 +33,14 @@ namespace nexenne::filter {
  *
  * @note Reach for this when waveform shape must be preserved (linear phase)
  * or you need an exactly specified magnitude response designed offline.
+ * @note Unlike \c ema, \c sma, and \c butterworth, \c fir and \c lms take no
+ * default template arguments. The tap count \c N is the defining design
+ * parameter (it fixes the entire impulse response), so there is no sensible
+ * universal default the way \c sma has a nominal smoothing window; any fixed
+ * \c N would silently build a different filter than the caller intended.
+ * Because C++ forbids a non-defaulted template parameter after a defaulted
+ * one, defaulting \c T would force an equally arbitrary default for \c N, so
+ * \c T is left explicit too and both parameters are always spelled out.
  */
 template <typename T, std::size_t N>
   requires(N > 0)

@@ -40,6 +40,14 @@ namespace nexenne::filter {
  * @note Identifying or undoing an unknown system online (echo cancellation,
  * adaptive noise cancellation, channel equalisation, plant identification) when
  * you have a reference input and a desired target.
+ * @note Like \c fir, \c lms takes no default template arguments. The tap count
+ * \c N is the defining design parameter (it fixes the adaptive filter length),
+ * so there is no sensible universal default the way \c sma has a nominal
+ * smoothing window; any fixed \c N would silently size the adaptive filter
+ * differently than the caller intended. Because C++ forbids a non-defaulted
+ * template parameter after a defaulted one, defaulting \c T would force an
+ * equally arbitrary default for \c N, so \c T is left explicit too and both
+ * parameters are always spelled out.
  */
 template <std::floating_point T, std::size_t N>
   requires(N > 0)
