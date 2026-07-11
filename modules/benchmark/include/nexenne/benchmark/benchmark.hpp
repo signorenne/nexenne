@@ -79,6 +79,8 @@ namespace nexenne::benchmark {
 
 namespace detail {
 
+/// @cond INTERNAL
+
 /**
  * @brief Converts a (budget / per-call) ratio to a usable iteration count.
  *
@@ -161,6 +163,8 @@ template <std::invocable<std::size_t> Batch>
     iters = iters <= calibration_max_iters / 10 ? iters * 10 : calibration_max_iters;
   }
 }
+
+/// @endcond
 
 }  // namespace detail
 
@@ -678,6 +682,19 @@ private:
     return w.end_array().and_then([&w] { return w.end_object(); });
   }
 
+  /**
+   * @brief Formats a nanosecond timing with an auto-scaled SI unit.
+   *
+   * Reuses chrono's scaling formatter so a value renders in ns, us, ms, or s,
+   * keeping the sub-millisecond resolution micro-timing needs.
+   *
+   * @param ns Timing to format, in nanoseconds.
+   *
+   * @return The timing rendered with an auto-scaled SI unit.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static auto format_time(double const ns) -> std::string {
     // Reuse chrono's auto-scaling SI formatter (ns / us / ms / s), which keeps
     // the sub-millisecond resolution micro-timing needs.
