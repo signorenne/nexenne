@@ -266,6 +266,16 @@ public:
     // iteration out of range, so the iterator still terminates at \c end().
     std::size_t m_count{0};
 
+    /**
+     * @brief Advances the cursor to the next matching driver slot, or to the
+     *        captured slot count.
+     *
+     * Skips driver slots that are tombstoned or that fail the include and
+     * exclude membership tests, stopping at the first match or at \c m_count.
+     *
+     * @pre \c m_view is non-null (the iterator is not singular).
+     * @post \c m_pos names a matching live slot or equals \c m_count.
+     */
     auto advance_to_valid() noexcept -> void {
       while (
         m_pos < m_count
@@ -400,6 +410,23 @@ public:
   }
 
 private:
+  /**
+   * @brief Reports whether entity index \p idx satisfies every include and
+   *        exclude filter.
+   *
+   * Requires that all include storages hold \p idx and, when the exclude pack
+   * is non-empty, that no exclude storage holds it. Both checks are O(1)
+   * sparse-set membership tests folded over the storage tuples.
+   *
+   * @param idx Entity index to test.
+   *
+   * @return \c true iff every include contains \p idx and no exclude does.
+   *
+   * @pre None.
+   * @post The view is unchanged.
+   *
+   * @complexity \c O(sizeof...(Includes) + sizeof...(Excludes)).
+   */
   [[nodiscard]] auto passes_filter(std::uint32_t const idx) const noexcept -> bool {
     auto const include_ok{
       std::apply([idx](auto*... s) noexcept { return (... && s->contains(idx)); }, m_includes)
@@ -416,20 +443,66 @@ private:
     return true;
   }
 
-  // Driver slot walk, reached through the captured cursor.
+  /**
+   * @brief Slot count of the driver storage, reached through the cursor.
+   *
+   * @return The number of slots (live plus tombstone) in the driver storage.
+   *
+   * @pre The driver cursor has been bound (always true after construction).
+   * @post The view is unchanged.
+   *
+   * @complexity \c O(1).
+   */
   [[nodiscard]] auto driver_slot_count() const noexcept -> std::size_t {
     return m_driver_slot_count(m_driver);
   }
 
+  /**
+   * @brief Whether driver slot \p slot holds a live component, via the cursor.
+   *
+   * @param slot Driver slot index, less than \c driver_slot_count().
+   *
+   * @return \c true when the slot is live, \c false when it is a tombstone.
+   *
+   * @pre \p slot is less than \c driver_slot_count().
+   * @post The view is unchanged.
+   *
+   * @complexity \c O(1).
+   */
   [[nodiscard]] auto driver_is_live(std::size_t const slot) const noexcept -> bool {
     return m_driver_is_live(m_driver, slot);
   }
 
+  /**
+   * @brief Entity index owning live driver slot \p slot, via the cursor.
+   *
+   * @param slot Live driver slot index.
+   *
+   * @return The entity index key stored at that slot.
+   *
+   * @pre \c driver_is_live(slot) is \c true.
+   * @post The view is unchanged.
+   *
+   * @complexity \c O(1).
+   */
   [[nodiscard]] auto driver_key_at(std::size_t const slot) const noexcept -> std::uint32_t {
     return m_driver_key_at(m_driver, slot);
   }
 
-  // Index of the smallest include storage, used as the iteration driver.
+  /**
+   * @brief Index of the smallest include storage, used as the iteration driver.
+   *
+   * With a single include the answer is trivially zero; otherwise the sizes of
+   * every include storage are compared and the position of the smallest is
+   * returned, so iteration walks the fewest slots.
+   *
+   * @return The position within the include pack of the smallest storage.
+   *
+   * @pre Every include storage pointer in \c m_includes is non-null.
+   * @post The view is unchanged.
+   *
+   * @complexity \c O(sizeof...(Includes)).
+   */
   [[nodiscard]] auto select_driver_index() const noexcept -> std::size_t {
     if constexpr (sizeof...(Includes) == 1) {
       return 0;
@@ -443,7 +516,18 @@ private:
     }
   }
 
-  // Binds the cursor to include storage \c I (the chosen driver).
+  /**
+   * @brief Binds the driver cursor to include storage \c I.
+   *
+   * Records the storage pointer and sets the three function-pointer cursor
+   * members (slot count, liveness, key) to typed thunks over that storage, so
+   * the heterogeneous driver can be walked without a virtual call.
+   *
+   * @tparam I Index within the include pack of the storage to drive from.
+   *
+   * @pre \c I is a valid index into the include storage tuple.
+   * @post \c m_driver and the three cursor function pointers name storage \c I.
+   */
   template <std::size_t I>
   auto bind_driver_to() noexcept -> void {
     using storage_ptr = std::tuple_element_t<I, includes_storage>;
@@ -460,6 +544,21 @@ private:
     };
   }
 
+  /**
+   * @brief Dispatches to \c bind_driver_to for the runtime-selected driver.
+   *
+   * Folds over the compile-time index pack \c Is and calls \c bind_driver_to
+   * for the single index equal to \p driver_idx, turning the runtime choice
+   * from \c select_driver_index into a typed bind. The unnamed
+   * \c std::index_sequence argument supplies \c Is by deduction and carries no
+   * value.
+   *
+   * @tparam Is Compile-time index pack spanning the include storages.
+   * @param driver_idx Runtime index of the chosen driver storage.
+   *
+   * @pre \p driver_idx is less than \c sizeof...(Includes).
+   * @post The driver cursor is bound to storage \p driver_idx.
+   */
   template <std::size_t... Is>
   auto bind_driver(std::size_t const driver_idx, std::index_sequence<Is...>) noexcept -> void {
     ((driver_idx == Is ? bind_driver_to<Is>() : nexenne::utility::discard(0)), ...);
