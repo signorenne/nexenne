@@ -665,6 +665,24 @@ struct erased_storage {
   auto (*fire_on_destroy_fn)(void*, entity_id) noexcept -> void{nullptr};
 };
 
+/// @cond INTERNAL
+/**
+ * @brief Builds a type-erased storage entry for \p storage.
+ *
+ * Fills an \c erased_storage with the data pointer plus the small set of
+ * function pointers (erase, contains, size, clear, destroy, fire-on-destroy)
+ * that recover the concrete \c component_storage<T> from a \c void* and call
+ * the matching typed method, so the registry dispatches without a virtual
+ * table.
+ *
+ * @tparam T Component value type the storage holds.
+ * @param storage Non-owning pointer to the concrete storage to erase.
+ *
+ * @return An \c erased_storage naming \p storage and its typed thunks.
+ *
+ * @pre \p storage is non-null and outlives the returned entry.
+ * @post The returned entry dispatches to \p storage's typed operations.
+ */
 template <typename T>
 [[nodiscard]] inline auto make_erased(component_storage<T>* const storage
 ) noexcept -> erased_storage {
@@ -689,6 +707,7 @@ template <typename T>
     },
   };
 }
+/// @endcond
 
 }  // namespace detail
 
@@ -725,6 +744,22 @@ private:
   index_set m_alive_indices{};
   storage_table m_storages{};
 
+  /**
+   * @brief Returns the storage for \c T, creating it on first use.
+   *
+   * Looks the storage up by \c type_id<T>(), growing the storage table and
+   * heap-allocating a fresh \c component_storage<T> (wired through
+   * \c make_erased) when none exists yet.
+   *
+   * @tparam T Component type whose storage is wanted.
+   *
+   * @return A reference to the live storage for \c T.
+   *
+   * @pre None.
+   * @post Storage for \c T exists and is returned.
+   *
+   * @complexity \c O(1) amortised.
+   */
   template <typename T>
   [[nodiscard]] auto ensure_storage() noexcept -> component_storage<T>& {
     auto const id{type_id<T>()};
@@ -738,6 +773,21 @@ private:
     return *static_cast<component_storage<T>*>(m_storages[id].data);
   }
 
+  /**
+   * @brief Pointer to the storage for \c T, or \c nullptr when none exists.
+   *
+   * Never allocates: a type never registered, or one whose slot is empty,
+   * reports \c nullptr.
+   *
+   * @tparam T Component type whose storage is wanted.
+   *
+   * @return A pointer to the storage for \c T, or \c nullptr when absent.
+   *
+   * @pre None.
+   * @post The registry is unchanged.
+   *
+   * @complexity \c O(1).
+   */
   template <typename T>
   [[nodiscard]] auto find_storage() noexcept -> component_storage<T>* {
     auto const id{type_id<T>()};
@@ -747,6 +797,21 @@ private:
     return static_cast<component_storage<T>*>(m_storages[id].data);
   }
 
+  /**
+   * @brief Pointer to the \c const storage for \c T, or \c nullptr (const overload).
+   *
+   * Never allocates, so it is callable on a \c const registry.
+   *
+   * @tparam T Component type whose storage is wanted.
+   *
+   * @return A pointer to the \c const storage for \c T, or \c nullptr when
+   *         absent.
+   *
+   * @pre None.
+   * @post The registry is unchanged.
+   *
+   * @complexity \c O(1).
+   */
   template <typename T>
   [[nodiscard]] auto find_storage() const noexcept -> component_storage<T> const* {
     auto const id{type_id<T>()};
@@ -1659,6 +1724,18 @@ public:
   }
 
 private:
+  /**
+   * @brief Frees every heap-allocated component storage and empties the table.
+   *
+   * Calls each entry's \c destroy_fn (which \c delete s the typed storage) and
+   * then clears the storage table. Fires no lifecycle signals; used by the
+   * destructor and move assignment.
+   *
+   * @pre None.
+   * @post Every storage has been released and the storage table is empty.
+   *
+   * @complexity \c O(C) over the registered component types.
+   */
   auto destroy_storages() noexcept -> void {
     for (auto& s : m_storages) {
       if (s.data != nullptr && s.destroy_fn != nullptr) {

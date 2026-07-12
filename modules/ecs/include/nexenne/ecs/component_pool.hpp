@@ -72,7 +72,24 @@ private:
   std::vector<size_type> m_free{};   ///< Tombstoned slot indices available for reuse.
   size_type m_size{0};               ///< Number of live components.
 
-  /// @brief Returns the slot index for \p key, or \c m_slots.size() if absent.
+  /**
+   * @brief Returns the slot index for \p key, or \c m_slots.size() if absent.
+   *
+   * Reads the sparse array, which stores each live slot index biased by one so
+   * that zero doubles as the \c absent sentinel. An out-of-range or unmapped
+   * key reports \c m_slots.size(), the same past-the-end value the accessors
+   * test against for a miss.
+   *
+   * @param key Entity index key.
+   *
+   * @return The slot index holding \p key's component, or \c m_slots.size()
+   *         when \p key maps to no live slot.
+   *
+   * @pre None.
+   * @post The pool is unchanged.
+   *
+   * @complexity \c O(1).
+   */
   [[nodiscard]] auto slot_of(key_type const key) const noexcept -> size_type {
     if (key >= m_sparse.size() || m_sparse[key] == absent) {
       return m_slots.size();
