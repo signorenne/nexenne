@@ -112,6 +112,7 @@ public:
       return m_generation;
     }
 
+    /// @brief Total ordering of two keys; the compiler derives \c == \c < \c > \c <= \c >=.
     [[nodiscard]] friend constexpr auto operator<=>(key const&, key const&) noexcept = default;
 
   private:
@@ -125,17 +126,39 @@ private:
   std::vector<index_type> m_free_list;
   size_type m_size{};
 
-  // True when k refers to a live element. The short-circuit guarantees the
-  // generation and value reads happen only after the bounds check passes, so
-  // this is the single validity check that find, contains, and erase share.
+  /**
+   * @brief Whether \p k refers to a live element.
+   *
+   * The short-circuit guarantees the generation and value reads happen only after
+   * the bounds check passes, so this is the single validity check that \c find,
+   * \c contains, and \c erase share.
+   *
+   * @param k Key to validate.
+   *
+   * @return \c true when \p k is in range, its generation matches, and its slot is
+   *         occupied.
+   *
+   * @pre None.
+   * @post None. The map is not modified.
+   */
   [[nodiscard]] constexpr auto is_live(key const k) const noexcept -> bool {
     return k.index() < m_values.size() && m_generations[k.index()] == k.generation()
            && m_values[k.index()].has_value();
   }
 
-  // Bump a slot's generation, skipping 0: generation 0 is reserved as the
-  // null-key sentinel, so a wrapped counter can never collide with a default
-  // key (or with a freshly allocated slot, which starts at 1).
+  /**
+   * @brief Advances a slot's generation, skipping the reserved value \c 0.
+   *
+   * Generation \c 0 is the null-key sentinel, so a wrapped counter can never
+   * collide with a default key (or with a freshly allocated slot, which starts at
+   * \c 1).
+   *
+   * @param index Slot whose generation to bump.
+   *
+   * @pre \p index is a valid slot index.
+   * @post The slot's generation increased by one, wrapping past \c 0 to \c 1;
+   *       every outstanding key to the slot is invalidated.
+   */
   constexpr auto bump_generation(index_type const index) noexcept -> void {
     if (++m_generations[index] == 0) {
       m_generations[index] = generation_type{1};
@@ -158,39 +181,108 @@ private:
     using iterator_category = std::forward_iterator_tag;
     using iterator_concept = std::forward_iterator_tag;
 
+    /**
+     * @brief Constructs a singular iterator not tied to any map.
+     *
+     * @pre None.
+     * @post The iterator is singular and not dereferenceable.
+     */
     constexpr basic_iterator() noexcept = default;
 
+    /**
+     * @brief Constructs an iterator over the slot range \c [current, end).
+     *
+     * @param current Slot the iterator starts at, advanced to the first occupied
+     *                slot.
+     * @param end One past the last slot to walk.
+     *
+     * @pre \p current and \p end bound a valid slot range.
+     * @post The iterator refers to the first occupied slot at or after \p current,
+     *       or to \p end when none remains.
+     */
     constexpr basic_iterator(slot_iter const current, slot_iter const end) noexcept
         : m_current{current}, m_end{end} {
       skip_vacant();
     }
 
-    // Convert a mutable iterator to a const_iterator.
+    /**
+     * @brief Converts a mutable iterator into a const iterator.
+     *
+     * @tparam OtherConst Constness of the source iterator; enabled only when it is
+     *                    non-const and this iterator is const.
+     * @param other Mutable iterator to copy the position from.
+     *
+     * @pre None.
+     * @post This iterator refers to the same slot as \p other.
+     */
     template <bool OtherConst>
       requires(IsConst && !OtherConst)
     constexpr basic_iterator(basic_iterator<OtherConst> const& other) noexcept
         : m_current{other.m_current}, m_end{other.m_end} {}
 
+    /**
+     * @brief The live element the iterator refers to.
+     *
+     * @return A reference to the element in the current slot.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
       return m_current->value();
     }
 
+    /**
+     * @brief Member access to the live element the iterator refers to.
+     *
+     * @return A pointer to the element in the current slot.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
       return std::addressof(m_current->value());
     }
 
+    /**
+     * @brief Advances to the next live element.
+     *
+     * @return A reference to this iterator after advancing.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post The iterator refers to the next occupied slot or to \c end().
+     */
     constexpr auto operator++() noexcept -> basic_iterator& {
       ++m_current;
       skip_vacant();
       return *this;
     }
 
+    /**
+     * @brief Advances to the next live element, returning the prior position.
+     *
+     * @return A copy of the iterator before it advanced.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post The iterator refers to the next occupied slot or to \c end().
+     */
     constexpr auto operator++(int) noexcept -> basic_iterator {
       auto const tmp{*this};
       ++*this;
       return tmp;
     }
 
+    /**
+     * @brief Whether \p a and \p b refer to the same slot.
+     *
+     * @param a First iterator.
+     * @param b Second iterator.
+     *
+     * @return \c true when both point at the same slot.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
       return a.m_current == b.m_current;
@@ -200,6 +292,12 @@ private:
     slot_iter m_current{};
     slot_iter m_end{};
 
+    /**
+     * @brief Advances the cursor to the next occupied slot, or to the end.
+     *
+     * @pre \c m_current and \c m_end bound a valid slot range.
+     * @post \c m_current refers to an occupied slot or equals \c m_end.
+     */
     constexpr auto skip_vacant() noexcept -> void {
       while (m_current != m_end && !m_current->has_value()) {
         ++m_current;
