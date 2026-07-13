@@ -67,8 +67,21 @@ public:
 private:
   storage_type m_raw{0};
 
+  /// @brief Disambiguating tag for the raw-value constructor.
   struct raw_tag {};
 
+  /**
+   * @brief Constructs directly from the raw underlying integer, with no shift.
+   *
+   * Private companion to \c from_raw: the \c raw_tag first parameter keeps this
+   * apart from the integer-value constructor, which shifts its argument up by
+   * \c FractionBits.
+   *
+   * @param raw Raw underlying integer stored verbatim.
+   *
+   * @pre None.
+   * @post \c raw() of the result equals \p raw.
+   */
   constexpr fixed(raw_tag, storage_type const raw) noexcept : m_raw{raw} {}
 
 public:
