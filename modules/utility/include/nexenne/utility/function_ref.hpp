@@ -78,6 +78,21 @@ private:
   void const* m_obj{nullptr};
   thunk_type m_thunk{nullptr};
 
+  /**
+   * @brief Builds the thunk that restores an \p F and forwards a call to it.
+   *
+   * The returned function pointer casts the type-erased object pointer back to
+   * \p F and invokes it through \c std::invoke_r, which discards the result for
+   * a \c void signature and supports pointers to members.
+   *
+   * @tparam F Callable type the thunk restores from the object pointer.
+   *
+   * @return A thunk forwarding its arguments to the \p F recovered from its
+   *         first argument.
+   *
+   * @pre The pointer later passed to the thunk refers to a live \p F.
+   * @post None.
+   */
   template <typename F>
   [[nodiscard]] static auto make_thunk() noexcept -> thunk_type {
     return [](void const* p, Args... args) -> R {

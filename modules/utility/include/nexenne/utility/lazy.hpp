@@ -66,6 +66,22 @@ private:
   mutable std::optional<value_type> m_value{};
   mutable factory_type m_factory;
 
+  /**
+   * @brief Runs the factory once and returns a reference to the cached value.
+   *
+   * Drives the shared first-access path for every accessor: the factory runs
+   * under \c std::call_once, its result is cached, and the ready flag is
+   * published with release ordering so \c has_value observes a completed value.
+   * Later calls return the cache without re-running the factory.
+   *
+   * @return Mutable reference to the cached value.
+   *
+   * @pre None.
+   * @post \c has_value() returns \c true.
+   *
+   * @throws Anything the factory throws on the first call; nothing is cached
+   *         and the next call retries.
+   */
   auto materialise() const -> value_type& {
     std::call_once(m_once, [this] {
       m_value.emplace(std::invoke(m_factory));

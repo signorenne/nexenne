@@ -77,11 +77,27 @@ private:
   [[no_unique_address]] deleter_type m_deleter{};
   bool m_owns{false};
 
-  // P0052 leak guard for the owning constructor: the return object is the
-  // member itself (guaranteed elision), so a throwing move into m_resource is
-  // caught here and the still-intact handle is disposed before rethrowing. The
-  // catch path exists only when the move can actually throw, so the noexcept
-  // instantiation contains no unreachable rethrow.
+  /**
+   * @brief Moves the resource for the owning constructor, disposing it on a throw.
+   *
+   * P0052 leak guard: the return object is elided into \c m_resource, so a
+   * throwing move of \p resource is caught here and the still-intact handle is
+   * disposed via \p deleter before the exception propagates. The catch path
+   * exists only when the move can actually throw, so the \c noexcept
+   * instantiation contains no unreachable rethrow.
+   *
+   * @param resource Handle being moved into the owner.
+   * @param deleter Releaser invoked on \p resource if the move throws.
+   *
+   * @return The moved resource value.
+   *
+   * @pre \p deleter is a valid releaser for \p resource.
+   * @post On success the returned value carries \p resource's handle; on a
+   *       throw \p resource has been disposed of via \p deleter.
+   *
+   * @throws Anything the move construction of \p resource throws, after that
+   *         handle has been disposed of via \p deleter.
+   */
   [[nodiscard]] static auto guarded_resource_move(resource_type& resource, deleter_type& deleter
   ) noexcept(std::is_nothrow_move_constructible_v<resource_type>) -> resource_type {
     if constexpr (std::is_nothrow_move_constructible_v<resource_type>) {
@@ -97,9 +113,25 @@ private:
     }
   }
 
-  // P0052 leak guard for the owning constructor: m_resource already holds the
-  // handle, so a throwing move into m_deleter disposes it via the still-valid
-  // deleter argument before rethrowing.
+  /**
+   * @brief Moves the deleter for the owning constructor, disposing the handle on a throw.
+   *
+   * P0052 leak guard: \c m_resource already holds the handle, so a throwing
+   * move of \p deleter disposes \p resource via the still-valid \p deleter
+   * argument before the exception propagates.
+   *
+   * @param deleter Deleter being moved into the owner.
+   * @param resource Already-stored handle, disposed via \p deleter on a throw.
+   *
+   * @return The moved deleter value.
+   *
+   * @pre \p deleter is a valid releaser for \p resource.
+   * @post On success the returned value carries the deleter; on a throw
+   *       \p resource has been disposed of via \p deleter.
+   *
+   * @throws Anything the move construction of \p deleter throws, after
+   *         \p resource has been disposed of via \p deleter.
+   */
   [[nodiscard]] static auto guarded_deleter_move(deleter_type& deleter, resource_type& resource
   ) noexcept(std::is_nothrow_move_constructible_v<deleter_type>) -> deleter_type {
     if constexpr (std::is_nothrow_move_constructible_v<deleter_type>) {
@@ -115,13 +147,30 @@ private:
     }
   }
 
-  // P0052 leak guard for the move constructor. The resource member was
-  // initialised with move_if_noexcept: when that was a genuine move, other no
-  // longer holds the handle, so a throwing deleter initialisation must dispose
-  // the moved handle via other's deleter and disarm other. When the resource
-  // was copied instead, other still owns its handle and nothing is lost. The
-  // catch path exists only when the deleter move can actually throw, so the
-  // noexcept instantiation contains no unreachable rethrow.
+  /**
+   * @brief Steals the deleter for the move constructor, cleaning up on a throw.
+   *
+   * P0052 leak guard: \c m_resource was initialised with \c move_if_noexcept,
+   * so a genuine move left \p other holding no handle. If initialising the
+   * deleter then throws, the moved handle is disposed via \p other's deleter and
+   * \p other is disarmed; when the resource was copied instead, \p other still
+   * owns its handle and nothing is lost. The catch path exists only when the
+   * deleter move can actually throw, so the \c noexcept instantiation contains
+   * no unreachable rethrow.
+   *
+   * @param other Source owner whose deleter is being stolen.
+   * @param resource This owner's resource member, disposed via \p other's
+   *                 deleter on a throw when the resource was genuinely moved.
+   *
+   * @return The stolen deleter value.
+   *
+   * @pre None.
+   * @post On success the returned value carries \p other's deleter; on a throw
+   *       a genuinely moved handle has been disposed and \p other disarmed.
+   *
+   * @throws Anything the move construction of the deleter throws, after any
+   *         genuinely moved handle has been disposed of.
+   */
   [[nodiscard]] static auto guarded_deleter_steal(
     unique_resource& other, [[maybe_unused]] resource_type& resource
   ) noexcept(std::is_nothrow_move_constructible_v<deleter_type>) -> deleter_type {
@@ -142,15 +191,37 @@ private:
     }
   }
 
-  // Move assignment transfers an assignable member by assignment; a
-  // non-assignable member (a capturing lambda deleter) is destroyed and
-  // re-created in place, which is only safe because that construction cannot
-  // throw.
+  /**
+   * @brief Whether transferring a \p Member during move assignment cannot throw.
+   *
+   * True when an assignable member move-assigns without throwing, or when a
+   * non-assignable member (a capturing lambda deleter) is nothrow move
+   * constructible, since such a member is destroyed and re-created in place.
+   *
+   * @tparam Member Resource or deleter member type being transferred.
+   *
+   * @pre None.
+   * @post None.
+   */
   template <typename Member>
   static constexpr bool nothrow_transfer_v{
     std::is_move_assignable_v<Member> ? std::is_nothrow_move_assignable_v<Member>
                                       : std::is_nothrow_move_constructible_v<Member>};
 
+  /**
+   * @brief Transfers \p src into \p dst by move assignment or in-place rebuild.
+   *
+   * An assignable member is move-assigned; a non-assignable member (a capturing
+   * lambda deleter) is destroyed and re-created in place from \p src, which is
+   * sound only because that construction is required to be \c noexcept.
+   *
+   * @tparam Member Resource or deleter member type being transferred.
+   * @param dst Member to overwrite with \p src.
+   * @param src Member to move from.
+   *
+   * @pre When \p Member is not move-assignable it is nothrow move constructible.
+   * @post \p dst holds the value moved out of \p src.
+   */
   template <typename Member>
   static auto transfer_member(Member& dst, Member& src) noexcept(nothrow_transfer_v<Member>)
     -> void {
@@ -286,7 +357,22 @@ public:
     return *this;
   }
 
+  /**
+   * @brief Deleted copy constructor: \c unique_resource is move-only.
+   *
+   * @pre None.
+   * @post None.
+   */
   unique_resource(unique_resource const&) = delete;
+
+  /**
+   * @brief Deleted copy assignment: \c unique_resource is move-only.
+   *
+   * @return Never returns; the overload is deleted so copying does not compile.
+   *
+   * @pre None.
+   * @post None.
+   */
   auto operator=(unique_resource const&) -> unique_resource& = delete;
 
   /**

@@ -222,7 +222,26 @@ public:
     return *this;
   }
 
+  /**
+   * @brief Deleted copy constructor: \c in_place_function is move-only.
+   *
+   * Copying is disabled because the stored callable is relocated through the
+   * \c noexcept vtable move entry and has no general copy path.
+   *
+   * @pre None.
+   * @post None.
+   */
   in_place_function(in_place_function const&) = delete;
+
+  /**
+   * @brief Deleted copy assignment: \c in_place_function is move-only.
+   *
+   * Copy assignment is disabled for the same reason as the copy constructor:
+   * the type only supports relocating its stored callable, never copying it.
+   *
+   * @pre None.
+   * @post None.
+   */
   auto operator=(in_place_function const&) -> in_place_function& = delete;
 
   /**
