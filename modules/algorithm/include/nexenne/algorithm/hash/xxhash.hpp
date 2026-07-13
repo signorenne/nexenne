@@ -27,6 +27,7 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
 inline constexpr auto xxh32_prime1{std::uint32_t{0x9E3779B1u}};
@@ -35,6 +36,19 @@ inline constexpr auto xxh32_prime3{std::uint32_t{0xC2B2AE3Du}};
 inline constexpr auto xxh32_prime4{std::uint32_t{0x27D4EB2Fu}};
 inline constexpr auto xxh32_prime5{std::uint32_t{0x165667B1u}};
 
+/**
+ * @brief Reads four bytes at \p p as a little-endian \c std::uint32_t.
+ *
+ * Copies with \c std::memcpy and byte-swaps on a big-endian host, so the result
+ * matches the published xxHash vectors on any byte order.
+ *
+ * @param p Pointer to at least four readable bytes.
+ *
+ * @return The little-endian word at \p p.
+ *
+ * @pre \p p addresses at least four readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto xxh32_read32(std::uint8_t const* const p) noexcept -> std::uint32_t {
   auto v{std::uint32_t{0}};
   std::memcpy(&v, p, sizeof(v));
@@ -44,6 +58,20 @@ inline constexpr auto xxh32_prime5{std::uint32_t{0x165667B1u}};
   return v;
 }
 
+/**
+ * @brief One xxHash32 accumulator round: mixes \p input into \p acc.
+ *
+ * Multiplies \p input by prime2, adds it, rotates left by 13, and multiplies by
+ * prime1, the per-lane step of the 32-bit algorithm.
+ *
+ * @param acc Accumulator lane to update.
+ * @param input Little-endian input word to mix in.
+ *
+ * @return The updated accumulator lane.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] inline auto
 xxh32_round(std::uint32_t acc, std::uint32_t const input) noexcept -> std::uint32_t {
   acc += input * xxh32_prime2;
@@ -52,6 +80,23 @@ xxh32_round(std::uint32_t acc, std::uint32_t const input) noexcept -> std::uint3
   return acc;
 }
 
+/**
+ * @brief xxHash32 core over a byte span.
+ *
+ * Runs the four-lane 16-byte stripe loop for inputs of at least 16 bytes (a
+ * seeded fallback otherwise), folds the trailing 4-byte words and bytes, then
+ * applies the final avalanche.
+ *
+ * @param bytes Bytes to hash.
+ * @param seed Hash seed.
+ *
+ * @return The 32-bit xxHash of \p bytes.
+ *
+ * @pre None.
+ * @post Equal inputs and seeds always produce the same value.
+ *
+ * @complexity \c O(N) in the size \c N of \p bytes.
+ */
 [[nodiscard]] inline auto xxh32_impl(
   std::span<std::uint8_t const> const bytes, std::uint32_t const seed
 ) noexcept -> std::uint32_t {
@@ -110,6 +155,19 @@ inline constexpr auto xxh64_prime3{std::uint64_t{0x165667B19E3779F9ULL}};
 inline constexpr auto xxh64_prime4{std::uint64_t{0x85EBCA77C2B2AE63ULL}};
 inline constexpr auto xxh64_prime5{std::uint64_t{0x27D4EB2F165667C5ULL}};
 
+/**
+ * @brief Reads eight bytes at \p p as a little-endian \c std::uint64_t.
+ *
+ * Copies with \c std::memcpy and byte-swaps on a big-endian host, so the result
+ * matches the published xxHash vectors on any byte order.
+ *
+ * @param p Pointer to at least eight readable bytes.
+ *
+ * @return The little-endian word at \p p.
+ *
+ * @pre \p p addresses at least eight readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto xxh64_read64(std::uint8_t const* const p) noexcept -> std::uint64_t {
   auto v{std::uint64_t{0}};
   std::memcpy(&v, p, sizeof(v));
@@ -119,6 +177,19 @@ inline constexpr auto xxh64_prime5{std::uint64_t{0x27D4EB2F165667C5ULL}};
   return v;
 }
 
+/**
+ * @brief Reads four bytes at \p p as a little-endian \c std::uint32_t.
+ *
+ * Used for the 4-byte tail word of the 64-bit variant; copies with
+ * \c std::memcpy and byte-swaps on a big-endian host.
+ *
+ * @param p Pointer to at least four readable bytes.
+ *
+ * @return The little-endian word at \p p.
+ *
+ * @pre \p p addresses at least four readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto xxh64_read32(std::uint8_t const* const p) noexcept -> std::uint32_t {
   auto v{std::uint32_t{0}};
   std::memcpy(&v, p, sizeof(v));
@@ -128,6 +199,20 @@ inline constexpr auto xxh64_prime5{std::uint64_t{0x27D4EB2F165667C5ULL}};
   return v;
 }
 
+/**
+ * @brief One xxHash64 accumulator round: mixes \p input into \p acc.
+ *
+ * Multiplies \p input by prime2, adds it, rotates left by 31, and multiplies by
+ * prime1, the per-lane step of the 64-bit algorithm.
+ *
+ * @param acc Accumulator lane to update.
+ * @param input Little-endian input word to mix in.
+ *
+ * @return The updated accumulator lane.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] inline auto
 xxh64_round(std::uint64_t acc, std::uint64_t const input) noexcept -> std::uint64_t {
   acc += input * xxh64_prime2;
@@ -136,6 +221,20 @@ xxh64_round(std::uint64_t acc, std::uint64_t const input) noexcept -> std::uint6
   return acc;
 }
 
+/**
+ * @brief Merges an accumulator lane \p val into the digest \p acc (xxHash64).
+ *
+ * Runs \p val through a zero-seeded round, xors it into \p acc, then multiplies
+ * by prime1 and adds prime4, folding the four stripe lanes into one hash.
+ *
+ * @param acc Running digest to update.
+ * @param val Accumulator lane to merge in.
+ *
+ * @return The updated digest.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] inline auto
 xxh64_merge_round(std::uint64_t acc, std::uint64_t val) noexcept -> std::uint64_t {
   val = xxh64_round(0, val);
@@ -144,6 +243,23 @@ xxh64_merge_round(std::uint64_t acc, std::uint64_t val) noexcept -> std::uint64_
   return acc;
 }
 
+/**
+ * @brief xxHash64 core over a byte span.
+ *
+ * Runs the four-lane 32-byte stripe loop for inputs of at least 32 bytes (a
+ * seeded fallback otherwise) and merges the lanes, folds the trailing 8- and
+ * 4-byte words and bytes, then applies the final avalanche.
+ *
+ * @param bytes Bytes to hash.
+ * @param seed Hash seed.
+ *
+ * @return The 64-bit xxHash of \p bytes.
+ *
+ * @pre None.
+ * @post Equal inputs and seeds always produce the same value.
+ *
+ * @complexity \c O(N) in the size \c N of \p bytes.
+ */
 [[nodiscard]] inline auto xxh64_impl(
   std::span<std::uint8_t const> const bytes, std::uint64_t const seed
 ) noexcept -> std::uint64_t {
@@ -220,6 +336,7 @@ struct xxhash_word<64> {
 };
 
 }  // namespace detail
+/// @endcond
 
 /// @brief The unsigned result type of \c xxhash at the given \c Width.
 template <std::size_t Width>
@@ -311,6 +428,17 @@ private:
   std::array<std::uint8_t, stripe_size> m_buf{};
   std::size_t m_buf_n{0};
 
+  /**
+   * @brief Folds one full stripe at \p p into the four accumulator lanes.
+   *
+   * Reads the stripe as little-endian words and applies one \c xxh32_round or
+   * \c xxh64_round per lane, per \c Width.
+   *
+   * @param p Pointer to at least \c stripe_size readable bytes.
+   *
+   * @pre \p p addresses at least \c stripe_size readable bytes.
+   * @post The four lanes reflect the stripe at \p p.
+   */
   auto consume_stripe(std::uint8_t const* const p) noexcept -> void {
     if constexpr (Width == 32) {
       m_v1 = detail::xxh32_round(m_v1, detail::xxh32_read32(p + 0));

@@ -28,21 +28,27 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
-// The unsigned result type holding two sums of SumBits each: 2*SumBits bits.
+/// @brief Unsigned result type holding two sums of \c SumBits each: 2*SumBits bits.
 template <std::size_t SumBits>
 using modsum_uint_t = std::conditional_t<
   SumBits <= 8,
   std::uint16_t,
   std::conditional_t<SumBits <= 16, std::uint32_t, std::uint64_t>>;
 
-// Units summed before each modulo. Safe for every family member with a 64-bit
-// accumulator: with the largest unit (2^32-1) and modulus (2^32-1), the worst
-// sum2 after a block stays near 1.3e17, well below 2^64.
+/**
+ * @brief Number of units summed before each deferred modulo.
+ *
+ * Safe for every family member with a 64-bit accumulator: with the largest unit
+ * (2^32-1) and modulus (2^32-1), the worst \c sum2 after a block stays near
+ * 1.3e17, well below 2^64.
+ */
 inline constexpr std::size_t modular_sum_block{5552};
 
 }  // namespace detail
+/// @endcond
 
 /// @brief The unsigned result type of \c modular_sum at the given \c SumBits.
 template <std::size_t SumBits>

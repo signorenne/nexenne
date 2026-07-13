@@ -33,6 +33,11 @@ namespace nexenne::algorithm {
 /**
  * @brief Result of an A* search: the optimal path and its total cost.
  *
+ * Carries no single \c value_type: it holds two unrelated element types, a
+ * sequence of vertex IDs (\c path) and one accumulated cost (\c cost), so no one
+ * alias could name "the" element type without misleading generic code. Read
+ * \c V and \c Weight from the template parameters instead.
+ *
  * @tparam V Unsigned-integer vertex ID type.
  * @tparam Weight Numeric type for accumulated costs.
  */
@@ -42,6 +47,7 @@ struct a_star_result {
   Weight cost{};        ///< Total cost of path.
 };
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -55,13 +61,36 @@ struct a_star_entry {
   V vertex{};
   Weight f_score{};
 
-  // Equality on the ordering key (f-score) alone, kept consistent with the
-  // f-score-only operator<=> so equal-score entries never disagree.
+  /**
+   * @brief Tests two entries equal on their f-score ordering key.
+   *
+   * Equality is on the f-score alone, kept consistent with the f-score-only
+   * \c operator<=> so equal-score entries never disagree.
+   *
+   * @param a First entry.
+   * @param b Second entry.
+   *
+   * @return \c true when the two entries share an f-score.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
   operator==(a_star_entry const& a, a_star_entry const& b) noexcept -> bool {
     return a.f_score == b.f_score;
   }
 
+  /**
+   * @brief Orders two entries by their f-score.
+   *
+   * @param a First entry.
+   * @param b Second entry.
+   *
+   * @return The three-way ordering of the two f-scores.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
   operator<=>(a_star_entry const& a, a_star_entry const& b) noexcept {
     return a.f_score <=> b.f_score;
@@ -69,6 +98,7 @@ struct a_star_entry {
 };
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Finds a least-cost path from \p source to \p goal using A*.

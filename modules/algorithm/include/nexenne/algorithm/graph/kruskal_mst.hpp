@@ -23,6 +23,11 @@ namespace nexenne::algorithm {
 /**
  * @brief An edge of a minimum spanning tree: endpoints and weight.
  *
+ * Carries no single \c value_type: it holds two unrelated element types, the
+ * vertex IDs of its endpoints (\c V) and the edge weight (\c E), so no one alias
+ * could name "the" element type without misleading generic code. Read \c V and
+ * \c E from the template parameters instead.
+ *
  * @tparam E Edge payload (weight) type.
  * @tparam V Unsigned-integer vertex ID type.
  */

@@ -19,10 +19,25 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
-// KMP failure function: table[i] is the length of the longest proper prefix of
-// needle[0..i] that is also a suffix of it.
+/**
+ * @brief Builds the KMP failure function of \p needle.
+ *
+ * Entry \c table[i] is the length of the longest proper prefix of
+ * \c needle[0..i] that is also a suffix of it, letting the search resume without
+ * backtracking the text.
+ *
+ * @param needle Pattern to preprocess.
+ *
+ * @return A vector of size \c needle.size() holding the failure values.
+ *
+ * @pre None.
+ * @post The result has size \c needle.size().
+ *
+ * @complexity \c O(N) in the needle length.
+ */
 [[nodiscard]] constexpr auto kmp_failure(std::string_view const needle
 ) -> std::vector<std::size_t> {
   auto table{std::vector<std::size_t>(needle.size(), 0)};
@@ -40,6 +55,7 @@ namespace detail {
 }
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Index of the first occurrence of \p needle in \p haystack.

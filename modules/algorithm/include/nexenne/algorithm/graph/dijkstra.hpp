@@ -26,8 +26,22 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief The sentinel weight standing for an unreached vertex.
+ *
+ * Uses positive infinity for a floating-point \c Weight and the type maximum
+ * otherwise, so an unreached distance always compares greater than any real one.
+ *
+ * @tparam Weight Numeric type for accumulated distances.
+ *
+ * @return Positive infinity for a type with an infinity, else its maximum.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename Weight>
 [[nodiscard]] constexpr auto unreachable_weight() noexcept -> Weight {
   if constexpr (std::numeric_limits<Weight>::has_infinity) {
@@ -37,7 +51,27 @@ template <typename Weight>
   }
 }
 
+/**
+ * @brief Default edge-weight extractor returning an edge's \c data member.
+ *
+ * The fallback \c WeightFn for the shortest-path routines when the caller does
+ * not supply one, so an edge whose payload is its weight needs no extractor.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct default_weight_fn {
+  /**
+   * @brief Returns the weight stored in \p e as its \c data member.
+   *
+   * @tparam Edge Edge record type exposing a \c data member.
+   * @param e Edge record to read.
+   *
+   * @return The edge's \c data member.
+   *
+   * @pre None.
+   * @post None.
+   */
   template <typename Edge>
   [[nodiscard]] constexpr auto operator()(Edge const& e) const noexcept -> decltype(e.data) {
     return e.data;
@@ -55,13 +89,36 @@ struct dijkstra_entry {
   V vertex{};
   Weight distance{};
 
-  // Equality on the ordering key (distance) alone, kept consistent with the
-  // distance-only operator<=> so equal-distance entries never disagree.
+  /**
+   * @brief Tests two entries equal on their distance ordering key.
+   *
+   * Equality is on the distance alone, kept consistent with the distance-only
+   * \c operator<=> so equal-distance entries never disagree.
+   *
+   * @param a First entry.
+   * @param b Second entry.
+   *
+   * @return \c true when the two entries share a distance.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
   operator==(dijkstra_entry const& a, dijkstra_entry const& b) noexcept -> bool {
     return a.distance == b.distance;
   }
 
+  /**
+   * @brief Orders two entries by their distance.
+   *
+   * @param a First entry.
+   * @param b Second entry.
+   *
+   * @return The three-way ordering of the two distances.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
   operator<=>(dijkstra_entry const& a, dijkstra_entry const& b) noexcept {
     return a.distance <=> b.distance;
@@ -69,6 +126,7 @@ struct dijkstra_entry {
 };
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Shortest-path distances from \p source over non-negative weights.

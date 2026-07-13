@@ -28,8 +28,27 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief Stable counting-sort pass over one byte digit of \p input.
+ *
+ * Tallies the byte at position \p byte_index of every element, turns the tallies
+ * into starting offsets by a prefix sum, and scatters each element into \p output
+ * at its bucketed position. Walking \p input front to back keeps the pass stable.
+ *
+ * @tparam T Unsigned-integer element type.
+ * @param input Source elements for this digit pass.
+ * @param output Destination buffer receiving the bucketed elements.
+ * @param byte_index Zero-based index of the byte digit to sort on.
+ *
+ * @pre \p output is at least as large as \p input and does not overlap it;
+ *      \p byte_index is less than \c sizeof(T).
+ * @post \p output holds \p input stably ordered by the selected byte.
+ *
+ * @complexity \c O(N + 256) time and \c O(256) auxiliary space.
+ */
 template <std::unsigned_integral T>
 constexpr auto radix_sort_pass(
   std::span<T const> const input, std::span<T> const output, std::size_t const byte_index
@@ -60,6 +79,24 @@ constexpr auto radix_sort_pass(
   }
 }
 
+/**
+ * @brief Runs every byte-digit pass, ping-ponging \p range and \p scratch.
+ *
+ * Sorts \p range in place by one least-significant-digit pass per byte of \c T,
+ * alternating the source and destination spans. After an odd number of passes
+ * the sorted data lands in \p scratch and is copied back into \p range.
+ *
+ * @tparam T Unsigned-integer element type.
+ * @param range Elements to sort in place.
+ * @param scratch Auxiliary span, at least as large as \p range.
+ *
+ * @pre \c scratch.size() is at least \c range.size() and the two spans do not
+ *      overlap.
+ * @post \p range is stably sorted in non-decreasing order; \p scratch holds
+ *       unspecified contents.
+ *
+ * @complexity \c O(N * sizeof(T)) time and no allocation.
+ */
 template <std::unsigned_integral T>
 constexpr auto
 radix_sort_into(std::span<T> const range, std::span<T> const scratch) noexcept -> void {
@@ -81,6 +118,7 @@ radix_sort_into(std::span<T> const range, std::span<T> const scratch) noexcept -
 }
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Sorts a span of unsigned integers in place using caller scratch.
