@@ -63,14 +63,38 @@ public:
   static constexpr bool is_async = true;
 
 private:
+  /**
+   * @brief Constructs the manager and starts its backend thread.
+   *
+   * Private: the singleton is reached only through \c instance().
+   *
+   * @pre None.
+   * @post The backend thread is running.
+   */
   basic_async_manager() noexcept {
     m_backend = std::thread{[this] { backend_loop(); }};
   }
 
+  /**
+   * @brief Stops the backend thread, draining and flushing once.
+   *
+   * @pre None.
+   * @post The backend thread has stopped and every sink has been flushed.
+   */
   ~basic_async_manager() noexcept {
     shutdown();
   }
 
+  /**
+   * @brief Backend thread loop: drains the queue and parks until signalled.
+   *
+   * Wakes on a producer's or shutdown's signal, drains every queued record to
+   * the sinks, then blocks on the atomic wait. A final drain runs after a stop
+   * is observed so a graceful shutdown loses no record.
+   *
+   * @pre None.
+   * @post The queue has been drained and a stop was observed.
+   */
   auto backend_loop() noexcept -> void {
     while (!m_stop.load(std::memory_order_acquire)) {
       auto const token{m_signal.load(std::memory_order_acquire)};
@@ -87,6 +111,15 @@ private:
     drain_queue();
   }
 
+  /**
+   * @brief Pops and dispatches every currently queued record.
+   *
+   * Holds the dispatching flag for the duration so \c flush can tell a
+   * popped-but-not-yet-written record apart from an empty queue.
+   *
+   * @pre None.
+   * @post The queue was empty at the moment the loop last observed it.
+   */
   auto drain_queue() noexcept -> void {
     m_dispatching.store(true, std::memory_order_release);
     while (auto popped{m_queue.try_pop()}) {
@@ -95,6 +128,16 @@ private:
     m_dispatching.store(false, std::memory_order_release);
   }
 
+  /**
+   * @brief Writes \p r to every registered sink under the sink lock.
+   *
+   * @param r Record to dispatch.
+   *
+   * @pre None.
+   * @post Every registered non-null sink has been offered \p r.
+   *
+   * @complexity \c O(sink_count()).
+   */
   auto dispatch(record const& r) noexcept -> void {
     auto const guard{std::lock_guard{m_sinks_mutex}};
     nexenne::utility::for_each_non_null(m_sinks, [&r](sink& s) { s.write(r); });
@@ -277,9 +320,16 @@ public:
   }
 
 private:
-  // Bumps the wakeup token and wakes the backend if it is parked in wait().
-  // notify_one skips the kernel wake when no thread is waiting, so a push that
-  // arrives while the backend is busy draining costs only the atomic bump.
+  /**
+   * @brief Bumps the wakeup token and wakes the backend if it is parked.
+   *
+   * \c notify_one skips the kernel wake when no thread is waiting, so a push
+   * that arrives while the backend is busy draining costs only the atomic bump.
+   *
+   * @pre None.
+   * @post The wakeup token has advanced and a parked backend thread, if any,
+   *       has been released.
+   */
   auto wake_backend() noexcept -> void {
     m_signal.fetch_add(1, std::memory_order_release);
     m_signal.notify_one();
@@ -312,6 +362,16 @@ private:
   basic_sync_manager() noexcept = default;
   ~basic_sync_manager() noexcept = default;
 
+  /**
+   * @brief Writes \p r to every registered sink under the sink lock.
+   *
+   * @param r Record to dispatch.
+   *
+   * @pre None.
+   * @post Every registered non-null sink has been offered \p r.
+   *
+   * @complexity \c O(sink_count()).
+   */
   auto dispatch(record const& r) noexcept -> void {
     auto const guard{std::lock_guard{m_sinks_mutex}};
     nexenne::utility::for_each_non_null(m_sinks, [&r](sink& s) { s.write(r); });

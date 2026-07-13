@@ -209,6 +209,15 @@ public:
   explicit console_sink(stream const s = stream::auto_split) noexcept : m_stream{s} {}
 
 protected:
+  /**
+   * @brief Formats \p r and writes it to the stream chosen for its severity.
+   *
+   * @param r Record to write.
+   *
+   * @pre None.
+   * @post The formatted line has been written to stdout or stderr per the
+   *       routing policy.
+   */
   auto write_out(record const& r) noexcept -> void override {
     auto const line{default_format(r)};
     auto* const out{pick_stream(r.severity)};
@@ -217,12 +226,31 @@ protected:
     nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), out));
   }
 
+  /**
+   * @brief Flushes both stdout and stderr.
+   *
+   * @pre None.
+   * @post Both standard streams have been flushed.
+   */
   auto flush_out() noexcept -> void override {
     nexenne::utility::discard(std::fflush(stdout));
     nexenne::utility::discard(std::fflush(stderr));
   }
 
 private:
+  /**
+   * @brief Selects the output stream for a record of severity \p sev.
+   *
+   * @param sev Severity of the record.
+   *
+   * @return \c stderr for \c auto_split at or above \c level::warn, otherwise
+   *         the stream fixed by the routing policy.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(1).
+   */
   [[nodiscard]] auto pick_stream(level const sev) const noexcept -> std::FILE* {
     switch (m_stream) {
       case stream::stdout_only:
@@ -273,6 +301,12 @@ public:
   // moves here would default-construct the sink base subobject and silently reset
   // the per-sink min_level filter to trace.
 
+  /**
+   * @brief Flushes and closes the file.
+   *
+   * @pre None.
+   * @post Any owned file has been flushed and closed.
+   */
   ~file_sink() noexcept override {
     close();
   }
@@ -290,6 +324,16 @@ public:
   }
 
 protected:
+  /**
+   * @brief Appends the formatted \p r to the file.
+   *
+   * A null handle makes the call a no-op.
+   *
+   * @param r Record to write.
+   *
+   * @pre None.
+   * @post The formatted line has been appended when the file is open.
+   */
   auto write_out(record const& r) noexcept -> void override {
     if (m_file == nullptr) {
       return;
@@ -298,6 +342,12 @@ protected:
     nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), m_file));
   }
 
+  /**
+   * @brief Flushes the file when one is open.
+   *
+   * @pre None.
+   * @post Any buffered bytes have been flushed to the file.
+   */
   auto flush_out() noexcept -> void override {
     if (m_file != nullptr) {
       nexenne::utility::discard(std::fflush(m_file));
@@ -305,6 +355,12 @@ protected:
   }
 
 private:
+  /**
+   * @brief Flushes, closes, and clears the file handle if one is open.
+   *
+   * @pre None.
+   * @post \c m_file is null.
+   */
   auto close() noexcept -> void {
     if (m_file != nullptr) {
       nexenne::utility::discard(std::fflush(m_file));
@@ -370,6 +426,17 @@ public:
   }
 
 protected:
+  /**
+   * @brief Formats \p r and pushes the line into the ring, overwriting if full.
+   *
+   * Formats outside the mutex so a concurrent \c snapshot or \c size waits only
+   * on the push, not on the allocation and formatting.
+   *
+   * @param r Record to buffer.
+   *
+   * @pre None.
+   * @post The formatted line is the newest entry in the ring.
+   */
   auto write_out(record const& r) noexcept -> void override {
     // Format outside the lock so a concurrent snapshot/size only waits on the
     // push, not on the allocation and formatting.
@@ -378,6 +445,12 @@ protected:
     m_buf.push_overwrite(std::move(line));
   }
 
+  /**
+   * @brief No-op flush; the ring retains its lines in memory.
+   *
+   * @pre None.
+   * @post None.
+   */
   auto flush_out() noexcept -> void override {}
 
 private:
