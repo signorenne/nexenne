@@ -63,14 +63,36 @@ private:
   time_point m_last{};
   bool m_anchored{false};
 
-  // Clamp a rate parameter to a finite, non-negative value. Negative inputs and
-  // non-finite ones (NaN, infinities) map to zero so they cannot propagate into
-  // the token count, where a NaN would make every comparison false and silently
-  // disable limiting.
+  /**
+   * @brief Clamp a rate parameter to a finite, non-negative value.
+   *
+   * Negative and non-finite inputs (NaN, infinities) map to zero so they cannot
+   * propagate into the token count, where a NaN would make every comparison
+   * false and silently disable limiting.
+   *
+   * @param v Candidate rate or capacity value.
+   *
+   * @return \p v when it is finite and positive, otherwise zero.
+   *
+   * @pre None.
+   * @post The result is finite and greater than or equal to zero.
+   */
   [[nodiscard]] static constexpr auto clamp_rate(double const v) noexcept -> double {
     return (v > 0.0 && v <= std::numeric_limits<double>::max()) ? v : 0.0;
   }
 
+  /**
+   * @brief Credit tokens for the time elapsed since the last refill.
+   *
+   * The first call only anchors the clock. Later calls add the elapsed
+   * fraction of the refill rate, capped at the capacity, clamping a backward
+   * clock step to zero and holding the anchor monotonic so a skipped interval
+   * is never re-credited.
+   *
+   * @pre None.
+   * @post The available token count is at most \c capacity() and the refill
+   *       anchor is not earlier than its prior value.
+   */
   auto refill() noexcept -> void {
     auto const now{Clock::now()};
     if (!m_anchored) {
