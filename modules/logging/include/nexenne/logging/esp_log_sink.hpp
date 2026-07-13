@@ -44,6 +44,20 @@ namespace nexenne::logging {
  */
 class esp_log_sink final : public sink {
 protected:
+  /**
+   * @brief Forwards \p r to ESP-IDF via \c esp_log_write at the mapped level.
+   *
+   * Copies the logger name into a bounded, null-terminated tag buffer (the
+   * record only guarantees the name outlives the record, not that it is
+   * terminated) and emits the already-formatted message at the IDF level that
+   * \c map_level assigns to the severity.
+   *
+   * @param r Record to emit.
+   *
+   * @pre None.
+   * @post The message has been handed to \c esp_log_write with the logger name
+   *       as the tag.
+   */
   auto write_out(record const& r) noexcept -> void override {
     // record only guarantees the name outlives the record, not that it is
     // null-terminated, so copy it into a bounded, explicitly terminated buffer
@@ -57,9 +71,30 @@ protected:
     esp_log_write(map_level(r.severity), tag.data(), "%s\n", r.message.c_str());
   }
 
+  /**
+   * @brief No-op flush; this sink does not buffer \c esp_log_write output.
+   *
+   * @pre None.
+   * @post None.
+   */
   auto flush_out() noexcept -> void override {}
 
 private:
+  /**
+   * @brief Maps a nexenne severity to the matching ESP-IDF log level.
+   *
+   * \c level::critical folds onto \c ESP_LOG_ERROR, since ESP-IDF has no
+   * distinct critical level.
+   *
+   * @param l Severity to map.
+   *
+   * @return The corresponding \c esp_log_level_t.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(1).
+   */
   [[nodiscard]] static auto map_level(level const l) noexcept -> esp_log_level_t {
     switch (l) {
       case level::trace:

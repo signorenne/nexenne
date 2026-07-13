@@ -157,6 +157,20 @@ public:
   }
 
 protected:
+  /**
+   * @brief Writes \p r to the active file, rotating first if it would overflow.
+   *
+   * Formats the record, rotates when the running size plus the line would cross
+   * \c max_bytes (so a record is never split), then appends the line and bumps
+   * the running counter. A null handle or a failed re-open after rotation makes
+   * the call a no-op.
+   *
+   * @param r Record to write.
+   *
+   * @pre None.
+   * @post The line has been appended and \c current_size() updated, unless the
+   *       file is closed.
+   */
   auto write_out(record const& r) noexcept -> void override {
     auto const guard{std::lock_guard{m_mutex}};
     if (m_file == nullptr) {
@@ -176,6 +190,12 @@ protected:
     m_current_size += line.size();
   }
 
+  /**
+   * @brief Flushes the active file under the sink mutex.
+   *
+   * @pre None.
+   * @post Any buffered bytes have been flushed to the active file.
+   */
   auto flush_out() noexcept -> void override {
     auto const guard{std::lock_guard{m_mutex}};
     if (m_file != nullptr) {
@@ -184,10 +204,33 @@ protected:
   }
 
 private:
+  /**
+   * @brief Builds the path of the \p n-th rotated backup.
+   *
+   * @param n One-based backup index.
+   *
+   * @return The path \c base_path().n.
+   *
+   * @pre None.
+   * @post None.
+   * @throws std::bad_alloc if the result string cannot be allocated.
+   *
+   * @complexity \c O(|base_path|).
+   */
   [[nodiscard]] auto rotated_name(std::size_t const n) const -> std::string {
     return std::format("{}.{}", m_base_path, n);
   }
 
+  /**
+   * @brief Opens the active file in append mode and seeds the size counter.
+   *
+   * Seeks to the end of an existing file so a restart keeps the rotation
+   * budget. Leaves \c m_file null on a failed open.
+   *
+   * @pre None.
+   * @post \c m_file is the open handle or null, and \c m_current_size reflects
+   *       the existing file size.
+   */
   auto open_current() noexcept -> void {
     m_file = std::fopen(m_base_path.c_str(), "ab");
     m_current_size = 0;
@@ -199,6 +242,12 @@ private:
     }
   }
 
+  /**
+   * @brief Flushes and closes the active file if one is open.
+   *
+   * @pre None.
+   * @post \c m_file is null.
+   */
   auto close_current() noexcept -> void {
     if (m_file != nullptr) {
       nexenne::utility::discard(std::fflush(m_file));
@@ -207,7 +256,17 @@ private:
     }
   }
 
-  /// @brief Shifts rotated files down and opens a fresh active log.
+  /**
+   * @brief Shifts rotated files down and opens a fresh active log.
+   *
+   * Closes the active file, deletes the oldest backup beyond \c max_files,
+   * renames each backup one step down, moves the active file to \c .1, and
+   * opens a new empty active file. With \c max_files of 0 the active file is
+   * truncated rather than archived.
+   *
+   * @pre None.
+   * @post A fresh active file is open and the previous generations have shifted.
+   */
   auto rotate() noexcept -> void {
     close_current();
     if (m_max_files > 0) {

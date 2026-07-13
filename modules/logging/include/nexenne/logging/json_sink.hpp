@@ -125,6 +125,19 @@ public:
   }
 
 protected:
+  /**
+   * @brief Serialises \p r as one JSON line and writes it to the file.
+   *
+   * Escapes every string field and terminates the object with a newline. A null
+   * file handle makes the call a no-op.
+   *
+   * @param r Record to serialise.
+   *
+   * @pre None.
+   * @post One NDJSON line for \p r has been written when the file is open.
+   *
+   * @complexity \c O(|record|).
+   */
   auto write_out(record const& r) noexcept -> void override {
     if (m_file == nullptr) {
       return;
@@ -161,6 +174,12 @@ protected:
     nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), m_file));
   }
 
+  /**
+   * @brief Flushes the underlying file when one is open.
+   *
+   * @pre None.
+   * @post Any buffered bytes have been flushed to the file.
+   */
   auto flush_out() noexcept -> void override {
     if (m_file != nullptr) {
       nexenne::utility::discard(std::fflush(m_file));

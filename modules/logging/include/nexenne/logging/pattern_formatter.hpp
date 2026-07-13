@@ -66,11 +66,38 @@ public:
 private:
   std::string m_pattern{default_pattern};
 
+  /**
+   * @brief Returns the basename of \p path, the part after the last separator.
+   *
+   * @param path Source path to strip.
+   *
+   * @return The trailing component, or \p path itself when it has no separator.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(|path|).
+   */
   [[nodiscard]] static auto basename_of(std::string_view const path) noexcept -> std::string_view {
     auto const pos{path.find_last_of("/\\")};
     return pos == std::string_view::npos ? path : path.substr(pos + 1);
   }
 
+  /**
+   * @brief Single-character tag of a severity for the \c %L token.
+   *
+   * Differs from \c to_char in that it renders \c level::off as '-' rather than
+   * the space \c to_char yields.
+   *
+   * @param l Severity to tag.
+   *
+   * @return The one-character tag, or '?' for an invalid value.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(1).
+   */
   [[nodiscard]] static auto level_short(level const l) noexcept -> char {
     switch (l) {
       case level::trace:
@@ -91,6 +118,23 @@ private:
     return '?';
   }
 
+  /**
+   * @brief Appends \p t to \p out as UTC, with or without the calendar date.
+   *
+   * Emits \c YYYY-MM-DDTHH:MM:SS.fffZ when \p include_date is set, otherwise
+   * \c HH:MM:SS.fff. The seconds are floored so the millisecond remainder stays
+   * non-negative for pre-epoch timestamps.
+   *
+   * @param out String to append the rendered time to.
+   * @param t Time point to render.
+   * @param include_date Whether to prefix the calendar date.
+   *
+   * @pre None.
+   * @post \p out has the rendered time appended.
+   * @throws std::bad_alloc if appending to \p out fails to allocate.
+   *
+   * @complexity \c O(1).
+   */
   static auto append_time(
     std::string& out, std::chrono::system_clock::time_point const t, bool const include_date
   ) -> void {

@@ -92,8 +92,21 @@ public:
   static constexpr size_type buffer_size = BufferSize;
 
 private:
-  // Strips leading directories from a source path so a long build path does not
-  // blow the buffer. Like basename(3) but constexpr-friendly and noexcept.
+  /**
+   * @brief Strips leading directories from a source path.
+   *
+   * Like \c basename but constexpr-friendly and \c noexcept, so a long build
+   * path does not consume the stack buffer.
+   *
+   * @param path Null-terminated source path, or null.
+   *
+   * @return A pointer to the trailing filename, or "?" when \p path is null.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(|path|).
+   */
   [[nodiscard]] static constexpr auto short_filename(char const* path) noexcept -> char const* {
     if (path == nullptr) {
       return "?";
