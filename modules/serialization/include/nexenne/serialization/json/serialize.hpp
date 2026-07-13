@@ -44,8 +44,20 @@ struct serialize_options {
 
 namespace detail {
 
-// Append "\uXXXX" for a 16-bit code unit, manual hex so no snprintf or locale
-// is pulled in (faster, and freestanding-friendly).
+/// @cond INTERNAL
+
+/**
+ * @brief Append a \c \\uXXXX escape for a 16-bit code unit to \p out.
+ *
+ * Uses manual hex so no \c snprintf or locale is pulled in (faster, and
+ * freestanding-friendly).
+ *
+ * @param out Output string the escape is appended to.
+ * @param code The 16-bit code unit to escape.
+ *
+ * @pre None.
+ * @post \p out has grown by the six characters of the escape.
+ */
 inline auto append_u_escape(std::string& out, std::uint16_t const code) -> void {
   constexpr char hex[]{"0123456789abcdef"};
   out += "\\u";
@@ -55,6 +67,23 @@ inline auto append_u_escape(std::string& out, std::uint16_t const code) -> void 
   out.push_back(hex[code & 0xF]);
 }
 
+/**
+ * @brief Append \p s to \p out as a quoted, JSON-escaped string.
+ *
+ * Escapes the JSON-required set (the quote, the backslash, and control bytes
+ * below 0x20). With \p ascii_only set, each non-ASCII UTF-8 sequence is
+ * decoded and re-emitted as a \c \\uXXXX escape (a surrogate pair above the
+ * BMP), and any malformed, overlong, surrogate, or out-of-range sequence
+ * becomes U+FFFD so the output stays valid JSON; otherwise bytes at or above
+ * 0x20 are copied through unvalidated.
+ *
+ * @param out Output string the quoted literal is appended to.
+ * @param s Characters to escape and emit.
+ * @param ascii_only When \c true, escape every non-ASCII byte.
+ *
+ * @pre None.
+ * @post \p out has grown by the quoted, escaped form of \p s.
+ */
 inline auto
 write_escaped_string(std::string& out, std::string_view const s, bool const ascii_only) -> void {
   out.push_back('"');
@@ -153,6 +182,20 @@ write_escaped_string(std::string& out, std::string_view const s, bool const asci
   out.push_back('"');
 }
 
+/**
+ * @brief Append the JSON rendering of a double \p d to \p out.
+ *
+ * Renders with \c std::to_chars; NaN and infinity become \c null since JSON
+ * cannot represent them. A magnitude that \c std::to_chars prints in pure
+ * integer form gets a trailing \c ".0" so it reparses as a float rather than
+ * overflowing an integer.
+ *
+ * @param out Output string the number is appended to.
+ * @param d Value to render.
+ *
+ * @pre None.
+ * @post \p out has grown by the rendered number (or \c null).
+ */
 inline auto write_number(std::string& out, double const d) -> void {
   if (std::isnan(d) || std::isinf(d)) {
     out += "null";  // JSON has no NaN/Infinity; null is the closest legal value.
@@ -170,11 +213,22 @@ inline auto write_number(std::string& out, double const d) -> void {
   }
 }
 
+/**
+ * @brief Append the decimal rendering of a signed integer \p i to \p out.
+ *
+ * @param out Output string the number is appended to.
+ * @param i Value to render.
+ *
+ * @pre None.
+ * @post \p out has grown by the rendered integer.
+ */
 inline auto write_number(std::string& out, std::int64_t const i) -> void {
   auto buf{std::array<char, 24>{}};
   auto const r{std::to_chars(buf.data(), buf.data() + buf.size(), i)};
   out.append(buf.data(), static_cast<std::size_t>(r.ptr - buf.data()));
 }
+
+/// @endcond
 
 /**
  * @brief Kind of a pending unit of output on the serialisation work stack.
@@ -202,6 +256,24 @@ struct emit_step {
   std::size_t depth{0};             ///< Nesting depth for indentation.
 };
 
+/// @cond INTERNAL
+
+/**
+ * @brief Serialise \p root into \p out, compact or pretty.
+ *
+ * Walks the DOM with an explicit \c emit_step work stack rather than
+ * recursion, so an arbitrarily deep hand-built DOM serialises without
+ * overflowing the call stack. Object keys are emitted in sorted \c flat_map
+ * order for deterministic output.
+ *
+ * @param out Output string the JSON is appended to.
+ * @param root DOM value to serialise.
+ * @param opts Formatting options (indent width and \c ascii_only).
+ * @param pretty When \c true, emit newlines and indentation.
+ *
+ * @pre None.
+ * @post \p out has grown by the serialised form of \p root.
+ */
 inline auto
 write_value(std::string& out, value const& root, serialize_options const& opts, bool const pretty)
   -> void {
@@ -311,6 +383,8 @@ write_value(std::string& out, value const& root, serialize_options const& opts, 
     }
   }
 }
+
+/// @endcond
 
 }  // namespace detail
 

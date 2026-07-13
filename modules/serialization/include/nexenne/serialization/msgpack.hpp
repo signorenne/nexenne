@@ -76,46 +76,126 @@ enum class type : std::uint8_t {
   map_header,    ///< Length prefix; followed by N key-value pairs.
 };
 
+/// @cond INTERNAL
 namespace detail {
 
-// Store an unsigned value big-endian. The byte order is handled by
-// nexenne::utility, which writes the bytes most-significant-first into the
-// fixed-extent destination span.
+/**
+ * @brief Store an unsigned value big-endian at \p dst.
+ *
+ * The byte order is handled by \c nexenne::utility, which writes the bytes
+ * most-significant-first into the fixed-extent destination span.
+ *
+ * @tparam U Unsigned integral type to store.
+ * @param dst Destination for \c sizeof(U) big-endian bytes.
+ * @param value Value to store.
+ *
+ * @pre \p dst points at \c sizeof(U) writable bytes.
+ * @post \p dst holds \p value in big-endian order.
+ */
 template <std::unsigned_integral U>
 inline auto store_be(std::byte* const dst, U value) noexcept -> void {
   nexenne::utility::write_be(std::span<std::byte, sizeof(U)>{dst, sizeof(U)}, value);
 }
 
+/**
+ * @brief Load an unsigned value from big-endian bytes at \p src.
+ *
+ * @tparam U Unsigned integral type to load.
+ * @param src Source of \c sizeof(U) big-endian bytes.
+ *
+ * @return The decoded value.
+ *
+ * @pre \p src points at \c sizeof(U) readable bytes.
+ * @post None.
+ */
 template <std::unsigned_integral U>
 [[nodiscard]] inline auto load_be(std::byte const* const src) noexcept -> U {
   return nexenne::utility::read_be<U>(std::span<std::byte const, sizeof(U)>{src, sizeof(U)});
 }
 
+/**
+ * @brief Store a 16-bit value big-endian at \p dst.
+ *
+ * @param dst Destination for two big-endian bytes.
+ * @param v Value to store.
+ *
+ * @pre \p dst points at two writable bytes.
+ * @post \p dst holds \p v in big-endian order.
+ */
 inline auto store_be16(std::byte* const dst, std::uint16_t const v) noexcept -> void {
   store_be(dst, v);
 }
 
+/**
+ * @brief Store a 32-bit value big-endian at \p dst.
+ *
+ * @param dst Destination for four big-endian bytes.
+ * @param v Value to store.
+ *
+ * @pre \p dst points at four writable bytes.
+ * @post \p dst holds \p v in big-endian order.
+ */
 inline auto store_be32(std::byte* const dst, std::uint32_t const v) noexcept -> void {
   store_be(dst, v);
 }
 
+/**
+ * @brief Store a 64-bit value big-endian at \p dst.
+ *
+ * @param dst Destination for eight big-endian bytes.
+ * @param v Value to store.
+ *
+ * @pre \p dst points at eight writable bytes.
+ * @post \p dst holds \p v in big-endian order.
+ */
 inline auto store_be64(std::byte* const dst, std::uint64_t const v) noexcept -> void {
   store_be(dst, v);
 }
 
+/**
+ * @brief Load a 16-bit value from two big-endian bytes at \p src.
+ *
+ * @param src Source of two big-endian bytes.
+ *
+ * @return The decoded value.
+ *
+ * @pre \p src points at two readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto load_be16(std::byte const* const src) noexcept -> std::uint16_t {
   return load_be<std::uint16_t>(src);
 }
 
+/**
+ * @brief Load a 32-bit value from four big-endian bytes at \p src.
+ *
+ * @param src Source of four big-endian bytes.
+ *
+ * @return The decoded value.
+ *
+ * @pre \p src points at four readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto load_be32(std::byte const* const src) noexcept -> std::uint32_t {
   return load_be<std::uint32_t>(src);
 }
 
+/**
+ * @brief Load a 64-bit value from eight big-endian bytes at \p src.
+ *
+ * @param src Source of eight big-endian bytes.
+ *
+ * @return The decoded value.
+ *
+ * @pre \p src points at eight readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto load_be64(std::byte const* const src) noexcept -> std::uint64_t {
   return load_be<std::uint64_t>(src);
 }
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief MessagePack writer over a caller-provided span.
@@ -137,14 +217,40 @@ public:
 private:
   nexenne::utility::buffer_cursor<byte_type> m_cursor;
 
-  // True when a fixed-size header plus a body fit, computed without overflowing
-  // size_type (header + body could wrap on a 32-bit target with a huge body).
+  /**
+   * @brief Whether a fixed-size header plus a body fit the remaining space.
+   *
+   * Computed without overflowing \c size_type: \c header plus \c body could
+   * wrap on a 32-bit target with a huge body, so the check subtracts instead
+   * of adding.
+   *
+   * @param header Size of the fixed header in bytes.
+   * @param body Size of the body in bytes.
+   *
+   * @return \c true when both the header and the body fit in the space left.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto
   fits_prefixed(size_type const header, size_type const body) const noexcept -> bool {
     auto const remaining{m_cursor.remaining()};
     return header <= remaining && body <= remaining - header;
   }
 
+  /**
+   * @brief Write a single byte, bounds-checked.
+   *
+   * @param b Byte value to emit.
+   *
+   * @return Empty on success.
+   *
+   * @pre None.
+   * @post On success the cursor advances by one byte; on failure it is
+   *       unchanged.
+   *
+   * @throws None. Returns \c error::buffer_full when no byte remains.
+   */
   auto put1(std::uint8_t const b) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1)) [[unlikely]]
       return std::unexpected{error::buffer_full};
@@ -584,6 +690,19 @@ public:
 private:
   nexenne::utility::buffer_cursor<byte_type const> m_cursor;
 
+  /**
+   * @brief Take a view of the next \p n bytes, bounds-checked.
+   *
+   * @param n Number of bytes to view and advance past.
+   *
+   * @return A span over the next \p n bytes on success.
+   *
+   * @pre None.
+   * @post On success the cursor advances by \p n; on failure it is unchanged.
+   *
+   * @throws None. Returns \c error::buffer_underrun when fewer than \p n bytes
+   *         remain.
+   */
   [[nodiscard]] auto take(size_type const n
   ) noexcept -> std::expected<std::span<byte_type const>, error> {
     if (!m_cursor.has(n)) [[unlikely]]
@@ -591,8 +710,21 @@ private:
     return m_cursor.take(n);
   }
 
-  // Add to the pending-item counter of skip_value, rejecting an overflow the
-  // buffer could never hold anyway as a truncation.
+  /**
+   * @brief Add to the pending-item counter of \c skip_value.
+   *
+   * Rejects an overflow the buffer could never hold anyway, which the caller
+   * treats as a truncation.
+   *
+   * @param pending The running pending-item counter, updated in place.
+   * @param add Number of items to add.
+   *
+   * @return \c true when the addition did not overflow \c std::uint64_t.
+   *
+   * @pre None.
+   * @post On \c true, \p pending has increased by \p add; on \c false it is
+   *       unchanged.
+   */
   [[nodiscard]] static auto
   add_pending(std::uint64_t& pending, std::uint64_t const add) noexcept -> bool {
     if (add > std::numeric_limits<std::uint64_t>::max() - pending)
@@ -601,7 +733,17 @@ private:
     return true;
   }
 
-  // Step over n body bytes, false when fewer remain.
+  /**
+   * @brief Step over \p n body bytes.
+   *
+   * @param n Number of bytes to skip.
+   *
+   * @return \c true when the bytes were available and skipped.
+   *
+   * @pre None.
+   * @post On \c true, the cursor advances by \p n; on \c false it is
+   *       unchanged.
+   */
   [[nodiscard]] auto skip_fixed(size_type const n) noexcept -> bool {
     if (!m_cursor.has(n))
       return false;
@@ -609,7 +751,19 @@ private:
     return true;
   }
 
-  // Read an n-byte big-endian length / count (n is 1, 2, or 4) and advance.
+  /**
+   * @brief Read an \p n-byte big-endian length or count and advance.
+   *
+   * @param n Width of the length field in bytes: 1, 2, or 4.
+   *
+   * @return The decoded length on success.
+   *
+   * @pre \p n is 1, 2, or 4.
+   * @post On success the cursor advances by \p n; on failure it is unchanged.
+   *
+   * @throws None. Returns \c error::buffer_underrun when fewer than \p n bytes
+   *         remain.
+   */
   [[nodiscard]] auto read_len(size_type const n
   ) noexcept -> std::expected<std::uint64_t, error> {
     auto p{take(n)};

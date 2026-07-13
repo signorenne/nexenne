@@ -92,26 +92,65 @@ concept versioned_decoder = requires(Codec const& c, binary::reader& r, std::uin
   { c.decode(r, v) } -> expected_with_error;
 };
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief Store a 32-bit value little-endian at \p dst.
+ *
+ * @param dst Destination for four little-endian bytes.
+ * @param v Value to store.
+ *
+ * @pre \p dst points at four writable bytes.
+ * @post \p dst[0..4) holds \p v in little-endian order.
+ */
 inline auto store_le32(std::byte* const dst, std::uint32_t const v) noexcept -> void {
   nexenne::utility::write_le(
     std::span<std::byte, sizeof(std::uint32_t)>{dst, sizeof(std::uint32_t)}, v
   );
 }
 
+/**
+ * @brief Store a 16-bit value little-endian at \p dst.
+ *
+ * @param dst Destination for two little-endian bytes.
+ * @param v Value to store.
+ *
+ * @pre \p dst points at two writable bytes.
+ * @post \p dst[0..2) holds \p v in little-endian order.
+ */
 inline auto store_le16(std::byte* const dst, std::uint16_t const v) noexcept -> void {
   nexenne::utility::write_le(
     std::span<std::byte, sizeof(std::uint16_t)>{dst, sizeof(std::uint16_t)}, v
   );
 }
 
+/**
+ * @brief Load a 32-bit value from four little-endian bytes at \p src.
+ *
+ * @param src Source of four little-endian bytes.
+ *
+ * @return The decoded value.
+ *
+ * @pre \p src points at four readable bytes.
+ * @post None.
+ */
 inline auto load_le32(std::byte const* const src) noexcept -> std::uint32_t {
   return nexenne::utility::read_le<std::uint32_t>(
     std::span<std::byte const, sizeof(std::uint32_t)>{src, sizeof(std::uint32_t)}
   );
 }
 
+/**
+ * @brief Load a 16-bit value from two little-endian bytes at \p src.
+ *
+ * @param src Source of two little-endian bytes.
+ *
+ * @return The decoded value.
+ *
+ * @pre \p src points at two readable bytes.
+ * @post None.
+ */
 inline auto load_le16(std::byte const* const src) noexcept -> std::uint16_t {
   return nexenne::utility::read_le<std::uint16_t>(
     std::span<std::byte const, sizeof(std::uint16_t)>{src, sizeof(std::uint16_t)}
@@ -119,6 +158,7 @@ inline auto load_le16(std::byte const* const src) noexcept -> std::uint16_t {
 }
 
 }  // namespace detail
+/// @endcond
 
 /// @brief Envelope size in bytes, same on every platform.
 inline constexpr std::size_t versioned_header_size{8};

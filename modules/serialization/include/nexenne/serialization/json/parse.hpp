@@ -77,13 +77,42 @@ struct parse_error {
   std::size_t column{1};             ///< One-based column number of the failure.
 };
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief Recursive-descent JSON parser driving the public \c parse.
+ */
 class parser {
 public:
+  /**
+   * @brief Construct a parser over \p src with options \p opts.
+   *
+   * @param src JSON text to parse. Must outlive the parser.
+   * @param opts Parsing relaxations and the depth limit.
+   *
+   * @pre \p src refers to valid characters for the lifetime of the parser.
+   * @post The cursor is at offset zero and the line/column are 1.
+   */
   parser(std::string_view const src, parse_options const opts) noexcept
       : m_cursor{std::span<char const>{src.data(), src.size()}}, m_opts{opts} {}
 
+  /**
+   * @brief Parse the whole input into a DOM value.
+   *
+   * Parses one top-level value and requires the rest of the input to be
+   * whitespace, so trailing non-whitespace (or an unterminated block comment)
+   * is an error.
+   *
+   * @return The parsed value on success, or a \c parse_error locating the
+   *         failure.
+   *
+   * @pre None.
+   * @post On success the whole input has been consumed.
+   *
+   * @throws None directly. May propagate \c std::bad_alloc from building the
+   *         DOM.
+   */
   [[nodiscard]] auto parse() -> std::expected<value, parse_error> {
     skip_ws();
     auto v{parse_value(0)};
@@ -107,17 +136,46 @@ private:
   std::size_t m_col{1};
   bool m_bad_comment{false};  ///< Set when a block comment runs to EOF unterminated.
 
+  /**
+   * @brief Build a \c parse_error at the current cursor location.
+   *
+   * @param e Error code to attach.
+   *
+   * @return A \c parse_error carrying \p e and the current offset, line, and
+   *         column.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto make_error(error const e) const noexcept -> parse_error {
     return {.code = e, .offset = m_cursor.position(), .line = m_line, .column = m_col};
   }
 
-  // True when the source at the cursor begins with the keyword literal
-  // \p lit (e.g. "null"). Mirrors the old substr(pos, len) == lit test:
-  // a clamped substr can never equal lit unless len bytes remain.
+  /**
+   * @brief Whether the source at the cursor begins with keyword \p lit.
+   *
+   * Mirrors the old \c substr(pos, len) == lit test: a clamped substring can
+   * never equal \p lit unless \c lit.size() bytes remain.
+   *
+   * @param lit Keyword literal to match (for example \c "null").
+   *
+   * @return \c true when the next bytes equal \p lit.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto matches_literal(std::string_view const lit) const noexcept -> bool {
     return m_cursor.has(lit.size()) && std::string_view{m_cursor.data(), lit.size()} == lit;
   }
 
+  /**
+   * @brief Consume one character and update the line / column counters.
+   *
+   * @return The character consumed.
+   *
+   * @pre At least one byte remains at the cursor.
+   * @post The cursor advances by one; the line and column reflect the byte.
+   */
   auto advance() noexcept -> char {
     auto const c{m_cursor.next()};
     if (c == '\n') {
@@ -129,6 +187,16 @@ private:
     return c;
   }
 
+  /**
+   * @brief Skip whitespace, and comments when \c allow_comments is set.
+   *
+   * Advances past spaces, tabs, and newlines; with comments enabled it also
+   * consumes line and C-style block comments. An unterminated block comment
+   * is flagged so the top-level parse rejects it.
+   *
+   * @pre None.
+   * @post The cursor sits on the next significant byte or at end of input.
+   */
   auto skip_ws() noexcept -> void {
     while (!m_cursor.exhausted()) {
       auto const c{m_cursor.data()[0]};
@@ -166,9 +234,21 @@ private:
     }
   }
 
-  // depth is the number of arrays and objects already open around this value;
-  // parse_array and parse_object enforce max_depth on entry so the limit counts
-  // open containers exactly (a top-level scalar sits at depth zero).
+  /**
+   * @brief Parse one JSON value, dispatching on the leading character.
+   *
+   * \p depth is the number of arrays and objects already open around this
+   * value; \c parse_array and \c parse_object enforce \c max_depth on entry so
+   * the limit counts open containers exactly (a top-level scalar sits at depth
+   * zero).
+   *
+   * @param depth Number of containers already open around this value.
+   *
+   * @return The parsed value on success, or a \c parse_error on failure.
+   *
+   * @pre None.
+   * @post On success the cursor sits just past the value.
+   */
   [[nodiscard]] auto parse_value(std::size_t const depth) -> std::expected<value, parse_error> {
     skip_ws();
     if (m_cursor.exhausted()) {
@@ -208,6 +288,14 @@ private:
     }
   }
 
+  /**
+   * @brief Parse the \c null literal.
+   *
+   * @return A null value on success, or a \c parse_error on failure.
+   *
+   * @pre The cursor is at the start of a \c null literal candidate.
+   * @post On success the cursor sits just past \c null.
+   */
   [[nodiscard]] auto parse_null() -> std::expected<value, parse_error> {
     if (!matches_literal("null")) {
       return std::unexpected{make_error(error::unexpected_character)};
@@ -217,6 +305,14 @@ private:
     return value{};
   }
 
+  /**
+   * @brief Parse the \c true or \c false literal.
+   *
+   * @return A boolean value on success, or a \c parse_error on failure.
+   *
+   * @pre The cursor is at the start of a boolean literal candidate.
+   * @post On success the cursor sits just past the literal.
+   */
   [[nodiscard]] auto parse_bool() -> std::expected<value, parse_error> {
     if (matches_literal("true")) {
       for (auto i{0}; i < 4; ++i)
@@ -231,11 +327,23 @@ private:
     return std::unexpected{make_error(error::unexpected_character)};
   }
 
-  // Decide whether a grammatically valid number literal that std::from_chars
-  // reported as out of double's range is too large (overflow) or too small
-  // (underflow). Such a value is always extreme, never near 1, so the sign of
-  // its decimal order of magnitude separates the two: an order at or above zero
-  // is an overflow, below zero an underflow. \p text is the full number literal.
+  /**
+   * @brief Whether an out-of-range number literal overflows (vs underflows).
+   *
+   * Decides whether a grammatically valid literal that \c std::from_chars
+   * reported as out of double's range is too large (overflow) or too small
+   * (underflow). Such a value is always extreme, never near 1, so the sign of
+   * its decimal order of magnitude separates the two: an order at or above
+   * zero is an overflow, below zero an underflow.
+   *
+   * @param text The full number literal.
+   *
+   * @return \c true when the magnitude is too large to represent (overflow),
+   *         \c false when too small (underflow).
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static auto number_overflows(std::string_view text) noexcept -> bool {
     if (!text.empty() && text.front() == '-') {
       text.remove_prefix(1);
@@ -276,6 +384,21 @@ private:
     return exp10 - static_cast<std::int64_t>(k + 1) >= 0;
   }
 
+  /**
+   * @brief Parse a JSON number literal into an integer or floating value.
+   *
+   * Validates the RFC 8259 grammar, then converts with \c std::from_chars: a
+   * literal with no fraction or exponent becomes an \c int64_t (widened to
+   * \c double when it exceeds the integer range), otherwise a \c double. A
+   * magnitude too small for a \c double underflows to a signed zero, while one
+   * too large is rejected with \c error::invalid_number.
+   *
+   * @return The parsed numeric value on success, or a \c parse_error on
+   *         failure.
+   *
+   * @pre The cursor is at a digit or a leading minus sign.
+   * @post On success the cursor sits just past the number literal.
+   */
   [[nodiscard]] auto parse_number() -> std::expected<value, parse_error> {
     auto const start{m_cursor.position()};
     auto const is_digit{[this] {
@@ -356,6 +479,21 @@ private:
     return value{out};
   }
 
+  /**
+   * @brief Parse a JSON string literal, decoding escapes to UTF-8.
+   *
+   * Decodes the standard escapes and \c \\u escapes, including surrogate
+   * pairs, into UTF-8. Bytes at or above 0x20 are copied through unchecked, so
+   * raw UTF-8 validity is the caller's responsibility.
+   *
+   * @return The decoded string on success, or a \c parse_error on failure.
+   *
+   * @pre The cursor is at the opening double quote.
+   * @post On success the cursor sits just past the closing quote.
+   *
+   * @throws None directly. May propagate \c std::bad_alloc from growing the
+   *         decoded string.
+   */
   [[nodiscard]] auto parse_string() -> std::expected<std::string, parse_error> {
     if (m_cursor.data()[0] != '"') {
       return std::unexpected{make_error(error::unexpected_character)};
@@ -478,6 +616,21 @@ private:
     return std::unexpected{make_error(error::unexpected_end)};
   }
 
+  /**
+   * @brief Parse a JSON array, recursing one level per element.
+   *
+   * Enforces \c max_depth on entry and honours \c allow_trailing_commas.
+   *
+   * @param depth Number of containers already open around this array.
+   *
+   * @return The parsed array value on success, or a \c parse_error on failure.
+   *
+   * @pre The cursor is at the opening bracket.
+   * @post On success the cursor sits just past the closing bracket.
+   *
+   * @throws None directly. May propagate \c std::bad_alloc from building the
+   *         array.
+   */
   [[nodiscard]] auto parse_array(std::size_t const depth) -> std::expected<value, parse_error> {
     if (depth >= m_opts.max_depth) {
       return std::unexpected{make_error(error::depth_limit_exceeded)};
@@ -515,6 +668,23 @@ private:
     }
   }
 
+  /**
+   * @brief Parse a JSON object, recursing one level per member value.
+   *
+   * Enforces \c max_depth on entry, rejects a duplicate key with
+   * \c error::duplicate_key, and honours \c allow_trailing_commas.
+   *
+   * @param depth Number of containers already open around this object.
+   *
+   * @return The parsed object value on success, or a \c parse_error on
+   *         failure.
+   *
+   * @pre The cursor is at the opening brace.
+   * @post On success the cursor sits just past the closing brace.
+   *
+   * @throws None directly. May propagate \c std::bad_alloc from building the
+   *         object.
+   */
   [[nodiscard]] auto parse_object(std::size_t const depth) -> std::expected<value, parse_error> {
     if (depth >= m_opts.max_depth) {
       return std::unexpected{make_error(error::depth_limit_exceeded)};
@@ -569,6 +739,7 @@ private:
 };
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Parse \p input as JSON into a DOM \c value.

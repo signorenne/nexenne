@@ -216,8 +216,14 @@ struct noop_visitor {
   }
 };
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief Recursive-descent SAX engine driving the public \c scan.
+ *
+ * @tparam MaxDepth Maximum container nesting depth.
+ */
 template <std::size_t MaxDepth>
 class sax_engine {
 public:
@@ -227,10 +233,24 @@ private:
   utility::buffer_cursor<char const> m_cursor;
   size_type m_depth{0};
 
+  /**
+   * @brief Whether the cursor has reached the end of the source.
+   *
+   * @return \c true when no bytes remain.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto eof() const noexcept -> bool {
     return m_cursor.exhausted();
   }
 
+  /**
+   * @brief Skip whitespace at the cursor.
+   *
+   * @pre None.
+   * @post The cursor sits on the next non-whitespace byte or at end of input.
+   */
   constexpr auto skip_ws() noexcept -> void {
     while (!m_cursor.exhausted()) {
       auto const c{m_cursor.data()[0]};
@@ -241,8 +261,20 @@ private:
     }
   }
 
-  // Read four hex digits at the cursor into \p out, advancing four bytes.
-  // Rejects a non-hex digit or a short run with error::invalid_escape.
+  /**
+   * @brief Read four hex digits at the cursor into \p out.
+   *
+   * @param out Receives the 16-bit value the four digits encode.
+   *
+   * @return Empty on success.
+   *
+   * @pre None.
+   * @post On success the cursor advances by four bytes; on failure it may have
+   *       advanced over part of the run.
+   *
+   * @throws None. Returns \c error::invalid_escape on a non-hex digit or a run
+   *         shorter than four bytes.
+   */
   [[nodiscard]] auto read_hex4(std::uint32_t& out) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(4))
       return std::unexpected{error::invalid_escape};
@@ -264,10 +296,23 @@ private:
     return {};
   }
 
-  // Validate (without decoding) a \u escape whose backslash is at the cursor.
-  // Consumes "\uXXXX", plus a paired "\uYYYY" low surrogate when the first is a
-  // high surrogate, and rejects non-hex digits and unpaired surrogates exactly
-  // as the DOM parser does so both accept the same string grammar.
+  /**
+   * @brief Validate (without decoding) a \c \\u escape at the cursor.
+   *
+   * Consumes \c \\uXXXX, plus a paired \c \\uYYYY low surrogate when the first
+   * is a high surrogate, and rejects non-hex digits and unpaired surrogates
+   * exactly as the DOM parser does so both accept the same string grammar.
+   *
+   * @return Empty on success.
+   *
+   * @pre The cursor is at the backslash of a \c \\u escape, with \c has(2)
+   *       already confirmed by the caller.
+   * @post On success the cursor sits just past the escape (and any paired low
+   *       surrogate); on failure it may have advanced over part of it.
+   *
+   * @throws None. Returns \c error::invalid_escape on a malformed or unpaired
+   *         escape.
+   */
   [[nodiscard]] auto validate_u_escape() noexcept -> std::expected<void, error> {
     m_cursor.advance(2);  // consume the "\u"; the caller confirmed has(2)
     auto hi{std::uint32_t{0}};
@@ -288,10 +333,25 @@ private:
     return {};
   }
 
-  // Scan a JSON string literal at the cursor starting with '"' and return a view
-  // into the source covering the raw body (between the quotes). Escapes are
-  // validated but NOT decoded: the returned view still holds the source bytes,
-  // so a visitor that needs decoded text must decode them, or use the DOM parser.
+  /**
+   * @brief Scan a JSON string literal, returning a raw view of its body.
+   *
+   * The returned view covers the source bytes between the quotes. Escapes are
+   * validated but NOT decoded, so a visitor that needs decoded text must
+   * decode them, or use the DOM parser.
+   *
+   * @return A view of the raw string body on success.
+   *
+   * @pre The cursor is at the opening double quote.
+   * @post On success the cursor sits just past the closing quote.
+   *
+   * @throws None. Returns \c error::unexpected_character when not at a quote,
+   *         \c error::invalid_escape or \c error::invalid_string on a bad
+   *         body, or \c error::unexpected_end when the quote never closes.
+   *
+   * @warning The returned view aliases the source and is invalidated when the
+   *          source buffer is destroyed or modified.
+   */
   [[nodiscard]] auto scan_string_raw() noexcept -> std::expected<std::string_view, error> {
     if (eof() || m_cursor.data()[0] != '"')
       return std::unexpected{error::unexpected_character};
@@ -336,17 +396,48 @@ private:
     return std::unexpected{error::unexpected_end};
   }
 
-  // True when the source at the cursor begins with the keyword literal
-  // \p lit (e.g. "true"). Mirrors the old substr(pos, len) == lit test:
-  // a clamped substr can never equal lit unless len bytes remain.
+  /**
+   * @brief Whether the source at the cursor begins with keyword \p lit.
+   *
+   * Mirrors the old \c substr(pos, len) == lit test: a clamped substring can
+   * never equal \p lit unless \c lit.size() bytes remain.
+   *
+   * @param lit Keyword literal to match (for example \c "true").
+   *
+   * @return \c true when the next bytes equal \p lit.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto matches_literal(std::string_view const lit) const noexcept -> bool {
     return m_cursor.has(lit.size()) && std::string_view{m_cursor.data(), lit.size()} == lit;
   }
 
 public:
+  /**
+   * @brief Construct an engine over the source text \p src.
+   *
+   * @param src JSON text to scan. Must outlive the engine.
+   *
+   * @pre \p src refers to valid characters for the lifetime of the engine.
+   * @post The cursor is at offset zero and the depth is zero.
+   */
   explicit constexpr sax_engine(std::string_view const src) noexcept
       : m_cursor{std::span<char const>{src.data(), src.size()}} {}
 
+  /**
+   * @brief Scan the whole source, driving visitor \p v.
+   *
+   * Parses one top-level value and requires the rest to be whitespace.
+   *
+   * @tparam V Visitor type satisfying \c sax_visitor.
+   * @param v Visitor receiving the parse events.
+   *
+   * @return Empty on success, or an error on the first failure.
+   *
+   * @pre None.
+   * @post On success the whole source has been consumed.
+   */
   template <sax_visitor V>
   [[nodiscard]] auto run(V& v) noexcept -> std::expected<void, error> {
     skip_ws();
@@ -359,6 +450,18 @@ public:
   }
 
 private:
+  /**
+   * @brief Parse one JSON value, dispatching on the leading character.
+   *
+   * @tparam V Visitor type satisfying \c sax_visitor.
+   * @param v Visitor receiving the value event.
+   *
+   * @return Empty on success, or an error on failure.
+   *
+   * @pre None.
+   * @post On success the cursor sits just past the value and the visitor has
+   *       observed its events.
+   */
   template <sax_visitor V>
   [[nodiscard]] auto parse_value(V& v) noexcept -> std::expected<void, error> {
     skip_ws();
@@ -416,11 +519,23 @@ private:
     }
   }
 
-  // Decide whether a grammatically valid number literal that std::from_chars
-  // reported as out of double's range is too large (overflow) or too small
-  // (underflow). Such a value is always extreme, never near 1, so the sign of
-  // its decimal order of magnitude separates the two: an order at or above zero
-  // is an overflow, below zero an underflow. \p text is the full number literal.
+  /**
+   * @brief Whether an out-of-range number literal overflows (vs underflows).
+   *
+   * Decides whether a grammatically valid literal that \c std::from_chars
+   * reported as out of double's range is too large (overflow) or too small
+   * (underflow). Such a value is always extreme, never near 1, so the sign of
+   * its decimal order of magnitude separates the two: an order at or above
+   * zero is an overflow, below zero an underflow.
+   *
+   * @param text The full number literal.
+   *
+   * @return \c true when the magnitude is too large to represent (overflow),
+   *         \c false when too small (underflow).
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static auto number_overflows(std::string_view text) noexcept -> bool {
     if (!text.empty() && text.front() == '-') {
       text.remove_prefix(1);
@@ -461,6 +576,23 @@ private:
     return exp10 - static_cast<std::int64_t>(k + 1) >= 0;
   }
 
+  /**
+   * @brief Parse a JSON number and deliver it to the visitor.
+   *
+   * Validates the RFC 8259 grammar, then converts with \c std::from_chars: a
+   * literal with no fraction or exponent is delivered to \c on_int (widened to
+   * \c on_float when it exceeds the integer range), otherwise to \c on_float.
+   * A magnitude too small for a \c double underflows to a signed zero, while
+   * one too large is rejected with \c error::invalid_number.
+   *
+   * @tparam V Visitor type satisfying \c sax_visitor.
+   * @param v Visitor receiving the number event.
+   *
+   * @return Empty on success, or an error on failure.
+   *
+   * @pre The cursor is at a digit or a leading minus sign.
+   * @post On success the cursor sits just past the number literal.
+   */
   template <sax_visitor V>
   [[nodiscard]] auto parse_number(V& v) noexcept -> std::expected<void, error> {
     auto const start{m_cursor.position()};
@@ -545,6 +677,19 @@ private:
     return {};
   }
 
+  /**
+   * @brief Parse a JSON array, emitting begin / end array events.
+   *
+   * Enforces \c MaxDepth on entry and recurses one call frame per element.
+   *
+   * @tparam V Visitor type satisfying \c sax_visitor.
+   * @param v Visitor receiving the array events.
+   *
+   * @return Empty on success, or an error on failure.
+   *
+   * @pre The cursor is at the opening bracket.
+   * @post On success the cursor sits just past the closing bracket.
+   */
   template <sax_visitor V>
   [[nodiscard]] auto parse_array(V& v) noexcept -> std::expected<void, error> {
     if (m_depth >= MaxDepth)
@@ -582,6 +727,20 @@ private:
     }
   }
 
+  /**
+   * @brief Parse a JSON object, emitting begin / end object and key events.
+   *
+   * Enforces \c MaxDepth on entry and recurses one call frame per member
+   * value. Keys are delivered as raw, undecoded views.
+   *
+   * @tparam V Visitor type satisfying \c sax_visitor.
+   * @param v Visitor receiving the object events.
+   *
+   * @return Empty on success, or an error on failure.
+   *
+   * @pre The cursor is at the opening brace.
+   * @post On success the cursor sits just past the closing brace.
+   */
   template <sax_visitor V>
   [[nodiscard]] auto parse_object(V& v) noexcept -> std::expected<void, error> {
     if (m_depth >= MaxDepth)
@@ -631,6 +790,7 @@ private:
 };
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Run the SAX parser over \p src, invoking events on \p visitor.
