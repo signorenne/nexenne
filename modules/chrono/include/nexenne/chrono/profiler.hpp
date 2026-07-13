@@ -117,6 +117,19 @@ public:
 private:
   std::map<std::string, stats, std::less<>> m_stats{};
 
+  /**
+   * @brief Fold a single sample into a bucket's aggregates.
+   *
+   * Increments the count, adds to the running total, and widens the min and
+   * max to include \p d.
+   *
+   * @param s Bucket statistics to update in place.
+   * @param d Sample duration to fold in.
+   *
+   * @pre None.
+   * @post \c s.count has grown by one and the bucket's aggregates include
+   *       \p d.
+   */
   static auto update(stats& s, duration const d) noexcept -> void {
     ++s.count;
     s.total += d;

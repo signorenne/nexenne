@@ -76,6 +76,19 @@ private:
   duration m_target{duration::zero()};
   state m_state{state::idle};
 
+  /**
+   * @brief Remaining time against a caller-supplied \c now() snapshot.
+   *
+   * Clamps an already-expired countdown to zero so a comparison against a
+   * single shared snapshot never yields a negative remaining time.
+   *
+   * @param now The time snapshot to measure against.
+   *
+   * @return The non-negative time left as of \p now.
+   *
+   * @pre None.
+   * @post The result is greater than or equal to \c duration::zero().
+   */
   [[nodiscard]] auto remaining_at(time_point const now) const noexcept -> duration {
     auto const e{m_sw.elapsed_at(now)};
     return e >= m_target ? duration::zero() : (m_target - e);

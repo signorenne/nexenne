@@ -144,9 +144,23 @@ struct duration_parts {
 
 namespace detail {
 
-// Cast d to milliseconds, clamping to the representable range first. When D is
-// coarser than a millisecond the plain cast multiplies and could overflow
-// int64 (undefined), so values beyond the millisecond range saturate instead.
+/// @cond INTERNAL
+
+/**
+ * @brief Cast \p d to milliseconds, clamping to the representable range first.
+ *
+ * When \p D is coarser than a millisecond the plain cast multiplies and could
+ * overflow \c int64 (undefined behaviour), so values beyond the millisecond
+ * range saturate to the nearest bound instead.
+ *
+ * @tparam D Source duration type, deduced from \p d.
+ * @param d Duration to cast.
+ *
+ * @return \p d in milliseconds, saturated to the millisecond range.
+ *
+ * @pre None.
+ * @post The result lies within the representable millisecond range.
+ */
 template <chrono_duration D>
 [[nodiscard]] constexpr auto to_millis_clamped(D d) noexcept -> std::chrono::milliseconds {
   using ms = std::chrono::milliseconds;
@@ -161,6 +175,8 @@ template <chrono_duration D>
   }
   return std::chrono::duration_cast<ms>(d);
 }
+
+/// @endcond
 
 }  // namespace detail
 
@@ -187,6 +203,23 @@ extract_parts(D const d, bool const round_to_seconds = false) noexcept -> durati
 
 namespace detail {
 
+/// @cond INTERNAL
+
+/**
+ * @brief Replace every occurrence of \p token in \p inout with \p value.
+ *
+ * Advances past each replacement so a \p value that itself contains \p token is
+ * not rescanned. An empty \p token is a no-op.
+ *
+ * @param inout String modified in place.
+ * @param token Substring to search for.
+ * @param value Replacement text.
+ *
+ * @pre None.
+ * @post Every occurrence of \p token present on entry has been replaced by
+ *       \p value.
+ * @throws std::bad_alloc if the string reallocation fails.
+ */
 inline auto replace_all(
   std::string& inout, std::string_view const token, std::string_view const value
 ) -> void {
@@ -198,6 +231,8 @@ inline auto replace_all(
     inout.replace(pos, token.size(), value);
   }
 }
+
+/// @endcond
 
 }  // namespace detail
 

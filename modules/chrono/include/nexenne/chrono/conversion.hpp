@@ -37,9 +37,24 @@ namespace nexenne::chrono {
 
 namespace detail {
 
-// Saturate a long double value into Int: NaN to 0, out-of-range to the nearest
-// bound, otherwise truncate. Used for every floating-point intermediate so a
-// NaN or infinity never reaches an integer cast (which would be undefined).
+/// @cond INTERNAL
+
+/**
+ * @brief Saturate a \c long \c double value into the integer type \p Int.
+ *
+ * Maps NaN to zero and an out-of-range magnitude to the nearest representable
+ * bound, otherwise truncates toward zero. Used for every floating-point
+ * intermediate so a NaN or infinity never reaches an integer cast, which would
+ * be undefined behaviour.
+ *
+ * @tparam Int Target integer type.
+ * @param v Value to saturate.
+ *
+ * @return \p v clamped into the representable range of \p Int.
+ *
+ * @pre None.
+ * @post The result lies within the closed range of \p Int.
+ */
 template <std::integral Int>
 [[nodiscard]] constexpr auto saturate_from_ld(long double const v) noexcept -> Int {
   using lim = std::numeric_limits<Int>;
@@ -64,6 +79,8 @@ template <std::integral Int>
     return static_cast<Int>(v);
   }
 }
+
+/// @endcond
 
 }  // namespace detail
 
