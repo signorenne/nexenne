@@ -82,14 +82,37 @@ public:
 private:
   nexenne::utility::buffer_cursor<byte_type> m_cursor;
 
-  // True when a length prefix plus a body fit, computed without overflowing
-  // size_type (prefix + body could wrap on a 32-bit target with a huge body).
+  /**
+   * @brief Whether a length prefix plus a body fit the remaining space.
+   *
+   * Computed without overflowing \c size_type: \c prefix plus \c body could
+   * wrap on a 32-bit target with a huge body, so the check subtracts instead
+   * of adding.
+   *
+   * @param prefix Size of the length prefix in bytes.
+   * @param body Size of the body in bytes.
+   *
+   * @return \c true when both the prefix and the body fit in the space left.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto
   fits_prefixed(size_type const prefix, size_type const body) const noexcept -> bool {
     auto const remaining{m_cursor.remaining()};
     return prefix <= remaining && body <= remaining - prefix;
   }
 
+  /**
+   * @brief Number of bytes the LEB128 encoding of \p value occupies.
+   *
+   * @param value Unsigned value whose varint length is measured.
+   *
+   * @return The encoded length, 1 to 10 bytes.
+   *
+   * @pre None.
+   * @post Result is in the range \c [1, 10].
+   */
   static constexpr auto varint_size(std::uint64_t value) noexcept -> size_type {
     auto n{size_type{1}};
     while (value >= 0x80) {

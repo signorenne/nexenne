@@ -70,46 +70,138 @@ enum class type : std::uint8_t {
   floating,      ///< Major 7 half, single, or double float.
 };
 
+/// @cond INTERNAL
 namespace detail {
 
-// Store an unsigned value big-endian. The byte order is handled by
-// nexenne::utility, which writes the bytes most-significant-first into the
-// fixed-extent destination span.
+/**
+ * @brief Store an unsigned value big-endian at \p dst.
+ *
+ * The byte order is handled by \c nexenne::utility, which writes the bytes
+ * most-significant-first into the fixed-extent destination span.
+ *
+ * @tparam U Unsigned integral type to store.
+ * @param dst Destination for \c sizeof(U) big-endian bytes.
+ * @param value Value to store.
+ *
+ * @pre \p dst points at \c sizeof(U) writable bytes.
+ * @post \p dst holds \p value in big-endian order.
+ */
 template <std::unsigned_integral U>
 inline auto store_be(std::byte* const dst, U value) noexcept -> void {
   nexenne::utility::write_be(std::span<std::byte, sizeof(U)>{dst, sizeof(U)}, value);
 }
 
+/**
+ * @brief Load an unsigned value from big-endian bytes at \p src.
+ *
+ * @tparam U Unsigned integral type to load.
+ * @param src Source of \c sizeof(U) big-endian bytes.
+ *
+ * @return The decoded value.
+ *
+ * @pre \p src points at \c sizeof(U) readable bytes.
+ * @post None.
+ */
 template <std::unsigned_integral U>
 [[nodiscard]] inline auto load_be(std::byte const* const src) noexcept -> U {
   return nexenne::utility::read_be<U>(std::span<std::byte const, sizeof(U)>{src, sizeof(U)});
 }
 
+/**
+ * @brief Store a 16-bit value big-endian at \p dst.
+ *
+ * @param dst Destination for two big-endian bytes.
+ * @param v Value to store.
+ *
+ * @pre \p dst points at two writable bytes.
+ * @post \p dst holds \p v in big-endian order.
+ */
 inline auto store_be16(std::byte* const dst, std::uint16_t const v) noexcept -> void {
   store_be(dst, v);
 }
 
+/**
+ * @brief Store a 32-bit value big-endian at \p dst.
+ *
+ * @param dst Destination for four big-endian bytes.
+ * @param v Value to store.
+ *
+ * @pre \p dst points at four writable bytes.
+ * @post \p dst holds \p v in big-endian order.
+ */
 inline auto store_be32(std::byte* const dst, std::uint32_t const v) noexcept -> void {
   store_be(dst, v);
 }
 
+/**
+ * @brief Store a 64-bit value big-endian at \p dst.
+ *
+ * @param dst Destination for eight big-endian bytes.
+ * @param v Value to store.
+ *
+ * @pre \p dst points at eight writable bytes.
+ * @post \p dst holds \p v in big-endian order.
+ */
 inline auto store_be64(std::byte* const dst, std::uint64_t const v) noexcept -> void {
   store_be(dst, v);
 }
 
+/**
+ * @brief Load a 16-bit value from two big-endian bytes at \p src.
+ *
+ * @param src Source of two big-endian bytes.
+ *
+ * @return The decoded value.
+ *
+ * @pre \p src points at two readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto load_be16(std::byte const* const src) noexcept -> std::uint16_t {
   return load_be<std::uint16_t>(src);
 }
 
+/**
+ * @brief Load a 32-bit value from four big-endian bytes at \p src.
+ *
+ * @param src Source of four big-endian bytes.
+ *
+ * @return The decoded value.
+ *
+ * @pre \p src points at four readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto load_be32(std::byte const* const src) noexcept -> std::uint32_t {
   return load_be<std::uint32_t>(src);
 }
 
+/**
+ * @brief Load a 64-bit value from eight big-endian bytes at \p src.
+ *
+ * @param src Source of eight big-endian bytes.
+ *
+ * @return The decoded value.
+ *
+ * @pre \p src points at eight readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto load_be64(std::byte const* const src) noexcept -> std::uint64_t {
   return load_be<std::uint64_t>(src);
 }
 
-// Convert an IEEE 754 half-precision bit pattern to double (reads only).
+/**
+ * @brief Convert an IEEE 754 half-precision bit pattern to a double.
+ *
+ * Used only on the read path; the writer never emits half floats. Handles
+ * signed zero, subnormals (renormalised into single precision), and the
+ * infinity / NaN exponent.
+ *
+ * @param h The 16-bit half-precision bit pattern.
+ *
+ * @return The value widened to \c double.
+ *
+ * @pre None.
+ * @post None.
+ */
 inline auto half_to_double(std::uint16_t const h) noexcept -> double {
   auto const exp{static_cast<std::uint32_t>((h >> 10) & 0x1F)};
   auto const mant{static_cast<std::uint32_t>(h & 0x3FF)};
@@ -164,6 +256,7 @@ template <std::unsigned_integral SizeT>
 }
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Canonical CBOR (RFC 8949) writer over a caller-provided span.
@@ -184,16 +277,40 @@ public:
 private:
   nexenne::utility::buffer_cursor<byte_type> m_cursor;
 
-  // True when a head plus a body fit, computed without overflowing size_type
-  // (head + body could wrap on a 32-bit target with a huge body).
+  /**
+   * @brief Whether a head plus a body fit the remaining space.
+   *
+   * Computed without overflowing \c size_type: \c head plus \c body could wrap
+   * on a 32-bit target with a huge body, so the check subtracts instead of
+   * adding.
+   *
+   * @param head Size of the item head in bytes.
+   * @param body Size of the item body in bytes.
+   *
+   * @return \c true when both the head and the body fit in the space left.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto
   fits_prefixed(size_type const head, size_type const body) const noexcept -> bool {
     auto const remaining{m_cursor.remaining()};
     return head <= remaining && body <= remaining - head;
   }
 
-  // Number of bytes write_head emits for argument v, mirroring its 1/2/3/5/9
-  // byte forms, so write_bytes / write_string can pre-check head + body.
+  /**
+   * @brief Number of bytes \c write_head emits for argument \p v.
+   *
+   * Mirrors the 1/2/3/5/9-byte forms of \c write_head so \c write_bytes and
+   * \c write_string can pre-check the head plus the body.
+   *
+   * @param v The length or value argument to be encoded.
+   *
+   * @return The head size in bytes: 1, 2, 3, 5, or 9.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto head_size(std::uint64_t const v) noexcept -> size_type {
     if (v <= 23)
       return 1;
@@ -206,8 +323,23 @@ private:
     return 9;
   }
 
-  // Write a major-type byte followed by the length argument in CBOR's compact
-  // 0/1/2/4/8-byte encoding.
+  /**
+   * @brief Write a major-type byte and its length argument.
+   *
+   * Emits the 3-bit major type in the head byte, then the argument \p v in
+   * CBOR's compact 0/1/2/4/8-byte encoding, choosing the smallest form.
+   *
+   * @param major The 3-bit CBOR major type (0 to 7).
+   * @param v The length or value argument to encode.
+   *
+   * @return Empty on success.
+   *
+   * @pre None.
+   * @post On success the cursor advances by the encoded head size; on failure
+   *       it is unchanged.
+   *
+   * @throws None. Returns \c error::buffer_full when the head does not fit.
+   */
   auto write_head(std::uint8_t const major, std::uint64_t const v) noexcept
     -> std::expected<void, error> {
     auto const m{static_cast<std::uint8_t>(major << 5)};
@@ -573,6 +705,24 @@ public:
 private:
   nexenne::utility::buffer_cursor<byte_type const> m_cursor;
 
+  /**
+   * @brief Decode the length / value argument that follows a head byte.
+   *
+   * The 5-bit additional-info field \p ai either carries the argument directly
+   * (values below 24) or selects a 1/2/4/8-byte big-endian argument that
+   * follows, which this reads and advances past.
+   *
+   * @param ai The 5-bit additional-info field of the head byte.
+   *
+   * @return The decoded argument on success.
+   *
+   * @pre None.
+   * @post On success the cursor advances past any argument bytes; on failure
+   *       it is unchanged.
+   *
+   * @throws None. Returns \c error::buffer_underrun on truncation, or
+   *         \c error::invalid_input for a reserved additional-info value.
+   */
   [[nodiscard]] auto read_argument(std::uint8_t const ai
   ) noexcept -> std::expected<std::uint64_t, error> {
     if (ai < 24)

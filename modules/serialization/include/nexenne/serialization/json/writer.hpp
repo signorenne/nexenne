@@ -98,6 +98,18 @@ private:
   std::array<bool, MaxDepth> m_is_object{};  // true = object, false = array
   size_type m_depth{0};
 
+  /**
+   * @brief Write a single character verbatim, bounds-checked.
+   *
+   * @param c Character to emit.
+   *
+   * @return Empty on success.
+   *
+   * @pre None.
+   * @post On success the cursor advances by one; on failure it is unchanged.
+   *
+   * @throws None. Returns \c error::buffer_full when no character remains.
+   */
   auto raw_put(char const c) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1)) [[unlikely]]
       return std::unexpected{error::buffer_full};
@@ -105,6 +117,19 @@ private:
     return {};
   }
 
+  /**
+   * @brief Write a string verbatim, bounds-checked.
+   *
+   * @param s Characters to copy into the buffer.
+   *
+   * @return Empty on success.
+   *
+   * @pre None.
+   * @post On success the cursor advances by \c s.size(); on failure it is
+   *       unchanged.
+   *
+   * @throws None. Returns \c error::buffer_full when the string does not fit.
+   */
   auto raw_write(std::string_view const s) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(s.size())) [[unlikely]]
       return std::unexpected{error::buffer_full};
@@ -117,8 +142,21 @@ private:
     return {};
   }
 
-  // Common prefix work for every scalar / container open. Emits
-  // the leading comma (if any) and validates context.
+  /**
+   * @brief Common prefix work for every scalar or container open.
+   *
+   * Emits the leading comma (when continuing an array) and validates that a
+   * value is structurally expected at the current position.
+   *
+   * @return Empty on success.
+   *
+   * @pre None.
+   * @post On success any needed separator has been emitted; on failure the
+   *       writer state is unchanged.
+   *
+   * @throws None. Returns \c error::invalid_input when a value is not expected
+   *         here, or \c error::buffer_full when the separator does not fit.
+   */
   auto begin_value_slot() noexcept -> std::expected<void, error> {
     switch (m_state) {
       case slot::top:
@@ -137,9 +175,16 @@ private:
     return {};
   }
 
-  // Transition after writing a scalar / closing a container -
-  // depends on the slot we were in, and pops back to parent
-  // state if a container just closed.
+  /**
+   * @brief Transition the structural state after emitting a value.
+   *
+   * Moves the writer from the current slot to the one that follows a completed
+   * scalar or closed container, so the next emit is validated against the
+   * right context.
+   *
+   * @pre None.
+   * @post The structural state reflects that a value has just been emitted.
+   */
   constexpr auto advance_after_value() noexcept -> void {
     switch (m_state) {
       case slot::top:
@@ -158,6 +203,16 @@ private:
     }
   }
 
+  /**
+   * @brief Restore the parent structural state after closing a container.
+   *
+   * Sets the state to the parent context (object value or array element) and
+   * advances it as if that container were a completed value, or returns to the
+   * top-level-done state when nothing remains open.
+   *
+   * @pre A container has just been closed and \c m_depth already decremented.
+   * @post The structural state reflects the reopened parent context.
+   */
   constexpr auto pop_container_state() noexcept -> void {
     if (m_depth == 0) {
       m_state = slot::top_done;
@@ -168,6 +223,24 @@ private:
     advance_after_value();
   }
 
+  /**
+   * @brief Write a string as a quoted, JSON-escaped literal.
+   *
+   * Wraps \p s in double quotes and escapes the JSON-required set (the quote,
+   * the backslash, and control bytes below 0x20, the latter as \c \\u00XX
+   * without \c snprintf or a locale). Bytes at or above 0x20 are copied
+   * through unvalidated.
+   *
+   * @param s Characters to escape and emit.
+   *
+   * @return Empty on success.
+   *
+   * @pre None.
+   * @post On success the quoted literal has been written; on failure the
+   *       cursor reflects a partial write.
+   *
+   * @throws None. Returns \c error::buffer_full when the literal does not fit.
+   */
   auto write_escaped(std::string_view const s) noexcept -> std::expected<void, error> {
     if (auto r{raw_put('"')}; !r)
       return r;
