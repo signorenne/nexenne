@@ -29,7 +29,21 @@ namespace nexenne::utility {
 /// @cond INTERNAL
 namespace detail {
 
-// Strips leading path components, returning the basename.
+/**
+ * @brief Returns the basename of \p path, stripping any leading directories.
+ *
+ * Scans for the last \c '/' or \c '\\' separator and returns the substring
+ * after it, so a full source path collapses to just the file name; a path with
+ * no separator is returned unchanged.
+ *
+ * @param path Path to reduce to its final component.
+ *
+ * @return A view of \p path from the last separator onward, or all of \p path
+ *         when it has no separator.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] constexpr auto basename_of(std::string_view const path) noexcept -> std::string_view {
   auto const pos{path.find_last_of("/\\")};
   if (pos == std::string_view::npos) {
@@ -38,10 +52,23 @@ namespace detail {
   return path.substr(pos + 1);
 }
 
-// Appends as much of text as still fits, advancing pos. cap is the usable
-// length: callers pass the buffer size minus one so a trailing slot always stays
-// free to null-terminate, which also makes a one-byte buffer yield an empty
-// result. The copy is bounded, so it never overruns and the output is a prefix.
+/**
+ * @brief Appends as much of \p text as still fits into \p buf, advancing \p pos.
+ *
+ * \p cap is the usable length: callers pass the buffer size minus one, so a
+ * trailing slot always stays free to null-terminate (which also makes a one-byte
+ * buffer yield an empty result). The copy is bounded, so it never overruns and
+ * the output is always a prefix of \p text.
+ *
+ * @tparam N Size of the destination buffer.
+ * @param buf Destination buffer, written in place.
+ * @param pos Current write offset, advanced by the number of bytes copied.
+ * @param cap Usable length: the buffer size minus one.
+ * @param text Text to append.
+ *
+ * @pre \p pos is not greater than \p cap.
+ * @post \p buf holds the appended prefix and \p pos has advanced past it.
+ */
 template <std::size_t N>
 auto append(
   std::array<char, N>& buf, std::size_t& pos, std::size_t const cap, std::string_view const text
@@ -51,7 +78,22 @@ auto append(
   pos += n;
 }
 
-// Appends the decimal form of a line number; a 32-bit value needs 10 digits.
+/**
+ * @brief Appends the decimal digits of \p value to \p buf, advancing \p pos.
+ *
+ * Formats \p value with \c std::to_chars into a scratch buffer sized for the
+ * widest 32-bit value (ten digits) and appends the result through \c append, so
+ * the write stays bounded by \p cap.
+ *
+ * @tparam N Size of the destination buffer.
+ * @param buf Destination buffer, written in place.
+ * @param pos Current write offset, advanced by the number of digits copied.
+ * @param cap Usable length: the buffer size minus one.
+ * @param value Line number to format in decimal.
+ *
+ * @pre \p pos is not greater than \p cap.
+ * @post \p buf holds the appended digits and \p pos has advanced past them.
+ */
 template <std::size_t N>
 auto append_line(
   std::array<char, N>& buf, std::size_t& pos, std::size_t const cap, unsigned const value

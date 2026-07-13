@@ -45,12 +45,25 @@ private:
   function_type m_fn;
   bool m_active{true};
 
-  // P0052 scope_exit semantics: if moving the callable into the member throws,
-  // the cleanup must not be silently lost, so it runs immediately (via the
-  // still-intact argument) before the exception propagates. The return object
-  // is the member itself (guaranteed elision), so the catch sees the real move.
-  // The catch path exists only when the move can actually throw, so the
-  // noexcept instantiation contains no unreachable rethrow.
+  /**
+   * @brief Move-constructs the stored callable, running \p fn if the move throws.
+   *
+   * P0052 scope_exit semantics: if moving the callable into the member throws,
+   * the cleanup must not be silently lost, so \p fn runs immediately (via the
+   * still-intact argument) before the exception propagates. The return object is
+   * the member itself (guaranteed elision), so the catch sees the real move. The
+   * catch path exists only when the move can actually throw, so the \c noexcept
+   * instantiation contains no unreachable rethrow.
+   *
+   * @param fn Callable to move into the guard; invoked if the move throws.
+   *
+   * @return The callable, move-constructed from \p fn.
+   *
+   * @pre None.
+   * @post The returned callable owns the moved-from state of \p fn.
+   *
+   * @throws Anything the move of \p fn throws, after \p fn has been invoked.
+   */
   [[nodiscard]] static auto guarded_move(function_type& fn
   ) noexcept(std::is_nothrow_move_constructible_v<function_type>) -> function_type {
     if constexpr (std::is_nothrow_move_constructible_v<function_type>) {

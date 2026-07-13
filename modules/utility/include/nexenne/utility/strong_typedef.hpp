@@ -328,9 +328,22 @@ inline constexpr ability ops_of{std::remove_cvref_t<X>::abilities};
 template <typename X, ability Flag>
 inline constexpr bool has_op{has(ops_of<X>, Flag)};
 
-// Casts v to To, eliding the cast (and any -Wuseless-cast) when the types
-// already match. Centralising fold-backs here keeps the operators free of
-// narrowing in braced initialisation while staying clean under -Wconversion.
+/**
+ * @brief Casts \p v to \p To, eliding the cast when the types already match.
+ *
+ * Centralising fold-backs here keeps the operators free of narrowing in braced
+ * initialisation while staying clean under \c -Wconversion and
+ * \c -Wuseless-cast.
+ *
+ * @tparam To Target type.
+ * @tparam From Source type (deduced from \p v).
+ * @param v Value to convert.
+ *
+ * @return \p v expressed as type \p To.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename To, typename From>
 [[nodiscard]] constexpr auto convert(From v) noexcept -> To {
   if constexpr (std::same_as<To, From>) {
@@ -340,9 +353,21 @@ template <typename To, typename From>
   }
 }
 
-// Reduces a shift count into [0, width) for an unsigned underlying. Branchless
-// and UB-free: negative counts wrap through the unsigned domain, and the modulo
-// by a power-of-two width compiles to a mask.
+/**
+ * @brief Reduces a shift or rotate count into the range [0, bit width of \p U).
+ *
+ * Branchless and free of undefined behaviour: negative counts wrap through the
+ * unsigned domain, and the modulo by a power-of-two width compiles to a mask.
+ *
+ * @tparam U Unsigned integral underlying type whose width bounds the count.
+ * @tparam S Integral type of the incoming count.
+ * @param s Raw shift or rotate count (may be negative).
+ *
+ * @return \p s reduced into the range [0, number of value bits in \p U).
+ *
+ * @pre None.
+ * @post None.
+ */
 template <std::unsigned_integral U, std::integral S>
 [[nodiscard]] constexpr auto normalize_shift(S s) noexcept -> unsigned {
   constexpr auto width{static_cast<unsigned>(std::numeric_limits<U>::digits)};
@@ -350,20 +375,54 @@ template <std::unsigned_integral U, std::integral S>
   return static_cast<unsigned>(static_cast<us>(s) % static_cast<us>(width));
 }
 
-// Saturating add for unsigned integers (clamps to the max on overflow).
+/**
+ * @brief Saturating add for unsigned integers, clamping to the max on overflow.
+ *
+ * @tparam U Unsigned integral type.
+ * @param a Left addend.
+ * @param b Right addend.
+ *
+ * @return \p a plus \p b, or the maximum value of \p U when the sum would
+ *         overflow.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <std::unsigned_integral U>
 [[nodiscard]] constexpr auto sat_add_impl(U a, U b) noexcept -> U {
   U const c{static_cast<U>(a + b)};
   return c < a ? std::numeric_limits<U>::max() : c;
 }
 
-// Saturating subtract for unsigned integers (clamps to zero on underflow).
+/**
+ * @brief Saturating subtract for unsigned integers, clamping to zero on underflow.
+ *
+ * @tparam U Unsigned integral type.
+ * @param a Minuend.
+ * @param b Subtrahend.
+ *
+ * @return \p a minus \p b, or zero when the difference would underflow.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <std::unsigned_integral U>
 [[nodiscard]] constexpr auto sat_sub_impl(U a, U b) noexcept -> U {
   return a < b ? U{0} : static_cast<U>(a - b);
 }
 
-// Saturating add for signed integers (clamps to the representable range).
+/**
+ * @brief Saturating add for signed integers, clamping to the representable range.
+ *
+ * @tparam S Signed integral type.
+ * @param a Left addend.
+ * @param b Right addend.
+ *
+ * @return \p a plus \p b, clamped to the range of \p S on overflow or underflow.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <std::signed_integral S>
 [[nodiscard]] constexpr auto sat_add_impl(S a, S b) noexcept -> S {
   using lim = std::numeric_limits<S>;
@@ -376,7 +435,18 @@ template <std::signed_integral S>
   return static_cast<S>(a + b);
 }
 
-// Saturating subtract for signed integers (clamps to the representable range).
+/**
+ * @brief Saturating subtract for signed integers, clamping to the representable range.
+ *
+ * @tparam S Signed integral type.
+ * @param a Minuend.
+ * @param b Subtrahend.
+ *
+ * @return \p a minus \p b, clamped to the range of \p S on overflow or underflow.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <std::signed_integral S>
 [[nodiscard]] constexpr auto sat_sub_impl(S a, S b) noexcept -> S {
   using lim = std::numeric_limits<S>;
@@ -429,6 +499,7 @@ public:
   );
 
 private:
+  /// @brief The wrapped underlying value.
   [[no_unique_address]] T m_value{};
 
 public:

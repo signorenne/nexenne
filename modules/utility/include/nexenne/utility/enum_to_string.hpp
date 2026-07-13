@@ -42,6 +42,24 @@ concept enumeration = std::is_enum_v<E>;
 
 namespace detail {
 
+/// @cond INTERNAL
+
+/**
+ * @brief Extracts the enumerator name of \p V from \c __PRETTY_FUNCTION__.
+ *
+ * Parses the compiler's pretty-function signature for the token after
+ * \c "V = ", strips any qualifier prefix, and rejects the signature
+ * placeholders a non-enumerator value produces (a residual parenthesis, or a
+ * leading digit or minus). Returns an empty view on an unsupported compiler.
+ *
+ * @tparam V A literal enumerator value of some enum type.
+ *
+ * @return The enumerator's name, or an empty view when \p V is not a named
+ *         enumerator or the compiler is unsupported.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <auto V>
 [[nodiscard]] constexpr auto enum_value_name() noexcept -> std::string_view {
 #if defined(__GNUC__) || defined(__clang__)
@@ -82,26 +100,56 @@ template <auto V>
 #endif
 }
 
+/**
+ * @brief Reports whether \p V is a named enumerator whose name equals \p name.
+ *
+ * @tparam V A literal enumerator value of some enum type.
+ * @param name Candidate enumerator name to compare against.
+ *
+ * @return \c true when \p V names a real enumerator whose name equals \p name.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <auto V>
 [[nodiscard]] constexpr auto enum_name_matches(std::string_view const name) noexcept -> bool {
   auto const candidate{enum_value_name<V>()};
   return !candidate.empty() && candidate == name;
 }
 
-// A scan window [min, min + range) of underlying values, produced by
-// clamped_window below and consumed by every range-scanning entry point.
+/**
+ * @brief A half-open scan window \c [min, min + range) of underlying values.
+ *
+ * Produced by \c clamped_window and consumed by every range-scanning entry
+ * point.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct scan_window {
-  int min;
-  int range;
+  int min;    ///< First underlying value in the window.
+  int range;  ///< Number of underlying values in the window.
 };
 
-// Clamps the requested window [min, min + range) to the values representable
-// by E's underlying type. When the underlying type is at least as wide as int,
-// the int-to-underlying conversion is injective over the whole window, so no
-// clamping is needed. For a narrower type the excess values would wrap
-// (static_cast<std::uint8_t>(256) is 0) and re-visit underlying values already
-// scanned, double-counting enumerators and breaking the ascending order of
-// enum_values, so the window is cut to the representable range instead.
+/**
+ * @brief Clamps a requested scan window to \p E's representable underlying values.
+ *
+ * When the underlying type is at least as wide as \c int the int-to-underlying
+ * conversion is injective over the whole window, so no clamping is needed. For
+ * a narrower type the excess values would wrap (\c static_cast to a narrow type
+ * of 256 is 0) and re-visit underlying values already scanned, double-counting
+ * enumerators and breaking the ascending order of \c enum_values, so the window
+ * is cut to the representable range instead.
+ *
+ * @tparam E Enum type whose underlying value range bounds the window.
+ * @param min First requested underlying value to scan.
+ * @param range Requested number of underlying values to scan.
+ *
+ * @return The window clamped to \p E's representable underlying values.
+ *
+ * @pre None.
+ * @post The returned window lies within \p E's underlying value range.
+ */
 template <typename E>
 [[nodiscard]] consteval auto clamped_window(int const min, int const range) noexcept
   -> scan_window {
@@ -126,6 +174,23 @@ template <typename E>
 // std::make_integer_sequence<std::uint8_t, 256> would silently produce zero
 // elements because 256 is not representable.
 
+/**
+ * @brief Finds the name of the enumerator whose underlying value is \p target.
+ *
+ * Expands the index pack into a flat braced-init sequence (not a fold, which
+ * would exceed Clang's expression-nesting limit) and returns the first matching
+ * enumerator name, scanning underlying values from \p Min upward.
+ *
+ * @tparam E Enum type being searched.
+ * @tparam Min First underlying value the index pack maps to.
+ * @tparam Is Index pack offsetting \p Min across the scan window.
+ * @param target Underlying value to match.
+ *
+ * @return The matching enumerator name, or an empty view when none matches.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename E, int Min, int... Is>
 [[nodiscard]] constexpr auto
 enum_search(std::underlying_type_t<E> const target, std::integer_sequence<int, Is...>) noexcept
@@ -143,6 +208,22 @@ enum_search(std::underlying_type_t<E> const target, std::integer_sequence<int, I
   return result;
 }
 
+/**
+ * @brief Counts the named enumerators across the scan window.
+ *
+ * Expands the index pack into a flat braced-init sequence (not a sum fold,
+ * which would exceed Clang's expression-nesting limit), counting each value
+ * from \p Min upward that names a real enumerator.
+ *
+ * @tparam E Enum type being reflected.
+ * @tparam Min First underlying value the index pack maps to.
+ * @tparam Is Index pack offsetting \p Min across the scan window.
+ *
+ * @return The number of named enumerators in the window.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename E, int Min, int... Is>
 [[nodiscard]] constexpr auto
 enum_count_impl(std::integer_sequence<int, Is...>) noexcept -> std::size_t {
@@ -157,6 +238,22 @@ enum_count_impl(std::integer_sequence<int, Is...>) noexcept -> std::size_t {
   return count;
 }
 
+/**
+ * @brief Fills \p out with the named enumerators across the scan window.
+ *
+ * Expands the index pack into a flat braced-init sequence (evaluated
+ * left-to-right, so values pack in ascending order), writing each named
+ * enumerator, value from \p Min upward, into the next slot of \p out.
+ *
+ * @tparam E Enum type being reflected.
+ * @tparam Min First underlying value the index pack maps to.
+ * @tparam N Size of the output array.
+ * @tparam Is Index pack offsetting \p Min across the scan window.
+ * @param out Array to fill with the named enumerators.
+ *
+ * @pre \p N equals the number of named enumerators in the window.
+ * @post \p out holds the named enumerators in ascending underlying-value order.
+ */
 template <typename E, int Min, std::size_t N, int... Is>
 constexpr auto
 enum_values_impl(std::array<E, N>& out, std::integer_sequence<int, Is...>) noexcept -> void {
@@ -169,6 +266,23 @@ enum_values_impl(std::array<E, N>& out, std::integer_sequence<int, Is...>) noexc
   )...};
 }
 
+/**
+ * @brief Finds the enumerator whose name equals \p name across the window.
+ *
+ * Expands the index pack into a flat braced-init sequence (not an \c || fold,
+ * which would exceed Clang's expression-nesting limit) and returns the first
+ * enumerator, value from \p Min upward, whose name matches.
+ *
+ * @tparam E Enum type being produced.
+ * @tparam Min First underlying value the index pack maps to.
+ * @tparam Is Index pack offsetting \p Min across the scan window.
+ * @param name Enumerator name to look up.
+ *
+ * @return The matching enumerator, or \c std::nullopt when none matches.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename E, int Min, int... Is>
 [[nodiscard]] constexpr auto
 enum_cast_impl(std::string_view const name, std::integer_sequence<int, Is...>) noexcept
@@ -183,6 +297,8 @@ enum_cast_impl(std::string_view const name, std::integer_sequence<int, Is...>) n
   };
   return result;
 }
+
+/// @endcond
 
 }  // namespace detail
 
