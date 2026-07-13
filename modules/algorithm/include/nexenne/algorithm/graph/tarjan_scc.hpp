@@ -27,6 +27,8 @@ namespace nexenne::algorithm {
  */
 template <std::unsigned_integral V>
 struct scc_result {
+  using value_type = V;  ///< Component-label type carried per vertex.
+
   std::vector<V> labels;          ///< Component identifier of each vertex.
   std::size_t num_components{0};  ///< Number of distinct components.
 };

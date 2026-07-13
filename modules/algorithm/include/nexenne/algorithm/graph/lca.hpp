@@ -41,12 +41,41 @@ private:
   std::vector<size_type> m_depth{};
   std::vector<Node> m_up{};  // flat lift table: m_up[k * m_n + v] = 2^k-th ancestor of v
 
-  // Flat index into the binary-lifting table: the 2^k-th ancestor of v. One
-  // contiguous allocation and one indirection per lift (vs a vector-of-vectors).
+  /**
+   * @brief The \c 2^k-th ancestor of node \p v from the flat lift table.
+   *
+   * A single flat index into the binary-lifting table (one contiguous
+   * allocation and one indirection per lift, rather than a vector of vectors).
+   *
+   * @param k Lift exponent selecting the \c 2^k-th ancestor.
+   * @param v Node whose ancestor is read.
+   *
+   * @return The \c 2^k-th ancestor of \p v.
+   *
+   * @pre \c build has been called and \c k is less than the table height and
+   *      \p v is a valid node.
+   * @post The index is unchanged.
+   */
   [[nodiscard]] constexpr auto up_at(size_type const k, Node const v) const noexcept -> Node {
     return m_up[k * m_n + static_cast<size_type>(v)];
   }
 
+  /**
+   * @brief Fills the depth of every node by a breadth-first pass from \p root.
+   *
+   * Inverts \p parent into a child list and walks it breadth-first (rather than
+   * recursing) so a deep tree stays stack-safe. In an N-node tree this is one
+   * pass.
+   *
+   * @param parent Parent array; \c parent[i] is the parent of node \c i, and the
+   *        root satisfies \c parent[root] == root.
+   * @param root Root node the depths are measured from.
+   *
+   * @pre \c m_depth is sized to the node count and \p root is a valid
+   *      self-parented root of the tree \p parent describes.
+   * @post \c m_depth[v] holds the edge count from \p root to every reachable
+   *       node \c v, with \c m_depth[root] == 0.
+   */
   auto compute_depth(std::span<Node const> parent, Node root) -> void {
     // Topological order by walking from root; child indices reachable via
     // inverted parent. For an N-sized tree this is one pass. We use BFS to fill

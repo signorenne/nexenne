@@ -64,6 +64,13 @@ private:
     node_id fail{root_id};
     std::vector<std::size_t> terminals{};
 
+    /**
+     * @brief Constructs a trie node with every transition absent.
+     *
+     * @pre None.
+     * @post Every entry of \c next is \c no_node, \c fail is the root, and the
+     *       node has no terminal patterns.
+     */
     node() noexcept {
       next.fill(no_node);
     }

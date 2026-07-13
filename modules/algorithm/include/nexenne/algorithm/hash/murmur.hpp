@@ -29,8 +29,23 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief Reads four bytes at \p p as a little-endian \c std::uint32_t.
+ *
+ * Copies the bytes with \c std::memcpy (no aliasing violation) and byte-swaps
+ * on a big-endian host, so the result matches the published MurmurHash3 vectors
+ * regardless of native byte order.
+ *
+ * @param p Pointer to at least four readable bytes.
+ *
+ * @return The little-endian word at \p p.
+ *
+ * @pre \p p addresses at least four readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto read_u32_le(std::uint8_t const* const p) noexcept -> std::uint32_t {
   auto v{std::uint32_t{0}};
   std::memcpy(&v, p, sizeof(v));
@@ -40,6 +55,19 @@ namespace detail {
   return v;
 }
 
+/**
+ * @brief Reads eight bytes at \p p as a little-endian \c std::uint64_t.
+ *
+ * Copies the bytes with \c std::memcpy and byte-swaps on a big-endian host, so
+ * the result matches the published MurmurHash3 vectors on any byte order.
+ *
+ * @param p Pointer to at least eight readable bytes.
+ *
+ * @return The little-endian word at \p p.
+ *
+ * @pre \p p addresses at least eight readable bytes.
+ * @post None.
+ */
 [[nodiscard]] inline auto read_u64_le(std::uint8_t const* const p) noexcept -> std::uint64_t {
   auto v{std::uint64_t{0}};
   std::memcpy(&v, p, sizeof(v));
@@ -49,6 +77,20 @@ namespace detail {
   return v;
 }
 
+/**
+ * @brief MurmurHash3 32-bit finalizer: avalanches the accumulated hash.
+ *
+ * Applies the standard xor-shift and multiply mixing rounds that spread each
+ * input bit across the whole word, so the finished hash passes the avalanche
+ * tests.
+ *
+ * @param h Accumulated hash to finalize.
+ *
+ * @return The avalanched 32-bit hash.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] constexpr auto fmix32(std::uint32_t h) noexcept -> std::uint32_t {
   h ^= h >> 16u;
   h *= 0x85EBCA6Bu;
@@ -58,6 +100,19 @@ namespace detail {
   return h;
 }
 
+/**
+ * @brief MurmurHash3 64-bit finalizer: avalanches an accumulated lane.
+ *
+ * Applies the standard xor-shift and multiply mixing rounds that spread each
+ * input bit across the whole word.
+ *
+ * @param k Accumulated lane value to finalize.
+ *
+ * @return The avalanched 64-bit value.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] constexpr auto fmix64(std::uint64_t k) noexcept -> std::uint64_t {
   k ^= k >> 33u;
   k *= 0xFF51AFD7ED558CCDULL;
@@ -67,6 +122,23 @@ namespace detail {
   return k;
 }
 
+/**
+ * @brief MurmurHash3 x86_32 core over a byte span.
+ *
+ * Processes \p bytes in 4-byte blocks with the two constants and rotations of
+ * the reference algorithm, folds the trailing 1 to 3 bytes, mixes in the length,
+ * and finalizes with \c fmix32.
+ *
+ * @param bytes Bytes to hash.
+ * @param seed Hash seed.
+ *
+ * @return The 32-bit MurmurHash3 of \p bytes.
+ *
+ * @pre None.
+ * @post Equal inputs and seeds always produce the same value.
+ *
+ * @complexity \c O(N) in the size \c N of \p bytes.
+ */
 [[nodiscard]] inline auto murmur3_32_impl(
   std::span<std::uint8_t const> const bytes, std::uint32_t const seed
 ) noexcept -> std::uint32_t {
@@ -111,6 +183,23 @@ namespace detail {
   return fmix32(h);
 }
 
+/**
+ * @brief MurmurHash3 x64_128 core over a byte span.
+ *
+ * Processes \p bytes in 16-byte blocks across two 64-bit lanes with the
+ * reference constants and rotations, folds the trailing 1 to 15 bytes, mixes in
+ * the length, and cross-finalizes both lanes with \c fmix64.
+ *
+ * @param bytes Bytes to hash.
+ * @param seed Hash seed applied to both lanes.
+ *
+ * @return The two 64-bit halves of the 128-bit MurmurHash3 of \p bytes.
+ *
+ * @pre None.
+ * @post Equal inputs and seeds always produce the same value.
+ *
+ * @complexity \c O(N) in the size \c N of \p bytes.
+ */
 [[nodiscard]] inline auto murmur3_128_impl(
   std::span<std::uint8_t const> const bytes, std::uint64_t const seed
 ) noexcept -> std::array<std::uint64_t, 2> {
@@ -234,6 +323,7 @@ struct murmur3_traits<128> {
 };
 
 }  // namespace detail
+/// @endcond
 
 /// @brief The result type of \c murmur3 at the given \c Width.
 template <std::size_t Width>

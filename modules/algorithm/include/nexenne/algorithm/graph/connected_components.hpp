@@ -29,6 +29,8 @@ namespace nexenne::algorithm {
  */
 template <typename E, std::unsigned_integral V>
 struct components_result {
+  using value_type = V;  ///< Component-label type carried per vertex.
+
   std::vector<V> labels;          ///< Dense component label for each vertex.
   std::size_t num_components{0};  ///< Number of distinct components.
 };

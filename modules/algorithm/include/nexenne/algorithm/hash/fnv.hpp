@@ -23,6 +23,7 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
 template <std::size_t Width>
@@ -43,6 +44,7 @@ struct fnv1a_params<64> {
 };
 
 }  // namespace detail
+/// @endcond
 
 /// @brief The unsigned result type of \c fnv1a at the given \c Width.
 template <std::size_t Width>

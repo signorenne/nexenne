@@ -31,8 +31,27 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief In-place radix-2 Cooley-Tukey FFT of \p data, forward or inverse.
+ *
+ * Bit-reverses \p data into the order the decimation-in-time butterflies expect,
+ * runs the iterative butterfly stages, and, when \p inverse is set, scales the
+ * result by \c 1/N. A span of fewer than two elements is a no-op.
+ *
+ * @tparam T Floating-point sample type.
+ * @param data Sequence to transform in place; its size must be a power of two.
+ * @param inverse \c true for the inverse transform (with the \c 1/N scaling),
+ *        \c false for the forward transform.
+ *
+ * @pre \p data.size() is a power of two.
+ * @post \p data holds its forward spectrum, or its inverse transform scaled by
+ *       \c 1/N when \p inverse is set.
+ *
+ * @complexity \c O(N log N) time and \c O(1) auxiliary space.
+ */
 template <std::floating_point T>
 auto fft_inplace(std::span<std::complex<T>> const data, bool const inverse) noexcept -> void {
   auto const n{data.size()};
@@ -83,11 +102,22 @@ auto fft_inplace(std::span<std::complex<T>> const data, bool const inverse) noex
   }
 }
 
+/**
+ * @brief Reports whether \p n is a positive power of two.
+ *
+ * @param n Value to test.
+ *
+ * @return \c true when \p n is non-zero and has a single set bit.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] constexpr auto is_power_of_two(std::size_t const n) noexcept -> bool {
   return n != 0 && (n & (n - 1u)) == 0;
 }
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief In-place radix-2 forward FFT of a complex sequence.

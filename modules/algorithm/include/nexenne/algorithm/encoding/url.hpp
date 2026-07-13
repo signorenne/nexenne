@@ -34,8 +34,21 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief Builds the RFC 3986 unreserved-character lookup table.
+ *
+ * Marks \c true every byte whose character passes through percent-encoding
+ * unchanged: the ASCII letters, the digits, and the four marks hyphen, period,
+ * underscore, and tilde.
+ *
+ * @return A 256-entry table holding \c true at each unreserved byte value.
+ *
+ * @pre None.
+ * @post Exactly the unreserved byte values are \c true.
+ */
 [[nodiscard]] consteval auto make_unreserved_table() noexcept -> std::array<bool, 256> {
   auto t{std::array<bool, 256>{}};
   for (char c{'A'}; c <= 'Z'; ++c) {
@@ -54,9 +67,22 @@ namespace detail {
   return t;
 }
 
+/// @brief Lookup table marking the RFC 3986 unreserved bytes.
 inline constexpr auto unreserved{make_unreserved_table()};
+
+/// @brief Uppercase hex-digit alphabet used when emitting percent-escapes.
 inline constexpr auto url_hex_digits{std::string_view{"0123456789ABCDEF"}};
 
+/**
+ * @brief Numeric value of a hex digit \p c, or -1 when \p c is not one.
+ *
+ * @param c Candidate hex digit; upper or lower case is accepted.
+ *
+ * @return The value 0 to 15, or -1 when \p c is not a hex digit.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] constexpr auto url_hex_value(char const c) noexcept -> int {
   if (c >= '0' && c <= '9') {
     return c - '0';
@@ -70,6 +96,26 @@ inline constexpr auto url_hex_digits{std::string_view{"0123456789ABCDEF"}};
   return -1;
 }
 
+/**
+ * @brief Percent-encodes \p in into \p out, selecting how a space is handled.
+ *
+ * Passes unreserved characters through and percent-escapes the rest. When
+ * \c SpaceAsPlus is set a space becomes a plus sign (the form-urlencoded rule),
+ * otherwise it is percent-escaped like any other reserved byte.
+ *
+ * @tparam SpaceAsPlus When \c true, encode a space as a plus sign.
+ * @param in Source characters to encode.
+ * @param out Destination character buffer.
+ *
+ * @return The number of characters written, or \c codec_error::buffer_too_small
+ *         when \p out is exhausted.
+ *
+ * @pre \p in and \p out do not overlap.
+ * @post On success \p out holds the encoding of \p in; on failure \p out is left
+ *       unspecified.
+ *
+ * @complexity \c O(N) in the length \c N of \p in.
+ */
 template <bool SpaceAsPlus>
 [[nodiscard]] constexpr auto
 url_encode_into(std::string_view const in, std::span<char> const out) noexcept -> codec_result {
@@ -107,6 +153,28 @@ url_encode_into(std::string_view const in, std::span<char> const out) noexcept -
   return o;
 }
 
+/**
+ * @brief Percent-decodes \p in into \p out, selecting how a plus is handled.
+ *
+ * Expands each percent-escape to its byte. When \c PlusAsSpace is set a plus
+ * sign decodes to a space (the form-urlencoded rule), otherwise it is taken
+ * literally.
+ *
+ * @tparam PlusAsSpace When \c true, decode a plus sign to a space.
+ * @param in Source characters to decode.
+ * @param out Destination character buffer.
+ *
+ * @return The number of characters written, or \c codec_error::invalid_input
+ *         for a malformed escape, \c codec_error::incomplete_input for an escape
+ *         truncated at end of input, or \c codec_error::buffer_too_small when
+ *         \p out is exhausted.
+ *
+ * @pre \p in and \p out do not overlap.
+ * @post On success \p out holds the decoding of \p in; on failure \p out is left
+ *       unspecified.
+ *
+ * @complexity \c O(N) in the length \c N of \p in.
+ */
 template <bool PlusAsSpace>
 [[nodiscard]] constexpr auto
 url_decode_into(std::string_view const in, std::span<char> const out) noexcept -> codec_result {
@@ -143,6 +211,7 @@ url_decode_into(std::string_view const in, std::span<char> const out) noexcept -
 }
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Upper bound on the percent-encoded length of \p n_bytes input bytes.

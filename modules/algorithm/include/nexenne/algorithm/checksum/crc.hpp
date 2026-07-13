@@ -34,9 +34,10 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
-// The smallest unsigned integer type able to hold a Width-bit CRC.
+/// @brief Smallest unsigned integer type able to hold a \c Width -bit CRC.
 template <std::size_t Width>
 using crc_uint_t = std::conditional_t<
   Width <= 8,
@@ -46,7 +47,24 @@ using crc_uint_t = std::conditional_t<
     std::uint16_t,
     std::conditional_t<Width <= 32, std::uint32_t, std::uint64_t>>>;
 
-// Reverses the low n_bits bits of value (bit 0 with bit n_bits-1, and so on).
+/**
+ * @brief Reverses the low \p n_bits bits of \p value (bit 0 with bit n_bits-1).
+ *
+ * Implements the Rocksoft bit reflection used for reflected CRC input and
+ * output: bit \c i swaps with bit \c n_bits-1-i and bits above \p n_bits are
+ * dropped.
+ *
+ * @tparam T Unsigned integral register type.
+ * @param value Bits to reflect.
+ * @param n_bits Number of low bits to reflect.
+ *
+ * @return \p value with its low \p n_bits bits reversed.
+ *
+ * @pre \p n_bits does not exceed the bit width of \p T.
+ * @post None.
+ *
+ * @complexity \c O(n_bits).
+ */
 template <std::unsigned_integral T>
 [[nodiscard]] constexpr auto reflect_bits(T const value, std::size_t const n_bits) noexcept -> T {
   auto out{T{0}};
@@ -58,14 +76,19 @@ template <std::unsigned_integral T>
   return out;
 }
 
-// A mask of the low Width bits of T (all bits when Width fills the type,
-// avoiding an undefined shift by the full width).
+/**
+ * @brief Mask of the low \c Width bits of \c T.
+ *
+ * All bits set when \c Width fills the type, which avoids an undefined shift by
+ * the full width.
+ */
 template <std::unsigned_integral T, std::size_t Width>
 inline constexpr auto crc_mask{
   (Width == sizeof(T) * 8) ? static_cast<T>(~T{0}) : static_cast<T>((T{1} << Width) - 1)
 };
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Compile-time description of one named CRC algorithm.
@@ -88,9 +111,28 @@ struct crc_spec {
   value_type xor_out{};  ///< Value XOR'd with the final register.
 };
 
+/// @cond INTERNAL
 namespace detail {
 
-// Builds the 256-entry byte-at-a-time lookup table for Spec.
+/**
+ * @brief Builds the 256-entry byte-at-a-time lookup table for \p Spec.
+ *
+ * Generates either the reflected (LSB-first, shift-right with the reflected
+ * polynomial) or the non-reflected (MSB-first, shift-left) table, per
+ * \c Spec.ref_in. A non-reflected sub-byte width is rejected with a
+ * \c static_assert, since the MSB-first path places each byte at the top of the
+ * register and so needs a width of at least 8.
+ *
+ * @tparam Spec The CRC algorithm whose table to build.
+ *
+ * @return The 256 register values, one per possible input byte.
+ *
+ * @pre None.
+ * @post \c table[i] is the register contribution of input byte \c i under
+ *       \p Spec.
+ *
+ * @complexity \c O(1): a fixed 256 by 8 build.
+ */
 template <crc_spec Spec>
 [[nodiscard]] constexpr auto
 make_crc_table() noexcept -> std::array<typename decltype(Spec)::value_type, 256> {
@@ -132,14 +174,30 @@ make_crc_table() noexcept -> std::array<typename decltype(Spec)::value_type, 256
   return table;
 }
 
-// The lookup table for Spec, materialised once at compile time.
+/// @brief The lookup table for \c Spec, materialised once at compile time.
 template <crc_spec Spec>
 inline constexpr auto crc_table_for{make_crc_table<Spec>()};
 
-// Folds a byte-producing range through the table-driven CRC. Kept generic over
-// the element type so the string_view overload stays genuinely constexpr: a
-// reinterpret_cast to std::uint8_t const* is never a constant expression, so the
-// characters are read one at a time via static_cast instead.
+/**
+ * @brief Folds a byte-producing range through the table-driven CRC of \p Spec.
+ *
+ * Runs the reflected or non-reflected table walk, applies the preset initial
+ * value and the input and output reflection, then the final XOR. Kept generic
+ * over the element type so the \c std::string_view overload stays genuinely
+ * \c constexpr: a \c reinterpret_cast to a byte pointer is never a constant
+ * expression, so each element is read as a byte through \c static_cast instead.
+ *
+ * @tparam Spec The CRC algorithm to apply.
+ * @tparam Range A range whose elements convert to \c std::uint8_t.
+ * @param data Byte-producing range to checksum.
+ *
+ * @return The CRC of \p data, masked to the spec width.
+ *
+ * @pre None.
+ * @post Equal inputs under the same \p Spec always produce the same value.
+ *
+ * @complexity \c O(N) in the length \c N of \p data.
+ */
 template <crc_spec Spec, typename Range>
 [[nodiscard]] constexpr auto
 crc_fold(Range const& data) noexcept -> typename decltype(Spec)::value_type {
@@ -175,6 +233,7 @@ crc_fold(Range const& data) noexcept -> typename decltype(Spec)::value_type {
 }
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Computes the CRC of a byte span under the algorithm \p Spec.
@@ -248,6 +307,17 @@ public:
 private:
   static constexpr auto mask{detail::crc_mask<value_type, width>};
 
+  /**
+   * @brief The register value that seeds a fresh stream.
+   *
+   * Pre-reflects the preset initial value when the spec reflects its input, so
+   * the streaming walk matches the one-shot fold.
+   *
+   * @return The initial register value for \c Spec.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto initial_reg() noexcept -> value_type {
     if constexpr (Spec.ref_in) {
       return detail::reflect_bits<value_type>(Spec.init, width);
@@ -258,9 +328,21 @@ private:
 
   value_type m_reg{initial_reg()};
 
-  // Folds a byte-producing range into the running register. Generic over the
-  // element type so update(string_view) stays constexpr without a
-  // reinterpret_cast, reading each character as a byte via static_cast.
+  /**
+   * @brief Folds a byte-producing range into the running register.
+   *
+   * Generic over the element type so \c update of a \c std::string_view stays
+   * \c constexpr without a \c reinterpret_cast, reading each element as a byte
+   * through \c static_cast.
+   *
+   * @tparam Range A range whose elements convert to \c std::uint8_t.
+   * @param data Byte-producing range to fold into \c m_reg.
+   *
+   * @pre None.
+   * @post \c m_reg reflects every element of \p data, in order.
+   *
+   * @complexity \c O(N) in the length \c N of \p data.
+   */
   template <typename Range>
   constexpr auto fold(Range const& data) noexcept -> void {
     constexpr auto& table{detail::crc_table_for<Spec>};

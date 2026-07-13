@@ -32,6 +32,8 @@ namespace nexenne::algorithm {
  */
 template <std::unsigned_integral V, typename Weight>
 struct floyd_warshall_result {
+  using value_type = Weight;  ///< Distance type stored per matrix cell.
+
   std::vector<Weight> distances;  ///< Row-major V-by-V distance matrix.
   std::size_t n{0};               ///< Side length, equal to the vertex count.
 
