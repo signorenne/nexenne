@@ -90,21 +90,61 @@ private:
   [[no_unique_address]] Hash m_hash{};
   [[no_unique_address]] KeyEq m_eq{};
 
+  /**
+   * @brief The smallest power of two at least \p n, clamped to \c 1.
+   *
+   * @param n Lower bound the result must reach.
+   *
+   * @return The smallest power of two not less than \c max(n, 1).
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto next_pow2(size_type const n) noexcept -> size_type {
     return n < 2 ? 1 : std::bit_ceil(n);
   }
 
-  // The bucket index for a hash; the slot count is a power of two when allocated,
-  // so this is a mask, not a modulo.
+  /**
+   * @brief The bucket index for a hash value.
+   *
+   * The slot count is a power of two when allocated, so this is a bit mask, not a
+   * modulo.
+   *
+   * @param h Hash value to reduce to a bucket.
+   *
+   * @return The starting bucket index for \p h, or \c 0 when unallocated.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto bucket_of(std::size_t const h) const noexcept -> size_type {
     return m_slots.empty() ? 0 : h & (m_slots.size() - 1);
   }
 
-  // The 7/8 load limit, computed without floating point.
+  /**
+   * @brief The 7/8 load limit, computed without floating point.
+   *
+   * @return The occupied-plus-tombstone count that triggers a rehash.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto load_threshold() const noexcept -> size_type {
     return (m_slots.size() * 7) / 8;
   }
 
+  /**
+   * @brief Rehashes if needed so \p desired_entries fit under the load limit.
+   *
+   * Tombstones count toward the probe window, so a table crowded by churn is
+   * rehashed at the same capacity to reclaim them rather than grown without bound.
+   *
+   * @param desired_entries Live entry count the table must accommodate.
+   *
+   * @pre None.
+   * @post A terminating empty slot is guaranteed for \p desired_entries entries; a
+   *       rehash, if triggered, invalidates iterators, pointers, and references.
+   */
   auto ensure_capacity_for(size_type const desired_entries) noexcept -> void {
     if (m_slots.empty()) {
       rehash(std::max<size_type>(initial_capacity, next_pow2(desired_entries * 8 / 7 + 1)));
@@ -128,6 +168,18 @@ private:
     }
   }
 
+  /**
+   * @brief Rebuilds the slot array at (the next power of two of) a new size.
+   *
+   * Live entries are re-inserted into the fresh array and every tombstone is
+   * dropped, so the count is restored from scratch.
+   *
+   * @param new_bucket_count Requested slot count, rounded up to a power of two.
+   *
+   * @pre None.
+   * @post The table holds the same live entries with no tombstones; iterators,
+   *       pointers, and references are invalidated.
+   */
   auto rehash(size_type const new_bucket_count) noexcept -> void {
     auto old_slots{std::move(m_slots)};
     m_slots = std::vector<slot>(next_pow2(new_bucket_count));  // value-init, no slot copy
@@ -140,9 +192,23 @@ private:
     }
   }
 
-  // Probes from bucket_of(h) and either inserts the entry (returning true) or
-  // finds an equal key (returning false, overwriting the value when asked). The
-  // caller guarantees a terminating empty slot exists.
+  /**
+   * @brief Probes from \c bucket_of(h) and inserts, or updates an equal key.
+   *
+   * Reuses the first tombstone seen along the probe so an insertion reclaims it.
+   *
+   * @param h Precomputed hash of \p key.
+   * @param key Key to insert or match, moved on insertion.
+   * @param value Value to store, moved on insertion or on an overwrite.
+   * @param overwrite Whether to overwrite the value of an existing equal key.
+   *
+   * @return \c true when a fresh entry was inserted, \c false when an equal key
+   *         already existed.
+   *
+   * @pre A terminating empty slot exists (the caller ensured capacity).
+   * @post On \c true \c size() grew by one; on an overwrite the matched value was
+   *       replaced.
+   */
   auto place(std::size_t const h, Key key, Value value, bool const overwrite) noexcept -> bool {
     auto index{bucket_of(h)};
     auto first_tombstone{m_slots.size()};
@@ -173,9 +239,20 @@ private:
     }
   }
 
-  // Probes for a key of any type comparable through m_hash and m_eq (the key
-  // itself, or a heterogeneous probe when both functors are transparent) and
-  // returns its slot, or nullptr on a miss.
+  /**
+   * @brief Probes for \p key and returns its slot, or \c nullptr on a miss.
+   *
+   * Accepts the key itself or a heterogeneous probe comparable through \c m_hash
+   * and \c m_eq (when both functors are transparent).
+   *
+   * @tparam K Probe type hashable and comparable through the functors.
+   * @param key Key or probe to search for.
+   *
+   * @return A pointer to the occupied slot holding \p key, or \c nullptr.
+   *
+   * @pre None.
+   * @post None.
+   */
   template <typename K>
   [[nodiscard]] auto probe_slot(K const& key) const noexcept -> slot const* {
     if (m_slots.empty()) {
@@ -196,18 +273,44 @@ private:
     }
   }
 
-  // Probes for key and returns its slot, or nullptr on a miss.
+  /**
+   * @brief Probes for the exact key \p key and returns its slot.
+   *
+   * @param key Key to search for.
+   *
+   * @return A pointer to the occupied slot holding \p key, or \c nullptr on a miss.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto find_slot(Key const& key) const noexcept -> slot const* {
     return probe_slot(key);
   }
 
-  // A heterogeneous probe type is admitted only when both functors opt into it.
+  /**
+   * @brief Whether a heterogeneous probe type is admitted.
+   *
+   * True only when both functors opt into transparency by exposing
+   * \c is_transparent.
+   *
+   * @tparam H Hash functor type.
+   * @tparam E Equality functor type.
+   */
   template <typename H, typename E>
   static constexpr bool transparent_functors{
     requires { typename H::is_transparent; } && requires { typename E::is_transparent; }};
 
-  // Tombstones the slot found by a probe (nullptr means a miss), shared by every
-  // erase overload so they stay in lockstep.
+  /**
+   * @brief Tombstones the slot located by a probe, shared by every erase overload.
+   *
+   * @param found Slot returned by a probe, or \c nullptr for a miss.
+   *
+   * @return \c true when a slot was tombstoned, \c false when \p found was
+   *         \c nullptr.
+   *
+   * @pre \p found, when non-null, points into this map's slot array.
+   * @post On \c true \c size() shrank by one and a tombstone replaced the slot.
+   */
   auto erase_slot(slot const* const found) noexcept -> bool {
     if (found == nullptr) {
       return false;
@@ -227,6 +330,12 @@ private:
     slot_ptr m_current{nullptr};
     slot_ptr m_end{nullptr};
 
+    /**
+     * @brief Advances the cursor to the next occupied slot, or to the end.
+     *
+     * @pre \c m_current and \c m_end bound a valid slot range.
+     * @post \c m_current refers to an occupied slot or equals \c m_end.
+     */
     constexpr auto advance_to_occupied() noexcept -> void {
       while (m_current != m_end && m_current->state != slot_state::occupied) {
         ++m_current;
@@ -241,38 +350,108 @@ private:
     using iterator_category = std::forward_iterator_tag;
     using iterator_concept = std::forward_iterator_tag;
 
+    /**
+     * @brief Constructs a singular iterator not tied to any map.
+     *
+     * @pre None.
+     * @post The iterator is singular and not dereferenceable.
+     */
     constexpr basic_iterator() noexcept = default;
 
+    /**
+     * @brief Constructs an iterator over the slot range \c [current, end).
+     *
+     * @param current Slot the iterator starts at, advanced to the first occupied
+     *                slot.
+     * @param end One past the last slot to walk.
+     *
+     * @pre \p current and \p end bound a valid slot range.
+     * @post The iterator refers to the first occupied slot at or after \p current,
+     *       or to \p end when none remains.
+     */
     constexpr basic_iterator(slot_ptr const current, slot_ptr const end) noexcept
         : m_current{current}, m_end{end} {
       advance_to_occupied();
     }
 
+    /**
+     * @brief Converts a mutable iterator into a const iterator.
+     *
+     * @tparam OtherConst Constness of the source iterator; enabled only when it is
+     *                    non-const and this iterator is const.
+     * @param other Mutable iterator to copy the position from.
+     *
+     * @pre None.
+     * @post This iterator refers to the same slot as \p other.
+     */
     template <bool OtherConst>
       requires(IsConst && !OtherConst)
     constexpr basic_iterator(basic_iterator<OtherConst> const& other) noexcept
         : m_current{other.m_current}, m_end{other.m_end} {}
 
+    /**
+     * @brief The \c (key, value) entry the iterator refers to.
+     *
+     * @return A reference to the entry in the current slot.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
       return *m_current->entry;
     }
 
+    /**
+     * @brief Member access to the \c (key, value) entry.
+     *
+     * @return A pointer to the entry in the current slot.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
       return std::addressof(*m_current->entry);
     }
 
+    /**
+     * @brief Advances to the next occupied slot.
+     *
+     * @return A reference to this iterator after advancing.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post The iterator refers to the next occupied slot or to \c end().
+     */
     constexpr auto operator++() noexcept -> basic_iterator& {
       ++m_current;
       advance_to_occupied();
       return *this;
     }
 
+    /**
+     * @brief Advances to the next occupied slot, returning the prior position.
+     *
+     * @return A copy of the iterator before it advanced.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post The iterator refers to the next occupied slot or to \c end().
+     */
     constexpr auto operator++(int) noexcept -> basic_iterator {
       auto const copy{*this};
       ++*this;
       return copy;
     }
 
+    /**
+     * @brief Whether \p a and \p b refer to the same slot.
+     *
+     * @param a First iterator.
+     * @param b Second iterator.
+     *
+     * @return \c true when both point at the same slot.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
       return a.m_current == b.m_current;

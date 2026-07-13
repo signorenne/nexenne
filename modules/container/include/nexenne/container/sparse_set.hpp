@@ -61,6 +61,15 @@ private:
   std::vector<size_type> m_sparse;
   std::vector<key_type> m_dense;
 
+  /**
+   * @brief Grows the sparse array so \p k is an indexable slot.
+   *
+   * @param k Key whose slot must exist after the call.
+   *
+   * @pre \p k is not the maximum representable \c size_type value.
+   * @post The sparse array holds at least \c k+1 slots, new slots value-initialised
+   *       to \c invalid_index.
+   */
   constexpr auto ensure_sparse_capacity(key_type const k) noexcept -> void {
     auto const needed{static_cast<size_type>(k) + 1};
     if (needed > m_sparse.size()) {

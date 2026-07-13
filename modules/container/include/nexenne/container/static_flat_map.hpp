@@ -65,8 +65,15 @@ private:
   size_type m_size{0};
   [[no_unique_address]] Compare m_cmp{};
 
-  // Opens a gap at pos by moving the active tail one slot right; the caller has
-  // already checked there is room.
+  /**
+   * @brief Opens a gap at \p pos by moving the active tail one slot right.
+   *
+   * @param pos Iterator to the slot the gap should open at.
+   *
+   * @pre The map is not full and \p pos is in \c [begin(), end()].
+   * @post Every entry at or after \p pos moved one slot right, leaving \p pos free
+   *       to overwrite; \c m_size is unchanged and must be bumped by the caller.
+   */
   constexpr auto shift_right(iterator const pos) noexcept -> void {
     for (auto slot{end()}; slot != pos; --slot) {
       *slot = std::move(*(slot - 1));

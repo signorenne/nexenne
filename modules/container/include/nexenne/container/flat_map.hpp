@@ -33,11 +33,22 @@ namespace nexenne::container {
 
 namespace detail {
 
-// A comparator is transparent (allows heterogeneous lookup) when it exposes a
-// nested is_transparent type, as std::less<> and the other diamond comparators
-// do. Heterogeneous find/contains/at then accept any key-comparable type.
+/// @cond INTERNAL
+/**
+ * @brief Whether a comparator opts into heterogeneous lookup.
+ *
+ * A comparator is transparent when it exposes a nested \c is_transparent type, as
+ * \c std::less<> and the other diamond comparators do; heterogeneous
+ * \c find / \c contains / \c at then accept any key-comparable type.
+ *
+ * @tparam C Comparator type to test.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename C>
 concept transparent_comparator = requires { typename C::is_transparent; };
+/// @endcond
 
 }  // namespace detail
 

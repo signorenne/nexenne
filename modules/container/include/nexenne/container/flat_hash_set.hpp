@@ -36,9 +36,24 @@ namespace detail {
 
 /// Zero-state mapped marker that turns \c flat_hash_map into a set.
 struct empty_value {
-  [[nodiscard]] friend constexpr auto operator==(empty_value, empty_value) noexcept -> bool {
+  /// @cond INTERNAL
+  /**
+   * @brief Whether two markers are equal, which they always are.
+   *
+   * @param lhs First marker.
+   * @param rhs Second marker.
+   *
+   * @return \c true, since the marker carries no state.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto operator==(empty_value lhs, empty_value rhs) noexcept
+    -> bool {
+    nexenne::utility::discard(lhs, rhs);
     return true;
   }
+  /// @endcond
 };
 
 }  // namespace detail
@@ -339,30 +354,87 @@ public:
     using iterator_category = std::forward_iterator_tag;
     using iterator_concept = std::forward_iterator_tag;
 
+    /**
+     * @brief Constructs a singular iterator not tied to any set.
+     *
+     * @pre None.
+     * @post The iterator is singular and not dereferenceable.
+     */
     constexpr const_iterator() noexcept = default;
 
+    /**
+     * @brief Wraps a backing-map iterator as a set iterator over its keys.
+     *
+     * @param inner Backing \c flat_hash_map iterator to adapt.
+     *
+     * @pre None.
+     * @post This iterator refers to the same slot as \p inner.
+     */
     explicit constexpr const_iterator(typename backing::const_iterator const inner) noexcept
         : m_inner{inner} {}
 
+    /**
+     * @brief The element the iterator refers to.
+     *
+     * @return A const reference to the key in the current slot.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
       return m_inner->first;
     }
 
+    /**
+     * @brief Member access to the element the iterator refers to.
+     *
+     * @return A const pointer to the key in the current slot.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
       return std::addressof(m_inner->first);
     }
 
+    /**
+     * @brief Advances to the next live element.
+     *
+     * @return A reference to this iterator after advancing.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post The iterator refers to the next live element or to \c end().
+     */
     constexpr auto operator++() noexcept -> const_iterator& {
       ++m_inner;
       return *this;
     }
 
+    /**
+     * @brief Advances to the next live element, returning the prior position.
+     *
+     * @return A copy of the iterator before it advanced.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post The iterator refers to the next live element or to \c end().
+     */
     constexpr auto operator++(int) noexcept -> const_iterator {
       auto const tmp{*this};
       ++*this;
       return tmp;
     }
 
+    /**
+     * @brief Whether \p a and \p b refer to the same element.
+     *
+     * @param a First iterator.
+     * @param b Second iterator.
+     *
+     * @return \c true when both point at the same slot.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator==(const_iterator const& a, const_iterator const& b) noexcept -> bool {
       return a.m_inner == b.m_inner;

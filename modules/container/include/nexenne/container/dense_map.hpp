@@ -518,19 +518,51 @@ private:
     using iterator_category = std::input_iterator_tag;
     using iterator_concept = std::input_iterator_tag;
 
+    /**
+     * @brief Constructs a singular iterator not tied to any map.
+     *
+     * @pre None.
+     * @post The iterator is singular and not dereferenceable.
+     */
     constexpr basic_iterator() noexcept = default;
 
+    /**
+     * @brief Constructs an iterator over \p map positioned at dense index \p pos.
+     *
+     * @param map Owning map the iterator walks.
+     * @param pos Dense index the iterator starts at.
+     *
+     * @pre \p pos is in \c [0, map.size()].
+     * @post The iterator refers to \p map at \p pos.
+     */
     constexpr basic_iterator(
       std::conditional_t<IsConst, dense_map const&, dense_map&> map, size_type const pos
     ) noexcept
         : m_map{std::addressof(map)}, m_pos{pos} {}
 
-    // Convert a mutable iterator to a const_iterator.
+    /**
+     * @brief Converts a mutable iterator into a const iterator.
+     *
+     * @tparam OtherConst Constness of the source iterator; enabled only when it is
+     *                    non-const and this iterator is const.
+     * @param other Mutable iterator to copy the position from.
+     *
+     * @pre None.
+     * @post This iterator refers to the same entry as \p other.
+     */
     template <bool OtherConst>
       requires(IsConst && !OtherConst)
     constexpr basic_iterator(basic_iterator<OtherConst> const& other) noexcept
         : m_map{other.m_map}, m_pos{other.m_pos} {}
 
+    /**
+     * @brief The \c (key, value&) entry the iterator refers to.
+     *
+     * @return A fresh proxy pair of the key by value and a reference to its value.
+     *
+     * @pre The iterator is dereferenceable.
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator*() const noexcept -> value_type {
       return value_type{m_map->m_set.keys()[m_pos], m_map->m_values[m_pos]};
     }
@@ -553,6 +585,14 @@ private:
       struct arrow_proxy {
         value_type entry;
 
+        /**
+         * @brief Yields a pointer to the owned entry.
+         *
+         * @return A pointer to the proxy's stored entry.
+         *
+         * @pre None.
+         * @post None.
+         */
         [[nodiscard]] constexpr auto operator->() noexcept -> value_type* {
           return std::addressof(entry);
         }
@@ -560,17 +600,44 @@ private:
       return arrow_proxy{**this};
     }
 
+    /**
+     * @brief Advances to the next entry.
+     *
+     * @return A reference to this iterator after advancing.
+     *
+     * @pre The iterator is dereferenceable.
+     * @post The iterator refers to the following entry or \c end().
+     */
     constexpr auto operator++() noexcept -> basic_iterator& {
       ++m_pos;
       return *this;
     }
 
+    /**
+     * @brief Advances to the next entry, returning the prior position.
+     *
+     * @return A copy of the iterator before it advanced.
+     *
+     * @pre The iterator is dereferenceable.
+     * @post The iterator refers to the following entry or \c end().
+     */
     constexpr auto operator++(int) noexcept -> basic_iterator {
       auto const tmp{*this};
       ++*this;
       return tmp;
     }
 
+    /**
+     * @brief Whether \p a and \p b refer to the same entry of the same map.
+     *
+     * @param a First iterator.
+     * @param b Second iterator.
+     *
+     * @return \c true when both refer to the same position and the same map.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
       return a.m_pos == b.m_pos && a.m_map == b.m_map;
