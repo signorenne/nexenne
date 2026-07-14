@@ -319,4 +319,20 @@ TEST_CASE("nexenne::container::format scratch_pad prints its checkpoint and live
   CHECK(std::format("{}", scratch) == "scratch_pad(saved_offset=16, bytes_used=40)");
 }
 
+TEST_CASE("nexenne::container::format slot_key prints its index and generation") {
+  cn::slot_key const null_key{};
+  CHECK(cn::to_string(null_key) == "slot_key(0:0)");
+  CHECK(std::format("{}", null_key) == "slot_key(0:0)");
+
+  cn::slot_map<int> map;
+  auto const handle{map.insert(42)};
+  auto const form{std::format("slot_key({}:{})", handle.index(), handle.generation())};
+  CHECK(cn::to_string(handle) == form);
+  CHECK(std::format("{}", handle) == form);
+
+  std::ostringstream os;
+  os << handle;
+  CHECK(os.str() == form);
+}
+
 }  // namespace
