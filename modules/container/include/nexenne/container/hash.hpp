@@ -53,6 +53,7 @@
 #include <nexenne/utility/hash.hpp>
 
 namespace nexenne::container::detail {
+/// @cond INTERNAL
 
 /// @brief Whether hashing a \c T \c const& through the shared combiner cannot throw.
 template <typename T>
@@ -119,6 +120,7 @@ template <typename Key, typename Value, std::ranges::input_range Range>
   return seed;
 }
 
+/// @endcond
 }  // namespace nexenne::container::detail
 
 /**
