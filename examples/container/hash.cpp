@@ -12,6 +12,7 @@
 #include <unordered_map>
 
 #include <nexenne/container/hash.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -24,15 +25,15 @@ auto main() -> int {
   std::unordered_map<cn::static_vector<int, 4>, std::string> memo;
 
   cn::static_vector<int, 4> key;
-  key.push_back(1);
-  key.push_back(2);
-  key.push_back(3);
+  nexenne::utility::discard(key.push_back(1));
+  nexenne::utility::discard(key.push_back(2));
+  nexenne::utility::discard(key.push_back(3));
   memo[key] = "computed";
 
   cn::static_vector<int, 4> probe;
-  probe.push_back(1);
-  probe.push_back(2);
-  probe.push_back(3);
+  nexenne::utility::discard(probe.push_back(1));
+  nexenne::utility::discard(probe.push_back(2));
+  nexenne::utility::discard(probe.push_back(3));
 
   std::println("entries: {}", memo.size());
   std::println("probe hit: {}", memo.contains(probe));

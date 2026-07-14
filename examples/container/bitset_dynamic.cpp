@@ -10,6 +10,7 @@
 #include <print>
 
 #include <nexenne/container/bitset_dynamic.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -20,7 +21,7 @@ namespace cn = nexenne::container;
 auto main() -> int {
   cn::bitset_dynamic alive(100);  // 100 entities, none alive yet
   for (int const id : {3, 17, 42, 63, 64, 99}) {
-    alive.set(static_cast<std::size_t>(id));
+    nexenne::utility::discard(alive.set(static_cast<std::size_t>(id)));
   }
 
   std::println("alive: {} of {}", alive.count(), alive.size());
