@@ -36,6 +36,82 @@
 namespace nexenne::container {
 
 /**
+ * @brief Opaque handle into a \c slot_map, stable identity across insert and erase.
+ *
+ * Encodes a slot index and a generation counter; it is valid for lookup only
+ * while the slot is occupied and its generation matches. Erasing the element
+ * bumps the slot's generation, invalidating every outstanding handle to it. A
+ * default-constructed handle (generation \c 0) never matches a live element.
+ *
+ * The layout is independent of the stored element type, so every \c slot_map<T>
+ * shares this one handle type (aliased as \c slot_map<T>::key) and a single
+ * formatter covers them all. Keeping it a non-template also lets it be named
+ * where the element type is still incomplete, such as a type holding a handle
+ * into a slot map of itself.
+ *
+ * @pre None.
+ * @post A default-constructed handle never matches a live element; a handle
+ *       handed out by \c insert / \c emplace matches its element until erased.
+ */
+class slot_key {
+public:
+  using generation_type = std::uint32_t;
+  using index_type = std::uint32_t;
+
+  /**
+   * @brief Constructs a null handle that never matches a live element.
+   *
+   * @pre None.
+   * @post \c index() and \c generation() are zero.
+   */
+  constexpr slot_key() noexcept = default;
+
+  /**
+   * @brief Constructs a handle from an explicit slot index and generation.
+   *
+   * @param index Slot index to reference.
+   * @param generation Generation counter to tag the handle with.
+   *
+   * @pre None.
+   * @post \c index() equals \p index and \c generation() equals \p generation.
+   */
+  constexpr slot_key(index_type const index, generation_type const generation) noexcept
+      : m_index{index}, m_generation{generation} {}
+
+  /**
+   * @brief Slot index this handle references.
+   *
+   * @return The slot index.
+   *
+   * @pre None.
+   * @post None. The handle is not modified.
+   */
+  [[nodiscard]] constexpr auto index() const noexcept -> index_type {
+    return m_index;
+  }
+
+  /**
+   * @brief Generation counter this handle was tagged with.
+   *
+   * @return The generation counter.
+   *
+   * @pre None.
+   * @post None. The handle is not modified.
+   */
+  [[nodiscard]] constexpr auto generation() const noexcept -> generation_type {
+    return m_generation;
+  }
+
+  /// @brief Total ordering of two handles; the compiler derives \c == \c < \c > \c <= \c >=.
+  [[nodiscard]] friend constexpr auto operator<=>(slot_key const&, slot_key const&) noexcept
+    = default;
+
+private:
+  index_type m_index{};
+  generation_type m_generation{};
+};
+
+/**
  * @brief Handle-based container with stable identity across insert and erase.
  *
  * @tparam T Element type. Intentionally unconstrained at the class level so
@@ -57,68 +133,10 @@ public:
   /**
    * @brief Opaque handle returned by \c insert / \c emplace.
    *
-   * Encodes a slot index and a generation counter; it is valid for lookup only
-   * while the slot is occupied and its generation matches. Erasing the element
-   * bumps the slot's generation, invalidating every outstanding key to it. A
-   * default-constructed key (generation \c 0) never matches a live element.
-   *
-   * @pre None.
-   * @post A default-constructed key never matches a live element; a key handed
-   *       out by \c insert / \c emplace matches its element until it is erased.
+   * Alias for the non-template \c slot_key so every \c slot_map shares one
+   * handle type and a single formatter; see \c slot_key for the semantics.
    */
-  class key {
-  public:
-    /**
-     * @brief Constructs a null key that never matches a live element.
-     *
-     * @pre None.
-     * @post \c index() and \c generation() are zero.
-     */
-    constexpr key() noexcept = default;
-
-    /**
-     * @brief Constructs a key from an explicit slot index and generation.
-     *
-     * @param index Slot index to reference.
-     * @param generation Generation counter to tag the key with.
-     *
-     * @pre None.
-     * @post \c index() equals \p index and \c generation() equals \p generation.
-     */
-    constexpr key(index_type const index, generation_type const generation) noexcept
-        : m_index{index}, m_generation{generation} {}
-
-    /**
-     * @brief Slot index this key references.
-     *
-     * @return The slot index.
-     *
-     * @pre None.
-     * @post None. The key is not modified.
-     */
-    [[nodiscard]] constexpr auto index() const noexcept -> index_type {
-      return m_index;
-    }
-
-    /**
-     * @brief Generation counter this key was tagged with.
-     *
-     * @return The generation counter.
-     *
-     * @pre None.
-     * @post None. The key is not modified.
-     */
-    [[nodiscard]] constexpr auto generation() const noexcept -> generation_type {
-      return m_generation;
-    }
-
-    /// @brief Total ordering of two keys; the compiler derives \c == \c < \c > \c <= \c >=.
-    [[nodiscard]] friend constexpr auto operator<=>(key const&, key const&) noexcept = default;
-
-  private:
-    index_type m_index{};
-    generation_type m_generation{};
-  };
+  using key = slot_key;
 
 private:
   std::vector<std::optional<T>> m_values;
