@@ -55,10 +55,6 @@ struct config {
 
 }  // namespace nexenne::logging
 
-// Override either macro before including the umbrella to tune the default, e.g.
-// for an ESP-IDF project:
-//   target_compile_definitions(my_target PRIVATE
-//       NEXENNE_LOG_QUEUE_SIZE=256 NEXENNE_LOG_ASYNC=true)
 #ifndef NEXENNE_LOG_QUEUE_SIZE
 #  define NEXENNE_LOG_QUEUE_SIZE 1024
 #endif
