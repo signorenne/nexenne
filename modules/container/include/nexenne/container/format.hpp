@@ -544,6 +544,35 @@ auto operator<<(std::ostream& os, intrusive_list<T> const& l) -> std::ostream& {
 }
 
 /**
+ * @brief Builds a diagnostic string for a \c slot_key handle.
+ *
+ * @param k The handle to describe.
+ *
+ * @return A readable string of the form \c "slot_key(index:generation)".
+ *
+ * @pre None.
+ * @post None. \p k is not modified.
+ */
+[[nodiscard]] inline auto to_string(slot_key const k) -> std::string {
+  return std::format("slot_key({}:{})", k.index(), k.generation());
+}
+
+/**
+ * @brief Streams the diagnostic string of \p k to \p os.
+ *
+ * @param os Output stream to write to.
+ * @param k The handle to describe.
+ *
+ * @return \p os, to allow chaining.
+ *
+ * @pre None.
+ * @post The diagnostic string of \p k has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, slot_key const k) -> std::ostream& {
+  return os << to_string(k);
+}
+
+/**
  * @brief Builds a diagnostic string listing the elements of a \c slot_map.
  *
  * @tparam T Element type stored in the container.
@@ -1876,6 +1905,45 @@ struct std::formatter<nexenne::container::trie<Char, Value>> {
    */
   static auto format(nexenne::container::trie<Char, Value> const& t, auto& ctx) {
     return std::format_to(ctx.out(), "{}", nexenne::container::to_string(t));
+  }
+};
+
+/**
+ * @brief \c std::formatter that prints a \c slot_key via
+ *        \c nexenne::container::to_string.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::container::slot_key> {
+  /**
+   * @brief Accepts the empty format spec.
+   *
+   * @param ctx Parse context positioned at the format spec.
+   *
+   * @return Iterator to the end of the parsed spec.
+   *
+   * @pre The spec is empty; only \c "{}" is supported.
+   * @post None.
+   */
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  /**
+   * @brief Writes the \c to_string form of \p k to the output.
+   *
+   * @param k Handle to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The diagnostic string of \p k has been written through \p ctx.
+   */
+  static auto format(nexenne::container::slot_key const k, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(k));
   }
 };
 
