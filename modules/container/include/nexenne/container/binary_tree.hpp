@@ -58,20 +58,44 @@ public:
   using key_compare = Compare;
 
 private:
+  /**
+   * @brief Owning tree node: a value, its two child subtrees, and a parent link.
+   *
+   * Each node owns its children through \c std::unique_ptr and keeps a raw
+   * back-pointer to its parent so the in-order iterator can walk to a successor.
+   *
+   * @pre None.
+   * @post None.
+   */
   struct node {
     T value;
     std::unique_ptr<node> left;
     std::unique_ptr<node> right;
     node* parent{nullptr};
 
+    /**
+     * @brief Constructs the node's value in place from \p args.
+     *
+     * @tparam Args Constructor argument types for the stored value.
+     * @param args Arguments forwarded to the stored value's constructor.
+     *
+     * @pre None.
+     * @post \c left, \c right, and \c parent are null.
+     */
     template <typename... Args>
     explicit constexpr node(Args&&... args) noexcept : value{std::forward<Args>(args)...} {}
 
-    // Tear descendants down iteratively. The default recursive unique_ptr
-    // destruction would overflow the stack on a degenerate n-deep chain (sorted
-    // input builds exactly such a chain). Every teardown path (the tree
-    // destructor, clear, and both assignments) reseats a node unique_ptr and so
-    // routes through here.
+    /**
+     * @brief Tears the subtree rooted at this node down iteratively.
+     *
+     * The default recursive \c unique_ptr destruction would overflow the stack
+     * on a degenerate n-deep chain (sorted input builds exactly such a chain).
+     * Every teardown path (the tree destructor, \c clear, and both assignments)
+     * reseats a node \c unique_ptr and so routes through here.
+     *
+     * @pre None.
+     * @post Every descendant of this node has been destroyed.
+     */
     constexpr ~node() noexcept {
       std::vector<std::unique_ptr<node>> pending;
       auto detach{[&pending](node& n) noexcept {
@@ -97,6 +121,15 @@ private:
   size_type m_size{};
   Compare m_cmp{};
 
+  /**
+   * @brief In-order forward iterator over the tree's elements.
+   *
+   * @tparam IsConst Whether the iterator yields \c const access to the elements.
+   *
+   * @pre None.
+   * @post A default-constructed iterator is singular (equal to \c end()'s value
+   *       only after assignment).
+   */
   template <bool IsConst>
   class basic_iterator {
   private:
@@ -112,22 +145,63 @@ private:
 
     constexpr basic_iterator() noexcept = default;
 
+    /**
+     * @brief Constructs an iterator positioned at node \p n.
+     *
+     * @param n Node to point at, or \c nullptr for a past-the-end iterator.
+     *
+     * @pre None.
+     * @post The iterator refers to \p n.
+     */
     explicit constexpr basic_iterator(raw_node_ptr n) noexcept : m_node{n} {}
 
-    // Convert a mutable iterator to a const_iterator.
+    /**
+     * @brief Converts a mutable iterator to a const iterator.
+     *
+     * @tparam OtherConst Constness of the source iterator; the overload is
+     *         enabled only when converting a mutable iterator into a const one.
+     * @param other Source iterator whose position is copied.
+     *
+     * @pre None.
+     * @post This iterator refers to the same node as \p other.
+     */
     template <bool OtherConst>
       requires(IsConst && !OtherConst)
     constexpr basic_iterator(basic_iterator<OtherConst> const& other) noexcept
         : m_node{other.m_node} {}
 
+    /**
+     * @brief Accesses the referenced element.
+     *
+     * @return Reference to the current element.
+     *
+     * @pre The iterator is dereferenceable (not past-the-end).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
       return m_node->value;
     }
 
+    /**
+     * @brief Accesses a member of the referenced element.
+     *
+     * @return Pointer to the current element.
+     *
+     * @pre The iterator is dereferenceable (not past-the-end).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
       return std::addressof(m_node->value);
     }
 
+    /**
+     * @brief Advances to the in-order successor.
+     *
+     * @return Reference to this iterator after advancing.
+     *
+     * @pre The iterator is dereferenceable (not past-the-end).
+     * @post The iterator refers to the next element or to past-the-end.
+     */
     constexpr auto operator++() noexcept -> basic_iterator& {
       if (m_node->right != nullptr) {
         m_node = leftmost(m_node->right.get());
@@ -142,12 +216,32 @@ private:
       return *this;
     }
 
+    /**
+     * @brief Advances to the in-order successor, returning the prior position.
+     *
+     * @return A copy of the iterator as it was before advancing.
+     *
+     * @pre The iterator is dereferenceable (not past-the-end).
+     * @post The iterator refers to the next element or to past-the-end.
+     */
     constexpr auto operator++(int) noexcept -> basic_iterator {
       auto const tmp{*this};
       ++*this;
       return tmp;
     }
 
+    /**
+     * @brief Whether \p a and \p b refer to the same node.
+     *
+     * @param a First iterator.
+     * @param b Second iterator.
+     *
+     * @return \c true when both refer to the same node (past-the-end iterators
+     *         compare equal).
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
       return a.m_node == b.m_node;
@@ -156,6 +250,16 @@ private:
   private:
     raw_node_ptr m_node{nullptr};
 
+    /**
+     * @brief Descends to the leftmost node of the subtree rooted at \p n.
+     *
+     * @param n Subtree root to descend from, or \c nullptr.
+     *
+     * @return The leftmost node, or \c nullptr when \p n is null.
+     *
+     * @pre None.
+     * @post None.
+     */
     static constexpr auto leftmost(raw_node_ptr n) noexcept -> raw_node_ptr {
       while (n != nullptr && n->left != nullptr) {
         n = n->left.get();
@@ -631,6 +735,16 @@ public:
   }
 
 private:
+  /**
+   * @brief Descends to the leftmost node of the subtree rooted at \p n.
+   *
+   * @param n Subtree root to descend from, or \c nullptr.
+   *
+   * @return The leftmost node, or \c nullptr when \p n is null.
+   *
+   * @pre None.
+   * @post None.
+   */
   static constexpr auto leftmost(node* n) noexcept -> node* {
     while (n != nullptr && n->left != nullptr) {
       n = n->left.get();
@@ -638,6 +752,16 @@ private:
     return n;
   }
 
+  /**
+   * @brief Descends to the leftmost node of the const subtree rooted at \p n.
+   *
+   * @param n Subtree root to descend from, or \c nullptr.
+   *
+   * @return The leftmost node, or \c nullptr when \p n is null.
+   *
+   * @pre None.
+   * @post None.
+   */
   static constexpr auto leftmost(node const* n) noexcept -> node const* {
     while (n != nullptr && n->left != nullptr) {
       n = n->left.get();
@@ -645,6 +769,16 @@ private:
     return n;
   }
 
+  /**
+   * @brief Finds the node whose value is equivalent to \p value.
+   *
+   * @param value Value to search for under \c Compare.
+   *
+   * @return Pointer to the matching node, or \c nullptr when absent.
+   *
+   * @pre None.
+   * @post None. The tree is not modified.
+   */
   [[nodiscard]] constexpr auto locate(T const& value) noexcept -> node* {
     auto* cur{m_root.get()};
     while (cur != nullptr) {
@@ -659,6 +793,16 @@ private:
     return nullptr;
   }
 
+  /**
+   * @brief Finds the const node whose value is equivalent to \p value.
+   *
+   * @param value Value to search for under \c Compare.
+   *
+   * @return Pointer to the matching node, or \c nullptr when absent.
+   *
+   * @pre None.
+   * @post None. The tree is not modified.
+   */
   [[nodiscard]] constexpr auto locate(T const& value) const noexcept -> node const* {
     auto const* cur{m_root.get()};
     while (cur != nullptr) {
@@ -673,6 +817,19 @@ private:
     return nullptr;
   }
 
+  /**
+   * @brief Inserts \p value at its ordered position when not already present.
+   *
+   * @tparam V Deduced value category of the incoming value.
+   * @param value Value to insert, forwarded into a fresh node.
+   *
+   * @return \c true on a fresh insertion, \c false when an equivalent value was
+   *         already present.
+   *
+   * @pre None.
+   * @post On a fresh insertion a new leaf holds \p value and \c size() grew by
+   *       one; otherwise the tree is unchanged.
+   */
   template <typename V>
   constexpr auto emplace_impl(V&& value) noexcept -> bool {
     node* parent{nullptr};
@@ -694,8 +851,19 @@ private:
     return true;
   }
 
-  // Locate the unique_ptr slot that owns n: the root slot, or one of the
-  // parent's child slots.
+  /**
+   * @brief Locates the owning \c unique_ptr slot for node \p n.
+   *
+   * The slot is the root slot when \p n has no parent, otherwise the parent's
+   * left or right child slot.
+   *
+   * @param n Live node whose owning slot is sought.
+   *
+   * @return Pointer to the \c unique_ptr slot that owns \p n.
+   *
+   * @pre \p n is a live node of this tree.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto owning_slot(node* const n) noexcept -> node_ptr* {
     if (n->parent == nullptr) {
       return &m_root;
@@ -703,9 +871,20 @@ private:
     return n == n->parent->left.get() ? &n->parent->left : &n->parent->right;
   }
 
-  // Move v into slot, repointing its parent back-pointer to new_parent. Passing
-  // the parent explicitly lets callers transplant nodes whose previous owner has
-  // already been emptied.
+  /**
+   * @brief Moves \p v into \p slot, repointing its parent back-pointer.
+   *
+   * Passing the parent explicitly lets callers transplant nodes whose previous
+   * owner has already been emptied.
+   *
+   * @param slot Destination child (or root) slot to receive \p v.
+   * @param new_parent Parent to record in \p v's back-pointer, or \c nullptr.
+   * @param v Node to move into \p slot, or \c nullptr.
+   *
+   * @pre None.
+   * @post \p slot owns \p v, and when \p v is non-null its parent is
+   *       \p new_parent.
+   */
   constexpr auto transplant(node_ptr& slot, node* const new_parent, node_ptr v) noexcept -> void {
     if (v != nullptr) {
       v->parent = new_parent;
@@ -713,6 +892,18 @@ private:
     slot = std::move(v);
   }
 
+  /**
+   * @brief Unlinks and destroys node \p z, preserving the search invariant.
+   *
+   * With zero or one child, the single child (or null) is transplanted into
+   * \p z's slot; with two children the in-order successor is spliced into
+   * \p z's place.
+   *
+   * @param z Live node to remove.
+   *
+   * @pre \p z is a live node of this tree.
+   * @post \p z is destroyed and the tree remains a valid search tree.
+   */
   constexpr auto erase_node(node* const z) noexcept -> void {
     auto* const z_parent{z->parent};
     auto& z_slot{*owning_slot(z)};
@@ -754,9 +945,22 @@ private:
     transplant(z_slot, z_parent, std::move(y_owned));
   }
 
-  // Iterative pre-order deep clone over a stack of (source, freshly-made
-  // destination) pairs, so a degenerate n-deep source cannot overflow the stack.
-  // Parent back-pointers are wired as each child is created.
+  /**
+   * @brief Deep-clones the subtree rooted at \p src iteratively.
+   *
+   * Works over a stack of (source, freshly-made destination) pairs, so a
+   * degenerate n-deep source cannot overflow the call stack; parent
+   * back-pointers are wired as each child is created.
+   *
+   * @param src Source subtree root to clone, or \c nullptr.
+   * @param parent Parent to record in the cloned root, or \c nullptr.
+   *
+   * @return Owning pointer to the cloned subtree, or \c nullptr when \p src is
+   *         null.
+   *
+   * @pre None.
+   * @post The returned subtree is an independent copy of \p src.
+   */
   static constexpr auto clone_subtree(node const* const src, node* const parent) noexcept
     -> node_ptr {
     if (src == nullptr) {

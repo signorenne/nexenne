@@ -79,17 +79,33 @@ class trie {
 private:
   using uchar_type = std::make_unsigned_t<Char>;
 
+  /**
+   * @brief Trie node: a value slot plus the child edges keyed by next character.
+   *
+   * Children are owned through \c std::unique_ptr and kept in a \c flat_map keyed
+   * by the next character, so per-node memory scales with live edges, not the
+   * alphabet size.
+   *
+   * @pre None.
+   * @post None.
+   */
   struct node {
     flat_map<uchar_type, std::unique_ptr<node>> children;
     std::optional<Value> value;
 
     constexpr node() noexcept = default;
 
-    // Tear descendants down iteratively. The default recursive unique_ptr
-    // destruction would overflow the stack on a deep trie, whose depth can reach
-    // the longest stored key length. Every teardown path (the trie destructor,
-    // clear, and both assignments) reseats a node unique_ptr and so routes
-    // through here.
+    /**
+     * @brief Tears the subtree rooted at this node down iteratively.
+     *
+     * The default recursive \c unique_ptr destruction would overflow the stack
+     * on a deep trie, whose depth can reach the longest stored key length. Every
+     * teardown path (the trie destructor, \c clear, and both assignments)
+     * reseats a node \c unique_ptr and so routes through here.
+     *
+     * @pre None.
+     * @post Every descendant of this node has been destroyed.
+     */
     constexpr ~node() noexcept {
       std::vector<std::unique_ptr<node>> pending;
       auto detach{[&pending](node& n) noexcept {
@@ -512,11 +528,26 @@ public:
   }
 
 private:
-  // Iterative pre-order DFS. Each frame tracks the next child to descend into and
-  // whether it pushed a path character (the root pushes none), so the key path is
-  // unwound correctly without recursing to the trie depth. Templated on the node
-  // pointer type (node* or node const*) so the const for_each overload propagates
-  // constness to the visited value, which unique_ptr::get does not do on its own.
+  /**
+   * @brief Visits every stored entry under \p root in iterative pre-order DFS.
+   *
+   * Each stack frame tracks the next child to descend into and whether it pushed
+   * a path character (the root pushes none), so the key path unwinds correctly
+   * without recursing to the trie depth. Templated on the node pointer type
+   * (\c node* or \c node const*) so the const \c for_each overload propagates
+   * constness to the visited value, which \c unique_ptr::get does not do on its
+   * own.
+   *
+   * @tparam NodePtr Node pointer type, \c node* or \c node const*.
+   * @tparam Visitor Invokable as \c f(std::span<Char const>, value-ref).
+   * @param root Subtree root to traverse, or \c nullptr.
+   * @param path Scratch buffer accumulating the current key prefix.
+   * @param visit Callback invoked once per stored entry.
+   *
+   * @pre \p visit must not insert into or erase from the trie during traversal.
+   * @post Every stored entry under \p root was passed to \p visit once; \p path
+   *       is restored to its entry value.
+   */
   template <typename NodePtr, typename Visitor>
   static constexpr auto
   for_each_impl(NodePtr const root, std::vector<Char>& path, Visitor& visit) -> void {
@@ -556,9 +587,22 @@ private:
     }
   }
 
+  /**
+   * @brief Whether the subtrees rooted at \p root_a and \p root_b are equal.
+   *
+   * Runs an iterative structural comparison over a stack of node pairs, so a
+   * deep trie cannot overflow the call stack.
+   *
+   * @param root_a First subtree root.
+   * @param root_b Second subtree root.
+   *
+   * @return \c true when both subtrees hold identical values and edges.
+   *
+   * @pre None.
+   * @post None. Neither subtree is modified.
+   */
   static constexpr auto
   nodes_equal(node const* const root_a, node const* const root_b) noexcept -> bool {
-    // Iterative structural comparison over a stack of node pairs to compare.
     std::vector<std::pair<node const*, node const*>> work;
     work.emplace_back(root_a, root_b);
     while (!work.empty()) {
@@ -590,10 +634,22 @@ private:
     return true;
   }
 
-  // Normalize a key argument into something iterable whose elements are the key
-  // tokens. A character array or pointer is treated as a null-terminated string
-  // (the trailing terminator is dropped), so a string literal agrees with the
-  // equivalent std::string_view; every other range is forwarded unchanged.
+  /**
+   * @brief Normalizes a key argument into an iterable range of key tokens.
+   *
+   * A character array or pointer is treated as a null-terminated string (the
+   * trailing terminator is dropped), so a string literal agrees with the
+   * equivalent \c std::string_view; every other range is forwarded unchanged.
+   *
+   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+   *         array treated as a null-terminated string.
+   * @param key Key argument to normalize.
+   *
+   * @return An iterable range yielding the key's tokens.
+   *
+   * @pre None.
+   * @post None.
+   */
   template <typename KeyRange>
   [[nodiscard]] static constexpr auto key_span(KeyRange&& key) noexcept -> decltype(auto) {
     using bare = std::remove_cvref_t<KeyRange>;
@@ -608,6 +664,18 @@ private:
     }
   }
 
+  /**
+   * @brief Follows \p key from the root and returns the node it reaches.
+   *
+   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+   *         array treated as a null-terminated string.
+   * @param key Sequence of characters to follow.
+   *
+   * @return The node reached by \p key, or \c nullptr when the path is absent.
+   *
+   * @pre None.
+   * @post None. The trie is not modified.
+   */
   template <typename KeyRange>
     requires detail::trie_key<KeyRange, Char>
   [[nodiscard]] constexpr auto descend(KeyRange&& key) noexcept -> node* {
@@ -623,6 +691,18 @@ private:
     return cur;
   }
 
+  /**
+   * @brief Follows \p key from the root and returns the const node it reaches.
+   *
+   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+   *         array treated as a null-terminated string.
+   * @param key Sequence of characters to follow.
+   *
+   * @return The node reached by \p key, or \c nullptr when the path is absent.
+   *
+   * @pre None.
+   * @post None. The trie is not modified.
+   */
   template <typename KeyRange>
     requires detail::trie_key<KeyRange, Char>
   [[nodiscard]] constexpr auto descend(KeyRange&& key) const noexcept -> node const* {
@@ -638,13 +718,25 @@ private:
     return cur;
   }
 
+  /**
+   * @brief Deep-clones the subtree rooted at \p src iteratively.
+   *
+   * Runs an iterative pre-order copy over a stack of (source, freshly-made
+   * destination) pairs, so a deep source cannot overflow the call stack.
+   *
+   * @param src Source subtree root to clone, or \c nullptr.
+   *
+   * @return Owning pointer to the cloned subtree, or \c nullptr when \p src is
+   *         null.
+   *
+   * @pre None.
+   * @post The returned subtree is an independent copy of \p src.
+   */
   static constexpr auto clone_subtree(node const* const src) noexcept -> std::unique_ptr<node> {
     if (src == nullptr) {
       return nullptr;
     }
     auto root{std::make_unique<node>()};
-    // Iterative pre-order copy over a stack of (source, freshly-made destination)
-    // pairs, so a deep source cannot overflow the stack.
     std::vector<std::pair<node const*, node*>> work;
     work.emplace_back(src, root.get());
     while (!work.empty()) {

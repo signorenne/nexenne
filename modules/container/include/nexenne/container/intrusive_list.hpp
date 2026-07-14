@@ -63,10 +63,17 @@ private:
 public:
   constexpr intrusive_list_hook() noexcept = default;
 
-  // Debug guard: destroying an element while it is still linked leaves its
-  // neighbours pointing into freed storage and the owning list's size stale, so
-  // the next traversal or erase is undefined. The hook cannot unlink itself (it
-  // cannot reach the owning list's size counter), so it can only assert.
+  /**
+   * @brief Debug-guards against destroying an element still linked into a list.
+   *
+   * Destroying a linked element leaves its neighbours pointing into freed
+   * storage and the owning list's size stale, so the next traversal or erase is
+   * undefined. The hook cannot unlink itself (it cannot reach the owning list's
+   * size counter), so it can only assert.
+   *
+   * @pre The element is unlinked (a checked precondition in debug builds).
+   * @post None.
+   */
   constexpr ~intrusive_list_hook() noexcept {
     assert(!is_linked() && "destroying an element still linked into a list");
   }
@@ -74,15 +81,32 @@ public:
   intrusive_list_hook(intrusive_list_hook const&) = delete;
   auto operator=(intrusive_list_hook const&) -> intrusive_list_hook& = delete;
 
-  // A moved-to hook is left detached: the list stores the source's address, not
-  // the new one, so the moved-to object is in no list. Detach the source from
-  // its list before moving the element, or the list dangles at the old address.
+  /**
+   * @brief Move-constructs a detached hook, ignoring the source's links.
+   *
+   * The moved-to hook is left detached: the list stores the source's address,
+   * not the new one, so the moved-to object is in no list. Detach the source
+   * from its list before moving the element, or the list dangles at the old
+   * address.
+   *
+   * @pre None.
+   * @post The newly constructed hook is unlinked.
+   */
   constexpr intrusive_list_hook(intrusive_list_hook&&) noexcept {}
 
-  // Precondition: the target must not itself be linked. Nulling the links of a
-  // still-linked target severs the ring one hop past it (its neighbours still
-  // route through it into now-null links), which the hook cannot repair because
-  // it cannot decrement the owning list's size. Unlink the target first.
+  /**
+   * @brief Move-assigns a detached hook, ignoring the source's links.
+   *
+   * The target must not itself be linked. Nulling the links of a still-linked
+   * target severs the ring one hop past it (its neighbours still route through
+   * it into now-null links), which the hook cannot repair because it cannot
+   * decrement the owning list's size. Unlink the target first.
+   *
+   * @return Reference to this hook.
+   *
+   * @pre This hook is unlinked (a checked precondition in debug builds).
+   * @post This hook is unlinked.
+   */
   constexpr auto operator=(intrusive_list_hook&&) noexcept -> intrusive_list_hook& {
     assert(!is_linked() && "move-assigning onto an element still linked into a list");
     m_prev = nullptr;
@@ -131,21 +155,52 @@ private:
   mutable hook_type m_sentinel{};
   size_type m_size{0};
 
+  /**
+   * @brief Address of the circular sentinel node.
+   *
+   * @return A non-owning pointer to the sentinel hook.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto sentinel() const noexcept -> hook_type* {
     return std::addressof(m_sentinel);
   }
 
+  /**
+   * @brief Links \p a and \p b as adjacent nodes (\p a before \p b).
+   *
+   * @param a Node to become the predecessor.
+   * @param b Node to become the successor.
+   *
+   * @pre \p a and \p b are non-null hooks.
+   * @post \p a's next is \p b and \p b's prev is \p a.
+   */
   static constexpr auto link(hook_type* const a, hook_type* const b) noexcept -> void {
     a->m_next = b;
     b->m_prev = a;
   }
 
+  /**
+   * @brief Resets the list to empty with the sentinel linked to itself.
+   *
+   * @pre None.
+   * @post The sentinel points at itself and \c size() is zero.
+   */
   constexpr auto init() noexcept -> void {
     m_sentinel.m_prev = sentinel();
     m_sentinel.m_next = sentinel();
     m_size = 0;
   }
 
+  /**
+   * @brief Splices every element out of \p other into this (empty) list.
+   *
+   * @param other Source list, left empty.
+   *
+   * @pre This list is empty.
+   * @post This list holds \p other's former elements and \p other is empty.
+   */
   constexpr auto steal_from(intrusive_list& other) noexcept -> void {
     if (other.empty()) {
       return;
@@ -158,6 +213,14 @@ private:
     other.init();
   }
 
+  /**
+   * @brief Bidirectional iterator over the list's elements.
+   *
+   * @tparam IsConst Whether the iterator yields \c const access to the elements.
+   *
+   * @pre None.
+   * @post A default-constructed iterator is singular.
+   */
   template <bool IsConst>
   class basic_iterator {
   private:
@@ -177,43 +240,120 @@ private:
 
     constexpr basic_iterator() noexcept = default;
 
+    /**
+     * @brief Constructs an iterator positioned at hook \p node.
+     *
+     * @param node Hook to point at (an element hook or the sentinel).
+     *
+     * @pre None.
+     * @post The iterator refers to \p node.
+     */
     explicit constexpr basic_iterator(hook_ptr const node) noexcept : m_node{node} {}
 
+    /**
+     * @brief Converts a mutable iterator to a const iterator.
+     *
+     * @tparam OtherConst Constness of the source iterator; the overload is
+     *         enabled only when converting a mutable iterator into a const one.
+     * @param other Source iterator whose position is copied.
+     *
+     * @pre None.
+     * @post This iterator refers to the same hook as \p other.
+     */
     template <bool OtherConst>
       requires(IsConst && !OtherConst)
     constexpr basic_iterator(basic_iterator<OtherConst> const& other) noexcept
         : m_node{other.m_node} {}
 
+    /**
+     * @brief Accesses the referenced element.
+     *
+     * @return Reference to the current element.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
       return static_cast<reference>(*m_node);
     }
 
+    /**
+     * @brief Accesses a member of the referenced element.
+     *
+     * @return Pointer to the current element.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
       return static_cast<pointer>(m_node);
     }
 
+    /**
+     * @brief Advances to the next element.
+     *
+     * @return Reference to this iterator after advancing.
+     *
+     * @pre The iterator is not \c end().
+     * @post The iterator refers to the next element or to \c end().
+     */
     constexpr auto operator++() noexcept -> basic_iterator& {
       m_node = m_node->m_next;
       return *this;
     }
 
+    /**
+     * @brief Advances to the next element, returning the prior position.
+     *
+     * @return A copy of the iterator as it was before advancing.
+     *
+     * @pre The iterator is not \c end().
+     * @post The iterator refers to the next element or to \c end().
+     */
     constexpr auto operator++(int) noexcept -> basic_iterator {
       auto const copy{*this};
       ++*this;
       return copy;
     }
 
+    /**
+     * @brief Retreats to the previous element.
+     *
+     * @return Reference to this iterator after retreating.
+     *
+     * @pre The iterator is not \c begin().
+     * @post The iterator refers to the previous element.
+     */
     constexpr auto operator--() noexcept -> basic_iterator& {
       m_node = m_node->m_prev;
       return *this;
     }
 
+    /**
+     * @brief Retreats to the previous element, returning the prior position.
+     *
+     * @return A copy of the iterator as it was before retreating.
+     *
+     * @pre The iterator is not \c begin().
+     * @post The iterator refers to the previous element.
+     */
     constexpr auto operator--(int) noexcept -> basic_iterator {
       auto const copy{*this};
       --*this;
       return copy;
     }
 
+    /**
+     * @brief Whether \p a and \p b refer to the same hook.
+     *
+     * @param a First iterator.
+     * @param b Second iterator.
+     *
+     * @return \c true when both refer to the same hook.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
       return a.m_node == b.m_node;
@@ -553,50 +693,148 @@ public:
     return empty() ? nullptr : static_cast<T const*>(m_sentinel.m_prev);
   }
 
+  /**
+   * @brief Iterator to the first element.
+   *
+   * @return An iterator to the front element, or \c end() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto begin() noexcept -> iterator {
     return iterator{m_sentinel.m_next};
   }
 
+  /**
+   * @brief Iterator one past the last element.
+   *
+   * @return A past-the-end iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto end() noexcept -> iterator {
     return iterator{sentinel()};
   }
 
+  /**
+   * @brief Const iterator to the first element.
+   *
+   * @return A const iterator to the front element, or \c end() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto begin() const noexcept -> const_iterator {
     return const_iterator{m_sentinel.m_next};
   }
 
+  /**
+   * @brief Const iterator one past the last element.
+   *
+   * @return A past-the-end const iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto end() const noexcept -> const_iterator {
     return const_iterator{sentinel()};
   }
 
+  /**
+   * @brief Const iterator to the first element.
+   *
+   * @return A const iterator to the front element, or \c cend() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto cbegin() const noexcept -> const_iterator {
     return begin();
   }
 
+  /**
+   * @brief Const iterator one past the last element.
+   *
+   * @return A past-the-end const iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto cend() const noexcept -> const_iterator {
     return end();
   }
 
+  /**
+   * @brief Reverse iterator to the last element.
+   *
+   * @return A reverse iterator to the back element, or \c rend() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto rbegin() noexcept -> reverse_iterator {
     return reverse_iterator{end()};
   }
 
+  /**
+   * @brief Reverse iterator one before the first element.
+   *
+   * @return A past-the-end reverse iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto rend() noexcept -> reverse_iterator {
     return reverse_iterator{begin()};
   }
 
+  /**
+   * @brief Const reverse iterator to the last element.
+   *
+   * @return A const reverse iterator to the back element, or \c rend() when
+   *         empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto rbegin() const noexcept -> const_reverse_iterator {
     return const_reverse_iterator{end()};
   }
 
+  /**
+   * @brief Const reverse iterator one before the first element.
+   *
+   * @return A past-the-end const reverse iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto rend() const noexcept -> const_reverse_iterator {
     return const_reverse_iterator{begin()};
   }
 
+  /**
+   * @brief Const reverse iterator to the last element.
+   *
+   * @return A const reverse iterator to the back element, or \c crend() when
+   *         empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto crbegin() const noexcept -> const_reverse_iterator {
     return rbegin();
   }
 
+  /**
+   * @brief Const reverse iterator one before the first element.
+   *
+   * @return A past-the-end const reverse iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto crend() const noexcept -> const_reverse_iterator {
     return rend();
   }
