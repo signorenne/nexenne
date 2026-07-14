@@ -70,17 +70,49 @@ private:
       unsigned char none;
       T value;
 
+      /**
+       * @brief Constructs an inactive slot that holds no \c T.
+       *
+       * @pre None.
+       * @post The slot holds no live element.
+       */
       constexpr slot() noexcept : none{} {}
 
+      /**
+       * @brief Trivially destroys the slot; a live \c T is destroyed by hand.
+       *
+       * @pre None.
+       * @post None.
+       */
       constexpr ~slot() noexcept {}
     };
 
     std::array<slot, ChunkSize> storage{};
 
+    /**
+     * @brief Pointer to the \c T storage of slot \p index in this chunk.
+     *
+     * @param index Slot index within the chunk.
+     *
+     * @return Pointer to the element storage at \p index.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] auto at(size_type const index) noexcept -> T* {
       return std::addressof(storage[index].value);
     }
 
+    /**
+     * @brief Const pointer to the \c T storage of slot \p index in this chunk.
+     *
+     * @param index Slot index within the chunk.
+     *
+     * @return Const pointer to the element storage at \p index.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] auto at(size_type const index) const noexcept -> T const* {
       return std::addressof(storage[index].value);
     }
@@ -89,15 +121,50 @@ private:
   std::vector<std::unique_ptr<chunk>> m_chunks;
   size_type m_size{};
 
-  // ChunkSize is a power of two, so these compile to a shift and a mask.
+  /**
+   * @brief The chunk index that holds logical element \p index.
+   *
+   * \c ChunkSize is a power of two, so this reduces to a right shift.
+   *
+   * @param index Logical element index.
+   *
+   * @return The index of the owning chunk in \c m_chunks.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto chunk_of(size_type const index) noexcept -> size_type {
     return index / ChunkSize;
   }
 
+  /**
+   * @brief The slot offset of logical element \p index within its chunk.
+   *
+   * \c ChunkSize is a power of two, so this reduces to a bitwise mask.
+   *
+   * @param index Logical element index.
+   *
+   * @return The offset of the element inside its chunk.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto slot_of(size_type const index) noexcept -> size_type {
     return index % ChunkSize;
   }
 
+  /**
+   * @brief Ensures storage exists for at least \p desired elements.
+   *
+   * Allocates fresh chunks until the chunk vector covers \p desired slots; an
+   * already-sufficient request adds nothing. An unsatisfiable chunk count fails
+   * loudly rather than wrapping to a silent no-op.
+   *
+   * @param desired Minimum element count to back with allocated chunks.
+   *
+   * @pre None.
+   * @post \c capacity() is at least \p desired, or the process terminated.
+   */
   auto ensure_capacity(size_type const desired) noexcept -> void {
     // Compute ceil(desired / ChunkSize) without the additive round-up, which
     // would wrap for desired near SIZE_MAX and make reserve(huge) a silent
@@ -110,12 +177,32 @@ private:
     }
   }
 
+  /**
+   * @brief Destroys every live element without touching the chunk vector.
+   *
+   * @pre None.
+   * @post All \c size() elements are destroyed; the chunks stay allocated and
+   *       \c m_size is left for the caller to reset.
+   */
   auto destroy_all() noexcept -> void {
     for (size_type i{0}; i < m_size; ++i) {
       std::destroy_at(m_chunks[chunk_of(i)]->at(slot_of(i)));
     }
   }
 
+  /**
+   * @brief Random-access iterator over the logical element sequence.
+   *
+   * Holds the owning vector plus a logical position rather than a raw element
+   * pointer, so increments walk across chunk boundaries transparently. The
+   * \c IsConst parameter selects the const or mutable reference and pointer
+   * types, and a mutable iterator converts implicitly to its const twin.
+   *
+   * @tparam IsConst Whether the iterator yields \c const access to elements.
+   *
+   * @pre None.
+   * @post A default-constructed iterator is singular.
+   */
   template <bool IsConst>
   class basic_iterator {
   public:
@@ -131,92 +218,271 @@ private:
     owner_ptr m_owner{nullptr};
     size_type m_pos{0};
 
+    /**
+     * @brief Pointer to the element at logical position \p pos.
+     *
+     * @param pos Logical element position within the owning vector.
+     *
+     * @return Pointer to the element storage at \p pos.
+     *
+     * @pre \p pos is a valid position in the owning vector.
+     * @post None.
+     */
     [[nodiscard]] constexpr auto element(size_type const pos) const noexcept -> pointer {
       return m_owner->m_chunks[chunk_of(pos)]->at(slot_of(pos));
     }
 
   public:
+    /**
+     * @brief Constructs a singular iterator with no owner.
+     *
+     * @pre None.
+     * @post The iterator is singular and not dereferenceable.
+     */
     constexpr basic_iterator() noexcept = default;
 
+    /**
+     * @brief Constructs an iterator over \p owner at logical position \p pos.
+     *
+     * @param owner Owning vector the iterator walks.
+     * @param pos Initial logical position.
+     *
+     * @pre None.
+     * @post The iterator refers to \p owner at position \p pos.
+     */
     constexpr basic_iterator(owner_ptr owner, size_type const pos) noexcept
         : m_owner{owner}, m_pos{pos} {}
 
+    /**
+     * @brief Converts a mutable iterator to a const iterator.
+     *
+     * @tparam OtherConst Constness of the source iterator; the overload is
+     *                    constrained to the mutable to const direction only.
+     * @param other Source iterator to copy the owner and position from.
+     *
+     * @pre None.
+     * @post This iterator refers to the same owner and position as \p other.
+     */
     template <bool OtherConst>
       requires(IsConst && !OtherConst)
     constexpr basic_iterator(basic_iterator<OtherConst> const& other) noexcept
         : m_owner{other.m_owner}, m_pos{other.m_pos} {}
 
+    /**
+     * @brief Accesses the element at the current position.
+     *
+     * @return Reference to the current element.
+     *
+     * @pre The iterator is dereferenceable (not the past-the-end position).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
       return *element(m_pos);
     }
 
+    /**
+     * @brief Member access on the element at the current position.
+     *
+     * @return Pointer to the current element.
+     *
+     * @pre The iterator is dereferenceable (not the past-the-end position).
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
       return element(m_pos);
     }
 
+    /**
+     * @brief Accesses the element \p n positions from the current one.
+     *
+     * @param n Signed offset from the current position.
+     *
+     * @return Reference to the element at the offset position.
+     *
+     * @pre The offset position is dereferenceable.
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator[](difference_type const n) const noexcept -> reference {
       return *element(static_cast<size_type>(static_cast<difference_type>(m_pos) + n));
     }
 
+    /**
+     * @brief Advances to the next element.
+     *
+     * @return Reference to \c *this after advancing.
+     *
+     * @pre None.
+     * @post The position advanced by one.
+     */
     constexpr auto operator++() noexcept -> basic_iterator& {
       ++m_pos;
       return *this;
     }
 
+    /**
+     * @brief Steps back to the previous element.
+     *
+     * @return Reference to \c *this after stepping back.
+     *
+     * @pre None.
+     * @post The position decreased by one.
+     */
     constexpr auto operator--() noexcept -> basic_iterator& {
       --m_pos;
       return *this;
     }
 
+    /**
+     * @brief Advances to the next element, returning the prior value.
+     *
+     * @return A copy of the iterator before advancing.
+     *
+     * @pre None.
+     * @post The position advanced by one.
+     */
     constexpr auto operator++(int) noexcept -> basic_iterator {
       auto previous{*this};
       ++m_pos;
       return previous;
     }
 
+    /**
+     * @brief Steps back to the previous element, returning the prior value.
+     *
+     * @return A copy of the iterator before stepping back.
+     *
+     * @pre None.
+     * @post The position decreased by one.
+     */
     constexpr auto operator--(int) noexcept -> basic_iterator {
       auto previous{*this};
       --m_pos;
       return previous;
     }
 
+    /**
+     * @brief Advances the iterator by \p n positions.
+     *
+     * @param n Signed number of positions to advance.
+     *
+     * @return Reference to \c *this after the shift.
+     *
+     * @pre None.
+     * @post The position moved by \p n.
+     */
     constexpr auto operator+=(difference_type const n) noexcept -> basic_iterator& {
       m_pos = static_cast<size_type>(static_cast<difference_type>(m_pos) + n);
       return *this;
     }
 
+    /**
+     * @brief Moves the iterator back by \p n positions.
+     *
+     * @param n Signed number of positions to move back.
+     *
+     * @return Reference to \c *this after the shift.
+     *
+     * @pre None.
+     * @post The position moved by \c -n.
+     */
     constexpr auto operator-=(difference_type const n) noexcept -> basic_iterator& {
       return *this += -n;
     }
 
+    /**
+     * @brief Returns \p it advanced by \p n positions.
+     *
+     * @param it Iterator to offset.
+     * @param n Signed number of positions to advance.
+     *
+     * @return The advanced iterator.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator+(basic_iterator it, difference_type const n) noexcept -> basic_iterator {
       it += n;
       return it;
     }
 
+    /**
+     * @brief Returns \p it advanced by \p n positions.
+     *
+     * @param n Signed number of positions to advance.
+     * @param it Iterator to offset.
+     *
+     * @return The advanced iterator.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator+(difference_type const n, basic_iterator it) noexcept -> basic_iterator {
       it += n;
       return it;
     }
 
+    /**
+     * @brief Returns \p it moved back by \p n positions.
+     *
+     * @param it Iterator to offset.
+     * @param n Signed number of positions to move back.
+     *
+     * @return The moved iterator.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator-(basic_iterator it, difference_type const n) noexcept -> basic_iterator {
       it -= n;
       return it;
     }
 
+    /**
+     * @brief The signed distance from \p b to \p a.
+     *
+     * @param a Left iterator.
+     * @param b Right iterator.
+     *
+     * @return The number of positions from \p b to \p a.
+     *
+     * @pre \p a and \p b refer to the same owning vector.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator-(basic_iterator const& a, basic_iterator const& b) noexcept -> difference_type {
       return static_cast<difference_type>(a.m_pos) - static_cast<difference_type>(b.m_pos);
     }
 
+    /**
+     * @brief Equality: same logical position.
+     *
+     * @param a Left iterator.
+     * @param b Right iterator.
+     *
+     * @return \c true when both hold the same position.
+     *
+     * @pre \p a and \p b refer to the same owning vector.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
       return a.m_pos == b.m_pos;
     }
 
+    /**
+     * @brief Orders two iterators by logical position.
+     *
+     * @param a Left iterator.
+     * @param b Right iterator.
+     *
+     * @return The ordering of the two positions.
+     *
+     * @pre \p a and \p b refer to the same owning vector.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator<=>(basic_iterator const& a, basic_iterator const& b) noexcept {
       return a.m_pos <=> b.m_pos;
@@ -306,6 +572,12 @@ public:
     return *this;
   }
 
+  /**
+   * @brief Destroys every element and releases the chunk storage.
+   *
+   * @pre None.
+   * @post All elements are destroyed and every chunk is freed.
+   */
   ~stable_vector() noexcept {
     destroy_all();
   }
@@ -510,7 +782,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto pop_back() noexcept -> result<void> {
+  [[nodiscard]] auto pop_back() noexcept -> result<void> {
     if (m_size == 0) {
       return std::unexpected{container_error::empty};
     }
@@ -611,50 +883,90 @@ public:
     return m_size == 0 ? nullptr : m_chunks[chunk_of(m_size - 1)]->at(slot_of(m_size - 1));
   }
 
+  /**
+   * @brief Iterator to the first element.
+   *
+   * @return Iterator to the first element, or \c end() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto begin() noexcept -> iterator {
     return iterator{this, 0};
   }
 
+  /**
+   * @brief Iterator one past the last element.
+   *
+   * @return The past-the-end iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto end() noexcept -> iterator {
     return iterator{this, m_size};
   }
 
+  /// @copydoc begin()
   [[nodiscard]] auto begin() const noexcept -> const_iterator {
     return const_iterator{this, 0};
   }
 
+  /// @copydoc end()
   [[nodiscard]] auto end() const noexcept -> const_iterator {
     return const_iterator{this, m_size};
   }
 
+  /// @copydoc begin()
   [[nodiscard]] auto cbegin() const noexcept -> const_iterator {
     return begin();
   }
 
+  /// @copydoc end()
   [[nodiscard]] auto cend() const noexcept -> const_iterator {
     return end();
   }
 
+  /**
+   * @brief Reverse iterator to the last element.
+   *
+   * @return Reverse iterator to the last element, or \c rend() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto rbegin() noexcept -> reverse_iterator {
     return reverse_iterator{end()};
   }
 
+  /**
+   * @brief Reverse iterator one before the first element.
+   *
+   * @return The past-the-end reverse iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto rend() noexcept -> reverse_iterator {
     return reverse_iterator{begin()};
   }
 
+  /// @copydoc rbegin()
   [[nodiscard]] auto rbegin() const noexcept -> const_reverse_iterator {
     return const_reverse_iterator{end()};
   }
 
+  /// @copydoc rend()
   [[nodiscard]] auto rend() const noexcept -> const_reverse_iterator {
     return const_reverse_iterator{begin()};
   }
 
+  /// @copydoc rbegin()
   [[nodiscard]] auto crbegin() const noexcept -> const_reverse_iterator {
     return rbegin();
   }
 
+  /// @copydoc rend()
   [[nodiscard]] auto crend() const noexcept -> const_reverse_iterator {
     return rend();
   }

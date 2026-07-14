@@ -69,8 +69,20 @@ private:
     unsigned char none;
     T value;
 
+    /**
+     * @brief Constructs an inactive slot that holds no \c T.
+     *
+     * @pre None.
+     * @post The slot holds no live element.
+     */
     constexpr slot() noexcept : none{} {}
 
+    /**
+     * @brief Trivially destroys the slot; a live \c T is destroyed by hand.
+     *
+     * @pre None.
+     * @post None.
+     */
     constexpr ~slot() noexcept {}
   };
 
@@ -84,10 +96,30 @@ private:
   std::array<slot, N> m_slots{};
   size_type m_size{};
 
+  /**
+   * @brief Pointer to the \c T storage of slot \p index.
+   *
+   * @param index Slot index.
+   *
+   * @return Pointer to the element storage at \p index.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto slot_at(size_type const index) noexcept -> T* {
     return std::addressof(m_slots[index].value);
   }
 
+  /**
+   * @brief Const pointer to the \c T storage of slot \p index.
+   *
+   * @param index Slot index.
+   *
+   * @return Const pointer to the element storage at \p index.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto slot_at(size_type const index) const noexcept -> T const* {
     return std::addressof(m_slots[index].value);
   }
@@ -173,6 +205,12 @@ public:
     return *this;
   }
 
+  /**
+   * @brief Destroys every element.
+   *
+   * @pre None.
+   * @post All elements are destroyed.
+   */
   constexpr ~static_vector() noexcept {
     clear();
   }
@@ -310,7 +348,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto push_back(T const& value) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto push_back(T const& value) noexcept -> result<void> {
     return emplace_back(value);
   }
 
@@ -327,7 +365,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto push_back(T&& value) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto push_back(T&& value) noexcept -> result<void> {
     return emplace_back(std::move(value));
   }
 
@@ -346,7 +384,7 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  constexpr auto emplace_back(Args&&... args) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto emplace_back(Args&&... args) noexcept -> result<void> {
     if (m_size == N) {
       return std::unexpected{container_error::full};
     }
@@ -366,7 +404,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto pop_back() noexcept -> result<void> {
+  [[nodiscard]] constexpr auto pop_back() noexcept -> result<void> {
     if (m_size == 0) {
       return std::unexpected{container_error::empty};
     }
@@ -535,50 +573,90 @@ public:
     return std::span<T const>{data(), m_size};
   }
 
+  /**
+   * @brief Iterator to the first element.
+   *
+   * @return Iterator to the first element, or \c end() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto begin() noexcept -> iterator {
     return data();
   }
 
+  /**
+   * @brief Iterator one past the last element.
+   *
+   * @return The past-the-end iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto end() noexcept -> iterator {
     return data() + m_size;
   }
 
+  /// @copydoc begin()
   [[nodiscard]] auto begin() const noexcept -> const_iterator {
     return data();
   }
 
+  /// @copydoc end()
   [[nodiscard]] auto end() const noexcept -> const_iterator {
     return data() + m_size;
   }
 
+  /// @copydoc begin()
   [[nodiscard]] auto cbegin() const noexcept -> const_iterator {
     return begin();
   }
 
+  /// @copydoc end()
   [[nodiscard]] auto cend() const noexcept -> const_iterator {
     return end();
   }
 
+  /**
+   * @brief Reverse iterator to the last element.
+   *
+   * @return Reverse iterator to the last element, or \c rend() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto rbegin() noexcept -> reverse_iterator {
     return reverse_iterator{end()};
   }
 
+  /**
+   * @brief Reverse iterator one before the first element.
+   *
+   * @return The past-the-end reverse iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto rend() noexcept -> reverse_iterator {
     return reverse_iterator{begin()};
   }
 
+  /// @copydoc rbegin()
   [[nodiscard]] auto rbegin() const noexcept -> const_reverse_iterator {
     return const_reverse_iterator{end()};
   }
 
+  /// @copydoc rend()
   [[nodiscard]] auto rend() const noexcept -> const_reverse_iterator {
     return const_reverse_iterator{begin()};
   }
 
+  /// @copydoc rbegin()
   [[nodiscard]] auto crbegin() const noexcept -> const_reverse_iterator {
     return rbegin();
   }
 
+  /// @copydoc rend()
   [[nodiscard]] auto crend() const noexcept -> const_reverse_iterator {
     return rend();
   }

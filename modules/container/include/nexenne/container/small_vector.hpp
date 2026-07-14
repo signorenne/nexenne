@@ -71,21 +71,55 @@ private:
   size_type m_size{};
   size_type m_capacity{N};
 
+  /**
+   * @brief Pointer to the inline buffer reinterpreted as \c T storage.
+   *
+   * @return Pointer to the first inline slot.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto inline_storage() noexcept -> T* {
     return reinterpret_cast<T*>(m_inline.data());
   }
 
+  /**
+   * @brief Reports whether the elements currently live in the inline buffer.
+   *
+   * @return \c true when \c m_data points at the inline storage.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto inlined() const noexcept -> bool {
     return m_data == reinterpret_cast<T const*>(m_inline.data());
   }
 
+  /**
+   * @brief Releases the heap block when the elements are not inlined.
+   *
+   * @pre None.
+   * @post Any heap allocation is freed; \c m_data is left dangling for the
+   *       caller to reset.
+   */
   auto deallocate_if_heap() noexcept -> void {
     if (!inlined()) {
       ::operator delete(m_data, m_capacity * sizeof(T), std::align_val_t{alignof(T)});
     }
   }
 
-  // Grows capacity to at least new_capacity, migrating inline to heap as needed.
+  /**
+   * @brief Grows capacity to at least \p new_capacity, migrating to the heap.
+   *
+   * Migrates the elements from inline to heap storage as needed; a request at or
+   * below the current capacity is a no-op. An unsatisfiable request, whose byte
+   * count would overflow the allocation size, terminates.
+   *
+   * @param new_capacity Minimum capacity to grow to.
+   *
+   * @pre None.
+   * @post \c capacity() is at least \p new_capacity, or the process terminated.
+   */
   auto grow_to(size_type const new_capacity) noexcept -> void {
     if (new_capacity <= m_capacity) {
       return;
@@ -108,9 +142,18 @@ private:
     m_capacity = new_capacity;
   }
 
-  // The next capacity for a one-past-full growth: double, but clamp to
-  // max_size() so the doubling cannot itself overflow size_type (which would
-  // wrap to a value <= m_capacity and turn the grow into a silent no-op).
+  /**
+   * @brief The next capacity for a one-past-full growth.
+   *
+   * Doubles the current capacity, clamped to \c max_size() so the doubling
+   * cannot overflow \c size_type and wrap to a value at or below the current
+   * capacity, which would turn the grow into a silent no-op.
+   *
+   * @return The capacity to grow to on the next push.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto next_capacity() const noexcept -> size_type {
     if (m_capacity == 0) {
       return size_type{1};
@@ -118,8 +161,18 @@ private:
     return m_capacity > max_size() / 2 ? max_size() : m_capacity * 2;
   }
 
-  // Takes ownership of other's elements into a freshly-reset *this (m_data is
-  // inline storage, m_size is zero): steals the heap block, or moves inline.
+  /**
+   * @brief Takes ownership of \p other's elements into a freshly-reset \c *this.
+   *
+   * Assumes \c *this holds no elements and points at inline storage: steals
+   * \p other's heap block when it has one, otherwise move-constructs its inline
+   * elements.
+   *
+   * @param other Source vector, left empty with inline storage.
+   *
+   * @pre \c *this is empty with \c m_data pointing at inline storage.
+   * @post \c *this holds \p other's former elements; \p other is empty.
+   */
   auto adopt(small_vector&& other) noexcept -> void {
     if (other.inlined()) {
       for (size_type i{0}; i < other.m_size; ++i) {
@@ -563,7 +616,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto pop_back() noexcept -> result<void> {
+  [[nodiscard]] auto pop_back() noexcept -> result<void> {
     if (m_size == 0) {
       return std::unexpected{container_error::empty};
     }
@@ -701,50 +754,90 @@ public:
     return std::span<T const>{m_data, m_size};
   }
 
+  /**
+   * @brief Iterator to the first element.
+   *
+   * @return Iterator to the first element, or \c end() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto begin() noexcept -> iterator {
     return m_data;
   }
 
+  /**
+   * @brief Iterator one past the last element.
+   *
+   * @return The past-the-end iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto end() noexcept -> iterator {
     return m_data + m_size;
   }
 
+  /// @copydoc begin()
   [[nodiscard]] auto begin() const noexcept -> const_iterator {
     return m_data;
   }
 
+  /// @copydoc end()
   [[nodiscard]] auto end() const noexcept -> const_iterator {
     return m_data + m_size;
   }
 
+  /// @copydoc begin()
   [[nodiscard]] auto cbegin() const noexcept -> const_iterator {
     return begin();
   }
 
+  /// @copydoc end()
   [[nodiscard]] auto cend() const noexcept -> const_iterator {
     return end();
   }
 
+  /**
+   * @brief Reverse iterator to the last element.
+   *
+   * @return Reverse iterator to the last element, or \c rend() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto rbegin() noexcept -> reverse_iterator {
     return reverse_iterator{end()};
   }
 
+  /**
+   * @brief Reverse iterator one before the first element.
+   *
+   * @return The past-the-end reverse iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto rend() noexcept -> reverse_iterator {
     return reverse_iterator{begin()};
   }
 
+  /// @copydoc rbegin()
   [[nodiscard]] auto rbegin() const noexcept -> const_reverse_iterator {
     return const_reverse_iterator{end()};
   }
 
+  /// @copydoc rend()
   [[nodiscard]] auto rend() const noexcept -> const_reverse_iterator {
     return const_reverse_iterator{begin()};
   }
 
+  /// @copydoc rbegin()
   [[nodiscard]] auto crbegin() const noexcept -> const_reverse_iterator {
     return rbegin();
   }
 
+  /// @copydoc rend()
   [[nodiscard]] auto crend() const noexcept -> const_reverse_iterator {
     return rend();
   }
