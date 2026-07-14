@@ -19,13 +19,13 @@ using namespace std::string_literals;
 
 TEST_CASE("nexenne::container::hash static_vector equal vectors hash equal") {
   cn::static_vector<int, 8> a;
-  a.push_back(1);
-  a.push_back(2);
-  a.push_back(3);
+  nexenne::utility::discard(a.push_back(1));
+  nexenne::utility::discard(a.push_back(2));
+  nexenne::utility::discard(a.push_back(3));
   cn::static_vector<int, 8> b{a};
   cn::static_vector<int, 8> c;
-  c.push_back(1);
-  c.push_back(2);
+  nexenne::utility::discard(c.push_back(1));
+  nexenne::utility::discard(c.push_back(2));
 
   std::hash<cn::static_vector<int, 8>> const h;
   CHECK(h(a) == h(b));  // equal contents hash equal
@@ -54,8 +54,8 @@ TEST_CASE("nexenne::container::hash small_vector works as a map key") {
 
 TEST_CASE("nexenne::container::hash static_vector is deterministic and handles empty") {
   cn::static_vector<int, 8> v;
-  v.push_back(10);
-  v.push_back(20);
+  nexenne::utility::discard(v.push_back(10));
+  nexenne::utility::discard(v.push_back(20));
   std::hash<cn::static_vector<int, 8>> const h;
   CHECK(h(v) == h(v));  // same object hashes identically every call
 
@@ -65,11 +65,11 @@ TEST_CASE("nexenne::container::hash static_vector is deterministic and handles e
 
   // Order matters for a sequence hash: [1,2] should not collide with [2,1].
   cn::static_vector<int, 8> ab;
-  ab.push_back(1);
-  ab.push_back(2);
+  nexenne::utility::discard(ab.push_back(1));
+  nexenne::utility::discard(ab.push_back(2));
   cn::static_vector<int, 8> ba;
-  ba.push_back(2);
-  ba.push_back(1);
+  nexenne::utility::discard(ba.push_back(2));
+  nexenne::utility::discard(ba.push_back(1));
   CHECK(ab != ba);
   CHECK(h(ab) != h(ba));
 }
@@ -100,18 +100,18 @@ TEST_CASE("nexenne::container::hash stable_vector equal vectors hash equal") {
 
 TEST_CASE("nexenne::container::hash bitset_dynamic equal bitsets hash equal") {
   cn::bitset_dynamic a(10);
-  a.set(2);
-  a.set(7);
+  nexenne::utility::discard(a.set(2));
+  nexenne::utility::discard(a.set(7));
   cn::bitset_dynamic b(10);
-  b.set(7);
-  b.set(2);  // set in a different order, same bits
+  nexenne::utility::discard(b.set(7));
+  nexenne::utility::discard(b.set(2));  // set in a different order, same bits
   std::hash<cn::bitset_dynamic> const h;
   CHECK(a == b);
   CHECK(h(a) == h(b));
 
   cn::bitset_dynamic different(10);
-  different.set(2);
-  different.set(8);  // 8 instead of 7
+  nexenne::utility::discard(different.set(2));
+  nexenne::utility::discard(different.set(8));  // 8 instead of 7
   CHECK(a != different);
   CHECK(h(a) != h(different));  // different bits, almost certainly differs
 
@@ -121,9 +121,9 @@ TEST_CASE("nexenne::container::hash bitset_dynamic equal bitsets hash equal") {
 
   // Same bits but different declared size must not collide (size is folded in).
   cn::bitset_dynamic small(4);
-  small.set(1);
+  nexenne::utility::discard(small.set(1));
   cn::bitset_dynamic large(64);
-  large.set(1);
+  nexenne::utility::discard(large.set(1));
   CHECK(small != large);
   CHECK(h(small) != h(large));
 }

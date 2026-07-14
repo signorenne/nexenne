@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <nexenne/container/static_vector.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace {
 
@@ -26,14 +27,14 @@ static_assert(cn::static_vector<int, 0>::capacity() == 0);  // N==0 instantiates
 // access, and compare all at compile time.
 static_assert([] {
   vec v;
-  v.push_back(1);
-  v.emplace_back(2);
-  v.push_back(3);
+  nexenne::utility::discard(v.push_back(1));
+  nexenne::utility::discard(v.emplace_back(2));
+  nexenne::utility::discard(v.push_back(3));
   return v.size() == 3 && v[0] == 1 && v[2] == 3 && !v.full();
 }());
 static_assert([] {
   vec v{1, 2, 3};
-  v.pop_back();
+  nexenne::utility::discard(v.pop_back());
   return v.size() == 2 && *v.back() == 2;
 }());
 static_assert([] {
@@ -78,8 +79,8 @@ static_assert([] {
 // Self-aliasing push_back/emplace_back keep a valid value at compile time.
 static_assert([] {
   vec v{1, 2};
-  v.push_back(v[0]);
-  v.emplace_back(*v.front());
+  nexenne::utility::discard(v.push_back(v[0]));
+  nexenne::utility::discard(v.emplace_back(*v.front()));
   return v.size() == 4 && v[2] == 1 && v[3] == 1;
 }());
 
@@ -94,10 +95,10 @@ static_assert([] {
 // A move-only element type is fully usable in a constant expression in C++23.
 static_assert([] {
   cn::static_vector<std::unique_ptr<int>, 3> v;
-  v.emplace_back(std::make_unique<int>(7));
-  v.push_back(std::make_unique<int>(8));
+  nexenne::utility::discard(v.emplace_back(std::make_unique<int>(7)));
+  nexenne::utility::discard(v.push_back(std::make_unique<int>(8)));
   auto const ok{*v[0] == 7 && *v[1] == 8 && v.size() == 2};
-  v.pop_back();
+  nexenne::utility::discard(v.pop_back());
   return ok && v.size() == 1;
 }());
 
@@ -211,12 +212,12 @@ TEST_CASE("nexenne::container::static_vector destroys its elements") {
   auto tracker{std::make_shared<int>(0)};
   {
     cn::static_vector<std::shared_ptr<int>, 4> v;
-    v.push_back(tracker);
-    v.push_back(tracker);
+    nexenne::utility::discard(v.push_back(tracker));
+    nexenne::utility::discard(v.push_back(tracker));
     CHECK(tracker.use_count() == 3);  // tracker + two stored copies
     v.clear();
     CHECK(tracker.use_count() == 1);  // clear destroyed both
-    v.push_back(tracker);
+    nexenne::utility::discard(v.push_back(tracker));
   }
   CHECK(tracker.use_count() == 1);  // destructor destroyed the last
 }
@@ -374,7 +375,7 @@ TEST_CASE("nexenne::container::static_vector const accessors and iterators") {
 
 TEST_CASE("nexenne::container::static_vector data and span over live range only") {
   vec v{1, 2, 3, 4};
-  v.pop_back();
+  nexenne::utility::discard(v.pop_back());
   CHECK(v.span().size() == 3);  // span covers size(), not capacity
   v.span()[0] = 100;            // writes through the span
   CHECK(v[0] == 100);
@@ -444,11 +445,11 @@ TEST_CASE("nexenne::container::static_vector holds a non-trivial std::string ele
 
 TEST_CASE("nexenne::container::static_vector move-only element supports move-assign and swap") {
   cn::static_vector<std::unique_ptr<int>, 3> a;
-  a.emplace_back(std::make_unique<int>(1));
-  a.emplace_back(std::make_unique<int>(2));
+  nexenne::utility::discard(a.emplace_back(std::make_unique<int>(1)));
+  nexenne::utility::discard(a.emplace_back(std::make_unique<int>(2)));
 
   cn::static_vector<std::unique_ptr<int>, 3> b;
-  b.emplace_back(std::make_unique<int>(9));
+  nexenne::utility::discard(b.emplace_back(std::make_unique<int>(9)));
 
   a.swap(b);
   CHECK(a.size() == 1);

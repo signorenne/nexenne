@@ -19,9 +19,9 @@ using namespace std::string_literals;
 
 TEST_CASE("nexenne::container::format sequence containers print as [a, b, c]") {
   cn::static_vector<int, 8> v;
-  v.push_back(1);
-  v.push_back(2);
-  v.push_back(3);
+  nexenne::utility::discard(v.push_back(1));
+  nexenne::utility::discard(v.push_back(2));
+  nexenne::utility::discard(v.push_back(3));
   CHECK(cn::to_string(v) == "static_vector[1, 2, 3]");
   CHECK(std::format("{}", v) == "static_vector[1, 2, 3]");  // std::formatter path
 
@@ -31,7 +31,7 @@ TEST_CASE("nexenne::container::format sequence containers print as [a, b, c]") {
 
 TEST_CASE("nexenne::container::format operator<< streams the same text") {
   cn::static_vector<int, 4> v;
-  v.push_back(7);
+  nexenne::utility::discard(v.push_back(7));
   std::ostringstream os;
   os << v;
   CHECK(os.str() == "static_vector[7]");
@@ -39,8 +39,8 @@ TEST_CASE("nexenne::container::format operator<< streams the same text") {
 
 TEST_CASE("nexenne::container::format bitset prints MSB-first binary") {
   cn::bitset_dynamic b(4);
-  b.set(0);  // least significant
-  b.set(3);  // most significant
+  nexenne::utility::discard(b.set(0));  // least significant
+  nexenne::utility::discard(b.set(3));  // most significant
   // bits printed MSB..LSB: bit3=1, bit2=0, bit1=0, bit0=1 -> 1001
   CHECK(cn::to_string(b) == "bitset_dynamic(size=4, bits=0b1001)");
 }
@@ -222,12 +222,12 @@ TEST_CASE("nexenne::container::format nested containers format recursively") {
   // A static_vector of static_vectors: the inner formatter must run per element.
   cn::static_vector<cn::static_vector<int, 4>, 4> outer;
   cn::static_vector<int, 4> a;
-  a.push_back(1);
-  a.push_back(2);
+  nexenne::utility::discard(a.push_back(1));
+  nexenne::utility::discard(a.push_back(2));
   cn::static_vector<int, 4> b;
-  b.push_back(3);
-  outer.push_back(a);
-  outer.push_back(b);
+  nexenne::utility::discard(b.push_back(3));
+  nexenne::utility::discard(outer.push_back(a));
+  nexenne::utility::discard(outer.push_back(b));
   CHECK(cn::to_string(outer) == "static_vector[static_vector[1, 2], static_vector[3]]");
   CHECK(std::format("{}", outer) == "static_vector[static_vector[1, 2], static_vector[3]]");
 }
