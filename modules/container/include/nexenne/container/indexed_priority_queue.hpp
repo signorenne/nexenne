@@ -56,7 +56,7 @@ public:
   using key_compare = Compare;
   using handle_type = std::uint32_t;
 
-  /// A heap slot: the value and the handle that currently owns it.
+  /// @brief A heap slot: the value and the handle that currently owns it.
   struct entry {
     T value;
     handle_type handle{};
@@ -79,6 +79,15 @@ private:
 
   static constexpr size_type tombstone = size_type{} - 1;
 
+  /**
+   * @brief Hands out a handle, reusing a recycled one when available.
+   *
+   * @return A handle usable to address a fresh element.
+   *
+   * @pre The handle space is not exhausted (a checked precondition in debug
+   *      builds).
+   * @post A position slot exists for the returned handle.
+   */
   constexpr auto allocate_handle() noexcept -> handle_type {
     if (!m_free_list.empty()) {
       auto const h{m_free_list.back()};
@@ -91,16 +100,44 @@ private:
     return h;
   }
 
+  /**
+   * @brief Retires handle \p h, tombstoning its slot and recycling it.
+   *
+   * @param h Handle to release.
+   *
+   * @pre \p h refers to a formerly live element.
+   * @post \p h is marked free and \c valid_handle(h) is \c false.
+   */
   constexpr auto release_handle(handle_type const h) noexcept -> void {
     m_position[h] = tombstone;
     m_free_list.push_back(h);
   }
 
+  /**
+   * @brief Whether the element at heap index \p i orders before the one at \p j.
+   *
+   * @param i First heap index.
+   * @param j Second heap index.
+   *
+   * @return \c true when \c cmp(heap[i], heap[j]) holds.
+   *
+   * @pre \p i and \p j are valid heap indices.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto
   cmp_heap(size_type const i, size_type const j) const noexcept -> bool {
     return m_cmp(m_heap[i].value, m_heap[j].value);
   }
 
+  /**
+   * @brief Swaps the heap entries at \p i and \p j, keeping positions in sync.
+   *
+   * @param i First heap index.
+   * @param j Second heap index.
+   *
+   * @pre \p i and \p j are valid heap indices.
+   * @post The two entries are exchanged and their position records updated.
+   */
   constexpr auto swap_nodes(size_type const i, size_type const j) noexcept -> void {
     using std::swap;
     swap(m_heap[i], m_heap[j]);
@@ -108,6 +145,15 @@ private:
     m_position[m_heap[j].handle] = j;
   }
 
+  /**
+   * @brief Restores the heap invariant by moving element \p i toward the root.
+   *
+   * @param i Heap index of the element that may violate the invariant upward.
+   *
+   * @pre \p i is a valid heap index.
+   * @post The heap invariant holds along \p i's former root path and positions
+   *       stay in sync.
+   */
   constexpr auto sift_up(size_type i) noexcept -> void {
     while (i > 0) {
       auto const parent{(i - 1) / 2};
@@ -120,6 +166,15 @@ private:
     }
   }
 
+  /**
+   * @brief Restores the heap invariant by moving element \p i toward the leaves.
+   *
+   * @param i Heap index of the element that may violate the invariant downward.
+   *
+   * @pre \p i is a valid heap index.
+   * @post The heap invariant holds along \p i's former leaf path and positions
+   *       stay in sync.
+   */
   constexpr auto sift_down(size_type i) noexcept -> void {
     auto const n{m_heap.size()};
     while (true) {
@@ -140,6 +195,16 @@ private:
     }
   }
 
+  /**
+   * @brief Whether \p h currently addresses a live element.
+   *
+   * @param h Handle to test.
+   *
+   * @return \c true when \p h is in range and not tombstoned.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto valid_handle(handle_type const h) const noexcept -> bool {
     return h < m_position.size() && m_position[h] != tombstone;
   }

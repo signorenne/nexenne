@@ -68,25 +68,68 @@ public:
   using size_type = std::size_t;
 
 private:
+  /**
+   * @brief Pool node: a recency-list hook plus the cached key and value.
+   *
+   * @pre None.
+   * @post A default-constructed node holds value-initialised key and value.
+   */
   struct node : intrusive_list_hook<node> {
     Key key{};
     Value value{};
   };
 
-  // The index keys on a pointer INTO each node's own key storage rather than a
-  // copy of the key, so the key is stored exactly once (in the node), no key is
-  // allocated on a steady-state put, and a move-only Key works. The pool never
-  // moves, so these pointers stay stable; a slot's index entry is always erased
-  // before its key is overwritten.
+  /**
+   * @brief Hashes a key by pointer, forwarding to the user \p Hash on the pointee.
+   *
+   * The index keys on a pointer INTO each node's own key storage rather than a
+   * copy of the key, so the key is stored exactly once (in the node), no key is
+   * allocated on a steady-state put, and a move-only \p Key works. The pool never
+   * moves, so these pointers stay stable; a slot's index entry is always erased
+   * before its key is overwritten.
+   *
+   * @pre None.
+   * @post None.
+   */
   struct key_ptr_hash {
     [[no_unique_address]] Hash hash{};
+
+    /**
+     * @brief Hashes the key pointed at by \p key.
+     *
+     * @param key Non-null pointer to the key to hash.
+     *
+     * @return The hash of \c *key under \p Hash.
+     *
+     * @pre \p key is non-null.
+     * @post None.
+     */
     auto operator()(Key const* const key) const noexcept -> std::size_t {
       return hash(*key);
     }
   };
 
+  /**
+   * @brief Compares keys by pointer, forwarding to the user \p KeyEq on the
+   *        pointees.
+   *
+   * @pre None.
+   * @post None.
+   */
   struct key_ptr_eq {
     [[no_unique_address]] KeyEq eq{};
+
+    /**
+     * @brief Whether the keys pointed at by \p a and \p b are equal.
+     *
+     * @param a Non-null pointer to the first key.
+     * @param b Non-null pointer to the second key.
+     *
+     * @return \c true when \c *a equals \c *b under \p KeyEq.
+     *
+     * @pre \p a and \p b are non-null.
+     * @post None.
+     */
     auto operator()(Key const* const a, Key const* const b) const noexcept -> bool {
       return eq(*a, *b);
     }
@@ -99,6 +142,19 @@ private:
   intrusive_list<node> m_lru;
   flat_hash_map<Key const*, node*, key_ptr_hash, key_ptr_eq> m_index;
 
+  /**
+   * @brief Obtains a node slot, evicting the LRU entry when the pool is full.
+   *
+   * When no free slot remains, the least-recently-used entry is evicted (removed
+   * from the recency list and the index) and its node is reused. This is safe
+   * because a full cache (the only way the free list empties) has a non-empty
+   * recency list, which the \c Capacity >= 1 constraint guarantees.
+   *
+   * @return A node ready to receive a fresh key and value.
+   *
+   * @pre None.
+   * @post The returned node is detached from the recency list and index.
+   */
   auto acquire_node() noexcept -> node* {
     if (!m_free.empty()) {
       auto* const n{m_free.back()};
