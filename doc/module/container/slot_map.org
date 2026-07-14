@@ -12,6 +12,12 @@ was erased and later reused reads as absent rather than silently pointing at the
 new occupant. Insert, erase, and lookup are all =O(1)=, and live elements sit in
 one vector for cache-friendly iteration.
 
+The handle type is the non-template =nexenne::container::slot_key=, aliased as
+=slot_map<T>::key=, so every slot map shares one handle type. Its layout does not
+depend on =T=, which lets it be named where the element type is still incomplete
+(a type holding a handle into a slot map of itself) and lets a single formatter
+cover every map: =std::format("{}", k)= prints =slot_key(index:generation)=.
+
 * The idea
 
 A raw pointer or an index into a vector is a fragile handle: the pointer dangles
