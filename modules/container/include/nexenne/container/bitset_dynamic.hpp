@@ -57,15 +57,52 @@ private:
   std::vector<word_type> m_words;
   size_type m_size{};
 
-  // bits_per_word is a power of two, so these are a shift and a mask.
+  /**
+   * @brief Index of the word holding bit \p i.
+   *
+   * A shift, because \c bits_per_word is a power of two.
+   *
+   * @param i Bit index.
+   *
+   * @return The index into \c m_words that holds bit \p i.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto word_index(size_type const i) noexcept -> size_type {
     return i / bits_per_word;
   }
 
+  /**
+   * @brief Offset of bit \p i within its word.
+   *
+   * A mask, because \c bits_per_word is a power of two.
+   *
+   * @param i Bit index.
+   *
+   * @return The bit position of \p i within its word, in \c [0, bits_per_word).
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto bit_index(size_type const i) noexcept -> size_type {
     return i % bits_per_word;
   }
 
+  /**
+   * @brief Number of 64-bit words needed to hold \p n bits.
+   *
+   * Terminates on a request past \c max_size(), whose round-up would otherwise
+   * wrap and yield zero backing words for a huge logical size (a later checked
+   * write would then corrupt the heap).
+   *
+   * @param n Bit count.
+   *
+   * @return \c ceil(n / bits_per_word).
+   *
+   * @pre None.
+   * @post The returned count never wraps, or the process terminated.
+   */
   [[nodiscard]] static constexpr auto word_count(size_type const n) noexcept -> size_type {
     // The round-up (n + bits_per_word - 1) wraps for n past
     // SIZE_MAX - (bits_per_word - 1), yielding zero backing words for a huge
@@ -77,8 +114,15 @@ private:
     return (n + bits_per_word - 1) / bits_per_word;
   }
 
-  // Masks off bits beyond m_size in the final word, the invariant that lets
-  // count/any/all stay correct without per-call masking.
+  /**
+   * @brief Masks off the bits beyond \c m_size in the final word.
+   *
+   * Maintaining this invariant after every mutation is what lets \c count,
+   * \c any, and \c all stay correct without per-call masking.
+   *
+   * @pre None.
+   * @post Every bit at or above \c m_size in the last word is 0.
+   */
   constexpr auto clear_tail_bits() noexcept -> void {
     auto const tail{m_size % bits_per_word};
     if (tail != 0 && !m_words.empty()) {
@@ -106,6 +150,12 @@ public:
     size_type m_word_count{};
     word_type m_remaining{};
 
+    /**
+     * @brief Advances to the next word that has a set bit, or to the end.
+     *
+     * @pre None.
+     * @post \c m_remaining is non-zero, or \c m_word_idx equals \c m_word_count.
+     */
     constexpr auto advance() noexcept -> void {
       while (m_remaining == 0) {
         ++m_word_idx;
@@ -125,8 +175,26 @@ public:
     using iterator_category = std::forward_iterator_tag;
     using iterator_concept = std::forward_iterator_tag;
 
+    /**
+     * @brief Constructs a past-the-end iterator over an empty range.
+     *
+     * @pre None.
+     * @post The iterator compares equal to any other end iterator.
+     */
     constexpr set_bit_iterator() noexcept = default;
 
+    /**
+     * @brief Constructs an iterator at the first set bit from \p word_idx on.
+     *
+     * @param words Pointer to the backing word storage.
+     * @param word_idx Word index to begin scanning at.
+     * @param word_count Number of backing words, the past-the-end word index.
+     *
+     * @pre \p words addresses \p word_count contiguous words, or \p word_count is
+     *      zero.
+     * @post The iterator refers to the first set bit at or after \p word_idx, or
+     *       to the end.
+     */
     constexpr set_bit_iterator(
       word_type const* words, size_type const word_idx, size_type const word_count
     ) noexcept
@@ -137,22 +205,57 @@ public:
       }
     }
 
+    /**
+     * @brief The index of the bit the iterator refers to.
+     *
+     * @return The absolute index of the current set bit.
+     *
+     * @pre The iterator is not past the end.
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator*() const noexcept -> size_type {
       return m_word_idx * bits_per_word + static_cast<size_type>(std::countr_zero(m_remaining));
     }
 
+    /**
+     * @brief Advances to the next set bit.
+     *
+     * @return Reference to \c *this.
+     *
+     * @pre The iterator is not past the end.
+     * @post The iterator refers to the next set bit, or to the end.
+     */
     constexpr auto operator++() noexcept -> set_bit_iterator& {
       m_remaining &= m_remaining - 1;  // drop the lowest set bit, then scan on
       advance();
       return *this;
     }
 
+    /**
+     * @brief Advances to the next set bit, returning the prior position.
+     *
+     * @return A copy of the iterator before the increment.
+     *
+     * @pre The iterator is not past the end.
+     * @post The iterator refers to the next set bit, or to the end.
+     */
     constexpr auto operator++(int) noexcept -> set_bit_iterator {
       auto const previous{*this};
       ++*this;
       return previous;
     }
 
+    /**
+     * @brief Equality of two set-bit iterators.
+     *
+     * @param a Left iterator.
+     * @param b Right iterator.
+     *
+     * @return \c true when both refer to the same position in the same storage.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator==(set_bit_iterator const& a, set_bit_iterator const& b) noexcept -> bool {
       return a.m_words == b.m_words && a.m_word_idx == b.m_word_idx
@@ -173,15 +276,47 @@ public:
     size_type m_word_count{};
 
   public:
+    /**
+     * @brief Constructs an empty range.
+     *
+     * @pre None.
+     * @post \c begin() equals \c end().
+     */
     constexpr set_bits_range() noexcept = default;
 
+    /**
+     * @brief Constructs a range over \p word_count words of \p words.
+     *
+     * @param words Pointer to the backing word storage.
+     * @param word_count Number of backing words.
+     *
+     * @pre \p words addresses \p word_count contiguous words, or \p word_count is
+     *      zero.
+     * @post The range spans the set-bit indices of \p words.
+     */
     constexpr set_bits_range(word_type const* words, size_type const word_count) noexcept
         : m_words{words}, m_word_count{word_count} {}
 
+    /**
+     * @brief Iterator to the first set-bit index.
+     *
+     * @return Iterator to the first set bit, or \c end() when none is set.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] constexpr auto begin() const noexcept -> set_bit_iterator {
       return set_bit_iterator{m_words, 0, m_word_count};
     }
 
+    /**
+     * @brief Iterator one past the last set-bit index.
+     *
+     * @return The past-the-end iterator.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] constexpr auto end() const noexcept -> set_bit_iterator {
       return set_bit_iterator{m_words, m_word_count, m_word_count};
     }
@@ -228,8 +363,20 @@ public:
     }
   }
 
+  /// @brief Copy-constructs from another bitset.
   constexpr bitset_dynamic(bitset_dynamic const&) = default;
+
+  /**
+   * @brief Copy-assigns from another bitset.
+   *
+   * @return Reference to \c *this.
+   *
+   * @pre None.
+   * @post This bitset holds a copy of the source's bits.
+   */
   constexpr auto operator=(bitset_dynamic const&) -> bitset_dynamic& = default;
+
+  /// @brief Destroys the bitset and frees its word storage.
   ~bitset_dynamic() noexcept = default;
 
   /**
@@ -442,7 +589,7 @@ public:
    * @pre None.
    * @post On success bit \p index is 1; on failure the bitset is unchanged.
    */
-  constexpr auto set(size_type const index) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto set(size_type const index) noexcept -> result<void> {
     if (index >= m_size) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -461,7 +608,7 @@ public:
    * @pre None.
    * @post On success bit \p index is 0; on failure the bitset is unchanged.
    */
-  constexpr auto reset(size_type const index) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto reset(size_type const index) noexcept -> result<void> {
     if (index >= m_size) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -481,7 +628,7 @@ public:
    * @post On success bit \p index is the complement of its prior value; on
    *       failure the bitset is unchanged.
    */
-  constexpr auto flip(size_type const index) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto flip(size_type const index) noexcept -> result<void> {
     if (index >= m_size) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -807,21 +954,40 @@ public:
     return a.m_size <=> b.m_size;
   }
 
-  // begin/end iterate the indices of set bits (sparse-aware), not a bit-per-bit
-  // bool sequence: that is the common "visit the live indices" use and needs no
-  // proxy reference. For raw words use words(); for the range use set_bits().
+  /**
+   * @brief Iterator to the first set-bit index.
+   *
+   * Iterates the indices of set bits (sparse-aware), not a bit-per-bit \c bool
+   * sequence: that is the common "visit the live indices" use and needs no proxy
+   * reference. For the raw words use \c words(); for the range use \c set_bits().
+   *
+   * @return Iterator to the first set bit, or \c end() when none is set.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto begin() const noexcept -> set_bit_iterator {
     return set_bits().begin();
   }
 
+  /**
+   * @brief Iterator one past the last set-bit index.
+   *
+   * @return The past-the-end iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto end() const noexcept -> set_bit_iterator {
     return set_bits().end();
   }
 
+  /// @copydoc begin()
   [[nodiscard]] constexpr auto cbegin() const noexcept -> set_bit_iterator {
     return begin();
   }
 
+  /// @copydoc end()
   [[nodiscard]] constexpr auto cend() const noexcept -> set_bit_iterator {
     return end();
   }

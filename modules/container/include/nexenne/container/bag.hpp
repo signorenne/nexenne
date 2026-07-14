@@ -61,8 +61,19 @@ public:
 private:
   std::vector<T> m_data;
 
-  // Removes the element at index (assumed in range) by moving the last element
-  // into its slot and popping. O(1); does not preserve order.
+  /**
+   * @brief Removes the element at \p index by moving the last element in.
+   *
+   * Moves the last element into \p index's slot and pops the back, so the
+   * removal is \c O(1) and does not preserve order.
+   *
+   * @param index Index of the element to remove; assumed in range.
+   *
+   * @pre \p index is less than \c size().
+   * @post \c size() shrank by one and the former last element fills the gap.
+   *
+   * @complexity \c O(1).
+   */
   constexpr auto swap_pop(size_type const index) noexcept -> void {
     auto const last{m_data.size() - 1};
     if (index != last) {
@@ -314,7 +325,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto erase_at(size_type const index) noexcept -> result<void>
+  [[nodiscard]] constexpr auto erase_at(size_type const index) noexcept -> result<void>
     requires std::assignable_from<T&, T>
   {
     if (index >= m_data.size()) {
@@ -442,50 +453,90 @@ public:
   // No contains(value): it would just wrap std::ranges::contains, which works
   // on the bag directly through the iterators below.
 
+  /**
+   * @brief Iterator to the first element.
+   *
+   * @return Iterator to the first element, or \c end() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto begin() noexcept -> iterator {
     return m_data.begin();
   }
 
+  /**
+   * @brief Iterator one past the last element.
+   *
+   * @return The past-the-end iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto end() noexcept -> iterator {
     return m_data.end();
   }
 
+  /// @copydoc begin()
   [[nodiscard]] constexpr auto begin() const noexcept -> const_iterator {
     return m_data.begin();
   }
 
+  /// @copydoc end()
   [[nodiscard]] constexpr auto end() const noexcept -> const_iterator {
     return m_data.end();
   }
 
+  /// @copydoc begin()
   [[nodiscard]] constexpr auto cbegin() const noexcept -> const_iterator {
     return m_data.cbegin();
   }
 
+  /// @copydoc end()
   [[nodiscard]] constexpr auto cend() const noexcept -> const_iterator {
     return m_data.cend();
   }
 
+  /**
+   * @brief Reverse iterator to the last element.
+   *
+   * @return Reverse iterator to the last element, or \c rend() when empty.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto rbegin() noexcept -> reverse_iterator {
     return m_data.rbegin();
   }
 
+  /**
+   * @brief Reverse iterator one before the first element.
+   *
+   * @return The past-the-end reverse iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto rend() noexcept -> reverse_iterator {
     return m_data.rend();
   }
 
+  /// @copydoc rbegin()
   [[nodiscard]] constexpr auto rbegin() const noexcept -> const_reverse_iterator {
     return m_data.rbegin();
   }
 
+  /// @copydoc rend()
   [[nodiscard]] constexpr auto rend() const noexcept -> const_reverse_iterator {
     return m_data.rend();
   }
 
+  /// @copydoc rbegin()
   [[nodiscard]] constexpr auto crbegin() const noexcept -> const_reverse_iterator {
     return m_data.crbegin();
   }
 
+  /// @copydoc rend()
   [[nodiscard]] constexpr auto crend() const noexcept -> const_reverse_iterator {
     return m_data.crend();
   }

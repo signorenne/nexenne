@@ -28,6 +28,7 @@
 #include <utility>
 
 #include <nexenne/container/error.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::container {
 
@@ -61,8 +62,20 @@ private:
     unsigned char none;
     T value;
 
+    /**
+     * @brief Constructs an inactive slot that holds no \c T.
+     *
+     * @pre None.
+     * @post The slot holds no live element.
+     */
     constexpr slot() noexcept : none{} {}
 
+    /**
+     * @brief Trivially destroys the slot; a live \c T is destroyed by hand.
+     *
+     * @pre None.
+     * @post None.
+     */
     constexpr ~slot() noexcept {}
   };
 
@@ -71,17 +84,48 @@ private:
   size_type m_tail{};  // index the next push fills
   size_type m_size{};
 
+  /**
+   * @brief Pointer to the \c T storage of slot \p index.
+   *
+   * @param index Slot index.
+   *
+   * @return Pointer to the element storage at \p index.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto value_ptr(size_type const index) noexcept -> T* {
     return std::addressof(m_slots[index].value);
   }
 
+  /**
+   * @brief Pointer to the \c T storage of slot \p index (const overload).
+   *
+   * @param index Slot index.
+   *
+   * @return Const pointer to the element storage at \p index.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto value_ptr(size_type const index) const noexcept -> T const* {
     return std::addressof(m_slots[index].value);
   }
 
-  // Reduces an index in [0, 2N) to [0, N) without a modulo: a power-of-two N
-  // masks (a single AND), any other N uses a compare-subtract. Both keep the
-  // hot push/pop/index paths off the division unit.
+  /**
+   * @brief Reduces an index in \c [0, 2N) to \c [0, N) without a modulo.
+   *
+   * A power-of-two \p N masks with a single \c AND; any other \p N uses a
+   * compare-subtract. Both keep the hot push, pop, and index paths off the
+   * division unit.
+   *
+   * @param index Index in \c [0, 2N) to reduce.
+   *
+   * @return The equivalent index in \c [0, N).
+   *
+   * @pre None.
+   * @post None.
+   */
   static constexpr auto wrap(size_type const index) noexcept -> size_type {
     if constexpr ((N & (N - 1)) == 0) {
       return index & (N - 1);
@@ -90,10 +134,37 @@ private:
     }
   }
 
+  /**
+   * @brief The next index after \p index, wrapped into \c [0, N).
+   *
+   * @param index Current index in \c [0, N).
+   *
+   * @return \c wrap(index + 1).
+   *
+   * @pre None.
+   * @post None.
+   */
   static constexpr auto advance(size_type const index) noexcept -> size_type {
     return wrap(index + 1);
   }
 
+  /**
+   * @brief Constructs an element at the back, evicting the oldest when full.
+   *
+   * When the buffer is full the value is materialised before the oldest slot is
+   * destroyed, so an argument that aliases the evicted element stays valid
+   * across the overwrite.
+   *
+   * @tparam Args Constructor argument types.
+   * @param args Arguments forwarded to \p T's constructor.
+   *
+   * @pre None.
+   * @post \p args formed the new back; when the buffer was full the oldest
+   *       element was dropped and \c size() is unchanged, otherwise \c size()
+   *       grew by one.
+   *
+   * @complexity \c O(1).
+   */
   template <typename... Args>
   constexpr auto emplace_overwrite(Args&&... args) noexcept -> void {
     if (m_size == N) {
@@ -112,6 +183,15 @@ private:
     }
   }
 
+  /**
+   * @brief Forward iterator over the live elements in FIFO order.
+   *
+   * @tparam IsConst Whether the iterator yields \c const elements.
+   *
+   * @pre None.
+   * @post A default-constructed iterator is singular and compares equal only to
+   *       another default-constructed iterator.
+   */
   template <bool IsConst>
   class basic_iterator {
   public:
@@ -129,35 +209,104 @@ private:
     size_type m_offset{};
 
   public:
+    /**
+     * @brief Constructs a singular iterator that refers to no buffer.
+     *
+     * @pre None.
+     * @post The iterator is singular and not dereferenceable.
+     */
     constexpr basic_iterator() noexcept = default;
 
+    /**
+     * @brief Constructs an iterator over \p slots at a logical \p offset.
+     *
+     * @param slots Pointer to the buffer's slot array.
+     * @param head Index of the oldest live element.
+     * @param offset Logical distance from the front, in \c [0, size].
+     *
+     * @pre None.
+     * @post The iterator refers to the element \p offset steps from the front.
+     */
     constexpr basic_iterator(slot_ptr slots, size_type const head, size_type const offset) noexcept
         : m_slots{slots}, m_head{head}, m_offset{offset} {}
 
+    /**
+     * @brief Converts a mutable iterator to a \c const iterator.
+     *
+     * @tparam OtherConst Constness of the source iterator; only a mutable
+     *                    source converting to a \c const iterator is allowed.
+     * @param other Source iterator to copy the position from.
+     *
+     * @pre None.
+     * @post This iterator refers to the same element as \p other.
+     */
     template <bool OtherConst>
       requires(IsConst && !OtherConst)
     constexpr basic_iterator(basic_iterator<OtherConst> const& other) noexcept
         : m_slots{other.m_slots}, m_head{other.m_head}, m_offset{other.m_offset} {}
 
+    /**
+     * @brief Accesses the referenced element.
+     *
+     * @return Reference to the current element.
+     *
+     * @pre The iterator is dereferenceable and not the end iterator.
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
       return m_slots[wrap(m_head + m_offset)].value;
     }
 
+    /**
+     * @brief Member access to the referenced element.
+     *
+     * @return Pointer to the current element.
+     *
+     * @pre The iterator is dereferenceable and not the end iterator.
+     * @post None.
+     */
     [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
       return std::addressof(m_slots[wrap(m_head + m_offset)].value);
     }
 
+    /**
+     * @brief Advances to the next element in FIFO order.
+     *
+     * @return Reference to \c *this after advancing.
+     *
+     * @pre The iterator is dereferenceable and not the end iterator.
+     * @post The iterator refers to the next element or is the end iterator.
+     */
     constexpr auto operator++() noexcept -> basic_iterator& {
       ++m_offset;
       return *this;
     }
 
+    /**
+     * @brief Advances to the next element, returning the prior position.
+     *
+     * @return A copy of the iterator as it was before advancing.
+     *
+     * @pre The iterator is dereferenceable and not the end iterator.
+     * @post The iterator refers to the next element or is the end iterator.
+     */
     constexpr auto operator++(int) noexcept -> basic_iterator {
       auto const previous{*this};
       ++*this;
       return previous;
     }
 
+    /**
+     * @brief Equality: same buffer, front, and logical offset.
+     *
+     * @param a Left iterator.
+     * @param b Right iterator.
+     *
+     * @return \c true when both refer to the same position.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] friend constexpr auto
     operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
       return a.m_slots == b.m_slots && a.m_head == b.m_head && a.m_offset == b.m_offset;
@@ -192,7 +341,7 @@ public:
    */
   constexpr ring_buffer(ring_buffer const& other) noexcept {
     for (auto const& value : other) {
-      push(value);
+      nexenne::utility::discard(push(value));
     }
   }
 
@@ -227,7 +376,7 @@ public:
     if (this != &other) {
       clear();
       for (auto const& value : other) {
-        push(value);
+        nexenne::utility::discard(push(value));
       }
     }
     return *this;
@@ -253,13 +402,29 @@ public:
     return *this;
   }
 
+  /**
+   * @brief Destroys every element.
+   *
+   * @pre None.
+   * @post All elements are destroyed.
+   */
   constexpr ~ring_buffer() noexcept {
     clear();
   }
 
 private:
-  // Moves other's elements into a freshly-cleared *this, canonicalising head to
-  // zero, and leaves other empty.
+  /**
+   * @brief Moves \p other's elements into a freshly-cleared \c *this.
+   *
+   * Canonicalises the head to zero and leaves \p other empty. Assumes \c *this
+   * holds no live elements.
+   *
+   * @param other Source buffer, emptied after the move.
+   *
+   * @pre \c *this holds no live elements.
+   * @post \c *this holds \p other's former elements in FIFO order with the head
+   *       at zero; \p other is empty.
+   */
   constexpr auto move_from(ring_buffer& other) noexcept -> void {
     auto src{other.m_head};
     for (size_type i{0}; i < other.m_size; ++i) {
@@ -398,7 +563,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto push(T const& value) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto push(T const& value) noexcept -> result<void> {
     return emplace(value);
   }
 
@@ -415,7 +580,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto push(T&& value) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto push(T&& value) noexcept -> result<void> {
     return emplace(std::move(value));
   }
 
@@ -434,7 +599,7 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  constexpr auto emplace(Args&&... args) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto emplace(Args&&... args) noexcept -> result<void> {
     if (m_size == N) {
       return std::unexpected{container_error::full};
     }
