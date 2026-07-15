@@ -23,3 +23,11 @@ constrain their config parameter with.
 using my_cfg = nexenne::logging::config<256, false>;  // small sync queue
 using lgr = nexenne::logging::basic_logger<my_cfg>;
 #+END_SRC
+
+Override either macro from the build system before the umbrella is included to
+move =default_config= without editing sources, for example on an ESP-IDF target:
+
+#+BEGIN_SRC cmake
+target_compile_definitions(my_target PRIVATE
+    NEXENNE_LOG_QUEUE_SIZE=256 NEXENNE_LOG_ASYNC=true)
+#+END_SRC
