@@ -22,7 +22,27 @@
 #include <ostream>
 #include <string>
 
-#include <nexenne/filter/filter.hpp>
+#include <nexenne/filter/adaptive.hpp>
+#include <nexenne/filter/biquad.hpp>
+#include <nexenne/filter/butterworth.hpp>
+#include <nexenne/filter/complementary.hpp>
+#include <nexenne/filter/debounce.hpp>
+#include <nexenne/filter/ema.hpp>
+#include <nexenne/filter/fir.hpp>
+#include <nexenne/filter/glitch.hpp>
+#include <nexenne/filter/highpass.hpp>
+#include <nexenne/filter/hysteresis.hpp>
+#include <nexenne/filter/kalman.hpp>
+#include <nexenne/filter/lowpass.hpp>
+#include <nexenne/filter/majority.hpp>
+#include <nexenne/filter/median.hpp>
+#include <nexenne/filter/range_guard.hpp>
+#include <nexenne/filter/rate_guard.hpp>
+#include <nexenne/filter/slew.hpp>
+#include <nexenne/filter/sma.hpp>
+#include <nexenne/filter/stale_detector.hpp>
+#include <nexenne/filter/timed_debounce.hpp>
+#include <nexenne/filter/validator.hpp>
 
 namespace nexenne::filter {
 

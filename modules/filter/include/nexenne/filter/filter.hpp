@@ -52,6 +52,7 @@
 #include <nexenne/filter/debounce.hpp>
 #include <nexenne/filter/ema.hpp>
 #include <nexenne/filter/fir.hpp>
+#include <nexenne/filter/format.hpp>
 #include <nexenne/filter/glitch.hpp>
 #include <nexenne/filter/highpass.hpp>
 #include <nexenne/filter/hysteresis.hpp>
@@ -66,6 +67,5 @@
 #include <nexenne/filter/stale_detector.hpp>
 #include <nexenne/filter/timed_debounce.hpp>
 #include <nexenne/filter/validator.hpp>
-#include <nexenne/filter/format.hpp>
 
 namespace nexenne::filter {}
