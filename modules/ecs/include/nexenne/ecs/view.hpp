@@ -86,9 +86,6 @@ namespace nexenne::ecs {
 
 namespace detail {
 
-// \c type_list is declared in registry.hpp (forward-included), shared
-// with the query builder. We add the membership helper here.
-
 template <typename T, typename Tuple>
 inline constexpr auto tuple_contains_v = false;
 
@@ -680,10 +677,6 @@ public:
     build().each(std::forward<Func>(f));
   }
 };
-
-//
-// Declared in registry.hpp; defined here so the body sees the full
-// \c basic_view and \c typed_query_builder definitions.
 
 template <typename... Includes>
 [[nodiscard]] inline auto
