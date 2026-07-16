@@ -31,11 +31,11 @@ C++23 compiler and CMake with Ninja.
 - [[https://clang.llvm.org/docs/ClangFormat.html][clang-format]] (minimum 18) :
   the formatter. Options are pinned explicitly in
   [[file:../../.clang-format][.clang-format]] for cross-version determinism. CI
-  uses =clang-format-18=.
+  uses =clang-format-20=.
 - [[https://clang.llvm.org/extra/clang-tidy/][clang-tidy]] (minimum 19 in CI) : static
   analysis plus naming enforcement. Checks in
-  [[file:../../.clang-tidy][.clang-tidy]]; CI runs =clang-tidy-19= and
-  =run-clang-tidy-19=. See
+  [[file:../../.clang-tidy][.clang-tidy]]; CI runs =clang-tidy-20= and
+  =run-clang-tidy-20=. See
   [[file:conventions.org][Conventions]].
 - [[https://clang.llvm.org/docs/AddressSanitizer.html][AddressSanitizer]] +
   [[https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html][UBSan]] :

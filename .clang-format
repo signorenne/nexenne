@@ -1,6 +1,6 @@
 ---
 # nexenne C++23 formatting rules. Options are pinned explicitly so the result
-# is deterministic across clang-format versions. Minimum clang-format: 18.
+# is deterministic across clang-format versions. Minimum clang-format: 20.
 Language:        Cpp
 BasedOnStyle:    LLVM
 Standard:        Latest

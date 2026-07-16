@@ -10,11 +10,11 @@ jobs run on =ubuntu-24.04=; the compile-heavy ones cache with ccache via
 
 | job           | toolchain       | what it checks                                                            |
 |---------------+-----------------+---------------------------------------------------------------------------|
-| =format=      | clang-format-18 | =clang-format-18 --dry-run --Werror= on all tracked =.hpp= / =.cpp=       |
+| =format=      | clang-format-20 | =clang-format-20 --dry-run --Werror= on all tracked =.hpp= / =.cpp=       |
 | =build-test=  | gcc-15          | =ci= preset configure + build + =nexenne_tests=, warnings as errors       |
-| =build-clang= | clang-19        | =ci= preset configure + build + =nexenne_tests= (portability)             |
+| =build-clang= | clang-20        | =ci= preset configure + build + =nexenne_tests= (portability)             |
 | =asan=        | gcc-15          | =asan= preset build + =nexenne_tests= under Address + UB sanitizers       |
-| =tidy=        | clang-19        | clang-tidy over module tests and examples from the =dev= compile database |
+| =tidy=        | clang-20        | clang-tidy over module tests and examples from the =dev= compile database |
 | =docs=        | gcc-15          | Doxygen build of =nexenne_docs= with no documentation errors              |
 | =install=     | gcc-15          | install to a temp prefix, then a consumer =find_package=es a module       |
 

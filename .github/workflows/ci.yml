@@ -16,12 +16,17 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - run: sudo apt-get update && sudo apt-get install -y clang-format-18
+      - name: Install clang-format 20
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+          sudo apt-get install -y clang-format-20
       - name: Check formatting
         run: |
           files=$(git ls-files '*.hpp' '*.cpp')
           if [ -n "$files" ]; then
-            clang-format-18 --dry-run --Werror $files
+            clang-format-20 --dry-run --Werror $files
           else
             echo "no C++ sources to check yet"
           fi
@@ -49,14 +54,14 @@ jobs:
   build-clang:
     name: build + doctest (clang)
     runs-on: ubuntu-24.04
-    env: { CC: clang-19, CXX: clang++-19 }
+    env: { CC: clang-20, CXX: clang++-20 }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Install Clang 19
+      - name: Install Clang 20
         run: |
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh 19
+          sudo ./llvm.sh 20
           sudo apt-get install -y cmake ninja-build ccache
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -85,15 +90,15 @@ jobs:
   tidy:
     name: clang-tidy
     runs-on: ubuntu-24.04
-    env: { CC: clang-19, CXX: clang++-19 }
+    env: { CC: clang-20, CXX: clang++-20 }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Install Clang 19 and clang-tidy
+      - name: Install Clang 20 and clang-tidy
         run: |
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh 19
-          sudo apt-get install -y clang-tidy-19 cmake ninja-build
+          sudo ./llvm.sh 20
+          sudo apt-get install -y clang-tidy-20 cmake ninja-build
       - name: Configure (compile database)
         run: cmake --preset dev
       - name: Run clang-tidy (tests, relaxed shared config)
@@ -101,13 +106,13 @@ jobs:
           tests=$(git ls-files 'modules/*/tests/*.cpp')
           if [ -n "$tests" ]; then
             printf '%s\n' $tests | xargs -r -P"$(nproc)" -I{} \
-              clang-tidy-19 -p build/dev --quiet --config-file="$PWD/.clang-tidy-tests" {}
+              clang-tidy-20 -p build/dev --quiet --config-file="$PWD/.clang-tidy-tests" {}
           fi
       - name: Run clang-tidy (examples, relaxed)
         run: |
           examples=$(git ls-files 'examples/*/*.cpp')
           if [ -n "$examples" ]; then
-            run-clang-tidy-19 -p build/dev -quiet $examples
+            run-clang-tidy-20 -p build/dev -quiet $examples
           fi
 
   docs:
