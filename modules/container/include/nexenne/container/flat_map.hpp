@@ -273,10 +273,9 @@ public:
    */
   [[nodiscard]] constexpr auto lower_bound(Key const& key) noexcept -> iterator {
     return std::lower_bound(
-      m_data.begin(),
-      m_data.end(),
-      key,
-      [this](value_type const& slot, Key const& probe) { return m_cmp(slot.first, probe); }
+      m_data.begin(), m_data.end(), key, [this](value_type const& slot, Key const& probe) {
+        return m_cmp(slot.first, probe);
+      }
     );
   }
 
@@ -294,10 +293,9 @@ public:
    */
   [[nodiscard]] constexpr auto lower_bound(Key const& key) const noexcept -> const_iterator {
     return std::lower_bound(
-      m_data.begin(),
-      m_data.end(),
-      key,
-      [this](value_type const& slot, Key const& probe) { return m_cmp(slot.first, probe); }
+      m_data.begin(), m_data.end(), key, [this](value_type const& slot, Key const& probe) {
+        return m_cmp(slot.first, probe);
+      }
     );
   }
 
@@ -323,10 +321,9 @@ public:
     requires detail::transparent_comparator<Compare>
   [[nodiscard]] constexpr auto lower_bound(K const& key) noexcept -> iterator {
     return std::lower_bound(
-      m_data.begin(),
-      m_data.end(),
-      key,
-      [this](value_type const& slot, K const& probe) { return m_cmp(slot.first, probe); }
+      m_data.begin(), m_data.end(), key, [this](value_type const& slot, K const& probe) {
+        return m_cmp(slot.first, probe);
+      }
     );
   }
 
@@ -335,10 +332,9 @@ public:
     requires detail::transparent_comparator<Compare>
   [[nodiscard]] constexpr auto lower_bound(K const& key) const noexcept -> const_iterator {
     return std::lower_bound(
-      m_data.begin(),
-      m_data.end(),
-      key,
-      [this](value_type const& slot, K const& probe) { return m_cmp(slot.first, probe); }
+      m_data.begin(), m_data.end(), key, [this](value_type const& slot, K const& probe) {
+        return m_cmp(slot.first, probe);
+      }
     );
   }
 
@@ -356,10 +352,9 @@ public:
    */
   [[nodiscard]] constexpr auto upper_bound(Key const& key) noexcept -> iterator {
     return std::upper_bound(
-      m_data.begin(),
-      m_data.end(),
-      key,
-      [this](Key const& probe, value_type const& slot) { return m_cmp(probe, slot.first); }
+      m_data.begin(), m_data.end(), key, [this](Key const& probe, value_type const& slot) {
+        return m_cmp(probe, slot.first);
+      }
     );
   }
 
@@ -377,10 +372,9 @@ public:
    */
   [[nodiscard]] constexpr auto upper_bound(Key const& key) const noexcept -> const_iterator {
     return std::upper_bound(
-      m_data.begin(),
-      m_data.end(),
-      key,
-      [this](Key const& probe, value_type const& slot) { return m_cmp(probe, slot.first); }
+      m_data.begin(), m_data.end(), key, [this](Key const& probe, value_type const& slot) {
+        return m_cmp(probe, slot.first);
+      }
     );
   }
 
@@ -405,10 +399,9 @@ public:
     requires detail::transparent_comparator<Compare>
   [[nodiscard]] constexpr auto upper_bound(K const& key) noexcept -> iterator {
     return std::upper_bound(
-      m_data.begin(),
-      m_data.end(),
-      key,
-      [this](K const& probe, value_type const& slot) { return m_cmp(probe, slot.first); }
+      m_data.begin(), m_data.end(), key, [this](K const& probe, value_type const& slot) {
+        return m_cmp(probe, slot.first);
+      }
     );
   }
 
@@ -417,10 +410,9 @@ public:
     requires detail::transparent_comparator<Compare>
   [[nodiscard]] constexpr auto upper_bound(K const& key) const noexcept -> const_iterator {
     return std::upper_bound(
-      m_data.begin(),
-      m_data.end(),
-      key,
-      [this](K const& probe, value_type const& slot) { return m_cmp(probe, slot.first); }
+      m_data.begin(), m_data.end(), key, [this](K const& probe, value_type const& slot) {
+        return m_cmp(probe, slot.first);
+      }
     );
   }
 
@@ -726,8 +718,8 @@ public:
    *
    * @complexity \c O(N) on insertion, \c O(log N) on assignment.
    */
-  constexpr auto
-  insert_or_assign(Key const& key, Value value) noexcept -> std::pair<iterator, bool> {
+  constexpr auto insert_or_assign(Key const& key, Value value) noexcept
+    -> std::pair<iterator, bool> {
     auto const pos{lower_bound(key)};
     if (pos != m_data.end() && !m_cmp(key, pos->first)) {
       pos->second = std::move(value);
@@ -924,8 +916,8 @@ public:
    *
    * @complexity \c O(N).
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(flat_map const& a, flat_map const& b) noexcept -> bool
+  [[nodiscard]] friend constexpr auto operator==(flat_map const& a, flat_map const& b) noexcept
+    -> bool
     requires std::equality_comparable<value_type>
   {
     return a.m_data == b.m_data;

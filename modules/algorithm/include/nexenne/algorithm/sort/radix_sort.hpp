@@ -98,8 +98,8 @@ constexpr auto radix_sort_pass(
  * @complexity \c O(N * sizeof(T)) time and no allocation.
  */
 template <std::unsigned_integral T>
-constexpr auto
-radix_sort_into(std::span<T> const range, std::span<T> const scratch) noexcept -> void {
+constexpr auto radix_sort_into(std::span<T> const range, std::span<T> const scratch) noexcept
+  -> void {
   auto a{range};
   auto b{scratch.subspan(0, range.size())};
 
@@ -118,6 +118,7 @@ radix_sort_into(std::span<T> const range, std::span<T> const scratch) noexcept -
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /**

@@ -103,8 +103,8 @@ public:
    */
   auto design_low_pass(T const cutoff_hz, T const sample_rate_hz) noexcept -> void {
     assert(
-      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2} &&
-      "butterworth::design_low_pass requires a positive sample rate and a sub-Nyquist cutoff"
+      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2}
+      && "butterworth::design_low_pass requires a positive sample rate and a sub-Nyquist cutoff"
     );
     for (std::size_t i{0}; i < SectionsN; ++i) {
       m_sections[i] = biquad<T>::make_lowpass(cutoff_hz, sample_rate_hz, section_q(i));
@@ -126,8 +126,8 @@ public:
    */
   auto design_high_pass(T const cutoff_hz, T const sample_rate_hz) noexcept -> void {
     assert(
-      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2} &&
-      "butterworth::design_high_pass requires a positive sample rate and a sub-Nyquist cutoff"
+      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2}
+      && "butterworth::design_high_pass requires a positive sample rate and a sub-Nyquist cutoff"
     );
     for (std::size_t i{0}; i < SectionsN; ++i) {
       m_sections[i] = biquad<T>::make_highpass(cutoff_hz, sample_rate_hz, section_q(i));

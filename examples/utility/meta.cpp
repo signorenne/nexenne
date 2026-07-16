@@ -55,7 +55,10 @@ auto main() -> int {
   std::println("compute is noexcept: {}", util::function_is_noexcept_v<fn>);
   std::println("return type spelled: {}", util::type_name<util::function_return_t<fn>>());
   std::println("arg 0 is {}", category<util::function_arg_t<fn, 0>>());
-  std::println("lambda arity: {}, arg 1 is {}", util::function_arity_v<scaler>,
-               category<util::function_arg_t<scaler, 1>>());
+  std::println(
+    "lambda arity: {}, arg 1 is {}",
+    util::function_arity_v<scaler>,
+    category<util::function_arg_t<scaler, 1>>()
+  );
   return 0;
 }

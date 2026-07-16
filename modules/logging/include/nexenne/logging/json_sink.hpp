@@ -252,8 +252,8 @@ private:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] static auto format_timestamp(std::chrono::system_clock::time_point const tp
-  ) -> std::string {
+  [[nodiscard]] static auto format_timestamp(std::chrono::system_clock::time_point const tp)
+    -> std::string {
     // Floor to whole seconds for the calendar part, then append the millisecond
     // fraction by hand. Formatting a sub-second time point with %T would already
     // print fractional seconds, so the explicit ".mmm" must be built from a

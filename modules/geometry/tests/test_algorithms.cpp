@@ -425,7 +425,7 @@ TEST_CASE("gjk: a too-small iteration cap does not misreport separated shapes as
   // clearly-separated spheres (gap 0.5) with a one-iteration cap and an unhelpful
   // seed reported overlap before the fix; now they report separated.
   geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
-  geo::sphere3_f const b{vec3{2.5f, 0, 0}, 1.0f};  // gap of 0.5 between the surfaces
+  geo::sphere3_f const b{vec3{2.5f, 0, 0}, 1.0f};                // gap of 0.5 between the surfaces
   CHECK_FALSE(geo::gjk<float>(a, b, vec3{0, 1, 0}, 1).overlap);  // tiny cap, bad seed
   // A comfortable cap agrees (and reports the analytic distance).
   auto const r{geo::gjk<float>(a, b, vec3{0, 1, 0})};

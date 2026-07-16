@@ -352,8 +352,13 @@ TEST_CASE("cobs: decode of an empty frame yields an empty payload") {
 }
 
 TEST_CASE("cobs: cobs_max_encoded_size alias equals max_encoded_size") {
-  for (std::size_t n : {std::size_t{0}, std::size_t{1}, std::size_t{253}, std::size_t{254},
-                        std::size_t{255}, std::size_t{1000}}) {
+  for (std::size_t n :
+       {std::size_t{0},
+        std::size_t{1},
+        std::size_t{253},
+        std::size_t{254},
+        std::size_t{255},
+        std::size_t{1000}}) {
     CHECK(cobs::cobs_max_encoded_size(n) == cobs::max_encoded_size(n));
   }
 }

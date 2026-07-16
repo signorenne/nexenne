@@ -68,7 +68,7 @@ enum class overflow_action : std::uint8_t {
  * @post None.
  */
 struct async_sink_config {
-  std::size_t queue_size_limit{1024};                   ///< Maximum number of queued records (>= 1).
+  std::size_t queue_size_limit{1024};  ///< Maximum number of queued records (>= 1).
   overflow_action on_overflow{overflow_action::block};  ///< Action when the queue is full.
 };
 

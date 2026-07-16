@@ -838,7 +838,9 @@ struct std::formatter<nexenne::math::fixed<Storage, FractionBits>> {
    */
   template <typename FormatContext>
   auto format(nexenne::math::fixed<Storage, FractionBits> const x, FormatContext& ctx) const {
-    auto out{std::format_to(ctx.out(), "q{}.{}(", sizeof(Storage) * 8 - FractionBits, FractionBits)};
+    auto out{
+      std::format_to(ctx.out(), "q{}.{}(", sizeof(Storage) * 8 - FractionBits, FractionBits)
+    };
     ctx.advance_to(out);
     out = component.format(x.to_float(), ctx);
     *out++ = ')';

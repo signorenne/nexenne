@@ -61,8 +61,9 @@ private:
    *
    * @throws Anything the move of \p fn throws, after \p fn has been invoked.
    */
-  [[nodiscard]] static auto guarded_move(function_type& fn
-  ) noexcept(std::is_nothrow_move_constructible_v<function_type>) -> function_type {
+  [[nodiscard]] static auto
+  guarded_move(function_type& fn) noexcept(std::is_nothrow_move_constructible_v<function_type>)
+    -> function_type {
     if constexpr (std::is_nothrow_move_constructible_v<function_type>) {
       return std::move(fn);
     } else {

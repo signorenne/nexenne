@@ -1175,11 +1175,11 @@ TEST_CASE("nexenne::serialization::msgpack read_uint round-trips 2^64-1 and reje
 TEST_CASE("nexenne::serialization::msgpack skip_value consumes one complete item") {
   SUBCASE("scalars and strings") {
     for (auto const& wire :
-         {bytes({0x2A}),                        // fixint 42
+         {bytes({0x2A}),                          // fixint 42
           bytes({0xCF, 0, 0, 0, 0, 0, 0, 0, 1}),  // uint64
           bytes({0xCB, 0, 0, 0, 0, 0, 0, 0, 0}),  // float64
-          bytes({0xA3, 'f', 'o', 'o'}),         // fixstr "foo"
-          bytes({0xC4, 0x02, 0x11, 0x22})}) {   // bin8 of 2
+          bytes({0xA3, 'f', 'o', 'o'}),           // fixstr "foo"
+          bytes({0xC4, 0x02, 0x11, 0x22})}) {     // bin8 of 2
       auto r{msgpack::reader{as_span(wire)}};
       REQUIRE(r.skip_value().has_value());
       CHECK(r.at_end());

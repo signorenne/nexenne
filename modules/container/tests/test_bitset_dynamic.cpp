@@ -335,10 +335,11 @@ TEST_CASE("nexenne::container::bitset_dynamic highest bit of a full word is addr
   CHECK(b.find_first_set(128) == 128);  // sentinel
 }
 
-TEST_CASE("nexenne::container::bitset_dynamic find_first_set when only bit is in last partial word"
+TEST_CASE(
+  "nexenne::container::bitset_dynamic find_first_set when only bit is in last partial word"
 ) {
-  bs b(130);                         // three words, last word holds bits 128..129
-  CHECK(b.find_first_set() == 130);  // empty -> sentinel
+  bs b(130);                              // three words, last word holds bits 128..129
+  CHECK(b.find_first_set() == 130);       // empty -> sentinel
   nexenne::utility::discard(b.set(129));  // sole set bit, in the partial tail word
   CHECK(b.find_first_set() == 129);
   CHECK(b.find_first_set(129) == 129);
@@ -362,7 +363,8 @@ TEST_CASE("nexenne::container::bitset_dynamic find_first_set scans from inside a
   CHECK(b.find_first_set(41) == 64);  // none after -> size
 }
 
-TEST_CASE("nexenne::container::bitset_dynamic set_bits iterates a full word and across the boundary"
+TEST_CASE(
+  "nexenne::container::bitset_dynamic set_bits iterates a full word and across the boundary"
 ) {
   bs b(128);
   nexenne::utility::discard(b.set(0));
@@ -395,7 +397,8 @@ TEST_CASE(
   CHECK(w[1] == std::uint64_t{1});
 }
 
-TEST_CASE("nexenne::container::bitset_dynamic OR and XOR over mismatched widths use the common span"
+TEST_CASE(
+  "nexenne::container::bitset_dynamic OR and XOR over mismatched widths use the common span"
 ) {
   // OR/XOR only touch the shared low words; the wider operand keeps its tail.
   bs wide(130);
@@ -496,7 +499,8 @@ TEST_CASE("nexenne::container::bitset_dynamic move assignment zeros the source")
   CHECK(c[4]);
 }
 
-TEST_CASE("nexenne::container::bitset_dynamic resize growth initializes new bits and masks the tail"
+TEST_CASE(
+  "nexenne::container::bitset_dynamic resize growth initializes new bits and masks the tail"
 ) {
   // Grow with value=false: new bits are zero.
   bs zero(10);
@@ -542,7 +546,8 @@ TEST_CASE("nexenne::container::bitset_dynamic resize shrink drops high bits and 
   CHECK(b.count() == 0);
 }
 
-TEST_CASE("nexenne::container::bitset_dynamic lexicographic ordering is on packed words then size"
+TEST_CASE(
+  "nexenne::container::bitset_dynamic lexicographic ordering is on packed words then size"
 ) {
   // <=> compares word 0 upward, then size; it is not numeric magnitude.
   bs lo{true, false};  // word 0 == 1

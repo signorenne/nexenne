@@ -227,9 +227,9 @@ template <std::floating_point Real>
  * @post None.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto contains_point(
-  capsule<Real, N> const& c, nexenne::math::vector<Real, N> const& p
-) noexcept -> bool {
+[[nodiscard]] constexpr auto
+contains_point(capsule<Real, N> const& c, nexenne::math::vector<Real, N> const& p) noexcept
+  -> bool {
   return distance_squared(axis(c), p) <= c.radius() * c.radius();
 }
 
@@ -250,9 +250,9 @@ template <std::floating_point Real, std::size_t N>
  * @post \c contains_point(c, result) is \c true (up to rounding).
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto closest_point(
-  capsule<Real, N> const& c, nexenne::math::vector<Real, N> const& p
-) noexcept -> nexenne::math::vector<Real, N> {
+[[nodiscard]] constexpr auto
+closest_point(capsule<Real, N> const& c, nexenne::math::vector<Real, N> const& p) noexcept
+  -> nexenne::math::vector<Real, N> {
   auto const on_axis{closest_point(axis(c), p)};
   auto const offset{p - on_axis};
   auto const len_sq{nexenne::math::length_squared(offset)};

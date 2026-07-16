@@ -70,8 +70,8 @@ TEST_CASE("nexenne::container::ring_buffer wraps around preserving order") {
   nexenne::utility::discard(r.push(1));
   nexenne::utility::discard(r.push(2));
   nexenne::utility::discard(r.push(3));
-  CHECK(*r.pop() == 1);  // head advances
-  nexenne::utility::discard(r.push(4));             // tail wraps into the freed slot
+  CHECK(*r.pop() == 1);                  // head advances
+  nexenne::utility::discard(r.push(4));  // tail wraps into the freed slot
   CHECK(r.size() == 3);
   CHECK(r[0] == 2);
   CHECK(r[1] == 3);
@@ -691,9 +691,9 @@ static_assert([] {
   nexenne::utility::discard(a.push(1));
   nexenne::utility::discard(a.push(2));
   nexenne::utility::discard(a.push(3));
-  nexenne::utility::discard(a.pop());  // head off zero
-  nexenne::utility::discard(a.push(4));                           // logical [2,3,4], non-zero head
-  cn::ring_buffer<int, 3> const b{a};  // copy canonicalises head
+  nexenne::utility::discard(a.pop());    // head off zero
+  nexenne::utility::discard(a.push(4));  // logical [2,3,4], non-zero head
+  cn::ring_buffer<int, 3> const b{a};    // copy canonicalises head
   bool ok{b.size() == 3 && b[0] == 2 && b[1] == 3 && b[2] == 4};
   cn::ring_buffer<int, 3> c;
   c = std::move(a);  // move-assign at compile time

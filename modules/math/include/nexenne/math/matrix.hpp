@@ -96,8 +96,8 @@ public:
    * @pre \p row and \p col are each less than \c N.
    * @post None.
    */
-  [[nodiscard]] constexpr auto
-  operator()(std::size_t const row, std::size_t const col) noexcept -> value_type& {
+  [[nodiscard]] constexpr auto operator()(std::size_t const row, std::size_t const col) noexcept
+    -> value_type& {
     assert(row < N && col < N && "matrix element index out of range");
     return m_columns[col][row];
   }
@@ -144,8 +144,8 @@ public:
    * @pre \p col is less than \c N.
    * @post None.
    */
-  [[nodiscard]] constexpr auto operator[](std::size_t const col
-  ) const noexcept -> column_type const& {
+  [[nodiscard]] constexpr auto operator[](std::size_t const col) const noexcept
+    -> column_type const& {
     assert(col < N && "matrix column index out of range");
     return m_columns[col];
   }
@@ -343,9 +343,9 @@ public:
  * @post Element (r, c) equals the argument named \c mRC.
  */
 template <arithmetic Value>
-[[nodiscard]] constexpr auto make_matrix2(
-  Value const m00, Value const m01, Value const m10, Value const m11
-) noexcept -> matrix<Value, 2> {
+[[nodiscard]] constexpr auto
+make_matrix2(Value const m00, Value const m01, Value const m10, Value const m11) noexcept
+  -> matrix<Value, 2> {
   return matrix<Value, 2>{{{
     vector<Value, 2>{m00, m10},  // column 0
     vector<Value, 2>{m01, m11},  // column 1
@@ -539,8 +539,8 @@ operator-(matrix<Value, N> const& a, matrix<Value, N> const& b) noexcept -> matr
  * @post The result has the same dimension as \p m.
  */
 template <arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto
-operator*(matrix<Value, N> const& m, Value const scalar) noexcept -> matrix<Value, N> {
+[[nodiscard]] constexpr auto operator*(matrix<Value, N> const& m, Value const scalar) noexcept
+  -> matrix<Value, N> {
   auto result{matrix<Value, N>{}};
   for (std::size_t c{0}; c < N; ++c) {
     result[c] = m[c] * scalar;
@@ -562,8 +562,8 @@ operator*(matrix<Value, N> const& m, Value const scalar) noexcept -> matrix<Valu
  * @post The result equals \c m * scalar.
  */
 template <arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto
-operator*(Value const scalar, matrix<Value, N> const& m) noexcept -> matrix<Value, N> {
+[[nodiscard]] constexpr auto operator*(Value const scalar, matrix<Value, N> const& m) noexcept
+  -> matrix<Value, N> {
   return m * scalar;
 }
 
@@ -602,8 +602,8 @@ template <arithmetic Value, std::size_t N>
  * @post The result has the same dimension as \p m.
  */
 template <arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto
-operator/(matrix<Value, N> const& m, Value const scalar) noexcept -> matrix<Value, N> {
+[[nodiscard]] constexpr auto operator/(matrix<Value, N> const& m, Value const scalar) noexcept
+  -> matrix<Value, N> {
   auto result{matrix<Value, N>{}};
   for (std::size_t c{0}; c < N; ++c) {
     result[c] = m[c] / scalar;
@@ -625,8 +625,8 @@ operator/(matrix<Value, N> const& m, Value const scalar) noexcept -> matrix<Valu
  * @post \p a holds the element-wise sum of its prior value and \p b.
  */
 template <arithmetic Value, std::size_t N>
-constexpr auto
-operator+=(matrix<Value, N>& a, matrix<Value, N> const& b) noexcept -> matrix<Value, N>& {
+constexpr auto operator+=(matrix<Value, N>& a, matrix<Value, N> const& b) noexcept
+  -> matrix<Value, N>& {
   for (std::size_t c{0}; c < N; ++c) {
     a[c] += b[c];
   }
@@ -647,8 +647,8 @@ operator+=(matrix<Value, N>& a, matrix<Value, N> const& b) noexcept -> matrix<Va
  * @post \p a holds the element-wise difference of its prior value and \p b.
  */
 template <arithmetic Value, std::size_t N>
-constexpr auto
-operator-=(matrix<Value, N>& a, matrix<Value, N> const& b) noexcept -> matrix<Value, N>& {
+constexpr auto operator-=(matrix<Value, N>& a, matrix<Value, N> const& b) noexcept
+  -> matrix<Value, N>& {
   for (std::size_t c{0}; c < N; ++c) {
     a[c] -= b[c];
   }
@@ -748,8 +748,8 @@ operator*(matrix<Value, N> const& a, matrix<Value, N> const& b) noexcept -> matr
  * @post \p a holds the matrix product of its prior value and \p b.
  */
 template <arithmetic Value, std::size_t N>
-constexpr auto
-operator*=(matrix<Value, N>& a, matrix<Value, N> const& b) noexcept -> matrix<Value, N>& {
+constexpr auto operator*=(matrix<Value, N>& a, matrix<Value, N> const& b) noexcept
+  -> matrix<Value, N>& {
   a = a * b;
   return a;
 }

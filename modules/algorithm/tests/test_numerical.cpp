@@ -491,6 +491,7 @@ struct maythrow_proj {
     return x;
   }
 };
+
 using thrown_range =
   decltype(std::declval<std::array<double, 3>&>() | std::views::transform(maythrow_proj{}));
 
@@ -499,6 +500,7 @@ struct nothrow_fn {
     return x;
   }
 };
+
 struct throwing_fn {
   auto operator()(double const x) const -> double {
     return x;

@@ -602,8 +602,8 @@ public:
    *
    * @complexity \c O(N) on insertion, \c O(log N) on assignment.
    */
-  constexpr auto
-  insert_or_assign(Key const& key, Value value) noexcept -> result<std::pair<iterator, bool>> {
+  constexpr auto insert_or_assign(Key const& key, Value value) noexcept
+    -> result<std::pair<iterator, bool>> {
     auto const pos{lower_bound(key)};
     if (pos != end() && !m_cmp(key, pos->first)) {
       pos->second = std::move(value);
@@ -663,8 +663,8 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<Value, Args...>
-  constexpr auto
-  try_emplace(Key const& key, Args&&... args) noexcept -> result<std::pair<iterator, bool>> {
+  constexpr auto try_emplace(Key const& key, Args&&... args) noexcept
+    -> result<std::pair<iterator, bool>> {
     auto const pos{lower_bound(key)};
     if (pos != end() && !m_cmp(key, pos->first)) {
       return std::pair<iterator, bool>{pos, false};

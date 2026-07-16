@@ -195,8 +195,8 @@ static_assert(sizeof(quaternion_f) == 4 * sizeof(float));
  * @post The result has finite components.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator*(quaternion<Real> const a, quaternion<Real> const b) noexcept -> quaternion<Real> {
+[[nodiscard]] constexpr auto operator*(quaternion<Real> const a, quaternion<Real> const b) noexcept
+  -> quaternion<Real> {
   return quaternion<Real>{
     a.w() * b.x() + a.x() * b.w() + a.y() * b.z() - a.z() * b.y(),
     a.w() * b.y() - a.x() * b.z() + a.y() * b.w() + a.z() * b.x(),
@@ -218,8 +218,8 @@ operator*(quaternion<Real> const a, quaternion<Real> const b) noexcept -> quater
  * @post The result has finite components.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator*(quaternion<Real> const q, Real const scalar) noexcept -> quaternion<Real> {
+[[nodiscard]] constexpr auto operator*(quaternion<Real> const q, Real const scalar) noexcept
+  -> quaternion<Real> {
   return quaternion<Real>{q.x() * scalar, q.y() * scalar, q.z() * scalar, q.w() * scalar};
 }
 
@@ -236,8 +236,8 @@ operator*(quaternion<Real> const q, Real const scalar) noexcept -> quaternion<Re
  * @post The result equals \c q * scalar.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator*(Real const scalar, quaternion<Real> const q) noexcept -> quaternion<Real> {
+[[nodiscard]] constexpr auto operator*(Real const scalar, quaternion<Real> const q) noexcept
+  -> quaternion<Real> {
   return q * scalar;
 }
 
@@ -254,8 +254,8 @@ operator*(Real const scalar, quaternion<Real> const q) noexcept -> quaternion<Re
  * @post The result has finite components and is generally not unit length.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator+(quaternion<Real> const a, quaternion<Real> const b) noexcept -> quaternion<Real> {
+[[nodiscard]] constexpr auto operator+(quaternion<Real> const a, quaternion<Real> const b) noexcept
+  -> quaternion<Real> {
   return quaternion<Real>{a.x() + b.x(), a.y() + b.y(), a.z() + b.z(), a.w() + b.w()};
 }
 
@@ -292,8 +292,8 @@ template <std::floating_point Real>
  * @post The result has finite components and is generally not unit length.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator-(quaternion<Real> const a, quaternion<Real> const b) noexcept -> quaternion<Real> {
+[[nodiscard]] constexpr auto operator-(quaternion<Real> const a, quaternion<Real> const b) noexcept
+  -> quaternion<Real> {
   return quaternion<Real>{a.x() - b.x(), a.y() - b.y(), a.z() - b.z(), a.w() - b.w()};
 }
 
@@ -310,8 +310,8 @@ operator-(quaternion<Real> const a, quaternion<Real> const b) noexcept -> quater
  * @post \p a holds the component-wise sum of its prior value and \p b.
  */
 template <std::floating_point Real>
-constexpr auto
-operator+=(quaternion<Real>& a, quaternion<Real> const b) noexcept -> quaternion<Real>& {
+constexpr auto operator+=(quaternion<Real>& a, quaternion<Real> const b) noexcept
+  -> quaternion<Real>& {
   a = a + b;
   return a;
 }
@@ -329,8 +329,8 @@ operator+=(quaternion<Real>& a, quaternion<Real> const b) noexcept -> quaternion
  * @post \p a holds the component-wise difference of its prior value and \p b.
  */
 template <std::floating_point Real>
-constexpr auto
-operator-=(quaternion<Real>& a, quaternion<Real> const b) noexcept -> quaternion<Real>& {
+constexpr auto operator-=(quaternion<Real>& a, quaternion<Real> const b) noexcept
+  -> quaternion<Real>& {
   a = a - b;
   return a;
 }
@@ -368,8 +368,8 @@ constexpr auto operator*=(quaternion<Real>& q, Real const scalar) noexcept -> qu
  * @post \p a holds the Hamilton product of its prior value and \p b.
  */
 template <std::floating_point Real>
-constexpr auto
-operator*=(quaternion<Real>& a, quaternion<Real> const b) noexcept -> quaternion<Real>& {
+constexpr auto operator*=(quaternion<Real>& a, quaternion<Real> const b) noexcept
+  -> quaternion<Real>& {
   a = a * b;
   return a;
 }
@@ -388,8 +388,8 @@ operator*=(quaternion<Real>& a, quaternion<Real> const b) noexcept -> quaternion
  *       length, where \c theta is the angle between them on the hypersphere.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-dot(quaternion<Real> const a, quaternion<Real> const b) noexcept -> Real {
+[[nodiscard]] constexpr auto dot(quaternion<Real> const a, quaternion<Real> const b) noexcept
+  -> Real {
   return a.x() * b.x() + a.y() * b.y() + a.z() * b.z() + a.w() * b.w();
 }
 
@@ -441,9 +441,9 @@ template <std::floating_point Real>
  * @post On success the result has unit length up to rounding.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto normalize(
-  quaternion<Real> const q, Real const threshold = static_cast<Real>(1e-20)
-) noexcept -> result<quaternion<Real>> {
+[[nodiscard]] constexpr auto
+normalize(quaternion<Real> const q, Real const threshold = static_cast<Real>(1e-20)) noexcept
+  -> result<quaternion<Real>> {
   auto const len_sq{length_squared(q)};
   if (len_sq <= threshold) {
     return std::unexpected{math_error::zero_length_vector};
@@ -487,9 +487,9 @@ template <std::floating_point Real>
  * @post On success \c q * result equals the identity up to rounding.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto inverse(
-  quaternion<Real> const q, Real const threshold = static_cast<Real>(1e-20)
-) noexcept -> result<quaternion<Real>> {
+[[nodiscard]] constexpr auto
+inverse(quaternion<Real> const q, Real const threshold = static_cast<Real>(1e-20)) noexcept
+  -> result<quaternion<Real>> {
   auto const len_sq{length_squared(q)};
   if (len_sq <= threshold) {
     return std::unexpected{math_error::zero_length_vector};
@@ -557,9 +557,9 @@ template <std::floating_point Real>
  *          site.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto from_euler(
-  radians<Real> const roll, radians<Real> const pitch, radians<Real> const yaw
-) noexcept -> quaternion<Real> {
+[[nodiscard]] auto
+from_euler(radians<Real> const roll, radians<Real> const pitch, radians<Real> const yaw) noexcept
+  -> quaternion<Real> {
   auto const cr{std::cos(roll.value() * Real{0.5})};
   auto const sr{std::sin(roll.value() * Real{0.5})};
   auto const cp{std::cos(pitch.value() * Real{0.5})};
@@ -783,9 +783,9 @@ template <std::floating_point Real>
  *       with \c transform::look_at.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto look_at_rotation(
-  vector<Real, 3> const forward, vector<Real, 3> const up
-) noexcept -> result<quaternion<Real>> {
+[[nodiscard]] constexpr auto
+look_at_rotation(vector<Real, 3> const forward, vector<Real, 3> const up) noexcept
+  -> result<quaternion<Real>> {
   auto const forward_unit{normalize(forward)};
   if (!forward_unit) {
     return std::unexpected{math_error::zero_length_vector};
@@ -945,8 +945,8 @@ template <std::floating_point Real>
  *       precondition holds.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-rotate(quaternion<Real> const q, vector<Real, 3> const v) noexcept -> vector<Real, 3> {
+[[nodiscard]] constexpr auto rotate(quaternion<Real> const q, vector<Real, 3> const v) noexcept
+  -> vector<Real, 3> {
   auto const qv{vector<Real, 3>{q.x(), q.y(), q.z()}};
   auto const t{Real{2} * cross(qv, v)};
   return v + q.w() * t + cross(qv, t);
@@ -971,9 +971,9 @@ rotate(quaternion<Real> const q, vector<Real, 3> const v) noexcept -> vector<Rea
  * @post The result has unit length up to rounding.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto nlerp(
-  quaternion<Real> const a, quaternion<Real> const b, Real const t
-) noexcept -> quaternion<Real> {
+[[nodiscard]] constexpr auto
+nlerp(quaternion<Real> const a, quaternion<Real> const b, Real const t) noexcept
+  -> quaternion<Real> {
   auto const shortest{dot(a, b) < Real{0} ? -b : b};
   auto const mixed{a * (Real{1} - t) + shortest * t};
   // mixed is a convex blend of two same-hemisphere unit quaternions, so it is

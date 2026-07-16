@@ -43,7 +43,8 @@ TEST_CASE("nexenne::random::uniform_int handles a single-value and a wide range"
   }
 }
 
-TEST_CASE("nexenne::random::uniform_int full 64-bit range fills the high word with a 32-bit engine"
+TEST_CASE(
+  "nexenne::random::uniform_int full 64-bit range fills the high word with a 32-bit engine"
 ) {
   // Regression: the range == 0 (full-range) path must draw enough engine words
   // to cover the whole Int. pcg32 yields 32 bits per call, so a 64-bit full

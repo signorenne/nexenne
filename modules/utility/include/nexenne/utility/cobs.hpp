@@ -118,17 +118,17 @@ enum class error : std::uint8_t {
  *
  * @complexity \c O(N) in the size \c N of \p in.
  */
-[[nodiscard]] constexpr auto encode(
-  std::span<std::byte const> const in, std::span<std::byte> const out
-) noexcept -> std::expected<std::size_t, error> {
+[[nodiscard]] constexpr auto
+encode(std::span<std::byte const> const in, std::span<std::byte> const out) noexcept
+  -> std::expected<std::size_t, error> {
   auto const cap{out.size()};
   if (cap < 1) {
     return std::unexpected{error::output_too_small};
   }
 
-  std::size_t write{1};      // out[0] is reserved for the first code byte.
-  std::size_t code_idx{0};   // Slot the current run's code byte will land in.
-  std::uint8_t code{1};      // One more than the non-zero bytes seen in the run.
+  std::size_t write{1};     // out[0] is reserved for the first code byte.
+  std::size_t code_idx{0};  // Slot the current run's code byte will land in.
+  std::uint8_t code{1};     // One more than the non-zero bytes seen in the run.
 
   for (std::size_t read{0}; read < in.size(); ++read) {
     if (in[read] != std::byte{0}) {
@@ -183,9 +183,9 @@ enum class error : std::uint8_t {
  *
  * @complexity \c O(N) in the size \c N of \p in.
  */
-[[nodiscard]] constexpr auto decode(
-  std::span<std::byte const> const in, std::span<std::byte> const out
-) noexcept -> std::expected<std::size_t, error> {
+[[nodiscard]] constexpr auto
+decode(std::span<std::byte const> const in, std::span<std::byte> const out) noexcept
+  -> std::expected<std::size_t, error> {
   auto const n{in.size()};
 
   std::size_t read{0};

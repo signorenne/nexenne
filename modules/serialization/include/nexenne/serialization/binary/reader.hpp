@@ -340,8 +340,8 @@ public:
    * @warning The returned span is invalidated when the source buffer is
    *          destroyed or modified.
    */
-  [[nodiscard]] auto read_bytes(size_type const n
-  ) noexcept -> std::expected<std::span<byte_type const>, error> {
+  [[nodiscard]] auto read_bytes(size_type const n) noexcept
+    -> std::expected<std::span<byte_type const>, error> {
     if (!m_cursor.has(n)) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
     return m_cursor.take(n);

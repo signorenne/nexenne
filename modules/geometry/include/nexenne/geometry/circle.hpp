@@ -170,9 +170,9 @@ contains_point(circle2<Real> const& c, nexenne::math::vector<Real, 2> const& p) 
  * @post \c contains_point(c, result) is \c true (up to rounding).
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto closest_point(
-  circle2<Real> const& c, nexenne::math::vector<Real, 2> const& p
-) noexcept -> nexenne::math::vector<Real, 2> {
+[[nodiscard]] constexpr auto
+closest_point(circle2<Real> const& c, nexenne::math::vector<Real, 2> const& p) noexcept
+  -> nexenne::math::vector<Real, 2> {
   auto const offset{p - c.center()};
   auto const len_sq{nexenne::math::length_squared(offset)};
   auto const r2{c.radius() * c.radius()};
@@ -200,9 +200,9 @@ template <std::floating_point Real>
  *       \c c.radius() (up to rounding).
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto closest_point_on_boundary(
-  circle2<Real> const& c, nexenne::math::vector<Real, 2> const& p
-) noexcept -> nexenne::math::vector<Real, 2> {
+[[nodiscard]] constexpr auto
+closest_point_on_boundary(circle2<Real> const& c, nexenne::math::vector<Real, 2> const& p) noexcept
+  -> nexenne::math::vector<Real, 2> {
   auto const offset{p - c.center()};
   auto const len_sq{nexenne::math::length_squared(offset)};
   if (len_sq <= static_cast<Real>(1e-20)) {
@@ -273,8 +273,8 @@ distance_squared(circle2<Real> const& c, nexenne::math::vector<Real, 2> const& p
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(circle2<Real> const& a, circle2<Real> const& b) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(circle2<Real> const& a, circle2<Real> const& b) noexcept
+  -> bool {
   auto const sum_r{a.radius() + b.radius()};
   return nexenne::math::length_squared(a.center() - b.center()) <= sum_r * sum_r;
 }

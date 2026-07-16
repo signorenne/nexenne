@@ -333,7 +333,8 @@ TEST_CASE("nexenne::filter::timed_debounce reset clears the stable state") {
   CHECK(*r == true);
 }
 
-TEST_CASE("nexenne::filter::timed_debounce a candidate cancelled mid-flight then re-held promotes"
+TEST_CASE(
+  "nexenne::filter::timed_debounce a candidate cancelled mid-flight then re-held promotes"
 ) {
   auto db{flt::timed_debounce<ns>{10ms}};
   nexenne::utility::discard(db.update(ns{0}, false));

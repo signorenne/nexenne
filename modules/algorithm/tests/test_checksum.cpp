@@ -60,8 +60,8 @@ struct lcg {
 // Independent references, written from the algorithm definitions rather than
 // the implementation under test, so agreement is real cross-validation.
 
-[[nodiscard]] auto
-naive_adler32(std::span<std::uint8_t const> const bytes, std::uint32_t seed) -> std::uint32_t {
+[[nodiscard]] auto naive_adler32(std::span<std::uint8_t const> const bytes, std::uint32_t seed)
+  -> std::uint32_t {
   auto a{(seed & 0xFFFFu) % 65521u};
   auto b{((seed >> 16u) & 0xFFFFu) % 65521u};
   for (auto const byte : bytes) {

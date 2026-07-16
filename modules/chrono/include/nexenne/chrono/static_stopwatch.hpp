@@ -582,8 +582,7 @@ public:
    */
   template <class Out>
   auto format(
-    nexenne::chrono::static_stopwatch<N, Clock> const& sw,
-    std::basic_format_context<Out, char>& ctx
+    nexenne::chrono::static_stopwatch<N, Clock> const& sw, std::basic_format_context<Out, char>& ctx
   ) const {
     auto const ms{sw.template elapsed<std::chrono::milliseconds>()};
     auto const s{nexenne::chrono::format(ms, "{s-}{d}d:{h}h:{m}m:{s}s.{ms}", suppress_zero)};

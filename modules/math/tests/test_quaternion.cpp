@@ -112,7 +112,8 @@ TEST_CASE("look_at_rotation maps -Z onto forward (right-handed)") {
     CHECK(vapprox(math::rotate(*q, math::vector3_d{0, 0, -1}), f_unit, 1e-9));
   }
   // Parallel forward/up is rejected.
-  CHECK_FALSE(math::look_at_rotation(math::vector3_d{0, 1, 0}, math::vector3_d{0, 1, 0}).has_value()
+  CHECK_FALSE(
+    math::look_at_rotation(math::vector3_d{0, 1, 0}, math::vector3_d{0, 1, 0}).has_value()
   );
 }
 
@@ -147,15 +148,11 @@ TEST_CASE("from_two_vectors is accurate in the near-antipodal gap (regression)")
 TEST_CASE("from_two_vectors and look_at_rotation are constexpr (m10)") {
   // Every step is constant-evaluable (normalize, cross, dot, math::sqrt), so a
   // static orientation must build at compile time.
-  constexpr auto turn{
-    math::from_two_vectors(math::vector3_f{1, 0, 0}, math::vector3_f{0, 1, 0})
-  };
+  constexpr auto turn{math::from_two_vectors(math::vector3_f{1, 0, 0}, math::vector3_f{0, 1, 0})};
   static_assert(turn.has_value());
   static_assert(math::length_squared(*turn) > 0.9f);
 
-  constexpr auto look{
-    math::look_at_rotation(math::vector3_f{0, 0, -1}, math::vector3_f{0, 1, 0})
-  };
+  constexpr auto look{math::look_at_rotation(math::vector3_f{0, 0, -1}, math::vector3_f{0, 1, 0})};
   static_assert(look.has_value());
   static_assert(math::length_squared(*look) > 0.9f);
 }

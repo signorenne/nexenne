@@ -331,8 +331,8 @@ template <std::floating_point Real>
  *       non-negative and sum to 1.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto signed_volumes(gjk_simplex3<Real> const& simplex
-) noexcept -> simplex_reduction3<Real> {
+[[nodiscard]] constexpr auto signed_volumes(gjk_simplex3<Real> const& simplex) noexcept
+  -> simplex_reduction3<Real> {
   using point_type = nexenne::math::vector<Real, 3>;
   auto result{simplex_reduction3<Real>{}};
 

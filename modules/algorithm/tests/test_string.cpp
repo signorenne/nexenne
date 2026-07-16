@@ -84,9 +84,10 @@ struct lcg {
   return z;
 }
 
-[[nodiscard]] auto
-levenshtein_full(std::string_view const a, std::string_view const b) -> std::size_t {
-  auto d{std::vector<std::vector<std::size_t>>(a.size() + 1, std::vector<std::size_t>(b.size() + 1))
+[[nodiscard]] auto levenshtein_full(std::string_view const a, std::string_view const b)
+  -> std::size_t {
+  auto d{
+    std::vector<std::vector<std::size_t>>(a.size() + 1, std::vector<std::size_t>(b.size() + 1))
   };
   for (auto i{std::size_t{0}}; i <= a.size(); ++i) {
     d[i][0] = i;
@@ -124,8 +125,10 @@ TEST_CASE("nexenne::algorithm single-pattern search handles bytes >= 0x80") {
   auto const needle{std::string{"\x93\xff", 2}};
   CHECK(alg::boyer_moore_find(hay, needle) == 1);
   CHECK(alg::kmp_find(hay, needle) == 1);
-  CHECK(alg::boyer_moore_find(std::string{"\xff\xfe", 2}, std::string{"\x80", 1})
-        == std::string_view::npos);
+  CHECK(
+    alg::boyer_moore_find(std::string{"\xff\xfe", 2}, std::string{"\x80", 1})
+    == std::string_view::npos
+  );
 }
 
 TEST_CASE("nexenne::algorithm kmp_find and boyer_moore_find match std::find") {

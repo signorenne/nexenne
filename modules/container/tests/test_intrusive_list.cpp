@@ -416,16 +416,18 @@ struct throwing_node : cn::intrusive_list_hook<throwing_node> {
     return a.value == b.value;
   }
 
-  friend auto
-  operator<=>(throwing_node const& a, throwing_node const& b) -> std::strong_ordering {
+  friend auto operator<=>(throwing_node const& a, throwing_node const& b) -> std::strong_ordering {
     return a.value <=> b.value;
   }
 };
 
-static_assert(noexcept(std::declval<cn::intrusive_list<node> const&>()
-                       == std::declval<cn::intrusive_list<node> const&>()));
-static_assert(!noexcept(std::declval<cn::intrusive_list<throwing_node> const&>()
-                        == std::declval<cn::intrusive_list<throwing_node> const&>()));
+static_assert(noexcept(
+  std::declval<cn::intrusive_list<node> const&>() == std::declval<cn::intrusive_list<node> const&>()
+));
+static_assert(!noexcept(
+  std::declval<cn::intrusive_list<throwing_node> const&>()
+  == std::declval<cn::intrusive_list<throwing_node> const&>()
+));
 
 TEST_CASE("nexenne::container::intrusive_list move-assign after detaching preserves the ring") {
   // M4: the fix is a debug assert against move-assigning onto a still-linked

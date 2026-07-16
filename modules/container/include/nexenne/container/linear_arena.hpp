@@ -176,8 +176,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto
-  allocate(size_type const size, size_type const alignment) noexcept -> result<void*> {
+  [[nodiscard]] auto allocate(size_type const size, size_type const alignment) noexcept
+    -> result<void*> {
     assert(
       alignment != 0 && (alignment & (alignment - 1)) == 0 && "alignment must be a power of two"
     );

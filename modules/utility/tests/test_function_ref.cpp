@@ -101,9 +101,9 @@ static_assert(std::is_same_v<util::function_ref<int(int)>::signature_type, int(i
 // matching the C++26 std::function_ref deleted assignment).
 static_assert(!std::is_assignable_v<util::function_ref<int(int)>&, stateful_functor>);
 static_assert(!std::is_assignable_v<util::function_ref<int(int)>&, stateful_functor&>);
-static_assert(!std::is_assignable_v<util::function_ref<int(int)>&, decltype([](int x) {
-                                      return x;
-                                    })>);
+static_assert(
+  !std::is_assignable_v<util::function_ref<int(int)>&, decltype([](int x) { return x; })>
+);
 // nullptr assignment is deleted too (mirrors P0792R14).
 static_assert(!std::is_assignable_v<util::function_ref<int(int)>&, std::nullptr_t>);
 // Assignment from another function_ref and from a function pointer stays legal.

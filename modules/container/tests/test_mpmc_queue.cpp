@@ -221,7 +221,8 @@ TEST_CASE("nexenne::container::mpmc_queue conserves distinct payloads across pro
   CHECK(each_once);
 }
 
-TEST_CASE("nexenne::container::mpmc_queue conserves move-only elements across producers/consumers"
+TEST_CASE(
+  "nexenne::container::mpmc_queue conserves move-only elements across producers/consumers"
 ) {
   constexpr int producers{4};
   constexpr int consumers{4};

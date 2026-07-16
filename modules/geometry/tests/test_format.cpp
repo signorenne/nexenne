@@ -39,12 +39,13 @@ TEST_CASE("format: to_string of the basic shapes is prefixed by the type name") 
 }
 
 TEST_CASE("format: to_string of triangle, capsule, and the oriented boxes") {
-  CHECK(to_string(geo::triangle3_f{vec3{0, 0, 0}, vec3{1, 0, 0}, vec3{0, 1, 0}}
-  ).starts_with("triangle("));
+  CHECK(to_string(geo::triangle3_f{vec3{0, 0, 0}, vec3{1, 0, 0}, vec3{0, 1, 0}})
+          .starts_with("triangle("));
   CHECK(to_string(geo::capsule3_f{vec3{0, 0, 0}, vec3{1, 0, 0}, 0.5f}).starts_with("capsule("));
   CHECK(to_string(geo::obb2_f{vec2{0, 0}, vec2{1, 1}, radians<float>{0.5f}}).starts_with("obb2("));
-  CHECK(to_string(geo::obb3_f{vec3{0, 0, 0}, vec3{1, 1, 1}, quaternion<float>{}}
-  ).starts_with("obb3("));
+  CHECK(
+    to_string(geo::obb3_f{vec3{0, 0, 0}, vec3{1, 1, 1}, quaternion<float>{}}).starts_with("obb3(")
+  );
 }
 
 TEST_CASE("format: polygon and convex hull list their vertices") {
@@ -54,7 +55,8 @@ TEST_CASE("format: polygon and convex hull list their vertices") {
 
   CHECK(to_string(geo::convex_hull3_f{}) == "convex_hull3(0 vertices)");
   constexpr auto verts3{std::array{vec3{0, 0, 0}, vec3{1, 0, 0}}};
-  CHECK(to_string(geo::convex_hull3_f{std::span<vec3 const>{verts3}}
+  CHECK(to_string(
+          geo::convex_hull3_f{std::span<vec3 const>{verts3}}
   ).starts_with("convex_hull3(2 vertices:"));
 }
 

@@ -127,8 +127,8 @@ static_assert(sizeof(segment3_f) == 6 * sizeof(float));
  * @post None.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto direction(segment<Real, N> const& s
-) noexcept -> nexenne::math::vector<Real, N> {
+[[nodiscard]] constexpr auto direction(segment<Real, N> const& s) noexcept
+  -> nexenne::math::vector<Real, N> {
   return s.end() - s.start();
 }
 
@@ -183,8 +183,8 @@ template <std::floating_point Real, std::size_t N>
  * @post The result lies on the segment when \p t is in \c [0, 1].
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto
-at(segment<Real, N> const& s, Real const t) noexcept -> nexenne::math::vector<Real, N> {
+[[nodiscard]] constexpr auto at(segment<Real, N> const& s, Real const t) noexcept
+  -> nexenne::math::vector<Real, N> {
   return s.start() + direction(s) * t;
 }
 
@@ -205,9 +205,9 @@ at(segment<Real, N> const& s, Real const t) noexcept -> nexenne::math::vector<Re
  * @post The result lies on the segment (parameter in \c [0, 1]).
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto closest_point(
-  segment<Real, N> const& s, nexenne::math::vector<Real, N> const& p
-) noexcept -> nexenne::math::vector<Real, N> {
+[[nodiscard]] constexpr auto
+closest_point(segment<Real, N> const& s, nexenne::math::vector<Real, N> const& p) noexcept
+  -> nexenne::math::vector<Real, N> {
   auto const dir{direction(s)};
   auto const len_sq{nexenne::math::length_squared(dir)};
   if (len_sq <= static_cast<Real>(1e-20)) {
@@ -232,9 +232,9 @@ template <std::floating_point Real, std::size_t N>
  * @post The result is non-negative; \c 0 when \p p lies on the segment.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto distance_squared(
-  segment<Real, N> const& s, nexenne::math::vector<Real, N> const& p
-) noexcept -> Real {
+[[nodiscard]] constexpr auto
+distance_squared(segment<Real, N> const& s, nexenne::math::vector<Real, N> const& p) noexcept
+  -> Real {
   return nexenne::math::length_squared(p - closest_point(s, p));
 }
 
@@ -276,9 +276,9 @@ distance(segment<Real, N> const& s, nexenne::math::vector<Real, N> const& p) noe
  * @post When engaged the result lies on both \p a and \p b.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto intersects(
-  segment<Real, 2> const& a, segment<Real, 2> const& b
-) noexcept -> std::optional<nexenne::math::vector<Real, 2>> {
+[[nodiscard]] constexpr auto
+intersects(segment<Real, 2> const& a, segment<Real, 2> const& b) noexcept
+  -> std::optional<nexenne::math::vector<Real, 2>> {
   // Solve p + t r = q + u s for the two parameters with the 2D pseudo-cross:
   // t = cross(qp, s) / cross(r, s), u = cross(qp, r) / cross(r, s), where qp is
   // q - p. A zero cross(r, s) means the segments are parallel or collinear. See

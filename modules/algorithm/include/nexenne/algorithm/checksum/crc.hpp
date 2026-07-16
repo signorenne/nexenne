@@ -88,6 +88,7 @@ inline constexpr auto crc_mask{
 };
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -134,8 +135,8 @@ namespace detail {
  * @complexity \c O(1): a fixed 256 by 8 build.
  */
 template <crc_spec Spec>
-[[nodiscard]] constexpr auto
-make_crc_table() noexcept -> std::array<typename decltype(Spec)::value_type, 256> {
+[[nodiscard]] constexpr auto make_crc_table() noexcept
+  -> std::array<typename decltype(Spec)::value_type, 256> {
   using value_type = typename decltype(Spec)::value_type;
   constexpr auto width{Spec.width};
   constexpr auto mask{crc_mask<value_type, width>};
@@ -199,8 +200,8 @@ inline constexpr auto crc_table_for{make_crc_table<Spec>()};
  * @complexity \c O(N) in the length \c N of \p data.
  */
 template <crc_spec Spec, typename Range>
-[[nodiscard]] constexpr auto
-crc_fold(Range const& data) noexcept -> typename decltype(Spec)::value_type {
+[[nodiscard]] constexpr auto crc_fold(Range const& data) noexcept ->
+  typename decltype(Spec)::value_type {
   using value_type = typename decltype(Spec)::value_type;
   constexpr auto width{Spec.width};
   constexpr auto mask{crc_mask<value_type, width>};
@@ -233,6 +234,7 @@ crc_fold(Range const& data) noexcept -> typename decltype(Spec)::value_type {
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -541,8 +543,8 @@ inline constexpr auto crc32_mpeg2_spec{crc_spec<32>{
  *
  * @complexity \c O(N) in the size \c N of \p d.
  */
-[[nodiscard]] constexpr auto crc8_1wire(std::span<std::uint8_t const> const d
-) noexcept -> std::uint8_t {
+[[nodiscard]] constexpr auto crc8_1wire(std::span<std::uint8_t const> const d) noexcept
+  -> std::uint8_t {
   return crc<crc8_dallas_1wire_spec>(d);
 }
 
@@ -574,8 +576,8 @@ inline constexpr auto crc32_mpeg2_spec{crc_spec<32>{
  *
  * @complexity \c O(N) in the size \c N of \p d.
  */
-[[nodiscard]] constexpr auto crc32(std::span<std::uint8_t const> const d
-) noexcept -> std::uint32_t {
+[[nodiscard]] constexpr auto crc32(std::span<std::uint8_t const> const d) noexcept
+  -> std::uint32_t {
   return crc<crc32_ieee_spec>(d);
 }
 
@@ -607,8 +609,8 @@ inline constexpr auto crc32_mpeg2_spec{crc_spec<32>{
  *
  * @complexity \c O(N) in the size \c N of \p d.
  */
-[[nodiscard]] constexpr auto crc32c(std::span<std::uint8_t const> const d
-) noexcept -> std::uint32_t {
+[[nodiscard]] constexpr auto crc32c(std::span<std::uint8_t const> const d) noexcept
+  -> std::uint32_t {
   return crc<crc32c_spec>(d);
 }
 

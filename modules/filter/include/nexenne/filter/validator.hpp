@@ -67,7 +67,8 @@ public:
    * @post The validator is unprimed, so its first \c push is accepted
    * regardless of the predicate result.
    */
-  constexpr explicit validator(predicate_type pred
+  constexpr explicit validator(
+    predicate_type pred
   ) noexcept(std::is_nothrow_move_constructible_v<predicate_type>)
       : m_pred{std::move(pred)} {}
 
@@ -106,7 +107,8 @@ public:
    *
    * @complexity \c O(1) plus the cost of one predicate call.
    */
-  [[nodiscard]] constexpr auto push(value_type const sample
+  [[nodiscard]] constexpr auto push(
+    value_type const sample
   ) noexcept(std::is_nothrow_invocable_v<predicate_type&, value_type const&>) -> value_type {
     if (m_pred(sample) || !m_primed) {
       m_value = sample;

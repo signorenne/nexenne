@@ -517,8 +517,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(flags const& lhs, flags const& rhs) noexcept -> bool = default;
+  [[nodiscard]] friend constexpr auto operator==(flags const& lhs, flags const& rhs) noexcept
+    -> bool = default;
 };
 
 }  // namespace nexenne::utility

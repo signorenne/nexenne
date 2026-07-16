@@ -97,8 +97,8 @@ constexpr auto counting_sort(std::span<T> const range, T const max_value) -> voi
  */
 template <std::contiguous_iterator It>
   requires std::unsigned_integral<std::iter_value_t<It>>
-constexpr auto
-counting_sort(It const first, It const last, std::iter_value_t<It> const max_value) -> void {
+constexpr auto counting_sort(It const first, It const last, std::iter_value_t<It> const max_value)
+  -> void {
   counting_sort(
     std::span{std::to_address(first), static_cast<std::size_t>(last - first)}, max_value
   );

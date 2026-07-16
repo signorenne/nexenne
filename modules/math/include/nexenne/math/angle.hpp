@@ -304,8 +304,8 @@ public:
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator+(radians<Real> const lhs, radians<Real> const rhs) noexcept -> radians<Real> {
+[[nodiscard]] constexpr auto operator+(radians<Real> const lhs, radians<Real> const rhs) noexcept
+  -> radians<Real> {
   return radians<Real>{lhs.value() + rhs.value()};
 }
 
@@ -322,8 +322,8 @@ operator+(radians<Real> const lhs, radians<Real> const rhs) noexcept -> radians<
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator-(radians<Real> const lhs, radians<Real> const rhs) noexcept -> radians<Real> {
+[[nodiscard]] constexpr auto operator-(radians<Real> const lhs, radians<Real> const rhs) noexcept
+  -> radians<Real> {
   return radians<Real>{lhs.value() - rhs.value()};
 }
 
@@ -356,8 +356,8 @@ template <std::floating_point Real>
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator*(radians<Real> const a, Real const scalar) noexcept -> radians<Real> {
+[[nodiscard]] constexpr auto operator*(radians<Real> const a, Real const scalar) noexcept
+  -> radians<Real> {
   return radians<Real>{a.value() * scalar};
 }
 
@@ -374,8 +374,8 @@ operator*(radians<Real> const a, Real const scalar) noexcept -> radians<Real> {
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator*(Real const scalar, radians<Real> const a) noexcept -> radians<Real> {
+[[nodiscard]] constexpr auto operator*(Real const scalar, radians<Real> const a) noexcept
+  -> radians<Real> {
   return radians<Real>{scalar * a.value()};
 }
 
@@ -392,8 +392,8 @@ operator*(Real const scalar, radians<Real> const a) noexcept -> radians<Real> {
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator/(radians<Real> const a, Real const scalar) noexcept -> radians<Real> {
+[[nodiscard]] constexpr auto operator/(radians<Real> const a, Real const scalar) noexcept
+  -> radians<Real> {
   assert(scalar != Real{0} && "dividing a radians angle by zero");
   return radians<Real>{a.value() / scalar};
 }
@@ -411,8 +411,8 @@ operator/(radians<Real> const a, Real const scalar) noexcept -> radians<Real> {
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator/(radians<Real> const lhs, radians<Real> const rhs) noexcept -> Real {
+[[nodiscard]] constexpr auto operator/(radians<Real> const lhs, radians<Real> const rhs) noexcept
+  -> Real {
   return lhs.value() / rhs.value();
 }
 
@@ -431,8 +431,8 @@ operator/(radians<Real> const lhs, radians<Real> const rhs) noexcept -> Real {
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator+(degrees<Real> const lhs, degrees<Real> const rhs) noexcept -> degrees<Real> {
+[[nodiscard]] constexpr auto operator+(degrees<Real> const lhs, degrees<Real> const rhs) noexcept
+  -> degrees<Real> {
   return degrees<Real>{lhs.value() + rhs.value()};
 }
 
@@ -449,8 +449,8 @@ operator+(degrees<Real> const lhs, degrees<Real> const rhs) noexcept -> degrees<
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator-(degrees<Real> const lhs, degrees<Real> const rhs) noexcept -> degrees<Real> {
+[[nodiscard]] constexpr auto operator-(degrees<Real> const lhs, degrees<Real> const rhs) noexcept
+  -> degrees<Real> {
   return degrees<Real>{lhs.value() - rhs.value()};
 }
 
@@ -483,8 +483,8 @@ template <std::floating_point Real>
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator*(degrees<Real> const a, Real const scalar) noexcept -> degrees<Real> {
+[[nodiscard]] constexpr auto operator*(degrees<Real> const a, Real const scalar) noexcept
+  -> degrees<Real> {
   return degrees<Real>{a.value() * scalar};
 }
 
@@ -501,8 +501,8 @@ operator*(degrees<Real> const a, Real const scalar) noexcept -> degrees<Real> {
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator*(Real const scalar, degrees<Real> const a) noexcept -> degrees<Real> {
+[[nodiscard]] constexpr auto operator*(Real const scalar, degrees<Real> const a) noexcept
+  -> degrees<Real> {
   return degrees<Real>{scalar * a.value()};
 }
 
@@ -519,8 +519,8 @@ operator*(Real const scalar, degrees<Real> const a) noexcept -> degrees<Real> {
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator/(degrees<Real> const a, Real const scalar) noexcept -> degrees<Real> {
+[[nodiscard]] constexpr auto operator/(degrees<Real> const a, Real const scalar) noexcept
+  -> degrees<Real> {
   assert(scalar != Real{0} && "dividing a degrees angle by zero");
   return degrees<Real>{a.value() / scalar};
 }
@@ -538,8 +538,8 @@ operator/(degrees<Real> const a, Real const scalar) noexcept -> degrees<Real> {
  * @post Result is finite.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-operator/(degrees<Real> const lhs, degrees<Real> const rhs) noexcept -> Real {
+[[nodiscard]] constexpr auto operator/(degrees<Real> const lhs, degrees<Real> const rhs) noexcept
+  -> Real {
   return lhs.value() / rhs.value();
 }
 

@@ -89,9 +89,9 @@ struct duration_parts {
  * @post The magnitude components are non-negative; \c sign is -1, 0, or +1 and
  *       is zero exactly when \p ms is zero.
  */
-[[nodiscard]] constexpr auto extract_parts(
-  std::chrono::milliseconds ms, bool const round_to_seconds = false
-) noexcept -> duration_parts {
+[[nodiscard]] constexpr auto
+extract_parts(std::chrono::milliseconds ms, bool const round_to_seconds = false) noexcept
+  -> duration_parts {
   using rep_type = std::chrono::milliseconds::rep;
   using urep_type = std::make_unsigned_t<rep_type>;
 
@@ -196,8 +196,8 @@ template <chrono_duration D>
  * @post The magnitude components are non-negative; \c sign is -1, 0, or +1.
  */
 template <chrono_duration D>
-[[nodiscard]] constexpr auto
-extract_parts(D const d, bool const round_to_seconds = false) noexcept -> duration_parts {
+[[nodiscard]] constexpr auto extract_parts(D const d, bool const round_to_seconds = false) noexcept
+  -> duration_parts {
   return extract_parts(detail::to_millis_clamped(d), round_to_seconds);
 }
 
@@ -220,9 +220,9 @@ namespace detail {
  *       \p value.
  * @throws std::bad_alloc if the string reallocation fails.
  */
-inline auto replace_all(
-  std::string& inout, std::string_view const token, std::string_view const value
-) -> void {
+inline auto
+replace_all(std::string& inout, std::string_view const token, std::string_view const value)
+  -> void {
   if (token.empty()) {
     return;
   }
@@ -474,8 +474,9 @@ struct std::formatter<nexenne::chrono::duration_parts, char> {
    * @post None.
    */
   template <class Out>
-  auto format(nexenne::chrono::duration_parts const& p, std::basic_format_context<Out, char>& ctx)
-    const {
+  auto format(
+    nexenne::chrono::duration_parts const& p, std::basic_format_context<Out, char>& ctx
+  ) const {
     using std::chrono::days;
     using std::chrono::hours;
     using std::chrono::milliseconds;

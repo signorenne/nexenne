@@ -199,8 +199,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(deadline const&, deadline const&) noexcept -> bool = default;
+  [[nodiscard]] friend constexpr auto operator==(deadline const&, deadline const&) noexcept
+    -> bool = default;
 };
 
 }  // namespace nexenne::chrono

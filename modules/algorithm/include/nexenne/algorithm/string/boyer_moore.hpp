@@ -47,9 +47,9 @@ namespace nexenne::algorithm {
  *             alphabets, where \c H and \c N are the sizes of \p haystack and
  *             \p needle. Setup is \c O(N + 256).
  */
-[[nodiscard]] constexpr auto boyer_moore_find(
-  std::string_view const haystack, std::string_view const needle
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto
+boyer_moore_find(std::string_view const haystack, std::string_view const needle) noexcept
+  -> std::size_t {
   auto const n{haystack.size()};
   auto const m{needle.size()};
   if (m == 0) {

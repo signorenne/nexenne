@@ -98,8 +98,8 @@ inline constexpr bool nothrow_hashable_v{noexcept(std::hash<T>{}(std::declval<T 
  * @post \p seed has been updated to incorporate \p value.
  */
 template <hashable Value>
-auto hash_combine(std::size_t& seed, Value const& value)
-  noexcept(detail::nothrow_hashable_v<Value>) -> void {
+auto hash_combine(std::size_t& seed, Value const& value) noexcept(detail::nothrow_hashable_v<Value>)
+  -> void {
   using mix = detail::hash_mix<>;
   auto const hashed{std::hash<Value>{}(value)};
   seed ^= hashed + mix::magic + (seed << mix::left) + (seed >> mix::right);
@@ -119,8 +119,9 @@ auto hash_combine(std::size_t& seed, Value const& value)
  * @post \p seed has been updated to incorporate every value in \p args.
  */
 template <hashable... Args>
-auto hash_combine_each(std::size_t& seed, Args const&... args)
-  noexcept((detail::nothrow_hashable_v<Args> && ...)) -> void {
+auto hash_combine_each(std::size_t& seed, Args const&... args) noexcept(
+  (detail::nothrow_hashable_v<Args> && ...)
+) -> void {
   (hash_combine(seed, args), ...);
 }
 
@@ -145,8 +146,8 @@ auto hash_combine_each(std::size_t& seed, Args const&... args)
  * \endcode
  */
 template <hashable... Args>
-[[nodiscard]] auto hash_args(Args const&... args)
-  noexcept((detail::nothrow_hashable_v<Args> && ...)) -> std::size_t {
+[[nodiscard]] auto
+hash_args(Args const&... args) noexcept((detail::nothrow_hashable_v<Args> && ...)) -> std::size_t {
   auto seed{std::size_t{0}};
   hash_combine_each(seed, args...);
   return seed;
@@ -171,8 +172,9 @@ template <hashable... Args>
  */
 template <std::ranges::input_range Range>
   requires hashable<std::ranges::range_value_t<Range>>
-[[nodiscard]] auto hash_range(Range const& range)
-  noexcept(detail::nothrow_hashable_v<std::ranges::range_value_t<Range>>) -> std::size_t {
+[[nodiscard]] auto hash_range(
+  Range const& range
+) noexcept(detail::nothrow_hashable_v<std::ranges::range_value_t<Range>>) -> std::size_t {
   auto seed{std::size_t{0}};
   for (auto const& element : range) {
     hash_combine(seed, element);

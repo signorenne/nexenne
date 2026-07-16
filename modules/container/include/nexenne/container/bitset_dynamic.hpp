@@ -778,8 +778,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto
-  find_first_set(size_type const from = 0) const noexcept -> size_type {
+  [[nodiscard]] constexpr auto find_first_set(size_type const from = 0) const noexcept
+    -> size_type {
     if (from >= m_size) {
       return m_size;
     }
@@ -876,8 +876,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator&(bitset_dynamic a, bitset_dynamic const& b) noexcept -> bitset_dynamic {
+  [[nodiscard]] friend constexpr auto operator&(bitset_dynamic a, bitset_dynamic const& b) noexcept
+    -> bitset_dynamic {
     a &= b;
     return a;
   }
@@ -893,8 +893,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator|(bitset_dynamic a, bitset_dynamic const& b) noexcept -> bitset_dynamic {
+  [[nodiscard]] friend constexpr auto operator|(bitset_dynamic a, bitset_dynamic const& b) noexcept
+    -> bitset_dynamic {
     a |= b;
     return a;
   }
@@ -910,8 +910,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator^(bitset_dynamic a, bitset_dynamic const& b) noexcept -> bitset_dynamic {
+  [[nodiscard]] friend constexpr auto operator^(bitset_dynamic a, bitset_dynamic const& b) noexcept
+    -> bitset_dynamic {
     a ^= b;
     return a;
   }

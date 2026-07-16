@@ -126,6 +126,7 @@ struct dijkstra_entry {
 };
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -163,9 +164,9 @@ template <
   std::unsigned_integral V,
   typename Weight = double,
   typename WeightFn = detail::default_weight_fn>
-[[nodiscard]] auto dijkstra(
-  nexenne::container::graph<E, V> const& g, V const source, WeightFn weight_of = {}
-) -> std::expected<std::vector<Weight>, nexenne::container::container_error> {
+[[nodiscard]] auto
+dijkstra(nexenne::container::graph<E, V> const& g, V const source, WeightFn weight_of = {})
+  -> std::expected<std::vector<Weight>, nexenne::container::container_error> {
   if (!g.contains(source)) {
     return std::unexpected{nexenne::container::container_error::out_of_range};
   }

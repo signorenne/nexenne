@@ -39,8 +39,9 @@ namespace nexenne::utility {
  */
 template <typename T, typename E>
   requires(!std::is_void_v<T>)
-[[nodiscard]] constexpr auto into_optional(std::expected<T, E> const& e
-) noexcept(std::is_nothrow_copy_constructible_v<T>) -> std::optional<T> {
+[[nodiscard]] constexpr auto
+into_optional(std::expected<T, E> const& e) noexcept(std::is_nothrow_copy_constructible_v<T>)
+  -> std::optional<T> {
   if (e) {
     return *e;
   }
@@ -62,8 +63,9 @@ template <typename T, typename E>
  */
 template <typename T, typename E>
   requires(!std::is_void_v<T>)
-[[nodiscard]] constexpr auto into_optional(std::expected<T, E>&& e
-) noexcept(std::is_nothrow_move_constructible_v<T>) -> std::optional<T> {
+[[nodiscard]] constexpr auto
+into_optional(std::expected<T, E>&& e) noexcept(std::is_nothrow_move_constructible_v<T>)
+  -> std::optional<T> {
   if (e) {
     return std::optional<T>{std::move(*e)};
   }
@@ -168,8 +170,8 @@ template <typename T, typename E>
  */
 template <typename E, typename... Args>
   requires(std::same_as<std::remove_cvref_t<Args>, std::expected<void, E>> && ...)
-[[nodiscard]] constexpr auto
-first_error(std::expected<void, E> const& first, Args const&... rest
+[[nodiscard]] constexpr auto first_error(
+  std::expected<void, E> const& first, Args const&... rest
 ) noexcept(std::is_nothrow_copy_constructible_v<E>) -> std::expected<void, E> {
   if (!first) {
     // In-place error construction: one copy of E, so the noexcept condition

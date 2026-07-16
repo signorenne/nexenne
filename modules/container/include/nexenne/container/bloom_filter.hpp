@@ -75,15 +75,16 @@ private:
   // The two base hashes for a value. h2 is forced odd so it is never zero:
   // a value whose hash is 0 would otherwise drive every one of the k positions
   // to bit 0 (splitmix64(0) == 0), collapsing the filter for that value.
-  [[nodiscard]] auto hash_pair(T const& value
-  ) const noexcept -> std::pair<std::size_t, std::size_t> {
+  [[nodiscard]] auto hash_pair(T const& value) const noexcept
+    -> std::pair<std::size_t, std::size_t> {
     auto const h1{m_hash(value)};
     auto const h2{static_cast<std::size_t>(splitmix64(h1)) | std::size_t{1}};
     return {h1, h2};
   }
 
-  [[nodiscard]] auto bit_for(size_type const k, std::size_t const h1, std::size_t const h2)
-    const noexcept -> size_type {
+  [[nodiscard]] auto
+  bit_for(size_type const k, std::size_t const h1, std::size_t const h2) const noexcept
+    -> size_type {
     return (h1 + k * h2) % m_bits.size();
   }
 
@@ -117,9 +118,9 @@ public:
    * @pre \p expected_items is greater than zero and \p target_fpr is in (0, 1).
    * @post The returned filter is empty with \c hash_count() at least one.
    */
-  [[nodiscard]] static auto with_target_false_positive_rate(
-    size_type const expected_items, double const target_fpr
-  ) noexcept -> bloom_filter {
+  [[nodiscard]] static auto
+  with_target_false_positive_rate(size_type const expected_items, double const target_fpr) noexcept
+    -> bloom_filter {
     assert(expected_items > 0 && "with_target_false_positive_rate requires expected_items > 0");
     assert(
       target_fpr > 0.0 && target_fpr < 1.0
@@ -331,8 +332,8 @@ public:
    * @pre None.
    * @post None. Neither filter is modified.
    */
-  [[nodiscard]] friend auto
-  operator==(bloom_filter const& a, bloom_filter const& b) noexcept -> bool {
+  [[nodiscard]] friend auto operator==(bloom_filter const& a, bloom_filter const& b) noexcept
+    -> bool {
     return a.m_num_hashes == b.m_num_hashes && a.m_bits == b.m_bits;
   }
 };

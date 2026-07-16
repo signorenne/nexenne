@@ -221,9 +221,9 @@ template <std::floating_point Real>
  *          transposes yaw and roll.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto from_ypr(
-  radians<Real> const yaw, radians<Real> const pitch, radians<Real> const roll
-) noexcept -> quaternion<Real> {
+[[nodiscard]] auto
+from_ypr(radians<Real> const yaw, radians<Real> const pitch, radians<Real> const roll) noexcept
+  -> quaternion<Real> {
   return to_quaternion(euler_angles<Real>{roll, pitch, yaw}, euler_order::zyx);
 }
 

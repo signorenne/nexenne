@@ -44,6 +44,7 @@ struct fnv1a_params<64> {
 };
 
 }  // namespace detail
+
 /// @endcond
 
 /// @brief The unsigned result type of \c fnv1a at the given \c Width.
@@ -80,9 +81,9 @@ inline constexpr auto fnv1a_prime{detail::fnv1a_params<Width>::prime};
  */
 template <std::size_t Width = 64>
   requires(Width == 32 || Width == 64)
-[[nodiscard]] constexpr auto
-fnv1a(std::span<std::uint8_t const> const bytes, fnv1a_result_t<Width> const seed = fnv1a_offset<Width>) noexcept
-  -> fnv1a_result_t<Width> {
+[[nodiscard]] constexpr auto fnv1a(
+  std::span<std::uint8_t const> const bytes, fnv1a_result_t<Width> const seed = fnv1a_offset<Width>
+) noexcept -> fnv1a_result_t<Width> {
   auto h{seed};
   for (auto const b : bytes) {
     h ^= static_cast<fnv1a_result_t<Width>>(b);

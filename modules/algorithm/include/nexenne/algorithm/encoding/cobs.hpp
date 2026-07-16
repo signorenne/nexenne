@@ -59,6 +59,7 @@ namespace detail {
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -72,8 +73,8 @@ namespace detail {
  * @pre None.
  * @post None.
  */
-[[nodiscard]] constexpr auto cobs_encoded_max_size(std::size_t const n_bytes
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto cobs_encoded_max_size(std::size_t const n_bytes) noexcept
+  -> std::size_t {
   return nexenne::utility::cobs::max_encoded_size(n_bytes);
 }
 
@@ -97,9 +98,9 @@ namespace detail {
  *
  * @complexity \c O(N) in the size \c N of \p in.
  */
-[[nodiscard]] constexpr auto cobs_encode(
-  std::span<std::uint8_t const> const in, std::span<std::uint8_t> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+cobs_encode(std::span<std::uint8_t const> const in, std::span<std::uint8_t> const out) noexcept
+  -> codec_result {
   return nexenne::utility::cobs::encode(std::as_bytes(in), std::as_writable_bytes(out))
     .transform_error(detail::cobs_to_codec_error);
 }
@@ -125,9 +126,9 @@ namespace detail {
  *
  * @complexity \c O(N) in the size \c N of \p in.
  */
-[[nodiscard]] constexpr auto cobs_decode(
-  std::span<std::uint8_t const> const in, std::span<std::uint8_t> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+cobs_decode(std::span<std::uint8_t const> const in, std::span<std::uint8_t> const out) noexcept
+  -> codec_result {
   return nexenne::utility::cobs::decode(std::as_bytes(in), std::as_writable_bytes(out))
     .transform_error(detail::cobs_to_codec_error);
 }

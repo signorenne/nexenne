@@ -117,6 +117,7 @@ auto fft_inplace(std::span<std::complex<T>> const data, bool const inverse) noex
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -138,8 +139,8 @@ auto fft_inplace(std::span<std::complex<T>> const data, bool const inverse) noex
  * @complexity \c O(N log N) time and \c O(1) auxiliary space.
  */
 template <std::floating_point T>
-[[nodiscard]] auto fft(std::span<std::complex<T>> const data
-) noexcept -> std::expected<void, numerical_error> {
+[[nodiscard]] auto fft(std::span<std::complex<T>> const data) noexcept
+  -> std::expected<void, numerical_error> {
   if (data.empty()) {
     return {};
   }
@@ -169,8 +170,8 @@ template <std::floating_point T>
  * @complexity \c O(N log N) time and \c O(1) auxiliary space.
  */
 template <std::floating_point T>
-[[nodiscard]] auto ifft(std::span<std::complex<T>> const data
-) noexcept -> std::expected<void, numerical_error> {
+[[nodiscard]] auto ifft(std::span<std::complex<T>> const data) noexcept
+  -> std::expected<void, numerical_error> {
   if (data.empty()) {
     return {};
   }
@@ -263,8 +264,8 @@ template <std::floating_point T>
  * @complexity \c O(N log N) time and \c O(N) space.
  */
 template <std::floating_point T>
-[[nodiscard]] auto rfft(std::span<T const> const input
-) -> std::expected<std::vector<std::complex<T>>, numerical_error> {
+[[nodiscard]] auto rfft(std::span<T const> const input)
+  -> std::expected<std::vector<std::complex<T>>, numerical_error> {
   auto const n{input.size()};
   if (n == 0) {
     return std::vector<std::complex<T>>{};

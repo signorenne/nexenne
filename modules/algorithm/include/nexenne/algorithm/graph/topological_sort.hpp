@@ -43,8 +43,8 @@ namespace nexenne::algorithm {
  * @complexity \c O(V + E) time and \c O(V) auxiliary space.
  */
 template <typename E, std::unsigned_integral V>
-[[nodiscard]] auto topological_sort(nexenne::container::graph<E, V> const& g
-) -> std::expected<std::vector<V>, nexenne::container::container_error> {
+[[nodiscard]] auto topological_sort(nexenne::container::graph<E, V> const& g)
+  -> std::expected<std::vector<V>, nexenne::container::container_error> {
   auto const n{g.vertex_count()};
   auto in_degree{std::vector<std::size_t>(n, 0)};
 

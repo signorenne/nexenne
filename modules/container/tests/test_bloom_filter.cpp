@@ -134,7 +134,8 @@ TEST_CASE("nexenne::container::bloom_filter single-bit single-hash degenerate fi
   CHECK(f.false_positive_rate() > 0.0);
 }
 
-TEST_CASE("nexenne::container::bloom_filter no false negatives across many hash-zero-prone values"
+TEST_CASE(
+  "nexenne::container::bloom_filter no false negatives across many hash-zero-prone values"
 ) {
   // Sweep values including 0 and small ints whose splitmix64 second hash could be
   // even before the odd-forcing fix; every inserted value must still be present.
@@ -148,7 +149,8 @@ TEST_CASE("nexenne::container::bloom_filter no false negatives across many hash-
   CHECK(f.insertions() == 201);
 }
 
-TEST_CASE("nexenne::container::bloom_filter false-positive rate stays within bound over many items"
+TEST_CASE(
+  "nexenne::container::bloom_filter false-positive rate stays within bound over many items"
 ) {
   // Insert the design load, then probe a disjoint key range and count positives.
   auto f{cn::bloom_filter<std::uint64_t>::with_target_false_positive_rate(2000, 0.01)};

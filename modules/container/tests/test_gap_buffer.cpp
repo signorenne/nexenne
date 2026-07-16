@@ -400,7 +400,9 @@ struct slide_counter {
   int v{0};
 
   slide_counter() noexcept = default;
+
   slide_counter(int const x) noexcept : v{x} {}
+
   slide_counter(slide_counter const&) noexcept = default;
   slide_counter(slide_counter&&) noexcept = default;
   auto operator=(slide_counter const&) noexcept -> slide_counter& = default;
@@ -431,8 +433,7 @@ TEST_CASE("nexenne::container::gap_buffer mid-buffer insert stays amortised O(1)
     for (std::size_t i{0}; i < post_count; ++i) {
       g.insert(value);  // insert at the front, sliding the post region on each grow
     }
-    return static_cast<double>(slide_counter::move_assigns)
-           / static_cast<double>(post_count);
+    return static_cast<double>(slide_counter::move_assigns) / static_cast<double>(post_count);
   }};
 
   auto const small{per_insert(1000)};

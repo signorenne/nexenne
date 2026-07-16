@@ -346,8 +346,8 @@ private:
      * @pre None.
      * @post None.
      */
-    [[nodiscard]] friend auto
-    operator+(basic_iterator it, difference_type const n) noexcept -> basic_iterator {
+    [[nodiscard]] friend auto operator+(basic_iterator it, difference_type const n) noexcept
+      -> basic_iterator {
       it += n;
       return it;
     }
@@ -363,8 +363,8 @@ private:
      * @pre None.
      * @post None.
      */
-    [[nodiscard]] friend auto
-    operator+(difference_type const n, basic_iterator it) noexcept -> basic_iterator {
+    [[nodiscard]] friend auto operator+(difference_type const n, basic_iterator it) noexcept
+      -> basic_iterator {
       it += n;
       return it;
     }
@@ -380,8 +380,8 @@ private:
      * @pre None.
      * @post None.
      */
-    [[nodiscard]] friend auto
-    operator-(basic_iterator it, difference_type const n) noexcept -> basic_iterator {
+    [[nodiscard]] friend auto operator-(basic_iterator it, difference_type const n) noexcept
+      -> basic_iterator {
       it -= n;
       return it;
     }
@@ -397,8 +397,8 @@ private:
      * @pre \p a and \p b refer to the same deque.
      * @post None.
      */
-    [[nodiscard]] friend auto
-    operator-(basic_iterator const& a, basic_iterator const& b) noexcept -> difference_type {
+    [[nodiscard]] friend auto operator-(basic_iterator const& a, basic_iterator const& b) noexcept
+      -> difference_type {
       return static_cast<difference_type>(a.m_pos) - static_cast<difference_type>(b.m_pos);
     }
 
@@ -413,8 +413,8 @@ private:
      * @pre \p a and \p b refer to the same deque.
      * @post None.
      */
-    [[nodiscard]] friend auto
-    operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
+    [[nodiscard]] friend auto operator==(basic_iterator const& a, basic_iterator const& b) noexcept
+      -> bool {
       return a.m_pos == b.m_pos;
     }
 

@@ -854,10 +854,9 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(intrusive_list const& a, intrusive_list const& b) noexcept(
-    noexcept(std::declval<T const&>() == std::declval<T const&>())
-  ) -> bool
+  [[nodiscard]] friend constexpr auto operator==(
+    intrusive_list const& a, intrusive_list const& b
+  ) noexcept(noexcept(std::declval<T const&>() == std::declval<T const&>())) -> bool
     requires std::equality_comparable<T>
   {
     return a.m_size == b.m_size && std::equal(a.begin(), a.end(), b.begin(), b.end());
@@ -874,10 +873,9 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator<=>(intrusive_list const& a, intrusive_list const& b) noexcept(
-    noexcept(std::declval<T const&>() <=> std::declval<T const&>())
-  )
+  [[nodiscard]] friend constexpr auto operator<=>(
+    intrusive_list const& a, intrusive_list const& b
+  ) noexcept(noexcept(std::declval<T const&>() <=> std::declval<T const&>()))
     requires std::three_way_comparable<T>
   {
     return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());

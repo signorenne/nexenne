@@ -41,7 +41,8 @@ namespace detail {
 template <typename R, typename T>
 inline constexpr bool nothrow_ordered_v{
   noexcept(std::declval<std::ranges::range_reference_t<R>>() < std::declval<T const&>())
-  && noexcept(std::declval<T const&>() < std::declval<std::ranges::range_reference_t<R>>())};
+  && noexcept(std::declval<T const&>() < std::declval<std::ranges::range_reference_t<R>>())
+};
 
 }  // namespace detail
 
@@ -69,8 +70,8 @@ inline constexpr bool nothrow_ordered_v{
  */
 template <std::ranges::random_access_range R, typename T>
   requires std::strict_weak_order<std::ranges::less, std::ranges::range_value_t<R> const&, T const&>
-[[nodiscard]] constexpr auto find_sorted(R&& range, T const& value)
-  noexcept(detail::nothrow_ordered_v<R, T>) -> found_index {
+[[nodiscard]] constexpr auto
+find_sorted(R&& range, T const& value) noexcept(detail::nothrow_ordered_v<R, T>) -> found_index {
   auto const first{std::ranges::begin(range)};
   auto const last{std::ranges::end(range)};
   auto const it{std::ranges::lower_bound(range, value)};
@@ -109,8 +110,9 @@ template <std::ranges::random_access_range R, typename T>
  */
 template <std::ranges::random_access_range R, typename T>
   requires std::strict_weak_order<std::ranges::less, std::ranges::range_value_t<R> const&, T const&>
-[[nodiscard]] constexpr auto exponential_search(R&& range, T const& value)
-  noexcept(detail::nothrow_ordered_v<R, T>) -> found_index {
+[[nodiscard]] constexpr auto
+exponential_search(R&& range, T const& value) noexcept(detail::nothrow_ordered_v<R, T>)
+  -> found_index {
   auto const first{std::ranges::begin(range)};
   auto const last{std::ranges::end(range)};
   auto const n{std::ranges::distance(first, last)};
@@ -166,8 +168,8 @@ template <std::ranges::random_access_range R, typename T>
  */
 template <std::ranges::random_access_range R, typename T>
   requires std::is_arithmetic_v<std::ranges::range_value_t<R>> && std::is_arithmetic_v<T>
-[[nodiscard]] constexpr auto
-interpolation_search(R&& range, T const& value) noexcept -> found_index {
+[[nodiscard]] constexpr auto interpolation_search(R&& range, T const& value) noexcept
+  -> found_index {
   using diff_type = std::ranges::range_difference_t<R>;
 
   auto const first{std::ranges::begin(range)};

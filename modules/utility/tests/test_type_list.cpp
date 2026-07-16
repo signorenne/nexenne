@@ -26,20 +26,20 @@ static_assert(!util::tl_contains_v<list, char>);
 
 static_assert(util::tl_index_of_v<list, double> == 2);
 
-static_assert(std::same_as<
-              util::tl_push_back_t<list, char>,
-              util::type_list<int, float, double, char>>);
-static_assert(std::same_as<
-              util::tl_push_front_t<list, char>,
-              util::type_list<char, int, float, double>>);
+static_assert(
+  std::same_as<util::tl_push_back_t<list, char>, util::type_list<int, float, double, char>>
+);
+static_assert(
+  std::same_as<util::tl_push_front_t<list, char>, util::type_list<char, int, float, double>>
+);
 
 static_assert(std::same_as<
               util::tl_concat_t<util::type_list<int>, util::type_list<float, char>>,
               util::type_list<int, float, char>>);
 
-static_assert(std::same_as<
-              util::tl_transform_t<list, std::add_pointer>,
-              util::type_list<int*, float*, double*>>);
+static_assert(
+  std::same_as<util::tl_transform_t<list, std::add_pointer>, util::type_list<int*, float*, double*>>
+);
 
 static_assert(std::same_as<
               util::tl_filter_t<util::type_list<int, float, char, double>, std::is_integral>,
@@ -52,17 +52,18 @@ static_assert(std::same_as<
 // Degenerate and boundary cases.
 static_assert(std::same_as<util::tl_unique_t<list>, list>);  // no duplicates: identity
 static_assert(std::same_as<util::tl_unique_t<util::type_list<>>, util::type_list<>>);
-static_assert(std::
-                same_as<util::tl_unique_t<util::type_list<int, int, int>>, util::type_list<int>>);
+static_assert(
+  std::same_as<util::tl_unique_t<util::type_list<int, int, int>>, util::type_list<int>>
+);
 static_assert(util::tl_index_of_v<util::type_list<int, float, int>, int> == 0);  // first match
 static_assert(!util::tl_contains_v<util::type_list<>, int>);
 static_assert(util::tl_size_v<util::type_list<int, int>> == 2);  // counts duplicates
 static_assert(std::same_as<util::tl_at_t<util::type_list<int>, 0>, int>);
 static_assert(std::same_as<util::tl_push_back_t<util::type_list<>, int>, util::type_list<int>>);
 static_assert(std::same_as<util::tl_concat_t<util::type_list<>, list>, list>);
-static_assert(std::same_as<
-              util::tl_transform_t<util::type_list<>, std::add_pointer>,
-              util::type_list<>>);
+static_assert(
+  std::same_as<util::tl_transform_t<util::type_list<>, std::add_pointer>, util::type_list<>>
+);
 static_assert(std::same_as<
               util::tl_filter_t<util::type_list<float, double>, std::is_integral>,
               util::type_list<>>);
@@ -96,41 +97,42 @@ static_assert(util::tl_index_of_v<util::type_list<void, int, void>, int> == 1);
 static_assert(util::tl_index_of<list, double>::value == 2);  // the trait directly
 
 static_assert(std::same_as<util::tl_push_front_t<util::type_list<>, int>, util::type_list<int>>);
-static_assert(std::same_as<
-              util::tl_push_back_t<util::type_list<int>, char>,
-              util::type_list<int, char>>);
-static_assert(std::same_as<
-              util::tl_push_front_t<util::type_list<int>, char>,
-              util::type_list<char, int>>);
+static_assert(
+  std::same_as<util::tl_push_back_t<util::type_list<int>, char>, util::type_list<int, char>>
+);
+static_assert(
+  std::same_as<util::tl_push_front_t<util::type_list<int>, char>, util::type_list<char, int>>
+);
 // Pushing the same type that already exists does NOT deduplicate.
-static_assert(std::same_as<
-              util::tl_push_back_t<util::type_list<int>, int>,
-              util::type_list<int, int>>);
+static_assert(
+  std::same_as<util::tl_push_back_t<util::type_list<int>, int>, util::type_list<int, int>>
+);
 // push_front then push_back wraps the list on both ends.
 static_assert(std::same_as<
               util::tl_push_back_t<util::tl_push_front_t<list, char>, char>,
               util::type_list<char, int, float, double, char>>);
 
-static_assert(std::same_as<
-              util::tl_concat_t<util::type_list<>, util::type_list<>>,
-              util::type_list<>>);
+static_assert(
+  std::same_as<util::tl_concat_t<util::type_list<>, util::type_list<>>, util::type_list<>>
+);
 static_assert(std::same_as<util::tl_concat_t<list, util::type_list<>>, list>);
 static_assert(std::same_as<
               util::tl_concat_t<list, list>,
               util::type_list<int, float, double, int, float, double>>);
-static_assert(std::same_as<
-              util::tl_concat_t<util::type_list<int>, util::type_list<>>,
-              util::type_list<int>>);
+static_assert(
+  std::same_as<util::tl_concat_t<util::type_list<int>, util::type_list<>>, util::type_list<int>>
+);
 
 static_assert(std::same_as<util::tl_transform_t<list, std::type_identity>, list>);  // identity
 static_assert(std::same_as<
               util::tl_transform_t<util::type_list<int*, char*>, std::remove_pointer>,
               util::type_list<int, char>>);
 // add_pointer then remove_pointer round-trips to the original list.
-static_assert(std::same_as<
-              util::
-                tl_transform_t<util::tl_transform_t<list, std::add_pointer>, std::remove_pointer>,
-              list>);
+static_assert(
+  std::same_as<
+    util::tl_transform_t<util::tl_transform_t<list, std::add_pointer>, std::remove_pointer>,
+    list>
+);
 static_assert(std::same_as<
               util::tl_transform_t<util::type_list<int>, std::add_const>,
               util::type_list<int const>>);
@@ -141,8 +143,9 @@ static_assert(std::same_as<
 static_assert(std::same_as<
               util::tl_filter_t<util::type_list<int, char, long>, std::is_integral>,
               util::type_list<int, char, long>>);  // all kept, order preserved
-static_assert(std::
-                same_as<util::tl_filter_t<util::type_list<>, std::is_integral>, util::type_list<>>);
+static_assert(
+  std::same_as<util::tl_filter_t<util::type_list<>, std::is_integral>, util::type_list<>>
+);
 static_assert(std::same_as<
               util::tl_filter_t<util::type_list<float>, std::is_integral>,
               util::type_list<>>);  // single, dropped
@@ -161,9 +164,9 @@ static_assert(std::same_as<util::tl_unique_t<util::type_list<int>>, util::type_l
 static_assert(std::same_as<
               util::tl_unique_t<util::type_list<int, char, long>>,
               util::type_list<int, char, long>>);  // all distinct: identity
-static_assert(std::same_as<
-              util::tl_unique_t<util::type_list<int, int, char, char>>,
-              util::type_list<int, char>>);  // adjacent runs collapse
+static_assert(
+  std::same_as<util::tl_unique_t<util::type_list<int, int, char, char>>, util::type_list<int, char>>
+);  // adjacent runs collapse
 static_assert(std::same_as<
               util::tl_unique_t<util::type_list<char, int, char, int, char>>,
               util::type_list<char, int>>);  // scattered duplicates, first kept

@@ -63,8 +63,8 @@ struct mst_edge {
  *             space.
  */
 template <typename E, std::unsigned_integral V>
-[[nodiscard]] auto kruskal_mst(nexenne::container::graph<E, V> const& g
-) -> std::vector<mst_edge<E, V>> {
+[[nodiscard]] auto kruskal_mst(nexenne::container::graph<E, V> const& g)
+  -> std::vector<mst_edge<E, V>> {
   auto const n{g.vertex_count()};
 
   // Flatten directed edges to (u, v, weight) triples.

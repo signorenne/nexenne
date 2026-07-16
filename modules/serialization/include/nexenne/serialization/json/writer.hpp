@@ -282,7 +282,8 @@ private:
         // Manual hex, no snprintf or locale (as the file header promises). A
         // control byte is < 0x20, so the form is always "\u00XX".
         constexpr char hex[]{"0123456789abcdef"};
-        auto const esc{std::array<char, 6>{'\\', 'u', '0', '0', hex[(uc >> 4) & 0xF], hex[uc & 0xF]}
+        auto const esc{
+          std::array<char, 6>{'\\', 'u', '0', '0', hex[(uc >> 4) & 0xF], hex[uc & 0xF]}
         };
         if (auto r{raw_write({esc.data(), 6})}; !r)
           return r;

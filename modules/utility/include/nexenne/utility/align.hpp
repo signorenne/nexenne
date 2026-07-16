@@ -136,8 +136,8 @@ template <typename T>
   );
   // Written as a subtraction from max so the check itself cannot wrap.
   assert(
-    address <= std::numeric_limits<std::uintptr_t>::max()
-                 - (static_cast<std::uintptr_t>(alignment) - 1)
+    address
+      <= std::numeric_limits<std::uintptr_t>::max() - (static_cast<std::uintptr_t>(alignment) - 1)
     && "align: align_up overflows the address space"
   );
   return reinterpret_cast<T*>(align_up(address, static_cast<std::uintptr_t>(alignment)));

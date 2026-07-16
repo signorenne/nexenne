@@ -42,9 +42,9 @@ namespace detail {
 
 /// A standard character type for which a trailing NUL terminator is a convention.
 template <typename C>
-concept trie_character = std::same_as<C, char> || std::same_as<C, wchar_t>
-                         || std::same_as<C, char8_t> || std::same_as<C, char16_t>
-                         || std::same_as<C, char32_t>;
+concept trie_character =
+  std::same_as<C, char> || std::same_as<C, wchar_t> || std::same_as<C, char8_t>
+  || std::same_as<C, char16_t> || std::same_as<C, char32_t>;
 
 /**
  * @brief A key acceptable to a \c trie<Char, Value>.
@@ -60,8 +60,7 @@ concept trie_key =
   (std::ranges::forward_range<R>
    && std::integral<std::remove_cvref_t<std::ranges::range_value_t<R>>>
    && std::convertible_to<std::ranges::range_reference_t<R>, Char>)
-  || (trie_character<Char> && std::is_pointer_v<std::remove_cvref_t<R>>
-      && std::same_as<std::remove_cv_t<std::remove_pointer_t<std::remove_cvref_t<R>>>, Char>);
+  || (trie_character<Char> && std::is_pointer_v<std::remove_cvref_t<R>> && std::same_as<std::remove_cv_t<std::remove_pointer_t<std::remove_cvref_t<R>>>, Char>);
 
 }  // namespace detail
 
@@ -549,8 +548,8 @@ private:
    *       is restored to its entry value.
    */
   template <typename NodePtr, typename Visitor>
-  static constexpr auto
-  for_each_impl(NodePtr const root, std::vector<Char>& path, Visitor& visit) -> void {
+  static constexpr auto for_each_impl(NodePtr const root, std::vector<Char>& path, Visitor& visit)
+    -> void {
     if (root == nullptr) {
       return;
     }
@@ -601,8 +600,8 @@ private:
    * @pre None.
    * @post None. Neither subtree is modified.
    */
-  static constexpr auto
-  nodes_equal(node const* const root_a, node const* const root_b) noexcept -> bool {
+  static constexpr auto nodes_equal(node const* const root_a, node const* const root_b) noexcept
+    -> bool {
     std::vector<std::pair<node const*, node const*>> work;
     work.emplace_back(root_a, root_b);
     while (!work.empty()) {

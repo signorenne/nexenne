@@ -86,14 +86,18 @@ static_assert(!detail::float_in_integral_range<std::uint64_t>(184467440737095516
 
 // NaN compares false against both bounds, so it is classified out of range for
 // every integral target (the documented NaN behaviour: assert in debug).
-static_assert(!detail::float_in_integral_range<std::int32_t>(std::numeric_limits<double>::quiet_NaN()
-));
-static_assert(!detail::float_in_integral_range<std::uint32_t>(std::numeric_limits<float>::quiet_NaN()
-));
-static_assert(!detail::float_in_integral_range<std::int8_t>(std::numeric_limits<double>::infinity())
+static_assert(
+  !detail::float_in_integral_range<std::int32_t>(std::numeric_limits<double>::quiet_NaN())
 );
-static_assert(!detail::float_in_integral_range<std::int8_t>(-std::numeric_limits<double>::infinity()
-));
+static_assert(
+  !detail::float_in_integral_range<std::uint32_t>(std::numeric_limits<float>::quiet_NaN())
+);
+static_assert(
+  !detail::float_in_integral_range<std::int8_t>(std::numeric_limits<double>::infinity())
+);
+static_assert(
+  !detail::float_in_integral_range<std::int8_t>(-std::numeric_limits<double>::infinity())
+);
 
 TEST_CASE("narrow_cast preserves in-range integer values at run time") {
   CHECK(narrow_cast<std::int16_t>(std::int32_t{300}) == 300);
@@ -154,7 +158,9 @@ TEST_CASE("narrow_cast on floating point: integral targets at their boundaries")
   CHECK(narrow_cast<std::int32_t>(-2147483648.0) == std::numeric_limits<std::int32_t>::min());
   CHECK(narrow_cast<std::uint32_t>(4294967295.0) == std::numeric_limits<std::uint32_t>::max());
   CHECK(narrow_cast<std::int32_t>(2147483520.0F) == 2147483520);
-  CHECK(narrow_cast<std::int64_t>(-9223372036854775808.0) == std::numeric_limits<std::int64_t>::min());
+  CHECK(
+    narrow_cast<std::int64_t>(-9223372036854775808.0) == std::numeric_limits<std::int64_t>::min()
+  );
 }
 
 TEST_CASE("narrow_cast float range classifier rejects the first value past each bound") {

@@ -45,8 +45,8 @@ namespace nexenne::math {
  * @post The translation occupies the third column.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto translation2(vector<Real, 2> const offset
-) noexcept -> matrix<Real, 3> {
+[[nodiscard]] constexpr auto translation2(vector<Real, 2> const offset) noexcept
+  -> matrix<Real, 3> {
   auto m{matrix<Real, 3>::identity()};
   m(0, 2) = offset.x();
   m(1, 2) = offset.y();
@@ -107,8 +107,8 @@ template <std::floating_point Real>
  * @post The translation occupies the fourth column.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto translation3(vector<Real, 3> const offset
-) noexcept -> matrix<Real, 4> {
+[[nodiscard]] constexpr auto translation3(vector<Real, 3> const offset) noexcept
+  -> matrix<Real, 4> {
   auto m{matrix<Real, 4>::identity()};
   m(0, 3) = offset.x();
   m(1, 3) = offset.y();
@@ -172,9 +172,9 @@ template <std::floating_point Real>
  * @post On success the upper-left 3x3 block is orthonormal.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto rotation3_axis_angle(
-  vector<Real, 3> const axis, radians<Real> const angle
-) noexcept -> result<matrix<Real, 4>> {
+[[nodiscard]] auto
+rotation3_axis_angle(vector<Real, 3> const axis, radians<Real> const angle) noexcept
+  -> result<matrix<Real, 4>> {
   auto const q{from_axis_angle(axis, angle)};
   if (!q) {
     return std::unexpected{q.error()};
@@ -209,9 +209,9 @@ template <std::floating_point Real>
  *       to -Z.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto look_at(
-  vector<Real, 3> const eye, vector<Real, 3> const target, vector<Real, 3> const up
-) noexcept -> result<matrix<Real, 4>> {
+[[nodiscard]] constexpr auto
+look_at(vector<Real, 3> const eye, vector<Real, 3> const target, vector<Real, 3> const up) noexcept
+  -> result<matrix<Real, 4>> {
   auto const forward{normalize(target - eye)};
   if (!forward) {
     return std::unexpected{math_error::zero_length_vector};

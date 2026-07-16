@@ -171,7 +171,8 @@ TEST_CASE("nexenne::container::graph reserve_vertices and shrink_to_fit preserve
   CHECK(g.edges_of(a)[0].data == 5);
 }
 
-TEST_CASE("nexenne::container::graph directed edges are one-way; undirected needs both directions"
+TEST_CASE(
+  "nexenne::container::graph directed edges are one-way; undirected needs both directions"
 ) {
   cn::graph<> g{2};
   nexenne::utility::discard(g.add_edge(0, 1));  // directed 0 -> 1 only
@@ -313,6 +314,7 @@ consteval auto consteval_graph_probe() -> bool {
   }
   return edge && g == h;  // operator== in a constant-evaluated context
 }
+
 static_assert(consteval_graph_probe());
 
 }  // namespace

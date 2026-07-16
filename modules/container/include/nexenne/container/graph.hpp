@@ -279,8 +279,8 @@ public:
    */
   template <typename Edge = E>
     requires(!std::is_void_v<Edge>)
-  [[nodiscard]] constexpr auto add_edge(vertex_type const from, vertex_type const to, Edge data
-  ) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto
+  add_edge(vertex_type const from, vertex_type const to, Edge data) noexcept -> result<void> {
     if (!contains(from) || !contains(to)) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -366,8 +366,8 @@ public:
    *
    * @complexity \c O(out_degree(from)).
    */
-  [[nodiscard]] constexpr auto
-  has_edge(vertex_type const from, vertex_type const to) const noexcept -> bool {
+  [[nodiscard]] constexpr auto has_edge(vertex_type const from, vertex_type const to) const noexcept
+    -> bool {
     if (!contains(from)) {
       return false;
     }
@@ -387,8 +387,8 @@ public:
    * @pre None. \p v is bounds-checked.
    * @post None. The span stays valid until the next mutation of \p v's edge list.
    */
-  [[nodiscard]] constexpr auto edges_of(vertex_type const v
-  ) const noexcept -> std::span<edge_record const> {
+  [[nodiscard]] constexpr auto edges_of(vertex_type const v) const noexcept
+    -> std::span<edge_record const> {
     if (!contains(v)) {
       return {};
     }

@@ -46,8 +46,8 @@ template <std::unsigned_integral T>
 }
 
 template <std::unsigned_integral T>
-[[nodiscard]] auto
-bounded_values(lcg& gen, std::size_t const n, T const max_value) -> std::vector<T> {
+[[nodiscard]] auto bounded_values(lcg& gen, std::size_t const n, T const max_value)
+  -> std::vector<T> {
   auto v{std::vector<T>(n)};
   for (auto& x : v) {
     x = static_cast<T>(gen.next() % (static_cast<std::uint64_t>(max_value) + 1));

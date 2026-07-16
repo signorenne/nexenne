@@ -631,7 +631,8 @@ private:
       while (is_digit())
         m_cursor.advance(1);
     }
-    auto const text{std::string_view{m_cursor.buffer().data() + start, m_cursor.position() - start}
+    auto const text{
+      std::string_view{m_cursor.buffer().data() + start, m_cursor.position() - start}
     };
     if (is_float) {
       auto out{0.0};
@@ -790,6 +791,7 @@ private:
 };
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -821,8 +823,8 @@ private:
  *         \c noexcept contract.
  */
 template <std::size_t MaxDepth = 32, sax_visitor V>
-[[nodiscard]] auto
-scan(std::string_view const src, V& visitor) noexcept -> std::expected<void, error> {
+[[nodiscard]] auto scan(std::string_view const src, V& visitor) noexcept
+  -> std::expected<void, error> {
   detail::sax_engine<MaxDepth> engine{src};
   return engine.run(visitor);
 }

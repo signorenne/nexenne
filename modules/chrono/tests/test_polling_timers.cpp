@@ -318,7 +318,8 @@ TEST_CASE("nexenne::chrono::interval just-before, exactly-at, just-after the fir
   CHECK(iv.tick_count() == 1);
 }
 
-TEST_CASE("nexenne::chrono::interval advancing by exactly N periods yields exactly N drained ticks"
+TEST_CASE(
+  "nexenne::chrono::interval advancing by exactly N periods yields exactly N drained ticks"
 ) {
   using clk = ch::basic_manual_clock<struct iv_n_tag>;
   clk::reset();

@@ -95,8 +95,8 @@ public:
       , m_estimate{initial_estimate}
       , m_covariance{initial_covariance} {
     assert(
-      process_noise >= T{0} && measurement_noise >= T{0} && initial_covariance >= T{0} &&
-      "kalman noise covariances and initial covariance must be non-negative"
+      process_noise >= T{0} && measurement_noise >= T{0} && initial_covariance >= T{0}
+      && "kalman noise covariances and initial covariance must be non-negative"
     );
   }
 

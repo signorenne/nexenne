@@ -53,6 +53,7 @@ struct empty_value {
     nexenne::utility::discard(lhs, rhs);
     return true;
   }
+
   /// @endcond
 };
 
@@ -319,7 +320,10 @@ public:
    * @complexity Amortised \c O(1).
    */
   template <typename K>
-    requires requires { typename Hash::is_transparent; typename KeyEq::is_transparent; }
+    requires requires {
+      typename Hash::is_transparent;
+      typename KeyEq::is_transparent;
+    }
   [[nodiscard]] auto contains(K const& value) const noexcept -> bool {
     return m_map.contains(value);
   }
@@ -339,7 +343,10 @@ public:
    * @complexity Amortised \c O(1).
    */
   template <typename K>
-    requires requires { typename Hash::is_transparent; typename KeyEq::is_transparent; }
+    requires requires {
+      typename Hash::is_transparent;
+      typename KeyEq::is_transparent;
+    }
   [[nodiscard]] auto count(K const& value) const noexcept -> size_type {
     return m_map.count(value);
   }
@@ -493,8 +500,8 @@ public:
    *
    * @complexity \c O(n) average.
    */
-  [[nodiscard]] friend auto
-  operator==(flat_hash_set const& a, flat_hash_set const& b) noexcept -> bool {
+  [[nodiscard]] friend auto operator==(flat_hash_set const& a, flat_hash_set const& b) noexcept
+    -> bool {
     return a.m_map == b.m_map;
   }
 };

@@ -88,9 +88,9 @@ auto main() -> int {
   // checks like these, never steps that would be unsafe to run after an
   // earlier failure. For stop-on-first-error sequencing, chain and_then.
   int ran{0};
-  auto const validated{util::first_error(
-    check_name("api-server", &ran), check_port(80, &ran), check_threads(4, &ran)
-  )};
+  auto const validated{
+    util::first_error(check_name("api-server", &ran), check_port(80, &ran), check_threads(4, &ran))
+  };
   if (!validated) {
     std::println("config rejected: {}", validated.error());
   }

@@ -62,7 +62,8 @@ template <typename F>
     && F::value <= static_cast<std::uint64_t>(std::numeric_limits<std::intmax_t>::max())
   )
 [[nodiscard]] constexpr auto period_from() noexcept {
-  return std::chrono::duration<std::int64_t, std::ratio<1, static_cast<std::intmax_t>(F::value)>>{1
+  return std::chrono::duration<std::int64_t, std::ratio<1, static_cast<std::intmax_t>(F::value)>>{
+    1
   };
 }
 
@@ -79,8 +80,8 @@ template <typename F>
  * @post None.
  */
 template <typename Rep, typename Period>
-[[nodiscard]] constexpr auto hertz_from(std::chrono::duration<Rep, Period> const period
-) noexcept -> std::uint64_t {
+[[nodiscard]] constexpr auto hertz_from(std::chrono::duration<Rep, Period> const period) noexcept
+  -> std::uint64_t {
   if (period.count() <= 0) {
     return 0;
   }
@@ -112,8 +113,8 @@ template <typename Rep, typename Period>
  * @note Integer truncation: a rate above one gigahertz has a sub-nanosecond
  *       period and returns zero nanoseconds, not a rounded-up single tick.
  */
-[[nodiscard]] constexpr auto period_ns_from(std::uint64_t const hz
-) noexcept -> std::chrono::nanoseconds {
+[[nodiscard]] constexpr auto period_ns_from(std::uint64_t const hz) noexcept
+  -> std::chrono::nanoseconds {
   if (hz == 0) {
     return std::chrono::nanoseconds::max();
   }
@@ -134,8 +135,8 @@ template <typename Rep, typename Period>
  * @note Integer truncation: a rate above one megahertz has a sub-microsecond
  *       period and returns zero microseconds, not a rounded-up single tick.
  */
-[[nodiscard]] constexpr auto period_us_from(std::uint64_t const hz
-) noexcept -> std::chrono::microseconds {
+[[nodiscard]] constexpr auto period_us_from(std::uint64_t const hz) noexcept
+  -> std::chrono::microseconds {
   if (hz == 0) {
     return std::chrono::microseconds::max();
   }
@@ -152,8 +153,8 @@ template <typename Rep, typename Period>
  * @pre None.
  * @post None.
  */
-[[nodiscard]] constexpr auto hz_from_ns(std::chrono::nanoseconds const period
-) noexcept -> std::uint64_t {
+[[nodiscard]] constexpr auto hz_from_ns(std::chrono::nanoseconds const period) noexcept
+  -> std::uint64_t {
   if (period.count() <= 0) {
     return 0;
   }

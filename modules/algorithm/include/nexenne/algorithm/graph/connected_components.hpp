@@ -61,8 +61,8 @@ struct components_result {
  *             alpha is the inverse Ackermann function.
  */
 template <typename E, std::unsigned_integral V>
-[[nodiscard]] auto connected_components(nexenne::container::graph<E, V> const& g
-) -> components_result<E, V> {
+[[nodiscard]] auto connected_components(nexenne::container::graph<E, V> const& g)
+  -> components_result<E, V> {
   auto const n{g.vertex_count()};
   auto uf{nexenne::container::union_find<V>{n}};
 

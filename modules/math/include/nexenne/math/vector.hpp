@@ -901,8 +901,8 @@ template <arithmetic Value, std::size_t N>
  * @post Each component equals the corresponding component of \p v times \p scalar.
  */
 template <arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto
-operator*(vector<Value, N> const& v, Value const scalar) noexcept -> vector<Value, N> {
+[[nodiscard]] constexpr auto operator*(vector<Value, N> const& v, Value const scalar) noexcept
+  -> vector<Value, N> {
   auto result{vector<Value, N>{}};
   for (std::size_t i{0}; i < N; ++i) {
     result[i] = v[i] * scalar;
@@ -924,8 +924,8 @@ operator*(vector<Value, N> const& v, Value const scalar) noexcept -> vector<Valu
  * @post Each component equals the corresponding component of \p v times \p scalar.
  */
 template <arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto
-operator*(Value const scalar, vector<Value, N> const& v) noexcept -> vector<Value, N> {
+[[nodiscard]] constexpr auto operator*(Value const scalar, vector<Value, N> const& v) noexcept
+  -> vector<Value, N> {
   return v * scalar;
 }
 
@@ -944,8 +944,8 @@ operator*(Value const scalar, vector<Value, N> const& v) noexcept -> vector<Valu
  *       \p scalar.
  */
 template <arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto
-operator/(vector<Value, N> const& v, Value const scalar) noexcept -> vector<Value, N> {
+[[nodiscard]] constexpr auto operator/(vector<Value, N> const& v, Value const scalar) noexcept
+  -> vector<Value, N> {
   auto result{vector<Value, N>{}};
   for (std::size_t i{0}; i < N; ++i) {
     result[i] = v[i] / scalar;
@@ -967,8 +967,8 @@ operator/(vector<Value, N> const& v, Value const scalar) noexcept -> vector<Valu
  * @post \p a holds the component-wise sum of its prior value and \p b.
  */
 template <arithmetic Value, std::size_t N>
-constexpr auto
-operator+=(vector<Value, N>& a, vector<Value, N> const& b) noexcept -> vector<Value, N>& {
+constexpr auto operator+=(vector<Value, N>& a, vector<Value, N> const& b) noexcept
+  -> vector<Value, N>& {
   for (std::size_t i{0}; i < N; ++i) {
     a[i] += b[i];
   }
@@ -989,8 +989,8 @@ operator+=(vector<Value, N>& a, vector<Value, N> const& b) noexcept -> vector<Va
  * @post \p a holds the component-wise difference of its prior value and \p b.
  */
 template <arithmetic Value, std::size_t N>
-constexpr auto
-operator-=(vector<Value, N>& a, vector<Value, N> const& b) noexcept -> vector<Value, N>& {
+constexpr auto operator-=(vector<Value, N>& a, vector<Value, N> const& b) noexcept
+  -> vector<Value, N>& {
   for (std::size_t i{0}; i < N; ++i) {
     a[i] -= b[i];
   }
@@ -1011,8 +1011,8 @@ operator-=(vector<Value, N>& a, vector<Value, N> const& b) noexcept -> vector<Va
  * @post \p a holds the component-wise product of its prior value and \p b.
  */
 template <arithmetic Value, std::size_t N>
-constexpr auto
-operator*=(vector<Value, N>& a, vector<Value, N> const& b) noexcept -> vector<Value, N>& {
+constexpr auto operator*=(vector<Value, N>& a, vector<Value, N> const& b) noexcept
+  -> vector<Value, N>& {
   for (std::size_t i{0}; i < N; ++i) {
     a[i] *= b[i];
   }
@@ -1033,8 +1033,8 @@ operator*=(vector<Value, N>& a, vector<Value, N> const& b) noexcept -> vector<Va
  * @post \p a holds the component-wise quotient of its prior value and \p b.
  */
 template <arithmetic Value, std::size_t N>
-constexpr auto
-operator/=(vector<Value, N>& a, vector<Value, N> const& b) noexcept -> vector<Value, N>& {
+constexpr auto operator/=(vector<Value, N>& a, vector<Value, N> const& b) noexcept
+  -> vector<Value, N>& {
   for (std::size_t i{0}; i < N; ++i) {
     a[i] /= b[i];
   }

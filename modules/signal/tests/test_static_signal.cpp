@@ -933,8 +933,10 @@ TEST_CASE("nexenne::signal::static_connection equality compares signal and slot"
 
 // Review findings
 
-TEST_CASE("nexenne::signal::static_signal [M2] a nested emit does not visit a slot connected "
-          "mid-emit, matching signal") {
+TEST_CASE(
+  "nexenne::signal::static_signal [M2] a nested emit does not visit a slot connected "
+  "mid-emit, matching signal"
+) {
   // A connect during an emit must be invisible to that emit AND to any emit
   // nested in it, so a nested emit never runs a lower-priority newcomer ahead of
   // a higher-priority running slot. Before the fix the nested emit walked the
@@ -970,8 +972,10 @@ TEST_CASE("nexenne::signal::static_signal [M2] a nested emit does not visit a sl
   REQUIRE(order == std::vector{-5, 10});
 }
 
-TEST_CASE("nexenne::signal::static_signal [M4] connect at capacity during emit reclaims a dead "
-          "slot instead of failing") {
+TEST_CASE(
+  "nexenne::signal::static_signal [M4] connect at capacity during emit reclaims a dead "
+  "slot instead of failing"
+) {
   // Capacity 2: a fired once-slot (a) leaves a dead-but-unswept entry while b is
   // executing. b reconnects a replacement; the physical list is full but only a
   // dead entry is at capacity, so connect must reclaim it rather than reject
@@ -1003,7 +1007,9 @@ TEST_CASE("nexenne::signal::static_signal [M4] connect at capacity during emit r
   CHECK(runs == 2);  // b and the replacement
 }
 
-TEST_CASE("nexenne::signal::static_signal [M4] connect stays rejected at capacity outside an emit") {
+TEST_CASE(
+  "nexenne::signal::static_signal [M4] connect stays rejected at capacity outside an emit"
+) {
   // No emit in flight means no dead-but-unswept entries, so a full signal still
   // rejects a connect with an invalid handle.
   auto sig{static_signal<void(), 2>{}};
@@ -1032,7 +1038,9 @@ TEST_CASE("nexenne::signal::static_signal [m1] size() reflects a mid-emit connec
   CHECK(size_during == 2);  // a plus the just-added slot, counted right away
 }
 
-TEST_CASE("nexenne::signal::static_signal [m4] static_connection formats via to_string and format") {
+TEST_CASE(
+  "nexenne::signal::static_signal [m4] static_connection formats via to_string and format"
+) {
   auto sig{static_signal<void()>{}};
   auto const c{sig.connect([] noexcept {})};
   CHECK(to_string(c).starts_with("static_connection(id="));

@@ -68,7 +68,7 @@ auto main() -> int {
   // probe of that state.
   util::non_null<std::unique_ptr<logger>> owner{std::make_unique<logger>(logger{"owned"})};
   adopt(std::move(owner));
-  std::println("owner moved from: {}", owner == nullptr);  // true: do not touch it
+  std::println("owner moved from: {}", owner == nullptr);   // true: do not touch it
   owner = std::make_unique<logger>(logger{"replacement"});  // reassignment restores it
   owner->write("reassigned, the invariant holds again");
 

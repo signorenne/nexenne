@@ -139,9 +139,9 @@ namespace detail {
  *
  * @complexity \c O(N) in the size \c N of \p bytes.
  */
-[[nodiscard]] inline auto murmur3_32_impl(
-  std::span<std::uint8_t const> const bytes, std::uint32_t const seed
-) noexcept -> std::uint32_t {
+[[nodiscard]] inline auto
+murmur3_32_impl(std::span<std::uint8_t const> const bytes, std::uint32_t const seed) noexcept
+  -> std::uint32_t {
   constexpr auto c1{std::uint32_t{0xCC9E2D51u}};
   constexpr auto c2{std::uint32_t{0x1B873593u}};
 
@@ -200,9 +200,9 @@ namespace detail {
  *
  * @complexity \c O(N) in the size \c N of \p bytes.
  */
-[[nodiscard]] inline auto murmur3_128_impl(
-  std::span<std::uint8_t const> const bytes, std::uint64_t const seed
-) noexcept -> std::array<std::uint64_t, 2> {
+[[nodiscard]] inline auto
+murmur3_128_impl(std::span<std::uint8_t const> const bytes, std::uint64_t const seed) noexcept
+  -> std::array<std::uint64_t, 2> {
   constexpr auto c1{std::uint64_t{0x87C37B91114253D5ULL}};
   constexpr auto c2{std::uint64_t{0x4CF5AD432745937FULL}};
 
@@ -323,6 +323,7 @@ struct murmur3_traits<128> {
 };
 
 }  // namespace detail
+
 /// @endcond
 
 /// @brief The result type of \c murmur3 at the given \c Width.
@@ -355,9 +356,9 @@ using murmur3_seed_t = typename detail::murmur3_traits<Width>::seed_type;
  */
 template <std::size_t Width = 128>
   requires(Width == 32 || Width == 128)
-[[nodiscard]] inline auto murmur3(
-  std::span<std::uint8_t const> const bytes, murmur3_seed_t<Width> const seed = 0
-) noexcept -> murmur3_result_t<Width> {
+[[nodiscard]] inline auto
+murmur3(std::span<std::uint8_t const> const bytes, murmur3_seed_t<Width> const seed = 0) noexcept
+  -> murmur3_result_t<Width> {
   if constexpr (Width == 32) {
     return detail::murmur3_32_impl(bytes, seed);
   } else {
@@ -386,9 +387,9 @@ template <std::size_t Width = 128>
  */
 template <std::size_t Width = 128>
   requires(Width == 32 || Width == 128)
-[[nodiscard]] inline auto murmur3(
-  std::string_view const s, murmur3_seed_t<Width> const seed = 0
-) noexcept -> murmur3_result_t<Width> {
+[[nodiscard]] inline auto
+murmur3(std::string_view const s, murmur3_seed_t<Width> const seed = 0) noexcept
+  -> murmur3_result_t<Width> {
   return murmur3<Width>(
     std::span<std::uint8_t const>{reinterpret_cast<std::uint8_t const*>(s.data()), s.size()}, seed
   );

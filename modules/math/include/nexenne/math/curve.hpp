@@ -41,9 +41,9 @@ namespace nexenne::math {
  * @post Equals \p p0 at \c t=0 and \p p2 at \c t=1.
  */
 template <std::floating_point Real, affine_point<Real> Point>
-[[nodiscard]] constexpr auto bezier_quadratic(
-  Point const& p0, Point const& p1, Point const& p2, Real const t
-) noexcept -> Point {
+[[nodiscard]] constexpr auto
+bezier_quadratic(Point const& p0, Point const& p1, Point const& p2, Real const t) noexcept
+  -> Point {
   auto const one_minus_t{Real{1} - t};
   auto const a{one_minus_t * one_minus_t};
   auto const b{Real{2} * one_minus_t * t};
@@ -70,9 +70,9 @@ template <std::floating_point Real, affine_point<Real> Point>
  * @post Equals the first derivative of \c bezier_quadratic at \p t.
  */
 template <std::floating_point Real, affine_point<Real> Point>
-[[nodiscard]] constexpr auto bezier_quadratic_tangent(
-  Point const& p0, Point const& p1, Point const& p2, Real const t
-) noexcept -> Point {
+[[nodiscard]] constexpr auto
+bezier_quadratic_tangent(Point const& p0, Point const& p1, Point const& p2, Real const t) noexcept
+  -> Point {
   auto const one_minus_t{Real{1} - t};
   return (p1 - p0) * (Real{2} * one_minus_t) + (p2 - p1) * (Real{2} * t);
 }

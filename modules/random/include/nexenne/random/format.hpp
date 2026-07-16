@@ -16,8 +16,8 @@
  * (name plus parameters). The distribution formatters forward the format spec to
  * each numeric parameter, so \c std::format("{:.2f}", dist) applies to its values.
  *
- * The standard \c format header is heavy, so this header is opt-in: include it only where formatting
- * is needed, not from the hot leaf headers.
+ * The standard \c format header is heavy, so this header is opt-in: include it only where
+ * formatting is needed, not from the hot leaf headers.
  */
 
 #include <cstddef>

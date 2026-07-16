@@ -104,7 +104,8 @@ TEST_CASE("nexenne::container::slot_map clear invalidates every key, retains cap
   CHECK(*m.find(c) == 3);
 }
 
-TEST_CASE("nexenne::container::slot_map swap exchanges contents, keys stay valid against their map"
+TEST_CASE(
+  "nexenne::container::slot_map swap exchanges contents, keys stay valid against their map"
 ) {
   map_t a;
   auto const ka{a.insert(1)};

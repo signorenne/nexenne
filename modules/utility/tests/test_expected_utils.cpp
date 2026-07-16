@@ -95,7 +95,8 @@ TEST_CASE("nexenne::utility::into_optional non-trivial value type round-trips") 
   CHECK(util::into_optional(exp_str{std::unexpect, 7}) == std::nullopt);
 }
 
-TEST_CASE("nexenne::utility::into_optional rvalue moves a move-only value, leaves nullopt on error"
+TEST_CASE(
+  "nexenne::utility::into_optional rvalue moves a move-only value, leaves nullopt on error"
 ) {
   using exp_ptr = std::expected<std::unique_ptr<int>, std::string>;
   auto miss{util::into_optional(exp_ptr{std::unexpect, "no"})};

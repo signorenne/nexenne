@@ -57,9 +57,9 @@ namespace nexenne::container::detail {
 
 /// @brief Whether hashing a \c T \c const& through the shared combiner cannot throw.
 template <typename T>
-inline constexpr bool nothrow_hash_v{noexcept(
-  nexenne::utility::hash_combine(std::declval<std::size_t&>(), std::declval<T const&>())
-)};
+inline constexpr bool nothrow_hash_v{
+  noexcept(nexenne::utility::hash_combine(std::declval<std::size_t&>(), std::declval<T const&>()))
+};
 
 /**
  * @brief Sequence hash: the element count then each element in iteration order.
@@ -81,8 +81,9 @@ inline constexpr bool nothrow_hash_v{noexcept(
  */
 template <std::ranges::input_range Range>
   requires nexenne::utility::hashable<std::ranges::range_value_t<Range>>
-[[nodiscard]] auto sequence_hash(Range const& range, std::size_t const count)
-  noexcept(nothrow_hash_v<std::ranges::range_value_t<Range>>) -> std::size_t {
+[[nodiscard]] auto sequence_hash(
+  Range const& range, std::size_t const count
+) noexcept(nothrow_hash_v<std::ranges::range_value_t<Range>>) -> std::size_t {
   auto seed{std::size_t{0}};
   nexenne::utility::hash_combine(seed, count);
   for (auto const& element : range) {
@@ -109,8 +110,9 @@ template <std::ranges::input_range Range>
  */
 template <typename Key, typename Value, std::ranges::input_range Range>
   requires nexenne::utility::hashable<Key> && nexenne::utility::hashable<Value>
-[[nodiscard]] auto map_hash(Range const& range, std::size_t const count)
-  noexcept(nothrow_hash_v<Key> && nothrow_hash_v<Value>) -> std::size_t {
+[[nodiscard]] auto map_hash(
+  Range const& range, std::size_t const count
+) noexcept(nothrow_hash_v<Key> && nothrow_hash_v<Value>) -> std::size_t {
   auto seed{std::size_t{0}};
   nexenne::utility::hash_combine(seed, count);
   for (auto const& [key, value] : range) {
@@ -138,8 +140,8 @@ struct std::hash<nexenne::container::bitset_dynamic> {
    * @pre None.
    * @post None. \p b is not modified; equal bitsets hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::container::bitset_dynamic const& b
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::container::bitset_dynamic const& b) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, b.size());
     for (auto const w : b.words()) {
@@ -165,8 +167,9 @@ struct std::hash<nexenne::container::static_vector<T, N>> {
    * @pre None.
    * @post None. \p v is not modified; equal vectors hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::container::static_vector<T, N> const& v)
-    const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
+  [[nodiscard]] auto operator()(
+    nexenne::container::static_vector<T, N> const& v
+  ) const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
     return nexenne::container::detail::sequence_hash(v, v.size());
   }
 };
@@ -187,8 +190,9 @@ struct std::hash<nexenne::container::stable_vector<T, ChunkSize>> {
    * @pre None.
    * @post None. \p v is not modified; equal vectors hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::container::stable_vector<T, ChunkSize> const& v)
-    const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
+  [[nodiscard]] auto operator()(
+    nexenne::container::stable_vector<T, ChunkSize> const& v
+  ) const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
     return nexenne::container::detail::sequence_hash(v, v.size());
   }
 };
@@ -212,8 +216,9 @@ struct std::hash<nexenne::container::binary_tree<T, Compare>> {
    * @pre None.
    * @post None. \p t is not modified; equal trees hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::container::binary_tree<T, Compare> const& t)
-    const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
+  [[nodiscard]] auto operator()(
+    nexenne::container::binary_tree<T, Compare> const& t
+  ) const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
     return nexenne::container::detail::sequence_hash(t, t.size());
   }
 };
@@ -234,8 +239,9 @@ struct std::hash<nexenne::container::small_vector<T, N>> {
    * @pre None.
    * @post None. \p v is not modified; equal vectors hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::container::small_vector<T, N> const& v)
-    const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
+  [[nodiscard]] auto operator()(
+    nexenne::container::small_vector<T, N> const& v
+  ) const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
     return nexenne::container::detail::sequence_hash(v, v.size());
   }
 };
@@ -256,8 +262,9 @@ struct std::hash<nexenne::container::ring_buffer<T, N>> {
    * @pre None.
    * @post None. \p r is not modified; equal buffers hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::container::ring_buffer<T, N> const& r)
-    const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
+  [[nodiscard]] auto operator()(
+    nexenne::container::ring_buffer<T, N> const& r
+  ) const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
     return nexenne::container::detail::sequence_hash(r, r.size());
   }
 };
@@ -278,8 +285,9 @@ struct std::hash<nexenne::container::gap_buffer<T>> {
    * @pre None.
    * @post None. \p b is not modified; equal buffers hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::container::gap_buffer<T> const& b)
-    const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
+  [[nodiscard]] auto operator()(
+    nexenne::container::gap_buffer<T> const& b
+  ) const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
     return nexenne::container::detail::sequence_hash(b, b.size());
   }
 };
@@ -300,8 +308,9 @@ struct std::hash<nexenne::container::flat_set<T, Compare>> {
    * @pre None.
    * @post None. \p s is not modified; equal sets hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::container::flat_set<T, Compare> const& s)
-    const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
+  [[nodiscard]] auto operator()(
+    nexenne::container::flat_set<T, Compare> const& s
+  ) const noexcept(nexenne::container::detail::nothrow_hash_v<T>) -> std::size_t {
     return nexenne::container::detail::sequence_hash(s, s.size());
   }
 };
@@ -323,11 +332,11 @@ struct std::hash<nexenne::container::flat_map<Key, Value, Compare>> {
    * @pre None.
    * @post None. \p m is not modified; equal maps hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::container::flat_map<Key, Value, Compare> const& m)
-    const noexcept(
-      nexenne::container::detail::nothrow_hash_v<Key>
-      && nexenne::container::detail::nothrow_hash_v<Value>
-    ) -> std::size_t {
+  [[nodiscard]] auto
+  operator()(nexenne::container::flat_map<Key, Value, Compare> const& m) const noexcept(
+    nexenne::container::detail::nothrow_hash_v<Key>
+    && nexenne::container::detail::nothrow_hash_v<Value>
+  ) -> std::size_t {
     return nexenne::container::detail::map_hash<Key, Value>(m, m.size());
   }
 };
@@ -350,11 +359,10 @@ struct std::hash<nexenne::container::static_flat_map<Key, Value, Capacity, Compa
    * @post None. \p m is not modified; equal maps hash equal.
    */
   [[nodiscard]] auto
-  operator()(nexenne::container::static_flat_map<Key, Value, Capacity, Compare> const& m)
-    const noexcept(
-      nexenne::container::detail::nothrow_hash_v<Key>
-      && nexenne::container::detail::nothrow_hash_v<Value>
-    ) -> std::size_t {
+  operator()(nexenne::container::static_flat_map<Key, Value, Capacity, Compare> const& m) const noexcept(
+    nexenne::container::detail::nothrow_hash_v<Key>
+    && nexenne::container::detail::nothrow_hash_v<Value>
+  ) -> std::size_t {
     return nexenne::container::detail::map_hash<Key, Value>(m, m.size());
   }
 };
@@ -379,11 +387,10 @@ struct std::hash<nexenne::container::trie<Char, Value>> {
    * @pre None.
    * @post None. \p t is not modified; equal tries hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::container::trie<Char, Value> const& t)
-    const noexcept(
-      nexenne::container::detail::nothrow_hash_v<Char>
-      && nexenne::container::detail::nothrow_hash_v<Value>
-    ) -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::container::trie<Char, Value> const& t) const noexcept(
+    nexenne::container::detail::nothrow_hash_v<Char>
+    && nexenne::container::detail::nothrow_hash_v<Value>
+  ) -> std::size_t {
     auto entries_hash{std::size_t{0}};
     t.for_each([&entries_hash](std::span<Char const> const key, Value const& value) {
       auto seed{std::size_t{0}};

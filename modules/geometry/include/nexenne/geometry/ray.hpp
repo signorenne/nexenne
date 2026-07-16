@@ -156,8 +156,8 @@ template <std::floating_point Real, std::size_t N>
  * @post The result lies on the ray's line; on the half-line when \p t >= 0.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto
-at(ray<Real, N> const& r, Real const t) noexcept -> nexenne::math::vector<Real, N> {
+[[nodiscard]] constexpr auto at(ray<Real, N> const& r, Real const t) noexcept
+  -> nexenne::math::vector<Real, N> {
   return r.origin() + r.direction() * t;
 }
 
@@ -178,9 +178,9 @@ at(ray<Real, N> const& r, Real const t) noexcept -> nexenne::math::vector<Real, 
  * @post The result lies on the half-line (parameter \c t >= 0).
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto closest_point(
-  ray<Real, N> const& r, nexenne::math::vector<Real, N> const& p
-) noexcept -> nexenne::math::vector<Real, N> {
+[[nodiscard]] constexpr auto
+closest_point(ray<Real, N> const& r, nexenne::math::vector<Real, N> const& p) noexcept
+  -> nexenne::math::vector<Real, N> {
   auto const offset{p - r.origin()};
   auto const t{nexenne::math::dot(offset, r.direction())};
   if (t <= Real{0}) {

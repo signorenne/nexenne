@@ -423,17 +423,17 @@ TEST_CASE("nexenne::container::deque differential against std::deque under rando
 // build the same element as a reserved deque. vector(3, 5) = {5,5,5} (parens),
 // vector{3,5} = {3,5} (braces).
 TEST_CASE("nexenne::container::deque emplace cold path matches construct_at") {
-  cn::deque<std::vector<int>> cold;              // capacity 0: first emplace is cold
+  cn::deque<std::vector<int>> cold;  // capacity 0: first emplace is cold
   auto& a{cold.emplace_back(3, 5)};
   CHECK(a.size() == 3);
   CHECK(a[0] == 5);
 
-  cn::deque<std::vector<int>> hot(8);            // reserved: emplace is the hot path
+  cn::deque<std::vector<int>> hot(8);  // reserved: emplace is the hot path
   auto& b{hot.emplace_back(3, 5)};
   CHECK(b.size() == 3);
-  CHECK(a == b);                                 // both paths agree
+  CHECK(a == b);  // both paths agree
 
-  cn::deque<std::vector<int>> cold_front;        // emplace_front cold path too
+  cn::deque<std::vector<int>> cold_front;  // emplace_front cold path too
   auto& c{cold_front.emplace_front(3, 5)};
   CHECK(c.size() == 3);
   CHECK(c[0] == 5);

@@ -14,12 +14,10 @@ auto same_orientation(math::quaternion_d const& a, math::quaternion_d const& b) 
 
 TEST_CASE("single-axis euler matches from_axis_angle") {
   // A pure X rotation must equal a from_axis_angle about +X.
-  auto const ex{
-    math::to_quaternion(
-      math::euler_angles<double>{math::radians{0.7}, math::radians{0.0}, math::radians{0.0}},
-      math::euler_order::xyz
-    )
-  };
+  auto const ex{math::to_quaternion(
+    math::euler_angles<double>{math::radians{0.7}, math::radians{0.0}, math::radians{0.0}},
+    math::euler_order::xyz
+  )};
   auto const ax{*math::from_axis_angle(math::vector3_d{1, 0, 0}, math::radians_d{0.7})};
   CHECK(same_orientation(ex, ax));
   CHECK(math::length(ex) == doctest::Approx(1.0));

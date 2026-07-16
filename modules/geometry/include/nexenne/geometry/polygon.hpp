@@ -154,8 +154,8 @@ template <std::floating_point Real>
  *       degenerate input falls back to the vertex arithmetic mean.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto centroid(polygon2<Real> const poly
-) noexcept -> nexenne::math::vector<Real, 2> {
+[[nodiscard]] constexpr auto centroid(polygon2<Real> const poly) noexcept
+  -> nexenne::math::vector<Real, 2> {
   auto const n{poly.vertices().size()};
   if (n == 0) {
     return nexenne::math::vector<Real, 2>{};

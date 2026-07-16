@@ -167,8 +167,8 @@ using frustum3_d = frustum3<double>;
  *      plane formulas.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto frustum_from_view_projection(nexenne::math::matrix<Real, 4> const& vp
-) noexcept -> frustum3<Real> {
+[[nodiscard]] constexpr auto
+frustum_from_view_projection(nexenne::math::matrix<Real, 4> const& vp) noexcept -> frustum3<Real> {
   auto raw{std::array<plane3<Real>, 6>{}};
 
   // Gribb-Hartmann. A point is in clip space when -w <= c <= w on each clip
@@ -221,8 +221,8 @@ template <std::floating_point Real>
  * @post The frustum is unchanged.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-plane_of(frustum3<Real> const& f, frustum_plane const which) noexcept -> plane3<Real> const& {
+[[nodiscard]] constexpr auto plane_of(frustum3<Real> const& f, frustum_plane const which) noexcept
+  -> plane3<Real> const& {
   return f.planes()[static_cast<std::size_t>(which)];
 }
 
@@ -243,8 +243,8 @@ plane_of(frustum3<Real> const& f, frustum_plane const which) noexcept -> plane3<
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(frustum3<Real> const& f, sphere3<Real> const& s) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(frustum3<Real> const& f, sphere3<Real> const& s) noexcept
+  -> bool {
   for (auto const& pl : f.planes()) {
     if (signed_distance(pl, s.center()) < -s.radius()) {
       return false;
@@ -271,8 +271,8 @@ intersects(frustum3<Real> const& f, sphere3<Real> const& s) noexcept -> bool {
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(frustum3<Real> const& f, aabb<Real, 3> const& box) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(frustum3<Real> const& f, aabb<Real, 3> const& box) noexcept
+  -> bool {
   auto const c{center(box)};
   auto const half{half_size(box)};
   for (auto const& pl : f.planes()) {

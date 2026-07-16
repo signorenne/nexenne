@@ -231,7 +231,9 @@ TEST_CASE("nexenne::utility::non_null is usable in a constexpr context") {
 // compile-time properties
 
 static_assert(std::is_same_v<non_null<widget*>::value_type, widget*>);
-static_assert(std::is_same_v<non_null<std::unique_ptr<widget>>::value_type, std::unique_ptr<widget>>);
+static_assert(
+  std::is_same_v<non_null<std::unique_ptr<widget>>::value_type, std::unique_ptr<widget>>
+);
 static_assert(std::is_same_v<non_null<std::shared_ptr<widget>>::element_type, widget>);
 static_assert(std::is_same_v<non_null<widget*>::element_type, widget>);
 static_assert(std::is_same_v<non_null<widget*>::pointer_type, widget*>);

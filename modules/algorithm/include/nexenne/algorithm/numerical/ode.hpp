@@ -98,8 +98,8 @@ template <typename T, std::invocable<T, T> F>
  * @complexity \c O(1).
  */
 template <typename T>
-[[nodiscard]] constexpr auto
-verlet_step(T const x, T const x_prev, T const a, T const dt) noexcept -> T {
+[[nodiscard]] constexpr auto verlet_step(T const x, T const x_prev, T const a, T const dt) noexcept
+  -> T {
   return T{2} * x - x_prev + a * dt * dt;
 }
 
@@ -127,8 +127,8 @@ verlet_step(T const x, T const x_prev, T const a, T const dt) noexcept -> T {
  * @complexity \c O(1): two evaluations of \p accel.
  */
 template <typename T, std::invocable<T> Accel>
-[[nodiscard]] constexpr auto
-velocity_verlet_step(Accel&& accel, T const x, T const v, T const dt) -> std::pair<T, T> {
+[[nodiscard]] constexpr auto velocity_verlet_step(Accel&& accel, T const x, T const v, T const dt)
+  -> std::pair<T, T> {
   auto const a{accel(x)};
   auto const x_new{x + v * dt + T{0.5} * a * dt * dt};
   auto const a_new{accel(x_new)};

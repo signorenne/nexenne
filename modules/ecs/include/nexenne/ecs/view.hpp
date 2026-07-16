@@ -371,8 +371,8 @@ public:
      * @pre  None.
      * @post None.
      */
-    [[nodiscard]] friend constexpr auto
-    operator==(iterator const& a, iterator const& b) noexcept -> bool {
+    [[nodiscard]] friend constexpr auto operator==(iterator const& a, iterator const& b) noexcept
+      -> bool {
       return a.m_pos == b.m_pos && a.m_view == b.m_view;
     }
   };
@@ -616,8 +616,8 @@ public:
    * @complexity \c O(1).
    */
   template <typename C>
-  [[nodiscard]] auto
-  with() const noexcept -> typed_query_builder<detail::type_list<Includes..., C>, exclude_list> {
+  [[nodiscard]] auto with() const noexcept
+    -> typed_query_builder<detail::type_list<Includes..., C>, exclude_list> {
     return typed_query_builder<detail::type_list<Includes..., C>, exclude_list>{*m_registry};
   }
 
@@ -635,8 +635,8 @@ public:
    * @complexity \c O(1).
    */
   template <typename C>
-  [[nodiscard]] auto
-  without() const noexcept -> typed_query_builder<include_list, detail::type_list<Excludes..., C>> {
+  [[nodiscard]] auto without() const noexcept
+    -> typed_query_builder<include_list, detail::type_list<Excludes..., C>> {
     return typed_query_builder<include_list, detail::type_list<Excludes..., C>>{*m_registry};
   }
 
@@ -679,13 +679,13 @@ public:
 };
 
 template <typename... Includes>
-[[nodiscard]] inline auto
-registry::view() noexcept -> basic_view<detail::type_list<Includes...>, detail::type_list<>> {
+[[nodiscard]] inline auto registry::view() noexcept
+  -> basic_view<detail::type_list<Includes...>, detail::type_list<>> {
   return basic_view<detail::type_list<Includes...>, detail::type_list<>>{*this};
 }
 
-[[nodiscard]] inline auto
-registry::query() noexcept -> typed_query_builder<detail::type_list<>, detail::type_list<>> {
+[[nodiscard]] inline auto registry::query() noexcept
+  -> typed_query_builder<detail::type_list<>, detail::type_list<>> {
   return typed_query_builder<detail::type_list<>, detail::type_list<>>{*this};
 }
 

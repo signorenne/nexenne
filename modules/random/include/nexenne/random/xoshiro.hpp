@@ -143,8 +143,8 @@ public:
    *       every value returned by \c state satisfies this.
    * @post \c state() equals \p state.
    */
-  [[nodiscard]] static constexpr auto from_state(std::array<std::uint64_t, 4> const& state
-  ) noexcept -> xoshiro256ss {
+  [[nodiscard]] static constexpr auto from_state(std::array<std::uint64_t, 4> const& state) noexcept
+    -> xoshiro256ss {
     // Confined to the runtime path so a valid constant-evaluated restore stays
     // well formed, matching the utility::non_null precedent.
     if !consteval {

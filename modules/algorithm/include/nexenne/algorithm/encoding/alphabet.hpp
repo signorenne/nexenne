@@ -31,8 +31,8 @@ struct codec_alphabet {
   static constexpr std::size_t size{N};  ///< Number of symbols in the alphabet.
 
   std::array<char, N> chars{};  ///< Forward table: index to character.
-  std::array<std::int8_t, 256> reverse{
-  };  ///< Reverse table: character to index, -1 for non-members.
+  std::array<std::int8_t, 256>
+    reverse{};  ///< Reverse table: character to index, -1 for non-members.
 
   /**
    * @brief Builds the alphabet from a string literal of length \c N.

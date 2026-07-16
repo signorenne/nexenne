@@ -86,7 +86,7 @@ concept slot_connectable =
  */
 class static_connection {
 public:
-  using id_type = std::uint64_t;  ///< Slot identifier type.
+  using id_type = std::uint64_t;                                         ///< Slot identifier type.
   using disconnect_fn_type = auto (*)(void*, id_type) noexcept -> bool;  ///< Disconnect dispatcher.
 
 private:

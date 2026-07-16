@@ -319,8 +319,9 @@ TEST_CASE("nexenne::chrono::format keeps interior zero components (M1)") {
   // 24h + 5m + 34s decomposes to 1 day, 0 hours, 5 minutes, 34 seconds. The zero
   // hours sits between the shown days and minutes and must survive; dropping it
   // would misread as 01d:05m:34s.
-  auto const d{ch::format(std::chrono::hours{24} + std::chrono::minutes{5} + std::chrono::seconds{34}
-  )};
+  auto const d{
+    ch::format(std::chrono::hours{24} + std::chrono::minutes{5} + std::chrono::seconds{34})
+  };
   CHECK(d == "01d:00h:05m:34s");
   // Leading zeros are still dropped: no days, so the day component vanishes.
   CHECK(ch::format(std::chrono::minutes{5} + std::chrono::seconds{34}) == "05m:34s");

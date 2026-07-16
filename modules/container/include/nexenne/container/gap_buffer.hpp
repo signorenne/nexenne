@@ -1002,8 +1002,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(gap_buffer const& a, gap_buffer const& b) noexcept -> bool
+  [[nodiscard]] friend constexpr auto operator==(gap_buffer const& a, gap_buffer const& b) noexcept
+    -> bool
     requires std::equality_comparable<T>
   {
     return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), b.end());

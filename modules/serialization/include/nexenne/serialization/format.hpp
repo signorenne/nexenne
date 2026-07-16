@@ -262,7 +262,9 @@ struct std::formatter<nexenne::serialization::cbor::type> : std::formatter<std::
    */
   template <typename FormatContext>
   auto format(nexenne::serialization::cbor::type const t, FormatContext& ctx) const {
-    return std::formatter<std::string_view>::format(nexenne::serialization::cbor::to_string(t), ctx);
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::cbor::to_string(t), ctx
+    );
   }
 };
 
@@ -303,7 +305,7 @@ struct std::formatter<nexenne::serialization::msgpack::type> : std::formatter<st
  */
 template <>
 struct std::formatter<nexenne::serialization::json::value::kind>
-  : std::formatter<std::string_view> {
+    : std::formatter<std::string_view> {
   /**
    * @brief Formats the kind's \c to_string name through the string formatter.
    *
@@ -318,7 +320,9 @@ struct std::formatter<nexenne::serialization::json::value::kind>
    */
   template <typename FormatContext>
   auto format(nexenne::serialization::json::value::kind const k, FormatContext& ctx) const {
-    return std::formatter<std::string_view>::format(nexenne::serialization::json::to_string(k), ctx);
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::json::to_string(k), ctx
+    );
   }
 };
 
@@ -330,7 +334,7 @@ struct std::formatter<nexenne::serialization::json::value::kind>
  */
 template <>
 struct std::formatter<nexenne::serialization::json::parse_error>
-  : std::formatter<std::string_view> {
+    : std::formatter<std::string_view> {
   /**
    * @brief Formats the parse error's \c to_string diagnostic.
    *
@@ -345,7 +349,9 @@ struct std::formatter<nexenne::serialization::json::parse_error>
    */
   template <typename FormatContext>
   auto format(nexenne::serialization::json::parse_error const& e, FormatContext& ctx) const {
-    return std::formatter<std::string_view>::format(nexenne::serialization::json::to_string(e), ctx);
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::json::to_string(e), ctx
+    );
   }
 };
 

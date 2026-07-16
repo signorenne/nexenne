@@ -64,7 +64,9 @@ namespace {
 // whether the underlying std::hash call can throw.
 static_assert(util::hashable<throwing_key>);
 static_assert(!util::detail::nothrow_hashable_v<throwing_key>);
-static_assert(!noexcept(util::hash_combine(std::declval<std::size_t&>(), std::declval<throwing_key const&>())));
+static_assert(
+  !noexcept(util::hash_combine(std::declval<std::size_t&>(), std::declval<throwing_key const&>()))
+);
 static_assert(!noexcept(util::hash_combine_each(
   std::declval<std::size_t&>(), std::declval<int const&>(), std::declval<throwing_key const&>()
 )));

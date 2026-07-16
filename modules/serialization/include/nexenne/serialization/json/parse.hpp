@@ -441,7 +441,8 @@ private:
       while (is_digit())
         advance();
     }
-    auto const text{std::string_view{m_cursor.buffer().data() + start, m_cursor.position() - start}
+    auto const text{
+      std::string_view{m_cursor.buffer().data() + start, m_cursor.position() - start}
     };
     if (is_float) {
       auto out{0.0};
@@ -739,6 +740,7 @@ private:
 };
 
 }  // namespace detail
+
 /// @endcond
 
 /**

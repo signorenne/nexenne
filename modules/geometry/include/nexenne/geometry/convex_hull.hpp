@@ -148,9 +148,9 @@ using convex_hull3_d = convex_hull3<double>;
  * @complexity \c O(N) in the vertex count.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto support(
-  convex_hull3<Real> const& hull, nexenne::math::vector<Real, 3> const& direction
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+support(convex_hull3<Real> const& hull, nexenne::math::vector<Real, 3> const& direction) noexcept
+  -> nexenne::math::vector<Real, 3> {
   return hull.support(direction);
 }
 
@@ -172,8 +172,8 @@ template <std::floating_point Real>
  * @complexity \c O(N) in the vertex count.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto bounding_aabb(convex_hull3<Real> const& hull
-) noexcept -> aabb<Real, 3> {
+[[nodiscard]] constexpr auto bounding_aabb(convex_hull3<Real> const& hull) noexcept
+  -> aabb<Real, 3> {
   auto result{empty_aabb<Real, 3>()};
   for (auto const& v : hull.vertices()) {
     result = expand_to_include(result, v);

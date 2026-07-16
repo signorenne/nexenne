@@ -201,9 +201,9 @@ struct static_string {
    *       null-terminated; its \c size() is \c a.size() + b.size().
    */
   template <std::size_t M>
-  [[nodiscard]] friend constexpr auto operator+(
-    static_string const& a, static_string<M> const& b
-  ) noexcept -> static_string<N + M - 1> {
+  [[nodiscard]] friend constexpr auto
+  operator+(static_string const& a, static_string<M> const& b) noexcept
+    -> static_string<N + M - 1> {
     static_string<N + M - 1> out{};
     // Copy the content runs, not the raw buffers: a partially filled left
     // operand must not push NUL padding between the two contents.
@@ -250,8 +250,8 @@ struct std::hash<nexenne::utility::static_string<N>> {
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto operator()(nexenne::utility::static_string<N> const& s
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::utility::static_string<N> const& s) const noexcept
+    -> std::size_t {
     return std::hash<std::string_view>{}(s.view());
   }
 };

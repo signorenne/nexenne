@@ -207,8 +207,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(non_null const&, non_null const&) noexcept -> bool = default;
+  [[nodiscard]] friend constexpr auto operator==(non_null const&, non_null const&) noexcept
+    -> bool = default;
 
   /**
    * @brief Equality of a wrapper and a plain pointer of the wrapped type.
@@ -247,8 +247,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(non_null const& lhs, std::nullptr_t) noexcept -> bool {
+  [[nodiscard]] friend constexpr auto operator==(non_null const& lhs, std::nullptr_t) noexcept
+    -> bool {
     return lhs.m_ptr == nullptr;
   }
 };
@@ -276,8 +276,9 @@ struct std::hash<nexenne::utility::non_null<T>> {
    * @pre \p value has not been moved from.
    * @post None.
    */
-  [[nodiscard]] auto operator()(nexenne::utility::non_null<T> const& value) const
-    noexcept(noexcept(std::hash<T>{}(value.get()))) -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::utility::non_null<T> const& value) const noexcept(
+    noexcept(std::hash<T>{}(value.get()))
+  ) -> std::size_t {
     return std::hash<T>{}(value.get());
   }
 };

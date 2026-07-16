@@ -189,12 +189,13 @@ public:
    * @pre \p q is positive.
    * @post The returned filter has all delay elements at zero.
    */
-  [[nodiscard]] static auto
-  make_lowpass(T const cutoff_hz, T const sample_rate_hz, T const q = T{1} / std::numbers::sqrt2_v<T>) noexcept
-    -> biquad {
+  [[nodiscard]] static auto make_lowpass(
+    T const cutoff_hz, T const sample_rate_hz, T const q = T{1} / std::numbers::sqrt2_v<T>
+  ) noexcept -> biquad {
     assert(
-      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2} && q > T{0} &&
-      "biquad::make_lowpass requires a positive sample rate, a sub-Nyquist cutoff, and a positive q"
+      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2} && q > T{0}
+      && "biquad::make_lowpass requires a positive sample rate, a sub-Nyquist cutoff, and a "
+         "positive q"
     );
     auto const w0{T{2} * std::numbers::pi_v<T> * cutoff_hz / sample_rate_hz};
     auto const sin_w{std::sin(w0)};
@@ -228,12 +229,13 @@ public:
    * @pre \p q is positive.
    * @post The returned filter has all delay elements at zero.
    */
-  [[nodiscard]] static auto
-  make_highpass(T const cutoff_hz, T const sample_rate_hz, T const q = T{1} / std::numbers::sqrt2_v<T>) noexcept
-    -> biquad {
+  [[nodiscard]] static auto make_highpass(
+    T const cutoff_hz, T const sample_rate_hz, T const q = T{1} / std::numbers::sqrt2_v<T>
+  ) noexcept -> biquad {
     assert(
-      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2} && q > T{0} &&
-      "biquad::make_highpass requires a positive sample rate, a sub-Nyquist cutoff, and a positive q"
+      sample_rate_hz > T{0} && cutoff_hz > T{0} && cutoff_hz < sample_rate_hz / T{2} && q > T{0}
+      && "biquad::make_highpass requires a positive sample rate, a sub-Nyquist cutoff, and a "
+         "positive q"
     );
     auto const w0{T{2} * std::numbers::pi_v<T> * cutoff_hz / sample_rate_hz};
     auto const sin_w{std::sin(w0)};
@@ -271,8 +273,9 @@ public:
   [[nodiscard]] static auto
   make_bandpass(T const center_hz, T const sample_rate_hz, T const q = T{1}) noexcept -> biquad {
     assert(
-      sample_rate_hz > T{0} && center_hz > T{0} && center_hz < sample_rate_hz / T{2} && q > T{0} &&
-      "biquad::make_bandpass requires a positive sample rate, a sub-Nyquist centre, and a positive q"
+      sample_rate_hz > T{0} && center_hz > T{0} && center_hz < sample_rate_hz / T{2} && q > T{0}
+      && "biquad::make_bandpass requires a positive sample rate, a sub-Nyquist centre, and a "
+         "positive q"
     );
     auto const w0{T{2} * std::numbers::pi_v<T> * center_hz / sample_rate_hz};
     auto const sin_w{std::sin(w0)};
@@ -311,8 +314,9 @@ public:
   [[nodiscard]] static auto
   make_notch(T const center_hz, T const sample_rate_hz, T const q = T{1}) noexcept -> biquad {
     assert(
-      sample_rate_hz > T{0} && center_hz > T{0} && center_hz < sample_rate_hz / T{2} && q > T{0} &&
-      "biquad::make_notch requires a positive sample rate, a sub-Nyquist centre, and a positive q"
+      sample_rate_hz > T{0} && center_hz > T{0} && center_hz < sample_rate_hz / T{2} && q > T{0}
+      && "biquad::make_notch requires a positive sample rate, a sub-Nyquist centre, and a positive "
+         "q"
     );
     auto const w0{T{2} * std::numbers::pi_v<T> * center_hz / sample_rate_hz};
     auto const sin_w{std::sin(w0)};

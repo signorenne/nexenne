@@ -211,6 +211,7 @@ url_decode_into(std::string_view const in, std::span<char> const out) noexcept -
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -229,8 +230,8 @@ url_decode_into(std::string_view const in, std::span<char> const out) noexcept -
  *
  * @complexity \c O(1).
  */
-[[nodiscard]] constexpr auto url_encoded_max_size(std::size_t const n_bytes
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto url_encoded_max_size(std::size_t const n_bytes) noexcept
+  -> std::size_t {
   assert(
     n_bytes <= std::numeric_limits<std::size_t>::max() / 3
     && "url_encoded_max_size: n_bytes * 3 overflows std::size_t"

@@ -56,8 +56,8 @@ namespace nexenne::math {
  * @post Result is finite.
  */
 template <arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto
-dot(vector<Value, N> const& a, vector<Value, N> const& b) noexcept -> Value {
+[[nodiscard]] constexpr auto dot(vector<Value, N> const& a, vector<Value, N> const& b) noexcept
+  -> Value {
   // The N products are computed packed (one SSE mulps for a float vec4), then
   // accumulated left to right. The sequential sum is deliberate: reassociating
   // it into a horizontal SIMD reduction would change the floating-point rounding,
@@ -146,8 +146,8 @@ distance_squared(vector<Value, N> const& a, vector<Value, N> const& b) noexcept 
  * @post Result is non-negative and finite.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto
-distance(vector<Real, N> const& a, vector<Real, N> const& b) noexcept -> Real {
+[[nodiscard]] constexpr auto distance(vector<Real, N> const& a, vector<Real, N> const& b) noexcept
+  -> Real {
   return length(a - b);
 }
 
@@ -169,8 +169,8 @@ distance(vector<Real, N> const& a, vector<Real, N> const& b) noexcept -> Real {
  * @post Result is finite.
  */
 template <arithmetic Value>
-[[nodiscard]] constexpr auto
-cross(vector<Value, 2> const a, vector<Value, 2> const b) noexcept -> Value {
+[[nodiscard]] constexpr auto cross(vector<Value, 2> const a, vector<Value, 2> const b) noexcept
+  -> Value {
   return a.x() * b.y() - a.y() * b.x();
 }
 
@@ -192,8 +192,8 @@ cross(vector<Value, 2> const a, vector<Value, 2> const b) noexcept -> Value {
  * @post Result is perpendicular to both \p a and \p b.
  */
 template <arithmetic Value>
-[[nodiscard]] constexpr auto
-cross(vector<Value, 3> const& a, vector<Value, 3> const& b) noexcept -> vector<Value, 3> {
+[[nodiscard]] constexpr auto cross(vector<Value, 3> const& a, vector<Value, 3> const& b) noexcept
+  -> vector<Value, 3> {
   // Each component drops its own axis and takes the 2x2 determinant of the other
   // two, so the result is orthogonal to both inputs (its dot with either is zero).
   return vector<Value, 3>{
@@ -247,9 +247,9 @@ template <arithmetic Value>
  * @post On success the returned vector has unit length.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto normalize(
-  vector<Real, N> const& v, Real const threshold = static_cast<Real>(1e-20)
-) noexcept -> result<vector<Real, N>> {
+[[nodiscard]] constexpr auto
+normalize(vector<Real, N> const& v, Real const threshold = static_cast<Real>(1e-20)) noexcept
+  -> result<vector<Real, N>> {
   auto const len_sq{length_squared(v)};
   // Components can be finite yet square-sum past the type range (a float overflows
   // once a component exceeds ~1.8e19), leaving len_sq = +inf. Then inf > threshold
@@ -284,9 +284,9 @@ template <std::floating_point Real, std::size_t N>
  *       accuracy (about 5e-6 relative).
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto fast_normalize(
-  vector<Real, N> const& v, Real const threshold = static_cast<Real>(1e-20)
-) noexcept -> result<vector<Real, N>> {
+[[nodiscard]] constexpr auto
+fast_normalize(vector<Real, N> const& v, Real const threshold = static_cast<Real>(1e-20)) noexcept
+  -> result<vector<Real, N>> {
   auto const len_sq{length_squared(v)};
   // See normalize: a finite-component vector can overflow len_sq to +inf, which
   // would slip past the short-vector guard and normalize to zero. Reject it.
@@ -377,9 +377,9 @@ lerp(vector<Real, N> const& a, vector<Real, N> const& b, Real const t) noexcept 
  * @post Result lies element-wise in [lo, hi].
  */
 template <arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto clamp(
-  vector<Value, N> const& v, vector<Value, N> const& lo, vector<Value, N> const& hi
-) noexcept -> vector<Value, N> {
+[[nodiscard]] constexpr auto
+clamp(vector<Value, N> const& v, vector<Value, N> const& lo, vector<Value, N> const& hi) noexcept
+  -> vector<Value, N> {
   auto result{vector<Value, N>{}};
   for (std::size_t i{0}; i < N; ++i) {
     result[i] = clamp(v[i], lo[i], hi[i]);
@@ -450,8 +450,8 @@ component_max(vector<Value, N> const& a, vector<Value, N> const& b) noexcept -> 
  * @post Each component equals the product of the corresponding components.
  */
 template <arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto
-hadamard(vector<Value, N> const& a, vector<Value, N> const& b) noexcept -> vector<Value, N> {
+[[nodiscard]] constexpr auto hadamard(vector<Value, N> const& a, vector<Value, N> const& b) noexcept
+  -> vector<Value, N> {
   return a * b;
 }
 

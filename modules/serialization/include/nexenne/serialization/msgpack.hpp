@@ -195,6 +195,7 @@ inline auto store_be64(std::byte* const dst, std::uint64_t const v) noexcept -> 
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -703,8 +704,8 @@ private:
    * @throws None. Returns \c error::buffer_underrun when fewer than \p n bytes
    *         remain.
    */
-  [[nodiscard]] auto take(size_type const n
-  ) noexcept -> std::expected<std::span<byte_type const>, error> {
+  [[nodiscard]] auto take(size_type const n) noexcept
+    -> std::expected<std::span<byte_type const>, error> {
     if (!m_cursor.has(n)) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
     return m_cursor.take(n);
@@ -725,8 +726,8 @@ private:
    * @post On \c true, \p pending has increased by \p add; on \c false it is
    *       unchanged.
    */
-  [[nodiscard]] static auto
-  add_pending(std::uint64_t& pending, std::uint64_t const add) noexcept -> bool {
+  [[nodiscard]] static auto add_pending(std::uint64_t& pending, std::uint64_t const add) noexcept
+    -> bool {
     if (add > std::numeric_limits<std::uint64_t>::max() - pending)
       return false;
     pending += add;
@@ -764,8 +765,7 @@ private:
    * @throws None. Returns \c error::buffer_underrun when fewer than \p n bytes
    *         remain.
    */
-  [[nodiscard]] auto read_len(size_type const n
-  ) noexcept -> std::expected<std::uint64_t, error> {
+  [[nodiscard]] auto read_len(size_type const n) noexcept -> std::expected<std::uint64_t, error> {
     auto p{take(n)};
     if (!p)
       return std::unexpected{p.error()};
@@ -1001,8 +1001,9 @@ public:
         auto p{take(1)};
         if (!p)
           return std::unexpected{p.error()};
-        return static_cast<std::int64_t>(static_cast<std::int8_t>(static_cast<std::uint8_t>((*p)[0])
-        ));
+        return static_cast<std::int64_t>(
+          static_cast<std::int8_t>(static_cast<std::uint8_t>((*p)[0]))
+        );
       }
       case 0xD1: {
         auto p{take(2)};

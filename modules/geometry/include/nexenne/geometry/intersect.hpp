@@ -65,8 +65,8 @@ namespace nexenne::geometry {
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(ray<Real, 3> const& r, plane3<Real> const& pl) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(ray<Real, 3> const& r, plane3<Real> const& pl) noexcept
+  -> std::optional<Real> {
   // dot(n, dir) is the rate the signed plane distance changes along the ray;
   // when it is zero the ray runs parallel to the plane and never crosses.
   auto const denom{nexenne::math::dot(pl.normal(), r.direction())};
@@ -97,8 +97,8 @@ intersects(ray<Real, 3> const& r, plane3<Real> const& pl) noexcept -> std::optio
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto
-intersects(ray<Real, N> const& r, aabb<Real, N> const& box) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(ray<Real, N> const& r, aabb<Real, N> const& box) noexcept
+  -> std::optional<Real> {
   // The box is the intersection of N axis-aligned "slabs" (one per axis). For
   // each slab the ray is inside for t in [t1, t2]; the ray hits the box only
   // where all N intervals overlap. Track the running intersection [t_near, t_far]
@@ -150,8 +150,8 @@ intersects(ray<Real, N> const& r, aabb<Real, N> const& box) noexcept -> std::opt
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(ray<Real, 3> const& r, sphere3<Real> const& s) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(ray<Real, 3> const& r, sphere3<Real> const& s) noexcept
+  -> std::optional<Real> {
   // Substitute the ray into |p - center|^2 = r^2 to get t^2 + 2*b*t + c = 0 with
   // b = dot(m, dir) and c = |m|^2 - r^2, where m points from the center to the
   // origin. c > 0 means the origin is outside; with b > 0 the ray also points
@@ -185,8 +185,8 @@ intersects(ray<Real, 3> const& r, sphere3<Real> const& s) noexcept -> std::optio
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(ray<Real, 2> const& r, circle2<Real> const& c) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(ray<Real, 2> const& r, circle2<Real> const& c) noexcept
+  -> std::optional<Real> {
   auto const m{r.origin() - c.center()};
   auto const b{nexenne::math::dot(m, r.direction())};
   auto const cc{nexenne::math::dot(m, m) - c.radius() * c.radius()};
@@ -215,8 +215,8 @@ intersects(ray<Real, 2> const& r, circle2<Real> const& c) noexcept -> std::optio
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(ray<Real, 3> const& r, triangle<Real, 3> const& t) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(ray<Real, 3> const& r, triangle<Real, 3> const& t) noexcept
+  -> std::optional<Real> {
   // Moller and Trumbore (1997): solve origin + t*dir = a + u*edge1 + v*edge2 for
   // the barycentric (u, v) and the distance t in one shot via Cramer's rule. The
   // scalar triple products are arranged so the determinant a = dot(edge1, h) with
@@ -233,9 +233,7 @@ intersects(ray<Real, 3> const& r, triangle<Real, 3> const& t) noexcept -> std::o
   // a grazing miss into a hit at a huge, noise-dominated t. Comparing squares
   // keeps the test allocation- and sqrt-free.
   auto const parallel_eps{static_cast<Real>(1e-8)};
-  auto const scale_sq{
-    nexenne::math::length_squared(edge1) * nexenne::math::length_squared(edge2)
-  };
+  auto const scale_sq{nexenne::math::length_squared(edge1) * nexenne::math::length_squared(edge2)};
   if (a * a <= parallel_eps * parallel_eps * scale_sq) {
     return std::nullopt;
   }
@@ -271,9 +269,9 @@ intersects(ray<Real, 3> const& r, triangle<Real, 3> const& t) noexcept -> std::o
  * @post When engaged the result lies on both \p seg and \p pl.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto intersects(
-  segment<Real, 3> const& seg, plane3<Real> const& pl
-) noexcept -> std::optional<nexenne::math::vector<Real, 3>> {
+[[nodiscard]] constexpr auto
+intersects(segment<Real, 3> const& seg, plane3<Real> const& pl) noexcept
+  -> std::optional<nexenne::math::vector<Real, 3>> {
   auto const dir{seg.end() - seg.start()};
   auto const denom{nexenne::math::dot(pl.normal(), dir)};
   if (nexenne::math::abs(denom) <= Real{0}) {
@@ -301,8 +299,8 @@ template <std::floating_point Real>
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(sphere3<Real> const& s, aabb<Real, 3> const& box) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(sphere3<Real> const& s, aabb<Real, 3> const& box) noexcept
+  -> bool {
   // The squared distance from the center to its closest point on the box, against
   // the squared radius: no sqrt needed.
   return distance_squared(box, s.center()) <= s.radius() * s.radius();
@@ -321,8 +319,8 @@ intersects(sphere3<Real> const& s, aabb<Real, 3> const& box) noexcept -> bool {
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(circle2<Real> const& c, aabb<Real, 2> const& box) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(circle2<Real> const& c, aabb<Real, 2> const& box) noexcept
+  -> bool {
   return distance_squared(box, c.center()) <= c.radius() * c.radius();
 }
 
@@ -339,8 +337,8 @@ intersects(circle2<Real> const& c, aabb<Real, 2> const& box) noexcept -> bool {
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(sphere3<Real> const& s, plane3<Real> const& pl) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(sphere3<Real> const& s, plane3<Real> const& pl) noexcept
+  -> bool {
   return distance(pl, s.center()) <= s.radius();
 }
 
@@ -384,8 +382,8 @@ template <std::floating_point Real, std::size_t N>
  * @note Runtime only: depends on \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto axes(obb2<Real> const& box
-) noexcept -> std::array<nexenne::math::vector<Real, 2>, 2> {
+[[nodiscard]] auto axes(obb2<Real> const& box) noexcept
+  -> std::array<nexenne::math::vector<Real, 2>, 2> {
   auto const c{std::cos(box.rotation().value())};
   auto const s{std::sin(box.rotation().value())};
   return std::array<nexenne::math::vector<Real, 2>, 2>{{{c, s}, {-s, c}}};
@@ -400,8 +398,8 @@ template <std::floating_point Real>
  * @return The three unit axes of \p box's local frame.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto axes(obb3<Real> const& box
-) noexcept -> std::array<nexenne::math::vector<Real, 3>, 3> {
+[[nodiscard]] constexpr auto axes(obb3<Real> const& box) noexcept
+  -> std::array<nexenne::math::vector<Real, 3>, 3> {
   // The three local axes are the columns of the rotation matrix (column k is
   // R * e_k = rotate(q, e_k)). Building the matrix once shares the nine
   // quaternion products across all three axes, cheaper than three separate
@@ -419,8 +417,8 @@ template <std::floating_point Real>
  * @return The \p N standard basis vectors.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto
-identity_basis() noexcept -> std::array<nexenne::math::vector<Real, N>, N> {
+[[nodiscard]] constexpr auto identity_basis() noexcept
+  -> std::array<nexenne::math::vector<Real, N>, N> {
   auto result{std::array<nexenne::math::vector<Real, N>, N>{}};
   for (auto i{std::size_t{0}}; i < N; ++i) {
     result[i][i] = Real{1};
@@ -590,8 +588,8 @@ template <std::floating_point Real>
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(aabb<Real, 3> const& box, obb3<Real> const& o) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(aabb<Real, 3> const& box, obb3<Real> const& o) noexcept
+  -> bool {
   auto const basis_a{detail::identity_basis<Real, 3>()};
   auto const basis_b{detail::axes(o)};
   auto const a_half{half_size(box)};
@@ -639,8 +637,8 @@ intersects(aabb<Real, 3> const& box, obb3<Real> const& o) noexcept -> bool {
  * @note Runtime only: depends on \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto
-intersects(ray<Real, 2> const& r, obb2<Real> const& box) noexcept -> std::optional<Real> {
+[[nodiscard]] auto intersects(ray<Real, 2> const& r, obb2<Real> const& box) noexcept
+  -> std::optional<Real> {
   // Rotating the ray into the box's local frame makes the box axis-aligned about
   // the origin, so the problem reduces to ray-vs-aabb. The rotation by -theta is
   // the inverse of the box orientation.
@@ -670,8 +668,8 @@ intersects(ray<Real, 2> const& r, obb2<Real> const& box) noexcept -> std::option
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(ray<Real, 3> const& r, obb3<Real> const& box) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(ray<Real, 3> const& r, obb3<Real> const& box) noexcept
+  -> std::optional<Real> {
   // Same reduction as the 2D case: bring the ray into the box's local frame with
   // the inverse rotation (the conjugate of the unit quaternion), then the box is
   // axis-aligned and ray-vs-aabb finishes the job.
@@ -717,8 +715,8 @@ struct ray_hit3 {
  * @post On a hit \c normal faces the ray and \c point lies on the plane.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-raycast(ray<Real, 3> const& r, plane3<Real> const& pl) noexcept -> std::optional<ray_hit3<Real>> {
+[[nodiscard]] constexpr auto raycast(ray<Real, 3> const& r, plane3<Real> const& pl) noexcept
+  -> std::optional<ray_hit3<Real>> {
   auto const t{intersects(r, pl)};
   if (!t) {
     return std::nullopt;
@@ -744,8 +742,8 @@ raycast(ray<Real, 3> const& r, plane3<Real> const& pl) noexcept -> std::optional
  *       the origin is inside) and \c point lies on the sphere.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-raycast(ray<Real, 3> const& r, sphere3<Real> const& s) noexcept -> std::optional<ray_hit3<Real>> {
+[[nodiscard]] constexpr auto raycast(ray<Real, 3> const& r, sphere3<Real> const& s) noexcept
+  -> std::optional<ray_hit3<Real>> {
   auto const t{intersects(r, s)};
   if (!t) {
     return std::nullopt;
@@ -805,8 +803,8 @@ template <std::floating_point Real>
  * @post On a hit \c normal is an axis-aligned unit face normal facing the ray.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-raycast(ray<Real, 3> const& r, aabb<Real, 3> const& box) noexcept -> std::optional<ray_hit3<Real>> {
+[[nodiscard]] constexpr auto raycast(ray<Real, 3> const& r, aabb<Real, 3> const& box) noexcept
+  -> std::optional<ray_hit3<Real>> {
   auto t_near{-std::numeric_limits<Real>::infinity()};
   auto t_far{std::numeric_limits<Real>::infinity()};
   auto hit_axis{std::size_t{0}};
@@ -871,8 +869,8 @@ raycast(ray<Real, 3> const& r, aabb<Real, 3> const& box) noexcept -> std::option
  *       ray.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-raycast(ray<Real, 3> const& r, obb3<Real> const& box) noexcept -> std::optional<ray_hit3<Real>> {
+[[nodiscard]] constexpr auto raycast(ray<Real, 3> const& r, obb3<Real> const& box) noexcept
+  -> std::optional<ray_hit3<Real>> {
   auto const inv_rot{nexenne::math::conjugate(box.rotation())};
   auto const local_origin{nexenne::math::rotate(inv_rot, r.origin() - box.center())};
   auto const local_direction{nexenne::math::rotate(inv_rot, r.direction())};
@@ -969,8 +967,8 @@ intersects(capsule<Real, N> const& a, capsule<Real, N> const& b) noexcept -> boo
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(aabb<Real, 3> const& box, sphere3<Real> const& s) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(aabb<Real, 3> const& box, sphere3<Real> const& s) noexcept
+  -> bool {
   return intersects(s, box);
 }
 
@@ -987,8 +985,8 @@ intersects(aabb<Real, 3> const& box, sphere3<Real> const& s) noexcept -> bool {
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(aabb<Real, 2> const& box, circle2<Real> const& c) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(aabb<Real, 2> const& box, circle2<Real> const& c) noexcept
+  -> bool {
   return intersects(c, box);
 }
 
@@ -1005,8 +1003,8 @@ intersects(aabb<Real, 2> const& box, circle2<Real> const& c) noexcept -> bool {
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(plane3<Real> const& pl, sphere3<Real> const& s) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(plane3<Real> const& pl, sphere3<Real> const& s) noexcept
+  -> bool {
   return intersects(s, pl);
 }
 
@@ -1042,8 +1040,8 @@ template <std::floating_point Real>
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(obb3<Real> const& o, aabb<Real, 3> const& box) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(obb3<Real> const& o, aabb<Real, 3> const& box) noexcept
+  -> bool {
   return intersects(box, o);
 }
 
@@ -1096,8 +1094,8 @@ intersects(circle2<Real> const& c, capsule<Real, 2> const& cap) noexcept -> bool
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(plane3<Real> const& pl, ray<Real, 3> const& r) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(plane3<Real> const& pl, ray<Real, 3> const& r) noexcept
+  -> std::optional<Real> {
   return intersects(r, pl);
 }
 
@@ -1115,8 +1113,8 @@ intersects(plane3<Real> const& pl, ray<Real, 3> const& r) noexcept -> std::optio
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto
-intersects(aabb<Real, N> const& box, ray<Real, N> const& r) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(aabb<Real, N> const& box, ray<Real, N> const& r) noexcept
+  -> std::optional<Real> {
   return intersects(r, box);
 }
 
@@ -1133,8 +1131,8 @@ intersects(aabb<Real, N> const& box, ray<Real, N> const& r) noexcept -> std::opt
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(sphere3<Real> const& s, ray<Real, 3> const& r) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(sphere3<Real> const& s, ray<Real, 3> const& r) noexcept
+  -> std::optional<Real> {
   return intersects(r, s);
 }
 
@@ -1151,8 +1149,8 @@ intersects(sphere3<Real> const& s, ray<Real, 3> const& r) noexcept -> std::optio
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(circle2<Real> const& c, ray<Real, 2> const& r) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(circle2<Real> const& c, ray<Real, 2> const& r) noexcept
+  -> std::optional<Real> {
   return intersects(r, c);
 }
 
@@ -1169,8 +1167,8 @@ intersects(circle2<Real> const& c, ray<Real, 2> const& r) noexcept -> std::optio
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(triangle<Real, 3> const& t, ray<Real, 3> const& r) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(triangle<Real, 3> const& t, ray<Real, 3> const& r) noexcept
+  -> std::optional<Real> {
   return intersects(r, t);
 }
 
@@ -1189,8 +1187,8 @@ intersects(triangle<Real, 3> const& t, ray<Real, 3> const& r) noexcept -> std::o
  * @note Runtime only: depends on \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto
-intersects(obb2<Real> const& box, ray<Real, 2> const& r) noexcept -> std::optional<Real> {
+[[nodiscard]] auto intersects(obb2<Real> const& box, ray<Real, 2> const& r) noexcept
+  -> std::optional<Real> {
   return intersects(r, box);
 }
 
@@ -1207,8 +1205,8 @@ intersects(obb2<Real> const& box, ray<Real, 2> const& r) noexcept -> std::option
  * @post When engaged the result is non-negative.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(obb3<Real> const& box, ray<Real, 3> const& r) noexcept -> std::optional<Real> {
+[[nodiscard]] constexpr auto intersects(obb3<Real> const& box, ray<Real, 3> const& r) noexcept
+  -> std::optional<Real> {
   return intersects(r, box);
 }
 
@@ -1225,9 +1223,9 @@ intersects(obb3<Real> const& box, ray<Real, 3> const& r) noexcept -> std::option
  * @post When engaged the result lies on both \p seg and \p pl.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto intersects(
-  plane3<Real> const& pl, segment<Real, 3> const& seg
-) noexcept -> std::optional<nexenne::math::vector<Real, 3>> {
+[[nodiscard]] constexpr auto
+intersects(plane3<Real> const& pl, segment<Real, 3> const& seg) noexcept
+  -> std::optional<nexenne::math::vector<Real, 3>> {
   return intersects(seg, pl);
 }
 

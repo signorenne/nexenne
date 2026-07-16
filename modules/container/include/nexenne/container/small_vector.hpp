@@ -855,8 +855,8 @@ public:
    *
    * @complexity \c O(size).
    */
-  [[nodiscard]] friend auto
-  operator==(small_vector const& a, small_vector const& b) noexcept -> bool
+  [[nodiscard]] friend auto operator==(small_vector const& a, small_vector const& b) noexcept
+    -> bool
     requires std::equality_comparable<T>
   {
     return a.m_size == b.m_size && std::equal(a.begin(), a.end(), b.begin(), b.end());

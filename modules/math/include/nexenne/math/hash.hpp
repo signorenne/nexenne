@@ -44,8 +44,8 @@ struct std::hash<nexenne::math::vector<Value, N>> {
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto operator()(nexenne::math::vector<Value, N> const& v
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::math::vector<Value, N> const& v) const noexcept
+    -> std::size_t {
     return nexenne::utility::hash_range(v);  // vector models a range over its components
   }
 };
@@ -67,8 +67,8 @@ struct std::hash<nexenne::math::quaternion<Real>> {
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto operator()(nexenne::math::quaternion<Real> const& q
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::math::quaternion<Real> const& q) const noexcept
+    -> std::size_t {
     return nexenne::utility::hash_args(q.x(), q.y(), q.z(), q.w());
   }
 };
@@ -91,8 +91,8 @@ struct std::hash<nexenne::math::matrix<Value, N>> {
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto operator()(nexenne::math::matrix<Value, N> const& m
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::math::matrix<Value, N> const& m) const noexcept
+    -> std::size_t {
     // Unlike vector, a matrix is not a flat range of scalars (it is an array of
     // column vectors), so fold the scalar elements directly rather than reusing
     // hash_range, which would otherwise hash the column-vectors. The column-major

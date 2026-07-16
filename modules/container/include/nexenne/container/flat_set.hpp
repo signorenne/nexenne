@@ -326,8 +326,8 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto equal_range(T const& key
-  ) const noexcept -> std::pair<const_iterator, const_iterator> {
+  [[nodiscard]] constexpr auto equal_range(T const& key) const noexcept
+    -> std::pair<const_iterator, const_iterator> {
     return {lower_bound(key), upper_bound(key)};
   }
 
@@ -467,8 +467,8 @@ public:
    */
   template <typename K>
     requires requires { typename Compare::is_transparent; }
-  [[nodiscard]] constexpr auto equal_range(K const& key
-  ) const noexcept -> std::pair<const_iterator, const_iterator> {
+  [[nodiscard]] constexpr auto equal_range(K const& key) const noexcept
+    -> std::pair<const_iterator, const_iterator> {
     return {lower_bound(key), upper_bound(key)};
   }
 
@@ -619,8 +619,8 @@ public:
    *
    * @complexity \c O(N).
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(flat_set const& a, flat_set const& b) noexcept -> bool
+  [[nodiscard]] friend constexpr auto operator==(flat_set const& a, flat_set const& b) noexcept
+    -> bool
     requires std::equality_comparable<T>
   {
     return a.m_data == b.m_data;

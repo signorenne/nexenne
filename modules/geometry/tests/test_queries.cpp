@@ -217,7 +217,7 @@ TEST_CASE("intersects: a near-parallel ray does not fabricate a far triangle hit
   // m6: an exact-zero determinant test let a ray almost parallel to the plane
   // report a hit at a huge, noise-dominated t. The relative parallel test rejects
   // it as a miss instead.
-  geo::triangle3_d const t{vec3{-1, 0, -1}, vec3{1, 0, -1}, vec3{0, 0, 1}};  // in y = 0
+  geo::triangle3_d const t{vec3{-1, 0, -1}, vec3{1, 0, -1}, vec3{0, 0, 1}};    // in y = 0
   auto const grazing{geo::ray3_d{vec3{0, 1e-9, 0}, unit(vec3{1, 1e-12, 0})}};  // ~parallel
   CHECK_FALSE(geo::intersects(grazing, t).has_value());
 }

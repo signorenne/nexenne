@@ -453,8 +453,8 @@ struct std::formatter<nexenne::algorithm::floyd_warshall_result<V, Weight>> {
    * @post The debug string of \p r has been written to \p ctx.
    */
   template <typename FormatContext>
-  auto format(nexenne::algorithm::floyd_warshall_result<V, Weight> const& r, FormatContext& ctx)
-    const {
+  auto
+  format(nexenne::algorithm::floyd_warshall_result<V, Weight> const& r, FormatContext& ctx) const {
     return std::format_to(ctx.out(), "{}", nexenne::algorithm::to_string(r));
   }
 };

@@ -320,8 +320,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto index_of(key_type const k
-  ) const noexcept -> std::optional<size_type> {
+  [[nodiscard]] constexpr auto index_of(key_type const k) const noexcept
+    -> std::optional<size_type> {
     return m_set.index_of(k);
   }
 
@@ -597,6 +597,7 @@ private:
           return std::addressof(entry);
         }
       };
+
       return arrow_proxy{**this};
     }
 
@@ -785,8 +786,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto index_of(key_type const k
-  ) const noexcept -> std::optional<size_type> {
+  [[nodiscard]] constexpr auto index_of(key_type const k) const noexcept
+    -> std::optional<size_type> {
     return m_set.index_of(k);
   }
 

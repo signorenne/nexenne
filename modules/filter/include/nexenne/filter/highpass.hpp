@@ -41,9 +41,9 @@ private:
   value_type m_value{};
   bool m_primed{false};
 
-  [[nodiscard]] static constexpr auto compute_alpha(
-    value_type const cutoff_hz, value_type const sample_rate_hz
-  ) noexcept -> value_type {
+  [[nodiscard]] static constexpr auto
+  compute_alpha(value_type const cutoff_hz, value_type const sample_rate_hz) noexcept
+    -> value_type {
     auto const dt{value_type{1} / sample_rate_hz};
     auto const rc{value_type{1} / (value_type{2} * std::numbers::pi_v<value_type> * cutoff_hz)};
     return rc / (rc + dt);
@@ -67,9 +67,9 @@ public:
   constexpr highpass(value_type const cutoff_hz, value_type const sample_rate_hz) noexcept
       : m_alpha{compute_alpha(cutoff_hz, sample_rate_hz)} {
     assert(
-      sample_rate_hz > value_type{0} && cutoff_hz > value_type{0} &&
-      cutoff_hz < sample_rate_hz / value_type{2} &&
-      "highpass requires a positive sample rate and a sub-Nyquist cutoff"
+      sample_rate_hz > value_type{0} && cutoff_hz > value_type{0}
+      && cutoff_hz < sample_rate_hz / value_type{2}
+      && "highpass requires a positive sample rate and a sub-Nyquist cutoff"
     );
   }
 
@@ -137,8 +137,8 @@ public:
    * @post \c alpha() reflects the new cutoff; the filter state is
    * unchanged.
    */
-  constexpr auto
-  cutoff(value_type const cutoff_hz, value_type const sample_rate_hz) noexcept -> void {
+  constexpr auto cutoff(value_type const cutoff_hz, value_type const sample_rate_hz) noexcept
+    -> void {
     m_alpha = compute_alpha(cutoff_hz, sample_rate_hz);
   }
 

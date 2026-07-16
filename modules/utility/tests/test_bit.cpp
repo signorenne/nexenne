@@ -96,12 +96,8 @@ static_assert(
 // Fields ending exactly at the top of a 64-bit word (offset + width == 64 with a
 // non-zero offset) exercise the overflow-free precondition guard and the
 // full-width mask branches without shifting by the type width.
-static_assert(
-  util::pack_bits<std::uint64_t>(0, 0xFFFFFFFFULL, 32, 32) == (0xFFFFFFFFULL << 32)
-);
-static_assert(
-  util::extract_bits<std::uint64_t>(0xABCD'0000'0000'0000ULL, 48, 16) == 0xABCD
-);
+static_assert(util::pack_bits<std::uint64_t>(0, 0xFFFFFFFFULL, 32, 32) == (0xFFFFFFFFULL << 32));
+static_assert(util::extract_bits<std::uint64_t>(0xABCD'0000'0000'0000ULL, 48, 16) == 0xABCD);
 static_assert(
   util::pack_bits<std::uint64_t>(~std::uint64_t{0}, 0, 56, 8) == 0x00FF'FFFF'FFFF'FFFFULL
 );

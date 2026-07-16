@@ -73,8 +73,8 @@ namespace detail {
  *
  * @warning Not cryptographically secure.
  */
-[[nodiscard]] constexpr auto seed_from_bytes(std::span<std::byte const> bytes
-) noexcept -> std::uint64_t {
+[[nodiscard]] constexpr auto seed_from_bytes(std::span<std::byte const> bytes) noexcept
+  -> std::uint64_t {
   std::uint64_t state{0xCBF29CE484222325ULL};  // FNV offset basis as the starting mix
   for (auto const b : bytes) {
     state ^= static_cast<std::uint64_t>(b);
@@ -129,8 +129,8 @@ namespace detail {
  * @warning Not cryptographically secure.
  */
 template <std::size_t N>
-[[nodiscard]] constexpr auto seed_sequence(std::uint64_t const master
-) noexcept -> std::array<std::uint64_t, N> {
+[[nodiscard]] constexpr auto seed_sequence(std::uint64_t const master) noexcept
+  -> std::array<std::uint64_t, N> {
   std::array<std::uint64_t, N> out{};
   std::uint64_t state{master};
   for (std::size_t i{0}; i < N; ++i) {

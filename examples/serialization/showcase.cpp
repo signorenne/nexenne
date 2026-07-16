@@ -145,8 +145,8 @@ private:
   // view straight into the buffer (zero copy); we materialise std::strings here
   // because the game_state outlives the buffer. Every read is bounds-checked,
   // so a truncated blob fails cleanly instead of reading past the end.
-  [[nodiscard]] static auto decode_v1(ser::binary::reader& r
-  ) -> std::expected<game_state, ser::error> {
+  [[nodiscard]] static auto decode_v1(ser::binary::reader& r)
+    -> std::expected<game_state, ser::error> {
     auto gs{game_state{}};
 
     auto const player{r.read_string()};

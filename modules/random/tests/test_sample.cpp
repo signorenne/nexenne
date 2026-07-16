@@ -27,8 +27,11 @@ struct throwing_swap {
   int value{0};
   throwing_swap() = default;
   throwing_swap(throwing_swap const&) = default;
+
   throwing_swap(throwing_swap&&) noexcept(false) {}  // NOLINT(*-noexcept-move*)
+
   auto operator=(throwing_swap const&) -> throwing_swap& = default;
+
   auto operator=(throwing_swap&&) noexcept(false) -> throwing_swap& {  // NOLINT(*-noexcept-move*)
     return *this;
   }

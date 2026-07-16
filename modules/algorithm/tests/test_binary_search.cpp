@@ -42,8 +42,8 @@ static_assert(interpolation_search(std::array{0, 10, 20, 30, 40}, 25) == std::nu
 // A reference: index of the first element equal to value, by linear scan.
 // Range-based so it works for any range type (array, vector, deque, span, ...).
 template <typename R, typename T>
-[[nodiscard]] constexpr auto
-linear_first(R const& r, T const& value) -> std::optional<std::size_t> {
+[[nodiscard]] constexpr auto linear_first(R const& r, T const& value)
+  -> std::optional<std::size_t> {
   auto i{std::size_t{0}};
   for (auto const& e : r) {
     if (e == value) {
@@ -371,9 +371,11 @@ namespace m4 {
 // A totally-ordered key whose comparison never throws.
 struct nothrow_ord {
   int v;
+
   auto operator<=>(nothrow_ord const& o) const noexcept -> std::strong_ordering {
     return v <=> o.v;
   }
+
   auto operator==(nothrow_ord const& o) const noexcept -> bool {
     return v == o.v;
   }
@@ -382,9 +384,11 @@ struct nothrow_ord {
 // A totally-ordered key whose comparison may throw.
 struct maythrow_ord {
   int v;
+
   auto operator<=>(maythrow_ord const& o) const -> std::strong_ordering {
     return v <=> o.v;
   }
+
   auto operator==(maythrow_ord const& o) const -> bool {
     return v == o.v;
   }

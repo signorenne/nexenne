@@ -210,7 +210,9 @@ static_assert(!ch::steady_clock_like<zero_steady_clock>);  // falsey value
 // system_clock is not steady on the platforms we build for; assert the
 // refinement tracks the clock's own is_steady flag exactly.
 static_assert(ch::clock_like<std::chrono::system_clock>);
-static_assert(std::chrono::system_clock::is_steady == ch::steady_clock_like<std::chrono::system_clock>);
+static_assert(
+  std::chrono::system_clock::is_steady == ch::steady_clock_like<std::chrono::system_clock>
+);
 
 // Positive: a few well-formed backends with differing reps/periods.
 static_assert(ch::tick_backend<micro_backend>);

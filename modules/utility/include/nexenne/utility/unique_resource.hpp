@@ -98,7 +98,8 @@ private:
    * @throws Anything the move construction of \p resource throws, after that
    *         handle has been disposed of via \p deleter.
    */
-  [[nodiscard]] static auto guarded_resource_move(resource_type& resource, deleter_type& deleter
+  [[nodiscard]] static auto guarded_resource_move(
+    resource_type& resource, deleter_type& deleter
   ) noexcept(std::is_nothrow_move_constructible_v<resource_type>) -> resource_type {
     if constexpr (std::is_nothrow_move_constructible_v<resource_type>) {
       discard(deleter);
@@ -132,7 +133,8 @@ private:
    * @throws Anything the move construction of \p deleter throws, after
    *         \p resource has been disposed of via \p deleter.
    */
-  [[nodiscard]] static auto guarded_deleter_move(deleter_type& deleter, resource_type& resource
+  [[nodiscard]] static auto guarded_deleter_move(
+    deleter_type& deleter, resource_type& resource
   ) noexcept(std::is_nothrow_move_constructible_v<deleter_type>) -> deleter_type {
     if constexpr (std::is_nothrow_move_constructible_v<deleter_type>) {
       discard(resource);
@@ -206,7 +208,8 @@ private:
   template <typename Member>
   static constexpr bool nothrow_transfer_v{
     std::is_move_assignable_v<Member> ? std::is_nothrow_move_assignable_v<Member>
-                                      : std::is_nothrow_move_constructible_v<Member>};
+                                      : std::is_nothrow_move_constructible_v<Member>
+  };
 
   /**
    * @brief Transfers \p src into \p dst by move assignment or in-place rebuild.
@@ -266,9 +269,10 @@ public:
    * @throws Anything the move of \p resource or \p deleter throws, after the
    *         handle has been disposed of via \p deleter.
    */
-  unique_resource(
-    resource_type resource, deleter_type deleter
-  ) noexcept(std::is_nothrow_move_constructible_v<resource_type> && std::is_nothrow_move_constructible_v<deleter_type>)
+  unique_resource(resource_type resource, deleter_type deleter) noexcept(
+    std::is_nothrow_move_constructible_v<resource_type>
+    && std::is_nothrow_move_constructible_v<deleter_type>
+  )
       : m_resource{guarded_resource_move(resource, deleter)}
       , m_deleter{guarded_deleter_move(deleter, m_resource)}
       , m_owns{true} {}
@@ -292,8 +296,10 @@ public:
    * @throws Anything the transfer of the resource or deleter throws; ownership
    *         stays consistent (exactly one live owner, or a disposed handle).
    */
-  unique_resource(unique_resource&& other
-  ) noexcept(std::is_nothrow_move_constructible_v<resource_type> && std::is_nothrow_move_constructible_v<deleter_type>)
+  unique_resource(unique_resource&& other) noexcept(
+    std::is_nothrow_move_constructible_v<resource_type>
+    && std::is_nothrow_move_constructible_v<deleter_type>
+  )
       : m_resource{std::move_if_noexcept(other.m_resource)}
       , m_deleter{guarded_deleter_steal(other, m_resource)}
       , m_owns{std::exchange(other.m_owns, false)} {}
@@ -326,9 +332,9 @@ public:
    * @throws Anything the assignment of the resource or deleter throws; on a
    *         throw \c *this owns nothing and \p other still owns its resource.
    */
-  auto operator=(unique_resource&& other
-  ) noexcept(nothrow_transfer_v<resource_type> && nothrow_transfer_v<deleter_type>)
-    -> unique_resource& {
+  auto operator=(unique_resource&& other) noexcept(
+    nothrow_transfer_v<resource_type> && nothrow_transfer_v<deleter_type>
+  ) -> unique_resource& {
     if (this != &other) {
       reset();
       if constexpr (nothrow_transfer_v<resource_type>) {
@@ -425,8 +431,8 @@ public:
    * @throws Anything the assignment of \p resource throws, after \p resource
    *         has been disposed of via the deleter.
    */
-  auto reset(resource_type resource
-  ) noexcept(std::is_nothrow_move_assignable_v<resource_type>) -> void {
+  auto reset(resource_type resource) noexcept(std::is_nothrow_move_assignable_v<resource_type>)
+    -> void {
     reset();
     if constexpr (std::is_nothrow_move_assignable_v<resource_type>) {
       m_resource = std::move(resource);
@@ -568,10 +574,10 @@ unique_resource(R, D) -> unique_resource<R, D>;
  *       and \c true otherwise.
  */
 template <typename Resource, typename Invalid, typename Deleter>
-[[nodiscard]] auto make_unique_resource_checked(
-  Resource resource, Invalid const& invalid, Deleter deleter
-) noexcept(std::is_nothrow_move_constructible_v<Resource> && std::is_nothrow_move_constructible_v<Deleter>)
-  -> unique_resource<Resource, Deleter> {
+[[nodiscard]] auto
+make_unique_resource_checked(Resource resource, Invalid const& invalid, Deleter deleter) noexcept(
+  std::is_nothrow_move_constructible_v<Resource> && std::is_nothrow_move_constructible_v<Deleter>
+) -> unique_resource<Resource, Deleter> {
   auto guard{unique_resource<Resource, Deleter>{std::move(resource), std::move(deleter)}};
   if (guard.get() == invalid) {
     discard(guard.release());

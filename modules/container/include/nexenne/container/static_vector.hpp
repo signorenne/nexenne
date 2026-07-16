@@ -703,9 +703,9 @@ public:
    * @complexity \c O(size).
    */
   template <std::three_way_comparable U = T>
-  [[nodiscard]] friend constexpr auto operator<=>(
-    static_vector const& a, static_vector const& b
-  ) noexcept -> std::compare_three_way_result_t<U> {
+  [[nodiscard]] friend constexpr auto
+  operator<=>(static_vector const& a, static_vector const& b) noexcept
+    -> std::compare_three_way_result_t<U> {
     auto const shared{a.m_size < b.m_size ? a.m_size : b.m_size};
     for (size_type i{0}; i < shared; ++i) {
       if (auto const cmp{*a.slot_at(i) <=> *b.slot_at(i)}; cmp != 0) {

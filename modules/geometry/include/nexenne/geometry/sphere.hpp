@@ -171,9 +171,9 @@ contains_point(sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& p) 
  * @post \c contains_point(s, result) is \c true (up to rounding).
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto closest_point(
-  sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& p
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+closest_point(sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& p) noexcept
+  -> nexenne::math::vector<Real, 3> {
   auto const offset{p - s.center()};
   auto const len_sq{nexenne::math::length_squared(offset)};
   auto const r2{s.radius() * s.radius()};
@@ -201,9 +201,9 @@ template <std::floating_point Real>
  *       \c s.radius() (up to rounding).
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto closest_point_on_boundary(
-  sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& p
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+closest_point_on_boundary(sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& p) noexcept
+  -> nexenne::math::vector<Real, 3> {
   auto const offset{p - s.center()};
   auto const len_sq{nexenne::math::length_squared(offset)};
   if (len_sq <= static_cast<Real>(1e-20)) {
@@ -275,8 +275,8 @@ distance_squared(sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& p
  * @post None.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-intersects(sphere3<Real> const& a, sphere3<Real> const& b) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(sphere3<Real> const& a, sphere3<Real> const& b) noexcept
+  -> bool {
   auto const sum_r{a.radius() + b.radius()};
   return nexenne::math::length_squared(a.center() - b.center()) <= sum_r * sum_r;
 }

@@ -170,7 +170,8 @@ TEST_CASE("nexenne::random::exponential_distribution is non-negative with mean 1
   CHECK(sum / kN == doctest::Approx(0.5).epsilon(0.03));
 }
 
-TEST_CASE("nexenne::random::exponential_distribution mean and variance match 1/lambda, 1/lambda^2"
+TEST_CASE(
+  "nexenne::random::exponential_distribution mean and variance match 1/lambda, 1/lambda^2"
 ) {
   rnd::pcg32 g{131, 1};
   constexpr double lambda{0.5};  // mean 2.0, variance 4.0
@@ -434,7 +435,8 @@ TEST_CASE("nexenne::random::poisson_distribution is reproducible across equal-se
   }
 }
 
-TEST_CASE("nexenne::random::poisson_distribution saturates instead of overflowing the result type"
+TEST_CASE(
+  "nexenne::random::poisson_distribution saturates instead of overflowing the result type"
 ) {
   rnd::pcg32 g{5, 1};
   // A mean far beyond what the result type can hold must clamp to the type

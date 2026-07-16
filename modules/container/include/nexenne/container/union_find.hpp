@@ -314,8 +314,8 @@ public:
    *
    * @complexity Amortised \c O(alpha(n)).
    */
-  [[nodiscard]] constexpr auto
-  connected(index_type const a, index_type const b) noexcept -> result<bool> {
+  [[nodiscard]] constexpr auto connected(index_type const a, index_type const b) noexcept
+    -> result<bool> {
     auto const root_a{find(a)};
     if (!root_a.has_value()) {
       return std::unexpected{root_a.error()};
@@ -366,8 +366,8 @@ public:
    *
    * @complexity Amortised \c O(alpha(n)).
    */
-  [[nodiscard]] constexpr auto
-  unite(index_type const a, index_type const b) noexcept -> result<bool> {
+  [[nodiscard]] constexpr auto unite(index_type const a, index_type const b) noexcept
+    -> result<bool> {
     auto const root_a{find(a)};
     if (!root_a.has_value()) {
       return std::unexpected{root_a.error()};

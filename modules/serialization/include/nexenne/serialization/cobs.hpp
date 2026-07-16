@@ -56,6 +56,7 @@ namespace detail {
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -70,8 +71,8 @@ namespace detail {
  *
  * @complexity \c O(1).
  */
-[[nodiscard]] constexpr auto max_encoded_size(std::size_t const payload_len
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto max_encoded_size(std::size_t const payload_len) noexcept
+  -> std::size_t {
   return nexenne::utility::cobs::max_encoded_size(payload_len);
 }
 
@@ -92,8 +93,8 @@ namespace detail {
  *
  * @complexity \c O(1).
  */
-[[nodiscard]] constexpr auto cobs_max_encoded_size(std::size_t const payload_len
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto cobs_max_encoded_size(std::size_t const payload_len) noexcept
+  -> std::size_t {
   return max_encoded_size(payload_len);
 }
 
@@ -111,9 +112,9 @@ namespace detail {
  *
  * @complexity \c O(in.size()).
  */
-[[nodiscard]] inline auto encode(
-  std::span<std::byte const> const in, std::span<std::byte> const out
-) noexcept -> std::expected<std::size_t, error> {
+[[nodiscard]] inline auto
+encode(std::span<std::byte const> const in, std::span<std::byte> const out) noexcept
+  -> std::expected<std::size_t, error> {
   return nexenne::utility::cobs::encode(in, out).transform_error(detail::to_error);
 }
 
@@ -136,9 +137,9 @@ namespace detail {
  *
  * @complexity \c O(in.size()).
  */
-[[nodiscard]] inline auto decode(
-  std::span<std::byte const> const in, std::span<std::byte> const out
-) noexcept -> std::expected<std::size_t, error> {
+[[nodiscard]] inline auto
+decode(std::span<std::byte const> const in, std::span<std::byte> const out) noexcept
+  -> std::expected<std::size_t, error> {
   return nexenne::utility::cobs::decode(in, out).transform_error(detail::to_error);
 }
 

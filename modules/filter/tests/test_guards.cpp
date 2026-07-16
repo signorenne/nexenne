@@ -512,8 +512,8 @@ TEST_CASE("nexenne::filter::rate_guard escape hatch recovers from a genuine step
 
   auto escaping{flt::rate_guard{1.0, 3}};  // accept after 3 consecutive rejects
   nexenne::utility::discard(escaping.push(0.0));
-  CHECK(escaping.push(50.0) == doctest::Approx(0.0));  // reject 1
-  CHECK(escaping.push(50.0) == doctest::Approx(0.0));  // reject 2
+  CHECK(escaping.push(50.0) == doctest::Approx(0.0));   // reject 1
+  CHECK(escaping.push(50.0) == doctest::Approx(0.0));   // reject 2
   CHECK(escaping.push(50.0) == doctest::Approx(50.0));  // reject 3 -> force accept
   CHECK(escaping.accepted() == true);
   CHECK(escaping.rejected_streak() == 0);

@@ -23,8 +23,8 @@ namespace lg = nexenne::logging;
 
 // Builds a record with a fixed, known wall-clock instant so timestamp tokens
 // render deterministically: 2026-01-02T03:04:05.678 UTC.
-[[nodiscard]] auto
-make_record(lg::level const sev, std::string_view const name, std::string msg) -> lg::record {
+[[nodiscard]] auto make_record(lg::level const sev, std::string_view const name, std::string msg)
+  -> lg::record {
   auto r{lg::record{sev, std::source_location::current(), name, std::move(msg)}};
   auto const epoch{std::chrono::sys_days{std::chrono::January / 2 / 2026}};
   r.timestamp = std::chrono::system_clock::time_point{epoch} + std::chrono::hours{3}

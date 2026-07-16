@@ -135,8 +135,8 @@ TEST_CASE("polygon2: concave containment and degenerate centroid fallback") {
   // Arrow-head (concave) quad: a point in the body is inside, one in the notch out.
   std::array const arrow{vec2{0, 0}, vec2{4, 2}, vec2{0, 4}, vec2{1, 2}};
   geo::polygon2_d const poly{arrow};
-  CHECK(geo::contains_point(poly, vec2{2, 2}));           // in the body
-  CHECK_FALSE(geo::contains_point(poly, vec2{0.5, 2}));   // in the notch, outside
+  CHECK(geo::contains_point(poly, vec2{2, 2}));          // in the body
+  CHECK_FALSE(geo::contains_point(poly, vec2{0.5, 2}));  // in the notch, outside
 
   // A zero-area (collinear) polygon falls back to the vertex arithmetic mean.
   std::array const line{vec2{0, 0}, vec2{2, 0}, vec2{4, 0}};

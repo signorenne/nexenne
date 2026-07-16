@@ -311,8 +311,8 @@ public:
    * @post The line is written when \c enabled(level::trace).
    */
   template <typename... Args>
-  auto
-  trace(format_string<std::type_identity_t<Args>...> const fmt, Args&&... args) noexcept -> void {
+  auto trace(format_string<std::type_identity_t<Args>...> const fmt, Args&&... args) noexcept
+    -> void {
     log(level::trace, fmt, std::forward<Args>(args)...);
   }
 
@@ -327,8 +327,8 @@ public:
    * @post The line is written when \c enabled(level::debug).
    */
   template <typename... Args>
-  auto
-  debug(format_string<std::type_identity_t<Args>...> const fmt, Args&&... args) noexcept -> void {
+  auto debug(format_string<std::type_identity_t<Args>...> const fmt, Args&&... args) noexcept
+    -> void {
     log(level::debug, fmt, std::forward<Args>(args)...);
   }
 
@@ -343,8 +343,8 @@ public:
    * @post The line is written when \c enabled(level::info).
    */
   template <typename... Args>
-  auto
-  info(format_string<std::type_identity_t<Args>...> const fmt, Args&&... args) noexcept -> void {
+  auto info(format_string<std::type_identity_t<Args>...> const fmt, Args&&... args) noexcept
+    -> void {
     log(level::info, fmt, std::forward<Args>(args)...);
   }
 
@@ -359,8 +359,8 @@ public:
    * @post The line is written when \c enabled(level::warn).
    */
   template <typename... Args>
-  auto
-  warn(format_string<std::type_identity_t<Args>...> const fmt, Args&&... args) noexcept -> void {
+  auto warn(format_string<std::type_identity_t<Args>...> const fmt, Args&&... args) noexcept
+    -> void {
     log(level::warn, fmt, std::forward<Args>(args)...);
   }
 
@@ -375,8 +375,8 @@ public:
    * @post The line is written when \c enabled(level::error).
    */
   template <typename... Args>
-  auto
-  error(format_string<std::type_identity_t<Args>...> const fmt, Args&&... args) noexcept -> void {
+  auto error(format_string<std::type_identity_t<Args>...> const fmt, Args&&... args) noexcept
+    -> void {
     log(level::error, fmt, std::forward<Args>(args)...);
   }
 

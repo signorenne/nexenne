@@ -96,7 +96,8 @@ TEST_CASE("nexenne::logging::rotating_file_sink rotates once a write would cross
   cleanup(base);
 }
 
-TEST_CASE("nexenne::logging::rotating_file_sink keeps the backup count bounded, dropping the oldest"
+TEST_CASE(
+  "nexenne::logging::rotating_file_sink keeps the backup count bounded, dropping the oldest"
 ) {
   auto const base{fresh_base("nexenne_rfs_bound.log")};
   {
@@ -155,7 +156,8 @@ TEST_CASE("nexenne::logging::rotating_file_sink force_rotate archives without cr
   cleanup(base);
 }
 
-TEST_CASE("nexenne::logging::rotating_file_sink with max_files == 0 truncates instead of archiving"
+TEST_CASE(
+  "nexenne::logging::rotating_file_sink with max_files == 0 truncates instead of archiving"
 ) {
   auto const base{fresh_base("nexenne_rfs_trunc.log")};
   {

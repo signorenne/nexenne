@@ -58,9 +58,9 @@ template <
   std::unsigned_integral V,
   typename Weight = double,
   typename WeightFn = detail::default_weight_fn>
-[[nodiscard]] auto bellman_ford(
-  nexenne::container::graph<E, V> const& g, V const source, WeightFn weight_of = {}
-) -> std::expected<std::vector<Weight>, nexenne::container::container_error> {
+[[nodiscard]] auto
+bellman_ford(nexenne::container::graph<E, V> const& g, V const source, WeightFn weight_of = {})
+  -> std::expected<std::vector<Weight>, nexenne::container::container_error> {
   using err = nexenne::container::container_error;
 
   if (!g.contains(source)) {
@@ -85,8 +85,7 @@ template <
         // rather than w > sentinel - d_u so it stays overflow-safe for signed
         // Weight with a negative d_u: only a positive w can push the sum up to
         // the unreachable sentinel, and sentinel - w is then representable.
-        if (w > Weight{0}
-            && distances[u] > detail::unreachable_weight<Weight>() - w) {
+        if (w > Weight{0} && distances[u] > detail::unreachable_weight<Weight>() - w) {
           continue;
         }
         auto const candidate{static_cast<Weight>(distances[u] + w)};
@@ -110,8 +109,7 @@ template <
     }
     for (auto const& edge : g.edges_of(u)) {
       auto const w{static_cast<Weight>(weight_of(edge))};
-      if (w > Weight{0}
-          && distances[u] > detail::unreachable_weight<Weight>() - w) {
+      if (w > Weight{0} && distances[u] > detail::unreachable_weight<Weight>() - w) {
         continue;  // sum would reach the sentinel, never a relaxation
       }
       auto const candidate{static_cast<Weight>(distances[u] + w)};

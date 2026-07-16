@@ -108,7 +108,8 @@ TEST_CASE("nexenne::random::seed helpers are deterministic and cross-platform st
   CHECK(rnd::seed_sequence<4>(0xABCDEF) == seeds);  // reproducible
 }
 
-TEST_CASE("nexenne::random::xoshiro256ss matches the canonical reference vector for state {1,2,3,4}"
+TEST_CASE(
+  "nexenne::random::xoshiro256ss matches the canonical reference vector for state {1,2,3,4}"
 ) {
   // The reference xoshiro256** C implementation (Blackman & Vigna) initialised
   // with the canonical raw state s = {1, 2, 3, 4} emits this exact sequence.
@@ -175,7 +176,8 @@ TEST_CASE("nexenne::random::xoshiro256ss default construction is deterministic a
   CHECK(golden.next() == zero.next());
 }
 
-TEST_CASE("nexenne::random::pcg32 matches O'Neill's canonical reference vector (state 42, seq 54)"
+TEST_CASE(
+  "nexenne::random::pcg32 matches O'Neill's canonical reference vector (state 42, seq 54)"
 ) {
   // The PCG demo program seeds pcg32_srandom_r(&rng, 42u, 54u) and prints these
   // exact 32-bit outputs. This is the published canonical reference vector.
@@ -323,8 +325,8 @@ TEST_CASE("nexenne::random::xoshiro256ss state() reflects advancement and equal 
 }
 
 TEST_CASE("nexenne::random::pcg32 advance(n) equals n single steps") {
-  for (std::int64_t n :
-       {std::int64_t{0}, std::int64_t{1}, std::int64_t{10}, std::int64_t{1000}, std::int64_t{65537}
+  for (std::int64_t n : {
+         std::int64_t{0}, std::int64_t{1}, std::int64_t{10}, std::int64_t{1000}, std::int64_t{65537}
        }) {
     rnd::pcg32 jumped{42, 1};
     rnd::pcg32 stepped{42, 1};

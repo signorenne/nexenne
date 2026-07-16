@@ -405,8 +405,10 @@ TEST_CASE(
   CHECK(sig.empty());  // and was swept
 }
 
-TEST_CASE("nexenne::signal::signal one-shot fires alongside a persistent slot, then only the "
-          "persistent one remains") {
+TEST_CASE(
+  "nexenne::signal::signal one-shot fires alongside a persistent slot, then only the "
+  "persistent one remains"
+) {
   auto sig{signal<void()>{}};
   auto persistent{0};
   auto once{0};
@@ -512,7 +514,8 @@ TEST_CASE("nexenne::signal::signal reentrancy (a): a slot connecting a new slot 
   CHECK(order[1] == 2);
 }
 
-TEST_CASE("nexenne::signal::signal reentrancy (a-bulk): a slot connecting many slots forces no UAF"
+TEST_CASE(
+  "nexenne::signal::signal reentrancy (a-bulk): a slot connecting many slots forces no UAF"
 ) {
   // Connect enough new slots from inside the running callable to grow the inline
   // slot list past its inline capacity. Deferred, so the live list never moves.
@@ -641,8 +644,10 @@ TEST_CASE("nexenne::signal::signal reentrancy (e): disconnect_all during emit em
   nexenne::utility::discard(tail);
 }
 
-TEST_CASE("nexenne::signal::signal reentrancy (e2): disconnect_all during emit drops a slot "
-          "connected in the same emit") {
+TEST_CASE(
+  "nexenne::signal::signal reentrancy (e2): disconnect_all during emit drops a slot "
+  "connected in the same emit"
+) {
   auto sig{signal<void()>{}};
   auto fired{0};
   auto first{sig.connect([&] noexcept {
@@ -690,8 +695,10 @@ TEST_CASE("nexenne::signal::signal reentrancy (f): nested emit of the same signa
   nexenne::utility::discard(plain);
 }
 
-TEST_CASE("nexenne::signal::signal reentrancy: disconnecting a slot connected in the same emit "
-          "before it merges") {
+TEST_CASE(
+  "nexenne::signal::signal reentrancy: disconnecting a slot connected in the same emit "
+  "before it merges"
+) {
   auto sig{signal<void()>{}};
   auto fired{0};
   auto first{sig.connect([&] noexcept {
@@ -721,8 +728,10 @@ TEST_CASE("nexenne::signal::signal reentrancy: a slot may destroy the signal mid
   CHECK(sig == nullptr);
 }
 
-TEST_CASE("nexenne::signal::signal reentrancy: slot destroys signal, later slots still fire on "
-          "the pinned core, connection sees null owner") {
+TEST_CASE(
+  "nexenne::signal::signal reentrancy: slot destroys signal, later slots still fire on "
+  "the pinned core, connection sees null owner"
+) {
   auto sig{std::make_unique<signal<void()>>()};
   auto first_fired{0};
   auto second_fired{0};
@@ -847,7 +856,8 @@ TEST_CASE("nexenne::signal::signal slot fires while a tracked owner is alive, st
   nexenne::utility::discard(conn);
 }
 
-TEST_CASE("nexenne::signal::signal a tracked owner dying DURING an emit is observed by later slots"
+TEST_CASE(
+  "nexenne::signal::signal a tracked owner dying DURING an emit is observed by later slots"
 ) {
   auto sig{signal<void()>{}};
   auto owner{std::make_shared<int>(0)};
@@ -986,7 +996,8 @@ TEST_CASE("nexenne::signal::emit_blocker nested restores prior block, not unbloc
   CHECK(fired == 0);  // outer still blocking
 }
 
-TEST_CASE("nexenne::signal::emit_blocker move transfers the restore (only the destination restores)"
+TEST_CASE(
+  "nexenne::signal::emit_blocker move transfers the restore (only the destination restores)"
 ) {
   auto sig{signal<void()>{}};
   auto fired{0};
@@ -1192,15 +1203,19 @@ TEST_CASE("nexenne::signal::signal survives destroy-during-emit (slot pulls the 
 
 // Review findings
 
-TEST_CASE("nexenne::signal::signal [M1] emit @post: a slot disconnected earlier in the emit does "
-          "not run, and one connected during it is not visited") {
+TEST_CASE(
+  "nexenne::signal::signal [M1] emit @post: a slot disconnected earlier in the emit does "
+  "not run, and one connected during it is not visited"
+) {
   auto sig{signal<void()>{}};
   auto log{std::vector<int>{}};
   auto c_target{connection{}};
   auto first{sig.connect([&] noexcept {
     log.push_back(1);
     c_target.disconnect();  // a not-yet-fired slot: marked dead before it runs
-    nexenne::utility::discard(sig.connect([&] noexcept { log.push_back(99); }));  // mid-emit connect
+    nexenne::utility::discard(sig.connect([&] noexcept {
+      log.push_back(99);
+    }));  // mid-emit connect
   })};
   // Alive at the start of the emit, but disconnected earlier in it, so it must
   // not be invoked, contradicting the old @post ("every slot alive at the start").
@@ -1214,8 +1229,10 @@ TEST_CASE("nexenne::signal::signal [M1] emit @post: a slot disconnected earlier 
   nexenne::utility::discard(first);
 }
 
-TEST_CASE("nexenne::signal::signal [M3] the umbrella header delivers static_signal and the "
-          "formatters") {
+TEST_CASE(
+  "nexenne::signal::signal [M3] the umbrella header delivers static_signal and the "
+  "formatters"
+) {
   // This translation unit includes <nexenne/signal/signal.hpp> for the signal
   // types but never static_signal.hpp or format.hpp: both must reach it through
   // the umbrella, the whole point of M3.

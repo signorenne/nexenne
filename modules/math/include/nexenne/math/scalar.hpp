@@ -84,8 +84,8 @@ template <arithmetic Value>
  * @warning Behavior is unspecified when \p lo is greater than \p hi.
  */
 template <arithmetic Value>
-[[nodiscard]] constexpr auto
-clamp(Value const value, Value const lo, Value const hi) noexcept -> Value {
+[[nodiscard]] constexpr auto clamp(Value const value, Value const lo, Value const hi) noexcept
+  -> Value {
   assert(!(hi < lo) && "clamp requires lo <= hi");
   return value < lo ? lo : (value > hi ? hi : value);
 }
@@ -312,8 +312,8 @@ template <std::floating_point Real>
  * @warning Division by zero when \p lo equals \p hi.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-inverse_lerp(Real const lo, Real const hi, Real const value) noexcept -> Real {
+[[nodiscard]] constexpr auto inverse_lerp(Real const lo, Real const hi, Real const value) noexcept
+  -> Real {
   assert(lo != hi && "inverse_lerp requires lo != hi (would divide by zero)");
   return Real{(value - lo) / (hi - lo)};
 }
@@ -424,9 +424,9 @@ template <std::floating_point Real>
  * @post Returns \c false when \p value is NaN.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto approximately_zero(
-  Real const value, Real const tolerance = static_cast<Real>(1e-6)
-) noexcept -> bool {
+[[nodiscard]] constexpr auto
+approximately_zero(Real const value, Real const tolerance = static_cast<Real>(1e-6)) noexcept
+  -> bool {
   return abs(value) <= tolerance;
 }
 

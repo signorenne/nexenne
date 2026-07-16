@@ -26,8 +26,7 @@ struct throwing_move_cleanup {
   throwing_move_cleanup(int& counter, bool const arm) : runs{&counter}, throw_on_move{arm} {}
 
   throwing_move_cleanup(throwing_move_cleanup&& other)
-      : runs{other.runs}
-      , throw_on_move{other.throw_on_move} {
+      : runs{other.runs}, throw_on_move{other.throw_on_move} {
     if (throw_on_move) {
       throw std::runtime_error{"move failed"};
     }
@@ -229,9 +228,9 @@ TEST_CASE("nexenne::utility::scope_guard propagates a throwing cleanup on a norm
   // The destructor is conditionally noexcept: outside stack unwinding, a
   // throwing active cleanup leaves the destructor and reaches the caller.
   auto const leave_scope{[] {
-    auto const guard{
-      nexenne::utility::scope_guard{[] { throw std::runtime_error{"cleanup failed"}; }}
-    };
+    auto const guard{nexenne::utility::scope_guard{[] {
+      throw std::runtime_error{"cleanup failed"};
+    }}};
     nexenne::utility::discard(guard);
   }};
   CHECK_THROWS_AS(leave_scope(), std::runtime_error);
@@ -245,9 +244,7 @@ TEST_CASE("nexenne::utility::scope_guard dismissed throwing cleanup never runs, 
   CHECK_NOTHROW(leave_scope());
 }
 
-TEST_CASE(
-  "nexenne::utility::scope_guard invokes the cleanup when its move into the guard throws"
-) {
+TEST_CASE("nexenne::utility::scope_guard invokes the cleanup when its move into the guard throws") {
   // P0052 scope_exit semantics: a freshly armed cleanup lost to a throwing
   // move would leak, so the constructor runs it before the exception escapes.
   int runs{0};
@@ -276,12 +273,14 @@ static_assert(
 // throw) to isolate the move.
 static_assert(
   std::is_nothrow_constructible_v<
-    nexenne::utility::scope_guard<void (*)() noexcept>, void (*)() noexcept>,
+    nexenne::utility::scope_guard<void (*)() noexcept>,
+    void (*)() noexcept>,
   "a nothrow-movable, noexcept callable gives a noexcept construct-and-destroy"
 );
 static_assert(
   !std::is_nothrow_constructible_v<
-    nexenne::utility::scope_guard<throwing_move_cleanup>, throwing_move_cleanup>,
+    nexenne::utility::scope_guard<throwing_move_cleanup>,
+    throwing_move_cleanup>,
   "a throwing-move callable gives a potentially-throwing constructor"
 );
 

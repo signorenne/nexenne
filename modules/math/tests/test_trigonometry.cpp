@@ -3,7 +3,6 @@
 #include <cmath>
 #include <cstdint>
 #include <initializer_list>
-
 #include <limits>
 
 #include <nexenne/math/constants.hpp>
@@ -137,8 +136,9 @@ TEST_CASE("lut_sin and fast_sin stay bounded for randomized huge angles (C1 regr
 }
 
 TEST_CASE("lut_sin and lut_cos are usable in a constant expression (m9 regression)") {
-  static_assert(math::lut_sin(math::radians_d{0.0}) == 0.0
-                || math::lut_sin(math::radians_d{0.0}) != 0.0);
+  static_assert(
+    math::lut_sin(math::radians_d{0.0}) == 0.0 || math::lut_sin(math::radians_d{0.0}) != 0.0
+  );
   constexpr auto s{math::lut_sin(math::radians_f{1.5f})};
   constexpr auto c{math::lut_cos(math::radians_f{0.0f})};
   CHECK(s >= -1.0f);

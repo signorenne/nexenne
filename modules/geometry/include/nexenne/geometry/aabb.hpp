@@ -227,8 +227,8 @@ template <std::floating_point Value, std::size_t N>
  * @post The result lies between \c box.min() and \c box.max() on every axis.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto center(aabb<Real, N> const& box
-) noexcept -> nexenne::math::vector<Real, N> {
+[[nodiscard]] constexpr auto center(aabb<Real, N> const& box) noexcept
+  -> nexenne::math::vector<Real, N> {
   return (box.min() + box.max()) * Real{0.5};
 }
 
@@ -245,8 +245,8 @@ template <std::floating_point Real, std::size_t N>
  * @post The result is non-negative on every axis when \p box is well-formed.
  */
 template <nexenne::math::arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto size(aabb<Value, N> const& box
-) noexcept -> nexenne::math::vector<Value, N> {
+[[nodiscard]] constexpr auto size(aabb<Value, N> const& box) noexcept
+  -> nexenne::math::vector<Value, N> {
   return box.max() - box.min();
 }
 
@@ -263,8 +263,8 @@ template <nexenne::math::arithmetic Value, std::size_t N>
  * @post The result is non-negative on every axis when \p box is well-formed.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto half_size(aabb<Real, N> const& box
-) noexcept -> nexenne::math::vector<Real, N> {
+[[nodiscard]] constexpr auto half_size(aabb<Real, N> const& box) noexcept
+  -> nexenne::math::vector<Real, N> {
   return (box.max() - box.min()) * Real{0.5};
 }
 
@@ -375,9 +375,9 @@ template <nexenne::math::arithmetic Value, std::size_t N>
  * @post None.
  */
 template <nexenne::math::arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto contains_point(
-  aabb<Value, N> const& box, nexenne::math::vector<Value, N> const& p
-) noexcept -> bool {
+[[nodiscard]] constexpr auto
+contains_point(aabb<Value, N> const& box, nexenne::math::vector<Value, N> const& p) noexcept
+  -> bool {
   for (std::size_t i{0}; i < N; ++i) {
     if (p[i] < box.min()[i] || p[i] > box.max()[i]) {
       return false;
@@ -420,8 +420,8 @@ contains_aabb(aabb<Value, N> const& outer, aabb<Value, N> const& inner) noexcept
  *       non-negative.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto
-expand(aabb<Real, N> const& box, Real const amount) noexcept -> aabb<Real, N> {
+[[nodiscard]] constexpr auto expand(aabb<Real, N> const& box, Real const amount) noexcept
+  -> aabb<Real, N> {
   auto delta{nexenne::math::vector<Real, N>{}};
   for (std::size_t i{0}; i < N; ++i) {
     delta[i] = amount;
@@ -443,9 +443,9 @@ expand(aabb<Real, N> const& box, Real const amount) noexcept -> aabb<Real, N> {
  * @post The result is well-formed and contains both \p box and \p p.
  */
 template <nexenne::math::arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto expand_to_include(
-  aabb<Value, N> const& box, nexenne::math::vector<Value, N> const& p
-) noexcept -> aabb<Value, N> {
+[[nodiscard]] constexpr auto
+expand_to_include(aabb<Value, N> const& box, nexenne::math::vector<Value, N> const& p) noexcept
+  -> aabb<Value, N> {
   return aabb<Value, N>{
     nexenne::math::component_min(box.min(), p), nexenne::math::component_max(box.max(), p)
   };
@@ -465,8 +465,8 @@ template <nexenne::math::arithmetic Value, std::size_t N>
  * @post The result is well-formed and contains both \p a and \p b.
  */
 template <nexenne::math::arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto
-union_of(aabb<Value, N> const& a, aabb<Value, N> const& b) noexcept -> aabb<Value, N> {
+[[nodiscard]] constexpr auto union_of(aabb<Value, N> const& a, aabb<Value, N> const& b) noexcept
+  -> aabb<Value, N> {
   return aabb<Value, N>{
     nexenne::math::component_min(a.min(), b.min()), nexenne::math::component_max(a.max(), b.max())
   };
@@ -511,8 +511,8 @@ intersection_of(aabb<Value, N> const& a, aabb<Value, N> const& b) noexcept -> aa
  * @post None.
  */
 template <nexenne::math::arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto
-intersects(aabb<Value, N> const& a, aabb<Value, N> const& b) noexcept -> bool {
+[[nodiscard]] constexpr auto intersects(aabb<Value, N> const& a, aabb<Value, N> const& b) noexcept
+  -> bool {
   for (std::size_t i{0}; i < N; ++i) {
     if (a.max()[i] < b.min()[i] || a.min()[i] > b.max()[i]) {
       return false;
@@ -537,9 +537,9 @@ intersects(aabb<Value, N> const& a, aabb<Value, N> const& b) noexcept -> bool {
  * @post \c contains_point(box, result) is \c true.
  */
 template <nexenne::math::arithmetic Value, std::size_t N>
-[[nodiscard]] constexpr auto closest_point(
-  aabb<Value, N> const& box, nexenne::math::vector<Value, N> const& p
-) noexcept -> nexenne::math::vector<Value, N> {
+[[nodiscard]] constexpr auto
+closest_point(aabb<Value, N> const& box, nexenne::math::vector<Value, N> const& p) noexcept
+  -> nexenne::math::vector<Value, N> {
   auto result{nexenne::math::vector<Value, N>{}};
   for (std::size_t i{0}; i < N; ++i) {
     result[i] = nexenne::math::clamp(p[i], box.min()[i], box.max()[i]);
@@ -563,9 +563,9 @@ template <nexenne::math::arithmetic Value, std::size_t N>
  * @post The result is non-negative; \c 0 when \p p is inside \p box.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto distance_squared(
-  aabb<Real, N> const& box, nexenne::math::vector<Real, N> const& p
-) noexcept -> Real {
+[[nodiscard]] constexpr auto
+distance_squared(aabb<Real, N> const& box, nexenne::math::vector<Real, N> const& p) noexcept
+  -> Real {
   return nexenne::math::distance_squared(closest_point(box, p), p);
 }
 

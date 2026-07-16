@@ -55,11 +55,13 @@ static_assert(
   !caches_factory<int& (*)()>,
   "a reference-returning factory is rejected: the cache stores objects, not references"
 );
+
 struct rvalue_only_factory {
   auto operator()() && -> int {
     return 1;
   }
 };
+
 static_assert(
   !caches_factory<rvalue_only_factory>,
   "a factory invocable only as an rvalue is rejected: materialise calls the stored lvalue"

@@ -69,18 +69,20 @@ using second_clock = ch::tick_clock<second_backend>;
 static_assert(std::is_same_v<fake_clock::backend_type, fake_backend>);
 static_assert(std::is_same_v<fake_clock::rep, std::int64_t>);
 static_assert(std::is_same_v<fake_clock::period, std::micro>);
-static_assert(std::
-                is_same_v<fake_clock::duration, std::chrono::duration<std::int64_t, std::micro>>);
-static_assert(std::is_same_v<
-              fake_clock::time_point,
-              std::chrono::time_point<fake_clock, fake_clock::duration>>);
+static_assert(
+  std::is_same_v<fake_clock::duration, std::chrono::duration<std::int64_t, std::micro>>
+);
+static_assert(
+  std::is_same_v<fake_clock::time_point, std::chrono::time_point<fake_clock, fake_clock::duration>>
+);
 static_assert(fake_clock::is_steady == true);
 
 static_assert(std::is_same_v<milli_clock::backend_type, milli_backend>);
 static_assert(std::is_same_v<milli_clock::rep, std::int32_t>);
 static_assert(std::is_same_v<milli_clock::period, std::milli>);
-static_assert(std::
-                is_same_v<milli_clock::duration, std::chrono::duration<std::int32_t, std::milli>>);
+static_assert(
+  std::is_same_v<milli_clock::duration, std::chrono::duration<std::int32_t, std::milli>>
+);
 static_assert(milli_clock::is_steady == false);
 
 // is_steady is static_cast<bool> of the backend's value (7 -> true).
@@ -96,9 +98,9 @@ static_assert(noexcept(fake_clock::from_ticks(0)));
 static_assert(noexcept(fake_clock::to_ticks(std::declval<fake_clock::time_point>())));
 static_assert(std::is_same_v<decltype(fake_clock::now()), fake_clock::time_point>);
 static_assert(std::is_same_v<decltype(fake_clock::from_ticks(0)), fake_clock::time_point>);
-static_assert(std::is_same_v<
-              decltype(fake_clock::to_ticks(fake_clock::time_point{})),
-              fake_clock::rep>);
+static_assert(
+  std::is_same_v<decltype(fake_clock::to_ticks(fake_clock::time_point{})), fake_clock::rep>
+);
 
 // from_ticks/to_ticks are constexpr: prove a compile-time round trip.
 static_assert(fake_clock::to_ticks(fake_clock::from_ticks(123456)) == 123456);
@@ -195,9 +197,9 @@ TEST_CASE("nexenne::chrono::tick_clock with a milli backend uses backend's rep/p
 static_assert(std::is_same_v<ch::manual_clock, ch::basic_manual_clock<>>);
 static_assert(std::is_same_v<ch::manual_clock::rep, std::int64_t>);
 static_assert(std::is_same_v<ch::manual_clock::period, std::nano>);
-static_assert(std::is_same_v<
-              ch::manual_clock::duration,
-              std::chrono::duration<std::int64_t, std::nano>>);
+static_assert(
+  std::is_same_v<ch::manual_clock::duration, std::chrono::duration<std::int64_t, std::nano>>
+);
 static_assert(std::is_same_v<
               ch::manual_clock::time_point,
               std::chrono::time_point<ch::manual_clock, ch::manual_clock::duration>>);
@@ -209,9 +211,9 @@ static_assert(ch::clock_like<ch::manual_clock>);
 static_assert(ch::chrono_duration<ch::manual_clock::duration>);
 
 // Distinct tags yield distinct types.
-static_assert(!std::is_same_v<
-              ch::basic_manual_clock<struct sa_tag>,
-              ch::basic_manual_clock<struct sb_tag>>);
+static_assert(
+  !std::is_same_v<ch::basic_manual_clock<struct sa_tag>, ch::basic_manual_clock<struct sb_tag>>
+);
 
 // now() signature / noexcept.
 static_assert(noexcept(ch::manual_clock::now()));

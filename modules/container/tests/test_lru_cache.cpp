@@ -276,7 +276,9 @@ struct mv_key {
   int v{};
 
   mv_key() noexcept = default;
+
   explicit mv_key(int const x) noexcept : v{x} {}
+
   mv_key(mv_key&&) noexcept = default;
   auto operator=(mv_key&&) noexcept -> mv_key& = default;
   mv_key(mv_key const&) = delete;
@@ -315,12 +317,15 @@ struct resource {
   bool owns{false};
 
   resource() noexcept = default;
+
   explicit resource(int) noexcept : owns{true} {
     ++alive;
   }
+
   resource(resource&& other) noexcept : owns{other.owns} {
     other.owns = false;
   }
+
   auto operator=(resource&& other) noexcept -> resource& {
     if (this != &other) {
       if (owns) {
@@ -331,8 +336,10 @@ struct resource {
     }
     return *this;
   }
+
   resource(resource const&) = delete;
   auto operator=(resource const&) -> resource& = delete;
+
   ~resource() noexcept {
     if (owns) {
       --alive;

@@ -1299,7 +1299,9 @@ TEST_CASE("nexenne::serialization::json serialize is stack-safe on deep DOMs") {
   CHECK(pretty.find('7') != std::string::npos);
 }
 
-TEST_CASE("nexenne::serialization::json parse - number underflow to signed zero, overflow rejected") {
+TEST_CASE(
+  "nexenne::serialization::json parse - number underflow to signed zero, overflow rejected"
+) {
   // A magnitude too small for a double is valid JSON: it underflows to a signed
   // zero rather than being rejected as invalid_number.
   auto const tiny{json::parse("1e-999")};
@@ -1353,7 +1355,9 @@ TEST_CASE("nexenne::serialization::json parse - raw string bytes are not UTF-8 v
   CHECK(json::parse(std::string_view{"\"\xc0\x80\"", 4}).has_value());      // overlong NUL
 }
 
-TEST_CASE("nexenne::serialization::json serialize - ascii_only substitutes U+FFFD for invalid UTF-8") {
+TEST_CASE(
+  "nexenne::serialization::json serialize - ascii_only substitutes U+FFFD for invalid UTF-8"
+) {
   auto opts{json::serialize_options{}};
   opts.ascii_only = true;
   // decodes to 0x1FFFFF, beyond U+10FFFF.

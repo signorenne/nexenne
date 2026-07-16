@@ -132,8 +132,8 @@ public:
 
 private:
   index_type m_index{};  ///< Position in the registry; meaningful only with a matching generation.
-  generation_type m_generation{
-  };  ///< 0 for the default (invalid) handle; >= 1 for any live entity.
+  generation_type
+    m_generation{};  ///< 0 for the default (invalid) handle; >= 1 for any live entity.
 
 public:
   /**
@@ -354,8 +354,8 @@ public:
    * @pre None.
    * @post The storage is unchanged.
    */
-  [[nodiscard]] auto at(std::uint32_t const index
-  ) noexcept -> std::expected<std::reference_wrapper<T>, container_error> {
+  [[nodiscard]] auto at(std::uint32_t const index) noexcept
+    -> std::expected<std::reference_wrapper<T>, container_error> {
     if (auto* const ptr{m_pool.try_get(index)}; ptr != nullptr) {
       return std::ref(*ptr);
     }
@@ -373,8 +373,8 @@ public:
    * @pre None.
    * @post The storage is unchanged.
    */
-  [[nodiscard]] auto at(std::uint32_t const index
-  ) const noexcept -> std::expected<std::reference_wrapper<T const>, container_error> {
+  [[nodiscard]] auto at(std::uint32_t const index) const noexcept
+    -> std::expected<std::reference_wrapper<T const>, container_error> {
     if (auto const* const ptr{m_pool.try_get(index)}; ptr != nullptr) {
       return std::cref(*ptr);
     }
@@ -684,8 +684,8 @@ struct erased_storage {
  * @post The returned entry dispatches to \p storage's typed operations.
  */
 template <typename T>
-[[nodiscard]] inline auto make_erased(component_storage<T>* const storage
-) noexcept -> erased_storage {
+[[nodiscard]] inline auto make_erased(component_storage<T>* const storage) noexcept
+  -> erased_storage {
   return erased_storage{
     .data = storage,
     .erase_fn = +[](void* d, std::uint32_t idx) noexcept -> bool {
@@ -707,6 +707,7 @@ template <typename T>
     },
   };
 }
+
 /// @endcond
 
 }  // namespace detail
@@ -1305,8 +1306,8 @@ public:
    * @complexity \c O(1).
    */
   template <typename T>
-  [[nodiscard]] auto get(entity_id const e
-  ) noexcept -> std::expected<std::reference_wrapper<T>, container_error> {
+  [[nodiscard]] auto get(entity_id const e) noexcept
+    -> std::expected<std::reference_wrapper<T>, container_error> {
     if (!valid(e)) {
       return std::unexpected{container_error::not_found};
     }
@@ -1336,8 +1337,8 @@ public:
    * @complexity \c O(1).
    */
   template <typename T>
-  [[nodiscard]] auto get(entity_id const e
-  ) const noexcept -> std::expected<std::reference_wrapper<T const>, container_error> {
+  [[nodiscard]] auto get(entity_id const e) const noexcept
+    -> std::expected<std::reference_wrapper<T const>, container_error> {
     if (!valid(e)) {
       return std::unexpected{container_error::not_found};
     }
@@ -1456,8 +1457,8 @@ public:
    * @complexity \c O(sizeof...(Includes)) to construct.
    */
   template <typename... Includes>
-  [[nodiscard]] auto
-  view() noexcept -> basic_view<detail::type_list<Includes...>, detail::type_list<>>;
+  [[nodiscard]] auto view() noexcept
+    -> basic_view<detail::type_list<Includes...>, detail::type_list<>>;
 
   /**
    * @brief Returns a Flecs-style fluent query builder.
@@ -1484,8 +1485,8 @@ public:
    *       .each([](position& p, velocity const& v) { ... });
    * \endcode
    */
-  [[nodiscard]] auto
-  query() noexcept -> typed_query_builder<detail::type_list<>, detail::type_list<>>;
+  [[nodiscard]] auto query() noexcept
+    -> typed_query_builder<detail::type_list<>, detail::type_list<>>;
 
   /**
    * @brief Direct access to the typed storage for \p T (mutable).
@@ -1688,8 +1689,8 @@ public:
      * @pre None.
      * @post None.
      */
-    [[nodiscard]] friend constexpr auto
-    operator==(iterator const& a, iterator const& b) noexcept -> bool {
+    [[nodiscard]] friend constexpr auto operator==(iterator const& a, iterator const& b) noexcept
+      -> bool {
       return a.m_pos == b.m_pos && a.m_registry == b.m_registry;
     }
   };

@@ -199,9 +199,9 @@ TEST_CASE("nexenne::utility::cobs decode of an empty frame yields an empty paylo
 
 TEST_CASE("nexenne::utility::cobs encode is usable at compile time") {
   static constexpr auto frame{[] {
-    auto in{std::array<std::byte, 4>{
-      std::byte{0x11}, std::byte{0x22}, std::byte{0x00}, std::byte{0x33}
-    }};
+    auto in{
+      std::array<std::byte, 4>{std::byte{0x11}, std::byte{0x22}, std::byte{0x00}, std::byte{0x33}}
+    };
     auto out{std::array<std::byte, 8>{}};
     auto const n{cobs::encode(std::span<std::byte const>{in}, std::span<std::byte>{out})};
     return std::pair{out, n.has_value() ? *n : std::size_t{0}};

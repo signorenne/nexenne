@@ -46,8 +46,8 @@ namespace nexenne::algorithm {
  * @complexity \c O(N log^2 N) time and \c O(N) auxiliary space in the length
  *             \c N of \p text.
  */
-[[nodiscard]] inline auto build_suffix_array(std::string_view const text
-) -> std::vector<std::int32_t> {
+[[nodiscard]] inline auto build_suffix_array(std::string_view const text)
+  -> std::vector<std::int32_t> {
   assert(
     text.size() <= static_cast<std::size_t>(INT32_MAX)
     && "build_suffix_array text length must fit in std::int32_t"
@@ -113,9 +113,9 @@ namespace nexenne::algorithm {
  * @complexity \c O(N) time and \c O(N) auxiliary space in the length \c N of
  *             \p text.
  */
-[[nodiscard]] inline auto build_lcp(
-  std::string_view const text, std::span<std::int32_t const> const sa
-) -> std::vector<std::int32_t> {
+[[nodiscard]] inline auto
+build_lcp(std::string_view const text, std::span<std::int32_t const> const sa)
+  -> std::vector<std::int32_t> {
   assert(
     text.size() <= static_cast<std::size_t>(INT32_MAX)
     && "build_lcp text length must fit in std::int32_t"

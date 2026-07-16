@@ -476,8 +476,8 @@ public:
    * @pre None.
    * @post The result is unchanged; the returned value is non-negative.
    */
-  [[nodiscard]] auto items_per_second(std::size_t const items_per_iteration
-  ) const noexcept -> double {
+  [[nodiscard]] auto items_per_second(std::size_t const items_per_iteration) const noexcept
+    -> double {
     auto const m{mean()};
     if (m == 0.0) {
       return 0.0;
@@ -499,8 +499,8 @@ public:
    * @pre None.
    * @post The result is unchanged; the returned value is non-negative.
    */
-  [[nodiscard]] auto bytes_per_second(std::size_t const bytes_per_iteration
-  ) const noexcept -> double {
+  [[nodiscard]] auto bytes_per_second(std::size_t const bytes_per_iteration) const noexcept
+    -> double {
     auto const m{mean()};
     if (m == 0.0) {
       return 0.0;
@@ -640,16 +640,17 @@ private:
    *
    * @complexity O(N) in the number of samples.
    */
-  [[nodiscard]] auto emit_json(serialization::json::writer<>& w
-  ) const -> std::expected<void, serialization::error> {
+  [[nodiscard]] auto emit_json(serialization::json::writer<>& w) const
+    -> std::expected<void, serialization::error> {
     if (auto const r{w.begin_object()}; !r) {
       return r;
     }
     auto const field{[&w](std::string_view const k, double const v) {
       return w.key(k).and_then([&w, v] { return w.value(v); });
     }};
-    if (auto const r{w.key("name").and_then([&w, this] { return w.value(std::string_view{m_name}); }
-        )};
+    if (auto const r{w.key("name").and_then([&w, this] {
+          return w.value(std::string_view{m_name});
+        })};
         !r) {
       return r;
     }
@@ -734,6 +735,7 @@ public:
   comparison(result const&& baseline, result const& candidate) = delete;
   comparison(result const& baseline, result const&& candidate) = delete;
   comparison(result const&& baseline, result const&& candidate) = delete;
+
   /// @endcond
 
   /**
@@ -863,8 +865,8 @@ public:
  * @pre \p baseline and \p candidate outlive the returned comparison.
  * @post Both results are unchanged.
  */
-[[nodiscard]] inline auto
-compare(result const& baseline, result const& candidate) noexcept -> comparison {
+[[nodiscard]] inline auto compare(result const& baseline, result const& candidate) noexcept
+  -> comparison {
   return comparison{baseline, candidate};
 }
 
@@ -875,6 +877,7 @@ compare(result const& baseline, result const& candidate) noexcept -> comparison 
 auto compare(result const&& baseline, result const& candidate) -> comparison = delete;
 auto compare(result const& baseline, result const&& candidate) -> comparison = delete;
 auto compare(result const&& baseline, result const&& candidate) -> comparison = delete;
+
 /// @endcond
 
 /**
@@ -1032,9 +1035,9 @@ template <typename Fn>
  */
 template <typename Setup, typename Fn>
   requires std::invocable<Setup&> && std::invocable<Fn&>
-[[nodiscard]] auto run_with_setup(
-  std::string_view const name, Setup&& setup, Fn&& fn, config const cfg = {}
-) -> result {
+[[nodiscard]] auto
+run_with_setup(std::string_view const name, Setup&& setup, Fn&& fn, config const cfg = {})
+  -> result {
   using ns_d = std::chrono::duration<double, std::nano>;
   auto fn_timer{chrono::stopwatch{}};
   auto iter_timer{chrono::stopwatch{}};

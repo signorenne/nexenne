@@ -72,8 +72,8 @@ inline constexpr auto xxh32_prime5{std::uint32_t{0x165667B1u}};
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto
-xxh32_round(std::uint32_t acc, std::uint32_t const input) noexcept -> std::uint32_t {
+[[nodiscard]] inline auto xxh32_round(std::uint32_t acc, std::uint32_t const input) noexcept
+  -> std::uint32_t {
   acc += input * xxh32_prime2;
   acc = std::rotl(acc, 13);
   acc *= xxh32_prime1;
@@ -97,9 +97,9 @@ xxh32_round(std::uint32_t acc, std::uint32_t const input) noexcept -> std::uint3
  *
  * @complexity \c O(N) in the size \c N of \p bytes.
  */
-[[nodiscard]] inline auto xxh32_impl(
-  std::span<std::uint8_t const> const bytes, std::uint32_t const seed
-) noexcept -> std::uint32_t {
+[[nodiscard]] inline auto
+xxh32_impl(std::span<std::uint8_t const> const bytes, std::uint32_t const seed) noexcept
+  -> std::uint32_t {
   auto const len{bytes.size()};
   auto const* p{bytes.data()};
   auto const* const end{p + len};
@@ -213,8 +213,8 @@ inline constexpr auto xxh64_prime5{std::uint64_t{0x27D4EB2F165667C5ULL}};
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto
-xxh64_round(std::uint64_t acc, std::uint64_t const input) noexcept -> std::uint64_t {
+[[nodiscard]] inline auto xxh64_round(std::uint64_t acc, std::uint64_t const input) noexcept
+  -> std::uint64_t {
   acc += input * xxh64_prime2;
   acc = std::rotl(acc, 31);
   acc *= xxh64_prime1;
@@ -235,8 +235,8 @@ xxh64_round(std::uint64_t acc, std::uint64_t const input) noexcept -> std::uint6
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto
-xxh64_merge_round(std::uint64_t acc, std::uint64_t val) noexcept -> std::uint64_t {
+[[nodiscard]] inline auto xxh64_merge_round(std::uint64_t acc, std::uint64_t val) noexcept
+  -> std::uint64_t {
   val = xxh64_round(0, val);
   acc ^= val;
   acc = acc * xxh64_prime1 + xxh64_prime4;
@@ -260,9 +260,9 @@ xxh64_merge_round(std::uint64_t acc, std::uint64_t val) noexcept -> std::uint64_
  *
  * @complexity \c O(N) in the size \c N of \p bytes.
  */
-[[nodiscard]] inline auto xxh64_impl(
-  std::span<std::uint8_t const> const bytes, std::uint64_t const seed
-) noexcept -> std::uint64_t {
+[[nodiscard]] inline auto
+xxh64_impl(std::span<std::uint8_t const> const bytes, std::uint64_t const seed) noexcept
+  -> std::uint64_t {
   auto const len{bytes.size()};
   auto const* p{bytes.data()};
   auto const* const end{p + len};
@@ -336,6 +336,7 @@ struct xxhash_word<64> {
 };
 
 }  // namespace detail
+
 /// @endcond
 
 /// @brief The unsigned result type of \c xxhash at the given \c Width.
@@ -362,9 +363,9 @@ using xxhash_result_t = typename detail::xxhash_word<Width>::type;
  */
 template <std::size_t Width = 64>
   requires(Width == 32 || Width == 64)
-[[nodiscard]] inline auto xxhash(
-  std::span<std::uint8_t const> const bytes, xxhash_result_t<Width> const seed = 0
-) noexcept -> xxhash_result_t<Width> {
+[[nodiscard]] inline auto
+xxhash(std::span<std::uint8_t const> const bytes, xxhash_result_t<Width> const seed = 0) noexcept
+  -> xxhash_result_t<Width> {
   if constexpr (Width == 32) {
     return detail::xxh32_impl(bytes, seed);
   } else {
@@ -393,9 +394,9 @@ template <std::size_t Width = 64>
  */
 template <std::size_t Width = 64>
   requires(Width == 32 || Width == 64)
-[[nodiscard]] inline auto xxhash(
-  std::string_view const s, xxhash_result_t<Width> const seed = 0
-) noexcept -> xxhash_result_t<Width> {
+[[nodiscard]] inline auto
+xxhash(std::string_view const s, xxhash_result_t<Width> const seed = 0) noexcept
+  -> xxhash_result_t<Width> {
   return xxhash<Width>(
     std::span<std::uint8_t const>{reinterpret_cast<std::uint8_t const*>(s.data()), s.size()}, seed
   );
@@ -548,7 +549,8 @@ public:
    * @complexity \c O(N) in the length \c N of \p s.
    */
   auto update(std::string_view const s) noexcept -> void {
-    update(std::span<std::uint8_t const>{reinterpret_cast<std::uint8_t const*>(s.data()), s.size()}
+    update(
+      std::span<std::uint8_t const>{reinterpret_cast<std::uint8_t const*>(s.data()), s.size()}
     );
   }
 

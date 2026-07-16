@@ -69,8 +69,8 @@ struct base_n_spec {
  * @post None.
  */
 template <base_n_spec Spec>
-[[nodiscard]] constexpr auto base_n_encoded_size(std::size_t const n_bytes
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto base_n_encoded_size(std::size_t const n_bytes) noexcept
+  -> std::size_t {
   constexpr auto gin{decltype(Spec)::group_in};
   constexpr auto gout{decltype(Spec)::group_out};
   if constexpr (Spec.padded) {
@@ -96,8 +96,8 @@ template <base_n_spec Spec>
  * @post None.
  */
 template <base_n_spec Spec>
-[[nodiscard]] constexpr auto base_n_decoded_max_size(std::size_t const n_chars
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto base_n_decoded_max_size(std::size_t const n_chars) noexcept
+  -> std::size_t {
   return (n_chars * decltype(Spec)::bits) / 8 + 1;
 }
 
@@ -122,9 +122,9 @@ template <base_n_spec Spec>
  * @complexity \c O(N) in the size \c N of \p in.
  */
 template <base_n_spec Spec>
-[[nodiscard]] constexpr auto base_n_encode(
-  std::span<std::uint8_t const> const in, std::span<char> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+base_n_encode(std::span<std::uint8_t const> const in, std::span<char> const out) noexcept
+  -> codec_result {
   static_assert(Spec.alphabet.is_distinct(), "base_n requires a distinct alphabet");
   static_assert(
     !Spec.padded || Spec.alphabet.decode(Spec.pad) < 0,
@@ -192,9 +192,9 @@ template <base_n_spec Spec>
  * @complexity \c O(N) in the length \c N of \p in.
  */
 template <base_n_spec Spec>
-[[nodiscard]] constexpr auto base_n_decode(
-  std::string_view const in, std::span<std::uint8_t> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+base_n_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcept
+  -> codec_result {
   static_assert(Spec.alphabet.is_distinct(), "base_n requires a distinct alphabet");
   static_assert(
     !Spec.padded || Spec.alphabet.decode(Spec.pad) < 0,
@@ -423,8 +423,8 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  * @pre None.
  * @post None.
  */
-[[nodiscard]] constexpr auto base32_encoded_size(std::size_t const n_bytes
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto base32_encoded_size(std::size_t const n_bytes) noexcept
+  -> std::size_t {
   return base_n_encoded_size<base32_std_spec>(n_bytes);
 }
 
@@ -439,8 +439,8 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  * @pre None.
  * @post None.
  */
-[[nodiscard]] constexpr auto base32_decoded_max_size(std::size_t const n_chars
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto base32_decoded_max_size(std::size_t const n_chars) noexcept
+  -> std::size_t {
   return base_n_decoded_max_size<base32_std_spec>(n_chars);
 }
 
@@ -459,9 +459,9 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  *
  * @complexity \c O(N) in the size \c N of \p in.
  */
-[[nodiscard]] constexpr auto base32_encode(
-  std::span<std::uint8_t const> const in, std::span<char> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+base32_encode(std::span<std::uint8_t const> const in, std::span<char> const out) noexcept
+  -> codec_result {
   return base_n_encode<base32_std_spec>(in, out);
 }
 
@@ -503,9 +503,9 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  *
  * @complexity \c O(N) in the length \c N of \p in.
  */
-[[nodiscard]] constexpr auto base32_decode(
-  std::string_view const in, std::span<std::uint8_t> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+base32_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcept
+  -> codec_result {
   return base_n_decode<base32_std_spec>(in, out);
 }
 
@@ -549,9 +549,9 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  *
  * @complexity \c O(N) in the size \c N of \p in.
  */
-[[nodiscard]] constexpr auto base32hex_encode(
-  std::span<std::uint8_t const> const in, std::span<char> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+base32hex_encode(std::span<std::uint8_t const> const in, std::span<char> const out) noexcept
+  -> codec_result {
   return base_n_encode<base32_hex_spec>(in, out);
 }
 
@@ -593,9 +593,9 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  *
  * @complexity \c O(N) in the length \c N of \p in.
  */
-[[nodiscard]] constexpr auto base32hex_decode(
-  std::string_view const in, std::span<std::uint8_t> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+base32hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcept
+  -> codec_result {
   return base_n_decode<base32_hex_spec>(in, out);
 }
 
@@ -634,8 +634,8 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  * @pre None.
  * @post None.
  */
-[[nodiscard]] constexpr auto base64_encoded_size(std::size_t const n_bytes
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto base64_encoded_size(std::size_t const n_bytes) noexcept
+  -> std::size_t {
   return base_n_encoded_size<base64_std_spec>(n_bytes);
 }
 
@@ -649,8 +649,8 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  * @pre None.
  * @post None.
  */
-[[nodiscard]] constexpr auto base64url_encoded_size(std::size_t const n_bytes
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto base64url_encoded_size(std::size_t const n_bytes) noexcept
+  -> std::size_t {
   return base_n_encoded_size<base64_url_spec>(n_bytes);
 }
 
@@ -665,8 +665,8 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  * @pre None.
  * @post None.
  */
-[[nodiscard]] constexpr auto base64_decoded_max_size(std::size_t const n_chars
-) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto base64_decoded_max_size(std::size_t const n_chars) noexcept
+  -> std::size_t {
   return base_n_decoded_max_size<base64_std_spec>(n_chars);
 }
 
@@ -685,9 +685,9 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  *
  * @complexity \c O(N) in the size \c N of \p in.
  */
-[[nodiscard]] constexpr auto base64_encode(
-  std::span<std::uint8_t const> const in, std::span<char> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+base64_encode(std::span<std::uint8_t const> const in, std::span<char> const out) noexcept
+  -> codec_result {
   return base_n_encode<base64_std_spec>(in, out);
 }
 
@@ -724,9 +724,9 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  *
  * @complexity \c O(N) in the size \c N of \p in.
  */
-[[nodiscard]] constexpr auto base64url_encode(
-  std::span<std::uint8_t const> const in, std::span<char> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+base64url_encode(std::span<std::uint8_t const> const in, std::span<char> const out) noexcept
+  -> codec_result {
   return base_n_encode<base64_url_spec>(in, out);
 }
 
@@ -768,9 +768,9 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  *
  * @complexity \c O(N) in the length \c N of \p in.
  */
-[[nodiscard]] constexpr auto base64_decode(
-  std::string_view const in, std::span<std::uint8_t> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+base64_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcept
+  -> codec_result {
   return base_n_decode<base64_std_spec>(in, out);
 }
 
@@ -819,9 +819,9 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
  *
  * @complexity \c O(N) in the length \c N of \p in.
  */
-[[nodiscard]] constexpr auto base64url_decode(
-  std::string_view const in, std::span<std::uint8_t> const out
-) noexcept -> codec_result {
+[[nodiscard]] constexpr auto
+base64url_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcept
+  -> codec_result {
   return base_n_decode<base64_url_decode_spec>(in, out);
 }
 

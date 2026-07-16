@@ -247,8 +247,8 @@ inline auto half_to_double(std::uint16_t const h) noexcept -> double {
  *         the range of \c SizeT.
  */
 template <std::unsigned_integral SizeT>
-[[nodiscard]] constexpr auto length_to_size(std::uint64_t const len
-) noexcept -> std::expected<SizeT, error> {
+[[nodiscard]] constexpr auto length_to_size(std::uint64_t const len) noexcept
+  -> std::expected<SizeT, error> {
   if (len > static_cast<std::uint64_t>(std::numeric_limits<SizeT>::max())) {
     return std::unexpected{error::string_too_long};
   }
@@ -256,6 +256,7 @@ template <std::unsigned_integral SizeT>
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -723,8 +724,8 @@ private:
    * @throws None. Returns \c error::buffer_underrun on truncation, or
    *         \c error::invalid_input for a reserved additional-info value.
    */
-  [[nodiscard]] auto read_argument(std::uint8_t const ai
-  ) noexcept -> std::expected<std::uint64_t, error> {
+  [[nodiscard]] auto read_argument(std::uint8_t const ai) noexcept
+    -> std::expected<std::uint64_t, error> {
     if (ai < 24)
       return ai;
     switch (ai) {

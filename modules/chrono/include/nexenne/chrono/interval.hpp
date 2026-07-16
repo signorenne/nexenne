@@ -347,8 +347,9 @@ public:
    * @post None.
    */
   template <class Out>
-  auto format(nexenne::chrono::interval<Clock> const& iv, std::basic_format_context<Out, char>& ctx)
-    const {
+  auto format(
+    nexenne::chrono::interval<Clock> const& iv, std::basic_format_context<Out, char>& ctx
+  ) const {
     auto const ms{iv.template remaining<std::chrono::milliseconds>()};
     auto const s{nexenne::chrono::format(ms, "{s-}{d}d:{h}h:{m}m:{s}s.{ms}", suppress_zero)};
     return std::ranges::copy(s, ctx.out()).out;

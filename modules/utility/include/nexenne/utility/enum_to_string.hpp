@@ -162,9 +162,7 @@ template <typename E>
     auto const lo{min < type_lo ? type_lo : min};
     // 64-bit arithmetic: min + range can overflow int when both are large.
     auto const requested_end{static_cast<long long>(min) + range};
-    auto const end{
-      requested_end > type_hi + 1LL ? type_hi + 1 : static_cast<int>(requested_end)
-    };
+    auto const end{requested_end > type_hi + 1LL ? type_hi + 1 : static_cast<int>(requested_end)};
     return {lo, end > lo ? end - lo : 0};
   }
 }
@@ -225,8 +223,8 @@ enum_search(std::underlying_type_t<E> const target, std::integer_sequence<int, I
  * @post None.
  */
 template <typename E, int Min, int... Is>
-[[nodiscard]] constexpr auto
-enum_count_impl(std::integer_sequence<int, Is...>) noexcept -> std::size_t {
+[[nodiscard]] constexpr auto enum_count_impl(std::integer_sequence<int, Is...>) noexcept
+  -> std::size_t {
   auto count{std::size_t{0}};
   // Flat braced-init expansion rather than a sum fold, which would nest one
   // operator per element and exceed clang's expression-nesting limit.
@@ -255,8 +253,8 @@ enum_count_impl(std::integer_sequence<int, Is...>) noexcept -> std::size_t {
  * @post \p out holds the named enumerators in ascending underlying-value order.
  */
 template <typename E, int Min, std::size_t N, int... Is>
-constexpr auto
-enum_values_impl(std::array<E, N>& out, std::integer_sequence<int, Is...>) noexcept -> void {
+constexpr auto enum_values_impl(std::array<E, N>& out, std::integer_sequence<int, Is...>) noexcept
+  -> void {
   auto i{std::size_t{0}};
   // Flat braced-init expansion (evaluated left-to-right, so values pack in
   // order) rather than a comma fold, which would exceed clang's nesting limit.

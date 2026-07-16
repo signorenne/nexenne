@@ -309,8 +309,8 @@ template <std::floating_point Real>
  * @post The result is \p p mapped through \p t.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto
-transform_point(transform2d<Real> const t, vector<Real, 2> const p) noexcept -> vector<Real, 2> {
+[[nodiscard]] auto transform_point(transform2d<Real> const t, vector<Real, 2> const p) noexcept
+  -> vector<Real, 2> {
   // Scale, then rotate by the angle, then translate, directly: this is the hot
   // path, so it avoids building and multiplying the 3x3 matrix. The result equals
   // to_matrix(t) applied to p.
@@ -409,9 +409,9 @@ transform_point(transform3d<Real> const t, vector<Real, 3> const p) noexcept -> 
  *       \c to_matrix(t) applied to \p d.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto transform_direction(
-  transform3d<Real> const t, vector<Real, 3> const d
-) noexcept -> vector<Real, 3> {
+[[nodiscard]] constexpr auto
+transform_direction(transform3d<Real> const t, vector<Real, 3> const d) noexcept
+  -> vector<Real, 3> {
   auto const scaled{
     vector<Real, 3>{d.x() * t.scale().x(), d.y() * t.scale().y(), d.z() * t.scale().z()}
   };
@@ -463,8 +463,8 @@ template <std::floating_point Real, std::size_t N>
  * @post The result contains the image of \p s under \p t.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-transform(transform3d<Real> const t, sphere3<Real> const& s) noexcept -> sphere3<Real> {
+[[nodiscard]] constexpr auto transform(transform3d<Real> const t, sphere3<Real> const& s) noexcept
+  -> sphere3<Real> {
   return sphere3<Real>{transform_point(t, s.center()), s.radius() * max_scale(t.scale())};
 }
 
@@ -505,8 +505,8 @@ transform(transform3d<Real> const t, triangle3<Real> const& tri) noexcept -> tri
  * @post The result is the exact image of \p box under \p t.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-transform(transform3d<Real> const t, aabb<Real, 3> const& box) noexcept -> obb3<Real> {
+[[nodiscard]] constexpr auto transform(transform3d<Real> const t, aabb<Real, 3> const& box) noexcept
+  -> obb3<Real> {
   auto const half{half_size(box)};
   auto const scaled{vector<Real, 3>{
     half.x() * nexenne::math::abs(t.scale().x()),
@@ -537,8 +537,8 @@ transform(transform3d<Real> const t, aabb<Real, 3> const& box) noexcept -> obb3<
  *       axis-aligned box).
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-transform(transform3d<Real> const t, obb3<Real> const& box) noexcept -> obb3<Real> {
+[[nodiscard]] constexpr auto transform(transform3d<Real> const t, obb3<Real> const& box) noexcept
+  -> obb3<Real> {
   // Under a non-uniform pose scale the exact image of a rotated box is a
   // parallelepiped, not a box. Scaling each local half-extent by the matching
   // world scale component (the naive formula) applies the scale to the wrong
@@ -584,8 +584,8 @@ transform(transform3d<Real> const t, obb3<Real> const& box) noexcept -> obb3<Rea
  * @post Each endpoint is the image of the corresponding endpoint of \p s.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-transform(transform3d<Real> const t, segment3<Real> const& s) noexcept -> segment3<Real> {
+[[nodiscard]] constexpr auto transform(transform3d<Real> const t, segment3<Real> const& s) noexcept
+  -> segment3<Real> {
   return segment3<Real>{transform_point(t, s.start()), transform_point(t, s.end())};
 }
 
@@ -606,8 +606,8 @@ transform(transform3d<Real> const t, segment3<Real> const& s) noexcept -> segmen
  * @post The result contains the image of \p c under \p t.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-transform(transform3d<Real> const t, capsule3<Real> const& c) noexcept -> capsule3<Real> {
+[[nodiscard]] constexpr auto transform(transform3d<Real> const t, capsule3<Real> const& c) noexcept
+  -> capsule3<Real> {
   return capsule3<Real>{
     transform_point(t, c.start()), transform_point(t, c.end()), c.radius() * max_scale(t.scale())
   };
@@ -628,8 +628,8 @@ transform(transform3d<Real> const t, capsule3<Real> const& c) noexcept -> capsul
  * @note Runtime only: the 2D transform path needs \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto
-transform(transform2d<Real> const t, circle2<Real> const& c) noexcept -> circle2<Real> {
+[[nodiscard]] auto transform(transform2d<Real> const t, circle2<Real> const& c) noexcept
+  -> circle2<Real> {
   return circle2<Real>{transform_point(t, c.center()), c.radius() * max_scale(t.scale())};
 }
 
@@ -648,8 +648,8 @@ transform(transform2d<Real> const t, circle2<Real> const& c) noexcept -> circle2
  * @note Runtime only: the 2D transform path needs \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto
-transform(transform2d<Real> const t, triangle2<Real> const& tri) noexcept -> triangle2<Real> {
+[[nodiscard]] auto transform(transform2d<Real> const t, triangle2<Real> const& tri) noexcept
+  -> triangle2<Real> {
   return triangle2<Real>{
     transform_point(t, tri.a()), transform_point(t, tri.b()), transform_point(t, tri.c())
   };
@@ -670,8 +670,8 @@ transform(transform2d<Real> const t, triangle2<Real> const& tri) noexcept -> tri
  * @note Runtime only: the 2D transform path needs \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto
-transform(transform2d<Real> const t, aabb<Real, 2> const& box) noexcept -> obb2<Real> {
+[[nodiscard]] auto transform(transform2d<Real> const t, aabb<Real, 2> const& box) noexcept
+  -> obb2<Real> {
   auto const half{half_size(box)};
   auto const scaled{vector<Real, 2>{
     half.x() * nexenne::math::abs(t.scale().x()), half.y() * nexenne::math::abs(t.scale().y())
@@ -701,8 +701,8 @@ transform(transform2d<Real> const t, aabb<Real, 2> const& box) noexcept -> obb2<
  * @note Runtime only: the 2D transform path needs \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto
-transform(transform2d<Real> const t, obb2<Real> const& box) noexcept -> obb2<Real> {
+[[nodiscard]] auto transform(transform2d<Real> const t, obb2<Real> const& box) noexcept
+  -> obb2<Real> {
   // Same conservative support bound as the 3D obb overload: the box world axes
   // are the columns of the 2D rotation [c -s; s c], a0 = (c, s) and a1 = (-s, c),
   // and h'[k] = sum_j half[j] * |a_j . (scale (.) a_k)| is the tight enclosing
@@ -740,8 +740,8 @@ transform(transform2d<Real> const t, obb2<Real> const& box) noexcept -> obb2<Rea
  * @note Runtime only: the 2D transform path needs \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto
-transform(transform2d<Real> const t, segment2<Real> const& s) noexcept -> segment2<Real> {
+[[nodiscard]] auto transform(transform2d<Real> const t, segment2<Real> const& s) noexcept
+  -> segment2<Real> {
   return segment2<Real>{transform_point(t, s.start()), transform_point(t, s.end())};
 }
 
@@ -764,8 +764,8 @@ transform(transform2d<Real> const t, segment2<Real> const& s) noexcept -> segmen
  * @note Runtime only: the 2D transform path needs \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto
-transform(transform2d<Real> const t, capsule2<Real> const& c) noexcept -> capsule2<Real> {
+[[nodiscard]] auto transform(transform2d<Real> const t, capsule2<Real> const& c) noexcept
+  -> capsule2<Real> {
   return capsule2<Real>{
     transform_point(t, c.start()), transform_point(t, c.end()), c.radius() * max_scale(t.scale())
   };
@@ -845,8 +845,8 @@ template <std::floating_point Real>
  * @note Fully \c constexpr: only arithmetic and the constexpr \c sqrt; no trig.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto decompose_3(matrix<Real, 4> const& m
-) noexcept -> result<transform3d<Real>> {
+[[nodiscard]] constexpr auto decompose_3(matrix<Real, 4> const& m) noexcept
+  -> result<transform3d<Real>> {
   using nexenne::math::cross;
   using nexenne::math::dot;
   using nexenne::math::length;

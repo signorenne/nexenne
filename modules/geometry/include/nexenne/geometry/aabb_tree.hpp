@@ -221,8 +221,8 @@ public:
    * @pre None. \p h is validated.
    * @post The tree is not modified.
    */
-  [[nodiscard]] auto at(handle_type const h
-  ) const noexcept -> std::optional<std::pair<bounds_type, payload_type>> {
+  [[nodiscard]] auto at(handle_type const h) const noexcept
+    -> std::optional<std::pair<bounds_type, payload_type>> {
     if (h >= m_nodes.size() || !m_nodes[h].is_leaf()) {
       return std::nullopt;
     }
@@ -665,9 +665,9 @@ private:
    * @pre \p c_idx is internal and taller than \p b_idx by more than one.
    * @post \p c_idx is the new subtree root with consistent boxes and heights.
    */
-  [[nodiscard]] auto rotate_left(
-    handle_type const a_idx, handle_type const b_idx, handle_type const c_idx
-  ) noexcept -> handle_type {
+  [[nodiscard]] auto
+  rotate_left(handle_type const a_idx, handle_type const b_idx, handle_type const c_idx) noexcept
+    -> handle_type {
     auto& a{m_nodes[a_idx]};
     auto& c{m_nodes[c_idx]};
     auto const f_idx{c.child_a};
@@ -725,9 +725,9 @@ private:
    * @pre \p b_idx is internal and taller than \p c_idx by more than one.
    * @post \p b_idx is the new subtree root with consistent boxes and heights.
    */
-  [[nodiscard]] auto rotate_right(
-    handle_type const a_idx, handle_type const b_idx, handle_type const c_idx
-  ) noexcept -> handle_type {
+  [[nodiscard]] auto
+  rotate_right(handle_type const a_idx, handle_type const b_idx, handle_type const c_idx) noexcept
+    -> handle_type {
     auto& a{m_nodes[a_idx]};
     auto& b{m_nodes[b_idx]};
     auto const d_idx{b.child_a};

@@ -81,9 +81,7 @@ public:
    * @post \c slot_id() equals \p slot_id; \c valid() reflects whether
    *       \p core is still alive.
    */
-  connection(
-    std::weak_ptr<void> core, disconnect_fn_type const fn, id_type const slot_id
-  ) noexcept
+  connection(std::weak_ptr<void> core, disconnect_fn_type const fn, id_type const slot_id) noexcept
       : m_core{std::move(core)}, m_disconnect_fn{fn}, m_slot_id{slot_id} {}
 
   /**

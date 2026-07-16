@@ -341,8 +341,9 @@ TEST_CASE("nexenne::utility::in_place_function returns by value, reference, and 
 }
 
 TEST_CASE("nexenne::utility::in_place_function forwards multiple args and perfect-forwards") {
-  util::in_place_function<int(int, int, int), 32> sum3{[](int a, int b, int c) { return a + b + c; }
-  };
+  util::in_place_function<int(int, int, int), 32> sum3{[](int a, int b, int c) {
+    return a + b + c;
+  }};
   CHECK(sum3(1, 2, 3) == 6);
 
   struct move_only {

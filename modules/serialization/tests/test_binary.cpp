@@ -40,8 +40,8 @@ template <typename T>
 }
 
 template <typename T>
-[[nodiscard]] auto as_const_bytes(std::array<std::byte, sizeof(T)> const& a
-) -> std::span<std::byte const> {
+[[nodiscard]] auto as_const_bytes(std::array<std::byte, sizeof(T)> const& a)
+  -> std::span<std::byte const> {
   return std::span<std::byte const>{a.data(), a.size()};
 }
 
@@ -886,9 +886,7 @@ TEST_CASE("nexenne::serialization::binary - mixed schema round trip end to end")
 }
 
 TEST_CASE("nexenne::serialization::binary - read<bool> accepts 0 and 1") {
-  auto const buf{
-    std::array<std::byte, 2>{std::byte{0x00}, std::byte{0x01}}
-  };
+  auto const buf{std::array<std::byte, 2>{std::byte{0x00}, std::byte{0x01}}};
   auto r{binary::reader{std::span<std::byte const>{buf}}};
   CHECK(*r.read<bool>() == false);
   CHECK(*r.read<bool>() == true);
@@ -918,9 +916,7 @@ TEST_CASE("nexenne::serialization::binary - read<bool> rejects a byte outside {0
 
 TEST_CASE("nexenne::serialization::binary - read_array<bool> validates every wire byte") {
   SUBCASE("all valid") {
-    auto const buf{
-      std::array<std::byte, 3>{std::byte{0x01}, std::byte{0x00}, std::byte{0x01}}
-    };
+    auto const buf{std::array<std::byte, 3>{std::byte{0x01}, std::byte{0x00}, std::byte{0x01}}};
     auto r{binary::reader{std::span<std::byte const>{buf}}};
     auto out{std::array<bool, 3>{}};
     REQUIRE(r.read_array(std::span<bool>{out}).has_value());
@@ -929,9 +925,7 @@ TEST_CASE("nexenne::serialization::binary - read_array<bool> validates every wir
     CHECK(out[2] == true);
   }
   SUBCASE("a byte outside {0, 1} is rejected and leaves the cursor put") {
-    auto const buf{
-      std::array<std::byte, 3>{std::byte{0x01}, std::byte{0x02}, std::byte{0x00}}
-    };
+    auto const buf{std::array<std::byte, 3>{std::byte{0x01}, std::byte{0x02}, std::byte{0x00}}};
     auto r{binary::reader{std::span<std::byte const>{buf}}};
     auto out{std::array<bool, 3>{}};
     auto const v{r.read_array(std::span<bool>{out})};

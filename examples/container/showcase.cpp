@@ -234,7 +234,8 @@ auto main() -> int {
     }
     auto* const actor{resolve(*who)};
     if (actor == nullptr) {
-      nexenne::utility::discard(scheduler.erase(top_h)
+      nexenne::utility::discard(
+        scheduler.erase(top_h)
       );  // entity died earlier; cancel its stale think
       continue;
     }
@@ -243,9 +244,11 @@ auto main() -> int {
       if (auto* const target{resolve("goblin")}) {
         // The hero strikes the goblin.
         target->health -= 25;
-        log(std::format(
-          "t{}: hero hits goblin ({} hp left)", tick, target->health < 0 ? 0 : target->health
-        ));
+        log(
+          std::format(
+            "t{}: hero hits goblin ({} hp left)", tick, target->health < 0 ? 0 : target->health
+          )
+        );
         if (target->health <= 0) {
           // The goblin dies: erase it from the store and cancel its scheduled
           // think by handle. Its name lookup will now miss; its slot may recycle.

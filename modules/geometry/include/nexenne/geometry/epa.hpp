@@ -211,9 +211,9 @@ template <std::floating_point Real>
  * @post Each component is non-negative and the three sum to 1.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto clamp_barycentric(
-  nexenne::math::vector<Real, 3> const& weights
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+clamp_barycentric(nexenne::math::vector<Real, 3> const& weights) noexcept
+  -> nexenne::math::vector<Real, 3> {
   using point_type = nexenne::math::vector<Real, 3>;
   auto const a{nexenne::math::max(Real{0}, weights.x())};
   auto const b{nexenne::math::max(Real{0}, weights.y())};
@@ -304,9 +304,9 @@ template <std::floating_point Real>
  * @post On success the result has four vertices with non-zero enclosed volume.
  */
 template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real> ShapeB>
-[[nodiscard]] auto seed_tetrahedron(
-  ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& initial
-) noexcept -> std::vector<gjk_minkowski_point3<Real>> {
+[[nodiscard]] auto
+seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& initial) noexcept
+  -> std::vector<gjk_minkowski_point3<Real>> {
   using point_type = nexenne::math::vector<Real, 3>;
   // Absolute distinctness and volume floor. This is calibrated for game-scale
   // shapes (roughly 1e-2 to 1e4 units): a pair much smaller than 1e-4 units, or a
@@ -775,9 +775,9 @@ template <std::floating_point Real, typename Shape>
  * @post \c count is between 1 and 8 and \c normal equals \c hit.normal.
  */
 template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real> ShapeB>
-[[nodiscard]] auto contact_manifold(
-  ShapeA const& a, ShapeB const& b, epa_result3<Real> const& hit
-) noexcept -> contact_manifold3<Real> {
+[[nodiscard]] auto
+contact_manifold(ShapeA const& a, ShapeB const& b, epa_result3<Real> const& hit) noexcept
+  -> contact_manifold3<Real> {
   using point_type = nexenne::math::vector<Real, 3>;
   using planar = nexenne::math::vector<Real, 2>;
 

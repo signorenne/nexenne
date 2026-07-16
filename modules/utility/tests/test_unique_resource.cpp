@@ -29,7 +29,8 @@ TEST_CASE("nexenne::utility::unique_resource runs the deleter once at destructio
   CHECK(closed == 7);  // deleter ran with the right resource value
 }
 
-TEST_CASE("nexenne::utility::unique_resource default-constructed owns nothing and runs no deleter"
+TEST_CASE(
+  "nexenne::utility::unique_resource default-constructed owns nothing and runs no deleter"
 ) {
   int closes{0};
   {
@@ -50,7 +51,8 @@ TEST_CASE("nexenne::utility::unique_resource deleter runs exactly once, never tw
   CHECK(closes == 1);
 }
 
-TEST_CASE("nexenne::utility::unique_resource release suppresses the deleter and returns the value"
+TEST_CASE(
+  "nexenne::utility::unique_resource release suppresses the deleter and returns the value"
 ) {
   int closed{-1};
   {
@@ -301,7 +303,8 @@ TEST_CASE("nexenne::utility::unique_resource move-assign from a non-owning sourc
   CHECK(closes_b == 0);
 }
 
-TEST_CASE("nexenne::utility::unique_resource move-assign rebuilds a non-assignable lambda deleter"
+TEST_CASE(
+  "nexenne::utility::unique_resource move-assign rebuilds a non-assignable lambda deleter"
 ) {
   // A capturing lambda has no assignment operator, so the assignment must
   // transfer it by destroy-and-reconstruct (transfer_member); that transfer is
@@ -338,7 +341,8 @@ TEST_CASE("nexenne::utility::unique_resource self-move and double-reset are safe
   CHECK(closes == 1);
 }
 
-TEST_CASE("nexenne::utility::unique_resource deleter observes the current resource at delete time"
+TEST_CASE(
+  "nexenne::utility::unique_resource deleter observes the current resource at delete time"
 ) {
   std::vector<int> closed;
   auto r{util::unique_resource{10, [&](int v) { closed.push_back(v); }}};
@@ -389,7 +393,9 @@ static_assert(
 );
 static_assert(
   !std::is_nothrow_constructible_v<
-    util::unique_resource<int, throwing_move_deleter>, int, throwing_move_deleter>,
+    util::unique_resource<int, throwing_move_deleter>,
+    int,
+    throwing_move_deleter>,
   "a throwing-move deleter gives a potentially-throwing owning constructor"
 );
 

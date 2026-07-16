@@ -35,7 +35,8 @@ template <std::ranges::input_range Range>
 inline constexpr bool nothrow_iterable_v{
   noexcept(std::ranges::begin(std::declval<Range&>()) != std::ranges::end(std::declval<Range&>()))
   && noexcept(++std::declval<std::ranges::iterator_t<Range>&>())
-  && noexcept(*std::ranges::begin(std::declval<Range&>()))};
+  && noexcept(*std::ranges::begin(std::declval<Range&>()))
+};
 
 }  // namespace detail
 
@@ -59,8 +60,8 @@ inline constexpr bool nothrow_iterable_v{
  * @complexity \c O(N) time and \c O(1) auxiliary space in the element count.
  */
 template <std::ranges::input_range Range, std::floating_point T = std::ranges::range_value_t<Range>>
-[[nodiscard]] constexpr auto kahan_sum(Range&& range, T init = T{0})
-  noexcept(detail::nothrow_iterable_v<Range>) -> T {
+[[nodiscard]] constexpr auto
+kahan_sum(Range&& range, T init = T{0}) noexcept(detail::nothrow_iterable_v<Range>) -> T {
   auto sum{init};
   auto comp{T{0}};  // running compensation for lost low-order bits
   for (auto const value : range) {
@@ -92,8 +93,8 @@ template <std::ranges::input_range Range, std::floating_point T = std::ranges::r
  * @complexity \c O(N) time and \c O(1) auxiliary space in the element count.
  */
 template <std::ranges::input_range Range, std::floating_point T = std::ranges::range_value_t<Range>>
-[[nodiscard]] constexpr auto neumaier_sum(Range&& range, T init = T{0})
-  noexcept(detail::nothrow_iterable_v<Range>) -> T {
+[[nodiscard]] constexpr auto
+neumaier_sum(Range&& range, T init = T{0}) noexcept(detail::nothrow_iterable_v<Range>) -> T {
   auto sum{init};
   auto comp{T{0}};
   for (auto const value : range) {

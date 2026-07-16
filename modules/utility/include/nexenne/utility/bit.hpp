@@ -143,8 +143,8 @@ template <std::unsigned_integral T>
  * @post Bits in \c [low, high] are one; all others are zero.
  */
 template <std::unsigned_integral T>
-[[nodiscard]] constexpr auto
-set_bits_mask(std::size_t const low, std::size_t const high) noexcept -> T {
+[[nodiscard]] constexpr auto set_bits_mask(std::size_t const low, std::size_t const high) noexcept
+  -> T {
   assert(high >= low && "set_bits_mask: high is below low");
   assert(high < sizeof(T) * 8 && "set_bits_mask: high out of range");
   auto const count{high - low + 1};
@@ -203,9 +203,9 @@ constexpr auto for_each_set_bit(T x, F&& fn) -> void {
  *       \p src.
  */
 template <std::unsigned_integral T>
-[[nodiscard]] constexpr auto pack_bits(
-  T const dest, T const src, std::size_t const offset, std::size_t const width
-) noexcept -> T {
+[[nodiscard]] constexpr auto
+pack_bits(T const dest, T const src, std::size_t const offset, std::size_t const width) noexcept
+  -> T {
   assert(width >= 1 && "pack_bits: width must be at least one");
   // Stated as width <= W and offset <= W - width so the guard itself cannot
   // wrap for a huge offset, unlike the naive offset + width <= W.

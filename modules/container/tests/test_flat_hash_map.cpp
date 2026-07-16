@@ -445,7 +445,9 @@ TEST_CASE("nexenne::container::flat_hash_map churn at constant live size keeps c
   CHECK(m.capacity() <= 64);  // bounded, not the millions the doubling produced
 }
 
-TEST_CASE("nexenne::container::flat_hash_map inserting an existing key does not rehash or invalidate") {
+TEST_CASE(
+  "nexenne::container::flat_hash_map inserting an existing key does not rehash or invalidate"
+) {
   // [M3] Fill the initial 16-slot table to its 7/8 threshold, then insert an
   // already-present key: it must return false, leave the table the same size,
   // and keep a reference to another element valid and unchanged.

@@ -373,10 +373,12 @@ TEST_CASE("registry destroy fires on_destroy for every component") {
   auto r{registry{}};
   auto pos_count{0};
   auto vel_count{0};
-  auto c1{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept { ++pos_count; }
-  )};
-  auto c2{r.on_destroy<velocity>().connect([&](entity_id, velocity const&) noexcept { ++vel_count; }
-  )};
+  auto c1{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept {
+    ++pos_count;
+  })};
+  auto c2{r.on_destroy<velocity>().connect([&](entity_id, velocity const&) noexcept {
+    ++vel_count;
+  })};
 
   auto const a{r.create()};
   r.add<position>(a, {1.0f, 0.0f});
@@ -393,10 +395,12 @@ TEST_CASE("destroy does NOT fire on_destroy for components the entity lacks") {
   auto r{registry{}};
   auto pos_count{0};
   auto vel_count{0};
-  auto c1{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept { ++pos_count; }
-  )};
-  auto c2{r.on_destroy<velocity>().connect([&](entity_id, velocity const&) noexcept { ++vel_count; }
-  )};
+  auto c1{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept {
+    ++pos_count;
+  })};
+  auto c2{r.on_destroy<velocity>().connect([&](entity_id, velocity const&) noexcept {
+    ++vel_count;
+  })};
 
   auto const a{r.create()};
   r.add<position>(a, {});
@@ -1031,12 +1035,15 @@ TEST_CASE("multiple listeners on the same on_construct signal all fire") {
   auto count_a{0};
   auto count_b{0};
   auto count_c{0};
-  auto ca{r.on_construct<position>().connect([&](entity_id, position const&) noexcept { ++count_a; }
-  )};
-  auto cb{r.on_construct<position>().connect([&](entity_id, position const&) noexcept { ++count_b; }
-  )};
-  auto cc{r.on_construct<position>().connect([&](entity_id, position const&) noexcept { ++count_c; }
-  )};
+  auto ca{r.on_construct<position>().connect([&](entity_id, position const&) noexcept {
+    ++count_a;
+  })};
+  auto cb{r.on_construct<position>().connect([&](entity_id, position const&) noexcept {
+    ++count_b;
+  })};
+  auto cc{r.on_construct<position>().connect([&](entity_id, position const&) noexcept {
+    ++count_c;
+  })};
 
   auto const e{r.create()};
   r.add<position>(e, {});
@@ -1519,9 +1526,9 @@ TEST_CASE("valid() rejects a forged handle carrying a freed slot's current gener
   // The slot's current generation is the one create() will hand out next, so a
   // handle forged with it matched generation but named a freed slot.
   auto const forged{entity_id{idx, r.generation_at(idx)}};
-  CHECK_FALSE(r.valid(forged));                        // freed slot: not alive
+  CHECK_FALSE(r.valid(forged));                         // freed slot: not alive
   CHECK_FALSE(r.add<health>(forged, health{.hp = 5}));  // add must fail
-  CHECK_FALSE(r.destroy(forged));                      // must not double-push the free list
+  CHECK_FALSE(r.destroy(forged));                       // must not double-push the free list
 
   // The free list still holds idx exactly once, so two creates mint two
   // distinct indices rather than aliasing the same slot.
@@ -1557,8 +1564,9 @@ TEST_CASE("clear() fires on_destroy for every live component (M4)") {
   auto r{registry{}};
   auto pos_count{0};
   auto hp_count{0};
-  auto c1{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept { ++pos_count; }
-  )};
+  auto c1{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept {
+    ++pos_count;
+  })};
   auto c2{r.on_destroy<health>().connect([&](entity_id, health const&) noexcept { ++hp_count; })};
 
   auto const a{r.create()};

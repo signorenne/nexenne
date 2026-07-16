@@ -233,8 +233,8 @@ private:
      * @pre \p core_ptr points to a live \c core.
      * @post The named slot is removed when the owning signal is still alive.
      */
-    static auto
-    disconnect_thunk(void* const core_ptr, detail::slot_id_type const id) noexcept -> bool {
+    static auto disconnect_thunk(void* const core_ptr, detail::slot_id_type const id) noexcept
+      -> bool {
       auto* const c{static_cast<core*>(core_ptr)};
       if (c->owner == nullptr) {
         return false;
@@ -603,11 +603,11 @@ public:
   [[nodiscard]] auto size() const noexcept -> std::size_t {
     if (!m_core)
       return 0;
-    return static_cast<std::size_t>(std::count_if(
-      m_core->slots.begin(),
-      m_core->slots.end(),
-      [](slot_entry const& s) noexcept { return s.alive; }
-    ));
+    return static_cast<std::size_t>(
+      std::count_if(m_core->slots.begin(), m_core->slots.end(), [](slot_entry const& s) noexcept {
+        return s.alive;
+      })
+    );
   }
 
   /**
@@ -1043,8 +1043,8 @@ public:
 };
 
 template <typename R, typename... Args, std::size_t SlotCapacity>
-[[nodiscard]] auto
-signal<R(Args...), SlotCapacity>::as_sink() noexcept -> sink<R(Args...), SlotCapacity> {
+[[nodiscard]] auto signal<R(Args...), SlotCapacity>::as_sink() noexcept
+  -> sink<R(Args...), SlotCapacity> {
   return sink<R(Args...), SlotCapacity>{*this};
 }
 

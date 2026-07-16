@@ -37,7 +37,7 @@ auto main() -> int {
   // Unit-safe arithmetic: same tag adds, a scalar scales, and the result keeps
   // its strong type so it can never be confused with a plain double.
   auto const distance{meters{150.0} + meters{50.0}};  // ok: same tag
-  auto const doubled{distance * 2.0};                  // ok: scalar scale
+  auto const doubled{distance * 2.0};                 // ok: scalar scale
   auto const elapsed{seconds{12.0}};
 
   std::println("distance: {} m", distance.get());

@@ -53,8 +53,10 @@ struct floyd_warshall_result {
    * @complexity \c O(1).
    */
   [[nodiscard]] constexpr auto at(V const i, V const j) const noexcept -> Weight {
-    assert(static_cast<std::size_t>(i) < n && static_cast<std::size_t>(j) < n
-           && "floyd_warshall_result::at index out of range");
+    assert(
+      static_cast<std::size_t>(i) < n && static_cast<std::size_t>(j) < n
+      && "floyd_warshall_result::at index out of range"
+    );
     return distances[static_cast<std::size_t>(i) * n + static_cast<std::size_t>(j)];
   }
 };

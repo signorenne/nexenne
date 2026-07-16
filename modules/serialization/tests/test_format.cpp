@@ -57,9 +57,15 @@ TEST_CASE("nexenne::serialization::json::value - scalars format like serialize")
 
 TEST_CASE("nexenne::serialization::cbor::type - std::format matches to_string") {
   constexpr std::array kinds{
-    cbor::type::unsigned_int, cbor::type::negative_int, cbor::type::byte_string,
-    cbor::type::text_string,  cbor::type::array_header, cbor::type::map_header,
-    cbor::type::boolean,      cbor::type::null,         cbor::type::undefined,
+    cbor::type::unsigned_int,
+    cbor::type::negative_int,
+    cbor::type::byte_string,
+    cbor::type::text_string,
+    cbor::type::array_header,
+    cbor::type::map_header,
+    cbor::type::boolean,
+    cbor::type::null,
+    cbor::type::undefined,
     cbor::type::floating,
   };
   for (auto const k : kinds) {
@@ -71,9 +77,14 @@ TEST_CASE("nexenne::serialization::cbor::type - std::format matches to_string") 
 
 TEST_CASE("nexenne::serialization::msgpack::type - std::format matches to_string") {
   constexpr std::array kinds{
-    msgpack::type::nil,          msgpack::type::boolean, msgpack::type::integer,
-    msgpack::type::floating,     msgpack::type::string,  msgpack::type::binary,
-    msgpack::type::array_header, msgpack::type::map_header,
+    msgpack::type::nil,
+    msgpack::type::boolean,
+    msgpack::type::integer,
+    msgpack::type::floating,
+    msgpack::type::string,
+    msgpack::type::binary,
+    msgpack::type::array_header,
+    msgpack::type::map_header,
   };
   for (auto const k : kinds) {
     CHECK(std::format("{}", k) == std::string{msgpack::to_string(k)});
@@ -83,9 +94,12 @@ TEST_CASE("nexenne::serialization::msgpack::type - std::format matches to_string
 
 TEST_CASE("nexenne::serialization::json::value::kind - std::format matches to_string") {
   constexpr std::array kinds{
-    json::value::kind::null_kind,    json::value::kind::boolean_kind,
-    json::value::kind::integer_kind, json::value::kind::floating_kind,
-    json::value::kind::string_kind,  json::value::kind::array_kind,
+    json::value::kind::null_kind,
+    json::value::kind::boolean_kind,
+    json::value::kind::integer_kind,
+    json::value::kind::floating_kind,
+    json::value::kind::string_kind,
+    json::value::kind::array_kind,
     json::value::kind::object_kind,
   };
   for (auto const k : kinds) {
@@ -95,7 +109,8 @@ TEST_CASE("nexenne::serialization::json::value::kind - std::format matches to_st
 }
 
 TEST_CASE("nexenne::serialization::json::parse_error - std::format renders a diagnostic") {
-  auto const e{json::parse_error{.code = error::invalid_string, .offset = 41, .line = 3, .column = 12}
+  auto const e{
+    json::parse_error{.code = error::invalid_string, .offset = 41, .line = 3, .column = 12}
   };
   CHECK(std::format("{}", e) == "invalid_string at line 3, column 12 (offset 41)");
   CHECK(std::format("{}", e) == json::to_string(e));

@@ -562,8 +562,8 @@ public:
    * @warning The referenced array is invalidated if this value is
    *          mutated or destroyed.
    */
-  [[nodiscard]] auto
-  as_array() const noexcept -> std::expected<std::reference_wrapper<array_type const>, error> {
+  [[nodiscard]] auto as_array() const noexcept
+    -> std::expected<std::reference_wrapper<array_type const>, error> {
     if (auto const* p{std::get_if<array_type>(&m_data)})
       return std::cref(*p);
     return std::unexpected{error::type_mismatch};
@@ -583,8 +583,8 @@ public:
    * @warning The referenced object is invalidated if this value is
    *          mutated or destroyed.
    */
-  [[nodiscard]] auto
-  as_object() const noexcept -> std::expected<std::reference_wrapper<object_type const>, error> {
+  [[nodiscard]] auto as_object() const noexcept
+    -> std::expected<std::reference_wrapper<object_type const>, error> {
     if (auto const* p{std::get_if<object_type>(&m_data)})
       return std::cref(*p);
     return std::unexpected{error::type_mismatch};
@@ -805,8 +805,8 @@ public:
    * @warning The returned reference aliases this value and is
    *          invalidated by mutation or destruction.
    */
-  [[nodiscard]] auto at_path(std::string_view path
-  ) const noexcept -> std::expected<std::reference_wrapper<value const>, error> {
+  [[nodiscard]] auto at_path(std::string_view path) const noexcept
+    -> std::expected<std::reference_wrapper<value const>, error> {
     auto const* cur{this};
     if (path.empty()) {
       return std::cref(*cur);

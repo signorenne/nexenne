@@ -160,8 +160,8 @@ public:
  *          breaks every consumer of the result.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto make_unchecked(vector<Real, N> const& v
-) noexcept -> normalized<Real, N> {
+[[nodiscard]] constexpr auto make_unchecked(vector<Real, N> const& v) noexcept
+  -> normalized<Real, N> {
   return normalized<Real, N>{v};
 }
 
@@ -183,9 +183,9 @@ template <std::floating_point Real, std::size_t N>
  * @post On success the wrapped vector has unit length.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto make_normalized(
-  vector<Real, N> const& v, Real const threshold = static_cast<Real>(1e-20)
-) noexcept -> result<normalized<Real, N>> {
+[[nodiscard]] constexpr auto
+make_normalized(vector<Real, N> const& v, Real const threshold = static_cast<Real>(1e-20)) noexcept
+  -> result<normalized<Real, N>> {
   auto const normalized_v{normalize(v, threshold)};
   if (!normalized_v) {
     return std::unexpected{normalized_v.error()};

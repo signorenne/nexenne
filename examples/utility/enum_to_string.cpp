@@ -31,9 +31,7 @@ auto main() -> int {
 
   std::println("connection has {} states:", nexenne::utility::enum_count<connection>());
   for (auto const state : nexenne::utility::enum_values<connection>()) {
-    std::println(
-      "  {} = {}", std::to_underlying(state), nexenne::utility::enum_to_string(state)
-    );
+    std::println("  {} = {}", std::to_underlying(state), nexenne::utility::enum_to_string(state));
   }
 
   // Runtime value -> name.

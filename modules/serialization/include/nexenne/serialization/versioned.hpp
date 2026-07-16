@@ -158,6 +158,7 @@ inline auto load_le16(std::byte const* const src) noexcept -> std::uint16_t {
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /// @brief Envelope size in bytes, same on every platform.
@@ -184,9 +185,9 @@ inline constexpr std::size_t versioned_header_size{8};
  * @throws None. Returns \c error::buffer_full when the writer lacks room
  *         for the header.
  */
-inline auto write_header(
-  binary::writer& w, std::uint32_t const magic, std::uint16_t const version
-) noexcept -> std::expected<void, error> {
+inline auto
+write_header(binary::writer& w, std::uint32_t const magic, std::uint16_t const version) noexcept
+  -> std::expected<void, error> {
   auto hdr{std::array<std::byte, versioned_header_size>{}};
   detail::store_le32(hdr.data(), magic);
   detail::store_le16(hdr.data() + 4, version);
@@ -224,9 +225,9 @@ struct header {
  *         \c error::invalid_input when the stored magic does not match
  *         \p expected_magic.
  */
-[[nodiscard]] inline auto read_header(
-  binary::reader& r, std::uint32_t const expected_magic
-) noexcept -> std::expected<header, error> {
+[[nodiscard]] inline auto
+read_header(binary::reader& r, std::uint32_t const expected_magic) noexcept
+  -> std::expected<header, error> {
   if (r.bytes_remaining() < versioned_header_size) {
     return std::unexpected{error::buffer_underrun};
   }
@@ -277,8 +278,8 @@ struct header {
 template <versioned_decoder Codec>
 [[nodiscard]] auto decode_with(
   binary::reader& r, std::uint32_t const expected_magic, Codec const& codec
-) noexcept(noexcept(codec.decode(r, std::uint16_t{}))) -> decltype(codec.decode(r, std::uint16_t{})
-                                                       ) {
+) noexcept(noexcept(codec.decode(r, std::uint16_t{})))
+  -> decltype(codec.decode(r, std::uint16_t{})) {
   auto const h{read_header(r, expected_magic)};
   if (!h) {
     using result_type = decltype(codec.decode(r, std::uint16_t{}));

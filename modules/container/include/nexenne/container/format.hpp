@@ -822,8 +822,8 @@ auto operator<<(std::ostream& os, flat_set<T, Compare> const& s) -> std::ostream
  * @post None. \p m is not modified.
  */
 template <typename Key, typename Value, std::size_t Capacity, typename Compare>
-[[nodiscard]] auto to_string(static_flat_map<Key, Value, Capacity, Compare> const& m
-) -> std::string {
+[[nodiscard]] auto to_string(static_flat_map<Key, Value, Capacity, Compare> const& m)
+  -> std::string {
   std::string body;
   bool first{true};
   for (auto const& [k, v] : m) {

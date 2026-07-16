@@ -469,6 +469,7 @@ consteval auto consteval_trie_probe() -> bool {
   bool const eq{t == copy};
   return sum == 3 && eq && copy.size() == 2;
 }
+
 static_assert(consteval_trie_probe());
 
 }  // namespace

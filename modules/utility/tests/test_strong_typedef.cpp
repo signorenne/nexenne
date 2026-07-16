@@ -521,9 +521,9 @@ TEST_CASE("nexenne::utility::strong_typedef explicit conversion to underlying") 
 
   // to_underlying overloads: const yields const ref, mutable yields mutable ref.
   static_assert(std::is_same_v<decltype(util::to_underlying(std::declval<meters&>())), double&>);
-  static_assert(std::is_same_v<
-                decltype(util::to_underlying(std::declval<meters const&>())),
-                double const&>);
+  static_assert(
+    std::is_same_v<decltype(util::to_underlying(std::declval<meters const&>())), double const&>
+  );
 }
 
 // hashing in an unordered container
@@ -700,8 +700,8 @@ TEST_CASE("nexenne::utility::strong_typedef saturating promotes mixed underlying
 
 TEST_CASE("nexenne::utility::strong_typedef sanitized drops unsigned-only ops on a mixed result") {
   struct mix_tag;
-  using u32reg = util::
-    strong_typedef<mix_tag, std::uint32_t, ability::add | ability::shift | ability::bitops>;
+  using u32reg =
+    util::strong_typedef<mix_tag, std::uint32_t, ability::add | ability::shift | ability::bitops>;
   using i64q = util::strong_typedef<mix_tag, std::int64_t, ability::add>;
 
   using sum_t = decltype(u32reg{5} + i64q{7});

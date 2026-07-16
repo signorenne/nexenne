@@ -29,15 +29,22 @@ TEST_CASE("engine to_string names the engine and prints its hex state") {
 }
 
 TEST_CASE("distribution to_string names the distribution and lists its parameters") {
-  CHECK(rnd::to_string(rnd::normal_distribution<double>{1.5, 2.0})
-        == "normal_distribution(mean=1.5, stddev=2)");
-  CHECK(rnd::to_string(rnd::exponential_distribution<double>{2.0})
-        == "exponential_distribution(rate=2)");
-  CHECK(rnd::to_string(rnd::gamma_distribution<double>{2.0, 3.0})
-        == "gamma_distribution(shape=2, scale=3)");
+  CHECK(
+    rnd::to_string(rnd::normal_distribution<double>{1.5, 2.0})
+    == "normal_distribution(mean=1.5, stddev=2)"
+  );
+  CHECK(
+    rnd::to_string(rnd::exponential_distribution<double>{2.0}) == "exponential_distribution(rate=2)"
+  );
+  CHECK(
+    rnd::to_string(rnd::gamma_distribution<double>{2.0, 3.0})
+    == "gamma_distribution(shape=2, scale=3)"
+  );
   CHECK(rnd::to_string(rnd::poisson_distribution<>{4.0}) == "poisson_distribution(lambda=4)");
-  CHECK(rnd::to_string(rnd::discrete_distribution<double>{{1.0, 3.0}})
-        == "discrete_distribution([0.25, 0.75])");
+  CHECK(
+    rnd::to_string(rnd::discrete_distribution<double>{{1.0, 3.0}})
+    == "discrete_distribution([0.25, 0.75])"
+  );
 }
 
 TEST_CASE("std::format and operator<< agree with to_string") {
@@ -58,12 +65,18 @@ TEST_CASE("std::format and operator<< agree with to_string") {
 }
 
 TEST_CASE("distribution formatters forward the spec to each parameter") {
-  CHECK(std::format("{:.2f}", rnd::normal_distribution<double>{1.0, 2.0})
-        == "normal_distribution(mean=1.00, stddev=2.00)");
-  CHECK(std::format("{:.1f}", rnd::gamma_distribution<double>{2.0, 3.0})
-        == "gamma_distribution(shape=2.0, scale=3.0)");
-  CHECK(std::format("{:.3f}", rnd::discrete_distribution<double>{{1.0, 3.0}})
-        == "discrete_distribution([0.250, 0.750])");
+  CHECK(
+    std::format("{:.2f}", rnd::normal_distribution<double>{1.0, 2.0})
+    == "normal_distribution(mean=1.00, stddev=2.00)"
+  );
+  CHECK(
+    std::format("{:.1f}", rnd::gamma_distribution<double>{2.0, 3.0})
+    == "gamma_distribution(shape=2.0, scale=3.0)"
+  );
+  CHECK(
+    std::format("{:.3f}", rnd::discrete_distribution<double>{{1.0, 3.0}})
+    == "discrete_distribution([0.250, 0.750])"
+  );
 }
 
 TEST_CASE("an invalid parameter spec is rejected by the component formatter") {

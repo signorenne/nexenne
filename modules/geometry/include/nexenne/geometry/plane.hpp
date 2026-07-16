@@ -214,9 +214,9 @@ distance(plane3<Real> const& pl, nexenne::math::vector<Real, 3> const& p) noexce
  * @post \c contains_point(pl, result) is \c true (up to rounding).
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto closest_point(
-  plane3<Real> const& pl, nexenne::math::vector<Real, 3> const& p
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+closest_point(plane3<Real> const& pl, nexenne::math::vector<Real, 3> const& p) noexcept
+  -> nexenne::math::vector<Real, 3> {
   return p - pl.normal() * signed_distance(pl, p);
 }
 

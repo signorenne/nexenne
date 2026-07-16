@@ -662,8 +662,8 @@ template <std::floating_point Real>
  * @post Result lies in [-pi, pi).
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto
-angle_diff(radians<Real> const a, radians<Real> const b) noexcept -> radians<Real> {
+[[nodiscard]] constexpr auto angle_diff(radians<Real> const a, radians<Real> const b) noexcept
+  -> radians<Real> {
   auto const diff{a.value() - b.value()};
   return wrap_signed(radians<Real>{diff});
 }

@@ -38,8 +38,8 @@ namespace detail {
  *
  * @complexity \c O(N) in the needle length.
  */
-[[nodiscard]] constexpr auto kmp_failure(std::string_view const needle
-) -> std::vector<std::size_t> {
+[[nodiscard]] constexpr auto kmp_failure(std::string_view const needle)
+  -> std::vector<std::size_t> {
   auto table{std::vector<std::size_t>(needle.size(), 0)};
   auto k{std::size_t{0}};
   for (auto i{std::size_t{1}}; i < needle.size(); ++i) {
@@ -55,6 +55,7 @@ namespace detail {
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -124,9 +125,9 @@ kmp_find(std::string_view const haystack, std::string_view const needle) -> std:
  *             are the sizes of \p haystack and \p needle.
  */
 template <typename Visitor>
-constexpr auto kmp_find_all(
-  std::string_view const haystack, std::string_view const needle, Visitor&& visit
-) -> void {
+constexpr auto
+kmp_find_all(std::string_view const haystack, std::string_view const needle, Visitor&& visit)
+  -> void {
   if (needle.empty() || needle.size() > haystack.size()) {
     return;
   }

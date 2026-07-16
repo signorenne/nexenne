@@ -209,8 +209,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto index_of(key_type const k
-  ) const noexcept -> std::optional<size_type> {
+  [[nodiscard]] constexpr auto index_of(key_type const k) const noexcept
+    -> std::optional<size_type> {
     if (!contains(k)) {
       return std::nullopt;
     }

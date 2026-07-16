@@ -98,6 +98,7 @@ struct a_star_entry {
 };
 
 }  // namespace detail
+
 /// @endcond
 
 /**

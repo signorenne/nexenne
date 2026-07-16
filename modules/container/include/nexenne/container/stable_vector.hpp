@@ -170,7 +170,9 @@ private:
     // would wrap for desired near SIZE_MAX and make reserve(huge) a silent
     // no-op; an unsatisfiable chunk count instead fails loudly when the pointer
     // vector cannot be reserved.
-    auto const needed{desired / ChunkSize + (desired % ChunkSize == 0 ? size_type{0} : size_type{1})};
+    auto const needed{
+      desired / ChunkSize + (desired % ChunkSize == 0 ? size_type{0} : size_type{1})
+    };
     m_chunks.reserve(needed);  // size the pointer vector once, not per chunk
     while (m_chunks.size() < needed) {
       m_chunks.push_back(std::make_unique<chunk>());
@@ -984,8 +986,8 @@ public:
    *
    * @complexity \c O(size).
    */
-  [[nodiscard]] friend auto
-  operator==(stable_vector const& a, stable_vector const& b) noexcept -> bool
+  [[nodiscard]] friend auto operator==(stable_vector const& a, stable_vector const& b) noexcept
+    -> bool
     requires std::equality_comparable<T>
   {
     return a.m_size == b.m_size && std::equal(a.begin(), a.end(), b.begin(), b.end());

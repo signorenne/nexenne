@@ -26,8 +26,7 @@ struct throwing_move_cleanup {
   throwing_move_cleanup(int& counter, bool const arm) : runs{&counter}, throw_on_move{arm} {}
 
   throwing_move_cleanup(throwing_move_cleanup&& other)
-      : runs{other.runs}
-      , throw_on_move{other.throw_on_move} {
+      : runs{other.runs}, throw_on_move{other.throw_on_move} {
     if (throw_on_move) {
       throw std::runtime_error{"move failed"};
     }
@@ -197,13 +196,14 @@ static_assert(
 // uses a noexcept callable (whose invocation, and thus the destructor, cannot
 // throw) to isolate the move.
 static_assert(
-  std::is_nothrow_constructible_v<
-    nexenne::utility::defer<void (*)() noexcept>, void (*)() noexcept>,
+  std::
+    is_nothrow_constructible_v<nexenne::utility::defer<void (*)() noexcept>, void (*)() noexcept>,
   "a nothrow-movable, noexcept callable gives a noexcept construct-and-destroy"
 );
 static_assert(
   !std::is_nothrow_constructible_v<
-    nexenne::utility::defer<throwing_move_cleanup>, throwing_move_cleanup>,
+    nexenne::utility::defer<throwing_move_cleanup>,
+    throwing_move_cleanup>,
   "a throwing-move callable gives a potentially-throwing constructor"
 );
 

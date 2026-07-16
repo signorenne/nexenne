@@ -49,9 +49,9 @@ namespace nexenne::geometry {
  * @post \c .first lies on \p s1 and \c .second on \p s2, at minimum separation.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto closest_points(
-  segment<Real, N> const& s1, segment<Real, N> const& s2
-) noexcept -> std::pair<nexenne::math::vector<Real, N>, nexenne::math::vector<Real, N>> {
+[[nodiscard]] constexpr auto
+closest_points(segment<Real, N> const& s1, segment<Real, N> const& s2) noexcept
+  -> std::pair<nexenne::math::vector<Real, N>, nexenne::math::vector<Real, N>> {
   // Ericson, "Real-Time Collision Detection", section 5.1.9. Parametrize the
   // segments as s1(s) = s1.start + s*d1 and s2(t) = t2.start + t*d2 with s, t in
   // [0, 1]. Minimizing the squared distance gives a 2x2 linear system in (s, t);
@@ -124,9 +124,9 @@ template <std::floating_point Real, std::size_t N>
  * @post \c .first lies on \p seg and \c .second on \p tri, at minimum separation.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto closest_points(
-  segment<Real, 3> const& seg, triangle<Real, 3> const& tri
-) noexcept -> std::pair<nexenne::math::vector<Real, 3>, nexenne::math::vector<Real, 3>> {
+[[nodiscard]] constexpr auto
+closest_points(segment<Real, 3> const& seg, triangle<Real, 3> const& tri) noexcept
+  -> std::pair<nexenne::math::vector<Real, 3>, nexenne::math::vector<Real, 3>> {
   using vector_type = nexenne::math::vector<Real, 3>;
   using nexenne::math::dot;
   // Relative floor. The two guards below compare quantities of different scales,
@@ -207,9 +207,9 @@ template <std::floating_point Real>
  * @post \c .first lies on the spine of \p c1 and \c .second on that of \p c2.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto closest_points(
-  capsule<Real, N> const& c1, capsule<Real, N> const& c2
-) noexcept -> std::pair<nexenne::math::vector<Real, N>, nexenne::math::vector<Real, N>> {
+[[nodiscard]] constexpr auto
+closest_points(capsule<Real, N> const& c1, capsule<Real, N> const& c2) noexcept
+  -> std::pair<nexenne::math::vector<Real, N>, nexenne::math::vector<Real, N>> {
   return closest_points(axis(c1), axis(c2));
 }
 

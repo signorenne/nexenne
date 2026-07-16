@@ -557,8 +557,9 @@ public:
    * @post None.
    */
   template <class Out>
-  auto format(nexenne::chrono::countdown<Clock> const& c, std::basic_format_context<Out, char>& ctx)
-    const {
+  auto format(
+    nexenne::chrono::countdown<Clock> const& c, std::basic_format_context<Out, char>& ctx
+  ) const {
     auto const ms{
       show_elapsed ? c.template elapsed<std::chrono::milliseconds>()
                    : c.template remaining<std::chrono::milliseconds>()

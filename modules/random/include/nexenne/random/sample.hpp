@@ -50,8 +50,9 @@ namespace nexenne::random {
  * @complexity \c O(n) swaps for a range of \c n elements.
  */
 template <std::ranges::random_access_range R, rng_engine G>
-constexpr auto shuffle(R&& range, G& g)
-  noexcept(std::is_nothrow_swappable_v<std::ranges::range_value_t<R>>) -> void {
+constexpr auto
+shuffle(R&& range, G& g) noexcept(std::is_nothrow_swappable_v<std::ranges::range_value_t<R>>)
+  -> void {
   auto const n{std::ranges::size(range)};
   if (n < 2) {
     return;
@@ -88,8 +89,8 @@ constexpr auto shuffle(R&& range, G& g)
  *             elements.
  */
 template <std::ranges::input_range R, rng_engine G>
-[[nodiscard]] auto
-reservoir_sample(R&& range, std::size_t k, G& g) -> std::vector<std::ranges::range_value_t<R>> {
+[[nodiscard]] auto reservoir_sample(R&& range, std::size_t k, G& g)
+  -> std::vector<std::ranges::range_value_t<R>> {
   using value_type = std::ranges::range_value_t<R>;
 
   auto out{std::vector<value_type>{}};

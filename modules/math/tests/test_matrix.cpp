@@ -129,9 +129,7 @@ TEST_CASE("float inverse rejects a rank-deficient matrix via the relative thresh
   // singular. In float the determinant computes to ~-3.8e-6 (cancellation noise),
   // ten trillion times the old absolute 1e-20 cutoff, so the matrix used to invert
   // to garbage returned as success. The input-scaled threshold catches it.
-  auto const singular{math::make_matrix3(
-    0.3f, 1.7f, 2.9f, 4.1f, 0.2f, 5.3f, 4.7f, 3.6f, 11.1f
-  )};
+  auto const singular{math::make_matrix3(0.3f, 1.7f, 2.9f, 4.1f, 0.2f, 5.3f, 4.7f, 3.6f, 11.1f)};
   auto const inv{math::inverse(singular)};
   REQUIRE_FALSE(inv.has_value());
   CHECK(inv.error() == math::math_error::singular_matrix);

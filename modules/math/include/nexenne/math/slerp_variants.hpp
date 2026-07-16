@@ -51,9 +51,9 @@ namespace nexenne::math {
  *       and \p b are exactly antipodal (a zero-length midpoint).
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto nlerp_plain(
-  quaternion<Real> const a, quaternion<Real> const b, Real const t
-) noexcept -> quaternion<Real> {
+[[nodiscard]] constexpr auto
+nlerp_plain(quaternion<Real> const a, quaternion<Real> const b, Real const t) noexcept
+  -> quaternion<Real> {
   auto const mixed{a * (Real{1} - t) + b * t};
   return normalize(mixed).value_or(mixed);
 }
@@ -75,9 +75,9 @@ template <std::floating_point Real>
  * @post The result is unit length and lies on the hemisphere nearer to \p a.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto nlerp_short(
-  quaternion<Real> const a, quaternion<Real> b, Real const t
-) noexcept -> quaternion<Real> {
+[[nodiscard]] constexpr auto
+nlerp_short(quaternion<Real> const a, quaternion<Real> b, Real const t) noexcept
+  -> quaternion<Real> {
   if (dot(a, b) < Real{0}) {
     b = -b;
   }

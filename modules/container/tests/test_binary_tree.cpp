@@ -437,6 +437,7 @@ consteval auto consteval_binary_tree_probe() -> bool {
   bool const eq{t == t};
   return first == 1 && erased && eq && copy.size() == 5 && t.size() == 6;
 }
+
 static_assert(consteval_binary_tree_probe());
 
 TEST_CASE("nexenne::container::binary_tree constructs from initializer list and range") {

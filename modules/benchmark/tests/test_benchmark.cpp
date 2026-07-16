@@ -119,9 +119,9 @@ TEST_CASE("nexenne::benchmark::compare reports the speedup direction correctly")
     },
     fast_cfg
   )};
-  auto const slow{bm::run(
-    "slow", [] { std::this_thread::sleep_for(std::chrono::microseconds{50}); }, cfg
-  )};
+  auto const slow{
+    bm::run("slow", [] { std::this_thread::sleep_for(std::chrono::microseconds{50}); }, cfg)
+  };
   auto const c{bm::compare(slow, fast)};  // baseline = slow, candidate = fast
   CHECK(c.speedup() > 1.0);               // candidate is faster
   CHECK(c.ratio() < 1.0);                 // candidate / baseline < 1
@@ -513,7 +513,9 @@ TEST_CASE("nexenne::benchmark::from_samples builds a result from externally coll
   CHECK(r.max() == doctest::Approx{40.0});
 }
 
-TEST_CASE("nexenne::benchmark::result percentile interpolates and agrees with the edges and median") {
+TEST_CASE(
+  "nexenne::benchmark::result percentile interpolates and agrees with the edges and median"
+) {
   auto const r{bm::from_samples("p", std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0}, 5)};
   CHECK(r.percentile(0.0) == doctest::Approx{1.0});    // min
   CHECK(r.percentile(100.0) == doctest::Approx{5.0});  // max
@@ -562,9 +564,9 @@ TEST_CASE("nexenne::benchmark::run honours min_iterations exactly with no warmup
     .min_iterations = 3,
     .warmup = false,
   }};
-  auto const r{bm::run(
-    "exact-floor", [] { std::this_thread::sleep_for(std::chrono::microseconds{20}); }, cfg
-  )};
+  auto const r{
+    bm::run("exact-floor", [] { std::this_thread::sleep_for(std::chrono::microseconds{20}); }, cfg)
+  };
   CHECK(r.total_iterations() == 3 * 2);  // min_iterations * sample_count, no warmup
 }
 
@@ -658,7 +660,8 @@ TEST_CASE("nexenne::benchmark::comparison print preserves both labels and names 
   CHECK(s.find("2.00x faster") != std::string::npos);  // candidate is twice as fast
 }
 
-TEST_CASE("nexenne::benchmark::comparison names the slower direction when the candidate regresses"
+TEST_CASE(
+  "nexenne::benchmark::comparison names the slower direction when the candidate regresses"
 ) {
   auto const baseline{bm::result{std::string{"base"}, std::vector<double>{50.0}, 1}};
   auto const candidate{bm::result{std::string{"cand"}, std::vector<double>{100.0}, 1}};

@@ -90,7 +90,7 @@ TEST_CASE("nexenne::logging::stream_logger terminates a truncated line, so two d
   // Two truncated messages must yield two newline-terminated lines, not one.
   CHECK(std::ranges::count(captured, '\n') == 2);
   CHECK(captured.back() == '\n');
-  CHECK(captured.find("...") != std::string::npos);   // truncation still marked
+  CHECK(captured.find("...") != std::string::npos);     // truncation still marked
   CHECK(captured.find("A...\n") != std::string::npos);  // the first line closes
 }
 
@@ -112,7 +112,8 @@ TEST_CASE("nexenne::logging::stream_logger respects the runtime level filter") {
   std::filesystem::remove(path);
 }
 
-TEST_CASE("nexenne::logging::stream_logger with a null file_writer emits nothing and does not crash"
+TEST_CASE(
+  "nexenne::logging::stream_logger with a null file_writer emits nothing and does not crash"
 ) {
   lg::stream_logger log{"x", lg::level::trace, lg::file_writer{nullptr}};
   log.info("nothing");

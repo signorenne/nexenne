@@ -22,8 +22,8 @@ struct sample {
 };
 
 struct sample_codec {
-  auto
-  decode(binary::reader& r, std::uint16_t const v) const noexcept -> std::expected<sample, error> {
+  auto decode(binary::reader& r, std::uint16_t const v) const noexcept
+    -> std::expected<sample, error> {
     if (v == 1) {
       auto const p{r.read<std::uint32_t>()};
       if (!p)
@@ -61,7 +61,8 @@ static_assert(versioned_decoder<sample_codec>);
 static_assert(!versioned_decoder<bad_codec_plain>);
 static_assert(!versioned_decoder<bad_codec_wrong_error>);
 
-TEST_CASE("nexenne::serialization::versioned - envelope round trip carries magic, version, payload"
+TEST_CASE(
+  "nexenne::serialization::versioned - envelope round trip carries magic, version, payload"
 ) {
   constexpr std::uint32_t magic{0x4E455845};
   std::array<std::byte, 64> buf{};
@@ -218,8 +219,10 @@ TEST_CASE(
   }
 }
 
-TEST_CASE("nexenne::serialization::versioned - a truncated payload after a valid header errors at "
-          "the body read") {
+TEST_CASE(
+  "nexenne::serialization::versioned - a truncated payload after a valid header errors at "
+  "the body read"
+) {
   constexpr std::uint32_t magic{0x4E455845};
   // A full header but only 2 of the 4 payload bytes present.
   std::array<std::byte, versioned_header_size + 2> buf{};

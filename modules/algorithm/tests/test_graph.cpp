@@ -390,7 +390,9 @@ TEST_CASE("nexenne::algorithm::a_star evaluates the heuristic at most once per v
   nexenne::utility::discard(g.add_edge(0, 1, 1.0));
   nexenne::utility::discard(g.add_edge(1, 2, 1.0));
   nexenne::utility::discard(g.add_edge(2, 3, 1.0));
-  nexenne::utility::discard(g.add_edge(0, 3, 5.0));  // a second, longer route into 3 (relaxes it twice)
+  nexenne::utility::discard(
+    g.add_edge(0, 3, 5.0)
+  );  // a second, longer route into 3 (relaxes it twice)
   nexenne::utility::discard(g.add_edge(3, 4, 1.0));
   auto calls{std::vector<int>(5, 0)};
   auto const r{alg::a_star<double, V, double>(g, V{0}, V{4}, [&](V const v) {
@@ -508,7 +510,9 @@ TEST_CASE("nexenne::algorithm::dijkstra guards integral distance overflow (M1)")
   CHECK(d[2] == std::numeric_limits<w_type>::max());
 }
 
-TEST_CASE("nexenne::algorithm::topological_sort and kruskal_mst are correct near the id edge (M2)") {
+TEST_CASE(
+  "nexenne::algorithm::topological_sort and kruskal_mst are correct near the id edge (M2)"
+) {
   // M2 is resolved by the container capping vertices() at max(V) plus C1's
   // std::size_t loops; this pins that both algorithms iterate every vertex on a
   // large uint8 graph rather than collapsing to an empty range.

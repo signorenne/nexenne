@@ -55,8 +55,8 @@ struct std::hash<nexenne::geometry::aabb<Value, N>> {
    * @pre None.
    * @post Equal boxes hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::aabb<Value, N> const& a
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::aabb<Value, N> const& a) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, a.min());
     nexenne::utility::hash_combine(seed, a.max());
@@ -81,8 +81,8 @@ struct std::hash<nexenne::geometry::circle2<Real>> {
    * @pre None.
    * @post Equal circles hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::circle2<Real> const& c
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::circle2<Real> const& c) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, c.center());
     nexenne::utility::hash_combine(seed, c.radius());
@@ -107,8 +107,8 @@ struct std::hash<nexenne::geometry::sphere3<Real>> {
    * @pre None.
    * @post Equal spheres hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::sphere3<Real> const& s
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::sphere3<Real> const& s) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, s.center());
     nexenne::utility::hash_combine(seed, s.radius());
@@ -134,8 +134,8 @@ struct std::hash<nexenne::geometry::ray<Real, N>> {
    * @pre None.
    * @post Equal rays hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::ray<Real, N> const& r
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::ray<Real, N> const& r) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, r.origin());
     nexenne::utility::hash_combine(seed, r.direction());
@@ -161,8 +161,8 @@ struct std::hash<nexenne::geometry::segment<Real, N>> {
    * @pre None.
    * @post Equal segments hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::segment<Real, N> const& s
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::segment<Real, N> const& s) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, s.start());
     nexenne::utility::hash_combine(seed, s.end());
@@ -187,8 +187,8 @@ struct std::hash<nexenne::geometry::plane3<Real>> {
    * @pre None.
    * @post Equal planes hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::plane3<Real> const& p
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::plane3<Real> const& p) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, p.normal());
     nexenne::utility::hash_combine(seed, p.d());
@@ -214,8 +214,8 @@ struct std::hash<nexenne::geometry::triangle<Real, N>> {
    * @pre None.
    * @post Equal triangles hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::triangle<Real, N> const& t
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::triangle<Real, N> const& t) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, t.a());
     nexenne::utility::hash_combine(seed, t.b());
@@ -242,8 +242,8 @@ struct std::hash<nexenne::geometry::capsule<Real, N>> {
    * @pre None.
    * @post Equal capsules hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::capsule<Real, N> const& c
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::capsule<Real, N> const& c) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, c.start());
     nexenne::utility::hash_combine(seed, c.end());
@@ -269,8 +269,8 @@ struct std::hash<nexenne::geometry::obb2<Real>> {
    * @pre None.
    * @post Equal boxes hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::obb2<Real> const& o
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::obb2<Real> const& o) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, o.center());
     nexenne::utility::hash_combine(seed, o.half_size());
@@ -296,8 +296,8 @@ struct std::hash<nexenne::geometry::obb3<Real>> {
    * @pre None.
    * @post Equal boxes hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::obb3<Real> const& o
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::obb3<Real> const& o) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, o.center());
     nexenne::utility::hash_combine(seed, o.half_size());
@@ -323,8 +323,8 @@ struct std::hash<nexenne::geometry::frustum3<Real>> {
    * @pre None.
    * @post Equal frustums hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::frustum3<Real> const& f
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::frustum3<Real> const& f) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     for (auto const& pl : f.planes()) {
       nexenne::utility::hash_combine(seed, pl.normal());
@@ -351,8 +351,8 @@ struct std::hash<nexenne::geometry::transform2d<Real>> {
    * @pre None.
    * @post Equal poses hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::transform2d<Real> const& t
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::transform2d<Real> const& t) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, t.position());
     nexenne::utility::hash_combine(seed, t.rotation().value());
@@ -378,8 +378,8 @@ struct std::hash<nexenne::geometry::transform3d<Real>> {
    * @pre None.
    * @post Equal poses hash equal.
    */
-  [[nodiscard]] auto operator()(nexenne::geometry::transform3d<Real> const& t
-  ) const noexcept -> std::size_t {
+  [[nodiscard]] auto operator()(nexenne::geometry::transform3d<Real> const& t) const noexcept
+    -> std::size_t {
     auto seed{std::size_t{0}};
     nexenne::utility::hash_combine(seed, t.position());
     nexenne::utility::hash_combine(seed, t.rotation());

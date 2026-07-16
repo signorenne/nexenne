@@ -49,7 +49,8 @@ TEST_CASE("rotation3 and rotation3_axis_angle agree with the quaternion") {
     }
   }
   // A zero axis is rejected.
-  CHECK_FALSE(math::rotation3_axis_angle(math::vector3_d{0, 0, 0}, math::radians_d{1.0}).has_value()
+  CHECK_FALSE(
+    math::rotation3_axis_angle(math::vector3_d{0, 0, 0}, math::radians_d{1.0}).has_value()
   );
 }
 
@@ -80,7 +81,8 @@ TEST_CASE("look_at maps the eye to the origin and the view direction to -Z") {
 TEST_CASE("transform_point applies the perspective divide; direction ignores translation") {
   // Bottom row (0, 0, 1, 0) makes the homogeneous w equal to z, forcing a divide.
   constexpr auto m{math::make_matrix4<double>(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0)};
-  CHECK(vapprox(math::transform_point(m, math::vector3_d{2, 4, 8}), math::vector3_d{0.25, 0.5, 1.0})
+  CHECK(
+    vapprox(math::transform_point(m, math::vector3_d{2, 4, 8}), math::vector3_d{0.25, 0.5, 1.0})
   );
 
   // A pure translation moves a point but leaves a direction untouched.

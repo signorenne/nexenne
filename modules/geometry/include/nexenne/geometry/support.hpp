@@ -77,9 +77,9 @@ namespace nexenne::geometry {
  * @post The result lies on the sphere's boundary.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto support(
-  sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& direction
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+support(sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& direction) noexcept
+  -> nexenne::math::vector<Real, 3> {
   auto const dir_hat{nexenne::math::normalize_or(
     direction, nexenne::math::vector<Real, 3>{Real{1}, Real{0}, Real{0}}
   )};
@@ -102,9 +102,9 @@ template <std::floating_point Real>
  * @post The result lies on the capsule's boundary.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto support(
-  capsule<Real, 3> const& c, nexenne::math::vector<Real, 3> const& direction
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+support(capsule<Real, 3> const& c, nexenne::math::vector<Real, 3> const& direction) noexcept
+  -> nexenne::math::vector<Real, 3> {
   auto const tip{
     nexenne::math::dot(c.start(), direction) >= nexenne::math::dot(c.end(), direction) ? c.start()
                                                                                        : c.end()
@@ -136,9 +136,9 @@ template <std::floating_point Real>
  * @post The result is one of the box's eight corners.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto support(
-  obb3<Real> const& box, nexenne::math::vector<Real, 3> const& direction
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+support(obb3<Real> const& box, nexenne::math::vector<Real, 3> const& direction) noexcept
+  -> nexenne::math::vector<Real, 3> {
   using vector_type = nexenne::math::vector<Real, 3>;
   auto const h{box.half_size()};
   // Direction in the box's local frame: the conjugate rotation is the inverse for
@@ -168,9 +168,9 @@ template <std::floating_point Real>
  * @post The result is one of the box's eight corners.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto support(
-  aabb<Real, 3> const& box, nexenne::math::vector<Real, 3> const& direction
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+support(aabb<Real, 3> const& box, nexenne::math::vector<Real, 3> const& direction) noexcept
+  -> nexenne::math::vector<Real, 3> {
   auto result{nexenne::math::vector<Real, 3>{}};
   for (auto k{std::size_t{0}}; k < 3; ++k) {
     result[k] = direction[k] >= Real{0} ? box.max()[k] : box.min()[k];
@@ -191,9 +191,9 @@ template <std::floating_point Real>
  * @post The result is one of \c t.a(), \c t.b(), \c t.c().
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto support(
-  triangle<Real, 3> const& t, nexenne::math::vector<Real, 3> const& direction
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+support(triangle<Real, 3> const& t, nexenne::math::vector<Real, 3> const& direction) noexcept
+  -> nexenne::math::vector<Real, 3> {
   auto best{t.a()};
   auto best_dot{nexenne::math::dot(t.a(), direction)};
   auto const consider{[&](nexenne::math::vector<Real, 3> const& v) noexcept {
@@ -224,9 +224,9 @@ template <std::floating_point Real>
  * @post The result is one of the two endpoints.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto support(
-  segment<Real, 3> const& s, nexenne::math::vector<Real, 3> const& direction
-) noexcept -> nexenne::math::vector<Real, 3> {
+[[nodiscard]] constexpr auto
+support(segment<Real, 3> const& s, nexenne::math::vector<Real, 3> const& direction) noexcept
+  -> nexenne::math::vector<Real, 3> {
   return nexenne::math::dot(s.start(), direction) >= nexenne::math::dot(s.end(), direction)
            ? s.start()
            : s.end();

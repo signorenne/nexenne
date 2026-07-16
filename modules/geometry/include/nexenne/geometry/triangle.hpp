@@ -146,8 +146,8 @@ static_assert(sizeof(triangle3_f) == 9 * sizeof(float));
  * @post None.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto centroid(triangle<Real, N> const& t
-) noexcept -> nexenne::math::vector<Real, N> {
+[[nodiscard]] constexpr auto centroid(triangle<Real, N> const& t) noexcept
+  -> nexenne::math::vector<Real, N> {
   return (t.a() + t.b() + t.c()) * (Real{1} / Real{3});
 }
 
@@ -222,8 +222,8 @@ template <std::floating_point Real>
  * @post On success the returned vector has unit length.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto normal(triangle<Real, 3> const& t
-) noexcept -> result<nexenne::math::vector<Real, 3>> {
+[[nodiscard]] constexpr auto normal(triangle<Real, 3> const& t) noexcept
+  -> result<nexenne::math::vector<Real, 3>> {
   auto const n{nexenne::math::normalize(nexenne::math::cross(t.b() - t.a(), t.c() - t.a()))};
   if (!n) {
     return std::unexpected{geometry_error::degenerate_primitive};
@@ -256,9 +256,9 @@ template <std::floating_point Real>
  *          (their \c signed_area is zero) if that matters to the caller.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto contains_point(
-  triangle<Real, 2> const& t, nexenne::math::vector<Real, 2> const& p
-) noexcept -> bool {
+[[nodiscard]] constexpr auto
+contains_point(triangle<Real, 2> const& t, nexenne::math::vector<Real, 2> const& p) noexcept
+  -> bool {
   // The 2D cross of (v1 - v0, v2 - v0) is positive when v2 sits to the left of
   // the directed edge v0 -> v1, negative to the right, zero on the line. Taking
   // p as v0 against each triangle edge gives p's side of that edge.
@@ -305,9 +305,9 @@ template <std::floating_point Real>
  * @post The result lies in the closed triangle.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto closest_point(
-  triangle<Real, N> const& t, nexenne::math::vector<Real, N> const& p
-) noexcept -> nexenne::math::vector<Real, N> {
+[[nodiscard]] constexpr auto
+closest_point(triangle<Real, N> const& t, nexenne::math::vector<Real, N> const& p) noexcept
+  -> nexenne::math::vector<Real, N> {
   using nexenne::math::dot;
   auto const& a{t.a()};
   auto const& b{t.b()};

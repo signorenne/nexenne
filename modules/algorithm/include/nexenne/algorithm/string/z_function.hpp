@@ -82,9 +82,9 @@ namespace nexenne::algorithm {
  * @complexity \c O(H + N) time and space, where \c H and \c N are the sizes of
  *             \p haystack and \p needle.
  */
-[[nodiscard]] constexpr auto z_find_all(
-  std::string_view const haystack, std::string_view const needle
-) -> std::vector<std::size_t> {
+[[nodiscard]] constexpr auto
+z_find_all(std::string_view const haystack, std::string_view const needle)
+  -> std::vector<std::size_t> {
   auto matches{std::vector<std::size_t>{}};
   if (needle.empty() || needle.size() > haystack.size()) {
     return matches;

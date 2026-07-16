@@ -84,8 +84,8 @@ inline auto append_u_escape(std::string& out, std::uint16_t const code) -> void 
  * @pre None.
  * @post \p out has grown by the quoted, escaped form of \p s.
  */
-inline auto
-write_escaped_string(std::string& out, std::string_view const s, bool const ascii_only) -> void {
+inline auto write_escaped_string(std::string& out, std::string_view const s, bool const ascii_only)
+  -> void {
   out.push_back('"');
   for (std::size_t i{0}; i < s.size(); ++i) {
     auto const c{static_cast<unsigned char>(s[i])};
@@ -250,10 +250,10 @@ enum class emit_op : std::uint8_t {
  * @brief One pending unit of output on the serialisation work stack.
  */
 struct emit_step {
-  emit_op op{emit_op::render};      ///< What this step emits.
-  value const* node{nullptr};       ///< Node to render (for \c emit_op::render).
-  std::string_view text{};          ///< Literal or key text (text / key ops).
-  std::size_t depth{0};             ///< Nesting depth for indentation.
+  emit_op op{emit_op::render};  ///< What this step emits.
+  value const* node{nullptr};   ///< Node to render (for \c emit_op::render).
+  std::string_view text{};      ///< Literal or key text (text / key ops).
+  std::size_t depth{0};         ///< Nesting depth for indentation.
 };
 
 /// @cond INTERNAL
@@ -336,12 +336,8 @@ write_value(std::string& out, value const& root, serialize_options const& opts, 
           if (j + 1 < arr.size()) {
             stack.push_back({.op = emit_op::text, .node = nullptr, .text = ",", .depth = 0});
           }
-          stack.push_back(
-            {.op = emit_op::render, .node = &arr[j], .text = {}, .depth = depth + 1}
-          );
-          stack.push_back(
-            {.op = emit_op::indent, .node = nullptr, .text = {}, .depth = depth + 1}
-          );
+          stack.push_back({.op = emit_op::render, .node = &arr[j], .text = {}, .depth = depth + 1});
+          stack.push_back({.op = emit_op::indent, .node = nullptr, .text = {}, .depth = depth + 1});
         }
         stack.push_back({.op = emit_op::newline, .node = nullptr, .text = {}, .depth = 0});
         stack.push_back({.op = emit_op::text, .node = nullptr, .text = "[", .depth = 0});
@@ -369,12 +365,8 @@ write_value(std::string& out, value const& root, serialize_options const& opts, 
           stack.push_back(
             {.op = emit_op::text, .node = nullptr, .text = pretty ? ": " : ":", .depth = 0}
           );
-          stack.push_back(
-            {.op = emit_op::key, .node = nullptr, .text = entry.first, .depth = 0}
-          );
-          stack.push_back(
-            {.op = emit_op::indent, .node = nullptr, .text = {}, .depth = depth + 1}
-          );
+          stack.push_back({.op = emit_op::key, .node = nullptr, .text = entry.first, .depth = 0});
+          stack.push_back({.op = emit_op::indent, .node = nullptr, .text = {}, .depth = depth + 1});
         }
         stack.push_back({.op = emit_op::newline, .node = nullptr, .text = {}, .depth = 0});
         stack.push_back({.op = emit_op::text, .node = nullptr, .text = "{", .depth = 0});
@@ -415,8 +407,8 @@ write_value(std::string& out, value const& root, serialize_options const& opts, 
  * @throws None directly. May propagate \c std::bad_alloc from growing the
  *         output string.
  */
-[[nodiscard]] inline auto
-serialize(value const& v, serialize_options const& opts = {}) -> std::string {
+[[nodiscard]] inline auto serialize(value const& v, serialize_options const& opts = {})
+  -> std::string {
   auto out{std::string{}};
   out.reserve(64);
   detail::write_value(out, v, opts, /*pretty=*/false);
@@ -446,8 +438,8 @@ serialize(value const& v, serialize_options const& opts = {}) -> std::string {
  * @throws None directly. May propagate \c std::bad_alloc from growing the
  *         output string.
  */
-[[nodiscard]] inline auto
-serialize_pretty(value const& v, serialize_options const& opts = {}) -> std::string {
+[[nodiscard]] inline auto serialize_pretty(value const& v, serialize_options const& opts = {})
+  -> std::string {
   auto out{std::string{}};
   out.reserve(128);
   detail::write_value(out, v, opts, /*pretty=*/true);

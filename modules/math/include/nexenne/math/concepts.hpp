@@ -52,7 +52,7 @@ template <typename Point, typename Scalar>
 concept affine_point = requires(Point const p, Scalar const s) {
   { p + p } -> std::convertible_to<Point>;
   { p - p } -> std::convertible_to<Point>;
-  { p* s } -> std::convertible_to<Point>;
+  { p * s } -> std::convertible_to<Point>;
 };
 
 }  // namespace nexenne::math

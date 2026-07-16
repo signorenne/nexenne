@@ -103,8 +103,8 @@ public:
   }
 
   /// @brief Total ordering of two handles; the compiler derives \c == \c < \c > \c <= \c >=.
-  [[nodiscard]] friend constexpr auto operator<=>(slot_key const&, slot_key const&) noexcept
-    = default;
+  [[nodiscard]] friend constexpr auto
+  operator<=>(slot_key const&, slot_key const&) noexcept = default;
 
 private:
   index_type m_index{};

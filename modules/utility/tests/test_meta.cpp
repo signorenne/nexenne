@@ -111,9 +111,9 @@ static_assert(!util::function_is_noexcept_v<void (obj::*)() volatile&>);
 static_assert(!util::function_is_noexcept_v<void (obj::*)() const volatile&&>);
 
 // args() of a member pointer drops the implicit object parameter.
-static_assert(std::same_as<
-              util::function_args_t<long (obj::*)(int, char) const>,
-              util::type_list<int, char>>);
+static_assert(
+  std::same_as<util::function_args_t<long (obj::*)(int, char) const>, util::type_list<int, char>>
+);
 static_assert(util::function_arity_v<void (obj::*)() const> == 0);
 
 struct mutable_functor {

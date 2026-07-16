@@ -449,8 +449,8 @@ public:
      * @pre None.
      * @post None.
      */
-    [[nodiscard]] friend constexpr auto
-    operator==(iterator const& a, iterator const& b) noexcept -> bool {
+    [[nodiscard]] friend constexpr auto operator==(iterator const& a, iterator const& b) noexcept
+      -> bool {
       return a.m_slot == b.m_slot && a.m_pool == b.m_pool;
     }
   };

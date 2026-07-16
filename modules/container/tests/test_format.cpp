@@ -251,9 +251,9 @@ TEST_CASE("nexenne::container::format bloom_filter prints a stats line") {
   CHECK(cn::to_string(f) == empty_form);
   CHECK(std::format("{}", f) == cn::to_string(f));
   f.insert(1);
-  CHECK(std::format("{}", f).starts_with(
-    "bloom_filter(bit_count=16, hash_count=3, insertions=1,"s
-  ));
+  CHECK(
+    std::format("{}", f).starts_with("bloom_filter(bit_count=16, hash_count=3, insertions=1,"s)
+  );
 }
 
 TEST_CASE("nexenne::container::format lru_cache prints size and capacity") {

@@ -188,8 +188,8 @@ template <std::floating_point Real>
  * @note Runtime only: depends on \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto corners(obb2<Real> const& box
-) noexcept -> std::array<nexenne::math::vector<Real, 2>, 4> {
+[[nodiscard]] auto corners(obb2<Real> const& box) noexcept
+  -> std::array<nexenne::math::vector<Real, 2>, 4> {
   auto const c{std::cos(box.rotation().value())};
   auto const s{std::sin(box.rotation().value())};
   auto const hx{box.half_size().x()};
@@ -251,9 +251,9 @@ contains_point(obb2<Real> const& box, nexenne::math::vector<Real, 2> const& p) n
  * @note Runtime only: depends on \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto closest_point(
-  obb2<Real> const& box, nexenne::math::vector<Real, 2> const& p
-) noexcept -> nexenne::math::vector<Real, 2> {
+[[nodiscard]] auto
+closest_point(obb2<Real> const& box, nexenne::math::vector<Real, 2> const& p) noexcept
+  -> nexenne::math::vector<Real, 2> {
   auto const c{std::cos(box.rotation().value())};
   auto const s{std::sin(box.rotation().value())};
   auto const offset{p - box.center()};
@@ -436,8 +436,8 @@ template <std::floating_point Real>
  * @post Corner \c i carries the sign pattern described above.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto corners(obb3<Real> const& box
-) noexcept -> std::array<nexenne::math::vector<Real, 3>, 8> {
+[[nodiscard]] constexpr auto corners(obb3<Real> const& box) noexcept
+  -> std::array<nexenne::math::vector<Real, 3>, 8> {
   auto result{std::array<nexenne::math::vector<Real, 3>, 8>{}};
   auto const hx{box.half_size().x()};
   auto const hy{box.half_size().y()};
@@ -471,7 +471,8 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 contains_point(obb3<Real> const& box, nexenne::math::vector<Real, 3> const& p) noexcept -> bool {
-  auto const local{nexenne::math::rotate(nexenne::math::conjugate(box.rotation()), p - box.center())
+  auto const local{
+    nexenne::math::rotate(nexenne::math::conjugate(box.rotation()), p - box.center())
   };
   return nexenne::math::abs(local.x()) <= box.half_size().x()
          && nexenne::math::abs(local.y()) <= box.half_size().y()
@@ -495,10 +496,11 @@ contains_point(obb3<Real> const& box, nexenne::math::vector<Real, 3> const& p) n
  *       rounding).
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto closest_point(
-  obb3<Real> const& box, nexenne::math::vector<Real, 3> const& p
-) noexcept -> nexenne::math::vector<Real, 3> {
-  auto const local{nexenne::math::rotate(nexenne::math::conjugate(box.rotation()), p - box.center())
+[[nodiscard]] constexpr auto
+closest_point(obb3<Real> const& box, nexenne::math::vector<Real, 3> const& p) noexcept
+  -> nexenne::math::vector<Real, 3> {
+  auto const local{
+    nexenne::math::rotate(nexenne::math::conjugate(box.rotation()), p - box.center())
   };
   auto const h{box.half_size()};
   auto const clamped{nexenne::math::vector<Real, 3>{

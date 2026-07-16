@@ -374,7 +374,9 @@ TEST_CASE("nexenne::container::static_flat_map differential against std::map wit
   CHECK(flat_entries == ref_entries);
 }
 
-TEST_CASE("nexenne::container::static_flat_map try_emplace does not read a moved-from aliased arg") {
+TEST_CASE(
+  "nexenne::container::static_flat_map try_emplace does not read a moved-from aliased arg"
+) {
   // [M2] Insert under a smaller key using an existing entry's value as the
   // argument. Key 1 sorts before key 5, so the slot shift moves key 5's value;
   // before the fix the argument was read after that slot had been moved from and

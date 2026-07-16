@@ -124,8 +124,8 @@ private:
    * @pre \p i and \p j are valid heap indices.
    * @post None.
    */
-  [[nodiscard]] constexpr auto
-  cmp_heap(size_type const i, size_type const j) const noexcept -> bool {
+  [[nodiscard]] constexpr auto cmp_heap(size_type const i, size_type const j) const noexcept
+    -> bool {
     return m_cmp(m_heap[i].value, m_heap[j].value);
   }
 
@@ -314,8 +314,8 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend constexpr auto
-  swap(indexed_priority_queue& a, indexed_priority_queue& b) noexcept -> void {
+  friend constexpr auto swap(indexed_priority_queue& a, indexed_priority_queue& b) noexcept
+    -> void {
     a.swap(b);
   }
 

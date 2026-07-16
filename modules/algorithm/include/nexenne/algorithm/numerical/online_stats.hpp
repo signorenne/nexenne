@@ -406,9 +406,9 @@ public:
     // reaches fraction p. Using ceil (not floor) and a floor of 1 keeps the walk
     // from stopping in an empty low bucket when p is tiny (floor would make the
     // target 0, which every bucket trivially satisfies).
-    auto const target{
-      std::max<std::uint64_t>(1, static_cast<std::uint64_t>(std::ceil(static_cast<double>(m_total) * p)))
-    };
+    auto const target{std::max<std::uint64_t>(
+      1, static_cast<std::uint64_t>(std::ceil(static_cast<double>(m_total) * p))
+    )};
     auto cumulative{m_underflow};
     if (cumulative >= target) {
       return m_min;

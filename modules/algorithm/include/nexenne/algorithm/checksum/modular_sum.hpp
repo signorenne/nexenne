@@ -48,6 +48,7 @@ using modsum_uint_t = std::conditional_t<
 inline constexpr std::size_t modular_sum_block{5552};
 
 }  // namespace detail
+
 /// @endcond
 
 /// @brief The unsigned result type of \c modular_sum at the given \c SumBits.
@@ -204,9 +205,9 @@ inline constexpr modular_sum_spec fletcher64_spec{
  *
  * @warning Not cryptographically secure.
  */
-[[nodiscard]] constexpr auto adler32(
-  std::span<std::uint8_t const> const bytes, std::uint32_t const seed = 1u
-) noexcept -> std::uint32_t {
+[[nodiscard]] constexpr auto
+adler32(std::span<std::uint8_t const> const bytes, std::uint32_t const seed = 1u) noexcept
+  -> std::uint32_t {
   return modular_sum<adler32_spec>(bytes, seed);
 }
 
@@ -223,8 +224,8 @@ inline constexpr modular_sum_spec fletcher64_spec{
  *
  * @complexity \c O(N) in the length \c N of \p s.
  */
-[[nodiscard]] inline auto
-adler32(std::string_view const s, std::uint32_t const seed = 1u) noexcept -> std::uint32_t {
+[[nodiscard]] inline auto adler32(std::string_view const s, std::uint32_t const seed = 1u) noexcept
+  -> std::uint32_t {
   return modular_sum<adler32_spec>(s, seed);
 }
 
@@ -242,8 +243,8 @@ adler32(std::string_view const s, std::uint32_t const seed = 1u) noexcept -> std
  *
  * @warning Not cryptographically secure.
  */
-[[nodiscard]] constexpr auto fletcher16(std::span<std::uint8_t const> const bytes
-) noexcept -> std::uint16_t {
+[[nodiscard]] constexpr auto fletcher16(std::span<std::uint8_t const> const bytes) noexcept
+  -> std::uint16_t {
   return modular_sum<fletcher16_spec>(bytes);
 }
 
@@ -277,8 +278,8 @@ adler32(std::string_view const s, std::uint32_t const seed = 1u) noexcept -> std
  *
  * @warning Not cryptographically secure.
  */
-[[nodiscard]] constexpr auto fletcher32(std::span<std::uint8_t const> const bytes
-) noexcept -> std::uint32_t {
+[[nodiscard]] constexpr auto fletcher32(std::span<std::uint8_t const> const bytes) noexcept
+  -> std::uint32_t {
   return modular_sum<fletcher32_spec>(bytes);
 }
 
@@ -312,8 +313,8 @@ adler32(std::string_view const s, std::uint32_t const seed = 1u) noexcept -> std
  *
  * @warning Not cryptographically secure.
  */
-[[nodiscard]] constexpr auto fletcher64(std::span<std::uint8_t const> const bytes
-) noexcept -> std::uint64_t {
+[[nodiscard]] constexpr auto fletcher64(std::span<std::uint8_t const> const bytes) noexcept
+  -> std::uint64_t {
   return modular_sum<fletcher64_spec>(bytes);
 }
 
