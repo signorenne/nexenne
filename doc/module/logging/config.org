@@ -15,7 +15,7 @@ parameterised on. It carries two knobs:
 
 The library ships *no* named presets: pick the two values for your target.
 =default_config= reads them from the build macros =NEXENNE_LOG_QUEUE_SIZE=
-(default 8192) and =NEXENNE_LOG_ASYNC= (default =true=), so a project can switch
+(default 1024) and =NEXENNE_LOG_ASYNC= (default =true=), so a project can switch
 defaults from the build system. =config_like= is the concept the manager/logger
 constrain their config parameter with.
 
