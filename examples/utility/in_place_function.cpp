@@ -21,11 +21,13 @@ static_assert(discount::capacity == 32);
 
 }  // namespace
 
-auto main() -> int {
-  int const member_off{15};
+auto main(int argc, char**) -> int {
+  // Derive the offset at runtime (argc is 1 for a normal launch) so the lambda
+  // genuinely captures member_off by value instead of folding a constant; that
+  // captured copy lives in the object's inline storage and stays valid after
+  // member_off's scope would end.
+  int const member_off{15 * argc};
 
-  // Store a capturing lambda inline; the capture is copied into the object
-  // itself, so the rule stays valid after member_off's scope would end.
   auto rule{discount{[member_off](int price) { return price - member_off; }}};
 
   std::println("has rule: {}", static_cast<bool>(rule));
