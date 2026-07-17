@@ -26,7 +26,7 @@ namespace nm = nexenne::math;
 using vec2 = nm::vector<double, 2>;
 using vec3 = nm::vector<double, 3>;
 
-constexpr double eps{1e-9};
+[[maybe_unused]] constexpr double eps{1e-9};
 
 TEST_CASE("aabb: construction, measures, and containment") {
   geo::aabb3_d const box{vec3{-1, -1, -1}, vec3{1, 1, 1}};
