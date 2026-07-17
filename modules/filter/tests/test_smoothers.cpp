@@ -809,7 +809,7 @@ TEST_CASE("nexenne::filter::sma recovers exactly after a large-magnitude burst (
   for (auto i{0}; i < 100; ++i) {
     nexenne::utility::discard(f.push(1.0f));
   }
-  CHECK(f.value() == doctest::Approx(1.0f));  // exact mean of eight 1.0f samples
+  CHECK(f.value() == doctest::Approx(1.0));  // exact mean of eight 1.0f samples
 }
 
 // Major M2: the dead kind enum is gone; the two design functions carry the
