@@ -25,6 +25,7 @@
 #include <expected>
 #include <format>
 #include <ostream>
+#include <ranges>
 #include <string>
 #include <string_view>
 
@@ -92,11 +93,49 @@ struct std::formatter<nexenne::algorithm::numerical_error> : std::formatter<std:
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
+
+namespace detail {
+
+/**
+ * @brief Renders a sequence of formattable values as \c "[a, b, c]".
+ *
+ * Formats each element with \c std::format individually rather than handing the
+ * whole range to a library range formatter, which libstdc++ only ships from
+ * version 15 onward; this keeps the debug strings identical across toolchains.
+ *
+ * @tparam Range Input range whose elements are \c std::format formattable.
+ * @param seq Sequence to render.
+ *
+ * @return The bracketed, comma-space separated form of \p seq.
+ *
+ * @pre The element type of \p seq is formattable via \c std::format.
+ * @post \p seq is not modified.
+ */
+template <std::ranges::input_range Range>
+[[nodiscard]] auto format_sequence(Range const& seq) -> std::string {
+  auto out{std::string{"["}};
+  auto first{true};
+  for (auto const& element : seq) {
+    if (!first) {
+      out += ", ";
+    }
+    first = false;
+    out += std::format("{}", element);
+  }
+  out += ']';
+  return out;
+}
+
+}  // namespace detail
+
+/// @endcond
+
 /**
  * @brief Readable debug string for an \c a_star_result.
  *
- * Renders as \c "a_star_result(path=[...], cost=...)", the path forwarding to
- * the standard sequence formatter and the cost to its own.
+ * Renders as \c "a_star_result(path=[...], cost=...)", the path through the
+ * internal sequence helper and the cost to its own formatter.
  *
  * @tparam V Unsigned-integer vertex ID type.
  * @tparam Weight Numeric cost type.
@@ -109,7 +148,7 @@ namespace nexenne::algorithm {
  */
 template <std::unsigned_integral V, typename Weight>
 [[nodiscard]] auto to_string(a_star_result<V, Weight> const& r) -> std::string {
-  return std::format("a_star_result(path={}, cost={})", r.path, r.cost);
+  return std::format("a_star_result(path={}, cost={})", detail::format_sequence(r.path), r.cost);
 }
 
 /**
@@ -145,7 +184,9 @@ auto operator<<(std::ostream& os, a_star_result<V, Weight> const& r) -> std::ost
  */
 template <std::unsigned_integral V>
 [[nodiscard]] auto to_string(scc_result<V> const& r) -> std::string {
-  return std::format("scc_result(labels={}, num_components={})", r.labels, r.num_components);
+  return std::format(
+    "scc_result(labels={}, num_components={})", detail::format_sequence(r.labels), r.num_components
+  );
 }
 
 /**
@@ -181,7 +222,11 @@ auto operator<<(std::ostream& os, scc_result<V> const& r) -> std::ostream& {
  */
 template <typename E, std::unsigned_integral V>
 [[nodiscard]] auto to_string(components_result<E, V> const& r) -> std::string {
-  return std::format("components_result(labels={}, num_components={})", r.labels, r.num_components);
+  return std::format(
+    "components_result(labels={}, num_components={})",
+    detail::format_sequence(r.labels),
+    r.num_components
+  );
 }
 
 /**
@@ -219,7 +264,9 @@ auto operator<<(std::ostream& os, components_result<E, V> const& r) -> std::ostr
  */
 template <std::unsigned_integral V, typename Weight>
 [[nodiscard]] auto to_string(floyd_warshall_result<V, Weight> const& r) -> std::string {
-  return std::format("floyd_warshall_result(n={}, distances={})", r.n, r.distances);
+  return std::format(
+    "floyd_warshall_result(n={}, distances={})", r.n, detail::format_sequence(r.distances)
+  );
 }
 
 /**
