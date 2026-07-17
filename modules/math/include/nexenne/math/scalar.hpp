@@ -579,9 +579,9 @@ template <std::floating_point Real>
   auto const truncated{trunc(value)};
   auto const fraction{value - truncated};
   if (value >= Real{0}) {
-    return fraction >= Real{0.5} ? truncated + Real{1} : truncated;
+    return fraction >= static_cast<Real>(0.5) ? truncated + Real{1} : truncated;
   }
-  return fraction <= Real{-0.5} ? truncated - Real{1} : truncated;
+  return fraction <= static_cast<Real>(-0.5) ? truncated - Real{1} : truncated;
 }
 
 /**

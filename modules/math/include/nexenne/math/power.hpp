@@ -106,7 +106,7 @@ template <std::floating_point Real>
   // same-precision no-op that leaves the converged value untouched.
   using wide = std::conditional_t<std::same_as<Real, float>, double, long double>;
   auto const yw{static_cast<wide>(y)};
-  y = static_cast<Real>(wide{0.5} * (yw + static_cast<wide>(m) / yw));
+  y = static_cast<Real>(static_cast<wide>(0.5) * (yw + static_cast<wide>(m) / yw));
   // Scale the root back by 2^e2 (a power of two, exact in floating point).
   auto scale{Real{1}};
   for (int i{0}; i < (e2 < 0 ? -e2 : e2); ++i) {
