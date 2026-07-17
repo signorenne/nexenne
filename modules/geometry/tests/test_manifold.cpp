@@ -51,21 +51,21 @@ TEST_CASE("contact_manifold: a box-box face contact yields a contact polygon") {
 
   auto const m{geo::contact_manifold(a, b, contact)};
   CHECK(m.count >= 4);  // a face contact, not a single point.
-  CHECK(nm::abs(m.normal.x()) == doctest::Approx(1.0f).epsilon(0.05));
+  CHECK(nm::abs(m.normal.x()) == doctest::Approx(1.0).epsilon(0.05));
 
   // Every manifold point lies on one contact plane (constant x here) and the set
   // spans the 1x1 overlap square in y and z.
   auto min_y{1e9f}, max_y{-1e9f}, min_z{1e9f}, max_z{-1e9f};
   auto const plane_x{m.points[0].x()};
   for (auto i{std::size_t{0}}; i < m.count; ++i) {
-    CHECK(m.points[i].x() == doctest::Approx(plane_x).epsilon(1e-4));
+    CHECK(m.points[i].x() == doctest::Approx(static_cast<double>(plane_x)).epsilon(1e-4));
     min_y = nm::min(min_y, m.points[i].y());
     max_y = nm::max(max_y, m.points[i].y());
     min_z = nm::min(min_z, m.points[i].z());
     max_z = nm::max(max_z, m.points[i].z());
   }
-  CHECK(max_y - min_y == doctest::Approx(1.0f).epsilon(0.05));
-  CHECK(max_z - min_z == doctest::Approx(1.0f).epsilon(0.05));
+  CHECK(max_y - min_y == doctest::Approx(1.0).epsilon(0.05));
+  CHECK(max_z - min_z == doctest::Approx(1.0).epsilon(0.05));
 }
 
 TEST_CASE("contact_manifold: a curved contact collapses to a single point") {

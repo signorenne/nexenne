@@ -45,16 +45,16 @@ TEST_CASE("convex_hull3: support returns the furthest corner along a direction")
 
   // Along +X the support is a corner with x == +0.5; the other components are
   // whichever corner the scan settles on, but x must be the maximum.
-  CHECK(cube.support(vec3{1, 0, 0}).x() == doctest::Approx(0.5f));
-  CHECK(cube.support(vec3{-1, 0, 0}).x() == doctest::Approx(-0.5f));
-  CHECK(cube.support(vec3{0, 1, 0}).y() == doctest::Approx(0.5f));
-  CHECK(cube.support(vec3{0, 0, -1}).z() == doctest::Approx(-0.5f));
+  CHECK(cube.support(vec3{1, 0, 0}).x() == doctest::Approx(0.5));
+  CHECK(cube.support(vec3{-1, 0, 0}).x() == doctest::Approx(-0.5));
+  CHECK(cube.support(vec3{0, 1, 0}).y() == doctest::Approx(0.5));
+  CHECK(cube.support(vec3{0, 0, -1}).z() == doctest::Approx(-0.5));
 
   // A diagonal direction selects the single corner extreme on every axis.
   auto const corner{cube.support(vec3{1, 1, 1})};
-  CHECK(corner.x() == doctest::Approx(0.5f));
-  CHECK(corner.y() == doctest::Approx(0.5f));
-  CHECK(corner.z() == doctest::Approx(0.5f));
+  CHECK(corner.x() == doctest::Approx(0.5));
+  CHECK(corner.y() == doctest::Approx(0.5));
+  CHECK(corner.z() == doctest::Approx(0.5));
 }
 
 TEST_CASE("convex_hull3: the free support overload forwards to the member") {
@@ -237,11 +237,11 @@ TEST_CASE("epa: penetration depth and a unit normal on an axis-aligned overlap")
   REQUIRE(g.overlap);
   auto const e{geo::epa(a, b, g.simplex)};
   REQUIRE(e.converged);
-  CHECK(e.penetration_depth == doctest::Approx(0.5f).epsilon(0.05f));
+  CHECK(e.penetration_depth == doctest::Approx(0.5).epsilon(0.05));
   CHECK(std::abs(e.normal.x()) > 0.9f);  // separation runs along x
   CHECK(std::abs(e.normal.y()) < 0.1f);
   CHECK(std::abs(e.normal.z()) < 0.1f);
-  CHECK(nm::length(e.normal) == doctest::Approx(1.0f));  // normal is unit length
+  CHECK(nm::length(e.normal) == doctest::Approx(1.0));  // normal is unit length
 }
 
 TEST_CASE("epa: moving B out by depth*normal separates the shapes") {
@@ -276,7 +276,7 @@ TEST_CASE("epa: depth tracks the overlap amount across offsets") {
     REQUIRE(g.overlap);
     auto const e{geo::epa(a, b, g.simplex)};
     REQUIRE(e.converged);
-    CHECK(e.penetration_depth == doctest::Approx(1.0f - off).epsilon(0.05f));
+    CHECK(e.penetration_depth == doctest::Approx(1.0 - static_cast<double>(off)).epsilon(0.05));
   }
 }
 
@@ -292,7 +292,7 @@ TEST_CASE("epa: the normal is the B push-out direction (out of A toward B)") {
   REQUIRE(g.overlap);
   auto const e{geo::epa(a, b, g.simplex)};
   REQUIRE(e.converged);
-  CHECK(e.normal.x() == doctest::Approx(1.0f).epsilon(1e-3));  // points A -> B (+x).
+  CHECK(e.normal.x() == doctest::Approx(1.0).epsilon(1e-3));  // points A -> B (+x).
 }
 
 TEST_CASE("epa: a degenerate seed simplex does not converge") {
@@ -336,8 +336,10 @@ TEST_CASE("epa: differential against exact box penetration over random overlaps"
     REQUIRE(g.overlap);
     auto const e{geo::epa(a, b, g.simplex)};
     REQUIRE(e.converged);
-    CHECK(e.penetration_depth == doctest::Approx(expected_depth).epsilon(0.02f));
-    CHECK(nm::length(e.normal) == doctest::Approx(1.0f).epsilon(0.01f));
+    CHECK(
+      e.penetration_depth == doctest::Approx(static_cast<double>(expected_depth)).epsilon(0.02)
+    );
+    CHECK(nm::length(e.normal) == doctest::Approx(1.0).epsilon(0.01));
 
     // Joint check: pushing B out by the penetration vector ends the overlap.
     auto vb_moved{vb};
@@ -359,11 +361,14 @@ TEST_CASE("gjk: separation distance of two spheres matches the analytic value") 
   geo::sphere3_f const b{vec3{5, 0, 0}, 2.0f};
   auto const r{geo::gjk<float>(a, b, vec3{1, 0, 0})};
   CHECK_FALSE(r.overlap);
-  CHECK(r.distance == doctest::Approx(5.0f - 1.0f - 2.0f).epsilon(1e-4));  // |c| - rA - rB.
+  CHECK(r.distance == doctest::Approx(5.0 - 1.0 - 2.0).epsilon(1e-4));  // |c| - rA - rB.
   // Closest points lie on each surface, on the line of centers.
-  CHECK(r.closest_a.x() == doctest::Approx(1.0f).epsilon(1e-3));
-  CHECK(r.closest_b.x() == doctest::Approx(3.0f).epsilon(1e-3));
-  CHECK(nm::length(r.closest_b - r.closest_a) == doctest::Approx(r.distance).epsilon(1e-3));
+  CHECK(r.closest_a.x() == doctest::Approx(1.0).epsilon(1e-3));
+  CHECK(r.closest_b.x() == doctest::Approx(3.0).epsilon(1e-3));
+  CHECK(
+    nm::length(r.closest_b - r.closest_a)
+    == doctest::Approx(static_cast<double>(r.distance)).epsilon(1e-3)
+  );
 }
 
 TEST_CASE("gjk: separation distance of two boxes matches the axis gap") {
@@ -373,7 +378,7 @@ TEST_CASE("gjk: separation distance of two boxes matches the axis gap") {
   geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
   auto const r{geo::gjk(a, b, vec3{1, 0, 0})};
   CHECK_FALSE(r.overlap);
-  CHECK(r.distance == doctest::Approx(2.0f).epsilon(1e-4));  // gap between 0.5 and 2.5.
+  CHECK(r.distance == doctest::Approx(2.0).epsilon(1e-4));  // gap between 0.5 and 2.5.
 }
 
 TEST_CASE("gjk: distance is found regardless of the seed direction") {
@@ -382,7 +387,7 @@ TEST_CASE("gjk: distance is found regardless of the seed direction") {
   for (auto const& seed : {vec3{1, 0, 0}, vec3{0, 1, 0}, vec3{-1, -1, -1}, vec3{0, 0, 1}}) {
     auto const r{geo::gjk<float>(a, b, seed)};
     CHECK_FALSE(r.overlap);
-    CHECK(r.distance == doctest::Approx(2.0f).epsilon(1e-3));  // 4 - 1 - 1.
+    CHECK(r.distance == doctest::Approx(2.0).epsilon(1e-3));  // 4 - 1 - 1.
   }
 }
 
@@ -399,8 +404,8 @@ TEST_CASE("epa: two overlapping unit spheres converge with the default parameter
   REQUIRE(g.overlap);
   auto const e{geo::epa<float>(a, b, g.simplex)};  // DEFAULT max_iterations / tolerance
   CHECK(e.converged);
-  CHECK(e.penetration_depth == doctest::Approx(1.7f).epsilon(0.02f));  // 2 - 0.3.
-  CHECK(nm::length(e.normal) == doctest::Approx(1.0f).epsilon(1e-3));
+  CHECK(e.penetration_depth == doctest::Approx(1.7).epsilon(0.02));  // 2 - 0.3.
+  CHECK(nm::length(e.normal) == doctest::Approx(1.0).epsilon(1e-3));
   CHECK(e.normal.x() > 0.9f);  // separation runs out of A toward B along +x.
 }
 
@@ -430,7 +435,7 @@ TEST_CASE("gjk: a too-small iteration cap does not misreport separated shapes as
   // A comfortable cap agrees (and reports the analytic distance).
   auto const r{geo::gjk<float>(a, b, vec3{0, 1, 0})};
   CHECK_FALSE(r.overlap);
-  CHECK(r.distance == doctest::Approx(0.5f).epsilon(1e-3));
+  CHECK(r.distance == doctest::Approx(0.5).epsilon(1e-3));
 }
 
 }  // namespace

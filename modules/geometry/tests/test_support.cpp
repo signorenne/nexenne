@@ -49,15 +49,15 @@ TEST_CASE("support: capsule grows its furthest spine endpoint by the radius") {
   // -x picks the near endpoint, then pushes out by the radius along -x.
   CHECK(support(c, vec3{-1, 0, 0}) == vec3{-1, 0, 0});
   // +y ties on the spine projection, so an endpoint is chosen and lifted by r.
-  CHECK(support(c, vec3{0, 1, 0}).y() == doctest::Approx(1.0f));
+  CHECK(support(c, vec3{0, 1, 0}).y() == doctest::Approx(1.0));
 }
 
 TEST_CASE("support: an identity obb supports to its corner") {
   geo::obb3_f const box{vec3{0, 0, 0}, vec3{1, 2, 3}, nm::quaternion<float>{}};
   CHECK(support(box, vec3{1, 1, 1}) == vec3{1, 2, 3});
   CHECK(support(box, vec3{-1, -1, -1}) == vec3{-1, -2, -3});
-  CHECK(support(box, vec3{1, -1, 0}).x() == doctest::Approx(1.0f));
-  CHECK(support(box, vec3{1, -1, 0}).y() == doctest::Approx(-2.0f));
+  CHECK(support(box, vec3{1, -1, 0}).x() == doctest::Approx(1.0));
+  CHECK(support(box, vec3{1, -1, 0}).y() == doctest::Approx(-2.0));
 }
 
 TEST_CASE("support: a rotated obb supports to a rotated corner") {
@@ -66,7 +66,7 @@ TEST_CASE("support: a rotated obb supports to a rotated corner") {
   auto const q{nm::from_axis_angle(vec3{0, 0, 1}, nm::radians<float>{nm::pi_v<float> / 2.0f})};
   REQUIRE(q.has_value());
   geo::obb3_f const box{vec3{0, 0, 0}, vec3{2, 1, 1}, *q};
-  CHECK(support(box, vec3{0, 1, 0}).y() == doctest::Approx(2.0f));
+  CHECK(support(box, vec3{0, 1, 0}).y() == doctest::Approx(2.0));
 }
 
 TEST_CASE("support: aabb picks the corner by the sign of each direction component") {
@@ -111,8 +111,8 @@ TEST_CASE("support: GJK and EPA run on a sphere-vs-obb overlap") {
   CHECK(contact.converged);
   // The shapes separate along x; the minimum push-out is the overlap on that
   // axis: sphere reaches x == 1, box near face is at x == 0, so depth ~ 1.
-  CHECK(contact.penetration_depth == doctest::Approx(1.0f).epsilon(0.05));
-  CHECK(nm::abs(contact.normal.x()) == doctest::Approx(1.0f).epsilon(0.05));
+  CHECK(contact.penetration_depth == doctest::Approx(1.0).epsilon(0.05));
+  CHECK(nm::abs(contact.normal.x()) == doctest::Approx(1.0).epsilon(0.05));
 }
 
 TEST_CASE("support: GJK reports separation for disjoint primitives") {

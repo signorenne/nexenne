@@ -27,18 +27,18 @@ TEST_CASE("raycast: plane returns the hit point and a ray-facing normal") {
   geo::plane3_f const pl{vec3{0, 1, 0}, 0.0f};  // y = 0
   auto const hit{raycast(geo::ray3_f{vec3{0, 2, 0}, vec3{0, -1, 0}}, pl)};
   REQUIRE(hit.has_value());
-  CHECK(hit->t == doctest::Approx(2.0f));
-  CHECK(hit->point.y() == doctest::Approx(0.0f));
-  CHECK(hit->normal.y() == doctest::Approx(1.0f));  // faces the descending ray.
+  CHECK(hit->t == doctest::Approx(2.0));
+  CHECK(hit->point.y() == doctest::Approx(0.0));
+  CHECK(hit->normal.y() == doctest::Approx(1.0));  // faces the descending ray.
 }
 
 TEST_CASE("raycast: sphere hit lies on the surface with an outward normal") {
   geo::sphere3_f const s{vec3{0, 0, 0}, 1.0f};
   auto const hit{raycast(geo::ray3_f{vec3{-3, 0, 0}, vec3{1, 0, 0}}, s)};
   REQUIRE(hit.has_value());
-  CHECK(hit->t == doctest::Approx(2.0f));
-  CHECK(hit->point.x() == doctest::Approx(-1.0f));
-  CHECK(hit->normal.x() == doctest::Approx(-1.0f));  // outward, toward the ray.
+  CHECK(hit->t == doctest::Approx(2.0));
+  CHECK(hit->point.x() == doctest::Approx(-1.0));
+  CHECK(hit->normal.x() == doctest::Approx(-1.0));  // outward, toward the ray.
   CHECK(nm::dot(hit->normal, vec3{1, 0, 0}) < 0.0f);
 }
 
@@ -46,16 +46,16 @@ TEST_CASE("raycast: a ray starting inside the sphere reports t == 0") {
   geo::sphere3_f const s{vec3{0, 0, 0}, 1.0f};
   auto const hit{raycast(geo::ray3_f{vec3{0, 0, 0}, vec3{1, 0, 0}}, s)};
   REQUIRE(hit.has_value());
-  CHECK(hit->t == doctest::Approx(0.0f));
-  CHECK(hit->normal.x() == doctest::Approx(-1.0f));  // faces back along the ray.
+  CHECK(hit->t == doctest::Approx(0.0));
+  CHECK(hit->normal.x() == doctest::Approx(-1.0));  // faces back along the ray.
 }
 
 TEST_CASE("raycast: aabb reports the entry face normal") {
   geo::aabb3_f const box{vec3{-1, -1, -1}, vec3{1, 1, 1}};
   auto const hit{raycast(geo::ray3_f{vec3{-5, 0, 0}, vec3{1, 0, 0}}, box)};
   REQUIRE(hit.has_value());
-  CHECK(hit->t == doctest::Approx(4.0f));
-  CHECK(hit->point.x() == doctest::Approx(-1.0f));
+  CHECK(hit->t == doctest::Approx(4.0));
+  CHECK(hit->point.x() == doctest::Approx(-1.0));
   CHECK(hit->normal == vec3{-1, 0, 0});  // entered through the -x face.
 }
 
@@ -66,16 +66,16 @@ TEST_CASE("raycast: obb reports a rotated face normal") {
   geo::obb3_f const box{vec3{0, 0, 0}, vec3{1, 1, 1}, *q};
   auto const hit{raycast(geo::ray3_f{vec3{0, 5, 0}, vec3{0, -1, 0}}, box)};
   REQUIRE(hit.has_value());
-  CHECK(hit->point.y() == doctest::Approx(1.0f));
-  CHECK(hit->normal.y() == doctest::Approx(1.0f).epsilon(1e-5));  // faces the ray.
+  CHECK(hit->point.y() == doctest::Approx(1.0));
+  CHECK(hit->normal.y() == doctest::Approx(1.0).epsilon(1e-5));  // faces the ray.
 }
 
 TEST_CASE("raycast: triangle normal faces the ray") {
   geo::triangle3_f const tri{vec3{-1, 0, -1}, vec3{1, 0, -1}, vec3{0, 0, 1}};  // in y = 0
   auto const hit{raycast(geo::ray3_f{vec3{0, 3, 0}, vec3{0, -1, 0}}, tri)};
   REQUIRE(hit.has_value());
-  CHECK(hit->point.y() == doctest::Approx(0.0f));
-  CHECK(hit->normal.y() == doctest::Approx(1.0f));
+  CHECK(hit->point.y() == doctest::Approx(0.0));
+  CHECK(hit->normal.y() == doctest::Approx(1.0));
 }
 
 TEST_CASE("raycast: a clean miss returns nullopt") {
