@@ -412,11 +412,15 @@ struct throwing_node : cn::intrusive_list_hook<throwing_node> {
 
   explicit throwing_node(int v) noexcept : value{v} {}
 
-  friend auto operator==(throwing_node const& a, throwing_node const& b) -> bool {
+  // Only ever named inside the unevaluated noexcept(...) operands below, so
+  // they are never emitted; [[maybe_unused]] keeps -Wunneeded-internal-declaration
+  // and -Wunused-function quiet without an artificial call site.
+  [[maybe_unused]] friend auto operator==(throwing_node const& a, throwing_node const& b) -> bool {
     return a.value == b.value;
   }
 
-  friend auto operator<=>(throwing_node const& a, throwing_node const& b) -> std::strong_ordering {
+  [[maybe_unused]] friend auto operator<=>(throwing_node const& a, throwing_node const& b)
+    -> std::strong_ordering {
     return a.value <=> b.value;
   }
 };
