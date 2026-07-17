@@ -142,5 +142,5 @@ TEST_CASE("lut_sin and lut_cos are usable in a constant expression (m9 regressio
   constexpr auto s{math::lut_sin(math::radians_f{1.5f})};
   constexpr auto c{math::lut_cos(math::radians_f{0.0f})};
   CHECK(s >= -1.0f);
-  CHECK(c == doctest::Approx(1.0f).epsilon(1e-3));
+  CHECK(c == doctest::Approx(1.0).epsilon(1e-3));
 }

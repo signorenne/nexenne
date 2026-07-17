@@ -144,7 +144,7 @@ TEST_CASE("float inverse still accepts a well-conditioned matrix (M3 no over-rej
   auto const prod{m * *inv};
   for (std::size_t r{0}; r < 3; ++r) {
     for (std::size_t c{0}; c < 3; ++c) {
-      CHECK(prod(r, c) == doctest::Approx(r == c ? 1.0f : 0.0f).epsilon(1e-5));
+      CHECK(prod(r, c) == doctest::Approx(r == c ? 1.0 : 0.0).epsilon(1e-5));
     }
   }
 }

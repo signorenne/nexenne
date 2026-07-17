@@ -47,9 +47,9 @@ TEST_CASE("angle compound assignment mutates in place (m4)") {
 
   auto spin{math::degrees_f{90.0f}};
   spin += math::degrees_f{45.0f};
-  CHECK(spin.value() == doctest::Approx(135.0f));
+  CHECK(spin.value() == doctest::Approx(135.0));
   spin /= 3.0f;
-  CHECK(spin.value() == doctest::Approx(45.0f));
+  CHECK(spin.value() == doctest::Approx(45.0));
 
   // All four are constexpr; the chosen values are exact in binary floating point.
   static_assert([] {
