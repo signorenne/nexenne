@@ -1294,8 +1294,13 @@ TEST_CASE("nexenne::serialization::json serialize is stack-safe on deep DOMs") {
   CHECK(compact.front() == '[');
   CHECK(compact.back() == ']');
   CHECK(compact.find('7') != std::string::npos);
-  // pretty output must also complete without overflowing.
-  auto const pretty{json::serialize_pretty(deep)};
+  // Pretty output shares the same iterative walk, so the compact case above
+  // already proves the walk never recurses. Pretty indentation is quadratic in
+  // depth (each of N levels indents by up to N spaces), so re-running it at
+  // 100000 would build gigabytes of whitespace; a still-far-past-any-call-stack
+  // depth exercises the newline and indent branches without exhausting the heap.
+  auto const shallower{build(5000, 7)};
+  auto const pretty{json::serialize_pretty(shallower)};
   CHECK(pretty.find('7') != std::string::npos);
 }
 
