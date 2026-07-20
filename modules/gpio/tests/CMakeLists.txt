@@ -3,4 +3,6 @@ nexenne_add_module_tests(gpio
         test_example.cpp
         test_error.cpp
         test_line_types.cpp
+        test_line_spec.cpp
+        test_line_config.cpp
 )
