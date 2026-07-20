@@ -92,6 +92,53 @@ enum class edge_detection : std::uint8_t {
 };
 
 /**
+ * @brief Maps a physical level to its logical level under a polarity.
+ *
+ * For \c line_polarity::active_low the level is inverted; for
+ * \c line_polarity::active_high it passes through unchanged. The mapping is
+ * its own inverse, so the same function converts logical back to physical.
+ *
+ * @param level Level to convert.
+ * @param polarity Polarity of the line.
+ *
+ * @return The converted level.
+ *
+ * @pre None.
+ * @post The result equals \p level exactly when \p polarity is
+ *       \c line_polarity::active_high.
+ */
+[[nodiscard]] constexpr auto apply_polarity(bool const level, line_polarity const polarity) noexcept
+  -> bool {
+  return polarity == line_polarity::active_low ? !level : level;
+}
+
+/**
+ * @brief Maps a physical edge direction to its logical direction under a polarity.
+ *
+ * For \c line_polarity::active_low a physical rising edge is the logical
+ * falling edge and vice versa; \c edge_kind::none passes through. Applying
+ * polarity to the level and the edge together is what keeps an active-low
+ * line from ever surfacing an inconsistent pair (a logical \c true paired
+ * with a falling edge that never happened).
+ *
+ * @param edge Edge direction to convert.
+ * @param polarity Polarity of the line.
+ *
+ * @return The converted edge direction.
+ *
+ * @pre None.
+ * @post The result equals \p edge exactly when \p polarity is
+ *       \c line_polarity::active_high or \p edge is \c edge_kind::none.
+ */
+[[nodiscard]] constexpr auto apply_polarity(edge_kind const edge, line_polarity const polarity)
+  noexcept -> edge_kind {
+  if (polarity == line_polarity::active_high || edge == edge_kind::none) {
+    return edge;
+  }
+  return edge == edge_kind::rising ? edge_kind::falling : edge_kind::rising;
+}
+
+/**
  * @brief Identifier of a GPIO chip (a bank of lines) within a system.
  *
  * On Linux this is the N in \c /dev/gpiochipN; on an embedded target the

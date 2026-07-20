@@ -45,6 +45,41 @@ TEST_CASE("event_time: timestamps subtract to a duration and stay distinct from 
   static_assert(ng::event_clock::is_steady);
 }
 
+TEST_CASE("apply_polarity: level and edge invert together under active_low") {
+  // active_high passes both through untouched.
+  CHECK(ng::apply_polarity(true, ng::line_polarity::active_high) == true);
+  CHECK(ng::apply_polarity(false, ng::line_polarity::active_high) == false);
+  CHECK(
+    ng::apply_polarity(ng::edge_kind::rising, ng::line_polarity::active_high)
+    == ng::edge_kind::rising
+  );
+
+  // active_low inverts the level and flips the edge direction.
+  CHECK(ng::apply_polarity(true, ng::line_polarity::active_low) == false);
+  CHECK(ng::apply_polarity(false, ng::line_polarity::active_low) == true);
+  CHECK(
+    ng::apply_polarity(ng::edge_kind::rising, ng::line_polarity::active_low)
+    == ng::edge_kind::falling
+  );
+  CHECK(
+    ng::apply_polarity(ng::edge_kind::falling, ng::line_polarity::active_low)
+    == ng::edge_kind::rising
+  );
+
+  // none is steady state; there is no direction to flip.
+  CHECK(
+    ng::apply_polarity(ng::edge_kind::none, ng::line_polarity::active_low) == ng::edge_kind::none
+  );
+
+  // The level mapping is an involution: applying it twice is the identity.
+  static_assert(
+    ng::apply_polarity(
+      ng::apply_polarity(true, ng::line_polarity::active_low), ng::line_polarity::active_low
+    )
+    == true
+  );
+}
+
 TEST_CASE("enums: subscription side is wider than the sample side") {
   // edge_kind names what one event was; edge_detection names what to deliver.
   static_assert(std::is_same_v<std::underlying_type_t<ng::edge_kind>, std::uint8_t>);
