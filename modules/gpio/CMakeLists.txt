@@ -22,6 +22,7 @@ endif()
 nexenne_add_module(gpio
     HEADERS
         include/nexenne/gpio/gpio.hpp
+        include/nexenne/gpio/error.hpp
         include/nexenne/gpio/example.hpp
 )
 
