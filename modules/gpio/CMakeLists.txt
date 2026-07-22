@@ -30,6 +30,7 @@ nexenne_add_module(gpio
         include/nexenne/gpio/line_value.hpp
         include/nexenne/gpio/backend.hpp
         include/nexenne/gpio/sink.hpp
+        include/nexenne/gpio/io/mock_chip.hpp
         include/nexenne/gpio/example.hpp
 )
 
