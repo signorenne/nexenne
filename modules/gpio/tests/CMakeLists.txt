@@ -7,4 +7,5 @@ nexenne_add_module_tests(gpio
         test_line_config.cpp
         test_line_event.cpp
         test_line_value.cpp
+        test_backend.cpp
 )

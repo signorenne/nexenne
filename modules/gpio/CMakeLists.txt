@@ -28,6 +28,8 @@ nexenne_add_module(gpio
         include/nexenne/gpio/line_config.hpp
         include/nexenne/gpio/line_event.hpp
         include/nexenne/gpio/line_value.hpp
+        include/nexenne/gpio/backend.hpp
+        include/nexenne/gpio/sink.hpp
         include/nexenne/gpio/example.hpp
 )
 
