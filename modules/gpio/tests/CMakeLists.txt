@@ -11,4 +11,7 @@ nexenne_add_module_tests(gpio
         test_mock_chip.cpp
         test_line.cpp
         test_chip.cpp
+        test_decode.cpp
+        test_debounce.cpp
+        test_sequence_tracker.cpp
 )
