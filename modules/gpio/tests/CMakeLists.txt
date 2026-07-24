@@ -9,4 +9,6 @@ nexenne_add_module_tests(gpio
         test_line_value.cpp
         test_backend.cpp
         test_mock_chip.cpp
+        test_line.cpp
+        test_chip.cpp
 )
