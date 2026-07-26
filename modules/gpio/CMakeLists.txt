@@ -37,6 +37,7 @@ nexenne_add_module(gpio
         include/nexenne/gpio/sink.hpp
         include/nexenne/gpio/io/callback_sink.hpp
         include/nexenne/gpio/io/chardev_chip.hpp
+        include/nexenne/gpio/io/chardev_info.hpp
         include/nexenne/gpio/io/mock_chip.hpp
         include/nexenne/gpio/io/queue_sink.hpp
         include/nexenne/gpio/example.hpp
