@@ -23,6 +23,7 @@ nexenne_add_module(gpio
     HEADERS
         include/nexenne/gpio/gpio.hpp
         include/nexenne/gpio/error.hpp
+        include/nexenne/gpio/format.hpp
         include/nexenne/gpio/line_types.hpp
         include/nexenne/gpio/line_spec.hpp
         include/nexenne/gpio/line_config.hpp
