@@ -52,7 +52,11 @@ public:
    *
    * @param edges Edge events the backend is asked to deliver.
    * @param debounce_period Backend-side debounce period; zero disables it.
-   * @param initial_value Initial drive value for an output; ignored on inputs.
+   * @param initial_value Initial PHYSICAL drive level for an output; ignored
+   *                      on inputs. Configs go to backends verbatim and
+   *                      backends exchange physical levels, so a caller
+   *                      thinking in logical terms converts with
+   *                      \c line_spec::to_physical first.
    *
    * @pre \p debounce_period is non-negative.
    * @post Every accessor returns the corresponding argument.
@@ -113,9 +117,9 @@ public:
   }
 
   /**
-   * @brief The initial drive value applied to an output line at open time.
+   * @brief The initial physical drive level applied to an output at open time.
    *
-   * @return The stored initial value; ignored for input lines.
+   * @return The stored initial level; ignored for input lines.
    *
    * @pre None.
    * @post None.
