@@ -14,4 +14,5 @@ nexenne_add_module_tests(gpio
         test_decode.cpp
         test_debounce.cpp
         test_sequence_tracker.cpp
+        test_sinks.cpp
 )

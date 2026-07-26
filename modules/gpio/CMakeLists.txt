@@ -35,7 +35,9 @@ nexenne_add_module(gpio
         include/nexenne/gpio/debounce.hpp
         include/nexenne/gpio/sequence_tracker.hpp
         include/nexenne/gpio/sink.hpp
+        include/nexenne/gpio/io/callback_sink.hpp
         include/nexenne/gpio/io/mock_chip.hpp
+        include/nexenne/gpio/io/queue_sink.hpp
         include/nexenne/gpio/example.hpp
 )
 
