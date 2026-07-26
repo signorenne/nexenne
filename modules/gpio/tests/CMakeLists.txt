@@ -1,6 +1,5 @@
 nexenne_add_module_tests(gpio
     SOURCES
-        test_example.cpp
         test_error.cpp
         test_line_types.cpp
         test_line_spec.cpp
@@ -18,4 +17,5 @@ nexenne_add_module_tests(gpio
         test_chardev_chip.cpp
         test_chardev_info.cpp
         test_format.cpp
+        test_gpio.cpp
 )

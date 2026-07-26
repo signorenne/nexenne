@@ -626,8 +626,8 @@ public:
     ::timespec wait{};
     if (timeout.count() >= 0) {
       auto const seconds{std::chrono::duration_cast<std::chrono::seconds>(timeout)};
-      wait.tv_sec = static_cast<std::time_t>(seconds.count());
-      wait.tv_nsec = static_cast<long>((timeout - seconds).count());
+      wait.tv_sec = seconds.count();
+      wait.tv_nsec = (timeout - seconds).count();
     }
     int const ready{::ppoll(&poll_target, 1, timeout.count() < 0 ? nullptr : &wait, nullptr)};
     if (ready < 0) {
