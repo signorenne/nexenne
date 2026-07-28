@@ -1,0 +1,121 @@
+#+TITLE: nexenne::gpio
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+A GPIO line abstraction that reads a button, drives a LED, and receives an
+edge, written once and run on backends that do not resemble each other: the
+Linux character device, an in-memory test double, or a user-supplied type over
+an embedded HAL. The core is header-only, heap-free, and exception-free (every
+fallible operation returns =result<T>=, an =std::expected=), so the same
+application code runs on a Linux host and a bare-metal target.
+
+The module earns that portability by separating what is usually confused: the
+static /description/ of a line from /how/ one request wants it opened, the
+/physical/ level on the wire from the /logical/ level the program reasons in,
+the /backend/ that produces edge events from the /transport/ that delivers
+them. Each separation is a type, and that vocabulary decides which bugs are
+possible: a chip index cannot be passed as a line offset, a timestamp cannot be
+passed as a timeout, and an active-low button is =true= when pressed no matter
+how it is wired.
+
+It builds on [[file:../utility/README.org][utility]] (strong identifiers, RAII resources, =discard=),
+[[file:../container/README.org][container]] (=static_vector=, the lock-free =spsc_queue=), and
+[[file:../filter/README.org][filter]] (the =timed_debounce= settle engine), so it adds no heap of its own.
+
+* Quick start
+
+Describe the lines once, open them through a chip handle, and stay in the
+logical domain:
+
+#+BEGIN_SRC C++
+namespace ng = nexenne::gpio;
+using namespace std::chrono_literals;
+
+// An active-low button behind a pull-up, and a LED.
+std::array const specs{
+  ng::line_spec::input("button", ng::chip_id{0}, ng::line_offset{17},
+                       ng::line_polarity::active_low, ng::line_bias::pull_up),
+  ng::line_spec::output("led", ng::chip_id{0}, ng::line_offset{4}),
+};
+std::array const configs{
+  ng::line_config{ng::edge_detection::both, 10ms},  // edges + kernel debounce
+  ng::line_config{},
+};
+
+ng::chardev_chip backend{ng::chip_id{0}};   // or mock_chip<> in tests
+ng::chip<ng::chardev_chip> chip{backend};
+if (auto const opened{chip.open(specs, configs)}; !opened) { /* handle */ }
+
+if (*chip.read("button")) {                  // true means pressed, always
+  nexenne::utility::discard(chip.write("led", true));
+}
+
+while (auto const event{backend.wait_event(100ms)}) {
+  if (!event->has_value()) { break; }        // timeout: a clean miss
+  ng::line_value const value{ng::decode(specs[0], **event)};
+  handle(value);                             // logical level AND logical edge
+}
+#+END_SRC
+
+The runnable examples under [[file:../../../examples/gpio/][examples/gpio/]] are the fastest reference:
+
+- [[file:../../../examples/gpio/quickstart.cpp][quickstart.cpp]] : the whole flow hardware-free over the mock (read first).
+- [[file:../../../examples/gpio/discovery.cpp][discovery.cpp]] : list every chip and line the kernel knows, read-only.
+- [[file:../../../examples/gpio/blink.cpp][blink.cpp]] : the hello world, an output line toggled on real hardware.
+- [[file:../../../examples/gpio/edges.cpp][edges.cpp]] : blocking edge waits with kernel debounce and drop tracking.
+- [[file:../../../examples/gpio/reactor.cpp][reactor.cpp]] : the event-loop integration pattern (epoll + timerfd), the
+  same seam a Qt =QSocketNotifier= or an ASIO descriptor occupies.
+
+* Guides
+
+- [[file:lines.org][lines]] : the vocabulary. Direction, polarity, bias, drive, edges, the
+  strong identifiers, and the four value types (=line_spec=, =line_config=,
+  =line_event=, =line_value=), with the electronics behind each choice.
+- [[file:backends.org][backends]] : the =gpio_backend= concept ladder, why concepts instead of a
+  virtual interface, the mock, and how to write a backend for your HAL.
+- [[file:handles.org][handles]] : =chip<B>= and =line<B>=, the polarity-applying views that keep
+  application code logical.
+- [[file:edges.org][edges]] : the journey of an edge. Subscription, kernel versus userspace
+  debounce, decode, drop tracking, and the sink transports.
+- [[file:linux.org][linux]] : the character device in depth. The v2 uAPI, permissions and udev,
+  discovery by line name, event-loop and Qt integration, and gpio-sim for
+  hardware-free integration tests.
+
+* Header without a guide
+
+- =gpio.hpp= : the umbrella header for the portable core and the =io/=
+  backends. Include it to get everything except formatting; single-header
+  includes stay cheaper when one piece is needed.
+- =error.hpp= : =gpio_error=, the =result<T>= alias, and =to_string=. The
+  module-wide error policy is documented in the header: =result= for
+  failures, =std::optional= for a legitimate miss, debug asserts for
+  programmer preconditions.
+- =format.hpp= : =to_string= / =operator<<= / =std::formatter= for every
+  public type, opt-in so hot paths never pay for =<format>=.
+
+* Design pillars
+
+- Logical, not physical. Application code lives in the logical domain; the
+  polarity mapping is applied in one auditable place per direction (the
+  handles for reads and writes, =decode= for events) and to the level and
+  the edge together, so an active-low line never reports a pressed level
+  with a release edge.
+- Pluggable at compile time, zero vtable. A backend is any type satisfying
+  =gpio_backend=; the handles are templates over it, every call inlines,
+  and a malformed backend is a compile error at the right line.
+- Fit for the bare metal. No heap anywhere in the core: =chip<B>= views the
+  caller's spec table instead of copying it, the sinks are allocation-free,
+  and =push= is =noexcept= because on embedded targets it runs in interrupt
+  context.
+- Fit for production. Sequence-gap tracking surfaces silently dropped
+  events, a full transport rejects instead of blocking, and the Linux
+  driver reads one event per call so no staging state can go stale across
+  a close and reopen.
+- Async by file descriptor, not by framework. The Linux backend exposes its
+  pollable request descriptor; epoll, Qt, glib, and ASIO all drive it from
+  outside, and the module never owns a loop or a thread.
+
+* See also
+
+- [[file:../README.org][module catalogue]]
+- [[file:../../../STYLE_GUIDE.org][STYLE_GUIDE.org]] : the style rules the examples follow.
