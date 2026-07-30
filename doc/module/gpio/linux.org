@@ -1,0 +1,142 @@
+#+TITLE: gpio on linux: the character device
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+What this covers: =io/chardev_chip.hpp= and =io/chardev_info.hpp=, the Linux
+backend and discovery over the GPIO character device, and the operational
+knowledge around them: permissions, event-loop and Qt integration, and
+hardware-free integration testing with gpio-sim.
+
+* The interface underneath
+
+Since kernel 5.10 every GPIO controller appears as =/dev/gpiochipN=, driven
+through the v2 ioctl interface declared in the kernel header =linux/gpio.h=
+(the old sysfs =/sys/class/gpio= interface is deprecated and the v1 ioctls
+superseded). This is the same interface libgpiod wraps; the backend talks to
+it directly, so the module carries no external library dependency, needs no
+pkg-config, and stays header-only.
+
+The uAPI in five facts, which explain every constraint the backend has:
+
+- One =GPIO_V2_GET_LINE_IOCTL= on the chip requests up to 64 lines
+  atomically and returns an anonymous /request/ file descriptor; the chip
+  descriptor can be closed afterwards. Ownership is exclusive: a second
+  consumer asking for a held line gets =EBUSY= (surfaced as
+  =gpio_error::busy=).
+- Per-line configuration rides in a base flag word plus at most TEN
+  attribute overrides, each covering a mask of lines. The backend groups
+  identical configurations automatically; a request therefore supports at
+  most ten distinct line behaviours beyond the most common one, and a
+  request needing more fails with =invalid_argument= before any ioctl.
+- Values move as 64-bit bitmaps through =GPIO_V2_LINE_GET_VALUES_IOCTL= and
+  =SET_VALUES=, one bit per requested line, which is what makes
+  =read_lines= / =write_lines= genuinely atomic snapshots.
+- Edge events are fixed-size =gpio_v2_line_event= records read from the
+  request descriptor, each carrying a =CLOCK_MONOTONIC= nanosecond
+  timestamp, the offset, and a sequence number. The backend reads exactly
+  one record per =wait_event= call, so there is no staging buffer that
+  could go stale across a close and reopen.
+- The kernel inverts levels itself when a line is requested =ACTIVE_LOW=.
+  The backend deliberately never sets that flag: polarity belongs to the
+  wrapper layer of this module, so the kernel's "active" always equals the
+  physical high level and every backend stays interchangeable.
+
+One mapping note: the kernel only ever reports rising or falling event
+types, so the event's level is implied by its direction, a rising event
+means the line is now physically high.
+
+* Opening lines
+
+#+BEGIN_SRC C++
+ng::chardev_chip backend{ng::chip_id{0}, "my-app"};   // /dev/gpiochip0
+ng::chip<ng::chardev_chip> chip{backend};
+auto const opened{chip.open(specs, configs)};
+#+END_SRC
+
+The consumer label ("my-app") is what =gpioinfo= and the discovery guide
+show next to a held line; name it after your program, operators will thank
+you. Failure modes worth branching on: =busy= (another consumer holds a
+line), =permission_denied= (see below), =not_found= (no such chip).
+
+* Permissions and udev
+
+=/dev/gpiochipN= is typically root-owned. The production answer is a udev
+rule granting a group, not running as root:
+
+#+BEGIN_EXAMPLE
+  # /etc/udev/rules.d/60-gpio.rules
+  SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="gpio", MODE="0660"
+#+END_EXAMPLE
+
+with the service user in the =gpio= group. Debian derivatives ship a similar
+rule with the =gpiod= package.
+
+* Discovery: never hard-code an offset twice
+
+The kernel knows each line's name (from the device tree), its holder, and
+its configuration. =read_chip_info=, =read_line_info=, and =find_line= read
+that, so a program resolves "the line the board calls STATUS_LED" instead of
+baking in an offset that silently moves on the next hardware revision:
+
+#+BEGIN_SRC C++
+auto const offset{ng::find_line(ng::chip_id{0}, "STATUS_LED")};
+if (offset && offset->has_value()) {
+  auto const spec{ng::line_spec::output("led", ng::chip_id{0}, **offset)};
+}
+#+END_SRC
+
+Everything in =chardev_info.hpp= is read-only; the discovery example walks
+every chip on the system safely.
+
+* Event loops, Qt, ASIO
+
+The backend never owns a loop. =native_handle()= returns the request
+descriptor; register it for readability anywhere and drain with a zero
+timeout when it signals:
+
+- epoll: the [[file:../../../examples/gpio/reactor.cpp][reactor example]] runs a heartbeat timerfd and a button line in
+  one thread; this is the reference shape.
+- Qt: construct a =QSocketNotifier{backend.native_handle(),
+  QSocketNotifier::Read}= and connect its =activated= signal to a slot that
+  loops =wait_event(0ns)= until it reports a clean miss. No Qt code exists
+  in this module; the descriptor is the whole integration surface.
+- ASIO: wrap the descriptor in a =posix::stream_descriptor= and
+  =async_wait= for readability, draining the same way.
+
+Drain-to-miss after every readiness signal, and feed a =sequence_tracker=;
+level-triggered loops then never miss an event, and overflow is observed
+rather than silent.
+
+* Testing without hardware: gpio-sim
+
+The kernel's =gpio-sim= module (=CONFIG_GPIO_SIM=) creates virtual chips
+through configfs, the GPIO equivalent of =vcan0=:
+
+#+BEGIN_EXAMPLE
+  sudo modprobe gpio-sim
+  cd /sys/kernel/config/gpio-sim
+  sudo mkdir -p chip0/bank0
+  echo 8 | sudo tee chip0/bank0/num_lines
+  echo 1 | sudo tee chip0/live          # a new /dev/gpiochipN appears
+#+END_EXAMPLE
+
+Pulls on the simulated lines can be driven from sysfs, so a CI job can press
+a virtual button and assert the debounced, decoded result end to end. The
+unit tests here stay hardware-free by design (the request-validation and
+error paths run everywhere; discovery runs live when a chip is accessible);
+gpio-sim is the integration tier above them.
+
+* When not to use it
+
+Bit-banging a protocol with microsecond timing through the character device
+crosses the kernel per transition and will not hold timing under load; that
+job belongs to a kernel driver or hardware peripheral. And on systems where
+another process legitimately owns the lines, integrate with that daemon
+rather than fighting over =EBUSY=.
+
+* Further reading
+
+- Linux kernel, Documentation/userspace-api/gpio/chardev.rst.
+- Documentation/admin-guide/gpio/gpio-sim.rst for the simulator.
+- The libgpiod project documentation, which documents the same uAPI from a
+  C library's perspective.
