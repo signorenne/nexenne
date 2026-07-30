@@ -189,6 +189,7 @@ Current module indexes:
 | ecs           | [[file:module/ecs/README.org][module/ecs/README.org]]           |
 | filter        | [[file:module/filter/README.org][module/filter/README.org]]        |
 | geometry      | [[file:module/geometry/README.org][module/geometry/README.org]]      |
+| gpio          | [[file:module/gpio/README.org][module/gpio/README.org]]          |
 | logging       | [[file:module/logging/README.org][module/logging/README.org]]       |
 | math          | [[file:module/math/README.org][module/math/README.org]]          |
 | random        | [[file:module/random/README.org][module/random/README.org]]        |

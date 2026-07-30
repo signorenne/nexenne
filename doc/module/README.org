@@ -87,6 +87,14 @@ Follow a module to its own index, which lists, per class it provides, a guide
   queries. The code module exists and currently exposes the shared
   =geometry_error= / =result<T>= error foundation; its Org module index and
   examples are the first known docs gap in [[file:../README.org][doc/README.org]].
+- [[file:gpio/README.org][gpio]] (needs =utility=, =container=, =filter=) : a GPIO line abstraction
+  with compile-time pluggable backends: strong vocabulary types
+  (=line_spec=, =line_config=, =line_event=, =line_value=), the
+  =gpio_backend= concept ladder, polarity-applying =chip= / =line= handles,
+  an edge path with debounce and drop detection, lock-free and callback
+  edge transports, and a Linux character-device backend over the raw v2
+  kernel uAPI plus chip and line discovery. Heap-free core; the same code
+  runs on Linux and bare metal.
 
 * Dependency layering
 
@@ -98,6 +106,7 @@ A module may only use the modules below it; the build refuses a cycle.
   geometry       geometric primitives and spatial queries (needs math and utility)
      |
      v
+  gpio           GPIO lines with pluggable backends (needs container, filter, and utility)
   algorithm      search, hashing, sorting, string, numerical, graph algorithms (needs container and utility)
   logging        leveled logging with sinks, async manager, and macros (needs container and utility)
   serialization  JSON / CBOR / MessagePack / binary / COBS codecs (needs container and utility)
