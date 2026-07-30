@@ -1,0 +1,108 @@
+#+TITLE: gpio edges: from interrupt to application
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+What this covers: the journey of one edge through =line_config= subscription,
+=wait_event=, =sequence_tracker.hpp=, =debounce.hpp=, =decode.hpp=, and the
+transports in =sink.hpp=, =io/callback_sink.hpp=, and =io/queue_sink.hpp=.
+
+* The problem
+
+A button press is not one event. The contact bounces for a few milliseconds,
+producing a burst of edges; the kernel or ISR buffer can overflow and drop
+some; what arrives is in the physical domain with no polarity applied; and
+the producer (an interrupt, a kernel queue) runs in a different context from
+the consumer. The edge path deals with each of these in a dedicated, small
+stage, in a fixed order.
+
+* The pipeline
+
+#+BEGIN_EXAMPLE
+  hardware edge
+     |  edge_detection subscription (line_config), optional kernel debounce
+     v
+  backend        wait_event -> line_event   (physical level, physical edge)
+     |  sequence_tracker: detect events lost to overflow
+     |  event_debounce:   forward only settled transitions
+     v
+  decode(spec, event) -> line_value          (logical level, logical edge)
+     |
+     v
+  sink            callback_sink or queue_sink, or your own edge_sink
+#+END_EXAMPLE
+
+Stage order matters and is not arbitrary: drop tracking runs on RAW events
+(a debouncer eats events, which would both fake gaps and hide real ones), the
+debounce runs in the PHYSICAL domain so it composes identically over every
+backend, and decode runs last so polarity is applied exactly once, to the
+settled result.
+
+* Debounce: two knobs, one choice
+
+- Kernel-side: =line_config::debounce_period= maps to the kernel's own
+  per-line debouncer (=GPIO_V2_LINE_ATTR_ID_DEBOUNCE=). Bounces are filtered
+  before they ever reach userspace and cost no wakeups. Prefer it when the
+  driver supports it; not every one does, and off Linux there is no kernel
+  to ask.
+- Userspace: =event_debounce= wraps =filter::timed_debounce= over the event
+  stream. It works everywhere, its period can change at runtime without
+  reopening the request, and its semantics are explicit: a settled change is
+  forwarded once with the edge REPLACED by the settled transition's
+  direction, and the first acceptance after construction or =reset= carries
+  =edge_kind::none= because there was no prior settled level to transition
+  from.
+
+Feed it raw events in timestamp order; it answers =std::nullopt= while the
+line bounces and the settled event once it holds:
+
+#+BEGIN_SRC C++
+ng::event_debounce debounce{5ms};
+ng::sequence_tracker tracker{};
+while (auto const raw{backend.wait_event(0ms)}) {
+  if (!raw->has_value()) { break; }
+  if (auto const lost{tracker.feed((**raw).sequence)}; lost > 0) {
+    log_overflow(lost);                       // observed, not fatal
+  }
+  if (auto const settled{debounce.feed(**raw)}) {
+    handle(ng::decode(spec, *settled));       // logical, exactly once per press
+  }
+}
+#+END_SRC
+
+* Drop detection
+
+An overflowed buffer drops events silently; the only trace is a gap in the
+sequence numbers of the survivors. =sequence_tracker= watches them: the first
+tracked number is the baseline, a jump reports the missing count and
+accumulates into =dropped()=, duplicates and reordered numbers report zero,
+and the unset sequence (zero) passes through untracked so unnumbered backends
+never fake a gap. This is the difference between "the light never turned on"
+and "we lost 3 edges at 14:02, buffer needs to grow".
+
+* Transports: the sink seam
+
+Who produces events and who consumes them often live in different contexts.
+The =edge_sink= concept is the seam: anything with a =noexcept=
+=push(line_event const&) -> bool=. The =bool= is the drop-accounting hook, a
+full transport returns =false= and the producer counts the loss instead of
+blocking, the only correct behaviour in an interrupt. =draining_edge_sink=
+adds the non-blocking =try_pop= consumer side.
+
+- =callback_sink= is the zero-overhead direct path for when producer and
+  consumer are the same context; a stateless handler costs no storage.
+- =queue_sink<N>= wraps =container::spsc_queue=: lock-free, allocation-free,
+  exactly one producer context pushing and one consumer draining, the
+  ISR-to-main-loop carrier on embedded targets.
+- An RTOS queue wrapper or any user type satisfying the concept slots into
+  the same producer code with no changes.
+
+* When not to use it
+
+A polled input read once per control cycle needs none of this; =chip::read=
+plus =filter::debounce= on the sampled value is simpler. The edge path earns
+its stages when events must not be missed or double-counted.
+
+* Further reading
+
+- [[file:../filter/shaping.org][filter shaping guide]] for the =timed_debounce= engine underneath.
+- [[file:linux.org][linux]] for what the kernel does before =wait_event= returns.
