@@ -50,13 +50,23 @@ auto main() -> int {
   ng::mock_chip<16> backend{};
   ng::chip<ng::mock_chip<16>> chip{backend};
   if (auto const opened{chip.open(specs, configs)}; !opened.has_value()) {
-    std::println("open failed: {}", opened.error());
+    // is_transient tells a supervisor whether a backoff retry can help.
+    std::println(
+      "open failed: {} ({})", opened.error(),
+      ng::is_transient(opened.error()) ? "transient, retry with backoff" : "permanent"
+    );
     return 1;
   }
   std::println("opened {} lines:", chip.specs().size());
   for (auto const& spec : chip.specs()) {
     std::println("  {}", spec);
   }
+
+  // 2b) Take the startup baseline: without it, an edge-driven consumer
+  //     knows nothing about a line until its first edge.
+  nexenne::utility::discard(chip.snapshot([](ng::line_value const& value) {
+    std::println("baseline: {}", value);
+  }));
 
   // 3) Logical-domain read and write by name.
   nexenne::utility::discard(backend.set_physical(ng::line_offset{17}, false));  // press
@@ -102,5 +112,16 @@ auto main() -> int {
     }
   }
   std::println("events dropped upstream: {}", tracker.dropped());
+
+  // 6) Change behaviour on the LIVE request: same lines, a new debounce and
+  //    a new initial LED level, with no close, no lost exclusivity, and no
+  //    output glitch. The spec view follows the new tables.
+  std::array const retuned_configs{
+    ng::line_config{ng::edge_detection::both, 20ms},
+    ng::line_config{ng::edge_detection::none, 0ms, true},
+  };
+  if (auto const changed{chip.reconfigure(specs, retuned_configs)}; changed.has_value()) {
+    std::println("reconfigured: led now {}", *chip.read("led") ? "on" : "off");
+  }
   return 0;
 }
