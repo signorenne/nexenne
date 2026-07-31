@@ -49,6 +49,33 @@ an unknown name is =not_found=, a name miss from the query functions
 (=spec(name)=, =line_for(name)=) is =std::nullopt= because a miss on a lookup
 is an answer, not an error.
 
+* Startup baseline: snapshot
+
+An edge-driven consumer knows nothing about a line until its first edge,
+which for a seldom-touched input can be never. =chip::snapshot(deliver)=
+closes that gap: it reads every input in the request set and hands a
+steady-state =line_value= (=edge_kind::none=, unset sequence and timestamp)
+to the callable, in table order. Call it once after =open= (and after a
+supervised reopen), then switch to the event path:
+
+#+BEGIN_SRC C++
+nexenne::utility::discard(chip.snapshot([&](ng::line_value const& value) {
+  state.apply(value);            // the baseline every observer starts from
+}));
+#+END_SRC
+
+* Changing behaviour in place: reconfigure
+
+When the backend models =reconfigurable_gpio_backend= (the mock and the
+Linux backend both do), =chip::reconfigure(specs, configs)= changes the
+behaviour of the SAME lines, direction, edges, debounce, bias, drive, and
+output levels, without releasing the request. That matters twice in
+production: exclusivity is never lost to a competing consumer, and an
+output never glitches through an unconfigured state, neither of which a
+close-and-reopen can guarantee. The tables must address the request's lines
+element by element in the opened order; on success the chip's spec view
+follows the new tables.
+
 * Where polarity lives
 
 Reads and writes cross the physical/logical boundary inside these handles;

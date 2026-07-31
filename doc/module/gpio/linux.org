@@ -107,6 +107,24 @@ Drain-to-miss after every readiness signal, and feed a =sequence_tracker=;
 level-triggered loops then never miss an event, and overflow is observed
 rather than silent.
 
+* Supervision: reconnect and reconfigure
+
+A production service outlives transient faults. Two library pieces support
+the supervisor the application writes around the backend:
+
+- =is_transient(gpio_error)= splits the retryable failures (=busy=,
+  =timeout=, =io_error=, =overflow=) from the ones no retry will fix
+  (=permission_denied=, =not_found=, =invalid_argument=, =unsupported=).
+  The loop shape is: on a transient open failure, back off (say 250ms
+  doubling to 5s) and reopen; after a successful reopen, =reset()= the
+  debouncers and trackers and take a fresh =chip::snapshot=; on a permanent
+  failure, surface it and stop retrying.
+- =reconfigure= changes line behaviour on the LIVE request through
+  =GPIO_V2_LINE_SET_CONFIG_IOCTL=: a new debounce period, a different edge
+  subscription, even flipping a line's direction. The request descriptor
+  stays valid (event loops keep their registration), exclusivity is never
+  ceded, and outputs never glitch, which a close-and-reopen cannot promise.
+
 * Testing without hardware: gpio-sim
 
 The kernel's =gpio-sim= module (=CONFIG_GPIO_SIM=) creates virtual chips

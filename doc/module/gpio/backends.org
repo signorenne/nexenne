@@ -26,13 +26,16 @@ first-class citizen as the ones shipped in =io/=.
 Capabilities stack as refinements, so a minimal backend stays legal:
 
 #+BEGIN_EXAMPLE
-  gpio_backend        open(specs, configs) / close() / is_open()
-                      read(offset) / write(offset, level)
+  gpio_backend                open(specs, configs) / close() / is_open()
+                              read(offset) / write(offset, level)
        |
-  bulk_gpio_backend   + read_lines / write_lines   (atomic multi-line)
-       |
-  edge_source         + wait_event(timeout) + native_handle()
+  bulk_gpio_backend           + read_lines / write_lines  (atomic multi-line)
+  reconfigurable_gpio_backend + reconfigure               (no release, no glitch)
+  edge_source                 + wait_event + native_handle()
 #+END_EXAMPLE
+
+The three refinements are independent siblings over the base tier; a
+backend models whichever its transport supports.
 
 Two rules bind every tier:
 
