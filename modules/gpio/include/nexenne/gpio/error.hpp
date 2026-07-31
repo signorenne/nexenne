@@ -87,4 +87,40 @@ using result = std::expected<T, gpio_error>;
   return "unknown";
 }
 
+/**
+ * @brief Whether an error is worth retrying with backoff.
+ *
+ * A production system that supervises a GPIO connection needs to know which
+ * failures may clear on their own (a device briefly held by another consumer,
+ * an interrupted kernel call, an overflowed buffer) and which never will
+ * without operator action (wrong permissions, a chip that does not exist, a
+ * platform without the facility). This classification is the library's;
+ * the retry policy built on it (backoff, limits, alarms) is the caller's.
+ *
+ * @param err Error to classify.
+ *
+ * @return \c true for \c busy, \c timeout, \c io_error, and \c overflow;
+ *         \c false for every error that indicates a configuration, argument,
+ *         permission, or platform problem.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] constexpr auto is_transient(gpio_error const err) noexcept -> bool {
+  switch (err) {
+    case gpio_error::busy:
+    case gpio_error::timeout:
+    case gpio_error::io_error:
+    case gpio_error::overflow:
+      return true;
+    case gpio_error::invalid_argument:
+    case gpio_error::not_found:
+    case gpio_error::not_open:
+    case gpio_error::permission_denied:
+    case gpio_error::unsupported:
+      return false;
+  }
+  return false;
+}
+
 }  // namespace nexenne::gpio
