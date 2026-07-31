@@ -68,6 +68,26 @@ TEST_CASE("event_debounce: the settled edge is derived, not carried") {
   CHECK(settled->edge == ng::edge_kind::falling);
 }
 
+TEST_CASE("event_debounce: stable reports the settled level, not the bounce") {
+  ng::event_debounce debounce{5ms};
+
+  // Nothing has settled yet.
+  CHECK_FALSE(debounce.stable().has_value());
+
+  REQUIRE(debounce.feed(event_at(0ms, true, ng::edge_kind::none)).has_value());
+  CHECK(*debounce.stable() == true);
+
+  // A bounce in progress does not move the settled view.
+  CHECK_FALSE(debounce.feed(event_at(1ms, false, ng::edge_kind::falling)).has_value());
+  CHECK(*debounce.stable() == true);
+
+  REQUIRE(debounce.feed(event_at(7ms, false, ng::edge_kind::falling)).has_value());
+  CHECK(*debounce.stable() == false);
+
+  debounce.reset();
+  CHECK_FALSE(debounce.stable().has_value());
+}
+
 TEST_CASE("event_debounce: reset makes the next event an acceptance again") {
   ng::event_debounce debounce{5ms};
   REQUIRE(debounce.feed(event_at(0ms, true, ng::edge_kind::none)).has_value());

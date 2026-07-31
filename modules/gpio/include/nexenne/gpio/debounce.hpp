@@ -93,6 +93,27 @@ public:
   }
 
   /**
+   * @brief The currently settled physical level, when one exists.
+   *
+   * Diagnostic view of the filter state: what the debouncer believes the
+   * line is holding right now, independent of whether the last \c feed
+   * forwarded anything. A supervisor logs this next to a raw read to spot
+   * a line that bounces forever without settling.
+   *
+   * @return The settled level, or \c std::nullopt before the first
+   *         acceptance and after \c reset.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto stable() const noexcept -> std::optional<bool> {
+    if (!m_filter.has_stable()) {
+      return std::nullopt;
+    }
+    return m_filter.stable_value();
+  }
+
+  /**
    * @brief Drops all cached state, as after a reopen.
    *
    * @pre None.
