@@ -214,6 +214,125 @@ private:
     return flags;
   }
 
+  // Renders the parallel tables into a kernel line config: the first line's
+  // flag word becomes the base, deviating flag words are grouped into one
+  // attribute each, and initial output levels and distinct debounce periods
+  // become further attributes, within the kernel's ten-attribute cap.
+  [[nodiscard]] static auto build_line_config(
+    std::span<line_spec const> const specs, std::span<line_config const> const configs,
+    ::gpio_v2_line_config* const config
+  ) -> result<void> {
+    std::array<std::uint64_t, max_lines> flags{};
+    for (std::size_t i{0}; i < specs.size(); ++i) {
+      flags[i] = kernel_flags(specs[i], configs[i]);
+    }
+    config->flags = flags[0];
+
+    auto& attrs{config->attrs};
+    std::uint32_t attr_count{0};
+    auto const add_attr{[&](::gpio_v2_line_attribute const& attribute,
+                            std::uint64_t const mask) noexcept -> bool {
+      if (attr_count >= GPIO_V2_LINE_NUM_ATTRS_MAX) {
+        return false;
+      }
+      attrs[attr_count].attr = attribute;
+      attrs[attr_count].mask = mask;
+      attr_count += 1;
+      return true;
+    }};
+
+    // Group lines whose flags differ from the base into one attribute per
+    // distinct flag word (first occurrence wins, so scan forward).
+    for (std::size_t i{1}; i < specs.size(); ++i) {
+      if (flags[i] == config->flags) {
+        continue;
+      }
+      bool grouped{false};
+      for (std::size_t j{1}; j < i; ++j) {
+        if (flags[j] == flags[i]) {
+          grouped = true;
+          break;
+        }
+      }
+      if (grouped) {
+        continue;
+      }
+      std::uint64_t mask{0};
+      for (std::size_t j{i}; j < specs.size(); ++j) {
+        if (flags[j] == flags[i]) {
+          mask |= std::uint64_t{1} << j;
+        }
+      }
+      ::gpio_v2_line_attribute attribute{};
+      attribute.id = GPIO_V2_LINE_ATTR_ID_FLAGS;
+      attribute.flags = flags[i];
+      if (!add_attr(attribute, mask)) {
+        return std::unexpected{gpio_error::invalid_argument};
+      }
+    }
+
+    // Initial output levels ride in one OUTPUT_VALUES attribute.
+    {
+      std::uint64_t output_mask{0};
+      std::uint64_t output_values{0};
+      for (std::size_t i{0}; i < specs.size(); ++i) {
+        if (specs[i].direction() != line_direction::output) {
+          continue;
+        }
+        output_mask |= std::uint64_t{1} << i;
+        if (configs[i].initial_value()) {
+          output_values |= std::uint64_t{1} << i;
+        }
+      }
+      if (output_mask != 0) {
+        ::gpio_v2_line_attribute attribute{};
+        attribute.id = GPIO_V2_LINE_ATTR_ID_OUTPUT_VALUES;
+        attribute.values = output_values;
+        if (!add_attr(attribute, output_mask)) {
+          return std::unexpected{gpio_error::invalid_argument};
+        }
+      }
+    }
+
+    // One DEBOUNCE attribute per distinct non-zero period.
+    for (std::size_t i{0}; i < specs.size(); ++i) {
+      auto const period{configs[i].debounce_period()};
+      if (period.count() <= 0) {
+        continue;
+      }
+      bool grouped{false};
+      for (std::size_t j{0}; j < i; ++j) {
+        if (configs[j].debounce_period() == period) {
+          grouped = true;
+          break;
+        }
+      }
+      if (grouped) {
+        continue;
+      }
+      auto const microseconds{
+        std::chrono::duration_cast<std::chrono::microseconds>(period).count()
+      };
+      if (microseconds > std::int64_t{std::numeric_limits<std::uint32_t>::max()}) {
+        return std::unexpected{gpio_error::invalid_argument};
+      }
+      std::uint64_t mask{0};
+      for (std::size_t j{i}; j < specs.size(); ++j) {
+        if (configs[j].debounce_period() == period) {
+          mask |= std::uint64_t{1} << j;
+        }
+      }
+      ::gpio_v2_line_attribute attribute{};
+      attribute.id = GPIO_V2_LINE_ATTR_ID_DEBOUNCE;
+      attribute.debounce_period_us = static_cast<std::uint32_t>(microseconds);
+      if (!add_attr(attribute, mask)) {
+        return std::unexpected{gpio_error::invalid_argument};
+      }
+    }
+    config->num_attrs = attr_count;
+    return {};
+  }
+
   [[nodiscard]] auto values_ioctl(unsigned long const request, ::gpio_v2_line_values* values) const
     -> result<void> {
     if (!m_request.owns()) {
@@ -345,116 +464,13 @@ public:
     request.num_lines = static_cast<std::uint32_t>(specs.size());
     request.event_buffer_size = m_event_buffer_size;
     std::memcpy(static_cast<void*>(request.consumer), m_consumer.data(), m_consumer.size());
-
-    std::array<std::uint64_t, max_lines> flags{};
     for (std::size_t i{0}; i < specs.size(); ++i) {
       request.offsets[i] = static_cast<std::uint32_t>(specs[i].offset().get());
-      flags[i] = kernel_flags(specs[i], configs[i]);
     }
-    request.config.flags = flags[0];
-
-    auto& attrs{request.config.attrs};
-    std::uint32_t attr_count{0};
-    auto const add_attr{[&](::gpio_v2_line_attribute const& attribute,
-                            std::uint64_t const mask) noexcept -> bool {
-      if (attr_count >= GPIO_V2_LINE_NUM_ATTRS_MAX) {
-        return false;
-      }
-      attrs[attr_count].attr = attribute;
-      attrs[attr_count].mask = mask;
-      attr_count += 1;
-      return true;
-    }};
-
-    // Group lines whose flags differ from the base into one attribute per
-    // distinct flag word (first occurrence wins, so scan forward).
-    for (std::size_t i{1}; i < specs.size(); ++i) {
-      if (flags[i] == request.config.flags) {
-        continue;
-      }
-      bool grouped{false};
-      for (std::size_t j{1}; j < i; ++j) {
-        if (flags[j] == flags[i]) {
-          grouped = true;
-          break;
-        }
-      }
-      if (grouped) {
-        continue;
-      }
-      std::uint64_t mask{0};
-      for (std::size_t j{i}; j < specs.size(); ++j) {
-        if (flags[j] == flags[i]) {
-          mask |= std::uint64_t{1} << j;
-        }
-      }
-      ::gpio_v2_line_attribute attribute{};
-      attribute.id = GPIO_V2_LINE_ATTR_ID_FLAGS;
-      attribute.flags = flags[i];
-      if (!add_attr(attribute, mask)) {
-        return std::unexpected{gpio_error::invalid_argument};
-      }
+    if (auto const built{build_line_config(specs, configs, &request.config)};
+        !built.has_value()) {
+      return std::unexpected{built.error()};
     }
-
-    // Initial output levels ride in one OUTPUT_VALUES attribute.
-    {
-      std::uint64_t output_mask{0};
-      std::uint64_t output_values{0};
-      for (std::size_t i{0}; i < specs.size(); ++i) {
-        if (specs[i].direction() != line_direction::output) {
-          continue;
-        }
-        output_mask |= std::uint64_t{1} << i;
-        if (configs[i].initial_value()) {
-          output_values |= std::uint64_t{1} << i;
-        }
-      }
-      if (output_mask != 0) {
-        ::gpio_v2_line_attribute attribute{};
-        attribute.id = GPIO_V2_LINE_ATTR_ID_OUTPUT_VALUES;
-        attribute.values = output_values;
-        if (!add_attr(attribute, output_mask)) {
-          return std::unexpected{gpio_error::invalid_argument};
-        }
-      }
-    }
-
-    // One DEBOUNCE attribute per distinct non-zero period.
-    for (std::size_t i{0}; i < specs.size(); ++i) {
-      auto const period{configs[i].debounce_period()};
-      if (period.count() <= 0) {
-        continue;
-      }
-      bool grouped{false};
-      for (std::size_t j{0}; j < i; ++j) {
-        if (configs[j].debounce_period() == period) {
-          grouped = true;
-          break;
-        }
-      }
-      if (grouped) {
-        continue;
-      }
-      auto const microseconds{
-        std::chrono::duration_cast<std::chrono::microseconds>(period).count()
-      };
-      if (microseconds > std::int64_t{std::numeric_limits<std::uint32_t>::max()}) {
-        return std::unexpected{gpio_error::invalid_argument};
-      }
-      std::uint64_t mask{0};
-      for (std::size_t j{i}; j < specs.size(); ++j) {
-        if (configs[j].debounce_period() == period) {
-          mask |= std::uint64_t{1} << j;
-        }
-      }
-      ::gpio_v2_line_attribute attribute{};
-      attribute.id = GPIO_V2_LINE_ATTR_ID_DEBOUNCE;
-      attribute.debounce_period_us = static_cast<std::uint32_t>(microseconds);
-      if (!add_attr(attribute, mask)) {
-        return std::unexpected{gpio_error::invalid_argument};
-      }
-    }
-    request.config.num_attrs = attr_count;
 
     if (::ioctl(chip_fd.get(), GPIO_V2_GET_LINE_IOCTL, &request) < 0) {
       return std::unexpected{detail::errno_to_gpio_error(errno)};
@@ -462,6 +478,53 @@ public:
     m_request.reset(request.fd);
     for (auto const& spec : specs) {
       utility::discard(m_offsets.push_back(spec.offset()));
+    }
+    return {};
+  }
+
+  /**
+   * @brief Changes the configuration of the held lines without reopening.
+   *
+   * Renders the tables like \c open and applies them to the live request
+   * through one \c GPIO_V2_LINE_SET_CONFIG_IOCTL. The request is never
+   * released, so exclusivity is not lost to a competing consumer and
+   * outputs never glitch through an unconfigured state. The tables must
+   * address the request's lines element by element, in the order they were
+   * opened; only the behaviour (direction, edges, debounce, bias, drive,
+   * output levels) may change.
+   *
+   * @param specs New specs, parallel to the open request's lines.
+   * @param configs New per-line config, parallel to \p specs.
+   *
+   * @return Nothing on success; \c gpio_error::not_open when closed,
+   *         \c gpio_error::invalid_argument when the tables are malformed
+   *         or do not match the request's lines, otherwise the errno-mapped
+   *         kernel error.
+   *
+   * @pre \p specs and \p configs describe the same lines element by element.
+   * @post On success the new behaviour is live; on failure the previous
+   *       configuration is untouched.
+   */
+  auto
+  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
+    -> result<void> {
+    if (!m_request.owns()) {
+      return std::unexpected{gpio_error::not_open};
+    }
+    if (specs.size() != configs.size() || specs.size() != m_offsets.size()) {
+      return std::unexpected{gpio_error::invalid_argument};
+    }
+    for (std::size_t i{0}; i < specs.size(); ++i) {
+      if (specs[i].chip() != m_chip || specs[i].offset() != m_offsets[i]) {
+        return std::unexpected{gpio_error::invalid_argument};
+      }
+    }
+    ::gpio_v2_line_config config{};
+    if (auto const built{build_line_config(specs, configs, &config)}; !built.has_value()) {
+      return std::unexpected{built.error()};
+    }
+    if (::ioctl(m_request.get(), GPIO_V2_LINE_SET_CONFIG_IOCTL, &config) < 0) {
+      return std::unexpected{detail::errno_to_gpio_error(errno)};
     }
     return {};
   }
@@ -684,6 +747,10 @@ public:
 static_assert(gpio_backend<chardev_chip>, "chardev_chip must satisfy gpio_backend");
 static_assert(bulk_gpio_backend<chardev_chip>, "chardev_chip must satisfy bulk_gpio_backend");
 static_assert(edge_source<chardev_chip>, "chardev_chip must satisfy edge_source");
+static_assert(
+  reconfigurable_gpio_backend<chardev_chip>,
+  "chardev_chip must satisfy reconfigurable_gpio_backend"
+);
 
 }  // namespace nexenne::gpio
 
@@ -847,6 +914,24 @@ public:
   }
 
   /**
+   * @brief Reports that reconfiguration is unsupported off Linux.
+   *
+   * @param specs Ignored.
+   * @param configs Ignored.
+   *
+   * @return Always \c gpio_error::unsupported.
+   *
+   * @pre None.
+   * @post None.
+   */
+  auto
+  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
+    -> result<void> {
+    utility::discard(specs, configs);
+    return std::unexpected{gpio_error::unsupported};
+  }
+
+  /**
    * @brief Reports that edge events are unsupported off Linux.
    *
    * @param timeout Ignored.
@@ -877,6 +962,10 @@ public:
 static_assert(gpio_backend<chardev_chip>, "chardev_chip must satisfy gpio_backend");
 static_assert(bulk_gpio_backend<chardev_chip>, "chardev_chip must satisfy bulk_gpio_backend");
 static_assert(edge_source<chardev_chip>, "chardev_chip must satisfy edge_source");
+static_assert(
+  reconfigurable_gpio_backend<chardev_chip>,
+  "chardev_chip must satisfy reconfigurable_gpio_backend"
+);
 
 }  // namespace nexenne::gpio
 

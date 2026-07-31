@@ -31,6 +31,7 @@ TEST_CASE("chardev_chip: satisfies every backend tier on every platform") {
   static_assert(ng::gpio_backend<ng::chardev_chip>);
   static_assert(ng::bulk_gpio_backend<ng::chardev_chip>);
   static_assert(ng::edge_source<ng::chardev_chip>);
+  static_assert(ng::reconfigurable_gpio_backend<ng::chardev_chip>);
   static_assert(ng::chardev_chip::max_lines == 64);
   CHECK(true);
 }
@@ -44,6 +45,7 @@ TEST_CASE("chardev_chip: a fresh backend is closed with no handle") {
   CHECK_FALSE(backend.read(ng::line_offset{0}).has_value());
   CHECK_FALSE(backend.write(ng::line_offset{0}, true).has_value());
   CHECK_FALSE(backend.wait_event(0ns).has_value());
+  CHECK_FALSE(backend.reconfigure(specs, configs).has_value());
 
   backend.close();  // safe when already closed
   CHECK_FALSE(backend.is_open());

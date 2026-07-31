@@ -152,6 +152,46 @@ public:
   }
 
   /**
+   * @brief Changes the request's configuration without reopening it.
+   *
+   * Forwards to the backend's \c reconfigure and, on success, repoints the
+   * name-lookup view at \p specs. Available only when the backend models
+   * \c reconfigurable_gpio_backend; the request is never released, so
+   * exclusivity is kept and outputs never glitch.
+   *
+   * @param specs New specs addressing the request's lines element by
+   *              element, in the opened order; caller-owned storage.
+   * @param configs New per-line config, parallel to \p specs.
+   *
+   * @return Nothing on success; \c gpio_error::not_open when unbound,
+   *         \c gpio_error::invalid_argument when the tables differ in
+   *         length or are empty, otherwise the backend's error.
+   *
+   * @pre \p specs and \p configs describe the same lines element by element,
+   *      and the storage behind \p specs outlives this chip's request set.
+   * @post On success \c specs() views \p specs; on failure the previous
+   *       view and configuration are untouched.
+   */
+  auto
+  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
+    -> result<void>
+    requires reconfigurable_gpio_backend<backend_type>
+  {
+    if (m_backend == nullptr) {
+      return std::unexpected{gpio_error::not_open};
+    }
+    if (specs.size() != configs.size() || specs.empty()) {
+      return std::unexpected{gpio_error::invalid_argument};
+    }
+    auto const changed{m_backend->reconfigure(specs, configs)};
+    if (!changed.has_value()) {
+      return std::unexpected{changed.error()};
+    }
+    m_specs = specs;
+    return {};
+  }
+
+  /**
    * @brief Closes the backend and drops the spec view.
    *
    * Safe to call when already closed or unbound.

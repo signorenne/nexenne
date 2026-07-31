@@ -93,6 +93,29 @@ concept bulk_gpio_backend = gpio_backend<B>
   };
 
 /**
+ * @brief A backend that can change line configuration without reopening.
+ *
+ * Adds \c reconfigure over the SAME lines as the active request: the spec
+ * and config tables must address the request's lines element by element,
+ * and only the behaviour changes (direction, edges, debounce, bias, drive,
+ * output levels). The point of the tier is that the request is never
+ * released: exclusivity is not lost to a competing consumer and output
+ * lines never glitch through an unconfigured state, which a close-and-
+ * reopen cannot guarantee.
+ *
+ * @tparam B Candidate backend type.
+ */
+template <typename B>
+concept reconfigurable_gpio_backend = gpio_backend<B>
+  && requires(
+    B backend,
+    std::span<line_spec const> const specs,
+    std::span<line_config const> const configs
+  ) {
+    { backend.reconfigure(specs, configs) } -> std::same_as<result<void>>;
+  };
+
+/**
  * @brief A backend that also delivers timestamped edge events.
  *
  * Adds \c wait_event(timeout) returning \c result<std::optional<line_event>>,

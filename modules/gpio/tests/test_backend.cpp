@@ -44,6 +44,14 @@ struct bulk_backend : basic_backend {
   }
 };
 
+// Adds the reconfigure tier on top of the basic one.
+struct reshaping_backend : basic_backend {
+  auto reconfigure(std::span<ng::line_spec const>, std::span<ng::line_config const>)
+    -> ng::result<void> {
+    return {};
+  }
+};
+
 // Adds the edge tier: events plus a pollable handle.
 struct event_backend : basic_backend {
   using native_handle_type = int;
@@ -91,6 +99,9 @@ TEST_CASE("gpio_backend: each tier admits exactly the types that model it") {
   static_assert(!ng::edge_source<basic_backend>);
   static_assert(!ng::edge_source<bulk_backend>);
   static_assert(ng::edge_source<event_backend>);
+
+  static_assert(!ng::reconfigurable_gpio_backend<basic_backend>);
+  static_assert(ng::reconfigurable_gpio_backend<reshaping_backend>);
 
   static_assert(!ng::gpio_backend<throwing_close>);
   static_assert(!ng::gpio_backend<int>);

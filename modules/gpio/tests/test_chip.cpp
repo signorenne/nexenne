@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <array>
+#include <chrono>
 #include <type_traits>
 
 #include <nexenne/gpio/chip.hpp>
@@ -78,6 +79,40 @@ TEST_CASE("chip: name-addressed read and write stay in the logical domain") {
   CHECK(chip.read("missing").error() == ng::gpio_error::not_found);
   CHECK(chip.write("missing", true).error() == ng::gpio_error::not_found);
   CHECK(chip.write("button", true).error() == ng::gpio_error::invalid_argument);
+}
+
+TEST_CASE("chip: reconfigure swaps behaviour and the spec view in place") {
+  static_assert(ng::reconfigurable_gpio_backend<mock>);
+
+  mock backend{};
+  ng::chip<mock> chip{backend};
+  REQUIRE(chip.open(specs, configs).has_value());
+
+  // Same lines, new behaviour: the button flips to active_high polarity.
+  std::array const changed{
+    ng::line_spec::input("button", ng::chip_id{0}, ng::line_offset{17}),
+    ng::line_spec::output("led", ng::chip_id{0}, ng::line_offset{4}),
+  };
+  std::array const changed_configs{
+    ng::line_config{ng::edge_detection::rising},
+    ng::line_config{ng::edge_detection::none, std::chrono::nanoseconds{0}, true},
+  };
+  REQUIRE(chip.reconfigure(changed, changed_configs).has_value());
+
+  // The spec view now reflects the new polarity, and the output took its
+  // new initial level without a close and reopen.
+  CHECK(chip.spec("button")->polarity() == ng::line_polarity::active_high);
+  CHECK(*backend.physical(ng::line_offset{4}) == true);
+
+  // Addressing different lines is rejected and changes nothing.
+  std::array const wrong{
+    ng::line_spec::input("button", ng::chip_id{0}, ng::line_offset{18}),
+    ng::line_spec::output("led", ng::chip_id{0}, ng::line_offset{4}),
+  };
+  CHECK(
+    backend.reconfigure(wrong, changed_configs).error() == ng::gpio_error::invalid_argument
+  );
+  CHECK(chip.reconfigure({}, {}).error() == ng::gpio_error::invalid_argument);
 }
 
 TEST_CASE("chip: line_for mints a bound handle sharing the backend") {

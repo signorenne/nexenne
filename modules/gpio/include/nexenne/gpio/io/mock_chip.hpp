@@ -196,6 +196,50 @@ public:
   }
 
   /**
+   * @brief Changes the configuration of the held lines without reopening.
+   *
+   * Mirrors the kernel's reconfigure semantics: the tables must address the
+   * request's lines element by element and in the opened order. Output
+   * lines take their new config's initial value (the kernel applies the
+   * output-values attribute on reconfigure too); input lines keep their
+   * current level. Pending injected events are preserved.
+   *
+   * @param specs New specs, parallel to the open request's lines.
+   * @param configs New per-line config, parallel to \p specs.
+   *
+   * @return Nothing on success; \c gpio_error::not_open when closed,
+   *         \c gpio_error::invalid_argument when the tables are malformed
+   *         or do not match the request's lines.
+   *
+   * @pre \p specs and \p configs describe the same lines element by element.
+   * @post On success the stored specs and configs are replaced; on failure
+   *       nothing changed.
+   */
+  constexpr auto
+  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
+    -> result<void> {
+    if (!m_open) {
+      return std::unexpected{gpio_error::not_open};
+    }
+    if (specs.size() != configs.size() || specs.size() != m_specs.size()) {
+      return std::unexpected{gpio_error::invalid_argument};
+    }
+    for (std::size_t i{0}; i < specs.size(); ++i) {
+      if (specs[i].offset() != m_specs[i].offset()) {
+        return std::unexpected{gpio_error::invalid_argument};
+      }
+    }
+    for (std::size_t i{0}; i < specs.size(); ++i) {
+      m_specs[i] = specs[i];
+      m_configs[i] = configs[i];
+      if (specs[i].direction() == line_direction::output) {
+        m_levels[i] = configs[i].initial_value();
+      }
+    }
+    return {};
+  }
+
+  /**
    * @brief Reads several lines in one operation.
    *
    * @param offsets Line offsets to read.
