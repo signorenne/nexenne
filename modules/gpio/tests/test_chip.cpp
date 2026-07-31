@@ -8,6 +8,7 @@
 #include <array>
 #include <chrono>
 #include <type_traits>
+#include <vector>
 
 #include <nexenne/gpio/chip.hpp>
 #include <nexenne/gpio/io/mock_chip.hpp>
@@ -79,6 +80,32 @@ TEST_CASE("chip: name-addressed read and write stay in the logical domain") {
   CHECK(chip.read("missing").error() == ng::gpio_error::not_found);
   CHECK(chip.write("missing", true).error() == ng::gpio_error::not_found);
   CHECK(chip.write("button", true).error() == ng::gpio_error::invalid_argument);
+}
+
+TEST_CASE("chip: snapshot delivers the logical baseline of every input") {
+  mock backend{};
+  ng::chip<mock> chip{backend};
+  REQUIRE(chip.open(specs, configs).has_value());
+
+  // Wire low on the active-low button: logically pressed at startup.
+  REQUIRE(backend.set_physical(ng::line_offset{17}, false).has_value());
+
+  std::vector<ng::line_value> baseline{};
+  REQUIRE(chip.snapshot([&](ng::line_value const& value) {
+    baseline.push_back(value);
+  }).has_value());
+
+  // Only the input is delivered; the output line is not part of the baseline.
+  REQUIRE(baseline.size() == 1);
+  CHECK(baseline[0].name() == "button");
+  CHECK(baseline[0].logical() == true);
+  CHECK(baseline[0].edge() == ng::edge_kind::none);
+  CHECK(baseline[0].sequence() == ng::event_sequence{0});
+
+  ng::chip<mock> const unbound{};
+  CHECK(
+    unbound.snapshot([](ng::line_value const&) {}).error() == ng::gpio_error::not_open
+  );
 }
 
 TEST_CASE("chip: reconfigure swaps behaviour and the spec view in place") {

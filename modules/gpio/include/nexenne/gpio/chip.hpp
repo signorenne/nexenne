@@ -18,6 +18,7 @@
  * a view over state the caller owns.
  */
 
+#include <concepts>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -28,6 +29,7 @@
 #include <nexenne/gpio/line_config.hpp>
 #include <nexenne/gpio/line_spec.hpp>
 #include <nexenne/gpio/line_types.hpp>
+#include <nexenne/gpio/line_value.hpp>
 
 namespace nexenne::gpio {
 
@@ -248,6 +250,44 @@ public:
       return std::nullopt;
     }
     return gpio::line<backend_type>{*m_backend, *found};
+  }
+
+  /**
+   * @brief Delivers the current logical state of every input line.
+   *
+   * Reads each input in the request set and hands a steady-state
+   * observation (\c edge_kind::none, unset sequence and timestamp) to
+   * \p deliver, in spec-table order. This is the baseline an edge-driven
+   * consumer needs at startup: without it, the state of a line is unknown
+   * until its first edge, which for a seldom-touched input can be never.
+   * Call it once after \c open (and after a supervised reopen), then
+   * switch to the event path.
+   *
+   * @tparam Deliver Callable invocable with \c line_value const&.
+   * @param deliver Receives one observation per input line.
+   *
+   * @return Nothing on success; \c gpio_error::not_open when unbound,
+   *         otherwise the first read error (delivery stops there).
+   *
+   * @pre The bound backend, if any, is open.
+   * @post \p deliver was invoked once per input line preceding any failure.
+   */
+  template <std::invocable<line_value const&> Deliver>
+  auto snapshot(Deliver&& deliver) const -> result<void> {
+    if (m_backend == nullptr) {
+      return std::unexpected{gpio_error::not_open};
+    }
+    for (auto const& spec : m_specs) {
+      if (spec.direction() != line_direction::input) {
+        continue;
+      }
+      auto const physical{m_backend->read(spec.offset())};
+      if (!physical.has_value()) {
+        return std::unexpected{physical.error()};
+      }
+      deliver(line_value{spec, spec.to_logical(*physical)});
+    }
+    return {};
   }
 
   /**
