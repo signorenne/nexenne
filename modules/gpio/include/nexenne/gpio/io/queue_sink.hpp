@@ -18,6 +18,7 @@
  */
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 
 #include <nexenne/container/spsc_queue.hpp>
@@ -43,6 +44,7 @@ public:
 
 private:
   container::spsc_queue<line_event, N> m_queue{};
+  std::uint64_t m_dropped{0};
 
 public:
   /**
@@ -68,7 +70,28 @@ public:
    * @complexity \c O(1).
    */
   auto push(line_event const& event) noexcept -> bool {
-    return m_queue.push(event).has_value();
+    if (m_queue.push(event).has_value()) {
+      return true;
+    }
+    m_dropped += 1;
+    return false;
+  }
+
+  /**
+   * @brief Events rejected because the ring was full; producer side.
+   *
+   * The count lives where the drops happen, so a supervisor reads one
+   * number instead of every producer keeping its own tally. It pairs with
+   * \c sequence_tracker.hpp, which detects drops UPSTREAM of the sink from
+   * sequence gaps; this counter owns the drops AT the sink.
+   *
+   * @return The number of rejected pushes since construction.
+   *
+   * @pre Read from the producer context, like \c push.
+   * @post None.
+   */
+  [[nodiscard]] auto dropped() const noexcept -> std::uint64_t {
+    return m_dropped;
   }
 
   /**

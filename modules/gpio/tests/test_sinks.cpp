@@ -55,8 +55,12 @@ TEST_CASE("queue_sink: FIFO order, drop on full, drain to empty") {
   CHECK(sink.push(numbered_event(2)));
   CHECK(sink.push(numbered_event(3)));
 
-  // The ring is full: the fourth event is dropped, not blocked on.
+  // The ring is full: the fourth event is dropped, not blocked on, and the
+  // sink itself keeps the tally.
+  CHECK(sink.dropped() == 0);
   CHECK_FALSE(sink.push(numbered_event(4)));
+  CHECK_FALSE(sink.push(numbered_event(5)));
+  CHECK(sink.dropped() == 2);
 
   CHECK(sink.try_pop()->sequence == ng::event_sequence{1});
   CHECK(sink.try_pop()->sequence == ng::event_sequence{2});
