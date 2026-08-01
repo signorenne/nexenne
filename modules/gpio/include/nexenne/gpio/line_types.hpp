@@ -92,6 +92,38 @@ enum class edge_detection : std::uint8_t {
 };
 
 /**
+ * @brief Whether a delivered edge falls under a subscription.
+ *
+ * The router's predicate: a consumer subscribed to one direction filters a
+ * shared event stream with this instead of hand-written enum comparisons.
+ * A steady-state observation (\c edge_kind::none) matches no subscription,
+ * and \c edge_detection::none matches nothing at all.
+ *
+ * @param subscription Edge events a consumer asked for.
+ * @param edge Edge direction of the delivered event.
+ *
+ * @return \c true when \p edge is one of the directions \p subscription
+ *         asks for.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] constexpr auto
+matches(edge_detection const subscription, edge_kind const edge) noexcept -> bool {
+  switch (subscription) {
+    case edge_detection::none:
+      return false;
+    case edge_detection::rising:
+      return edge == edge_kind::rising;
+    case edge_detection::falling:
+      return edge == edge_kind::falling;
+    case edge_detection::both:
+      return edge != edge_kind::none;
+  }
+  return false;
+}
+
+/**
  * @brief Maps a physical level to its logical level under a polarity.
  *
  * For \c line_polarity::active_low the level is inverted; for

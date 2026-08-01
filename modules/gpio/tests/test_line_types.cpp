@@ -80,6 +80,24 @@ TEST_CASE("apply_polarity: level and edge invert together under active_low") {
   );
 }
 
+TEST_CASE("matches: a subscription admits exactly its own directions") {
+  // both admits any real transition, never steady state.
+  CHECK(ng::matches(ng::edge_detection::both, ng::edge_kind::rising));
+  CHECK(ng::matches(ng::edge_detection::both, ng::edge_kind::falling));
+  CHECK_FALSE(ng::matches(ng::edge_detection::both, ng::edge_kind::none));
+
+  // A one-direction subscription rejects the other direction.
+  CHECK(ng::matches(ng::edge_detection::rising, ng::edge_kind::rising));
+  CHECK_FALSE(ng::matches(ng::edge_detection::rising, ng::edge_kind::falling));
+  CHECK(ng::matches(ng::edge_detection::falling, ng::edge_kind::falling));
+  CHECK_FALSE(ng::matches(ng::edge_detection::falling, ng::edge_kind::rising));
+
+  // Polling-only admits nothing.
+  CHECK_FALSE(ng::matches(ng::edge_detection::none, ng::edge_kind::rising));
+
+  static_assert(ng::matches(ng::edge_detection::both, ng::edge_kind::rising));
+}
+
 TEST_CASE("enums: subscription side is wider than the sample side") {
   // edge_kind names what one event was; edge_detection names what to deliver.
   static_assert(std::is_same_v<std::underlying_type_t<ng::edge_kind>, std::uint8_t>);
