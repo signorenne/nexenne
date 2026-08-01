@@ -21,6 +21,7 @@
 
 #include <nexenne/gpio/error.hpp>
 #include <nexenne/gpio/io/chardev_info.hpp>
+#include <nexenne/gpio/io/chardev_watch.hpp>
 #include <nexenne/gpio/line_config.hpp>
 #include <nexenne/gpio/line_event.hpp>
 #include <nexenne/gpio/line_spec.hpp>
@@ -547,6 +548,80 @@ inline auto operator<<(std::ostream& os, line_info const& info) -> std::ostream&
   return os << to_string(info);
 }
 
+/**
+ * @brief Name of a \c line_change_kind.
+ *
+ * @param kind Change kind to name.
+ *
+ * @return A static string view naming the enumerator.
+ *
+ * @pre None.
+ * @post The returned view refers to a string with program lifetime.
+ */
+[[nodiscard]] constexpr auto to_string(line_change_kind const kind) noexcept
+  -> std::string_view {
+  switch (kind) {
+    case line_change_kind::requested:
+      return "requested";
+    case line_change_kind::released:
+      return "released";
+    case line_change_kind::reconfigured:
+      return "reconfigured";
+  }
+  return "unknown";
+}
+
+/**
+ * @brief Streams a \c line_change_kind by its \c to_string name.
+ *
+ * @param os Output stream.
+ * @param kind Change kind to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The name has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, line_change_kind const kind) -> std::ostream& {
+  return os << to_string(kind);
+}
+
+/**
+ * @brief Debug string for a \c line_change.
+ *
+ * Example: \c "line_change(requested, t=1200ns, line_info(...))".
+ *
+ * @param change Change record to print.
+ *
+ * @return The debug string with the kind, timestamp, and updated info.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(line_change const& change) -> std::string {
+  return std::format(
+    "line_change({}, t={}ns, {})",
+    to_string(change.kind),
+    change.timestamp.time_since_epoch().count(),
+    to_string(change.info)
+  );
+}
+
+/**
+ * @brief Streams a \c line_change via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param change Change record to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted record has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, line_change const& change) -> std::ostream& {
+  return os << to_string(change);
+}
+
 }  // namespace nexenne::gpio
 
 /**
@@ -873,6 +948,56 @@ struct std::formatter<nexenne::gpio::chip_info> : std::formatter<std::string_vie
   template <typename FormatContext>
   auto format(nexenne::gpio::chip_info const& info, FormatContext& ctx) const {
     return std::formatter<std::string_view>::format(nexenne::gpio::to_string(info), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c line_change_kind, printing its name.
+ *
+ * Inherits the string formatter, so a spec applies to the name.
+ */
+template <>
+struct std::formatter<nexenne::gpio::line_change_kind> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the change-kind name through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param kind Change kind to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The name has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::line_change_kind const kind, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(kind), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c line_change, printing its \c to_string.
+ *
+ * Inherits the string formatter, so a spec applies to the whole text.
+ */
+template <>
+struct std::formatter<nexenne::gpio::line_change> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the change record's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param change Change record to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted record has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::line_change const& change, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(change), ctx);
   }
 };
 

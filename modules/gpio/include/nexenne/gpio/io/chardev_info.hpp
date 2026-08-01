@@ -345,6 +345,56 @@ struct info_fd_closer {
       return gpio_error::io_error;
   }
 }
+
+[[nodiscard]] inline auto decode_line_info(::gpio_v2_line_info const& raw) -> line_info {
+  std::array<char, 32> name{};
+  std::array<char, 32> consumer{};
+  for (std::size_t i{0}; i < name.size(); ++i) {
+    name[i] = raw.name[i];
+    consumer[i] = raw.consumer[i];
+  }
+
+  auto const flags{raw.flags};
+  auto const direction{
+    (flags & GPIO_V2_LINE_FLAG_OUTPUT) != 0 ? line_direction::output : line_direction::input
+  };
+  auto bias{line_bias::as_is};
+  if ((flags & GPIO_V2_LINE_FLAG_BIAS_PULL_UP) != 0) {
+    bias = line_bias::pull_up;
+  } else if ((flags & GPIO_V2_LINE_FLAG_BIAS_PULL_DOWN) != 0) {
+    bias = line_bias::pull_down;
+  } else if ((flags & GPIO_V2_LINE_FLAG_BIAS_DISABLED) != 0) {
+    bias = line_bias::disabled;
+  }
+  auto drive{line_drive::push_pull};
+  if ((flags & GPIO_V2_LINE_FLAG_OPEN_DRAIN) != 0) {
+    drive = line_drive::open_drain;
+  } else if ((flags & GPIO_V2_LINE_FLAG_OPEN_SOURCE) != 0) {
+    drive = line_drive::open_source;
+  }
+  bool const rising{(flags & GPIO_V2_LINE_FLAG_EDGE_RISING) != 0};
+  bool const falling{(flags & GPIO_V2_LINE_FLAG_EDGE_FALLING) != 0};
+  auto edges{edge_detection::none};
+  if (rising && falling) {
+    edges = edge_detection::both;
+  } else if (rising) {
+    edges = edge_detection::rising;
+  } else if (falling) {
+    edges = edge_detection::falling;
+  }
+
+  return line_info{
+    name,
+    consumer,
+    line_offset{raw.offset},
+    direction,
+    bias,
+    drive,
+    edges,
+    (flags & GPIO_V2_LINE_FLAG_USED) != 0,
+    (flags & GPIO_V2_LINE_FLAG_ACTIVE_LOW) != 0,
+  };
+}
 /// @endcond
 
 }  // namespace detail
@@ -406,54 +456,7 @@ struct info_fd_closer {
       errno == EINVAL ? gpio_error::invalid_argument : detail::info_errno()
     };
   }
-
-  std::array<char, 32> name{};
-  std::array<char, 32> consumer{};
-  for (std::size_t i{0}; i < name.size(); ++i) {
-    name[i] = raw.name[i];
-    consumer[i] = raw.consumer[i];
-  }
-
-  auto const flags{raw.flags};
-  auto const direction{
-    (flags & GPIO_V2_LINE_FLAG_OUTPUT) != 0 ? line_direction::output : line_direction::input
-  };
-  auto bias{line_bias::as_is};
-  if ((flags & GPIO_V2_LINE_FLAG_BIAS_PULL_UP) != 0) {
-    bias = line_bias::pull_up;
-  } else if ((flags & GPIO_V2_LINE_FLAG_BIAS_PULL_DOWN) != 0) {
-    bias = line_bias::pull_down;
-  } else if ((flags & GPIO_V2_LINE_FLAG_BIAS_DISABLED) != 0) {
-    bias = line_bias::disabled;
-  }
-  auto drive{line_drive::push_pull};
-  if ((flags & GPIO_V2_LINE_FLAG_OPEN_DRAIN) != 0) {
-    drive = line_drive::open_drain;
-  } else if ((flags & GPIO_V2_LINE_FLAG_OPEN_SOURCE) != 0) {
-    drive = line_drive::open_source;
-  }
-  bool const rising{(flags & GPIO_V2_LINE_FLAG_EDGE_RISING) != 0};
-  bool const falling{(flags & GPIO_V2_LINE_FLAG_EDGE_FALLING) != 0};
-  auto edges{edge_detection::none};
-  if (rising && falling) {
-    edges = edge_detection::both;
-  } else if (rising) {
-    edges = edge_detection::rising;
-  } else if (falling) {
-    edges = edge_detection::falling;
-  }
-
-  return line_info{
-    name,
-    consumer,
-    offset,
-    direction,
-    bias,
-    drive,
-    edges,
-    (flags & GPIO_V2_LINE_FLAG_USED) != 0,
-    (flags & GPIO_V2_LINE_FLAG_ACTIVE_LOW) != 0,
-  };
+  return detail::decode_line_info(raw);
 }
 
 /**

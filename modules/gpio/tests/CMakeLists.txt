@@ -17,6 +17,7 @@ nexenne_add_module_tests(gpio
         test_drain.cpp
         test_chardev_chip.cpp
         test_chardev_info.cpp
+        test_chardev_watch.cpp
         test_format.cpp
         test_gpio.cpp
 )

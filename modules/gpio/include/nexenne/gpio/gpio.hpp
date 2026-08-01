@@ -40,6 +40,7 @@
 #include <nexenne/gpio/io/callback_sink.hpp>
 #include <nexenne/gpio/io/chardev_chip.hpp>
 #include <nexenne/gpio/io/chardev_info.hpp>
+#include <nexenne/gpio/io/chardev_watch.hpp>
 #include <nexenne/gpio/io/mock_chip.hpp>
 #include <nexenne/gpio/io/queue_sink.hpp>
 #include <nexenne/gpio/line.hpp>
