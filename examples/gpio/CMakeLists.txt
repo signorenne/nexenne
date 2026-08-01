@@ -6,6 +6,7 @@ set(_gpio_examples
     blink
     edges
     reactor
+    watch
 )
 
 foreach(_example IN LISTS _gpio_examples)
