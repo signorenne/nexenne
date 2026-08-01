@@ -35,6 +35,7 @@ public:
 private:
   edge_detection m_edges{edge_detection::none};
   std::chrono::nanoseconds m_debounce_period{0};
+  line_clock m_clock{line_clock::monotonic};
   bool m_initial_value{false};
 
 public:
@@ -57,6 +58,7 @@ public:
    *                      backends exchange physical levels, so a caller
    *                      thinking in logical terms converts with
    *                      \c line_spec::to_physical first.
+   * @param clock Clock the backend stamps this line's events with.
    *
    * @pre \p debounce_period is non-negative.
    * @post Every accessor returns the corresponding argument.
@@ -64,9 +66,13 @@ public:
   explicit constexpr line_config(
     edge_detection const edges,
     std::chrono::nanoseconds const debounce_period = std::chrono::nanoseconds{0},
-    bool const initial_value = false
+    bool const initial_value = false,
+    line_clock const clock = line_clock::monotonic
   ) noexcept
-    : m_edges{edges}, m_debounce_period{debounce_period}, m_initial_value{initial_value} {}
+    : m_edges{edges},
+      m_debounce_period{debounce_period},
+      m_clock{clock},
+      m_initial_value{initial_value} {}
 
   /**
    * @brief The requested edge-event subscription.
@@ -114,6 +120,30 @@ public:
    */
   [[nodiscard]] constexpr auto debounce_period() noexcept -> std::chrono::nanoseconds& {
     return m_debounce_period;
+  }
+
+  /**
+   * @brief The clock the backend stamps this line's events with.
+   *
+   * @return The stored clock selection.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto clock() const noexcept -> line_clock {
+    return m_clock;
+  }
+
+  /**
+   * @brief Mutable access to the event clock selection.
+   *
+   * @return Reference to the stored clock selection.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto clock() noexcept -> line_clock& {
+    return m_clock;
   }
 
   /**

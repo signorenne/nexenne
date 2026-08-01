@@ -193,6 +193,41 @@ inline auto operator<<(std::ostream& os, line_drive const drive) -> std::ostream
 }
 
 /**
+ * @brief Name of a \c line_clock selection.
+ *
+ * @param clock Clock selection to name.
+ *
+ * @return A static string view naming the enumerator.
+ *
+ * @pre None.
+ * @post The returned view refers to a string with program lifetime.
+ */
+[[nodiscard]] constexpr auto to_string(line_clock const clock) noexcept -> std::string_view {
+  switch (clock) {
+    case line_clock::monotonic:
+      return "monotonic";
+    case line_clock::realtime:
+      return "realtime";
+  }
+  return "unknown";
+}
+
+/**
+ * @brief Streams a \c line_clock by its \c to_string name.
+ *
+ * @param os Output stream.
+ * @param clock Clock selection to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The name has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, line_clock const clock) -> std::ostream& {
+  return os << to_string(clock);
+}
+
+/**
  * @brief Name of an \c edge_kind.
  *
  * @param edge Edge direction to name.
@@ -312,7 +347,8 @@ inline auto operator<<(std::ostream& os, line_spec const& spec) -> std::ostream&
 /**
  * @brief Debug string for a \c line_config.
  *
- * Example: \c "line_config(edges=both, debounce=5000000ns, initial=low)".
+ * Example: \c "line_config(edges=both, debounce=5000000ns, initial=low,
+ * clock=monotonic)".
  *
  * @param config Config to print.
  *
@@ -323,10 +359,11 @@ inline auto operator<<(std::ostream& os, line_spec const& spec) -> std::ostream&
  */
 [[nodiscard]] inline auto to_string(line_config const& config) -> std::string {
   return std::format(
-    "line_config(edges={}, debounce={}ns, initial={})",
+    "line_config(edges={}, debounce={}ns, initial={}, clock={})",
     to_string(config.edges()),
     config.debounce_period().count(),
-    config.initial_value() ? "high" : "low"
+    config.initial_value() ? "high" : "low",
+    to_string(config.clock())
   );
 }
 
@@ -636,6 +673,31 @@ struct std::formatter<nexenne::gpio::line_drive> : std::formatter<std::string_vi
   template <typename FormatContext>
   auto format(nexenne::gpio::line_drive const drive, FormatContext& ctx) const {
     return std::formatter<std::string_view>::format(nexenne::gpio::to_string(drive), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c line_clock, printing its name.
+ *
+ * Inherits the string formatter, so a spec applies to the name.
+ */
+template <>
+struct std::formatter<nexenne::gpio::line_clock> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the clock-selection name through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param clock Clock selection to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The name has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::line_clock const clock, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(clock), ctx);
   }
 };
 

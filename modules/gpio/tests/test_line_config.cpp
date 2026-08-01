@@ -21,17 +21,23 @@ TEST_CASE("line_config: default requests a polling-only line") {
   CHECK(config.edges() == ng::edge_detection::none);
   CHECK(config.debounce_period() == 0ns);
   CHECK(config.initial_value() == false);
+  CHECK(config.clock() == ng::line_clock::monotonic);
 
   static_assert(std::is_trivially_copyable_v<ng::line_config>);
   static_assert(std::is_same_v<ng::line_config::value_type, bool>);
 }
 
-TEST_CASE("line_config: the constructor sets all three knobs") {
-  ng::line_config const config{ng::edge_detection::both, 5ms, true};
+TEST_CASE("line_config: the constructor sets all four knobs") {
+  ng::line_config const config{ng::edge_detection::both, 5ms, true, ng::line_clock::realtime};
 
   CHECK(config.edges() == ng::edge_detection::both);
   CHECK(config.debounce_period() == 5ms);
   CHECK(config.initial_value() == true);
+  CHECK(config.clock() == ng::line_clock::realtime);
+
+  ng::line_config changed{};
+  changed.clock() = ng::line_clock::realtime;
+  CHECK(changed.clock() == ng::line_clock::realtime);
 }
 
 TEST_CASE("line_config: mutable accessors rewrite one knob at a time") {

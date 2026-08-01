@@ -43,9 +43,13 @@ TEST_CASE("format: a spec renders every field") {
   CHECK(ng::to_string(ng::line_spec{}).starts_with("line_spec(unnamed"));
 }
 
-TEST_CASE("format: a config renders its three knobs") {
-  ng::line_config const config{ng::edge_detection::both, 5ms, true};
-  CHECK(std::format("{}", config) == "line_config(edges=both, debounce=5000000ns, initial=high)");
+TEST_CASE("format: a config renders its four knobs") {
+  ng::line_config const config{ng::edge_detection::both, 5ms, true, ng::line_clock::realtime};
+  CHECK(
+    std::format("{}", config)
+    == "line_config(edges=both, debounce=5000000ns, initial=high, clock=realtime)"
+  );
+  CHECK(std::format("{}", ng::line_clock::monotonic) == "monotonic");
 }
 
 TEST_CASE("format: events and observations render identity and state") {

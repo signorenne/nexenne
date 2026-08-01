@@ -79,6 +79,21 @@ enum class edge_kind : std::uint8_t {
 };
 
 /**
+ * @brief The clock a backend is asked to stamp a line's edge events with.
+ *
+ * The monotonic default is right for measuring time between edges: it never
+ * jumps. The realtime selection stamps events with the wall clock instead,
+ * which is what a system needs when edge timestamps must line up with logs
+ * or with events recorded on other hosts; it inherits the wall clock's
+ * ability to step under NTP. Backends without a wall clock treat the
+ * request as unsupported.
+ */
+enum class line_clock : std::uint8_t {
+  monotonic,  ///< A clock that never goes backwards; the default.
+  realtime,   ///< The wall clock; timestamps line up with log time.
+};
+
+/**
  * @brief The edge events a backend is asked to deliver for a line.
  *
  * This is the subscription side of \c edge_kind: a request can ask for both
@@ -195,12 +210,12 @@ using event_sequence = utility::identifier<struct event_sequence_tag, std::uint6
 /**
  * @brief The clock edge-event timestamps are expressed on.
  *
- * A monotonic clock with nanosecond resolution and an unspecified epoch: on
- * Linux the kernel stamps events with \c CLOCK_MONOTONIC, and an embedded
- * backend uses its system tick converted to nanoseconds. The clock exists
- * only to give timestamps a distinct \c std::chrono::time_point type; it has
- * no \c now(), because timestamps come from the event source, never from the
- * consumer.
+ * A nanosecond clock with an unspecified epoch: on Linux the kernel stamps
+ * events with \c CLOCK_MONOTONIC by default (an embedded backend uses its
+ * system tick), and a line requested with \c line_clock::realtime carries
+ * the wall clock's epoch instead. The clock exists only to give timestamps
+ * a distinct \c std::chrono::time_point type; it has no \c now(), because
+ * timestamps come from the event source, never from the consumer.
  */
 struct event_clock {
   using rep = std::int64_t;                                ///< Tick representation.

@@ -211,6 +211,9 @@ private:
       case line_bias::as_is:
         break;
     }
+    if (config.clock() == line_clock::realtime) {
+      flags |= GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME;
+    }
     return flags;
   }
 
