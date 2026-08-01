@@ -35,6 +35,7 @@
 #include <nexenne/gpio/chip.hpp>
 #include <nexenne/gpio/debounce.hpp>
 #include <nexenne/gpio/decode.hpp>
+#include <nexenne/gpio/drain.hpp>
 #include <nexenne/gpio/error.hpp>
 #include <nexenne/gpio/io/callback_sink.hpp>
 #include <nexenne/gpio/io/chardev_chip.hpp>
