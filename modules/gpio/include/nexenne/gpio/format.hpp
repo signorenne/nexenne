@@ -209,6 +209,8 @@ inline auto operator<<(std::ostream& os, line_drive const drive) -> std::ostream
       return "monotonic";
     case line_clock::realtime:
       return "realtime";
+    case line_clock::hte:
+      return "hte";
   }
   return "unknown";
 }

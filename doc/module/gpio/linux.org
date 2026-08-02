@@ -157,6 +157,13 @@ logs or with events recorded on other hosts, request
 line's events from =CLOCK_REALTIME= instead; the timestamps then carry the
 Unix epoch and inherit the wall clock's ability to step under NTP.
 
+The third selection, =line_clock::hte=, asks the hardware timestamp engine
+to stamp events in hardware at the pin, removing interrupt and scheduling
+latency from the timestamp entirely; it exists on platforms with such an
+engine (NVIDIA Tegra is the known one) and the open fails with
+=unsupported= everywhere else, never silently falling back to another
+clock.
+
 * Testing without hardware: gpio-sim
 
 The kernel's =gpio-sim= module (=CONFIG_GPIO_SIM=) creates virtual chips

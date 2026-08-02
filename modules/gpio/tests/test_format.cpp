@@ -50,6 +50,7 @@ TEST_CASE("format: a config renders its four knobs") {
     == "line_config(edges=both, debounce=5000000ns, initial=high, clock=realtime)"
   );
   CHECK(std::format("{}", ng::line_clock::monotonic) == "monotonic");
+  CHECK(std::format("{}", ng::line_clock::hte) == "hte");
 }
 
 TEST_CASE("format: events and observations render identity and state") {

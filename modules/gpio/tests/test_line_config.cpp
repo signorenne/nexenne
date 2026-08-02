@@ -38,6 +38,8 @@ TEST_CASE("line_config: the constructor sets all four knobs") {
   ng::line_config changed{};
   changed.clock() = ng::line_clock::realtime;
   CHECK(changed.clock() == ng::line_clock::realtime);
+  changed.clock() = ng::line_clock::hte;
+  CHECK(changed.clock() == ng::line_clock::hte);
 }
 
 TEST_CASE("line_config: mutable accessors rewrite one knob at a time") {

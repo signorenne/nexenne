@@ -85,12 +85,17 @@ enum class edge_kind : std::uint8_t {
  * jumps. The realtime selection stamps events with the wall clock instead,
  * which is what a system needs when edge timestamps must line up with logs
  * or with events recorded on other hosts; it inherits the wall clock's
- * ability to step under NTP. Backends without a wall clock treat the
- * request as unsupported.
+ * ability to step under NTP. The hte selection asks the hardware timestamp
+ * engine to stamp events in hardware, at the pin, removing interrupt and
+ * scheduling latency from the timestamp; only platforms with such an engine
+ * (NVIDIA Tegra is the known one) accept it. A backend without the
+ * requested clock rejects the open as unsupported rather than silently
+ * stamping from another clock.
  */
 enum class line_clock : std::uint8_t {
   monotonic,  ///< A clock that never goes backwards; the default.
   realtime,   ///< The wall clock; timestamps line up with log time.
+  hte,        ///< The hardware timestamp engine; stamped at the pin.
 };
 
 /**

@@ -211,8 +211,17 @@ private:
       case line_bias::as_is:
         break;
     }
-    if (config.clock() == line_clock::realtime) {
-      flags |= GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME;
+    switch (config.clock()) {
+      case line_clock::realtime:
+        flags |= GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME;
+        break;
+      case line_clock::hte:
+        // The kernel rejects this on hardware without a timestamp engine,
+        // which surfaces as gpio_error::unsupported from the open.
+        flags |= GPIO_V2_LINE_FLAG_EVENT_CLOCK_HTE;
+        break;
+      case line_clock::monotonic:
+        break;
     }
     return flags;
   }
