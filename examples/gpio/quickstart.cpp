@@ -3,11 +3,12 @@
  * @brief quickstart: a guided tour of nexenne::gpio, the one-file cookbook.
  *
  * Read this first. It walks the whole module hardware-free over the mock
- * backend: describe lines with specs, open a chip, read and write in the
- * logical domain, mint line handles, and run the full edge path (drain,
- * drop-track, debounce, decode). Swap \c mock_chip for \c chardev_chip and
- * the same code runs on real Linux hardware; the focused examples drill
- * into that.
+ * backend: describe lines with specs, open a chip, take the startup
+ * baseline, read and write in the logical domain, mint line handles, run
+ * the full edge path (pump into a ring, drop-track, debounce, decode), and
+ * retune the open request in place. Swap \c mock_chip for \c chardev_chip
+ * and the same code runs on real Linux hardware; the focused examples
+ * drill into that.
  */
 
 #include <array>
@@ -17,8 +18,10 @@
 #include <nexenne/gpio/chip.hpp>
 #include <nexenne/gpio/debounce.hpp>
 #include <nexenne/gpio/decode.hpp>
+#include <nexenne/gpio/drain.hpp>
 #include <nexenne/gpio/format.hpp>
 #include <nexenne/gpio/io/mock_chip.hpp>
+#include <nexenne/gpio/io/queue_sink.hpp>
 #include <nexenne/gpio/line.hpp>
 #include <nexenne/gpio/sequence_tracker.hpp>
 #include <nexenne/utility/discard.hpp>
@@ -99,15 +102,20 @@ auto main() -> int {
   nexenne::utility::discard(backend.inject(raw(5, 22ms, false)));  //        ...settles (4 lost)
   nexenne::utility::discard(backend.inject(raw(6, 40ms, false)));
 
+  // The production shape: pump everything ready into a lock-free ring in
+  // one call, then consume from the ring at the application's own pace.
+  ng::queue_sink<16> ring{};
+  if (auto const pumped{ng::drain_events(backend, ring)}; pumped.has_value()) {
+    std::println(
+      "pumped {} events ({} rejected by the ring)", pumped->delivered, pumped->rejected
+    );
+  }
+
   ng::event_debounce debounce{5ms};
   ng::sequence_tracker tracker{};
-  while (true) {
-    auto const drained{backend.wait_event(0ms)};
-    if (!drained.has_value() || !drained->has_value()) {
-      break;
-    }
-    nexenne::utility::discard(tracker.feed((**drained).sequence));
-    if (auto const settled{debounce.feed(**drained)}) {
+  while (auto const drained{ring.try_pop()}) {
+    nexenne::utility::discard(tracker.feed(drained->sequence));
+    if (auto const settled{debounce.feed(*drained)}) {
       std::println("settled: {}", ng::decode(specs[0], *settled));
     }
   }

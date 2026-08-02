@@ -27,7 +27,9 @@
 
 #  include <nexenne/gpio/chip.hpp>
 #  include <nexenne/gpio/decode.hpp>
+#  include <nexenne/gpio/drain.hpp>
 #  include <nexenne/gpio/format.hpp>
+#  include <nexenne/gpio/io/callback_sink.hpp>
 #  include <nexenne/gpio/io/chardev_chip.hpp>
 #  include <nexenne/utility/discard.hpp>
 #  include <nexenne/utility/scope_guard.hpp>
@@ -127,14 +129,14 @@ auto main(int const argc, char** const argv) -> int {
         nexenne::utility::discard(led.toggle());
         ticks += 1;
       } else {
-        // Drain every event the readiness covered; never block here.
-        while (true) {
-          auto const event{backend.wait_event(0ns)};
-          if (!event.has_value() || !event->has_value()) {
-            break;
-          }
-          std::println("{}", ng::decode(specs[0], **event));
-        }
+        // Pump every event the readiness covered straight into a handler;
+        // drain_events never blocks, which is the reactor contract.
+        auto handler{[&](ng::line_event const& event) noexcept -> bool {
+          std::println("{}", ng::decode(specs[0], event));
+          return true;
+        }};
+        ng::callback_sink sink{handler};
+        nexenne::utility::discard(ng::drain_events(backend, sink));
       }
     }
   }
