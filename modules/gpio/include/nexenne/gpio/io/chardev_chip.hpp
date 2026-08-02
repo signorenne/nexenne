@@ -154,8 +154,8 @@ private:
   fd_handle m_request{};
   container::static_vector<line_offset, max_lines> m_offsets{};
 
-  [[nodiscard]] auto index_of(line_offset const offset) const noexcept
-    -> std::optional<std::size_t> {
+  [[nodiscard]] auto index_of(line_offset const offset
+  ) const noexcept -> std::optional<std::size_t> {
     for (std::size_t i{0}; i < m_offsets.size(); ++i) {
       if (m_offsets[i] == offset) {
         return i;
@@ -231,7 +231,8 @@ private:
   // attribute each, and initial output levels and distinct debounce periods
   // become further attributes, within the kernel's ten-attribute cap.
   [[nodiscard]] static auto build_line_config(
-    std::span<line_spec const> const specs, std::span<line_config const> const configs,
+    std::span<line_spec const> const specs,
+    std::span<line_config const> const configs,
     ::gpio_v2_line_config* const config
   ) -> result<void> {
     std::array<std::uint64_t, max_lines> flags{};
@@ -242,16 +243,17 @@ private:
 
     auto& attrs{config->attrs};
     std::uint32_t attr_count{0};
-    auto const add_attr{[&](::gpio_v2_line_attribute const& attribute,
-                            std::uint64_t const mask) noexcept -> bool {
-      if (attr_count >= GPIO_V2_LINE_NUM_ATTRS_MAX) {
-        return false;
+    auto const add_attr{
+      [&](::gpio_v2_line_attribute const& attribute, std::uint64_t const mask) noexcept -> bool {
+        if (attr_count >= GPIO_V2_LINE_NUM_ATTRS_MAX) {
+          return false;
+        }
+        attrs[attr_count].attr = attribute;
+        attrs[attr_count].mask = mask;
+        attr_count += 1;
+        return true;
       }
-      attrs[attr_count].attr = attribute;
-      attrs[attr_count].mask = mask;
-      attr_count += 1;
-      return true;
-    }};
+    };
 
     // Group lines whose flags differ from the base into one attribute per
     // distinct flag word (first occurrence wins, so scan forward).
@@ -322,8 +324,7 @@ private:
       if (grouped) {
         continue;
       }
-      auto const microseconds{
-        std::chrono::duration_cast<std::chrono::microseconds>(period).count()
+      auto const microseconds{std::chrono::duration_cast<std::chrono::microseconds>(period).count()
       };
       if (microseconds > std::int64_t{std::numeric_limits<std::uint32_t>::max()}) {
         return std::unexpected{gpio_error::invalid_argument};
@@ -345,8 +346,8 @@ private:
     return {};
   }
 
-  [[nodiscard]] auto values_ioctl(unsigned long const request, ::gpio_v2_line_values* values) const
-    -> result<void> {
+  [[nodiscard]] auto
+  values_ioctl(unsigned long const request, ::gpio_v2_line_values* values) const -> result<void> {
     if (!m_request.owns()) {
       return std::unexpected{gpio_error::not_open};
     }
@@ -377,7 +378,7 @@ public:
     std::string_view const consumer = "nexenne-gpio",
     std::uint32_t const event_buffer_size = 0
   ) noexcept
-    : m_chip{chip}, m_consumer{consumer}, m_event_buffer_size{event_buffer_size} {}
+      : m_chip{chip}, m_consumer{consumer}, m_event_buffer_size{event_buffer_size} {}
 
   /**
    * @brief The chip index this backend targets.
@@ -463,11 +464,9 @@ public:
     utility::discard(std::snprintf(
       path.data(), path.size(), "/dev/gpiochip%u", static_cast<unsigned>(m_chip.get())
     ));
-    fd_handle const chip_fd{
-      utility::make_unique_resource_checked(
-        ::open(path.data(), O_RDWR | O_CLOEXEC), -1, detail::fd_closer{}
-      )
-    };
+    fd_handle const chip_fd{utility::make_unique_resource_checked(
+      ::open(path.data(), O_RDWR | O_CLOEXEC), -1, detail::fd_closer{}
+    )};
     if (!chip_fd.owns()) {
       return std::unexpected{detail::errno_to_gpio_error(errno)};
     }
@@ -479,8 +478,7 @@ public:
     for (std::size_t i{0}; i < specs.size(); ++i) {
       request.offsets[i] = static_cast<std::uint32_t>(specs[i].offset().get());
     }
-    if (auto const built{build_line_config(specs, configs, &request.config)};
-        !built.has_value()) {
+    if (auto const built{build_line_config(specs, configs, &request.config)}; !built.has_value()) {
       return std::unexpected{built.error()};
     }
 
@@ -517,9 +515,9 @@ public:
    * @post On success the new behaviour is live; on failure the previous
    *       configuration is untouched.
    */
-  auto
-  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
-    -> result<void> {
+  auto reconfigure(
+    std::span<line_spec const> const specs, std::span<line_config const> const configs
+  ) -> result<void> {
     if (!m_request.owns()) {
       return std::unexpected{gpio_error::not_open};
     }
@@ -609,9 +607,8 @@ public:
    * @post On success \p levels_out holds the level of each offset, observed
    *       atomically by one ioctl.
    */
-  auto
-  read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out) const
-    -> result<void> {
+  auto read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out)
+    const -> result<void> {
     if (offsets.size() != levels_out.size()) {
       return std::unexpected{gpio_error::invalid_argument};
     }
@@ -649,9 +646,9 @@ public:
    * @pre None.
    * @post On success every named line is driven, atomically by one ioctl.
    */
-  auto
-  write_lines(std::span<line_offset const> const offsets, std::span<bool const> const levels_in)
-    -> result<void> {
+  auto write_lines(
+    std::span<line_offset const> const offsets, std::span<bool const> const levels_in
+  ) -> result<void> {
     if (offsets.size() != levels_in.size()) {
       return std::unexpected{gpio_error::invalid_argument};
     }
@@ -731,11 +728,10 @@ public:
     event.chip = m_chip;
     event.offset = line_offset{kernel_event.offset};
     event.sequence = event_sequence{kernel_event.seqno};
-    event.timestamp = event_time{
-      std::chrono::nanoseconds{static_cast<std::int64_t>(kernel_event.timestamp_ns)}
-    };
-    event.edge = kernel_event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? edge_kind::rising
-                                                                   : edge_kind::falling;
+    event.timestamp =
+      event_time{std::chrono::nanoseconds{static_cast<std::int64_t>(kernel_event.timestamp_ns)}};
+    event.edge =
+      kernel_event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? edge_kind::rising : edge_kind::falling;
     event.physical = event.edge == edge_kind::rising;
     return std::optional<line_event>{event};
   }
@@ -760,8 +756,7 @@ static_assert(gpio_backend<chardev_chip>, "chardev_chip must satisfy gpio_backen
 static_assert(bulk_gpio_backend<chardev_chip>, "chardev_chip must satisfy bulk_gpio_backend");
 static_assert(edge_source<chardev_chip>, "chardev_chip must satisfy edge_source");
 static_assert(
-  reconfigurable_gpio_backend<chardev_chip>,
-  "chardev_chip must satisfy reconfigurable_gpio_backend"
+  reconfigurable_gpio_backend<chardev_chip>, "chardev_chip must satisfy reconfigurable_gpio_backend"
 );
 
 }  // namespace nexenne::gpio
@@ -805,7 +800,7 @@ public:
     std::string_view const consumer = "nexenne-gpio",
     std::uint32_t const event_buffer_size = 0
   ) noexcept
-    : m_chip{chip} {
+      : m_chip{chip} {
     utility::discard(consumer, event_buffer_size);
   }
 
@@ -900,9 +895,8 @@ public:
    * @pre None.
    * @post None.
    */
-  auto
-  read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out) const
-    -> result<void> {
+  auto read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out)
+    const -> result<void> {
     utility::discard(offsets, levels_out);
     return std::unexpected{gpio_error::unsupported};
   }
@@ -918,9 +912,9 @@ public:
    * @pre None.
    * @post None.
    */
-  auto
-  write_lines(std::span<line_offset const> const offsets, std::span<bool const> const levels_in)
-    -> result<void> {
+  auto write_lines(
+    std::span<line_offset const> const offsets, std::span<bool const> const levels_in
+  ) -> result<void> {
     utility::discard(offsets, levels_in);
     return std::unexpected{gpio_error::unsupported};
   }
@@ -936,9 +930,9 @@ public:
    * @pre None.
    * @post None.
    */
-  auto
-  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
-    -> result<void> {
+  auto reconfigure(
+    std::span<line_spec const> const specs, std::span<line_config const> const configs
+  ) -> result<void> {
     utility::discard(specs, configs);
     return std::unexpected{gpio_error::unsupported};
   }
@@ -975,8 +969,7 @@ static_assert(gpio_backend<chardev_chip>, "chardev_chip must satisfy gpio_backen
 static_assert(bulk_gpio_backend<chardev_chip>, "chardev_chip must satisfy bulk_gpio_backend");
 static_assert(edge_source<chardev_chip>, "chardev_chip must satisfy edge_source");
 static_assert(
-  reconfigurable_gpio_backend<chardev_chip>,
-  "chardev_chip must satisfy reconfigurable_gpio_backend"
+  reconfigurable_gpio_backend<chardev_chip>, "chardev_chip must satisfy reconfigurable_gpio_backend"
 );
 
 }  // namespace nexenne::gpio

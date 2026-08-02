@@ -77,13 +77,13 @@ public:
     line_bias const bias = line_bias::as_is,
     line_drive const drive = line_drive::push_pull
   ) noexcept
-    : m_name{name},
-      m_chip{chip},
-      m_offset{offset},
-      m_direction{direction},
-      m_polarity{polarity},
-      m_bias{bias},
-      m_drive{drive} {}
+      : m_name{name}
+      , m_chip{chip}
+      , m_offset{offset}
+      , m_direction{direction}
+      , m_polarity{polarity}
+      , m_bias{bias}
+      , m_drive{drive} {}
 
   /**
    * @brief Builds a spec for an input line.
@@ -138,9 +138,7 @@ public:
     line_polarity const polarity = line_polarity::active_high,
     line_drive const drive = line_drive::push_pull
   ) noexcept -> line_spec {
-    return line_spec{
-      name, chip, offset, line_direction::output, polarity, line_bias::as_is, drive
-    };
+    return line_spec{name, chip, offset, line_direction::output, polarity, line_bias::as_is, drive};
   }
 
   /**

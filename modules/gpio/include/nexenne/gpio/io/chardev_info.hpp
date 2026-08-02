@@ -44,8 +44,8 @@ private:
   std::array<char, 32> m_label{};
   std::uint32_t m_lines{0};
 
-  [[nodiscard]] static constexpr auto to_view(std::array<char, 32> const& field) noexcept
-    -> std::string_view {
+  [[nodiscard]] static constexpr auto to_view(std::array<char, 32> const& field
+  ) noexcept -> std::string_view {
     std::size_t length{0};
     while (length < field.size() && field[length] != '\0') {
       length += 1;
@@ -73,10 +73,9 @@ public:
    * @post Every accessor returns the corresponding argument.
    */
   constexpr chip_info(
-    std::array<char, 32> const& name, std::array<char, 32> const& label,
-    std::uint32_t const lines
+    std::array<char, 32> const& name, std::array<char, 32> const& label, std::uint32_t const lines
   ) noexcept
-    : m_name{name}, m_label{label}, m_lines{lines} {}
+      : m_name{name}, m_label{label}, m_lines{lines} {}
 
   /**
    * @brief The kernel name of the chip, such as \c gpiochip0.
@@ -137,8 +136,8 @@ private:
   bool m_used{false};
   bool m_active_low{false};
 
-  [[nodiscard]] static constexpr auto to_view(std::array<char, 32> const& field) noexcept
-    -> std::string_view {
+  [[nodiscard]] static constexpr auto to_view(std::array<char, 32> const& field
+  ) noexcept -> std::string_view {
     std::size_t length{0};
     while (length < field.size() && field[length] != '\0') {
       length += 1;
@@ -172,19 +171,25 @@ public:
    * @post Every accessor returns the corresponding argument.
    */
   constexpr line_info(
-    std::array<char, 32> const& name, std::array<char, 32> const& consumer,
-    line_offset const offset, line_direction const direction, line_bias const bias,
-    line_drive const drive, edge_detection const edges, bool const used, bool const active_low
+    std::array<char, 32> const& name,
+    std::array<char, 32> const& consumer,
+    line_offset const offset,
+    line_direction const direction,
+    line_bias const bias,
+    line_drive const drive,
+    edge_detection const edges,
+    bool const used,
+    bool const active_low
   ) noexcept
-    : m_name{name},
-      m_consumer{consumer},
-      m_offset{offset},
-      m_direction{direction},
-      m_bias{bias},
-      m_drive{drive},
-      m_edges{edges},
-      m_used{used},
-      m_active_low{active_low} {}
+      : m_name{name}
+      , m_consumer{consumer}
+      , m_offset{offset}
+      , m_direction{direction}
+      , m_bias{bias}
+      , m_drive{drive}
+      , m_edges{edges}
+      , m_used{used}
+      , m_active_low{active_low} {}
 
   /**
    * @brief The kernel name of the line, as set by the board description.
@@ -319,12 +324,12 @@ struct info_fd_closer {
   }
 };
 
-[[nodiscard]] inline auto open_chip_readonly(chip_id const chip) noexcept
-  -> utility::unique_resource<int, info_fd_closer> {
+[[nodiscard]] inline auto open_chip_readonly(chip_id const chip
+) noexcept -> utility::unique_resource<int, info_fd_closer> {
   std::array<char, 32> path{};
-  utility::discard(std::snprintf(
-    path.data(), path.size(), "/dev/gpiochip%u", static_cast<unsigned>(chip.get())
-  ));
+  utility::discard(
+    std::snprintf(path.data(), path.size(), "/dev/gpiochip%u", static_cast<unsigned>(chip.get()))
+  );
   return utility::make_unique_resource_checked(
     ::open(path.data(), O_RDONLY | O_CLOEXEC), -1, info_fd_closer{}
   );
@@ -395,6 +400,7 @@ struct info_fd_closer {
     (flags & GPIO_V2_LINE_FLAG_ACTIVE_LOW) != 0,
   };
 }
+
 /// @endcond
 
 }  // namespace detail
@@ -443,8 +449,8 @@ struct info_fd_closer {
  * @pre None.
  * @post No line state is touched.
  */
-[[nodiscard]] inline auto read_line_info(chip_id const chip, line_offset const offset)
-  -> result<line_info> {
+[[nodiscard]] inline auto
+read_line_info(chip_id const chip, line_offset const offset) -> result<line_info> {
   auto const fd{detail::open_chip_readonly(chip)};
   if (!fd.owns()) {
     return std::unexpected{detail::info_errno()};
@@ -452,9 +458,7 @@ struct info_fd_closer {
   ::gpio_v2_line_info raw{};
   raw.offset = static_cast<std::uint32_t>(offset.get());
   if (::ioctl(fd.get(), GPIO_V2_GET_LINEINFO_IOCTL, &raw) < 0) {
-    return std::unexpected{
-      errno == EINVAL ? gpio_error::invalid_argument : detail::info_errno()
-    };
+    return std::unexpected{errno == EINVAL ? gpio_error::invalid_argument : detail::info_errno()};
   }
   return detail::decode_line_info(raw);
 }
@@ -476,8 +480,8 @@ struct info_fd_closer {
  * @pre None.
  * @post No line state is touched.
  */
-[[nodiscard]] inline auto find_line(chip_id const chip, std::string_view const name)
-  -> result<std::optional<line_offset>> {
+[[nodiscard]] inline auto
+find_line(chip_id const chip, std::string_view const name) -> result<std::optional<line_offset>> {
   auto const info{read_chip_info(chip)};
   if (!info.has_value()) {
     return std::unexpected{info.error()};
@@ -526,8 +530,8 @@ namespace nexenne::gpio {
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto read_line_info(chip_id const chip, line_offset const offset)
-  -> result<line_info> {
+[[nodiscard]] inline auto
+read_line_info(chip_id const chip, line_offset const offset) -> result<line_info> {
   utility::discard(chip, offset);
   return std::unexpected{gpio_error::unsupported};
 }
@@ -543,8 +547,8 @@ namespace nexenne::gpio {
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto find_line(chip_id const chip, std::string_view const name)
-  -> result<std::optional<line_offset>> {
+[[nodiscard]] inline auto
+find_line(chip_id const chip, std::string_view const name) -> result<std::optional<line_offset>> {
   utility::discard(chip, name);
   return std::unexpected{gpio_error::unsupported};
 }

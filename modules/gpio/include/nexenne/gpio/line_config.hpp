@@ -69,10 +69,10 @@ public:
     bool const initial_value = false,
     line_clock const clock = line_clock::monotonic
   ) noexcept
-    : m_edges{edges},
-      m_debounce_period{debounce_period},
-      m_clock{clock},
-      m_initial_value{initial_value} {}
+      : m_edges{edges}
+      , m_debounce_period{debounce_period}
+      , m_clock{clock}
+      , m_initial_value{initial_value} {}
 
   /**
    * @brief The requested edge-event subscription.

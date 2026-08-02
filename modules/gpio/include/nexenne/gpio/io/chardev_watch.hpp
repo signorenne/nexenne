@@ -50,9 +50,9 @@ enum class line_change_kind : std::uint8_t {
 struct line_change {
   using value_type = line_info;
 
-  line_info info{};                                  ///< The line's state after the change.
-  event_time timestamp{};                            ///< When the change occurred.
-  line_change_kind kind{line_change_kind::requested}; ///< What kind of change it was.
+  line_info info{};                                    ///< The line's state after the change.
+  event_time timestamp{};                              ///< When the change occurred.
+  line_change_kind kind{line_change_kind::requested};  ///< What kind of change it was.
 };
 
 }  // namespace nexenne::gpio
@@ -240,9 +240,8 @@ public:
 
     line_change change{};
     change.info = detail::decode_line_info(raw.info);
-    change.timestamp = event_time{
-      std::chrono::nanoseconds{static_cast<std::int64_t>(raw.timestamp_ns)}
-    };
+    change.timestamp =
+      event_time{std::chrono::nanoseconds{static_cast<std::int64_t>(raw.timestamp_ns)}};
     switch (raw.event_type) {
       case GPIO_V2_LINE_CHANGED_REQUESTED:
         change.kind = line_change_kind::requested;

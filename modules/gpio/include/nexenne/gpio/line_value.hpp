@@ -77,13 +77,13 @@ public:
     event_sequence const sequence = event_sequence{0},
     event_time const timestamp = event_time{}
   ) noexcept
-    : m_name{name},
-      m_timestamp{timestamp},
-      m_sequence{sequence},
-      m_offset{offset},
-      m_chip{chip},
-      m_logical{logical},
-      m_edge{edge} {}
+      : m_name{name}
+      , m_timestamp{timestamp}
+      , m_sequence{sequence}
+      , m_offset{offset}
+      , m_chip{chip}
+      , m_logical{logical}
+      , m_edge{edge} {}
 
   /**
    * @brief Constructs an observation whose identity comes from a spec.
@@ -108,7 +108,7 @@ public:
     event_sequence const sequence = event_sequence{0},
     event_time const timestamp = event_time{}
   ) noexcept
-    : line_value{spec.name(), spec.chip(), spec.offset(), logical, edge, sequence, timestamp} {}
+      : line_value{spec.name(), spec.chip(), spec.offset(), logical, edge, sequence, timestamp} {}
 
   /**
    * @brief The logical name of the observed line.

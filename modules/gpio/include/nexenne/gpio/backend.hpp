@@ -81,16 +81,20 @@ concept gpio_backend = requires(
  */
 template <typename B>
 concept bulk_gpio_backend = gpio_backend<B>
-  && requires(
-    B backend,
-    B const const_backend,
-    std::span<line_offset const> const offsets,
-    std::span<bool> const levels_out,
-    std::span<bool const> const levels_in
-  ) {
-    { const_backend.read_lines(offsets, levels_out) } -> std::same_as<result<void>>;
-    { backend.write_lines(offsets, levels_in) } -> std::same_as<result<void>>;
-  };
+                            && requires(
+                              B backend,
+                              B const const_backend,
+                              std::span<line_offset const> const offsets,
+                              std::span<bool> const levels_out,
+                              std::span<bool const> const levels_in
+                            ) {
+                                 {
+                                   const_backend.read_lines(offsets, levels_out)
+                                 } -> std::same_as<result<void>>;
+                                 {
+                                   backend.write_lines(offsets, levels_in)
+                                 } -> std::same_as<result<void>>;
+                               };
 
 /**
  * @brief A backend that can change line configuration without reopening.
@@ -106,14 +110,13 @@ concept bulk_gpio_backend = gpio_backend<B>
  * @tparam B Candidate backend type.
  */
 template <typename B>
-concept reconfigurable_gpio_backend = gpio_backend<B>
+concept reconfigurable_gpio_backend =
+  gpio_backend<B>
   && requires(
-    B backend,
-    std::span<line_spec const> const specs,
-    std::span<line_config const> const configs
+    B backend, std::span<line_spec const> const specs, std::span<line_config const> const configs
   ) {
-    { backend.reconfigure(specs, configs) } -> std::same_as<result<void>>;
-  };
+       { backend.reconfigure(specs, configs) } -> std::same_as<result<void>>;
+     };
 
 /**
  * @brief A backend that also delivers timestamped edge events.
@@ -129,11 +132,12 @@ concept reconfigurable_gpio_backend = gpio_backend<B>
  * @tparam B Candidate backend type; must expose a \c native_handle_type.
  */
 template <typename B>
-concept edge_source = gpio_backend<B>
+concept edge_source =
+  gpio_backend<B>
   && requires(B backend, B const const_backend, std::chrono::nanoseconds const timeout) {
-    typename B::native_handle_type;
-    { backend.wait_event(timeout) } -> std::same_as<result<std::optional<line_event>>>;
-    { const_backend.native_handle() } noexcept -> std::same_as<typename B::native_handle_type>;
-  };
+       typename B::native_handle_type;
+       { backend.wait_event(timeout) } -> std::same_as<result<std::optional<line_event>>>;
+       { const_backend.native_handle() } noexcept -> std::same_as<typename B::native_handle_type>;
+     };
 
 }  // namespace nexenne::gpio

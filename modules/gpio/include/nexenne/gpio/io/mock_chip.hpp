@@ -61,8 +61,8 @@ private:
 
   // An index loop instead of std::ranges::find_if: static_vector's iterators
   // are not constexpr, and tens of lines per chip keeps a linear scan cheap.
-  [[nodiscard]] constexpr auto index_of(line_offset const offset) const noexcept
-    -> std::optional<std::size_t> {
+  [[nodiscard]] constexpr auto index_of(line_offset const offset
+  ) const noexcept -> std::optional<std::size_t> {
     for (std::size_t i{0}; i < m_specs.size(); ++i) {
       if (m_specs[i].offset() == offset) {
         return i;
@@ -108,7 +108,8 @@ public:
       };
       // The capacity check above guarantees these cannot fail.
       utility::discard(
-        m_specs.push_back(specs[i]), m_configs.push_back(configs[i]),
+        m_specs.push_back(specs[i]),
+        m_configs.push_back(configs[i]),
         m_levels.push_back(starts_high)
       );
     }
@@ -215,9 +216,9 @@ public:
    * @post On success the stored specs and configs are replaced; on failure
    *       nothing changed.
    */
-  constexpr auto
-  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
-    -> result<void> {
+  constexpr auto reconfigure(
+    std::span<line_spec const> const specs, std::span<line_config const> const configs
+  ) -> result<void> {
     if (!m_open) {
       return std::unexpected{gpio_error::not_open};
     }
@@ -252,9 +253,9 @@ public:
    * @pre None.
    * @post On success \p levels_out holds the level of each offset.
    */
-  constexpr auto
-  read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out) const
-    -> result<void> {
+  constexpr auto read_lines(
+    std::span<line_offset const> const offsets, std::span<bool> const levels_out
+  ) const -> result<void> {
     if (offsets.size() != levels_out.size()) {
       return std::unexpected{gpio_error::invalid_argument};
     }
@@ -280,9 +281,9 @@ public:
    * @pre None.
    * @post On success every named line holds its requested level.
    */
-  constexpr auto
-  write_lines(std::span<line_offset const> const offsets, std::span<bool const> const levels_in)
-    -> result<void> {
+  constexpr auto write_lines(
+    std::span<line_offset const> const offsets, std::span<bool const> const levels_in
+  ) -> result<void> {
     if (offsets.size() != levels_in.size()) {
       return std::unexpected{gpio_error::invalid_argument};
     }
@@ -310,8 +311,8 @@ public:
    * @pre None.
    * @post On a value result the event is consumed from the queue.
    */
-  auto wait_event([[maybe_unused]] std::chrono::nanoseconds const timeout)
-    -> result<std::optional<line_event>> {
+  auto wait_event([[maybe_unused]] std::chrono::nanoseconds const timeout
+  ) -> result<std::optional<line_event>> {
     if (!m_open) {
       return std::unexpected{gpio_error::not_open};
     }
@@ -375,8 +376,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto physical(line_offset const offset) const noexcept
-    -> std::optional<bool> {
+  [[nodiscard]] constexpr auto physical(line_offset const offset
+  ) const noexcept -> std::optional<bool> {
     if (!m_open) {
       return std::nullopt;
     }

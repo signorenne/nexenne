@@ -55,8 +55,8 @@ inline auto operator<<(std::ostream& os, gpio_error const err) -> std::ostream& 
  * @pre None.
  * @post The returned view refers to a string with program lifetime.
  */
-[[nodiscard]] constexpr auto to_string(line_direction const direction) noexcept
-  -> std::string_view {
+[[nodiscard]] constexpr auto to_string(line_direction const direction
+) noexcept -> std::string_view {
   switch (direction) {
     case line_direction::input:
       return "input";
@@ -91,8 +91,7 @@ inline auto operator<<(std::ostream& os, line_direction const direction) -> std:
  * @pre None.
  * @post The returned view refers to a string with program lifetime.
  */
-[[nodiscard]] constexpr auto to_string(line_polarity const polarity) noexcept
-  -> std::string_view {
+[[nodiscard]] constexpr auto to_string(line_polarity const polarity) noexcept -> std::string_view {
   switch (polarity) {
     case line_polarity::active_high:
       return "active_high";
@@ -517,10 +516,11 @@ inline auto operator<<(std::ostream& os, chip_info const& info) -> std::ostream&
  */
 [[nodiscard]] inline auto to_string(line_info const& info) -> std::string {
   auto const holder{
-    info.used() ? std::format(
-      "used by {}", info.consumer().empty() ? std::string_view{"unknown"} : info.consumer()
-    )
-                : std::string{"unused"}
+    info.used()
+      ? std::format(
+          "used by {}", info.consumer().empty() ? std::string_view{"unknown"} : info.consumer()
+        )
+      : std::string{"unused"}
   };
   return std::format(
     "line_info(line {}, {}, {}, {}{}, {}, {}, edges={})",
@@ -560,8 +560,7 @@ inline auto operator<<(std::ostream& os, line_info const& info) -> std::ostream&
  * @pre None.
  * @post The returned view refers to a string with program lifetime.
  */
-[[nodiscard]] constexpr auto to_string(line_change_kind const kind) noexcept
-  -> std::string_view {
+[[nodiscard]] constexpr auto to_string(line_change_kind const kind) noexcept -> std::string_view {
   switch (kind) {
     case line_change_kind::requested:
       return "requested";

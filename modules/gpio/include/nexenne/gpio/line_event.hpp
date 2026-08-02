@@ -28,12 +28,12 @@ namespace nexenne::gpio {
 struct line_event {
   using value_type = bool;
 
-  event_sequence sequence{0};      ///< Monotonic sequence number; zero means unset.
-  event_time timestamp{};          ///< When the edge fired, on the event clock.
-  line_offset offset{0};           ///< Zero-based line offset within \c chip.
-  chip_id chip{0};                 ///< Identifier of the originating chip.
-  bool physical{false};            ///< Raw physical level after the edge.
-  edge_kind edge{edge_kind::none}; ///< Physical edge direction that produced the event.
+  event_sequence sequence{0};       ///< Monotonic sequence number; zero means unset.
+  event_time timestamp{};           ///< When the edge fired, on the event clock.
+  line_offset offset{0};            ///< Zero-based line offset within \c chip.
+  chip_id chip{0};                  ///< Identifier of the originating chip.
+  bool physical{false};             ///< Raw physical level after the edge.
+  edge_kind edge{edge_kind::none};  ///< Physical edge direction that produced the event.
 
   /**
    * @brief Member-wise equality of two events.

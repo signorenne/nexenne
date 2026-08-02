@@ -65,7 +65,7 @@ public:
    * @post \c period() is the clamped \p period.
    */
   explicit constexpr event_debounce(std::chrono::nanoseconds const period) noexcept
-    : m_filter{period} {}
+      : m_filter{period} {}
 
   /**
    * @brief The current settling period.
@@ -145,8 +145,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto feed(line_event const& event) noexcept
-    -> std::optional<line_event> {
+  [[nodiscard]] constexpr auto feed(line_event const& event) noexcept -> std::optional<line_event> {
     bool const had_stable{m_filter.has_stable()};
     auto const settled{m_filter.update(event.timestamp.time_since_epoch(), event.physical)};
     if (!settled.has_value()) {

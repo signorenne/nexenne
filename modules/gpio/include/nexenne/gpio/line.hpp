@@ -62,7 +62,7 @@ public:
    * @post \c valid() is \c true and \c spec() equals \p spec.
    */
   constexpr line(backend_type& backend, line_spec const& spec) noexcept
-    : m_backend{&backend}, m_spec{spec} {}
+      : m_backend{&backend}, m_spec{spec} {}
 
   /**
    * @brief The spec used to address the bound line.

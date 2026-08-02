@@ -159,8 +159,8 @@ matches(edge_detection const subscription, edge_kind const edge) noexcept -> boo
  * @post The result equals \p level exactly when \p polarity is
  *       \c line_polarity::active_high.
  */
-[[nodiscard]] constexpr auto apply_polarity(bool const level, line_polarity const polarity) noexcept
-  -> bool {
+[[nodiscard]] constexpr auto
+apply_polarity(bool const level, line_polarity const polarity) noexcept -> bool {
   return polarity == line_polarity::active_low ? !level : level;
 }
 
@@ -182,8 +182,8 @@ matches(edge_detection const subscription, edge_kind const edge) noexcept -> boo
  * @post The result equals \p edge exactly when \p polarity is
  *       \c line_polarity::active_high or \p edge is \c edge_kind::none.
  */
-[[nodiscard]] constexpr auto apply_polarity(edge_kind const edge, line_polarity const polarity)
-  noexcept -> edge_kind {
+[[nodiscard]] constexpr auto
+apply_polarity(edge_kind const edge, line_polarity const polarity) noexcept -> edge_kind {
   if (polarity == line_polarity::active_high || edge == edge_kind::none) {
     return edge;
   }
@@ -223,10 +223,10 @@ using event_sequence = utility::identifier<struct event_sequence_tag, std::uint6
  * timestamps come from the event source, never from the consumer.
  */
 struct event_clock {
-  using rep = std::int64_t;                                ///< Tick representation.
-  using period = std::nano;                                ///< Tick period.
-  using duration = std::chrono::nanoseconds;               ///< Duration type.
-  using time_point = std::chrono::time_point<event_clock>; ///< Timestamp type.
+  using rep = std::int64_t;                                 ///< Tick representation.
+  using period = std::nano;                                 ///< Tick period.
+  using duration = std::chrono::nanoseconds;                ///< Duration type.
+  using time_point = std::chrono::time_point<event_clock>;  ///< Timestamp type.
 
   /// @brief The clock never goes backwards.
   static constexpr bool is_steady{true};
