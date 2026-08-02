@@ -55,7 +55,18 @@ Each enum encodes one electrical decision.
   purpose. A /subscription/ can ask for both directions
   (=edge_detection::both=), but a single delivered event names exactly one
   transition, so the sample-side =edge_kind= has no =both=; =none= marks a
-  steady-state observation such as a synchronous read.
+  steady-state observation such as a synchronous read. The
+  =matches(subscription, edge)= predicate asks whether a delivered edge
+  falls under a subscription, which is how a consumer filters a shared
+  stream without hand-written enum comparisons.
+
+- Event clock (=line_clock=). Which clock stamps a line's edge events:
+  =monotonic= (the default) never jumps and is right for measuring time
+  between edges; =realtime= carries the wall clock so timestamps line up
+  with logs and other hosts; =hte= asks a hardware timestamp engine to
+  stamp at the pin, removing interrupt latency, on the platforms that have
+  one. A backend without the requested clock rejects the open rather than
+  silently stamping from another clock.
 
 * Strong identifiers, and time in two types
 
