@@ -125,6 +125,38 @@ the supervisor the application writes around the backend:
   stays valid (event loops keep their registration), exclusivity is never
   ceded, and outputs never glitch, which a close-and-reopen cannot promise.
 
+* Watching ownership: the line-info watch
+
+A line can be requested, released, or reconfigured by any process at any
+time; a supervisor that only polls its own request finds out at the next
+=EBUSY=. =chardev_watcher= closes the blind spot through the kernel's
+line-info watch: arm it per line and its descriptor becomes readable on
+every ownership or configuration change, each delivered as a =line_change=
+with the updated =line_info=, a timestamp, and the kind (requested,
+released, reconfigured). Watching is read-only and never claims a line.
+
+#+BEGIN_SRC C++
+ng::chardev_watcher watcher{ng::chip_id{0}};
+nexenne::utility::discard(watcher.watch(offsets));
+// register watcher.native_handle() readable, then on readiness:
+while (auto const change{watcher.wait_change(0ns)}) {
+  if (!change->has_value()) { break; }
+  audit_log("{}", **change);   // who took line 4, and when
+}
+#+END_SRC
+
+The watch example arms every line of a chip and prints changes as other
+tools touch them.
+
+* Event timestamps and the wall clock
+
+By default the kernel stamps events from =CLOCK_MONOTONIC=, the right
+choice for measuring time between edges. When timestamps must line up with
+logs or with events recorded on other hosts, request
+=line_config::clock() = line_clock::realtime= and the kernel stamps that
+line's events from =CLOCK_REALTIME= instead; the timestamps then carry the
+Unix epoch and inherit the wall clock's ability to step under NTP.
+
 * Testing without hardware: gpio-sim
 
 The kernel's =gpio-sim= module (=CONFIG_GPIO_SIM=) creates virtual chips

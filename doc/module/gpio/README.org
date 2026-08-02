@@ -65,6 +65,8 @@ The runnable examples under [[file:../../../examples/gpio/][examples/gpio/]] are
 - [[file:../../../examples/gpio/edges.cpp][edges.cpp]] : blocking edge waits with kernel debounce and drop tracking.
 - [[file:../../../examples/gpio/reactor.cpp][reactor.cpp]] : the event-loop integration pattern (epoll + timerfd), the
   same seam a Qt =QSocketNotifier= or an ASIO descriptor occupies.
+- [[file:../../../examples/gpio/watch.cpp][watch.cpp]] : observe who requests, releases, and reconfigures lines,
+  live from the kernel's line-info watch.
 
 * Guides
 
