@@ -26,7 +26,10 @@ TEST_CASE("gpio: raw bounces become one settled, polarity-correct press") {
   // An active-low button on offset 17: pressing pulls the wire low.
   std::array const specs{
     ng::line_spec::input(
-      "button", ng::chip_id{0}, ng::line_offset{17}, ng::line_polarity::active_low,
+      "button",
+      ng::chip_id{0},
+      ng::line_offset{17},
+      ng::line_polarity::active_low,
       ng::line_bias::pull_up
     ),
   };
@@ -36,17 +39,18 @@ TEST_CASE("gpio: raw bounces become one settled, polarity-correct press") {
   ng::chip<ng::mock_chip<8>> chip{backend};
   REQUIRE(chip.open(specs, configs).has_value());
 
-  auto const raw{[&](std::uint64_t const seq, std::chrono::nanoseconds const at,
-                     bool const physical) {
-    ng::line_event event{};
-    event.chip = ng::chip_id{0};
-    event.offset = ng::line_offset{17};
-    event.sequence = ng::event_sequence{seq};
-    event.timestamp = ng::event_time{at};
-    event.physical = physical;
-    event.edge = physical ? ng::edge_kind::rising : ng::edge_kind::falling;
-    return event;
-  }};
+  auto const raw{
+    [&](std::uint64_t const seq, std::chrono::nanoseconds const at, bool const physical) {
+      ng::line_event event{};
+      event.chip = ng::chip_id{0};
+      event.offset = ng::line_offset{17};
+      event.sequence = ng::event_sequence{seq};
+      event.timestamp = ng::event_time{at};
+      event.physical = physical;
+      event.edge = physical ? ng::edge_kind::rising : ng::edge_kind::falling;
+      return event;
+    }
+  };
 
   // Idle high (unpressed), then a press: bounce, bounce, settle low.
   // Sequence 4 was lost to an overflow on the way.

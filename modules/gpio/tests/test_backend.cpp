@@ -18,17 +18,20 @@ namespace ng = nexenne::gpio;
 
 // The minimal legal backend: open/close plus per-line read and write.
 struct basic_backend {
-  auto open(std::span<ng::line_spec const>, std::span<ng::line_config const>)
-    -> ng::result<void> {
+  auto open(std::span<ng::line_spec const>, std::span<ng::line_config const>) -> ng::result<void> {
     return {};
   }
+
   auto close() noexcept -> void {}
+
   [[nodiscard]] auto is_open() const noexcept -> bool {
     return false;
   }
+
   [[nodiscard]] auto read(ng::line_offset) const -> ng::result<bool> {
     return false;
   }
+
   auto write(ng::line_offset, bool) -> ng::result<void> {
     return {};
   }
@@ -39,6 +42,7 @@ struct bulk_backend : basic_backend {
   auto read_lines(std::span<ng::line_offset const>, std::span<bool>) const -> ng::result<void> {
     return {};
   }
+
   auto write_lines(std::span<ng::line_offset const>, std::span<bool const>) -> ng::result<void> {
     return {};
   }
@@ -59,6 +63,7 @@ struct event_backend : basic_backend {
   auto wait_event(std::chrono::nanoseconds) -> ng::result<std::optional<ng::line_event>> {
     return std::optional<ng::line_event>{};
   }
+
   [[nodiscard]] auto native_handle() const noexcept -> native_handle_type {
     return -1;
   }

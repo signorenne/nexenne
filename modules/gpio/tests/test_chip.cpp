@@ -91,9 +91,8 @@ TEST_CASE("chip: snapshot delivers the logical baseline of every input") {
   REQUIRE(backend.set_physical(ng::line_offset{17}, false).has_value());
 
   std::vector<ng::line_value> baseline{};
-  REQUIRE(chip.snapshot([&](ng::line_value const& value) {
-    baseline.push_back(value);
-  }).has_value());
+  REQUIRE(chip.snapshot([&](ng::line_value const& value) { baseline.push_back(value); }).has_value()
+  );
 
   // Only the input is delivered; the output line is not part of the baseline.
   REQUIRE(baseline.size() == 1);
@@ -103,9 +102,7 @@ TEST_CASE("chip: snapshot delivers the logical baseline of every input") {
   CHECK(baseline[0].sequence() == ng::event_sequence{0});
 
   ng::chip<mock> const unbound{};
-  CHECK(
-    unbound.snapshot([](ng::line_value const&) {}).error() == ng::gpio_error::not_open
-  );
+  CHECK(unbound.snapshot([](ng::line_value const&) {}).error() == ng::gpio_error::not_open);
 }
 
 TEST_CASE("chip: reconfigure swaps behaviour and the spec view in place") {
@@ -136,9 +133,7 @@ TEST_CASE("chip: reconfigure swaps behaviour and the spec view in place") {
     ng::line_spec::input("button", ng::chip_id{0}, ng::line_offset{18}),
     ng::line_spec::output("led", ng::chip_id{0}, ng::line_offset{4}),
   };
-  CHECK(
-    backend.reconfigure(wrong, changed_configs).error() == ng::gpio_error::invalid_argument
-  );
+  CHECK(backend.reconfigure(wrong, changed_configs).error() == ng::gpio_error::invalid_argument);
   CHECK(chip.reconfigure({}, {}).error() == ng::gpio_error::invalid_argument);
 }
 

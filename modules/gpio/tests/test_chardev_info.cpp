@@ -49,8 +49,7 @@ TEST_CASE("discovery: a chip index that cannot exist reports not_found") {
   auto const info{ng::read_chip_info(ng::chip_id{4000})};
   REQUIRE_FALSE(info.has_value());
   CHECK(
-    (info.error() == ng::gpio_error::not_found
-     || info.error() == ng::gpio_error::permission_denied)
+    (info.error() == ng::gpio_error::not_found || info.error() == ng::gpio_error::permission_denied)
   );
 }
 
@@ -84,8 +83,7 @@ TEST_CASE("discovery: live chip walk when /dev/gpiochip0 is accessible") {
 TEST_CASE("discovery: every call reports unsupported off Linux") {
   CHECK(ng::read_chip_info(ng::chip_id{0}).error() == ng::gpio_error::unsupported);
   CHECK(
-    ng::read_line_info(ng::chip_id{0}, ng::line_offset{0}).error()
-    == ng::gpio_error::unsupported
+    ng::read_line_info(ng::chip_id{0}, ng::line_offset{0}).error() == ng::gpio_error::unsupported
   );
   CHECK(ng::find_line(ng::chip_id{0}, "x").error() == ng::gpio_error::unsupported);
 }

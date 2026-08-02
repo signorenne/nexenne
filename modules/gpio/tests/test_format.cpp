@@ -33,7 +33,10 @@ TEST_CASE("format: enums print their enumerator names") {
 
 TEST_CASE("format: a spec renders every field") {
   auto const spec{ng::line_spec::input(
-    "button", ng::chip_id{0}, ng::line_offset{17}, ng::line_polarity::active_low,
+    "button",
+    ng::chip_id{0},
+    ng::line_offset{17},
+    ng::line_polarity::active_low,
     ng::line_bias::pull_up
   )};
   CHECK(

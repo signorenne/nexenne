@@ -42,10 +42,9 @@ TEST_CASE("chardev_watcher: watch validates its inputs and maps open errors") {
   std::array const offsets{ng::line_offset{0}};
   auto const armed{remote.watch(offsets)};
   REQUIRE_FALSE(armed.has_value());
-  CHECK(
-    (armed.error() == ng::gpio_error::not_found
-     || armed.error() == ng::gpio_error::permission_denied)
-  );
+  CHECK((
+    armed.error() == ng::gpio_error::not_found || armed.error() == ng::gpio_error::permission_denied
+  ));
 }
 
 TEST_CASE("chardev_watcher: live watch sees a request and a release") {

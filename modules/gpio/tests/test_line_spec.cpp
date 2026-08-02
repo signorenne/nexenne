@@ -31,7 +31,10 @@ TEST_CASE("line_spec: default is an unnamed active-high input") {
 
 TEST_CASE("line_spec: the input factory fixes direction and drive") {
   auto const button{ng::line_spec::input(
-    "button", ng::chip_id{0}, ng::line_offset{17}, ng::line_polarity::active_low,
+    "button",
+    ng::chip_id{0},
+    ng::line_offset{17},
+    ng::line_polarity::active_low,
     ng::line_bias::pull_up
   )};
 
@@ -45,7 +48,10 @@ TEST_CASE("line_spec: the input factory fixes direction and drive") {
 
 TEST_CASE("line_spec: the output factory fixes direction and bias") {
   auto const led{ng::line_spec::output(
-    "led", ng::chip_id{1}, ng::line_offset{4}, ng::line_polarity::active_high,
+    "led",
+    ng::chip_id{1},
+    ng::line_offset{4},
+    ng::line_polarity::active_high,
     ng::line_drive::open_drain
   )};
 
@@ -68,9 +74,9 @@ TEST_CASE("line_spec: mutable accessors rewrite one field at a time") {
 }
 
 TEST_CASE("line_spec: to_logical and to_physical are inverse under both polarities") {
-  auto active_low{ng::line_spec::input(
-    "in", ng::chip_id{0}, ng::line_offset{0}, ng::line_polarity::active_low
-  )};
+  auto active_low{
+    ng::line_spec::input("in", ng::chip_id{0}, ng::line_offset{0}, ng::line_polarity::active_low)
+  };
 
   CHECK(active_low.to_logical(false) == true);
   CHECK(active_low.to_logical(true) == false);
