@@ -304,8 +304,9 @@ public:
 
 #ifdef __linux__
 
+#  include <algorithm>
 #  include <cerrno>
-#  include <cstdio>
+#  include <charconv>
 
 #  include <fcntl.h>
 #  include <linux/gpio.h>
@@ -326,10 +327,15 @@ struct info_fd_closer {
 
 [[nodiscard]] inline auto open_chip_readonly(chip_id const chip
 ) noexcept -> utility::unique_resource<int, info_fd_closer> {
+  // Rendered with to_chars rather than a vararg call: type-safe, and the
+  // buffer is wide enough for the prefix plus any 16-bit index.
   std::array<char, 32> path{};
-  utility::discard(
-    std::snprintf(path.data(), path.size(), "/dev/gpiochip%u", static_cast<unsigned>(chip.get()))
-  );
+  constexpr std::string_view prefix{"/dev/gpiochip"};
+  std::ranges::copy(prefix, path.begin());
+  auto const rendered{
+    std::to_chars(path.data() + prefix.size(), path.data() + path.size() - 1, chip.get())
+  };
+  *rendered.ptr = '\0';
   return utility::make_unique_resource_checked(
     ::open(path.data(), O_RDONLY | O_CLOEXEC), -1, info_fd_closer{}
   );
@@ -424,7 +430,8 @@ struct info_fd_closer {
     return std::unexpected{detail::info_errno()};
   }
   ::gpiochip_info raw{};
-  if (::ioctl(fd.get(), GPIO_GET_CHIPINFO_IOCTL, &raw) < 0) {
+  if (::ioctl(fd.get(), GPIO_GET_CHIPINFO_IOCTL, &raw)
+      < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
     return std::unexpected{detail::info_errno()};
   }
   std::array<char, 32> name{};
@@ -457,7 +464,8 @@ read_line_info(chip_id const chip, line_offset const offset) -> result<line_info
   }
   ::gpio_v2_line_info raw{};
   raw.offset = static_cast<std::uint32_t>(offset.get());
-  if (::ioctl(fd.get(), GPIO_V2_GET_LINEINFO_IOCTL, &raw) < 0) {
+  if (::ioctl(fd.get(), GPIO_V2_GET_LINEINFO_IOCTL, &raw)
+      < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
     return std::unexpected{errno == EINVAL ? gpio_error::invalid_argument : detail::info_errno()};
   }
   return detail::decode_line_info(raw);

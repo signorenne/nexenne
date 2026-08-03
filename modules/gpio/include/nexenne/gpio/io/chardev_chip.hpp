@@ -58,9 +58,10 @@
 
 #ifdef __linux__
 
+#  include <algorithm>
 #  include <array>
 #  include <cerrno>
-#  include <cstdio>
+#  include <charconv>
 #  include <cstring>
 #  include <ctime>
 #  include <limits>
@@ -279,7 +280,8 @@ private:
       }
       ::gpio_v2_line_attribute attribute{};
       attribute.id = GPIO_V2_LINE_ATTR_ID_FLAGS;
-      attribute.flags = flags[i];
+      // The kernel attribute is a tagged union; id selects the member.
+      attribute.flags = flags[i];  // NOLINT(cppcoreguidelines-pro-type-union-access)
       if (!add_attr(attribute, mask)) {
         return std::unexpected{gpio_error::invalid_argument};
       }
@@ -301,7 +303,8 @@ private:
       if (output_mask != 0) {
         ::gpio_v2_line_attribute attribute{};
         attribute.id = GPIO_V2_LINE_ATTR_ID_OUTPUT_VALUES;
-        attribute.values = output_values;
+        // The kernel attribute is a tagged union; id selects the member.
+        attribute.values = output_values;  // NOLINT(cppcoreguidelines-pro-type-union-access)
         if (!add_attr(attribute, output_mask)) {
           return std::unexpected{gpio_error::invalid_argument};
         }
@@ -337,7 +340,9 @@ private:
       }
       ::gpio_v2_line_attribute attribute{};
       attribute.id = GPIO_V2_LINE_ATTR_ID_DEBOUNCE;
-      attribute.debounce_period_us = static_cast<std::uint32_t>(microseconds);
+      // The kernel attribute is a tagged union; id selects the member.
+      attribute.debounce_period_us =  // NOLINT(cppcoreguidelines-pro-type-union-access)
+        static_cast<std::uint32_t>(microseconds);
       if (!add_attr(attribute, mask)) {
         return std::unexpected{gpio_error::invalid_argument};
       }
@@ -351,7 +356,8 @@ private:
     if (!m_request.owns()) {
       return std::unexpected{gpio_error::not_open};
     }
-    if (::ioctl(m_request.get(), request, values) < 0) {
+    if (::ioctl(m_request.get(), request, values)
+        < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
       return std::unexpected{detail::errno_to_gpio_error(errno)};
     }
     return {};
@@ -458,12 +464,15 @@ public:
 
     close();
 
-    // The path is rendered from a literal template; the chip index is the
-    // only variable part.
+    // Rendered with to_chars rather than a vararg call: type-safe, and the
+    // buffer is wide enough for the prefix plus any 16-bit index.
     std::array<char, 32> path{};
-    utility::discard(std::snprintf(
-      path.data(), path.size(), "/dev/gpiochip%u", static_cast<unsigned>(m_chip.get())
-    ));
+    constexpr std::string_view prefix{"/dev/gpiochip"};
+    std::ranges::copy(prefix, path.begin());
+    auto const rendered{
+      std::to_chars(path.data() + prefix.size(), path.data() + path.size() - 1, m_chip.get())
+    };
+    *rendered.ptr = '\0';
     fd_handle const chip_fd{utility::make_unique_resource_checked(
       ::open(path.data(), O_RDWR | O_CLOEXEC), -1, detail::fd_closer{}
     )};
@@ -482,7 +491,8 @@ public:
       return std::unexpected{built.error()};
     }
 
-    if (::ioctl(chip_fd.get(), GPIO_V2_GET_LINE_IOCTL, &request) < 0) {
+    if (::ioctl(chip_fd.get(), GPIO_V2_GET_LINE_IOCTL, &request)
+        < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
       return std::unexpected{detail::errno_to_gpio_error(errno)};
     }
     m_request.reset(request.fd);
@@ -533,7 +543,8 @@ public:
     if (auto const built{build_line_config(specs, configs, &config)}; !built.has_value()) {
       return std::unexpected{built.error()};
     }
-    if (::ioctl(m_request.get(), GPIO_V2_LINE_SET_CONFIG_IOCTL, &config) < 0) {
+    if (::ioctl(m_request.get(), GPIO_V2_LINE_SET_CONFIG_IOCTL, &config)
+        < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
       return std::unexpected{detail::errno_to_gpio_error(errno)};
     }
     return {};

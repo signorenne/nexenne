@@ -173,7 +173,8 @@ public:
     for (auto const offset : offsets) {
       ::gpio_v2_line_info raw{};
       raw.offset = static_cast<std::uint32_t>(offset.get());
-      if (::ioctl(fd.get(), GPIO_V2_GET_LINEINFO_WATCH_IOCTL, &raw) < 0) {
+      if (::ioctl(fd.get(), GPIO_V2_GET_LINEINFO_WATCH_IOCTL, &raw)
+          < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
         return std::unexpected{
           errno == EINVAL ? gpio_error::invalid_argument : detail::info_errno()
         };
