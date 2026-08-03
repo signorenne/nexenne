@@ -213,7 +213,7 @@ if [ "$dry_run" = "1" ]; then
         ensure_changelog "$tmp_changelog"
     fi
     git-cliff --config cliff.toml --unreleased --tag "$tag_name" \
-        "${cliff_args[@]}" --strip header --prepend "$tmp_changelog" >/dev/null
+        "${cliff_args[@]}" --prepend "$tmp_changelog" >/dev/null
     echo "prepare_release: would update $var_name to $target_version"
     echo "prepare_release: would prepare $tag_name"
     echo "prepare_release: changelog preview:"
@@ -225,7 +225,7 @@ fi
 write_manifest_version "$var_name" "$target_version"
 ensure_changelog "$changelog_file"
 git-cliff --config cliff.toml --unreleased --tag "$tag_name" \
-    "${cliff_args[@]}" --strip header --prepend "$changelog_file"
+    "${cliff_args[@]}" --prepend "$changelog_file"
 
 echo "prepare_release: updated $var_name to $target_version"
 echo "prepare_release: prepared $tag_name"
