@@ -154,5 +154,5 @@ enum class level : std::uint8_t {
  * from a release build.
  */
 #ifndef NEXENNE_LOG_MIN_LEVEL
-#  define NEXENNE_LOG_MIN_LEVEL ::nexenne::logging::level::trace
+#define NEXENNE_LOG_MIN_LEVEL ::nexenne::logging::level::trace
 #endif
