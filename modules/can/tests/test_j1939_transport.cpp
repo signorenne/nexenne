@@ -3,11 +3,11 @@
  * @brief Tests for the J1939 transport protocol (BAM segmentation and reassembly).
  */
 
-#include <cstdint>
 #include <doctest/doctest.h>
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -157,8 +157,8 @@ TEST_CASE("transport: a data frame contributes only its seven bytes, never overr
   auto const done{reassembler.accept(*nc::frame::classic(dt_id, dt2))};
   REQUIRE(done.has_value());
   REQUIRE(done->has_value());
-  CHECK((*done)->size() == 9);              // never the 32-byte frame length
-  CHECK((*done)->data()[7] == b(0x01));     // byte 8 is from packet 2, not the FD frame
+  CHECK((*done)->size() == 9);           // never the 32-byte frame length
+  CHECK((*done)->data()[7] == b(0x01));  // byte 8 is from packet 2, not the FD frame
 }
 
 TEST_CASE("transport: a transport_message is formattable") {

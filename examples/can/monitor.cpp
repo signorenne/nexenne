@@ -100,16 +100,20 @@ auto build_database() -> nc::database {
                           .build()};
 
   return nc::database_builder{}
-    .add_message(nc::message_builder{nc::can_id::standard(engine_id), "engine"}
-                   .add(engine_rpm)
-                   .add(coolant_temp)
-                   .add(engine_running)
-                   .build())
-    .add_message(nc::message_builder{nc::can_id::standard(chassis_id), "chassis"}
-                   .add(vehicle_speed)
-                   .add(brake_active)
-                   .add(fuel_level)
-                   .build())
+    .add_message(
+      nc::message_builder{nc::can_id::standard(engine_id), "engine"}
+        .add(engine_rpm)
+        .add(coolant_temp)
+        .add(engine_running)
+        .build()
+    )
+    .add_message(
+      nc::message_builder{nc::can_id::standard(chassis_id), "chassis"}
+        .add(vehicle_speed)
+        .add(brake_active)
+        .add(fuel_level)
+        .build()
+    )
     .build();
 }
 

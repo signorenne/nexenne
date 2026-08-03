@@ -38,22 +38,22 @@
 
 #ifdef __linux__
 
-#  include <array>
-#  include <cerrno>
-#  include <cstddef>
-#  include <cstring>
-#  include <ctime>
-#  include <utility>
+#include <array>
+#include <cerrno>
+#include <cstddef>
+#include <cstring>
+#include <ctime>
+#include <utility>
 
-#  include <fcntl.h>
-#  include <linux/can.h>
-#  include <linux/can/raw.h>
-#  include <net/if.h>
-#  include <nexenne/container/static_vector.hpp>
-#  include <nexenne/utility/unique_resource.hpp>
-#  include <sys/ioctl.h>
-#  include <sys/socket.h>
-#  include <unistd.h>
+#include <fcntl.h>
+#include <linux/can.h>
+#include <linux/can/raw.h>
+#include <net/if.h>
+#include <nexenne/container/static_vector.hpp>
+#include <nexenne/utility/unique_resource.hpp>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 namespace nexenne::can {
 
@@ -89,7 +89,9 @@ struct socket_closer {
  * @post The result's \c can_id equals \c f.id().raw().
  */
 [[nodiscard]] inline auto to_can_frame(frame const& f) noexcept -> ::can_frame {
-  assert(f.length() <= max_classic_length && "to_can_frame: length exceeds the 8-byte Classic buffer");
+  assert(
+    f.length() <= max_classic_length && "to_can_frame: length exceeds the 8-byte Classic buffer"
+  );
   ::can_frame out{};
   out.can_id = f.id().raw();
   out.can_dlc = f.length();
@@ -211,9 +213,9 @@ public:
    * @pre \p interface names an existing CAN interface.
    * @post On success the socket is bound and ready to send and receive.
    */
-  [[nodiscard]] static auto open(
-    std::string_view const interface, socket_options const& options = {}
-  ) -> result<socketcan_bus> {
+  [[nodiscard]] static auto
+  open(std::string_view const interface, socket_options const& options = {})
+    -> result<socketcan_bus> {
     int const raw{::socket(PF_CAN, SOCK_RAW, CAN_RAW)};
     if (raw < 0) {
       return std::unexpected{can_error::io_error};
@@ -341,10 +343,11 @@ public:
       // EAGAIN and EWOULDBLOCK are the same value on Linux; the guard avoids a
       // "logical or of equal expressions" warning while staying portable.
       auto const code{errno};
-      if (code == EAGAIN
-#  if EWOULDBLOCK != EAGAIN
-          || code == EWOULDBLOCK
-#  endif
+      if (
+        code == EAGAIN
+#if EWOULDBLOCK != EAGAIN
+        || code == EWOULDBLOCK
+#endif
       ) {
         return std::optional<frame>{};
       }
@@ -466,9 +469,9 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] static auto open(
-    std::string_view const interface, socket_options const& options = {}
-  ) -> result<socketcan_bus> {
+  [[nodiscard]] static auto
+  open(std::string_view const interface, socket_options const& options = {})
+    -> result<socketcan_bus> {
     nexenne::utility::discard(interface);
     nexenne::utility::discard(options);
     return std::unexpected{can_error::unsupported};

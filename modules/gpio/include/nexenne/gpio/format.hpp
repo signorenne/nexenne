@@ -55,8 +55,8 @@ inline auto operator<<(std::ostream& os, gpio_error const err) -> std::ostream& 
  * @pre None.
  * @post The returned view refers to a string with program lifetime.
  */
-[[nodiscard]] constexpr auto to_string(line_direction const direction
-) noexcept -> std::string_view {
+[[nodiscard]] constexpr auto to_string(line_direction const direction) noexcept
+  -> std::string_view {
   switch (direction) {
     case line_direction::input:
       return "input";

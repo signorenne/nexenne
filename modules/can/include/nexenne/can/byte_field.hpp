@@ -162,8 +162,8 @@ public:
  * @pre None.
  * @post On success the span size equals \c field.length().
  */
-[[nodiscard]] inline auto
-read_bytes(byte_field const& field, frame const& f) noexcept -> result<std::span<std::byte const>> {
+[[nodiscard]] inline auto read_bytes(byte_field const& field, frame const& f) noexcept
+  -> result<std::span<std::byte const>> {
   if (field.required_length() > f.length()) {
     return std::unexpected{can_error::signal_out_of_range};
   }
@@ -186,9 +186,9 @@ read_bytes(byte_field const& field, frame const& f) noexcept -> result<std::span
  * @pre None.
  * @post On success the field holds the copied bytes.
  */
-[[nodiscard]] inline auto write_bytes(
-  byte_field const& field, frame& f, std::span<std::byte const> const bytes
-) noexcept -> result<void> {
+[[nodiscard]] inline auto
+write_bytes(byte_field const& field, frame& f, std::span<std::byte const> const bytes) noexcept
+  -> result<void> {
   if (field.required_length() > f.length()) {
     return std::unexpected{can_error::signal_out_of_range};
   }
@@ -215,8 +215,8 @@ read_bytes(byte_field const& field, frame const& f) noexcept -> result<std::span
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto
-read_text(byte_field const& field, frame const& f) noexcept -> result<std::string_view> {
+[[nodiscard]] inline auto read_text(byte_field const& field, frame const& f) noexcept
+  -> result<std::string_view> {
   auto const bytes{read_bytes(field, f)};
   if (!bytes) {
     return std::unexpected{bytes.error()};
@@ -244,9 +244,9 @@ read_text(byte_field const& field, frame const& f) noexcept -> result<std::strin
  * @pre None.
  * @post On success the field holds the text followed by NUL padding.
  */
-[[nodiscard]] inline auto write_text(
-  byte_field const& field, frame& f, std::string_view const text
-) noexcept -> result<void> {
+[[nodiscard]] inline auto
+write_text(byte_field const& field, frame& f, std::string_view const text) noexcept
+  -> result<void> {
   if (field.required_length() > f.length()) {
     return std::unexpected{can_error::signal_out_of_range};
   }

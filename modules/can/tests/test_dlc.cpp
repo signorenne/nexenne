@@ -75,7 +75,7 @@ TEST_CASE("fd_length_to_dlc via the precomputed reverse table matches the forwar
     CHECK((dlc == 0U || nc::fd_dlc_to_length(static_cast<std::uint8_t>(dlc - 1U)) < len));
   }
   CHECK(nc::fd_dlc_to_length(15) == 64);
-  static_assert(nc::fd_length_to_dlc(9) == 9);   // 9 bytes -> DLC 9 -> length 12
+  static_assert(nc::fd_length_to_dlc(9) == 9);  // 9 bytes -> DLC 9 -> length 12
   static_assert(nc::fd_length_to_dlc(64) == 15);
 }
 

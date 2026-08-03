@@ -49,8 +49,8 @@ private:
   backend_type* m_backend{nullptr};
   std::span<line_spec const> m_specs{};
 
-  [[nodiscard]] constexpr auto find(std::string_view const name
-  ) const noexcept -> line_spec const* {
+  [[nodiscard]] constexpr auto find(std::string_view const name) const noexcept
+    -> line_spec const* {
     for (auto const& spec : m_specs) {
       if (spec.name() == name) {
         return &spec;
@@ -174,9 +174,9 @@ public:
    * @post On success \c specs() views \p specs; on failure the previous
    *       view and configuration are untouched.
    */
-  auto reconfigure(
-    std::span<line_spec const> const specs, std::span<line_config const> const configs
-  ) -> result<void>
+  auto
+  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
+    -> result<void>
     requires reconfigurable_gpio_backend<backend_type>
   {
     if (m_backend == nullptr) {
@@ -219,8 +219,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto spec(std::string_view const name
-  ) const noexcept -> std::optional<line_spec> {
+  [[nodiscard]] constexpr auto spec(std::string_view const name) const noexcept
+    -> std::optional<line_spec> {
     auto const* found{find(name)};
     if (found == nullptr) {
       return std::nullopt;
@@ -240,8 +240,8 @@ public:
    * @pre The bound backend, if any, outlives the returned handle.
    * @post None.
    */
-  [[nodiscard]] constexpr auto line_for(std::string_view const name
-  ) const noexcept -> std::optional<line<backend_type>> {
+  [[nodiscard]] constexpr auto line_for(std::string_view const name) const noexcept
+    -> std::optional<line<backend_type>> {
     if (m_backend == nullptr) {
       return std::nullopt;
     }

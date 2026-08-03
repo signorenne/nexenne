@@ -55,7 +55,8 @@ public:
    * @pre None.
    * @post Every \c push invokes a copy of \p handler.
    */
-  explicit constexpr callback_sink(handler_type handler
+  explicit constexpr callback_sink(
+    handler_type handler
   ) noexcept(std::is_nothrow_move_constructible_v<handler_type>)
       : m_handler{std::move(handler)} {}
 

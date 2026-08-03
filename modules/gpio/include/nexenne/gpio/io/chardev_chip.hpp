@@ -155,8 +155,8 @@ private:
   fd_handle m_request{};
   container::static_vector<line_offset, max_lines> m_offsets{};
 
-  [[nodiscard]] auto index_of(line_offset const offset
-  ) const noexcept -> std::optional<std::size_t> {
+  [[nodiscard]] auto index_of(line_offset const offset) const noexcept
+    -> std::optional<std::size_t> {
     for (std::size_t i{0}; i < m_offsets.size(); ++i) {
       if (m_offsets[i] == offset) {
         return i;
@@ -168,8 +168,8 @@ private:
   // The neutral vocabulary rendered as kernel flag bits. ACTIVE_LOW is never
   // set: polarity belongs to the wrapper layer, so the kernel's "active"
   // always means the physical high level.
-  [[nodiscard]] static auto
-  kernel_flags(line_spec const& spec, line_config const& config) noexcept -> std::uint64_t {
+  [[nodiscard]] static auto kernel_flags(line_spec const& spec, line_config const& config) noexcept
+    -> std::uint64_t {
     std::uint64_t flags{0};
     if (spec.direction() == line_direction::output) {
       flags |= GPIO_V2_LINE_FLAG_OUTPUT;
@@ -327,7 +327,8 @@ private:
       if (grouped) {
         continue;
       }
-      auto const microseconds{std::chrono::duration_cast<std::chrono::microseconds>(period).count()
+      auto const microseconds{
+        std::chrono::duration_cast<std::chrono::microseconds>(period).count()
       };
       if (microseconds > std::int64_t{std::numeric_limits<std::uint32_t>::max()}) {
         return std::unexpected{gpio_error::invalid_argument};
@@ -351,8 +352,8 @@ private:
     return {};
   }
 
-  [[nodiscard]] auto
-  values_ioctl(unsigned long const request, ::gpio_v2_line_values* values) const -> result<void> {
+  [[nodiscard]] auto values_ioctl(unsigned long const request, ::gpio_v2_line_values* values) const
+    -> result<void> {
     if (!m_request.owns()) {
       return std::unexpected{gpio_error::not_open};
     }
@@ -525,9 +526,9 @@ public:
    * @post On success the new behaviour is live; on failure the previous
    *       configuration is untouched.
    */
-  auto reconfigure(
-    std::span<line_spec const> const specs, std::span<line_config const> const configs
-  ) -> result<void> {
+  auto
+  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
+    -> result<void> {
     if (!m_request.owns()) {
       return std::unexpected{gpio_error::not_open};
     }
@@ -618,8 +619,9 @@ public:
    * @post On success \p levels_out holds the level of each offset, observed
    *       atomically by one ioctl.
    */
-  auto read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out)
-    const -> result<void> {
+  auto
+  read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out) const
+    -> result<void> {
     if (offsets.size() != levels_out.size()) {
       return std::unexpected{gpio_error::invalid_argument};
     }
@@ -657,9 +659,9 @@ public:
    * @pre None.
    * @post On success every named line is driven, atomically by one ioctl.
    */
-  auto write_lines(
-    std::span<line_offset const> const offsets, std::span<bool const> const levels_in
-  ) -> result<void> {
+  auto
+  write_lines(std::span<line_offset const> const offsets, std::span<bool const> const levels_in)
+    -> result<void> {
     if (offsets.size() != levels_in.size()) {
       return std::unexpected{gpio_error::invalid_argument};
     }
@@ -906,8 +908,9 @@ public:
    * @pre None.
    * @post None.
    */
-  auto read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out)
-    const -> result<void> {
+  auto
+  read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out) const
+    -> result<void> {
     utility::discard(offsets, levels_out);
     return std::unexpected{gpio_error::unsupported};
   }
@@ -923,9 +926,9 @@ public:
    * @pre None.
    * @post None.
    */
-  auto write_lines(
-    std::span<line_offset const> const offsets, std::span<bool const> const levels_in
-  ) -> result<void> {
+  auto
+  write_lines(std::span<line_offset const> const offsets, std::span<bool const> const levels_in)
+    -> result<void> {
     utility::discard(offsets, levels_in);
     return std::unexpected{gpio_error::unsupported};
   }
@@ -941,9 +944,9 @@ public:
    * @pre None.
    * @post None.
    */
-  auto reconfigure(
-    std::span<line_spec const> const specs, std::span<line_config const> const configs
-  ) -> result<void> {
+  auto
+  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
+    -> result<void> {
     utility::discard(specs, configs);
     return std::unexpected{gpio_error::unsupported};
   }

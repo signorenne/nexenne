@@ -26,35 +26,35 @@
 
 #if defined(__linux__)
 
-#  include <array>
-#  include <cerrno>
-#  include <charconv>
-#  include <cstddef>
-#  include <cstdint>
-#  include <cstdlib>
-#  include <map>
-#  include <print>
-#  include <span>
-#  include <string>
-#  include <string_view>
-#  include <vector>
+#include <array>
+#include <cerrno>
+#include <charconv>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <map>
+#include <print>
+#include <span>
+#include <string>
+#include <string_view>
+#include <vector>
 
-#  include <nexenne/can/codec.hpp>
-#  include <nexenne/can/database.hpp>
-#  include <nexenne/can/database_builder.hpp>
-#  include <nexenne/can/format.hpp>
-#  include <nexenne/can/frame.hpp>
-#  include <nexenne/can/id.hpp>
-#  include <nexenne/can/io/socketcan_bus.hpp>
-#  include <nexenne/can/message_builder.hpp>
-#  include <nexenne/can/registry.hpp>
-#  include <nexenne/can/signal_builder.hpp>
-#  include <nexenne/can/socket_options.hpp>
-#  include <nexenne/utility/discard.hpp>
-#  include <nexenne/utility/unique_resource.hpp>
-#  include <sys/epoll.h>
-#  include <sys/timerfd.h>
-#  include <unistd.h>
+#include <nexenne/can/codec.hpp>
+#include <nexenne/can/database.hpp>
+#include <nexenne/can/database_builder.hpp>
+#include <nexenne/can/format.hpp>
+#include <nexenne/can/frame.hpp>
+#include <nexenne/can/id.hpp>
+#include <nexenne/can/io/socketcan_bus.hpp>
+#include <nexenne/can/message_builder.hpp>
+#include <nexenne/can/registry.hpp>
+#include <nexenne/can/signal_builder.hpp>
+#include <nexenne/can/socket_options.hpp>
+#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/unique_resource.hpp>
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
+#include <unistd.h>
 
 namespace {
 
@@ -379,13 +379,15 @@ auto main() -> int {
           std::array<std::byte, 8> const zeros{};
           auto built{nc::frame::classic(engine->id(), zeros)};
           for (nc::signal_entry const& entry : engine->signals()) {
-            nu::discard(nc::encode(
-              entry.definition,
-              entry.plan,
-              *built,
-              entry.definition.name() == "engine_rpm" ? 800.0 + (beats % 50) * 100.0
-                                                      : 80.0 + (beats % 40)
-            ));
+            nu::discard(
+              nc::encode(
+                entry.definition,
+                entry.plan,
+                *built,
+                entry.definition.name() == "engine_rpm" ? 800.0 + (beats % 50) * 100.0
+                                                        : 80.0 + (beats % 40)
+              )
+            );
           }
           send(*built);
         }
@@ -408,7 +410,7 @@ auto main() -> int {
 
 #else
 
-#  include <print>
+#include <print>
 
 auto main() -> int {
   std::println("console: requires Linux SocketCAN (epoll + a vcan/can interface)");

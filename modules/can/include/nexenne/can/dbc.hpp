@@ -21,8 +21,8 @@
  * Reference: the Vector DBC file format, the \c BO_ and \c SG_ record grammar.
  */
 
-#include <cmath>
 #include <charconv>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -66,8 +66,8 @@ inline constexpr std::uint32_t dbc_extended_flag{0x8000'0000U};
  */
 [[nodiscard]] inline auto dbc_trim(std::string_view text) noexcept -> std::string_view {
   std::size_t begin{0};
-  while (begin < text.size() && (text[begin] == ' ' || text[begin] == '\t' || text[begin] == '\r')
-  ) {
+  while (begin < text.size()
+         && (text[begin] == ' ' || text[begin] == '\t' || text[begin] == '\r')) {
     ++begin;
   }
   std::size_t end{text.size()};
@@ -88,8 +88,8 @@ inline constexpr std::uint32_t dbc_extended_flag{0x8000'0000U};
  * @pre None.
  * @post \p out is set only when the result is \c true.
  */
-[[nodiscard]] inline auto
-dbc_parse_u32(std::string_view text, std::uint32_t& out) noexcept -> bool {
+[[nodiscard]] inline auto dbc_parse_u32(std::string_view text, std::uint32_t& out) noexcept
+  -> bool {
   text = dbc_trim(text);
   auto const result{std::from_chars(text.data(), text.data() + text.size(), out)};
   return result.ec == std::errc{} && result.ptr == text.data() + text.size();
@@ -236,8 +236,8 @@ struct dbc_scanner {
  * @pre \p line begins with \c "BO_".
  * @post None.
  */
-[[nodiscard]] inline auto dbc_parse_message(std::string_view const line
-) -> result<message_builder> {
+[[nodiscard]] inline auto dbc_parse_message(std::string_view const line)
+  -> result<message_builder> {
   dbc_scanner scanner{line};
   if (scanner.token() != "BO_") {
     return std::unexpected{can_error::parse_error};
@@ -423,7 +423,11 @@ namespace detail {
 /**
  * @brief The scope a DBC comment or attribute is attached to.
  */
-enum class dbc_scope : std::uint8_t { database, message, signal };
+enum class dbc_scope : std::uint8_t {
+  database,
+  message,
+  signal
+};
 
 /**
  * @brief The descriptive metadata parsed from a DBC file beyond the wire layout.
@@ -439,12 +443,14 @@ struct dbc_metadata {
     std::string_view signal{};
     std::vector<dbc_enum_value> values{};
   };
+
   struct comment {
     dbc_scope scope{dbc_scope::database};
     std::uint32_t message_id{0};
     std::string_view signal{};
     std::string_view text{};
   };
+
   struct attribute {
     dbc_scope scope{dbc_scope::database};
     std::uint32_t message_id{0};
@@ -474,6 +480,7 @@ struct dbc_metadata {
 }
 
 }  // namespace detail
+
 /// @endcond
 
 /**
@@ -587,8 +594,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto value_table(can_id const id, std::string_view const signal
-  ) const noexcept -> std::span<dbc_enum_value const> {
+  [[nodiscard]] auto value_table(can_id const id, std::string_view const signal) const noexcept
+    -> std::span<dbc_enum_value const> {
     auto const raw{detail::dbc_raw_id(id)};
     for (auto const& table : m_metadata.value_tables) {
       if (table.message_id == raw && table.signal == signal) {
@@ -611,8 +618,9 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto value_name(can_id const id, std::string_view const signal, std::int64_t const raw
-  ) const noexcept -> std::optional<std::string_view> {
+  [[nodiscard]] auto
+  value_name(can_id const id, std::string_view const signal, std::int64_t const raw) const noexcept
+    -> std::optional<std::string_view> {
     for (auto const& entry : value_table(id, signal)) {
       if (entry.value == raw) {
         return entry.label;
@@ -632,8 +640,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto signal_comment(can_id const id, std::string_view const signal
-  ) const noexcept -> std::string_view {
+  [[nodiscard]] auto signal_comment(can_id const id, std::string_view const signal) const noexcept
+    -> std::string_view {
     return comment_of(detail::dbc_scope::signal, detail::dbc_raw_id(id), signal);
   }
 
@@ -692,8 +700,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto message_attribute(can_id const id, std::string_view const name
-  ) const noexcept -> std::optional<std::string_view> {
+  [[nodiscard]] auto message_attribute(can_id const id, std::string_view const name) const noexcept
+    -> std::optional<std::string_view> {
     return attribute_of(detail::dbc_scope::message, detail::dbc_raw_id(id), {}, name);
   }
 
@@ -707,8 +715,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto database_attribute(std::string_view const name
-  ) const noexcept -> std::optional<std::string_view> {
+  [[nodiscard]] auto database_attribute(std::string_view const name) const noexcept
+    -> std::optional<std::string_view> {
     return attribute_of(detail::dbc_scope::database, 0, {}, name);
   }
 
@@ -718,8 +726,7 @@ private:
   ) const noexcept -> std::string_view {
     for (auto const& entry : m_metadata.comments) {
       if (entry.scope == scope
-          && (scope == detail::dbc_scope::database
-              || (entry.message_id == raw && entry.signal == signal))) {
+          && (scope == detail::dbc_scope::database || (entry.message_id == raw && entry.signal == signal))) {
         return entry.text;
       }
     }
@@ -734,8 +741,7 @@ private:
   ) const noexcept -> std::optional<std::string_view> {
     for (auto const& entry : m_metadata.attributes) {
       if (entry.scope == scope && entry.name == name
-          && (scope == detail::dbc_scope::database
-              || (entry.message_id == raw && entry.signal == signal))) {
+          && (scope == detail::dbc_scope::database || (entry.message_id == raw && entry.signal == signal))) {
         return entry.value;
       }
     }
@@ -763,6 +769,7 @@ private:
   std::string_view const text{*owned};
   std::vector<message> messages;
   std::optional<message_builder> current;
+
   // SIG_VALTYPE_ lines can follow all the messages, so they are collected here
   // and applied in a second pass once every message and signal exists.
   struct pending_value_type {
@@ -770,6 +777,7 @@ private:
     std::string_view signal{};
     std::uint32_t kind{0};
   };
+
   std::vector<pending_value_type> value_types;
   detail::dbc_metadata metadata;
 

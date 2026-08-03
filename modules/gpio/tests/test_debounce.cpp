@@ -14,9 +14,9 @@ namespace {
 namespace ng = nexenne::gpio;
 using namespace std::chrono_literals;
 
-[[nodiscard]] auto event_at(
-  std::chrono::nanoseconds const when, bool const physical, ng::edge_kind const edge
-) -> ng::line_event {
+[[nodiscard]] auto
+event_at(std::chrono::nanoseconds const when, bool const physical, ng::edge_kind const edge)
+  -> ng::line_event {
   ng::line_event event{};
   event.timestamp = ng::event_time{when};
   event.offset = ng::line_offset{17};

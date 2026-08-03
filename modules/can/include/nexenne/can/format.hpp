@@ -1075,7 +1075,8 @@ struct std::formatter<nexenne::utility::flags<nexenne::can::fd_flag>>
    * @post The flag set has been written to \p ctx.
    */
   template <typename FormatContext>
-  auto format(nexenne::utility::flags<nexenne::can::fd_flag> const flags, FormatContext& ctx) const {
+  auto
+  format(nexenne::utility::flags<nexenne::can::fd_flag> const flags, FormatContext& ctx) const {
     return std::formatter<std::string>::format(nexenne::can::to_string(flags), ctx);
   }
 };

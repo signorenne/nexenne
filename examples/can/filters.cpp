@@ -69,9 +69,11 @@ auto main() -> int {
   nexenne::utility::discard(bus.set_filters(filters));
 
   std::array const payload{byte_of(0x01)};
-  nexenne::utility::discard(bus.send(*nc::frame::classic(nc::can_id::standard(0x123), payload))
+  nexenne::utility::discard(
+    bus.send(*nc::frame::classic(nc::can_id::standard(0x123), payload))
   );  // dropped
-  nexenne::utility::discard(bus.send(*nc::frame::classic(nc::can_id::standard(0x7AB), payload))
+  nexenne::utility::discard(
+    bus.send(*nc::frame::classic(nc::can_id::standard(0x7AB), payload))
   );  // kept
   if (auto const got{bus.receive()}; got && got->has_value()) {
     std::println("received past the filter: {}", **got);

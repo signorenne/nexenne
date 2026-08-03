@@ -30,35 +30,35 @@
 
 #if defined(__linux__)
 
-#  include <array>
-#  include <cerrno>
-#  include <csignal>
-#  include <cstddef>
-#  include <cstdint>
-#  include <initializer_list>
-#  include <map>
-#  include <print>
-#  include <string>
-#  include <string_view>
-#  include <utility>
+#include <array>
+#include <cerrno>
+#include <csignal>
+#include <cstddef>
+#include <cstdint>
+#include <initializer_list>
+#include <map>
+#include <print>
+#include <string>
+#include <string_view>
+#include <utility>
 
-#  include <nexenne/can/codec.hpp>
-#  include <nexenne/can/database.hpp>
-#  include <nexenne/can/database_builder.hpp>
-#  include <nexenne/can/format.hpp>
-#  include <nexenne/can/frame.hpp>
-#  include <nexenne/can/id.hpp>
-#  include <nexenne/can/io/socketcan_bus.hpp>
-#  include <nexenne/can/message_builder.hpp>
-#  include <nexenne/can/registry.hpp>
-#  include <nexenne/can/signal_builder.hpp>
-#  include <nexenne/can/socket_options.hpp>
-#  include <nexenne/utility/discard.hpp>
-#  include <nexenne/utility/unique_resource.hpp>
-#  include <sys/epoll.h>
-#  include <sys/signalfd.h>
-#  include <sys/timerfd.h>
-#  include <unistd.h>
+#include <nexenne/can/codec.hpp>
+#include <nexenne/can/database.hpp>
+#include <nexenne/can/database_builder.hpp>
+#include <nexenne/can/format.hpp>
+#include <nexenne/can/frame.hpp>
+#include <nexenne/can/id.hpp>
+#include <nexenne/can/io/socketcan_bus.hpp>
+#include <nexenne/can/message_builder.hpp>
+#include <nexenne/can/registry.hpp>
+#include <nexenne/can/signal_builder.hpp>
+#include <nexenne/can/socket_options.hpp>
+#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/unique_resource.hpp>
+#include <sys/epoll.h>
+#include <sys/signalfd.h>
+#include <sys/timerfd.h>
+#include <unistd.h>
 
 namespace {
 
@@ -93,11 +93,13 @@ auto build_database() -> nc::database {
                        .endianness(nc::byte_order::little_endian)
                        .build()};
   return nc::database_builder{}
-    .add_message(nc::message_builder{nc::can_id::standard(engine_id), "engine"}
-                   .add(rpm)
-                   .add(temp)
-                   .add(running)
-                   .build())
+    .add_message(
+      nc::message_builder{nc::can_id::standard(engine_id), "engine"}
+        .add(rpm)
+        .add(temp)
+        .add(running)
+        .build()
+    )
     .build();
 }
 
@@ -267,7 +269,7 @@ auto main() -> int {
 
 #else
 
-#  include <print>
+#include <print>
 
 auto main() -> int {
   std::println("reactor: requires Linux SocketCAN (epoll + a vcan/can interface)");

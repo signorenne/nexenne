@@ -85,16 +85,18 @@ auto main(int const argc, char** const argv) -> int {
     std::println("epoll_create1 failed");
     return 1;
   }
-  auto const close_epoll{nexenne::utility::scope_guard{[epoll_fd]() noexcept { ::close(epoll_fd); }}
-  };
+  auto const close_epoll{nexenne::utility::scope_guard{[epoll_fd]() noexcept {
+    ::close(epoll_fd);
+  }}};
 
   int const timer_fd{::timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC)};
   if (timer_fd < 0) {
     std::println("timerfd_create failed");
     return 1;
   }
-  auto const close_timer{nexenne::utility::scope_guard{[timer_fd]() noexcept { ::close(timer_fd); }}
-  };
+  auto const close_timer{nexenne::utility::scope_guard{[timer_fd]() noexcept {
+    ::close(timer_fd);
+  }}};
   ::itimerspec period{};
   period.it_interval.tv_nsec = 500'000'000;  // 500ms heartbeat
   period.it_value = period.it_interval;

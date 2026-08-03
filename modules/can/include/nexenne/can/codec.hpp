@@ -80,8 +80,8 @@ template <std::unsigned_integral T>
  * @post None.
  */
 template <std::unsigned_integral T>
-[[nodiscard]] constexpr auto
-sign_extend(T const value, std::size_t const bits) noexcept -> std::make_signed_t<T> {
+[[nodiscard]] constexpr auto sign_extend(T const value, std::size_t const bits) noexcept
+  -> std::make_signed_t<T> {
   assert(bits >= 1 && bits <= sizeof(T) * 8 && "sign_extend: bits out of range");
   using signed_type = std::make_signed_t<T>;
   if (bits >= sizeof(T) * 8) {
@@ -105,8 +105,8 @@ sign_extend(T const value, std::size_t const bits) noexcept -> std::make_signed_
  * @pre \p bits is 32 or 64.
  * @post None.
  */
-[[nodiscard]] constexpr auto float_from_raw(std::uint64_t const raw, std::uint8_t const bits
-) noexcept -> double {
+[[nodiscard]] constexpr auto
+float_from_raw(std::uint64_t const raw, std::uint8_t const bits) noexcept -> double {
   if (bits == 64U) {
     return std::bit_cast<double>(raw);
   }
@@ -124,8 +124,8 @@ sign_extend(T const value, std::size_t const bits) noexcept -> std::make_signed_
  * @pre \p bits is 32 or 64.
  * @post Bits above \p bits of the result are zero.
  */
-[[nodiscard]] constexpr auto raw_from_float(double const value, std::uint8_t const bits
-) noexcept -> std::uint64_t {
+[[nodiscard]] constexpr auto raw_from_float(double const value, std::uint8_t const bits) noexcept
+  -> std::uint64_t {
   if (bits == 64U) {
     return std::bit_cast<std::uint64_t>(value);
   }
@@ -145,9 +145,9 @@ sign_extend(T const value, std::size_t const bits) noexcept -> std::make_signed_
  * @pre \p bits is between 1 and 64.
  * @post None.
  */
-[[nodiscard]] constexpr auto is_dont_care(
-  invalid_value const policy, std::uint64_t const raw, std::uint8_t const bits
-) noexcept -> bool {
+[[nodiscard]] constexpr auto
+is_dont_care(invalid_value const policy, std::uint64_t const raw, std::uint8_t const bits) noexcept
+  -> bool {
   auto const ones{detail::low_mask<std::uint64_t>(bits)};
   switch (policy) {
     case invalid_value::none:
@@ -176,8 +176,8 @@ sign_extend(T const value, std::size_t const bits) noexcept -> std::make_signed_
  * @pre None.
  * @post On success the result has bits above the field width zero.
  */
-[[nodiscard]] constexpr auto
-read_bits(packing_plan const& plan, frame const& f) noexcept -> result<std::uint64_t> {
+[[nodiscard]] constexpr auto read_bits(packing_plan const& plan, frame const& f) noexcept
+  -> result<std::uint64_t> {
   if (plan.required_length() > f.length()) {
     return std::unexpected{can_error::signal_out_of_range};
   }
@@ -257,9 +257,9 @@ decode(signal const& sig, packing_plan const& plan, frame const& f) noexcept -> 
  * @pre \p plan was compiled from \p sig.
  * @post None.
  */
-[[nodiscard]] constexpr auto decode_value(
-  signal const& sig, packing_plan const& plan, frame const& f
-) noexcept -> result<std::optional<double>> {
+[[nodiscard]] constexpr auto
+decode_value(signal const& sig, packing_plan const& plan, frame const& f) noexcept
+  -> result<std::optional<double>> {
   auto const raw{read_bits(plan, f)};
   if (!raw) {
     return std::unexpected{raw.error()};
@@ -298,9 +298,9 @@ decode(signal const& sig, packing_plan const& plan, frame const& f) noexcept -> 
  *      \c can_error::value_out_of_range rather than asserted.
  * @post On success the field bits of \p f hold the encoded value.
  */
-[[nodiscard]] inline auto encode(
-  signal const& sig, packing_plan const& plan, frame& f, double const value
-) noexcept -> result<void> {
+[[nodiscard]] inline auto
+encode(signal const& sig, packing_plan const& plan, frame& f, double const value) noexcept
+  -> result<void> {
   double clamped{value};
   if (clamped < sig.minimum()) {
     clamped = sig.minimum();
@@ -326,12 +326,10 @@ decode(signal const& sig, packing_plan const& plan, frame const& f) noexcept -> 
   auto const bits{plan.bit_length()};
   if (plan.is_signed()) {
     double const min_value{
-      bits >= 64U ? -9223372036854775808.0
-                  : static_cast<double>(-(std::int64_t{1} << (bits - 1U)))
+      bits >= 64U ? -9223372036854775808.0 : static_cast<double>(-(std::int64_t{1} << (bits - 1U)))
     };
     double const max_exclusive{
-      bits >= 64U ? 9223372036854775808.0
-                  : static_cast<double>(std::int64_t{1} << (bits - 1U))
+      bits >= 64U ? 9223372036854775808.0 : static_cast<double>(std::int64_t{1} << (bits - 1U))
     };
     if (rounded < min_value || rounded >= max_exclusive) {
       return std::unexpected{can_error::value_out_of_range};
@@ -368,9 +366,9 @@ decode(signal const& sig, packing_plan const& plan, frame const& f) noexcept -> 
  * @pre \p plan was compiled from \p sig.
  * @post On success the field bits of \p f hold the encoded value.
  */
-[[nodiscard]] inline auto encode_strict(
-  signal const& sig, packing_plan const& plan, frame& f, double const value
-) noexcept -> result<void> {
+[[nodiscard]] inline auto
+encode_strict(signal const& sig, packing_plan const& plan, frame& f, double const value) noexcept
+  -> result<void> {
   if (value < sig.minimum() || value > sig.maximum()) {
     return std::unexpected{can_error::value_out_of_range};
   }
@@ -390,7 +388,8 @@ decode(signal const& sig, packing_plan const& plan, frame const& f) noexcept -> 
  * @pre None.
  * @post None.
  */
-[[nodiscard]] constexpr auto not_available_value(packing_plan const& plan) noexcept -> std::uint64_t {
+[[nodiscard]] constexpr auto not_available_value(packing_plan const& plan) noexcept
+  -> std::uint64_t {
   return detail::low_mask<std::uint64_t>(plan.bit_length());
 }
 
@@ -406,8 +405,8 @@ decode(signal const& sig, packing_plan const& plan, frame const& f) noexcept -> 
  * @pre None.
  * @post On success the field holds its all-ones "not available" value.
  */
-[[nodiscard]] constexpr auto
-write_not_available(packing_plan const& plan, frame& f) noexcept -> result<void> {
+[[nodiscard]] constexpr auto write_not_available(packing_plan const& plan, frame& f) noexcept
+  -> result<void> {
   return write_bits(plan, f, not_available_value(plan));
 }
 
@@ -424,8 +423,8 @@ write_not_available(packing_plan const& plan, frame& f) noexcept -> result<void>
  * @pre None.
  * @post None.
  */
-[[nodiscard]] constexpr auto
-is_not_available(packing_plan const& plan, frame const& f) noexcept -> result<bool> {
+[[nodiscard]] constexpr auto is_not_available(packing_plan const& plan, frame const& f) noexcept
+  -> result<bool> {
   auto const raw{read_bits(plan, f)};
   if (!raw) {
     return std::unexpected{raw.error()};

@@ -62,28 +62,36 @@ auto main() -> int {
   // Multiplexed message.
   // Byte 0 selects the group; group 0 puts a signal in byte 1, group 1 in byte 2.
   auto const db{nc::database_builder{}
-                  .add_message(nc::message_builder{nc::can_id::standard(0x300), "diagnostics"}
-                                 .add(nc::signal_builder{}
-                                        .name("page")
-                                        .start_bit(0)
-                                        .length(8)
-                                        .mux_role(nc::multiplex_role::selector)
-                                        .build())
-                                 .add(nc::signal_builder{}
-                                        .name("voltage")
-                                        .start_bit(8)
-                                        .length(8)
-                                        .mux_role(nc::multiplex_role::multiplexed)
-                                        .mux_value(0)
-                                        .build())
-                                 .add(nc::signal_builder{}
-                                        .name("current")
-                                        .start_bit(16)
-                                        .length(8)
-                                        .mux_role(nc::multiplex_role::multiplexed)
-                                        .mux_value(1)
-                                        .build())
-                                 .build())
+                  .add_message(
+                    nc::message_builder{nc::can_id::standard(0x300), "diagnostics"}
+                      .add(
+                        nc::signal_builder{}
+                          .name("page")
+                          .start_bit(0)
+                          .length(8)
+                          .mux_role(nc::multiplex_role::selector)
+                          .build()
+                      )
+                      .add(
+                        nc::signal_builder{}
+                          .name("voltage")
+                          .start_bit(8)
+                          .length(8)
+                          .mux_role(nc::multiplex_role::multiplexed)
+                          .mux_value(0)
+                          .build()
+                      )
+                      .add(
+                        nc::signal_builder{}
+                          .name("current")
+                          .start_bit(16)
+                          .length(8)
+                          .mux_role(nc::multiplex_role::multiplexed)
+                          .mux_value(1)
+                          .build()
+                      )
+                      .build()
+                  )
                   .build()};
   nc::registry const reg{db};
 

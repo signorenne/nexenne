@@ -68,10 +68,12 @@ auto main() -> int {
 
   // 2. Group signals into a message, and messages into a database.
   auto const db{nc::database_builder{}
-                  .add_message(nc::message_builder{nc::can_id::standard(0x100), "vehicle_status"}
-                                 .add(speed)
-                                 .add(oil_temp)
-                                 .build())
+                  .add_message(
+                    nc::message_builder{nc::can_id::standard(0x100), "vehicle_status"}
+                      .add(speed)
+                      .add(oil_temp)
+                      .build()
+                  )
                   .build()};
   nc::registry const reg{db};
 
@@ -79,7 +81,8 @@ auto main() -> int {
   //    do not set reads back as "not available".
   auto tx{*nc::frame::filled(nc::can_id::standard(0x100), 8, byte_of(0xFF))};
   nexenne::utility::discard(nc::encode(speed, nc::packing_plan::from_signal(speed), tx, 87.5));
-  nexenne::utility::discard(nc::encode(oil_temp, nc::packing_plan::from_signal(oil_temp), tx, 90.0)
+  nexenne::utility::discard(
+    nc::encode(oil_temp, nc::packing_plan::from_signal(oil_temp), tx, 90.0)
   );
   std::println("1-3 encoded: {}", tx);
 
@@ -111,21 +114,27 @@ auto main() -> int {
 
   // 8. Multiplexing: a selector byte picks which signals are present.
   auto const mux_db{nc::database_builder{}
-                      .add_message(nc::message_builder{nc::can_id::standard(0x300), "diag"}
-                                     .add(nc::signal_builder{}
-                                            .name("page")
-                                            .start_bit(0)
-                                            .length(8)
-                                            .mux_role(nc::multiplex_role::selector)
-                                            .build())
-                                     .add(nc::signal_builder{}
-                                            .name("voltage")
-                                            .start_bit(8)
-                                            .length(8)
-                                            .mux_role(nc::multiplex_role::multiplexed)
-                                            .mux_value(0)
-                                            .build())
-                                     .build())
+                      .add_message(
+                        nc::message_builder{nc::can_id::standard(0x300), "diag"}
+                          .add(
+                            nc::signal_builder{}
+                              .name("page")
+                              .start_bit(0)
+                              .length(8)
+                              .mux_role(nc::multiplex_role::selector)
+                              .build()
+                          )
+                          .add(
+                            nc::signal_builder{}
+                              .name("voltage")
+                              .start_bit(8)
+                              .length(8)
+                              .mux_role(nc::multiplex_role::multiplexed)
+                              .mux_value(0)
+                              .build()
+                          )
+                          .build()
+                      )
                       .build()};
   nc::registry const mux_reg{mux_db};
   auto const mux_frame{

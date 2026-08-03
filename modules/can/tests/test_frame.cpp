@@ -123,7 +123,8 @@ TEST_CASE("frame: filled creates a classic frame with every byte set to the fill
 }
 
 TEST_CASE("frame: fd_filled creates an FD frame filled with the value") {
-  auto const f{nc::frame::fd_filled(nc::can_id::extended(0x1), 16, byte_of(0xFF), nc::fd_flag::brs)
+  auto const f{
+    nc::frame::fd_filled(nc::can_id::extended(0x1), 16, byte_of(0xFF), nc::fd_flag::brs)
   };
   REQUIRE(f.has_value());
   CHECK(f->is_fd());

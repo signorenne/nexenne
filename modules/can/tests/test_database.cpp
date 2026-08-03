@@ -22,47 +22,57 @@ namespace nc = nexenne::can;
 
 auto build_db() -> nc::database {
   auto const status{nc::message_builder{nc::can_id::standard(0x100), "status"}
-                      .add(nc::signal_builder{}
-                             .name("speed")
-                             .start_bit(0)
-                             .length(16)
-                             .endianness(nc::byte_order::little_endian)
-                             .scale(0.01)
-                             .build())
-                      .add(nc::signal_builder{}
-                             .name("oil_temp")
-                             .start_bit(16)
-                             .length(8)
-                             .endianness(nc::byte_order::little_endian)
-                             .scale(1.0)
-                             .offset(-40.0)
-                             .build())
+                      .add(
+                        nc::signal_builder{}
+                          .name("speed")
+                          .start_bit(0)
+                          .length(16)
+                          .endianness(nc::byte_order::little_endian)
+                          .scale(0.01)
+                          .build()
+                      )
+                      .add(
+                        nc::signal_builder{}
+                          .name("oil_temp")
+                          .start_bit(16)
+                          .length(8)
+                          .endianness(nc::byte_order::little_endian)
+                          .scale(1.0)
+                          .offset(-40.0)
+                          .build()
+                      )
                       .build()};
   auto const engine{nc::message_builder{nc::can_id::extended(0x18FEF100), "engine"}
-                      .add(nc::signal_builder{}
-                             .name("rpm")
-                             .start_bit(0)
-                             .length(8)
-                             .endianness(nc::byte_order::little_endian)
-                             .build())
+                      .add(
+                        nc::signal_builder{}
+                          .name("rpm")
+                          .start_bit(0)
+                          .length(8)
+                          .endianness(nc::byte_order::little_endian)
+                          .build()
+                      )
                       .build()};
   return nc::database_builder{}.add_message(status).add_message(engine).build();
 }
 
 TEST_CASE("message: collects signals and looks them up by name") {
   nc::message m{nc::can_id::standard(0x100), "status"};
-  m.add_signal(nc::signal_builder{}
-                 .name("speed")
-                 .start_bit(0)
-                 .length(16)
-                 .endianness(nc::byte_order::little_endian)
-                 .build());
-  m.add_signal(nc::signal_builder{}
-                 .name("temp")
-                 .start_bit(16)
-                 .length(8)
-                 .endianness(nc::byte_order::little_endian)
-                 .build());
+  m.add_signal(
+    nc::signal_builder{}
+      .name("speed")
+      .start_bit(0)
+      .length(16)
+      .endianness(nc::byte_order::little_endian)
+      .build()
+  );
+  m.add_signal(
+    nc::signal_builder{}
+      .name("temp")
+      .start_bit(16)
+      .length(8)
+      .endianness(nc::byte_order::little_endian)
+      .build()
+  );
 
   CHECK(m.signal_count() == 2);
   CHECK(m.name() == "status");

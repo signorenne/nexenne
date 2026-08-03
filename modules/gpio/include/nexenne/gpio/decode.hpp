@@ -41,8 +41,8 @@ namespace nexenne::gpio {
  *
  * @complexity \c O(1).
  */
-[[nodiscard]] constexpr auto
-decode(line_spec const& spec, line_event const& event) noexcept -> line_value {
+[[nodiscard]] constexpr auto decode(line_spec const& spec, line_event const& event) noexcept
+  -> line_value {
   return line_value{
     spec,
     spec.to_logical(event.physical),

@@ -230,8 +230,10 @@ TEST_CASE("encode: a finite but out-of-range value is rejected, never written as
   auto frame{make_frame(bytes)};
 
   CHECK(nc::encode(sig, plan, frame, 1e30).error() == nc::can_error::value_out_of_range);
-  CHECK(nc::encode(sig, plan, frame, 9223372036854775808.0).error()  // exactly 2^63
-        == nc::can_error::value_out_of_range);
+  CHECK(
+    nc::encode(sig, plan, frame, 9223372036854775808.0).error()  // exactly 2^63
+    == nc::can_error::value_out_of_range
+  );
   // The frame stays untouched by the rejected writes.
   CHECK(frame.data()[7] == b(0x00));
 }

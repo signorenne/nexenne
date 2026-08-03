@@ -251,8 +251,8 @@ public:
    *      asserts in debug and is undefined in release.
    * @post Bits at and above position \c bit_length() of the result are zero.
    */
-  [[nodiscard]] constexpr auto extract(std::span<std::byte const> const payload
-  ) const noexcept -> value_type {
+  [[nodiscard]] constexpr auto extract(std::span<std::byte const> const payload) const noexcept
+    -> value_type {
     assert(payload.size() >= m_required_length && "packing_plan::extract: payload too short");
     value_type value{0};
     for (std::uint8_t i{0}; i < m_count; ++i) {
@@ -278,8 +278,8 @@ public:
    * @post The field bits of \p payload hold the low \c bit_length() bits of
    *       \p raw; other bits are unchanged.
    */
-  constexpr auto
-  insert(std::span<std::byte> const payload, value_type const raw) const noexcept -> void {
+  constexpr auto insert(std::span<std::byte> const payload, value_type const raw) const noexcept
+    -> void {
     assert(payload.size() >= m_required_length && "packing_plan::insert: payload too short");
     for (std::uint8_t i{0}; i < m_count; ++i) {
       plan_chunk const chunk{m_chunks[i]};

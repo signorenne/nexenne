@@ -80,7 +80,9 @@ public:
    *       message has no signals.
    */
   message(
-    can_id const id, std::string_view const name, std::uint8_t const byte_length = max_classic_length
+    can_id const id,
+    std::string_view const name,
+    std::uint8_t const byte_length = max_classic_length
   ) noexcept
       : m_id{id}, m_name{name}, m_byte_length{byte_length} {}
 
@@ -219,8 +221,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto find_signal(std::string_view const name
-  ) const noexcept -> std::optional<std::size_t> {
+  [[nodiscard]] auto find_signal(std::string_view const name) const noexcept
+    -> std::optional<std::size_t> {
     for (std::size_t i{0}; i < m_signals.size(); ++i) {
       if (m_signals[i].definition.name() == name) {
         return i;

@@ -20,8 +20,8 @@
  */
 
 #if !__has_include(<esp_log.h>)
-#error                                                                                           \
-    "nexenne/logging/esp_log_sink.hpp requires ESP-IDF (esp_log.h); include it only on an ESP-IDF target, not on host builds."
+#error                                                                                             \
+  "nexenne/logging/esp_log_sink.hpp requires ESP-IDF (esp_log.h); include it only on an ESP-IDF target, not on host builds."
 #endif
 
 #include <algorithm>

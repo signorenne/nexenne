@@ -66,7 +66,8 @@ auto main() -> int {
   std::array<std::byte, 8> bytes{};
   auto tx{*nc::frame::classic(nc::can_id::standard(0x100), bytes)};
   nexenne::utility::discard(nc::encode(speed, nc::packing_plan::from_signal(speed), tx, 87.5));
-  nexenne::utility::discard(nc::encode(oil_temp, nc::packing_plan::from_signal(oil_temp), tx, 90.0)
+  nexenne::utility::discard(
+    nc::encode(oil_temp, nc::packing_plan::from_signal(oil_temp), tx, 90.0)
   );
 
   // 3. Send it over the loopback bus.

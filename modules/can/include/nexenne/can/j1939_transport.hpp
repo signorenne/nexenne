@@ -21,8 +21,8 @@
  * Reference: SAE J1939-21, the transport protocol functions TP.CM and TP.DT.
  */
 
-#include <cassert>
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -222,8 +222,8 @@ private:
   // so one node can run a broadcast (BAM) and a destination-specific transfer at
   // once, and a TP.DT frame only advances the session that shares its own
   // destination address.
-  [[nodiscard]] auto find(std::uint8_t const source, std::uint8_t const destination
-  ) noexcept -> session* {
+  [[nodiscard]] auto find(std::uint8_t const source, std::uint8_t const destination) noexcept
+    -> session* {
     for (session& s : m_sessions) {
       if (s.source == source && s.destination == destination) {
         return &s;
@@ -286,9 +286,9 @@ public:
         // claim any size or packet count. Reject an impossible transfer instead
         // of opening a session that would exceed the 1785-byte bound or complete
         // with an inconsistent size.
-        auto const expected{static_cast<std::uint16_t>(
-          (size + j1939_tp_dt_payload - 1U) / j1939_tp_dt_payload
-        )};
+        auto const expected{
+          static_cast<std::uint16_t>((size + j1939_tp_dt_payload - 1U) / j1939_tp_dt_payload)
+        };
         erase(source, destination);
         if (size == 0U || size > j1939_max_transport || packets == 0U || packets != expected) {
           return std::optional<transport_message>{};

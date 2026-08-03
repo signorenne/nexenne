@@ -180,8 +180,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(filter const lhs, filter const rhs) noexcept -> bool = default;
+  [[nodiscard]] friend constexpr auto operator==(filter const lhs, filter const rhs) noexcept
+    -> bool = default;
 };
 
 }  // namespace nexenne::can

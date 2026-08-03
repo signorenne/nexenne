@@ -38,33 +38,39 @@ auto main() -> int {
   // Describe the bus: one standard status message with two signals, and one
   // extended engine message.
   auto const status{nc::message_builder{nc::can_id::standard(0x100), "status"}
-                      .add(nc::signal_builder{}
-                             .name("speed")
-                             .start_bit(0)
-                             .length(16)
-                             .endianness(nc::byte_order::little_endian)
-                             .scale(0.01)
-                             .unit("km/h")
-                             .build())
-                      .add(nc::signal_builder{}
-                             .name("oil_temp")
-                             .start_bit(16)
-                             .length(8)
-                             .endianness(nc::byte_order::little_endian)
-                             .scale(1.0)
-                             .offset(-40.0)
-                             .unit("C")
-                             .build())
+                      .add(
+                        nc::signal_builder{}
+                          .name("speed")
+                          .start_bit(0)
+                          .length(16)
+                          .endianness(nc::byte_order::little_endian)
+                          .scale(0.01)
+                          .unit("km/h")
+                          .build()
+                      )
+                      .add(
+                        nc::signal_builder{}
+                          .name("oil_temp")
+                          .start_bit(16)
+                          .length(8)
+                          .endianness(nc::byte_order::little_endian)
+                          .scale(1.0)
+                          .offset(-40.0)
+                          .unit("C")
+                          .build()
+                      )
                       .build()};
   auto const engine{nc::message_builder{nc::can_id::extended(0x18FEF100), "engine"}
-                      .add(nc::signal_builder{}
-                             .name("rpm")
-                             .start_bit(0)
-                             .length(16)
-                             .endianness(nc::byte_order::little_endian)
-                             .scale(0.125)
-                             .unit("rpm")
-                             .build())
+                      .add(
+                        nc::signal_builder{}
+                          .name("rpm")
+                          .start_bit(0)
+                          .length(16)
+                          .endianness(nc::byte_order::little_endian)
+                          .scale(0.125)
+                          .unit("rpm")
+                          .build()
+                      )
                       .build()};
 
   auto const db{nc::database_builder{}.add_message(status).add_message(engine).build()};

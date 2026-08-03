@@ -3,12 +3,12 @@
  * @brief Tests for the DBC text importer.
  */
 
-#include <type_traits>
 #include <doctest/doctest.h>
 
 #include <array>
 #include <cstddef>
 #include <string_view>
+#include <type_traits>
 
 #include <nexenne/can/codec.hpp>
 #include <nexenne/can/dbc.hpp>
@@ -138,12 +138,14 @@ TEST_CASE("dbc: a float value type marks the signal, and float signals round-tri
 }
 
 TEST_CASE("dbc: the message byte length and extended multiplexing marker are imported") {
-  auto const parsed{nc::parse_dbc("BO_ 100 Engine: 6 ECU\n SG_ Mode m2M : 0|8@1+ (1,0) [0|0] \"\" X\n")};
+  auto const parsed{
+    nc::parse_dbc("BO_ 100 Engine: 6 ECU\n SG_ Mode m2M : 0|8@1+ (1,0) [0|0] \"\" X\n")
+  };
   REQUIRE(parsed.has_value());
   auto const* const msg{parsed->db().find(nc::can_id::standard(100))};
   REQUIRE(msg != nullptr);
-  CHECK(msg->byte_length() == 6);          // the BO_ dlc is now retained
-  REQUIRE(msg->signal_count() == 1);        // m2M no longer fails the whole file
+  CHECK(msg->byte_length() == 6);     // the BO_ dlc is now retained
+  REQUIRE(msg->signal_count() == 1);  // m2M no longer fails the whole file
   CHECK(msg->signals()[0].definition.mux_role() == nc::multiplex_role::multiplexed);
 }
 

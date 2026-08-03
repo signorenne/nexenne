@@ -73,8 +73,8 @@ inline constexpr std::array<std::uint8_t, max_fd_length + 1U> fd_length_dlc_tabl
  * @pre \p dlc is at most 15.
  * @post The result is at most 8.
  */
-[[nodiscard]] constexpr auto classic_dlc_to_length(std::uint8_t const dlc
-) noexcept -> std::uint8_t {
+[[nodiscard]] constexpr auto classic_dlc_to_length(std::uint8_t const dlc) noexcept
+  -> std::uint8_t {
   return dlc < max_classic_length ? dlc : max_classic_length;
 }
 
@@ -106,8 +106,8 @@ inline constexpr std::array<std::uint8_t, max_fd_length + 1U> fd_length_dlc_tabl
  * @post The result is at most 8 and \c classic_dlc_to_length(result) is at
  *       least \c min(length, 8).
  */
-[[nodiscard]] constexpr auto classic_length_to_dlc(std::uint8_t const length
-) noexcept -> std::uint8_t {
+[[nodiscard]] constexpr auto classic_length_to_dlc(std::uint8_t const length) noexcept
+  -> std::uint8_t {
   return length < max_classic_length ? length : max_classic_length;
 }
 

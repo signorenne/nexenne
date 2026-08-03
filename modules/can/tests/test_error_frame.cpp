@@ -76,14 +76,16 @@ TEST_CASE("decode_error_frame: status and counter bytes are ignored without thei
   // Class 0x02 is arbitration-lost (CAN_ERR_LOSTARB): neither controller nor counters.
   auto const report{nc::decode_error_frame(error_frame_of(std::uint32_t{0x02}, data))};
   REQUIRE(report.has_value());
-  CHECK(report->state == nc::bus_state::error_active);   // not error_passive
-  CHECK(report->counters == nc::error_counters{0, 0});   // counters class bit is clear
+  CHECK(report->state == nc::bus_state::error_active);  // not error_passive
+  CHECK(report->counters == nc::error_counters{0, 0});  // counters class bit is clear
 }
 
 TEST_CASE("decode_error_frame is usable in a constant expression") {
   // Exercises the constexpr marking (frames are constexpr-constructible now).
   constexpr auto decoded{[] {
-    auto const f{nc::frame::classic(nc::can_id::from_raw(nc::error_flag | nc::err_class_bus_off), {})};
+    auto const f{
+      nc::frame::classic(nc::can_id::from_raw(nc::error_flag | nc::err_class_bus_off), {})
+    };
     return f.has_value() && nc::decode_error_frame(*f).has_value();
   }()};
   static_assert(decoded, "decode_error_frame must work at compile time");

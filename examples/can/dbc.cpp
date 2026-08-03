@@ -22,16 +22,14 @@ namespace {
 
 namespace nc = nexenne::can;
 
-constexpr std::string_view kDbc{
-  "CM_ \"Example vehicle database\";\n"
-  "BO_ 256 VehicleStatus: 8 ECU\n"
-  " SG_ Speed : 0|16@1+ (0.01,0) [0|655.35] \"km/h\" Dash\n"
-  " SG_ OilTemp : 16|8@1+ (1,-40) [-40|215] \"degC\" Dash\n"
-  " SG_ Gear : 24|4@1+ (1,0) [0|0] \"\" Dash\n"
-  "CM_ SG_ 256 Speed \"Vehicle road speed\";\n"
-  "VAL_ 256 Gear 0 \"neutral\" 1 \"drive\" 2 \"reverse\" ;\n"
-  "BA_ \"GenMsgCycleTime\" BO_ 256 100;\n"
-};
+constexpr std::string_view kDbc{"CM_ \"Example vehicle database\";\n"
+                                "BO_ 256 VehicleStatus: 8 ECU\n"
+                                " SG_ Speed : 0|16@1+ (0.01,0) [0|655.35] \"km/h\" Dash\n"
+                                " SG_ OilTemp : 16|8@1+ (1,-40) [-40|215] \"degC\" Dash\n"
+                                " SG_ Gear : 24|4@1+ (1,0) [0|0] \"\" Dash\n"
+                                "CM_ SG_ 256 Speed \"Vehicle road speed\";\n"
+                                "VAL_ 256 Gear 0 \"neutral\" 1 \"drive\" 2 \"reverse\" ;\n"
+                                "BA_ \"GenMsgCycleTime\" BO_ 256 100;\n"};
 
 }  // namespace
 
@@ -53,7 +51,9 @@ auto main() -> int {
   // Descriptive metadata: comments, value tables, and attributes.
   auto const status{nc::can_id::standard(256)};
   std::println("Speed comment: {}", parsed->signal_comment(status, "Speed"));
-  std::println("message cycle time: {} ms", parsed->message_attribute(status, "GenMsgCycleTime").value_or("?"));
+  std::println(
+    "message cycle time: {} ms", parsed->message_attribute(status, "GenMsgCycleTime").value_or("?")
+  );
   std::println("Gear value table:");
   for (nc::dbc_enum_value const& named : parsed->value_table(status, "Gear")) {
     std::println("  {}", named);

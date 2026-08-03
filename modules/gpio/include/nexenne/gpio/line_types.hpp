@@ -159,8 +159,8 @@ matches(edge_detection const subscription, edge_kind const edge) noexcept -> boo
  * @post The result equals \p level exactly when \p polarity is
  *       \c line_polarity::active_high.
  */
-[[nodiscard]] constexpr auto
-apply_polarity(bool const level, line_polarity const polarity) noexcept -> bool {
+[[nodiscard]] constexpr auto apply_polarity(bool const level, line_polarity const polarity) noexcept
+  -> bool {
   return polarity == line_polarity::active_low ? !level : level;
 }
 

@@ -311,8 +311,8 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(can_id const lhs, can_id const rhs) noexcept -> bool = default;
+  [[nodiscard]] friend constexpr auto operator==(can_id const lhs, can_id const rhs) noexcept
+    -> bool = default;
 };
 
 }  // namespace nexenne::can

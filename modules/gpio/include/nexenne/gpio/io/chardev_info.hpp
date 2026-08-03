@@ -44,8 +44,8 @@ private:
   std::array<char, 32> m_label{};
   std::uint32_t m_lines{0};
 
-  [[nodiscard]] static constexpr auto to_view(std::array<char, 32> const& field
-  ) noexcept -> std::string_view {
+  [[nodiscard]] static constexpr auto to_view(std::array<char, 32> const& field) noexcept
+    -> std::string_view {
     std::size_t length{0};
     while (length < field.size() && field[length] != '\0') {
       length += 1;
@@ -136,8 +136,8 @@ private:
   bool m_used{false};
   bool m_active_low{false};
 
-  [[nodiscard]] static constexpr auto to_view(std::array<char, 32> const& field
-  ) noexcept -> std::string_view {
+  [[nodiscard]] static constexpr auto to_view(std::array<char, 32> const& field) noexcept
+    -> std::string_view {
     std::size_t length{0};
     while (length < field.size() && field[length] != '\0') {
       length += 1;
@@ -325,8 +325,8 @@ struct info_fd_closer {
   }
 };
 
-[[nodiscard]] inline auto open_chip_readonly(chip_id const chip
-) noexcept -> utility::unique_resource<int, info_fd_closer> {
+[[nodiscard]] inline auto open_chip_readonly(chip_id const chip) noexcept
+  -> utility::unique_resource<int, info_fd_closer> {
   // Rendered with to_chars rather than a vararg call: type-safe, and the
   // buffer is wide enough for the prefix plus any 16-bit index.
   std::array<char, 32> path{};
@@ -456,8 +456,8 @@ struct info_fd_closer {
  * @pre None.
  * @post No line state is touched.
  */
-[[nodiscard]] inline auto
-read_line_info(chip_id const chip, line_offset const offset) -> result<line_info> {
+[[nodiscard]] inline auto read_line_info(chip_id const chip, line_offset const offset)
+  -> result<line_info> {
   auto const fd{detail::open_chip_readonly(chip)};
   if (!fd.owns()) {
     return std::unexpected{detail::info_errno()};
@@ -488,8 +488,8 @@ read_line_info(chip_id const chip, line_offset const offset) -> result<line_info
  * @pre None.
  * @post No line state is touched.
  */
-[[nodiscard]] inline auto
-find_line(chip_id const chip, std::string_view const name) -> result<std::optional<line_offset>> {
+[[nodiscard]] inline auto find_line(chip_id const chip, std::string_view const name)
+  -> result<std::optional<line_offset>> {
   auto const info{read_chip_info(chip)};
   if (!info.has_value()) {
     return std::unexpected{info.error()};
@@ -538,8 +538,8 @@ namespace nexenne::gpio {
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto
-read_line_info(chip_id const chip, line_offset const offset) -> result<line_info> {
+[[nodiscard]] inline auto read_line_info(chip_id const chip, line_offset const offset)
+  -> result<line_info> {
   utility::discard(chip, offset);
   return std::unexpected{gpio_error::unsupported};
 }
@@ -555,8 +555,8 @@ read_line_info(chip_id const chip, line_offset const offset) -> result<line_info
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto
-find_line(chip_id const chip, std::string_view const name) -> result<std::optional<line_offset>> {
+[[nodiscard]] inline auto find_line(chip_id const chip, std::string_view const name)
+  -> result<std::optional<line_offset>> {
   utility::discard(chip, name);
   return std::unexpected{gpio_error::unsupported};
 }

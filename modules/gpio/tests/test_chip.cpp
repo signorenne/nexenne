@@ -91,7 +91,8 @@ TEST_CASE("chip: snapshot delivers the logical baseline of every input") {
   REQUIRE(backend.set_physical(ng::line_offset{17}, false).has_value());
 
   std::vector<ng::line_value> baseline{};
-  REQUIRE(chip.snapshot([&](ng::line_value const& value) { baseline.push_back(value); }).has_value()
+  REQUIRE(
+    chip.snapshot([&](ng::line_value const& value) { baseline.push_back(value); }).has_value()
   );
 
   // Only the input is delivered; the output line is not part of the baseline.

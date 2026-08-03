@@ -32,29 +32,35 @@ constexpr auto b(unsigned const v) noexcept -> std::byte {
 
 auto build_db() -> nc::database {
   auto const status{nc::message_builder{nc::can_id::standard(0x100), "status"}
-                      .add(nc::signal_builder{}
-                             .name("speed")
-                             .start_bit(0)
-                             .length(16)
-                             .endianness(nc::byte_order::little_endian)
-                             .scale(0.01)
-                             .build())
-                      .add(nc::signal_builder{}
-                             .name("oil_temp")
-                             .start_bit(16)
-                             .length(8)
-                             .endianness(nc::byte_order::little_endian)
-                             .scale(1.0)
-                             .offset(-40.0)
-                             .build())
+                      .add(
+                        nc::signal_builder{}
+                          .name("speed")
+                          .start_bit(0)
+                          .length(16)
+                          .endianness(nc::byte_order::little_endian)
+                          .scale(0.01)
+                          .build()
+                      )
+                      .add(
+                        nc::signal_builder{}
+                          .name("oil_temp")
+                          .start_bit(16)
+                          .length(8)
+                          .endianness(nc::byte_order::little_endian)
+                          .scale(1.0)
+                          .offset(-40.0)
+                          .build()
+                      )
                       .build()};
   auto const engine{nc::message_builder{nc::can_id::extended(0x18FEF100), "engine"}
-                      .add(nc::signal_builder{}
-                             .name("rpm")
-                             .start_bit(0)
-                             .length(8)
-                             .endianness(nc::byte_order::little_endian)
-                             .build())
+                      .add(
+                        nc::signal_builder{}
+                          .name("rpm")
+                          .start_bit(0)
+                          .length(8)
+                          .endianness(nc::byte_order::little_endian)
+                          .build()
+                      )
                       .build()};
   return nc::database_builder{}.add_message(status).add_message(engine).build();
 }
@@ -135,26 +141,32 @@ TEST_CASE("registry: an empty database resolves nothing") {
 TEST_CASE("registry: multiplexed signals decode only for the matching selector group") {
   // Byte 0 = selector; byte 1 = group 0 signal; byte 2 = group 1 signal.
   auto const message{nc::message_builder{nc::can_id::standard(0x200), "mux"}
-                       .add(nc::signal_builder{}
-                              .name("sel")
-                              .start_bit(0)
-                              .length(8)
-                              .mux_role(nc::multiplex_role::selector)
-                              .build())
-                       .add(nc::signal_builder{}
-                              .name("g0")
-                              .start_bit(8)
-                              .length(8)
-                              .mux_role(nc::multiplex_role::multiplexed)
-                              .mux_value(0)
-                              .build())
-                       .add(nc::signal_builder{}
-                              .name("g1")
-                              .start_bit(16)
-                              .length(8)
-                              .mux_role(nc::multiplex_role::multiplexed)
-                              .mux_value(1)
-                              .build())
+                       .add(
+                         nc::signal_builder{}
+                           .name("sel")
+                           .start_bit(0)
+                           .length(8)
+                           .mux_role(nc::multiplex_role::selector)
+                           .build()
+                       )
+                       .add(
+                         nc::signal_builder{}
+                           .name("g0")
+                           .start_bit(8)
+                           .length(8)
+                           .mux_role(nc::multiplex_role::multiplexed)
+                           .mux_value(0)
+                           .build()
+                       )
+                       .add(
+                         nc::signal_builder{}
+                           .name("g1")
+                           .start_bit(16)
+                           .length(8)
+                           .mux_role(nc::multiplex_role::multiplexed)
+                           .mux_value(1)
+                           .build()
+                       )
                        .build()};
   auto const db{nc::database_builder{}.add_message(message).build()};
   nc::registry const reg{db};
@@ -176,12 +188,14 @@ TEST_CASE("registry: multiplexed signals decode only for the matching selector g
 TEST_CASE("registry: a not-available signal is skipped during decode") {
   auto const message{nc::message_builder{nc::can_id::standard(0x250), "status"}
                        .add(nc::signal_builder{}.name("present").start_bit(0).length(8).build())
-                       .add(nc::signal_builder{}
-                              .name("absent")
-                              .start_bit(8)
-                              .length(8)
-                              .invalid(nc::invalid_value::all_ones)
-                              .build())
+                       .add(
+                         nc::signal_builder{}
+                           .name("absent")
+                           .start_bit(8)
+                           .length(8)
+                           .invalid(nc::invalid_value::all_ones)
+                           .build()
+                       )
                        .build()};
   auto const db{nc::database_builder{}.add_message(message).build()};
   nc::registry const reg{db};

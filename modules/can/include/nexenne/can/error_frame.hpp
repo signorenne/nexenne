@@ -102,8 +102,8 @@ struct error_report {
  * @pre None.
  * @post None.
  */
-[[nodiscard]] constexpr auto decode_error_frame(frame const& f
-) noexcept -> std::optional<error_report> {
+[[nodiscard]] constexpr auto decode_error_frame(frame const& f) noexcept
+  -> std::optional<error_report> {
   if (!is_error_frame(f)) {
     return std::nullopt;
   }
