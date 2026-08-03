@@ -1,0 +1,85 @@
+#+TITLE: importing a DBC database
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+This guide is the DBC import layer of [[file:README.org][nexenne::can]]: loading a Vector DBC database
+file into a [[file:database.org][database]]. It builds on the database and signal layers. The header is
+[[file:../../../modules/can/include/nexenne/can/dbc.hpp][dbc.hpp]].
+
+* What DBC is
+
+DBC is the de-facto text format for describing a CAN bus, produced by Vector
+CANdb and read by almost every CAN tool. A file lists each message as a =BO_=
+record and each of its signals as an indented =SG_= record, plus other sections
+for value tables, comments, and attributes. This importer reads the =BO_= and
+=SG_= records, which carry the message and signal definitions, and ignores the
+rest.
+
+#+BEGIN_EXAMPLE
+  BO_ <id> <name>: <dlc> <transmitter>
+   SG_ <name> [M|m<n>] : <start>|<length>@<order><sign> (<factor>,<offset>) [<min>|<max>] "<unit>" <receivers>
+#+END_EXAMPLE
+
+The fields map directly onto a [[file:signals.org][signal]]: =@1= is little-endian and =@0= is
+big-endian; =+= is unsigned and =-= is signed; =M= marks the multiplexor and
+=m<n>= a multiplexed signal of group =n=. A message id with its top bit set is an
+extended (29-bit) identifier, the DBC convention.
+
+* Owning the text
+
+A signal holds non-owning name and unit views, so a parsed database must keep the
+source text alive. =parse_dbc= returns a =dbc_database= that owns the text and the
+database together; every name and unit points into that retained text, and moving
+the =dbc_database= keeps them valid. This is the one place the module allocates a
+string of its own, and it is never on the hot path.
+
+#+BEGIN_SRC C++
+namespace nc = nexenne::can;
+
+auto const parsed = nc::parse_dbc(dbc_text);   // result<dbc_database>
+if (parsed) {
+  parsed->message_count();                     // messages found
+  parsed->find(nc::can_id::standard(256));     // look one up
+  nc::registry const reg{parsed->db()};        // decode frames with it
+}
+#+END_SRC
+
+A malformed =BO_= or =SG_= line returns =can_error::parse_error=. See
+[[file:../../../examples/can/dbc.cpp][examples/can/dbc.cpp]] for a parse-and-decode walk-through.
+
+* Descriptive metadata
+
+Beyond the wire layout, a DBC file carries descriptive metadata that a tool
+displays but a codec does not need: value tables (=VAL_=, named raw values),
+comments (=CM_=), and attributes (=BA_=). Because it is import-time data, not
+needed to encode or decode a frame, it lives on the =dbc_database= rather than
+bloating the trivially copyable =signal= and =message= wire types. Every string
+is a view into the retained source, so it survives a move of the =dbc_database=.
+Signals whose value type is IEEE-754 float (=SIG_VALTYPE_=) are marked so the
+codec reinterprets their bits; every other section (=VAL_TABLE_=, =BU_=, node and
+environment records) is skipped, so a full vehicle =.dbc= loads without error.
+
+#+BEGIN_SRC C++
+auto const id = nc::can_id::standard(256);
+
+parsed->database_comment();                     // the file-level CM_ comment
+parsed->message_comment(id);                    // a message CM_ comment
+parsed->signal_comment(id, "Gear");             // a signal CM_ comment
+
+parsed->value_name(id, "Gear", 1);              // optional<string_view>, e.g. "drive"
+for (nc::dbc_enum_value const& v : parsed->value_table(id, "Gear")) { /* v.value, v.label */ }
+
+parsed->message_attribute(id, "GenMsgCycleTime");   // optional<string_view>, e.g. "100"
+parsed->signal_attribute(id, "Gear", "GenSigStartValue");
+parsed->database_attribute("BusType");
+#+END_SRC
+
+* See also
+
+- [[file:database.org][database]] : the database, builders, and registry the import targets.
+- [[file:signals.org][signals]] : the signal fields each =SG_= record maps onto.
+
+* Further reading
+
+- The Vector DBC file format specification (the =BO_= and =SG_= grammar).
+- The =cantools= Python library, a reference DBC implementation.

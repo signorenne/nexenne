@@ -1,0 +1,20 @@
+nexenne_add_module_tests(can
+    SOURCES
+        test_error.cpp
+        test_id.cpp
+        test_dlc.cpp
+        test_frame.cpp
+        test_packing_plan.cpp
+        test_codec.cpp
+        test_filter.cpp
+        test_database.cpp
+        test_registry.cpp
+        test_loopback_bus.cpp
+        test_error_frame.cpp
+        test_j1939_id.cpp
+        test_socketcan_bus.cpp
+        test_byte_field.cpp
+        test_j1939_transport.cpp
+        test_signal.cpp
+        test_dbc.cpp
+)

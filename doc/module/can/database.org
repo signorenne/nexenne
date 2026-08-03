@@ -1,0 +1,131 @@
+#+TITLE: the CAN message database, filters, and registry
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+This guide is the database layer of [[file:README.org][nexenne::can]]: how a whole bus is described in
+code as messages and signals, how a frame is matched to its message, and how
+identifier filters subscribe a node to only the traffic it wants. It builds on
+[[file:signals.org][the signal layer]]. The headers are [[file:../../../modules/can/include/nexenne/can/message.hpp][message.hpp]], [[file:../../../modules/can/include/nexenne/can/database.hpp][database.hpp]],
+[[file:../../../modules/can/include/nexenne/can/database_builder.hpp][database_builder.hpp]], [[file:../../../modules/can/include/nexenne/can/filter.hpp][filter.hpp]], and [[file:../../../modules/can/include/nexenne/can/registry.hpp][registry.hpp]].
+
+* The problem
+
+A single signal decoder is not enough to run a real bus. A vehicle network
+defines dozens to hundreds of messages, each with several signals, and a node
+must, for every frame it receives, find the matching message, decode its signals,
+and ignore the traffic it does not care about. This layer is that machinery: a
+/database/ describes every message once, a /registry/ turns a frame identifier
+into the matching message quickly, and /filters/ decide which identifiers a node
+accepts.
+
+This is the role a DBC file plays in tooling. A database can be built
+programmatically with the builders here, or imported from a Vector =.dbc= file
+with [[file:dbc.org][parse_dbc]].
+
+* Messages
+
+A =message= groups the signals that share one frame identifier. It stores the
+identifier, a name, and a small list of signals, each kept together with its
+compiled [[file:signals.org][packing plan]] as a =signal_entry= so that decoding never rebuilds the
+plan. The signal list is inline for the first few signals and spills to the heap
+only for an unusually busy frame, and only when the database is built, never
+while decoding.
+
+#+BEGIN_SRC C++
+namespace nc = nexenne::can;
+
+auto status{  // not const: the messages are moved into the builder below
+  nc::message_builder{nc::can_id::standard(0x100), "status"}
+    .add(nc::signal_builder{}.name("speed").start_bit(0).length(16).endianness(nc::byte_order::little_endian).scale(0.01).build())
+    .add(nc::signal_builder{}.name("oil_temp").start_bit(16).length(8).endianness(nc::byte_order::little_endian).scale(1.0).offset(-40.0).build())
+    .build()
+};
+#+END_SRC
+
+* The database and its builder
+
+A =database= is immutable: it is the compiled description of a bus and has no
+mutators once built. Assembly happens in a =database_builder=, which collects
+finished messages and hands back the database:
+
+#+BEGIN_SRC C++
+nc::database_builder builder;
+builder.add_message(std::move(status)).add_message(std::move(engine));
+auto const db{builder.build()};
+#+END_SRC
+
+Keeping the mutable accumulation in the builder lets the database stay a
+read-only artifact that many readers, and the registry, can share safely.
+
+* Filters and masks
+
+A node rarely wants every frame on the bus. A =filter= is an identifier and a
+mask: a candidate identifier passes when their masked bits agree.
+
+#+BEGIN_EXAMPLE
+  accepted  ==  (candidate & mask) == (filter_id & mask)
+#+END_EXAMPLE
+
+A mask of all ones accepts one exact identifier; a looser mask accepts a family.
+For example, to accept any standard identifier in 0x700 through 0x7FF, set the id
+to 0x700 and the mask to 0x700: the top bits must match and the low bits are free.
+The factories make the common cases explicit:
+
+- =filter::equals(id)= accepts exactly one identifier and its format.
+- =filter::standard(id, mask)= accepts standard frames; the extended-frame flag
+  must be clear.
+- =filter::extended(id, mask)= accepts extended frames; the flag must be set.
+
+The match runs over the raw SocketCAN-layout word, so the same =filter= type also
+feeds the kernel hardware filter array in the SocketCAN backend. Software and
+hardware filtering share one definition.
+
+* The registry
+
+A =registry= is the receive-side view of a database. It does three things:
+
+** Indexed lookup
+
+At construction it builds a sorted table of identifier keys, so finding the
+message for a frame is a binary search rather than a scan of every message. The
+key ignores the remote and error flags, so a data frame and the matching remote
+request resolve to the same message.
+
+#+BEGIN_EXAMPLE
+  messages:  status@0x100   engine@0x18FEF100   ...
+  index   :  sorted [ key(0x100) -> 0, key(0x18FEF100) -> 1, ... ]
+  find(id):  binary search the index, then index into the messages
+#+END_EXAMPLE
+
+** Filtering
+
+A registry holds a set of filters. With no filters it accepts every identifier;
+with filters it accepts an identifier that passes at least one. =match= applies
+the filters and then the lookup, while =find= is the raw lookup that ignores them.
+
+** Whole-frame decoding
+
+=decode_signals= looks up a frame's message and calls a callback once for each signal,
+passing the signal and its decoded physical value. Nothing is allocated; the
+callback receives the values. Signals that run past a short frame are skipped,
+which is what a multiplexed or truncated frame needs.
+
+#+BEGIN_SRC C++
+nc::registry const reg{db};
+reg.decode_signals(incoming, [](nc::signal const& sig, double value) {
+  std::println("{} = {} {}", sig.name(), value, sig.unit());
+});
+#+END_SRC
+
+The registry does not own the database; the database must outlive it. See
+[[file:../../../examples/can/database.cpp][examples/can/database.cpp]] for a runnable end-to-end build-and-decode.
+
+* See also
+
+- [[file:signals.org][signals]] : the signal definitions and packing plans a message holds.
+- [[file:io.org][io]] : receiving frames from a bus to feed into a registry.
+
+* Further reading
+
+- The Vector DBC file format, the de-facto description of a CAN message database.
+- SAE J1939-71, the standardised parameter groups and signals for heavy vehicles.

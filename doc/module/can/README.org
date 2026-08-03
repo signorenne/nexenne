@@ -1,0 +1,123 @@
+#+TITLE: nexenne::can
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+CAN bus communications: the wire frame for Classic CAN and CAN FD, signal
+encode and decode across Intel and Motorola byte order, a programmatic message and
+signal database with masked lookup, J1939 identifier decoding, and a backend
+abstraction for sending and receiving frames. The module is header-only,
+no-throw, and built for hot paths: frames are trivially copyable, signal packing
+plans are precomputed once, and nothing on the encode, decode, send, or receive
+path allocates.
+
+It builds on [[file:../utility/README.org][utility]] (bit and byte-order helpers, typed flag sets, RAII resources)
+and [[file:../container/README.org][container]] (fixed-capacity vectors and a ring buffer), so it adds no heap of
+its own.
+
+* Quick start
+
+Describe a signal with the builder, group it into a database, then encode and
+decode frames through a registry:
+
+#+BEGIN_SRC C++
+namespace nc = nexenne::can;
+
+auto const speed{nc::signal_builder{}
+                   .name("speed").start_bit(0).length(16)
+                   .endianness(nc::byte_order::little_endian)
+                   .scale(0.01).unit("km/h").build()};
+
+auto const db{nc::database_builder{}
+                .add_message(nc::message_builder{nc::can_id::standard(0x100), "status"}
+                               .add(speed).build())
+                .build()};
+nc::registry const reg{db};
+
+std::array<std::byte, 8> bytes{};
+auto tx{*nc::frame::classic(nc::can_id::standard(0x100), bytes)};
+nc::encode(speed, nc::packing_plan::from_signal(speed), tx, 87.5);
+
+reg.decode_signals(tx, [](nc::signal const& sig, double value) {
+  std::println("{} = {} {}", sig.name(), value, sig.unit());
+});
+#+END_SRC
+
+The runnable examples under [[file:../../../examples/can/][examples/can/]] are the fastest reference:
+
+- [[file:../../../examples/can/quickstart.cpp][quickstart.cpp]] : the whole flow in one short program (read this first).
+- [[file:../../../examples/can/frame.cpp][frame.cpp]] : building Classic and CAN FD frames.
+- [[file:../../../examples/can/signal.cpp][signal.cpp]] : packing one signal, Intel versus Motorola.
+- [[file:../../../examples/can/database.cpp][database.cpp]] : a message database and decoding a frame.
+- [[file:../../../examples/can/filters.cpp][filters.cpp]] : setting identifier masks correctly.
+- [[file:../../../examples/can/fields.cpp][fields.cpp]] : payload fill, not-available, text fields, and multiplexing.
+- [[file:../../../examples/can/loopback.cpp][loopback.cpp]] : a hardware-free send and receive round trip.
+- [[file:../../../examples/can/monitor.cpp][monitor.cpp]] : a live monitor that decodes received frames and notifies on new
+  and changed signal values (swap in the SocketCAN backend for a real bus).
+- [[file:../../../examples/can/j1939.cpp][j1939.cpp]] : decoding and building J1939 identifiers.
+- [[file:../../../examples/can/j1939_transport.cpp][j1939_transport.cpp]] : broadcasting and reassembling a multi-packet message.
+- [[file:../../../examples/can/socketcan.cpp][socketcan.cpp]] : sending and receiving over a real Linux CAN interface.
+- [[file:../../../examples/can/reactor.cpp][reactor.cpp]] : an industry-grade single-threaded =epoll= event loop that receives
+  and decodes CAN while a =timerfd= drives periodic transmits, with the socket and
+  timer descriptors owned by =utility::unique_resource=.
+- [[file:../../../examples/can/console.cpp][console.cpp]] : an interactive test terminal on the same reactor; it shows every
+  incoming frame and reads typed commands to send Classic, CAN FD, extended, and
+  remote frames and database-encoded signals.
+- [[file:../../../examples/can/dbc.cpp][dbc.cpp]] : importing a DBC database and decoding a frame with it.
+
+* Error policy
+
+The module distinguishes two failure shapes. See [[file:../../../modules/can/include/nexenne/can/error.hpp][error.hpp]].
+
+- *Invalid input the operation can detect* returns =result<T>= =
+  =std::expected<T, can_error>=. An out-of-range identifier, a data length the
+  frame type cannot hold, a signal field that runs past the payload, or a value
+  that does not fit its bits is reported, not assumed away. There is no separate
+  precondition fast path: a caller who knows the input is good still unwraps via
+  =*result=, and the compiler elides the dead error branch.
+
+- *A query that can legitimately have no answer* returns =std::optional=, not
+  =result=. A database lookup that finds no message for an identifier, or a
+  non-blocking receive that finds no frame ready, returns =std::nullopt=: a clean
+  miss is an answer, not invalid input.
+
+- *Programmer precondition violations* are documented with =@pre= and checked by
+  debug asserts in the low-level bit helpers; they are not reported as errors.
+
+Every public type and the =can_error= enum has a formatter in [[file:../../../modules/can/include/nexenne/can/format.hpp][format.hpp]]
+(=to_string=, =operator<<=, and a =std::formatter= specialization), the single
+owner of =<format>= in the module.
+
+* The headers
+
+The module is being built in layers. Landed so far:
+
+- error : =can_error= and =result<T>=, the module's failure policy.
+- [[file:frame.org][wire frame]] : =can_id=, the DLC and length tables, and =frame= (Classic + FD).
+  A deep guide to the CAN identifier, frame, and data length code.
+- [[file:signals.org][signal codec]] : =byte_order=, =signal=, the precomputed =packing_plan=, the
+  =encode= / =decode= functions, =byte_field= for raw byte and text fields, the
+  =invalid_value= not-available policy, and multiplexed signals. A deep guide to
+  bit numbering, Intel versus Motorola byte order, two's-complement, and scaling.
+- [[file:database.org][message database]] : =message=, =database= and its =database_builder=, =filter=,
+  and the indexed =registry= for frame-to-message lookup and decoding.
+- [[file:io.org][bus IO]] : the =can_bus= concept, the in-memory =loopback_bus=, =socket_options=,
+  and =error_frame= decoding into a =bus_state=. A Linux SocketCAN backend plugs
+  into the same concept.
+- [[file:j1939.org][J1939]] : =j1939_id=, decomposing a 29-bit identifier into priority, PGN, and
+  source and destination address, with a builder, plus the =j1939_transport=
+  multi-packet protocol (BAM segmentation and a reassembler). A deep guide to the
+  J1939 identifier structure, PDU1 versus PDU2, the PGN, and the transport protocol.
+- [[file:socketcan.org][SocketCAN backend]] : =socketcan_bus=, a Linux raw-socket =can_bus= with hardware
+  filters, CAN FD, and error-frame state, plus the kernel-struct conversions. A
+  stub returns =unsupported= off Linux.
+- [[file:dbc.org][DBC import]] : =parse_dbc=, loading a Vector =.dbc= database file into a
+  =database=, with the source text retained so signal names stay valid.
+
+The architecture is complete: a frame can be received over a real bus, matched to
+a DBC-imported message, and decoded into named values, and a multi-packet J1939
+message can be reassembled, all without allocating on the hot path.
+
+* See also
+
+- [[file:../utility/README.org][utility]] : the bit, byte-order, flag, and RAII helpers this module composes.
+- [[file:../container/README.org][container]] : the fixed-capacity vectors and ring buffer it builds on.

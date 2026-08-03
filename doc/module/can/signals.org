@@ -1,0 +1,208 @@
+#+TITLE: CAN signals, byte order, and the packing plan
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+This guide is the signal layer of [[file:README.org][nexenne::can]]: how a physical quantity (a speed,
+a temperature, a status bit) is stored as a field of bits inside a frame's
+payload, and how the module reads it back. It is written to be a learning
+resource, so it explains the bit numbering, the Intel and Motorola byte orders in
+detail with diagrams, the two's-complement and scaling math, and why the layout
+is compiled once. The headers are [[file:../../../modules/can/include/nexenne/can/byte_order.hpp][byte_order.hpp]], [[file:../../../modules/can/include/nexenne/can/signal.hpp][signal.hpp]],
+[[file:../../../modules/can/include/nexenne/can/packing_plan.hpp][packing_plan.hpp]], and [[file:../../../modules/can/include/nexenne/can/codec.hpp][codec.hpp]].
+
+* What a signal is
+
+A CAN frame carries up to 64 raw bytes; it says nothing about what they mean.
+The /signal/ is the agreement that gives them meaning: "bits 0 to 15 of message
+0x100 are the vehicle speed, unsigned, little-endian, scaled by 0.01 km/h". A
+=signal= records exactly that: a bit position and width, a byte order, a
+signedness, a linear scaling, and an optional clamp range, unit, and name. It
+holds no data and does no bit work; it is a description that is written once and
+reused for every frame.
+
+Turning a raw integer into a physical value is a linear map:
+
+#+BEGIN_EXAMPLE
+  physical = raw * scale + offset
+#+END_EXAMPLE
+
+and packing inverts it, =raw = round((physical - offset) / scale)=. So a speed
+field with =scale = 0.01= and a raw value of 8750 means 87.5 km/h, and a
+temperature with =offset = -40= stores 90 C as the raw value 130.
+
+* Bit numbering
+
+Before byte order makes sense, fix how bits are numbered. This module uses the
+DBC numbering: a payload of /n/ bytes has bit numbers 0 to /8n - 1/, where
+
+#+BEGIN_EXAMPLE
+  bit number = byte_index * 8 + bit_in_byte,  bit_in_byte 0 = the byte's LSB
+#+END_EXAMPLE
+
+So byte 0 holds bit numbers 0 (its least significant bit) through 7 (its most
+significant bit), byte 1 holds 8 through 15, and so on. Both byte orders share
+this numbering; they differ only in which end of the signal the /start bit/ marks
+and which way the signal grows.
+
+* Intel versus Motorola
+
+A signal narrower than the bus is fine, but a signal wider than one byte has to
+say which byte holds the high bits. The two conventions are named after the
+processor families that popularised each endianness.
+
+** Intel (little-endian)
+
+The start bit is the signal's *least significant bit*, and the signal grows
+toward *higher* bit numbers. The bits are therefore contiguous in the numbering
+above. A 16-bit Intel signal at start bit 0 occupies bit numbers 0 to 15, which
+is byte 0 (low 8 bits) then byte 1 (high 8 bits):
+
+#+BEGIN_EXAMPLE
+  value:  v15 v14 ... v8 | v7 v6 ... v0
+  bit  :   15  14 ...  8 |  7  6 ...  0
+  byte :  <--- byte 1 ---|--- byte 0 --->
+  so payload [0x34, 0x12] reads as 0x1234   (byte 0 is the low byte)
+#+END_EXAMPLE
+
+** Motorola (big-endian)
+
+The start bit is the signal's *most significant bit*, and the signal grows toward
+*lower* bit numbers, but with a twist at each byte boundary: after reaching bit 0
+of a byte it continues at bit 7 of the *next* byte. Drawing the bit numbers as
+they are consumed gives the characteristic sawtooth:
+
+#+BEGIN_EXAMPLE
+  start bit 7 (MSB of byte 0), width 16:
+    consume bit numbers 7 6 5 4 3 2 1 0  then  15 14 13 12 11 10 9 8
+                        \___ byte 0 ___/        \____ byte 1 _____/
+                         (most significant)      (least significant)
+  so payload [0x12, 0x34] reads as 0x1234   (byte 0 is the high byte)
+#+END_EXAMPLE
+
+Notice the same logical value 0x1234 is stored as bytes =34 12= in Intel order
+and =12 34= in Motorola order. Getting this backward is the classic CAN bug,
+which is why the [[file:../../../modules/can/tests/test_packing_plan.cpp][packing plan tests]] check both against patterns computed by hand.
+
+* The packing plan
+
+The bit geometry depends only on the signal, never on the frame, so it is
+compiled once into a =packing_plan= and reused. The plan stores a short list of
+/chunks/, each describing one contiguous run of bits taken from a single byte:
+
+#+BEGIN_EXAMPLE
+  plan_chunk { byte, lsb_in_byte, num_bits, dest_shift }
+  meaning: take num_bits starting at bit lsb_in_byte of payload[byte];
+           they are bits [dest_shift, dest_shift + num_bits) of the value.
+#+END_EXAMPLE
+
+The pleasant result is that *both* byte orders reduce to the same gather step:
+
+#+BEGIN_EXAMPLE
+  value |= ((payload[byte] >> lsb_in_byte) & mask(num_bits)) << dest_shift
+#+END_EXAMPLE
+
+Only the computation of the chunk list differs between Intel and Motorola; the
+gather and scatter loops are identical. A 16-bit Intel signal at bit 0 compiles
+to two chunks, =byte0[0+8]<<0= and =byte1[0+8]<<8=; the same width Motorola signal
+at bit 7 compiles to =byte0[0+8]<<8= and =byte1[0+8]<<0=, which is why the bytes
+swap. A 64-bit field can straddle nine bytes, so a plan holds at most nine chunks.
+
+* Signedness and scaling
+
+=packing_plan= extracts the field as an unsigned integer, right-aligned. The
+codec in [[file:../../../modules/can/include/nexenne/can/codec.hpp][codec.hpp]] then applies the rest:
+
+- *Sign extension*: when the signal is signed, the raw bits are a two's-complement
+  number. The codec extends the sign bit up to a full 64-bit integer with the
+  branchless trick =(value XOR sign_bit) - sign_bit=, where =sign_bit= is bit
+  =bit_length - 1=. If that bit is set the subtraction carries it through the high
+  bits; if it is clear the value is unchanged. So an 8-bit field of =0xFF= decodes
+  to -1, and =0x80= to -128.
+
+- *Scaling*: =physical = raw * scale + offset=.
+
+Packing runs it in reverse: clamp the physical value to the signal's range,
+compute =raw = round((physical - offset) / scale)=, check the integer fits the
+field width and signedness, and scatter the bits. A value that overflows the
+field returns =can_error::value_out_of_range=; a field that runs past the frame's
+data length returns =can_error::signal_out_of_range=.
+
+* Usage
+
+#+BEGIN_SRC C++
+namespace nc = nexenne::can;
+
+auto const speed{nc::signal_builder{}
+                   .name("speed")
+                   .start_bit(0)
+                   .length(16)
+                   .endianness(nc::byte_order::little_endian)
+                   .scale(0.01)
+                   .unit("km/h")
+                   .build()};
+auto const plan{nc::packing_plan::from_signal(speed)};
+
+std::array<std::byte, 8> bytes{};
+auto frame{*nc::frame::classic(nc::can_id::standard(0x100), bytes)};
+
+nexenne::utility::discard(nc::encode(speed, plan, frame, 87.5));  // raw 8750 -> bytes 2E 22
+auto const value{nc::decode(speed, plan, frame)};                // result<double> holding 87.5
+#+END_SRC
+
+A signal whose raw bits are an IEEE-754 float (DBC =SIG_VALTYPE_=, cantools
+=is_float=) sets =is_float(true)= on the builder and a length of 32 or 64; the
+codec then reinterprets the bits instead of reading a two's-complement integer.
+=encode_strict= is the non-clamping counterpart of =encode=: it returns
+=can_error::value_out_of_range= for a value outside the signal's range rather
+than clamping to it.
+
+See [[file:../../../examples/can/signal.cpp][examples/can/signal.cpp]] for a runnable version with two signals in one frame
+and an Intel versus Motorola comparison.
+
+* Not available and don't-care values
+
+Protocols reserve an extreme raw value to mean "no data". SAE J1939 reserves a
+parameter's *all-ones* value as "not available" (the parameter is unsupported or
+not yet measured) and the value just below it as an *error indicator*; all-zeros
+is normally a real value, though some designs treat it as empty too.
+
+A signal carries an =invalid_value= policy saying which extreme means
+not-available: =none=, =all_ones=, =all_zeros=, or =all_ones_or_zeros=. The
+=decode_value= function honours it, returning =std::optional<double>= that is
+empty when the field reads as not-available, and the registry skips such signals
+so a caller never sees a meaningless number. The lower-level [[file:../../../modules/can/include/nexenne/can/codec.hpp][codec.hpp]] also offers
+=not_available_value=, =write_not_available=, and =is_not_available= for the
+all-ones sentinel directly.
+
+A transmitter pairs this with =frame::filled=: start the frame as all-0xFF, then
+pack only the signals it has values for, so the rest stays "not available", the
+J1939 default.
+
+* Byte and text fields
+
+Not every field is a scaled number. Diagnostic and identification messages carry
+raw byte blobs and ASCII text (a VIN, a part number), usually byte-aligned. A
+=byte_field= (see [[file:../../../modules/can/include/nexenne/can/byte_field.hpp][byte_field.hpp]]) names such a region by start byte and length;
+=read_bytes= / =write_bytes= move raw bytes and =read_text= / =write_text= move
+strings, with NUL padding and trimming. Reading returns a view into the frame, so
+nothing is allocated.
+
+* Multiplexing
+
+One frame id can carry several alternating sets of signals, chosen by a selector.
+A signal's =multiplex_role= is =selector= (the multiplexor), =multiplexed= (present
+only when the selector equals the signal's =mux_value=), or =none= (always
+present). The registry reads the selector first, then decodes only the matching
+group, the standard DBC multiplexing scheme.
+
+* See also
+
+- [[file:frame.org][frame]] : the identifier, frame, and data length this layer reads and writes.
+- [[file:database.org][database]] : naming signals and looking them up by frame identifier.
+
+* Further reading
+
+- The Vector DBC file format, signal byte-order and bit-numbering convention.
+- ISO 11898-1, for the frame and payload the signals live in.
+- Koopman, "Better Embedded System Software", on fixed-point scaling of physical
+  quantities.

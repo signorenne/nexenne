@@ -1,0 +1,119 @@
+#+TITLE: the Linux SocketCAN backend
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+This guide is the SocketCAN backend of [[file:README.org][nexenne::can]]: how the module talks to real
+CAN hardware on Linux. It builds on [[file:io.org][the bus IO layer]]. The header is
+[[file:../../../modules/can/include/nexenne/can/io/socketcan_bus.hpp][io/socketcan_bus.hpp]].
+
+* What SocketCAN is
+
+SocketCAN is the Linux kernel's CAN networking stack. It presents each CAN
+controller as a network interface (=can0=, =can1=, and the software-only
+=vcan0=) and lets a program open a socket bound to one, then read and write one
+frame per datagram. It is the standard way to use CAN on Linux, and it includes
+=vcan=, a virtual interface that loops frames back in software, so the whole
+stack can be exercised without hardware.
+
+* The backend
+
+=socketcan_bus= wraps a raw =CAN_RAW= socket as a [[file:io.org][can_bus]], so any code written
+against the in-memory [[file:io.org][loopback_bus]] runs unchanged against hardware: same
+=send=, =receive=, =set_filters=, and =state=. It owns the socket (move-only,
+closed by RAII) and is opened through a factory rather than a throwing
+constructor:
+
+#+BEGIN_SRC C++
+namespace nc = nexenne::can;
+
+nc::socket_options options;
+options.fd_enabled = true;            // accept and send CAN FD frames
+options.receive_own_messages = true;  // read back frames this socket sent
+
+auto bus = nc::socketcan_bus::open("can0", options);
+if (!bus) { /* can_error::io_error: no such interface, no permission, ... */ }
+#+END_SRC
+
+* Zero-copy-ish conversion
+
+A frame becomes a kernel =can_frame= or =canfd_frame= by copying fields, not by
+re-packing bits, because [[file:frame.org][can_id]] already stores the identifier in the kernel's
+exact layout (the extended, remote, and error flags sit in the same top bits).
+The conversion helpers are public for interop and testing:
+
+#+BEGIN_EXAMPLE
+  to_can_frame(frame)    -> ::can_frame       from_can_frame(::can_frame)   -> result<frame>
+  to_canfd_frame(frame)  -> ::canfd_frame     from_canfd_frame(::canfd_frame)-> result<frame>
+#+END_EXAMPLE
+
+Classic frames map to =can_frame=; FD frames map to =canfd_frame=, with the
+on-wire length padded up to the next discrete CAN FD size (a 9-byte payload is
+sent as 12) and the =brs= and =esi= flags carried in the kernel flag bits.
+
+* Hardware filters
+
+=set_filters= installs the filter set as the kernel's =CAN_RAW_FILTER= socket
+option, so the kernel drops unwanted frames before they ever reach the process.
+The same [[file:database.org][filter]] type is used for software filtering in the registry and for
+this hardware array, so a node's subscription is written once. Up to
+=socketcan_bus::max_filters= are installed in one call.
+
+* Bus state and error frames
+
+When the controller reports trouble, the kernel delivers an error frame (a frame
+with the error flag set). =receive= decodes it through [[file:io.org][error_frame]] and updates
+the cached controller state, which =state= returns: =error_active=,
+=error_passive=, or =bus_off=. Enable error frames on the socket through the
+kernel's error mask if a node needs to watch bus health closely.
+
+* Receive timestamps
+
+=open= requests kernel receive timestamps (=SO_TIMESTAMPNS=), and =receive= reads
+them from the socket control message with =recvmsg=, so each received frame's
+=timestamp_ns= holds the kernel's nanosecond arrival time. Timestamps are
+best-effort: a backend that does not provide them leaves the field at zero.
+
+* Non-Linux platforms
+
+The type still exists off Linux and satisfies the =can_bus= concept, so generic
+code compiles everywhere, but every operation returns =can_error::unsupported=.
+Portable programs target the [[file:io.org][loopback_bus]] for tests and select the SocketCAN
+backend on Linux.
+
+* Setting up a virtual interface
+
+No hardware is needed to try it. Create a virtual CAN interface:
+
+#+BEGIN_EXAMPLE
+  sudo ip link add dev vcan0 type vcan
+  sudo ip link set up vcan0
+#+END_EXAMPLE
+
+Then [[file:../../../examples/can/socketcan.cpp][examples/can/socketcan.cpp]] opens =vcan0=, sets a filter, sends a frame, and
+reads it back. The example exits cleanly when no interface is present, so it is
+safe to run anywhere. Inject and observe traffic from another terminal with the
+=can-utils= tools, =candump vcan0= and =cansend vcan0 100#1122334455667788=.
+
+* Driving it from an event loop
+
+A real application does not block on =receive= or spin polling it. Open the bus
+with =nonblocking= set (the default), so =receive= returns =std::nullopt= instead
+of waiting, and add =descriptor()=, the raw socket file descriptor, to an event
+loop such as =epoll=. The loop sleeps until the socket is readable, then drains
+=receive= until it reports nothing ready, all on one thread alongside the
+application's other descriptors and timers.
+
+[[file:../../../examples/can/reactor.cpp][examples/can/reactor.cpp]] is a complete example: an =epoll= loop that decodes
+received frames through a [[file:database.org][registry]] while a =timerfd= drives periodic transmits,
+with the socket and timer descriptors owned by =nexenne::utility::unique_resource=
+so they are always closed.
+
+* See also
+
+- [[file:io.org][io]] : the bus concept, the loopback backend, and error-frame decoding.
+- [[file:frame.org][frame]] : the identifier layout that makes the kernel conversion a field copy.
+
+* Further reading
+
+- The Linux kernel SocketCAN documentation, =Documentation/networking/can.rst=.
+- =linux/can.h= and =linux/can/raw.h=, the kernel frame structs and socket options.

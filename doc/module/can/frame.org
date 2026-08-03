@@ -1,0 +1,226 @@
+#+TITLE: the CAN identifier, frame, and data length
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+This guide is the wire layer of [[file:README.org][nexenne::can]]: the identifier (=can_id=), the data
+length code (=dlc=), and the frame (=frame=). It is written to be read as a
+learning resource, so it explains how CAN works at the level of bits and fields,
+which standards define each piece, and why the types are shaped the way they
+are. The headers are [[file:../../../modules/can/include/nexenne/can/id.hpp][id.hpp]], [[file:../../../modules/can/include/nexenne/can/dlc.hpp][dlc.hpp]], and [[file:../../../modules/can/include/nexenne/can/frame.hpp][frame.hpp]].
+
+* What CAN is
+
+CAN (Controller Area Network) is a multi-master, message-oriented serial bus
+designed by Bosch in 1986 for in-vehicle wiring and standardized as ISO 11898.
+Nodes do not have addresses; messages do. Every frame carries an /identifier/
+that names the message (engine speed, wheel torque, a diagnostic request), and
+every node decides for itself which identifiers it cares about. A frame put on
+the bus is seen by all nodes at once (broadcast), and a built-in arbitration
+scheme lets many nodes start transmitting at once without corrupting the data:
+the lowest identifier wins and the losers back off and retry.
+
+The relevant standards, and what each adds:
+
+- *CAN 2.0A* : the classic format with an 11-bit identifier (ISO 11898-1).
+- *CAN 2.0B* : adds the 29-bit extended identifier while staying compatible.
+- *CAN FD* (Flexible Data rate, ISO 11898-1:2015) : keeps the same arbitration
+  but allows up to 64 data bytes per frame and a faster bit rate during the data
+  phase. This is the "all latest features" target for this module.
+- *SAE J1939* : a higher-layer protocol that fixes the 29-bit identifier to mean
+  priority, parameter group, and source address. Covered in [[file:j1939.org][the J1939 guide]].
+
+This module models the /logical/ content of a frame (identifier, flags, length,
+data), not the raw bit stream on the wire (start bit, stuffing, CRC, ACK slot).
+Those lower fields are produced and checked by the CAN controller hardware, so an
+application never assembles them by hand.
+
+* The identifier
+
+The identifier is the heart of a CAN frame. It does two jobs at once: it names
+the message, and its numeric value sets the message's bus priority, because
+arbitration is won by the numerically lowest identifier.
+
+** Standard versus extended
+
+There are two identifier widths:
+
+- *Standard*, 11 bits, range =0x000= to =0x7FF= (CAN 2.0A).
+- *Extended*, 29 bits, range =0x00000000= to =0x1FFFFFFF= (CAN 2.0B). An extended
+  identifier is really an 11-bit base plus an 18-bit extension, joined into one
+  29-bit number, and a frame flag (IDE, "identifier extension") marks it as
+  extended.
+
+A standard and an extended identifier with the same numeric value are *not* the
+same identifier; the IDE flag is part of the identity. =can_id::standard(0x10)=
+and =can_id::extended(0x10)= compare unequal for this reason.
+
+** The flag bits
+
+Beyond the number, an identifier carries three control markers that this module
+folds into the same value:
+
+- *IDE* (extended) : the identifier is 29-bit rather than 11-bit.
+- *RTR* (remote transmission request) : the frame requests data from another
+  node rather than carrying data itself. An RTR frame has a DLC but no payload.
+  RTR does not exist in CAN FD.
+- *ERR* (error frame marker) : used by SocketCAN to tag a received error event
+  rather than a real data frame. Decoding error frames is covered in the IO
+  guide.
+
+** The stored layout
+
+=can_id= stores one 32-bit word laid out exactly like the =can_id= field of the
+Linux SocketCAN =struct can_frame=. Choosing the kernel's layout means the future
+SocketCAN backend converts between a =frame= and the kernel struct by copying
+this word, with no bit re-packing on the hot path.
+
+#+BEGIN_EXAMPLE
+  bit: 31   30   29   28                                   0
+       +----+----+----+--------------------------------------+
+       |EFF |RTR |ERR |        identifier (11 or 29 bits)     |
+       +----+----+----+--------------------------------------+
+        0x80 0x40 0x20  0x1FFFFFFF (extended) / 0x000007FF (std)
+#+END_EXAMPLE
+
+The masks and flag constants are named in [[file:../../../modules/can/include/nexenne/can/id.hpp][id.hpp]]: =standard_id_mask=
+(=0x7FF=), =extended_id_mask= (=0x1FFFFFFF=), =extended_flag= (=0x80000000=),
+=remote_flag= (=0x40000000=), =error_flag= (=0x20000000=). These match SocketCAN's
+=CAN_SFF_MASK=, =CAN_EFF_MASK=, =CAN_EFF_FLAG=, =CAN_RTR_FLAG=, and =CAN_ERR_FLAG=,
+but are defined as plain constants so the header is portable.
+
+Build through the factories, which mask defensively and assert in debug if the
+caller passes an out-of-range value (an out-of-range identifier is a programmer
+error, the same contract the bit helpers use for a bit index):
+
+#+BEGIN_SRC C++
+auto status{nexenne::can::can_id::standard(0x123)};              // 11-bit
+auto const j1939{nexenne::can::can_id::extended(0x18FEF100)};    // 29-bit
+auto request{status};
+request.remote() = true;                                         // RTR, a settable flag
+status.identifier();   // 0x123
+j1939.extended();      // true
+#+END_SRC
+
+* The frame
+
+A frame bundles an identifier with its payload. On the wire a Classic CAN data
+frame has this field order (the controller builds it; this is for understanding):
+
+#+BEGIN_EXAMPLE
+  SOF | arbitration (id + RTR/IDE) | control (DLC) | data (0..8) | CRC | ACK | EOF
+#+END_EXAMPLE
+
+The module's =frame= keeps only the logical fields an application sets or reads:
+the identifier, the data length, the payload bytes, the CAN FD flags, and an
+optional receive timestamp.
+
+** Memory layout
+
+=frame= is a single trivially copyable value, so it can be =memcpy='d to and from
+the kernel struct and copied freely without allocation. The payload is a fixed
+64-byte array (the CAN FD maximum); a Classic CAN frame simply uses the first 8
+bytes and reports a length of at most 8.
+
+#+BEGIN_EXAMPLE
+  can_id        m_id          4 bytes   identifier + flags (SocketCAN word)
+  uint8         m_length      1 byte    valid data bytes, 0..64
+  flags<fd_flag>m_flags       1 byte    fdf / brs / esi
+  (padding)                   2 bytes   alignment for the 8-byte timestamp
+  uint64        m_timestamp   8 bytes   receive time in ns, 0 when unset
+  byte[64]      m_data       64 bytes   payload, only m_length bytes valid
+#+END_EXAMPLE
+
+The two padding bytes align =m_timestamp= to its 8-byte boundary, so
+=sizeof(frame)= is 80, not 78.
+
+Equality compares the identifier, flags, length, and the valid payload bytes; it
+ignores the timestamp, so two copies of the same message compare equal whatever
+time each arrived.
+
+** Building a frame
+
+The factories validate the payload size and return =result<frame>=:
+
+#+BEGIN_SRC C++
+namespace nc = nexenne::can;
+std::array const payload{std::byte{0xDE}, std::byte{0xAD}};
+auto const f{nc::frame::classic(nc::can_id::standard(0x123), payload)};   // <= 8 bytes
+auto const g{nc::frame::fd(nc::can_id::extended(0x18FEF100), big, nc::fd_flag::brs)};  // <= 64
+if (f) {
+  f->length();   // 2
+  f->data();     // span of 2 bytes
+}
+#+END_SRC
+
+A payload that is too large for the frame type returns
+=can_error::payload_too_large= rather than truncating.
+
+* The data length code
+
+The four-bit DLC field is where Classic CAN and CAN FD differ most subtly. It
+does *not* always equal the byte count.
+
+- *Classic CAN* carries 0 to 8 data bytes. A DLC of 0 through 8 is the byte
+  count; a DLC of 9 through 15 is allowed on the wire but still means 8 bytes.
+- *CAN FD* reuses the same 4 bits to select one of sixteen discrete lengths. The
+  first nine are identity (0 to 8), then it jumps:
+
+#+BEGIN_EXAMPLE
+  DLC:    0  1  2  3  4  5  6  7  8   9  10  11  12  13  14  15
+  bytes:  0  1  2  3  4  5  6  7  8  12  16  20  24  32  48  64
+#+END_EXAMPLE
+
+So a CAN FD frame with DLC 13 carries 32 bytes, not 13. Because only these
+sixteen sizes exist, a payload whose length is not one of them (say 9 bytes) is
+/padded up/ to the next valid size (12 bytes) before transmission. The helpers in
+[[file:../../../modules/can/include/nexenne/can/dlc.hpp][dlc.hpp]] own this mapping in both directions:
+
+- =fd_dlc_to_length(dlc)= and =fd_length_to_dlc(length)= : the table both ways.
+- =fd_padded_length(length)= : the on-wire length after rounding up (9 gives 12).
+- =classic_dlc_to_length= / =classic_length_to_dlc= : the clamp-at-8 form.
+- =is_valid_classic_length= / =is_valid_fd_length= : range and discreteness checks.
+
+The =frame= stores the exact payload length; padding to a discrete CAN FD size is
+a transmit concern resolved from these helpers when a frame is written to a bus.
+
+* CAN FD in detail
+
+CAN FD extends Classic CAN with three frame flags, modeled by =fd_flag=:
+
+- *FDF* (also called EDL, extended data length) : marks the frame as CAN FD.
+  =frame::is_fd()= queries this bit; the =fd= factory sets it.
+- *BRS* (bit rate switch) : the data phase (from after arbitration to the CRC) is
+  sent at a higher bit rate than the arbitration phase, which is what makes CAN
+  FD faster. Arbitration still happens at the slower nominal rate so the bus
+  stays compatible.
+- *ESI* (error state indicator) : set by a transmitter that is error-passive, so
+  receivers can see the sender's health.
+
+CAN FD has no RTR frames (remote requests do not exist), and its payload can be
+up to 64 bytes. Everything else (the identifier, arbitration, broadcast model) is
+unchanged from Classic CAN.
+
+* Hot-path notes
+
+- =frame= is trivially copyable and never allocates; the payload is inline.
+- =can_id= is one 32-bit word in the kernel's layout, so socket conversion is a
+  field copy, not a bit re-pack.
+- The DLC tables are =constexpr=, so a length conversion is a compile-time lookup
+  where the inputs are known.
+
+* See also
+
+- [[file:signals.org][signals]] : how application values are packed into and out of the payload,
+  including Intel and Motorola byte order.
+- [[file:j1939.org][j1939]] : the meaning the SAE J1939 protocol gives to a 29-bit identifier.
+- [[file:io.org][io]] : sending and receiving frames over a bus, and decoding error frames.
+
+* Further reading
+
+- ISO 11898-1:2015, Road vehicles, Controller area network, Part 1: Data link
+  layer and physical signalling (defines Classic CAN and CAN FD).
+- Bosch CAN Specification 2.0, parts A and B (the original 11-bit and 29-bit
+  formats).
+- SAE J1939-21, Data Link Layer (the J1939 use of the extended identifier).
+- The Linux kernel SocketCAN documentation, =Documentation/networking/can.rst=
+  (the =struct can_frame= and =canfd_frame= layout this module mirrors).

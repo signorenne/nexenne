@@ -1,0 +1,118 @@
+#+TITLE: the CAN bus backend, filters, and error frames
+#+OPTIONS: toc:2 num:nil ^:nil
+#+STARTUP: showall
+
+This guide is the IO layer of [[file:README.org][nexenne::can]]: how frames are sent and received over a
+bus, how a backend is abstracted so different transports plug in, and how a
+controller's error state is read from error frames. The headers are [[file:../../../modules/can/include/nexenne/can/bus.hpp][bus.hpp]],
+[[file:../../../modules/can/include/nexenne/can/socket_options.hpp][socket_options.hpp]], [[file:../../../modules/can/include/nexenne/can/io/loopback_bus.hpp][io/loopback_bus.hpp]], and [[file:../../../modules/can/include/nexenne/can/error_frame.hpp][error_frame.hpp]].
+
+* The backend abstraction
+
+A CAN backend is anything that can do four things: send a frame, receive a frame,
+set the filters that decide which frames arrive, and report its error state. The
+module expresses this as a C++ concept, =can_bus=, rather than a base class with
+virtual functions.
+
+#+BEGIN_SRC C++
+template <typename B>
+concept can_bus = requires(B bus, B const cbus, frame const& f, std::span<filter const> filters) {
+  { bus.send(f) }            -> std::same_as<result<void>>;
+  { bus.receive() }          -> std::same_as<result<std::optional<frame>>>;
+  { bus.set_filters(filters) }-> std::same_as<result<void>>;
+  { cbus.state() }           -> std::same_as<bus_state>;
+};
+#+END_SRC
+
+** Why a concept, not a virtual interface
+
+A backend is chosen at compile time, so the calls inline, there is no vtable
+indirection, and the send and receive path stays allocation-free, which matters
+on a hot bus. The trade is that a =can_bus= is not a single runtime type: code
+that handles frames is a template over the backend. A caller that genuinely needs
+to swap backends at runtime can wrap one in a small adapter that erases the type,
+but the default surface pays nothing for a flexibility most code does not use.
+
+** receive returns an optional inside a result
+
+=receive= returns =result<std::optional<frame>>=. The two layers are deliberate:
+the =result= reports a real IO failure (a read error, an unsupported backend),
+while the inner =std::optional= distinguishes "a frame arrived" from "nothing is
+ready yet" on a non-blocking bus. A clean empty read is not an error.
+
+** Bus state
+
+=bus_state= is the controller's fault-confinement level: =error_active= in normal
+operation, =error_passive= once the error counters rise, and =bus_off= after too
+many errors, when the controller leaves the bus. The =error_counters= struct
+carries the transmit and receive counts that drive those transitions.
+
+* The loopback bus
+
+=loopback_bus= is the backend that needs no hardware. A sent frame is queued in a
+fixed-capacity ring buffer, and receiving dequeues the oldest frame, applying the
+filters on the way out. It satisfies =can_bus=, never allocates, and runs on every
+platform, so it is the backend for tests, examples, and offline tooling.
+
+#+BEGIN_SRC C++
+nc::loopback_bus bus;
+bus.send(tx_frame);                       // queue a frame
+auto received = bus.receive();            // result<optional<frame>>
+if (received && received->has_value()) {
+  decode(**received);
+}
+#+END_SRC
+
+Its controller state is always =error_active=: an in-memory bus has no real error
+confinement. See [[file:../../../examples/can/loopback.cpp][examples/can/loopback.cpp]] for a full encode, send, receive, and
+decode round trip.
+
+* Filters
+
+A backend filters with the same [[file:database.org][filter]] type the registry uses. Pass a span of
+filters to =set_filters=; an empty span accepts everything. On the loopback bus the
+filtering is done in software on receive; on the SocketCAN backend the same
+filters become the kernel's hardware filter array, so the kernel drops unwanted
+frames before they ever reach the process.
+
+* Error frames
+
+A CAN controller reports bus trouble as error frames: ordinary frames with the
+error flag set, where the identifier carries a bitmask of error classes and the
+eight data bytes carry the details. =error_frame.hpp= names those fields and
+decodes a frame into an =error_report=:
+
+#+BEGIN_EXAMPLE
+  id (error flag set) | class bits: controller, bus-off, counters-valid, ...
+  data[1]             | controller status: rx-passive, tx-passive, ...
+  data[6], data[7]    | transmit and receive error counters
+#+END_EXAMPLE
+
+=decode_error_frame= reads those and returns the implied =bus_state= and the
+=error_counters=. The state is =bus_off= if the bus-off class is set, otherwise
+=error_passive= if a passive controller-status bit is set, otherwise
+=error_active=. The constants mirror the Linux =linux/can/error.h= layout but are
+plain values, so the decoder is portable; the SocketCAN backend produces these
+frames, and decoding them is how an application watches the bus health.
+
+* The SocketCAN backend
+
+A Linux SocketCAN backend, =socketcan_bus=, is the next layer: it opens a raw
+socket on a CAN interface, converts a =frame= to and from the kernel
+=struct can_frame= and =canfd_frame= by copying fields (the identifier already uses
+the kernel layout), installs the filters as a hardware filter array, and produces
+the error frames decoded above. It satisfies the same =can_bus= concept, so code
+written against the loopback bus runs unchanged against real hardware. It is
+documented in its own guide when it lands.
+
+* See also
+
+- [[file:frame.org][frame]] : the frames a bus carries.
+- [[file:database.org][database]] : the registry that decodes received frames, and the shared filter type.
+
+* Further reading
+
+- The Linux kernel SocketCAN documentation, =Documentation/networking/can.rst=.
+- =linux/can/error.h=, the error-frame class and status bit definitions.
+- ISO 11898-1, CAN fault confinement and the error-active, error-passive, and
+  bus-off states.

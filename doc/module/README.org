@@ -88,6 +88,13 @@ Follow a module to its own index, which lists, per class it provides, a guide
   =geometry_error= / =result<T>= error foundation; its Org module index and
   examples are the first known docs gap in [[file:../README.org][doc/README.org]].
 
+- [[file:can/README.org][can]] (needs =container=, =utility=) : CAN bus communications:
+  the wire =frame= for Classic CAN, =can_id= and J1939 identifier decoding, a signal
+  codec that packs and unpacks Intel and Motorola layouts with scaling and
+  not-available policies, a message =database= with filters and an indexed registry,
+  DBC file import, J1939 transport reassembly, and a =can_bus= backend with an
+  in-memory loopback and a Linux SocketCAN socket. Header-only and no-throw.
+
 * Dependency layering
 
 A module may only use the modules below it; the build refuses a cycle.
