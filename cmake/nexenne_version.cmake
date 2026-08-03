@@ -7,6 +7,7 @@ set(NEXENNE_VERSION "0.1.0")
 set(NEXENNE_KNOWN_MODULES
     algorithm
     benchmark
+    can
     chrono
     container
     ecs
@@ -25,6 +26,7 @@ set(NEXENNE_KNOWN_MODULES
 # manifest of this state; per-module package version files use these values.
 set(NEXENNE_MODULE_ALGORITHM_VERSION     "0.1.0")
 set(NEXENNE_MODULE_BENCHMARK_VERSION     "0.1.0")
+set(NEXENNE_MODULE_CAN_VERSION           "0.1.0")
 set(NEXENNE_MODULE_CHRONO_VERSION        "0.1.0")
 set(NEXENNE_MODULE_CONTAINER_VERSION     "0.1.0")
 set(NEXENNE_MODULE_ECS_VERSION           "0.1.0")
