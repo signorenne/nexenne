@@ -180,7 +180,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto operator==(filter const lhs, filter const rhs) noexcept
+  [[nodiscard]] friend constexpr auto operator==(filter const& lhs, filter const& rhs) noexcept
     -> bool = default;
 };
 

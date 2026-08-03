@@ -60,7 +60,7 @@ struct error_counters {
    * @post None.
    */
   [[nodiscard]] friend constexpr auto
-  operator==(error_counters const lhs, error_counters const rhs) noexcept -> bool = default;
+  operator==(error_counters const& lhs, error_counters const& rhs) noexcept -> bool = default;
 };
 
 /**

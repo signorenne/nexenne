@@ -284,7 +284,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto operator==(j1939_id const lhs, j1939_id const rhs) noexcept
+  [[nodiscard]] friend constexpr auto operator==(j1939_id const& lhs, j1939_id const& rhs) noexcept
     -> bool = default;
 };
 

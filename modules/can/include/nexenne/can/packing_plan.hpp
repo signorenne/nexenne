@@ -103,7 +103,7 @@ private:
       push_chunk(plan_chunk{byte, lsb, take, dest});
       dest = static_cast<std::uint8_t>(dest + take);
       global = global + take;
-      remaining = static_cast<std::uint16_t>(remaining - take);
+      remaining = static_cast<std::uint8_t>(remaining - take);
     }
   }
 
@@ -120,7 +120,7 @@ private:
       auto const lsb{static_cast<std::uint8_t>(msb + 1U - take)};
       auto const dest{static_cast<std::uint8_t>(remaining - take)};
       push_chunk(plan_chunk{byte, lsb, take, dest});
-      remaining = static_cast<std::uint16_t>(remaining - take);
+      remaining = static_cast<std::uint8_t>(remaining - take);
       byte = static_cast<std::uint16_t>(byte + 1U);
       msb = 7U;  // every following byte starts its run at bit 7
     }
