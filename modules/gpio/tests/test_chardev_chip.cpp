@@ -94,14 +94,16 @@ TEST_CASE("chardev_chip: opening a chip that does not exist maps the errno") {
   CHECK_FALSE(backend.is_open());
 }
 
-TEST_CASE("chardev_chip: a debounce period beyond the kernel range is rejected") {
-  ng::chardev_chip backend{ng::chip_id{0}};
+TEST_CASE("chardev_chip: an invalid debounce is rejected before device access") {
+  ng::chardev_chip backend{ng::chip_id{4000}};
   std::array const one_spec{
-    ng::line_spec::input("in", ng::chip_id{0}, ng::line_offset{0}),
+    ng::line_spec::input("in", ng::chip_id{4000}, ng::line_offset{0}),
   };
   // The kernel field is 32-bit microseconds; two hours overflows it.
   std::array const huge{ng::line_config{ng::edge_detection::both, 2h}};
-  CHECK(backend.open(one_spec, huge).error() == ng::gpio_error::invalid_argument);
+  auto const opened{backend.open(one_spec, huge)};
+  REQUIRE_FALSE(opened.has_value());
+  CHECK(opened.error() == ng::gpio_error::invalid_argument);
 }
 
 #else

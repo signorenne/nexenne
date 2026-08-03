@@ -465,6 +465,17 @@ public:
 
     close();
 
+    ::gpio_v2_line_request request{};
+    request.num_lines = static_cast<std::uint32_t>(specs.size());
+    request.event_buffer_size = m_event_buffer_size;
+    std::memcpy(static_cast<void*>(request.consumer), m_consumer.data(), m_consumer.size());
+    for (std::size_t i{0}; i < specs.size(); ++i) {
+      request.offsets[i] = static_cast<std::uint32_t>(specs[i].offset().get());
+    }
+    if (auto const built{build_line_config(specs, configs, &request.config)}; !built.has_value()) {
+      return std::unexpected{built.error()};
+    }
+
     // Rendered with to_chars rather than a vararg call: type-safe, and the
     // buffer is wide enough for the prefix plus any 16-bit index.
     std::array<char, 32> path{};
@@ -479,17 +490,6 @@ public:
     )};
     if (!chip_fd.owns()) {
       return std::unexpected{detail::errno_to_gpio_error(errno)};
-    }
-
-    ::gpio_v2_line_request request{};
-    request.num_lines = static_cast<std::uint32_t>(specs.size());
-    request.event_buffer_size = m_event_buffer_size;
-    std::memcpy(static_cast<void*>(request.consumer), m_consumer.data(), m_consumer.size());
-    for (std::size_t i{0}; i < specs.size(); ++i) {
-      request.offsets[i] = static_cast<std::uint32_t>(specs[i].offset().get());
-    }
-    if (auto const built{build_line_config(specs, configs, &request.config)}; !built.has_value()) {
-      return std::unexpected{built.error()};
     }
 
     if (::ioctl(chip_fd.get(), GPIO_V2_GET_LINE_IOCTL, &request)
