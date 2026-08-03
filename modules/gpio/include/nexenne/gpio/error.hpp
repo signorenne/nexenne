@@ -22,6 +22,7 @@
  * free of the standard format header.
  */
 
+#include <cstdint>
 #include <expected>
 #include <string_view>
 
@@ -30,7 +31,7 @@ namespace nexenne::gpio {
 /**
  * @brief Recoverable error reported by a fallible GPIO operation.
  */
-enum class gpio_error {
+enum class gpio_error : std::uint8_t {
   invalid_argument,   ///< An argument was rejected before reaching the hardware.
   not_found,          ///< No requested line matches the given name or offset.
   not_open,           ///< The operation needs an open request and there is none.
