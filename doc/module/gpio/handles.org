@@ -1,0 +1,95 @@
+#+TITLE: gpio handles: chip and line
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+What this covers: =chip.hpp= and =line.hpp=, the two templated views that sit
+between application code and a backend.
+
+* The problem
+
+Raw backend calls speak in offsets and physical levels. Application code
+wants to say "read the button" and get =true= for pressed. Something must own
+the name-to-offset mapping and the polarity conversion, and it must do so
+without allocating (the same type has to work on bare metal) and without a
+second copy of the truth (the spec table already exists).
+
+* The idea: views over caller-owned state
+
+Both handles are non-owning views, cheap to copy, with the backend outliving
+them the way a string outlives a =string_view=.
+
+=chip<B>= binds a backend to the spec table it was opened with. =open= is
+also where the request is validated exactly once for every backend: the spec
+and config tables must be parallel and non-empty. On success the chip keeps a
+=std::span= over the caller's spec array, not a copy, which is the design
+decision that keeps the core heap-free; the array must stay alive and
+unchanged until =close=, and a =constexpr= or static table satisfies that for
+free. Name lookup is a linear walk: tens of lines per chip is the realistic
+case, and at that size a walk beats any map.
+
+#+BEGIN_SRC C++
+ng::chip<ng::chardev_chip> chip{backend};
+if (auto const opened{chip.open(specs, configs)}; !opened) { /* ... */ }
+
+auto const pressed{chip.read("button")};          // result<bool>, logical
+nexenne::utility::discard(chip.write("led", true));
+
+auto led{chip.line_for("led")};                   // optional<line<B>>
+#+END_SRC
+
+=line<B>= is the per-line handle: a backend pointer plus a copy of one spec.
+=read= applies =to_logical= on the way out, =write= applies =to_physical= on
+the way in and rejects a non-output spec with =invalid_argument= before the
+hardware sees anything. =set=, =clear=, and =toggle= are the obvious
+shorthands; =toggle= is two backend calls and documents that it is not atomic
+against other writers.
+
+Error discipline mirrors the module policy: an unbound handle is =not_open=,
+an unknown name is =not_found=, a name miss from the query functions
+(=spec(name)=, =line_for(name)=) is =std::nullopt= because a miss on a lookup
+is an answer, not an error.
+
+* Startup baseline: snapshot
+
+An edge-driven consumer knows nothing about a line until its first edge,
+which for a seldom-touched input can be never. =chip::snapshot(deliver)=
+closes that gap: it reads every input in the request set and hands a
+steady-state =line_value= (=edge_kind::none=, unset sequence and timestamp)
+to the callable, in table order. Call it once after =open= (and after a
+supervised reopen), then switch to the event path:
+
+#+BEGIN_SRC C++
+nexenne::utility::discard(chip.snapshot([&](ng::line_value const& value) {
+  state.apply(value);            // the baseline every observer starts from
+}));
+#+END_SRC
+
+* Changing behaviour in place: reconfigure
+
+When the backend models =reconfigurable_gpio_backend= (the mock and the
+Linux backend both do), =chip::reconfigure(specs, configs)= changes the
+behaviour of the SAME lines, direction, edges, debounce, bias, drive, and
+output levels, without releasing the request. That matters twice in
+production: exclusivity is never lost to a competing consumer, and an
+output never glitches through an unconfigured state, neither of which a
+close-and-reopen can guarantee. The tables must address the request's lines
+element by element in the opened order; on success the chip's spec view
+follows the new tables.
+
+* Where polarity lives
+
+Reads and writes cross the physical/logical boundary inside these handles;
+edge events cross it inside =decode=. Those are the only crossings in the
+module, which is what makes the boundary auditable: grep for =to_logical=,
+=to_physical=, and =decode= and you have every place wiring knowledge exists.
+
+* When not to use it
+
+Embedded code that knows its one offset at compile time can call the backend
+directly and skip the name table entirely; =line<B>= still pays for itself by
+owning the polarity conversion, and it is a single pointer plus a spec.
+
+* Further reading
+
+- [[file:lines.org][lines]] for the spec fields the handles interpret.
+- [[file:edges.org][edges]] for the event path that bypasses the handles.

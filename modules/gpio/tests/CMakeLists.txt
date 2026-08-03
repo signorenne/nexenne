@@ -1,0 +1,23 @@
+nexenne_add_module_tests(gpio
+    SOURCES
+        test_error.cpp
+        test_line_types.cpp
+        test_line_spec.cpp
+        test_line_config.cpp
+        test_line_event.cpp
+        test_line_value.cpp
+        test_backend.cpp
+        test_mock_chip.cpp
+        test_line.cpp
+        test_chip.cpp
+        test_decode.cpp
+        test_debounce.cpp
+        test_sequence_tracker.cpp
+        test_sinks.cpp
+        test_drain.cpp
+        test_chardev_chip.cpp
+        test_chardev_info.cpp
+        test_chardev_watch.cpp
+        test_format.cpp
+        test_gpio.cpp
+)

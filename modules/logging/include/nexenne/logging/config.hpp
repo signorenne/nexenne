@@ -56,11 +56,11 @@ struct config {
 }  // namespace nexenne::logging
 
 #ifndef NEXENNE_LOG_QUEUE_SIZE
-#  define NEXENNE_LOG_QUEUE_SIZE 1024
+#define NEXENNE_LOG_QUEUE_SIZE 1024
 #endif
 
 #ifndef NEXENNE_LOG_ASYNC
-#  define NEXENNE_LOG_ASYNC true
+#define NEXENNE_LOG_ASYNC true
 #endif
 
 namespace nexenne::logging {

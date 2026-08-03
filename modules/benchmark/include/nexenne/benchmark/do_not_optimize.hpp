@@ -38,19 +38,19 @@
  */
 
 #if defined(_MSC_VER)
-#  include <intrin.h>
-#  pragma intrinsic(_ReadWriteBarrier)
+#include <intrin.h>
+#pragma intrinsic(_ReadWriteBarrier)
 #endif
 
 // Force-inline marker: these primitives must never become a real function call,
 // which would dwarf the benchmarked cost. Undefined at end of file so it does
 // not leak to includers.
 #if defined(__GNUC__) || defined(__clang__)
-#  define NEXENNE_BENCHMARK_FORCE_INLINE [[gnu::always_inline]] inline
+#define NEXENNE_BENCHMARK_FORCE_INLINE [[gnu::always_inline]] inline
 #elif defined(_MSC_VER)
-#  define NEXENNE_BENCHMARK_FORCE_INLINE __forceinline
+#define NEXENNE_BENCHMARK_FORCE_INLINE __forceinline
 #else
-#  define NEXENNE_BENCHMARK_FORCE_INLINE inline
+#define NEXENNE_BENCHMARK_FORCE_INLINE inline
 #endif
 
 namespace nexenne::benchmark {
@@ -96,11 +96,11 @@ NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T const& value) noexcept -> 
  */
 template <typename T>
 NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T& value) noexcept -> void {
-#  if defined(__clang__)
+#if defined(__clang__)
   asm volatile("" : "+r,m"(value) : : "memory");
-#  else
+#else
   asm volatile("" : "+m,r"(value) : : "memory");
-#  endif
+#endif
 }
 
 /**

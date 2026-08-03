@@ -20,7 +20,7 @@ IndentCaseLabels:                  true
 IndentCaseBlocks:                  false
 IndentExternBlock:                 NoIndent
 IndentGotoLabels:                  true
-IndentPPDirectives:                AfterHash
+IndentPPDirectives:                None
 IndentRequiresClause:              true
 IndentWrappedFunctionNames:        false
 NamespaceIndentation:              None

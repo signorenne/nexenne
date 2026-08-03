@@ -18,6 +18,7 @@ set(NEXENNE_KNOWN_MODULES
     serialization
     signal
     utility
+    gpio
 )
 
 # Independent module package/API versions. The umbrella package installs a
@@ -35,6 +36,8 @@ set(NEXENNE_MODULE_RANDOM_VERSION        "0.1.0")
 set(NEXENNE_MODULE_SERIALIZATION_VERSION "0.1.0")
 set(NEXENNE_MODULE_SIGNAL_VERSION        "0.1.0")
 set(NEXENNE_MODULE_UTILITY_VERSION       "0.1.0")
+
+set(NEXENNE_MODULE_GPIO_VERSION "0.1.0")
 
 function(nexenne_validate_stable_semver variable_name)
     if(NOT DEFINED ${variable_name})

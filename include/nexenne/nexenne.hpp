@@ -11,7 +11,7 @@
  */
 
 #if __has_include(<nexenne/utility/utility.hpp>)
-#  include <nexenne/utility/utility.hpp>
+#include <nexenne/utility/utility.hpp>
 #endif
 
 namespace nexenne {}

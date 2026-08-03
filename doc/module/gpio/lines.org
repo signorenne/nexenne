@@ -1,0 +1,134 @@
+#+TITLE: gpio lines: the vocabulary
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+What this covers: the enums and strong identifiers in =line_types.hpp= and the
+four value types built from them, =line_spec=, =line_config=, =line_event=,
+and =line_value=. This is where the module fixes its words, and the words are
+chosen so the common GPIO bugs stop compiling.
+
+* The problem
+
+A GPIO API that traffics in bare integers invites three classic failures:
+passing a chip index where a line offset belongs, driving a pin high when the
+circuit needed low (polarity confusion), and configuring a pin against its
+electrical reality (no pull-up on a floating button, push-pull on a shared
+bus wire). The fix is a vocabulary: one distinct type per meaning.
+
+* The electronics, briefly
+
+Each enum encodes one electrical decision.
+
+- Direction (=line_direction=). An /input/ is sampled: the pad's Schmitt
+  buffer reads whatever voltage the outside world holds. An /output/ is
+  driven: the pad's transistors force the voltage. Configuring the wrong
+  direction is harmless for a read and destructive for a write, which is why
+  the handles reject writing an input before the hardware ever sees it.
+
+- Polarity (=line_polarity=). Circuits are routinely wired so that the
+  /interesting/ state is the LOW voltage: a button shorting the line to
+  ground behind a pull-up, an open-collector alarm output, an active-low
+  reset. =active_low= records that inversion once. The module then speaks
+  /logical/ levels everywhere above the backend: pressed is =true=, LED on
+  is =true=, regardless of wiring. The mapping is its own inverse, and
+  =apply_polarity= exists for both the level and the edge direction, because
+  on an active-low line a physical rising edge IS the logical falling edge;
+  applying one without the other produces the classic inconsistent pair.
+
+- Bias (=line_bias=). A disconnected input floats, picking up whatever
+  charge is nearby, and a floating button line reads random values between
+  presses. The on-chip /pull-up/ or /pull-down/ resistor (typically tens of
+  kiloohms) gives the line a defined idle level. =as_is= leaves the
+  hardware's current bias untouched; =disabled= explicitly turns any pull
+  off, for lines with external resistors where a second pull would form an
+  unintended divider.
+
+- Drive (=line_drive=). A /push-pull/ output drives both directions with
+  both transistors, the default. /Open-drain/ drives only low and floats
+  high, so several devices can share one wire with a single external
+  pull-up (the I2C bus is the canonical case); /open-source/ is its mirror.
+  Wiring two push-pull outputs to one wire shorts them the moment they
+  disagree, which is exactly why the drive topology is part of the line's
+  static description.
+
+- Edges (=edge_kind= versus =edge_detection=). The pair is asymmetric on
+  purpose. A /subscription/ can ask for both directions
+  (=edge_detection::both=), but a single delivered event names exactly one
+  transition, so the sample-side =edge_kind= has no =both=; =none= marks a
+  steady-state observation such as a synchronous read. The
+  =matches(subscription, edge)= predicate asks whether a delivered edge
+  falls under a subscription, which is how a consumer filters a shared
+  stream without hand-written enum comparisons.
+
+- Event clock (=line_clock=). Which clock stamps a line's edge events:
+  =monotonic= (the default) never jumps and is right for measuring time
+  between edges; =realtime= carries the wall clock so timestamps line up
+  with logs and other hosts; =hte= asks a hardware timestamp engine to
+  stamp at the pin, removing interrupt latency, on the platforms that have
+  one. A backend without the requested clock rejects the open rather than
+  silently stamping from another clock.
+
+* Strong identifiers, and time in two types
+
+=chip_id=, =line_offset=, and =event_sequence= are all small unsigned
+integers underneath, which is precisely why they must not interconvert: the
+values look alike, and silently swapping them is a historically common GPIO
+bug. They are =utility::identifier= strong typedefs, comparable and nothing
+else, so the mistake is a compile error.
+
+Time splits into two deliberately distinct types. =event_time= is a point on
+=event_clock= (a monotonic nanosecond clock with unspecified epoch; on Linux
+the kernel stamps events from =CLOCK_MONOTONIC=); waits, timeouts, and
+debounce periods are plain =std::chrono= durations. Subtracting two
+timestamps yields a duration, but a timestamp can never be passed where a
+timeout is expected. =event_clock= has no =now()= because timestamps come
+from the event source, never from the consumer.
+
+* The four value types
+
+Four types, four lifetimes, one rule each:
+
+| type          | role                        | mutability                    |
+|---------------+-----------------------------+-------------------------------|
+| =line_spec=   | what the line IS            | written once, reused          |
+| =line_config= | how THIS request wants it   | composed fresh per open       |
+| =line_event=  | what HAPPENED, physical     | emitted by backends, compact  |
+| =line_value=  | what it MEANS, logical      | produced by decode, consumed  |
+
+- =line_spec= carries the addressing tuple (name, chip, offset) plus the
+  electrical setup (direction, polarity, bias, drive), no runtime state. It
+  is trivially copyable, and the name is a non-owning view so a spec table
+  can be a =constexpr= array on Linux or a static array on bare metal. The
+  =input= and =output= factories fix the fields that do not apply (drive is
+  an output concern, bias an input concern). =to_logical= / =to_physical=
+  are the polarity mapping bound to the spec.
+
+- =line_config= is the open-time request: the edge subscription, a
+  backend-side debounce period, and the initial PHYSICAL drive level for an
+  output. Configs go to backends verbatim and backends exchange physical
+  levels, so a caller thinking logically converts with
+  =spec.to_physical(logical)= first.
+
+- =line_event= is the 24-byte, padding-free record a backend emits per edge:
+  chip, offset, raw physical level, physical edge direction, timestamp, and
+  a sequence number for drop detection. It is laid out largest-field-first
+  because events sit inline in transport rings, where every byte scales
+  with the queue depth.
+
+- =line_value= is the rich observation applications consume: the logical
+  level and logical edge (polarity already applied by =decode=), the name
+  for routing, and the sequence and timestamp carried through.
+
+* When not to use it
+
+A line that is really a bus (I2C, SPI, UART) belongs to a bus abstraction,
+not to GPIO bit-banging; and a signal that needs sub-microsecond timing
+belongs in hardware (PWM, timer capture), because no userspace or RTOS task
+toggles reliably at that scale.
+
+* Further reading
+
+- Linux kernel, Documentation/userspace-api/gpio/chardev.rst, for how the
+  kernel models the same vocabulary.
+- Any MCU reference manual's GPIO chapter (bias and drive circuits are drawn
+  in the pad schematics; the STM32 and ESP32 manuals are good examples).

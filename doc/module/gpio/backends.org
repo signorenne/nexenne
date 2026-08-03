@@ -1,0 +1,104 @@
+#+TITLE: gpio backends: the concept ladder
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+What this covers: =backend.hpp= (the =gpio_backend=, =bulk_gpio_backend=, and
+=edge_source= concepts) and =io/mock_chip.hpp=, plus how to write a backend
+for hardware this repository has never seen.
+
+* The problem
+
+The same application logic must run against Linux's character device, an
+in-memory fake in tests, and a vendor HAL on a bare-metal target. The classic
+answer is a virtual interface, which costs a vtable dispatch per read in code
+that often lives in tight loops or interrupt context, forces one error space
+onto every implementation, and moves a malformed backend from compile time to
+a runtime =not_supported=.
+
+* The idea: a concept, not a base class
+
+A backend is any concrete type with the right members; the contract is a C++
+concept and the handles are templates over it. Calls inline to direct member
+calls, a wrong signature is a compile error at the declaration site, and a
+backend the module has never heard of (your HAL wrapper) is exactly as much a
+first-class citizen as the ones shipped in =io/=.
+
+Capabilities stack as refinements, so a minimal backend stays legal:
+
+#+BEGIN_EXAMPLE
+  gpio_backend                open(specs, configs) / close() / is_open()
+                              read(offset) / write(offset, level)
+       |
+  bulk_gpio_backend           + read_lines / write_lines  (atomic multi-line)
+  reconfigurable_gpio_backend + reconfigure               (no release, no glitch)
+  edge_source                 + wait_event + native_handle()
+#+END_EXAMPLE
+
+The three refinements are independent siblings over the base tier; a
+backend models whichever its transport supports.
+
+Two rules bind every tier:
+
+- Backends exchange raw PHYSICAL levels. Polarity belongs to the wrapper
+  layer, applied exactly once; that is what keeps every backend drop-in
+  interchangeable.
+- =open= takes ALL lines in one call, as parallel spec and config spans,
+  because kernels and HALs configure a request set atomically; the wrapper
+  validated the spans already, but a backend may re-check cheaply.
+
+The bulk tier exists for atomicity, not convenience: one register access or
+one kernel call observes or drives several lines at the same instant. A
+transport with no bulk primitive simply does not model the tier, and callers
+fall back to per-line operations.
+
+The edge tier has two halves that together keep the module loop-agnostic:
+=wait_event(timeout)= returns =result<std::optional<line_event>>= where
+=std::nullopt= is a clean timeout miss and a zero timeout is a non-blocking
+poll; =native_handle()= exposes the backend's pollable handle so an external
+loop (epoll, Qt, ASIO) can wait for readiness and then drain with the zero
+timeout. The module never owns the loop.
+
+* The mock
+
+=mock_chip<Capacity>= satisfies all three tiers with fixed-capacity, in-memory
+state, and adds the test-rig surface the concepts do not know about:
+=set_physical= drives what an input reads, =physical= observes what an output
+was driven to (which =read= on a real chip cannot always do), and =inject=
+queues events for =wait_event=. Because it is allocation-free, it also stands
+in for a HAL while portable code is developed off-target.
+
+#+BEGIN_SRC C++
+ng::mock_chip<8> backend{};
+REQUIRE(backend.open(specs, configs).has_value());
+REQUIRE(backend.set_physical(ng::line_offset{17}, false).has_value());  // press
+CHECK(*chip.read("button") == true);
+#+END_SRC
+
+* Writing your own backend
+
+Wrap your HAL in a type with the five basic members; add the tiers your
+hardware supports. The concept test file (=tests/test_backend.cpp=) shows
+minimal archetypes for each tier, and =static_assert(ng::gpio_backend<my_backend>);=
+next to your type turns any drift into a compile error where you can read it.
+Conventions to keep:
+
+- Map native error codes onto the neutral =gpio_error= categories; keep the
+  native code out of the shared surface.
+- =close()= must be =noexcept=, idempotent, and total: after it, no stale
+  event or staging state may survive into the next =open= (the private
+  ancestor of this module had exactly that bug).
+- On a target where =push= into a transport happens in interrupt context,
+  emit the compact =line_event= with the raw physical level and let the
+  task-side drain decode it.
+
+* When not to use it
+
+If the program will only ever run on Linux and only ever against the
+character device, the concept buys generality you may not need; using
+=chardev_chip= directly is fine, and the handles work either way.
+
+* Further reading
+
+- DESIGN.org, "API shape", for why the boundary is stated as a concept.
+- The =can_bus= concept in =nexenne::can= (on its feature branch), the same
+  pattern for a different transport.
