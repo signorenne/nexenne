@@ -58,21 +58,21 @@
 
 #ifdef __linux__
 
-#  include <algorithm>
-#  include <array>
-#  include <cerrno>
-#  include <charconv>
-#  include <cstring>
-#  include <ctime>
-#  include <limits>
+#include <algorithm>
+#include <array>
+#include <cerrno>
+#include <charconv>
+#include <cstring>
+#include <ctime>
+#include <limits>
 
-#  include <fcntl.h>
-#  include <linux/gpio.h>
-#  include <nexenne/container/static_vector.hpp>
-#  include <nexenne/utility/unique_resource.hpp>
-#  include <poll.h>
-#  include <sys/ioctl.h>
-#  include <unistd.h>
+#include <fcntl.h>
+#include <linux/gpio.h>
+#include <nexenne/container/static_vector.hpp>
+#include <nexenne/utility/unique_resource.hpp>
+#include <poll.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 namespace nexenne::gpio {
 

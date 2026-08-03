@@ -17,21 +17,21 @@
 
 #ifdef __linux__
 
-#  include <array>
-#  include <chrono>
-#  include <cstdlib>
+#include <array>
+#include <chrono>
+#include <cstdlib>
 
-#  include <nexenne/gpio/chip.hpp>
-#  include <nexenne/gpio/decode.hpp>
-#  include <nexenne/gpio/drain.hpp>
-#  include <nexenne/gpio/format.hpp>
-#  include <nexenne/gpio/io/callback_sink.hpp>
-#  include <nexenne/gpio/io/chardev_chip.hpp>
-#  include <nexenne/utility/discard.hpp>
-#  include <nexenne/utility/scope_guard.hpp>
-#  include <sys/epoll.h>
-#  include <sys/timerfd.h>
-#  include <unistd.h>
+#include <nexenne/gpio/chip.hpp>
+#include <nexenne/gpio/decode.hpp>
+#include <nexenne/gpio/drain.hpp>
+#include <nexenne/gpio/format.hpp>
+#include <nexenne/gpio/io/callback_sink.hpp>
+#include <nexenne/gpio/io/chardev_chip.hpp>
+#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/scope_guard.hpp>
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
+#include <unistd.h>
 
 namespace {
 

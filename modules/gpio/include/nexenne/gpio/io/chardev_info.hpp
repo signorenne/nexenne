@@ -304,15 +304,15 @@ public:
 
 #ifdef __linux__
 
-#  include <algorithm>
-#  include <cerrno>
-#  include <charconv>
+#include <algorithm>
+#include <cerrno>
+#include <charconv>
 
-#  include <fcntl.h>
-#  include <linux/gpio.h>
-#  include <nexenne/utility/unique_resource.hpp>
-#  include <sys/ioctl.h>
-#  include <unistd.h>
+#include <fcntl.h>
+#include <linux/gpio.h>
+#include <nexenne/utility/unique_resource.hpp>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 namespace nexenne::gpio {
 

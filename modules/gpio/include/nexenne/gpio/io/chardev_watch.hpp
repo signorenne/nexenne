@@ -59,14 +59,14 @@ struct line_change {
 
 #ifdef __linux__
 
-#  include <cerrno>
+#include <cerrno>
 
-#  include <linux/gpio.h>
-#  include <nexenne/container/static_vector.hpp>
-#  include <nexenne/utility/unique_resource.hpp>
-#  include <poll.h>
-#  include <sys/ioctl.h>
-#  include <unistd.h>
+#include <linux/gpio.h>
+#include <nexenne/container/static_vector.hpp>
+#include <nexenne/utility/unique_resource.hpp>
+#include <poll.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 namespace nexenne::gpio {
 
