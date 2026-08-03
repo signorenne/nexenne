@@ -21,10 +21,6 @@
 #  include <chrono>
 #  include <cstdlib>
 
-#  include <sys/epoll.h>
-#  include <sys/timerfd.h>
-#  include <unistd.h>
-
 #  include <nexenne/gpio/chip.hpp>
 #  include <nexenne/gpio/decode.hpp>
 #  include <nexenne/gpio/drain.hpp>
@@ -33,6 +29,9 @@
 #  include <nexenne/gpio/io/chardev_chip.hpp>
 #  include <nexenne/utility/discard.hpp>
 #  include <nexenne/utility/scope_guard.hpp>
+#  include <sys/epoll.h>
+#  include <sys/timerfd.h>
+#  include <unistd.h>
 
 namespace {
 
@@ -54,8 +53,11 @@ auto main(int const argc, char** const argv) -> int {
 
   std::array const specs{
     ng::line_spec::input(
-      "button", ng::chip_id{chip_index}, ng::line_offset{button_offset},
-      ng::line_polarity::active_low, ng::line_bias::pull_up
+      "button",
+      ng::chip_id{chip_index},
+      ng::line_offset{button_offset},
+      ng::line_polarity::active_low,
+      ng::line_bias::pull_up
     ),
     ng::line_spec::output("led", ng::chip_id{chip_index}, ng::line_offset{led_offset}),
   };
@@ -68,7 +70,8 @@ auto main(int const argc, char** const argv) -> int {
   ng::chip<ng::chardev_chip> chip{backend};
   if (auto const opened{chip.open(specs, configs)}; !opened.has_value()) {
     std::println(
-      "cannot open gpiochip{}: {} (missing hardware, permissions, or busy)", chip_index,
+      "cannot open gpiochip{}: {} (missing hardware, permissions, or busy)",
+      chip_index,
       opened.error()
     );
     return 0;
@@ -82,18 +85,16 @@ auto main(int const argc, char** const argv) -> int {
     std::println("epoll_create1 failed");
     return 1;
   }
-  auto const close_epoll{nexenne::utility::scope_guard{[epoll_fd]() noexcept {
-    ::close(epoll_fd);
-  }}};
+  auto const close_epoll{nexenne::utility::scope_guard{[epoll_fd]() noexcept { ::close(epoll_fd); }}
+  };
 
   int const timer_fd{::timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC)};
   if (timer_fd < 0) {
     std::println("timerfd_create failed");
     return 1;
   }
-  auto const close_timer{nexenne::utility::scope_guard{[timer_fd]() noexcept {
-    ::close(timer_fd);
-  }}};
+  auto const close_timer{nexenne::utility::scope_guard{[timer_fd]() noexcept { ::close(timer_fd); }}
+  };
   ::itimerspec period{};
   period.it_interval.tv_nsec = 500'000'000;  // 500ms heartbeat
   period.it_value = period.it_interval;
@@ -114,8 +115,11 @@ auto main(int const argc, char** const argv) -> int {
     return 1;
   }
 
-  std::println("reactor running: heartbeat on line {}, edges from line {} (20 ticks)",
-               led_offset, button_offset);
+  std::println(
+    "reactor running: heartbeat on line {}, edges from line {} (20 ticks)",
+    led_offset,
+    button_offset
+  );
   for (int ticks{0}; ticks < 20;) {
     std::array<::epoll_event, 4> ready{};
     int const count{::epoll_wait(epoll_fd, ready.data(), static_cast<int>(ready.size()), -1)};

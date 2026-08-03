@@ -33,16 +33,17 @@ auto main(int const argc, char** const argv) -> int {
   auto const chip_index{
     static_cast<std::uint16_t>(argc > 1 ? std::strtoul(argv[1], nullptr, 10) : 0)
   };
-  auto const offset{
-    static_cast<std::uint32_t>(argc > 2 ? std::strtoul(argv[2], nullptr, 10) : 17)
-  };
+  auto const offset{static_cast<std::uint32_t>(argc > 2 ? std::strtoul(argv[2], nullptr, 10) : 17)};
 
   // Active-low behind the internal pull-up: pressing shorts the line to
   // ground, and the spec keeps the program in "pressed = true" terms.
   std::array const specs{
     ng::line_spec::input(
-      "button", ng::chip_id{chip_index}, ng::line_offset{offset},
-      ng::line_polarity::active_low, ng::line_bias::pull_up
+      "button",
+      ng::chip_id{chip_index},
+      ng::line_offset{offset},
+      ng::line_polarity::active_low,
+      ng::line_bias::pull_up
     ),
   };
   // The kernel debounces for us; no userspace debouncer is needed here.
@@ -53,7 +54,9 @@ auto main(int const argc, char** const argv) -> int {
   if (auto const opened{chip.open(specs, configs)}; !opened.has_value()) {
     std::println(
       "cannot open gpiochip{} line {}: {} (missing hardware, permissions, or busy)",
-      chip_index, offset, opened.error()
+      chip_index,
+      offset,
+      opened.error()
     );
     return 0;
   }

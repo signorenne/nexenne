@@ -39,7 +39,10 @@ auto main() -> int {
   //    rest of the program never thinks about it again.
   std::array const specs{
     ng::line_spec::input(
-      "button", ng::chip_id{0}, ng::line_offset{17}, ng::line_polarity::active_low,
+      "button",
+      ng::chip_id{0},
+      ng::line_offset{17},
+      ng::line_polarity::active_low,
       ng::line_bias::pull_up
     ),
     ng::line_spec::output("led", ng::chip_id{0}, ng::line_offset{4}),
@@ -55,7 +58,8 @@ auto main() -> int {
   if (auto const opened{chip.open(specs, configs)}; !opened.has_value()) {
     // is_transient tells a supervisor whether a backoff retry can help.
     std::println(
-      "open failed: {} ({})", opened.error(),
+      "open failed: {} ({})",
+      opened.error(),
       ng::is_transient(opened.error()) ? "transient, retry with backoff" : "permanent"
     );
     return 1;
@@ -83,32 +87,31 @@ auto main() -> int {
 
   // 5) The edge path: the backend emits raw physical events; the drain loop
   //    tracks drops, debounces the bounce burst, and decodes to logical.
-  auto const raw{[](std::uint64_t const seq, std::chrono::nanoseconds const at,
-                    bool const physical) {
-    ng::line_event event{};
-    event.chip = ng::chip_id{0};
-    event.offset = ng::line_offset{17};
-    event.sequence = ng::event_sequence{seq};
-    event.timestamp = ng::event_time{at};
-    event.physical = physical;
-    event.edge = physical ? ng::edge_kind::rising : ng::edge_kind::falling;
-    return event;
-  }};
+  auto const raw{
+    [](std::uint64_t const seq, std::chrono::nanoseconds const at, bool const physical) {
+      ng::line_event event{};
+      event.chip = ng::chip_id{0};
+      event.offset = ng::line_offset{17};
+      event.sequence = ng::event_sequence{seq};
+      event.timestamp = ng::event_time{at};
+      event.physical = physical;
+      event.edge = physical ? ng::edge_kind::rising : ng::edge_kind::falling;
+      return event;
+    }
+  };
   // One statement per inject: argument evaluation order is unspecified, and
   // the queue must receive these in chronological order.
   nexenne::utility::discard(backend.inject(raw(1, 0ms, true)));    // idle high (released)
   nexenne::utility::discard(backend.inject(raw(2, 20ms, false)));  // press: bounce...
-  nexenne::utility::discard(backend.inject(raw(3, 21ms, true)));   //        ...bounce...
-  nexenne::utility::discard(backend.inject(raw(5, 22ms, false)));  //        ...settles (4 lost)
+  nexenne::utility::discard(backend.inject(raw(3, 21ms, true)));   // ...bounce...
+  nexenne::utility::discard(backend.inject(raw(5, 22ms, false)));  // ...settles (4 lost)
   nexenne::utility::discard(backend.inject(raw(6, 40ms, false)));
 
   // The production shape: pump everything ready into a lock-free ring in
   // one call, then consume from the ring at the application's own pace.
   ng::queue_sink<16> ring{};
   if (auto const pumped{ng::drain_events(backend, ring)}; pumped.has_value()) {
-    std::println(
-      "pumped {} events ({} rejected by the ring)", pumped->delivered, pumped->rejected
-    );
+    std::println("pumped {} events ({} rejected by the ring)", pumped->delivered, pumped->rejected);
   }
 
   ng::event_debounce debounce{5ms};

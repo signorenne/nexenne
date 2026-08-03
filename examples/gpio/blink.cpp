@@ -31,9 +31,7 @@ auto main(int const argc, char** const argv) -> int {
   auto const chip_index{
     static_cast<std::uint16_t>(argc > 1 ? std::strtoul(argv[1], nullptr, 10) : 0)
   };
-  auto const offset{
-    static_cast<std::uint32_t>(argc > 2 ? std::strtoul(argv[2], nullptr, 10) : 4)
-  };
+  auto const offset{static_cast<std::uint32_t>(argc > 2 ? std::strtoul(argv[2], nullptr, 10) : 4)};
 
   std::array const specs{
     ng::line_spec::output("led", ng::chip_id{chip_index}, ng::line_offset{offset}),
@@ -45,7 +43,9 @@ auto main(int const argc, char** const argv) -> int {
   if (auto const opened{chip.open(specs, configs)}; !opened.has_value()) {
     std::println(
       "cannot open gpiochip{} line {}: {} (missing hardware, permissions, or busy)",
-      chip_index, offset, opened.error()
+      chip_index,
+      offset,
+      opened.error()
     );
     return 0;
   }
