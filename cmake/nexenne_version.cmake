@@ -2,7 +2,7 @@ include_guard(GLOBAL)
 
 # Distribution snapshot version. This is the version of the umbrella nexenne
 # package and records one coherent state of every module below.
-set(NEXENNE_VERSION "0.1.0")
+set(NEXENNE_VERSION "0.2.0")
 
 set(NEXENNE_KNOWN_MODULES
     algorithm
