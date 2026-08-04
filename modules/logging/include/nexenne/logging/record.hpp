@@ -37,8 +37,9 @@ namespace detail {
  * @brief Renders a thread id as text, with or without a standard formatter.
  *
  * Defined out of line so this header, which is on the ESP-IDF include chain,
- * never pulls in \c <format> or \c <sstream> for a function most translation
- * units do not call. The rendering is the platform's own: libstdc++ implements
+ * never pulls in the standard \c format or \c sstream headers for a function
+ * most translation units do not call. The rendering is the platform's own:
+ * libstdc++ implements
  * \c std::formatter for \c std::thread::id by delegating to the stream
  * inserter, so a record's thread field reads identically across toolchains.
  *
