@@ -25,7 +25,6 @@ nexenne/
 |-- CMakePresets.json       dev, ci, asan, release presets
 |-- cliff.toml              git-cliff changelog and version-bump config
 |-- cmake/                  reusable CMake helpers and package templates
-|-- include/nexenne/        repo umbrella header
 |-- modules/<name>/         library modules
 |-- examples/<name>/        runnable usage examples
 |-- doc/                    docs map, setup docs, module guides

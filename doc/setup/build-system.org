@@ -63,7 +63,8 @@ suite. See [[file:testing.org][Testing]].
 
 - =nexenne_all= / alias =nexenne::all= : an INTERFACE library linking every
   enabled module. Defined only once at least one module exists. Carries the
-  umbrella header =include/nexenne/nexenne.hpp=.
+  repo umbrella header =nexenne/nexenne.hpp=, generated into the build tree from
+  the enabled module list so it can never drift from what is installed.
 - =nexenne::<name>= : one alias per module (for example =nexenne::container=,
   =nexenne::utility=). See [[file:modules.org][Modules]].
 - =nexenne::warnings= : an INTERFACE target of the project warning flags; tests

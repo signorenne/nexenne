@@ -13,7 +13,7 @@ already names the concept.
 | public header           | A header installed or exposed under =modules/<mod>/include/nexenne/<mod>/=. It must follow the style guide and carry Doxygen for public symbols.                      |
 | leaf header             | A public header for one component, included by the module umbrella header.                                                                                            |
 | module umbrella header  | =modules/<mod>/include/nexenne/<mod>/<mod>.hpp=. It includes every public leaf header in that module.                                                                 |
-| repo umbrella header    | =include/nexenne/nexenne.hpp=. It includes all enabled module umbrella headers for users who take the whole library.                                                  |
+| repo umbrella header    | =nexenne/nexenne.hpp=, generated at configure time from the enabled modules. It includes all enabled module umbrella headers for users who take the whole library.     |
 | module.deps             | The one source of truth for nexenne inter-module dependencies, stored at =modules/<mod>/module.deps= with one dependency module name per line.                        |
 | dependency layer        | The acyclic ordering enforced by module discovery. A module may only depend on lower layers.                                                                          |
 | setup doc               | An infrastructure article under =doc/setup/= that explains build, testing, install, CI, tools, or conventions.                                                        |

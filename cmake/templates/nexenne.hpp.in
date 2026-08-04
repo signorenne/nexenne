@@ -1,0 +1,17 @@
+#pragma once
+
+/**
+ * @file
+ * @brief Umbrella header for the whole nexenne library.
+ *
+ * Generated at configure time from the modules enabled in this build, so it
+ * can never drift from what the package actually ships. For finer-grained
+ * build dependencies, prefer a single module umbrella header, for example
+ * \c nexenne/math/math.hpp, or a leaf header.
+ *
+ * Each include is guarded by \c __has_include so a prefix holding only some
+ * of the modules still compiles this header.
+ */
+
+@_nexenne_umbrella_includes@
+namespace nexenne {}

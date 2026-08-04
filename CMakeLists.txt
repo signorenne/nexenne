@@ -81,10 +81,25 @@ if(_enabled_modules)
     foreach(_module IN LISTS _enabled_modules)
         target_link_libraries(nexenne_all INTERFACE nexenne::${_module})
     endforeach()
+    # Generated, not checked in: a hand-written umbrella is a second registry of
+    # the module list and drifts silently the moment a module is added.
+    set(_nexenne_umbrella_includes "")
+    foreach(_module IN LISTS _enabled_modules)
+        string(APPEND _nexenne_umbrella_includes
+            "#if __has_include(<nexenne/${_module}/${_module}.hpp>)\n"
+            "#include <nexenne/${_module}/${_module}.hpp>\n"
+            "#endif\n\n")
+    endforeach()
+    set(_nexenne_umbrella "${CMAKE_CURRENT_BINARY_DIR}/generated/include/nexenne/nexenne.hpp")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates/nexenne.hpp.in"
+        "${_nexenne_umbrella}"
+        @ONLY
+    )
     target_sources(nexenne_all INTERFACE
         FILE_SET nexenne_umbrella_headers TYPE HEADERS
-        BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include
-        FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/nexenne/nexenne.hpp
+        BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/generated/include
+        FILES ${_nexenne_umbrella}
     )
 endif()
 
