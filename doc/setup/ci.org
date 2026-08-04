@@ -10,6 +10,7 @@ jobs run on =ubuntu-24.04=; the compile-heavy ones cache with ccache via
 
 | job           | toolchain       | what it checks                                                            |
 |---------------+-----------------+---------------------------------------------------------------------------|
+| =sync=        | bash            | every module is registered in the docs, examples, and its umbrella header |
 | =format=      | clang-format-20 | =clang-format-20 --dry-run --Werror= on all tracked =.hpp= / =.cpp=       |
 | =build-test=  | gcc-15          | =ci= preset configure + build + =nexenne_tests=, warnings as errors       |
 | =build-clang= | clang-20        | =ci= preset configure + build + =nexenne_tests= (portability)             |
@@ -20,6 +21,16 @@ jobs run on =ubuntu-24.04=; the compile-heavy ones cache with ccache via
 
 * Job notes
 
+- =sync= runs [[file:../../scripts/check_sync.sh][scripts/check_sync.sh]]. The
+  build discovers modules from the filesystem, but the docs and the umbrella
+  headers are hand-written, so they can fall behind a new module or a new header
+  without any build failing. The check requires, per module: a row in
+  [[file:../README.org][doc/README.org]], a catalogue entry in
+  [[file:../module/README.org][doc/module/README.org]] whose stated dependencies
+  match =module.deps=, a doc index, an examples directory, and a mention of
+  every public header in the module umbrella. A header deliberately left out of
+  the umbrella still has to be named there, so the omission reads as a decision.
+  Run it locally with =bash scripts/check_sync.sh=.
 - =build-test= and =build-clang= use the =ci= preset, so they configure and
   build with =NEXENNE_WARNINGS_AS_ERRORS=ON=. =build-clang= exists purely to
   catch Clang-only diagnostics and portability issues.
@@ -31,9 +42,15 @@ jobs run on =ubuntu-24.04=; the compile-heavy ones cache with ccache via
   distro Doxygen package, so a missing Doxygen fails the job rather than
   downloading the prebuilt fallback. See [[file:api-docs.org][API docs]].
 - =install= runs [[file:../../scripts/install_smoke.sh][scripts/install_smoke.sh]],
-  which scaffolds a throwaway module, installs the project to a temp prefix, and
-  builds a consumer that pulls the module both as =find_package(nexenne-<mod>)=
-  and =find_package(nexenne COMPONENTS <mod>)=. Run it locally the same way:
+  which installs the project to a temp prefix and then consumes it: every real
+  module umbrella and the generated repo umbrella must compile against the
+  prefix alone, a throwaway scaffolded module must resolve both as
+  =find_package(nexenne-<mod>)= and =find_package(nexenne COMPONENTS <mod>)=,
+  and a second consumer must link =nexenne::all= after a full
+  =find_package(nexenne)=. The umbrella compiles are the load-bearing part: the
+  in-tree build compiles against the whole include directory, so a header
+  missing from a target's install file set is invisible until something consumes
+  the installed prefix. Run it locally the same way:
   =bash scripts/install_smoke.sh=. See [[file:install.org][Install and consume]].
 
 * Toolchain notes

@@ -11,6 +11,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  sync:
+    name: repo consistency
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Check modules against docs, examples, and umbrellas
+        run: bash scripts/check_sync.sh
+
   format:
     name: clang-format
     runs-on: ubuntu-24.04
