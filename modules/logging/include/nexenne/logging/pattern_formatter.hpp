@@ -275,7 +275,7 @@ public:
           break;
         }
         case 'o':
-          std::format_to(std::back_inserter(out), "{}", r.thread_id);
+          out += detail::thread_id_to_string(r.thread_id);
           break;
         case '%':
           out.push_back('%');

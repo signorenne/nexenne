@@ -163,8 +163,11 @@ protected:
     line += std::format(R"(","line":{})", r.location.line());
 
     // Thread id as a string: its textual form is platform-defined and may not be
-    // a bare integer, so quoting keeps the field valid JSON everywhere.
-    line += std::format(R"(,"tid":"{}")", r.thread_id);
+    // a bare integer, so quoting keeps the field valid JSON everywhere, and
+    // escaping it keeps an exotic form from breaking out of the field.
+    line += R"(,"tid":")";
+    append_escaped(line, detail::thread_id_to_string(r.thread_id));
+    line += R"(")";
 
     line += R"(,"msg":")";
     append_escaped(line, r.message);

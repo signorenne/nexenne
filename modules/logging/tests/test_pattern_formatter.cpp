@@ -6,8 +6,8 @@
 #include <doctest/doctest.h>
 
 #include <chrono>
-#include <format>
 #include <source_location>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -131,7 +131,11 @@ TEST_CASE("nexenne::logging::pattern_formatter %o renders the producing thread i
   auto const f{lg::pattern_formatter{std::string{"%o"}}};
   auto const r{make_record(lg::level::info, "x", "m")};
   auto const out{f.format(r)};
-  CHECK(out == std::format("{}", std::this_thread::get_id()));
+  // Build the expectation from the stream inserter rather than the module's own
+  // helper, so the check stays independent of how the helper renders the id.
+  auto expected{std::ostringstream{}};
+  expected << std::this_thread::get_id();
+  CHECK(out == expected.str());
   CHECK_FALSE(out.empty());
 }
 
