@@ -184,6 +184,7 @@ Current module indexes:
 |---------------+---------------------------------|
 | algorithm     | [[file:module/algorithm/README.org][module/algorithm/README.org]]     |
 | benchmark     | [[file:module/benchmark/README.org][module/benchmark/README.org]]     |
+| can           | [[file:module/can/README.org][module/can/README.org]]           |
 | chrono        | [[file:module/chrono/README.org][module/chrono/README.org]]        |
 | container     | [[file:module/container/README.org][module/container/README.org]]     |
 | ecs           | [[file:module/ecs/README.org][module/ecs/README.org]]           |
