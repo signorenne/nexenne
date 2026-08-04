@@ -90,28 +90,7 @@ protected:
    *
    * @complexity \c O(line length).
    */
-  [[nodiscard]] static auto default_format(record const& r) -> std::string {
-    // Floor to whole seconds for the date-time part, then append the
-    // milliseconds by hand: formatting %T on the full-precision time point
-    // would already print a fraction, duplicating the sub-second digits. floor
-    // (not time_point_cast, which truncates toward zero) keeps the split correct
-    // for pre-epoch timestamps.
-    auto const tp{r.timestamp};
-    auto const tp_sec{std::chrono::floor<std::chrono::seconds>(tp)};
-    auto const tp_ms{std::chrono::floor<std::chrono::milliseconds>(tp)};
-    auto const ms_part{(tp_ms - tp_sec).count()};
-    auto const* const file{r.location.file_name() != nullptr ? r.location.file_name() : "?"};
-    return std::format(
-      "[{:%F %T}.{:03}] [{}] [{}] {}:{} -- {}\n",
-      tp_sec,
-      ms_part,
-      r.logger_name,
-      to_string(r.severity),
-      file,
-      r.location.line(),
-      r.message
-    );
-  }
+  [[nodiscard]] static auto default_format(record const& r) -> std::string;
 
 private:
   std::atomic<level> m_min_level{level::trace};
@@ -206,7 +185,7 @@ public:
    * @pre None.
    * @post The sink routes output according to \p s.
    */
-  explicit console_sink(stream const s = stream::auto_split) noexcept : m_stream{s} {}
+  explicit console_sink(stream s = stream::auto_split) noexcept;
 
 protected:
   /**
@@ -218,13 +197,7 @@ protected:
    * @post The formatted line has been written to stdout or stderr per the
    *       routing policy.
    */
-  auto write_out(record const& r) noexcept -> void override {
-    auto const line{default_format(r)};
-    auto* const out{pick_stream(r.severity)};
-    // fwrite is the smallest portable atomic write for FILE*; glibc serialises
-    // a full fwrite call.
-    nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), out));
-  }
+  auto write_out(record const& r) noexcept -> void override;
 
   /**
    * @brief Flushes both stdout and stderr.
@@ -232,10 +205,7 @@ protected:
    * @pre None.
    * @post Both standard streams have been flushed.
    */
-  auto flush_out() noexcept -> void override {
-    nexenne::utility::discard(std::fflush(stdout));
-    nexenne::utility::discard(std::fflush(stderr));
-  }
+  auto flush_out() noexcept -> void override;
 
 private:
   /**
@@ -251,17 +221,7 @@ private:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto pick_stream(level const sev) const noexcept -> std::FILE* {
-    switch (m_stream) {
-      case stream::stdout_only:
-        return stdout;
-      case stream::stderr_only:
-        return stderr;
-      case stream::auto_split:
-        return sev >= level::warn ? stderr : stdout;
-    }
-    return stdout;
-  }
+  [[nodiscard]] auto pick_stream(level sev) const noexcept -> std::FILE*;
 
   stream m_stream;
 };
@@ -289,9 +249,7 @@ public:
    * @pre None.
    * @post \c is_open() reports whether the file was opened successfully.
    */
-  explicit file_sink(std::string_view const path) noexcept {
-    m_file = std::fopen(std::string{path}.c_str(), "ab");
-  }
+  explicit file_sink(std::string_view path) noexcept;
 
   file_sink(file_sink const&) = delete;
   auto operator=(file_sink const&) -> file_sink& = delete;
@@ -307,9 +265,7 @@ public:
    * @pre None.
    * @post Any owned file has been flushed and closed.
    */
-  ~file_sink() noexcept override {
-    close();
-  }
+  ~file_sink() noexcept override;
 
   /**
    * @brief Whether the file is open.
@@ -319,9 +275,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto is_open() const noexcept -> bool {
-    return m_file != nullptr;
-  }
+  [[nodiscard]] auto is_open() const noexcept -> bool;
 
 protected:
   /**
@@ -334,13 +288,7 @@ protected:
    * @pre None.
    * @post The formatted line has been appended when the file is open.
    */
-  auto write_out(record const& r) noexcept -> void override {
-    if (m_file == nullptr) {
-      return;
-    }
-    auto const line{default_format(r)};
-    nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), m_file));
-  }
+  auto write_out(record const& r) noexcept -> void override;
 
   /**
    * @brief Flushes the file when one is open.
@@ -348,11 +296,7 @@ protected:
    * @pre None.
    * @post Any buffered bytes have been flushed to the file.
    */
-  auto flush_out() noexcept -> void override {
-    if (m_file != nullptr) {
-      nexenne::utility::discard(std::fflush(m_file));
-    }
-  }
+  auto flush_out() noexcept -> void override;
 
 private:
   /**
@@ -361,13 +305,7 @@ private:
    * @pre None.
    * @post \c m_file is null.
    */
-  auto close() noexcept -> void {
-    if (m_file != nullptr) {
-      nexenne::utility::discard(std::fflush(m_file));
-      nexenne::utility::discard(std::fclose(m_file));
-      m_file = nullptr;
-    }
-  }
+  auto close() noexcept -> void;
 
   std::FILE* m_file{nullptr};
 };

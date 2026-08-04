@@ -63,11 +63,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto add(std::unique_ptr<sink> child) -> void {
-    if (child != nullptr) {
-      m_children.push_back(std::move(child));
-    }
-  }
+  auto add(std::unique_ptr<sink> child) -> void;
 
   /**
    * @brief Number of child sinks.
@@ -79,9 +75,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto child_count() const noexcept -> std::size_t {
-    return m_children.size();
-  }
+  [[nodiscard]] auto child_count() const noexcept -> std::size_t;
 
 protected:
   /**
@@ -97,11 +91,7 @@ protected:
    *
    * @complexity \c O(child_count()).
    */
-  auto write_out(record const& r) noexcept -> void override {
-    for (auto const& child : m_children) {
-      child->write(r);
-    }
-  }
+  auto write_out(record const& r) noexcept -> void override;
 
   /**
    * @brief Flushes every child, in insertion order.
@@ -111,11 +101,7 @@ protected:
    *
    * @complexity \c O(child_count()).
    */
-  auto flush_out() noexcept -> void override {
-    for (auto const& child : m_children) {
-      child->flush();
-    }
-  }
+  auto flush_out() noexcept -> void override;
 
 private:
   std::vector<std::unique_ptr<sink>> m_children{};  ///< Owned children, in insertion order.

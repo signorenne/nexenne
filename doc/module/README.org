@@ -74,7 +74,7 @@ Follow a module to its own index, which lists, per class it provides, a guide
   (traversal, =topological_sort=, =tarjan_scc=, =kruskal_mst=, =dijkstra=,
   =bellman_ford=, =floyd_warshall=, =a_star=, =lca=).
 - [[file:logging/README.org][logging]] (needs =container=, =utility=) : a
-  header-only leveled logging framework in the spdlog/quill style: a =level=
+  leveled logging framework in the spdlog/quill style: a =level=
   enum, a =record= event, a virtual =sink= interface (=console=, =file=,
   =ring=, =multi=, =json=, =rotating_file=, =async=), a compile-time =config=
   policy selecting a sync or thread-backed async =manager=, a =logger= with

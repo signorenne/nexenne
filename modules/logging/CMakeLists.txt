@@ -16,8 +16,31 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nexenne_standalone_bootstrap()
 endif()
 
-# Header-only. Inter-module dependencies live in module.deps next to this file.
-nexenne_add_module(logging)
+# Compiled: the sinks, the formatter, and the record helpers are ordinary
+# runtime code, so they are built once here instead of in every consumer's
+# translation unit. The generic parts (the logger, the manager policy, the
+# format string, ring_sink, stream_logger) stay templates in the headers.
+#
+# Host sinks are separated because they need a hosted standard library
+# (threads, files, stdio). A freestanding target keeps the header-only
+# stream_logger path by configuring with -DNEXENNE_LOGGING_HOST_SINKS=OFF.
+option(NEXENNE_LOGGING_HOST_SINKS "Build the sinks that need a hosted standard library" ON)
+
+set(_logging_sources
+    src/record.cpp
+    src/multi_sink.cpp
+)
+if(NEXENNE_LOGGING_HOST_SINKS)
+    list(APPEND _logging_sources
+        src/sink.cpp
+        src/pattern_formatter.cpp
+        src/json_sink.cpp
+        src/rotating_file_sink.cpp
+        src/async_sink.cpp
+    )
+endif()
+
+nexenne_add_module(logging KIND STATIC SOURCES ${_logging_sources})
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

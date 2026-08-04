@@ -26,19 +26,6 @@
 #include <string_view>
 #include <thread>
 #include <utility>
-#include <version>
-
-// P2693 added std::formatter<std::thread::id> in C++23, but libstdc++ only
-// ships it from GCC 15, and a clang build against an older libstdc++ (the
-// stock toolchain on Ubuntu 24.04, which CI's clang job uses) has no formatter
-// for the type at all. The stream inserter is guaranteed since C++11, so it is
-// the portable fallback. Include <sstream> only on that path: <record.hpp> is
-// on the ESP-IDF include chain, where dragging in iostreams costs real flash.
-#if defined(__cpp_lib_formatters) && __cpp_lib_formatters >= 202302L
-#include <format>
-#else
-#include <sstream>
-#endif
 
 #include <nexenne/logging/level.hpp>
 
@@ -49,10 +36,11 @@ namespace detail {
 /**
  * @brief Renders a thread id as text, with or without a standard formatter.
  *
- * Both spellings produce the same characters: libstdc++ implements
- * \c std::formatter for \c std::thread::id by delegating to the same stream
- * inserter used by the fallback, so a record's thread field reads identically
- * across the supported toolchains.
+ * Defined out of line so this header, which is on the ESP-IDF include chain,
+ * never pulls in \c <format> or \c <sstream> for a function most translation
+ * units do not call. The rendering is the platform's own: libstdc++ implements
+ * \c std::formatter for \c std::thread::id by delegating to the stream
+ * inserter, so a record's thread field reads identically across toolchains.
  *
  * @param id Thread id to render.
  *
@@ -62,15 +50,7 @@ namespace detail {
  * @post None.
  * @throws std::bad_alloc if the result string cannot be allocated.
  */
-[[nodiscard]] inline auto thread_id_to_string(std::thread::id const id) -> std::string {
-#if defined(__cpp_lib_formatters) && __cpp_lib_formatters >= 202302L
-  return std::format("{}", id);
-#else
-  auto out{std::ostringstream{}};
-  out << id;
-  return out.str();
-#endif
-}
+[[nodiscard]] auto thread_id_to_string(std::thread::id id) -> std::string;
 
 }  // namespace detail
 
