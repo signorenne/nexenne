@@ -60,5 +60,16 @@
             "displayName": "Build and run all doctest suites",
             "targets": ["nexenne_tests"]
         }
+    ],
+    "testPresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "output": { "outputOnFailure": true },
+            "execution": { "noTestsAction": "error", "jobs": 0 }
+        },
+        { "name": "dev",     "inherits": "base", "configurePreset": "dev" },
+        { "name": "ci",      "inherits": "base", "configurePreset": "ci" },
+        { "name": "asan",    "inherits": "base", "configurePreset": "asan" }
     ]
 }

@@ -6,21 +6,39 @@ Tests use [[https://github.com/doctest/doctest][doctest]]. The
 [[file:../../cmake/nexenne_testing.cmake][nexenne_testing.cmake]] helper fetches the
 hash-verified upstream release archive for =NEXENNE_DOCTEST_VERSION= (default
 =2.4.12=) when =doctest::doctest_with_main= is not already provided, so a fresh
-clone needs nothing extra. There is no CTest integration:
-=nexenne_add_module_tests= builds one doctest binary per module and attaches it
-to the aggregate =nexenne_tests= target.
+clone needs nothing extra. =nexenne_add_module_tests= builds one doctest binary
+per module, registers it with CTest as =nexenne_<name>= (labelled with the
+module name, 600 s timeout), and also attaches it to the aggregate
+=nexenne_tests= target.
 
 * Run
 
 #+BEGIN_SRC sh
 cmake --preset dev
-cmake --build --preset dev --target nexenne_tests   # build and run every suite
+cmake --build --preset dev      # build the suites
+ctest --preset dev              # run them in parallel
+#+END_SRC
+
+CTest is the default path: it runs the suites concurrently, prints output only
+for failures, and gives the standard selectors. The aggregate target remains for
+iterating without a separate run step:
+
+#+BEGIN_SRC sh
+cmake --build --preset dev --target nexenne_tests   # build and run, serially
 #+END_SRC
 
 Equivalently =cmake --build --preset tests=, which is the =tests= build preset
 wired to the same target. Building =nexenne_tests= runs each module's binary
 directly (via per-module =run_nexenne_<name>_tests= custom commands); a failing
 suite returns nonzero and fails the build.
+
+Useful CTest selectors:
+
+#+BEGIN_SRC sh
+ctest --preset dev -R container            # one module by test name
+ctest --preset dev -L geometry             # by label
+ctest --preset dev --repeat until-fail:20  # hunt an intermittent failure
+#+END_SRC
 
 Run one module's suite straight from the binary, with doctest flags such as
 =--test-case=, =--success=, or =--list-test-cases=:
@@ -53,7 +71,8 @@ it (the =asan= job). Locally:
 
 #+BEGIN_SRC sh
 cmake --preset asan
-cmake --build --preset asan --target nexenne_tests
+cmake --build --preset asan
+ctest --preset asan
 #+END_SRC
 
 * See also

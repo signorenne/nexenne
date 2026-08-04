@@ -221,6 +221,12 @@ function(nexenne_add_module_tests name)
     target_link_libraries(${_exe} PRIVATE
         nexenne::${name} doctest::doctest_with_main nexenne::warnings nexenne_doctest_quirks)
 
+    # Registered with ctest so the suites run in parallel and pick up timeouts,
+    # labels, and repeat-until-fail. nexenne_tests stays as the serial
+    # build-and-run aggregate for iterating without a separate run step.
+    add_test(NAME nexenne_${name} COMMAND ${_exe})
+    set_tests_properties(nexenne_${name} PROPERTIES LABELS "${name}" TIMEOUT 600)
+
     # Run the doctest binary; nexenne_tests aggregates every module's suite.
     add_custom_target(run_${_exe}
         COMMAND $<TARGET_FILE:${_exe}>

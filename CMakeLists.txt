@@ -43,6 +43,9 @@ include(nexenne_module)
 
 if(NEXENNE_BUILD_TESTS)
     include(nexenne_testing)
+    # Top-level scope on purpose: ctest only discovers tests registered at or
+    # below the directory where testing was enabled.
+    enable_testing()
     # Always present so --target nexenne_tests works even before any module
     # adds a suite; modules attach their run targets to it.
     add_custom_target(nexenne_tests COMMENT "[nexenne] running all doctest suites")

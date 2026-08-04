@@ -111,6 +111,7 @@ macro(nexenne_standalone_bootstrap)
 
     if(NEXENNE_BUILD_TESTS)
         include(nexenne_testing)
+        enable_testing()
     endif()
     if(NEXENNE_BUILD_DOCS AND NOT TARGET nexenne_docs)
         include(nexenne_doxygen)
