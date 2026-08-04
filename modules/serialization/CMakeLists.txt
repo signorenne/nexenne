@@ -16,7 +16,13 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nexenne_standalone_bootstrap()
 endif()
 
-nexenne_add_module(serialization)
+# Compiled: the JSON parser and serializer are ordinary runtime code, built once
+# here rather than in every consumer translation unit. The schema-driven binary
+# reader/writer, CBOR, MessagePack, and COBS stay templates in the headers.
+nexenne_add_module(serialization KIND STATIC SOURCES
+    src/json/parse.cpp
+    src/json/serialize.cpp
+)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)
