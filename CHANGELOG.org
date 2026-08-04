@@ -4,6 +4,1905 @@
 
 All notable user-facing changes are generated from Conventional Commits.
 
+* v0.2.0 - 2026-08-04
+
+** Bug Fixes
+
+- =container=: Materialize small_vector emplace_back value before regrow so push_back of an existing element is safe (=d661388=)
+
+- =container=: Materialize ring_buffer overwrite value before evicting so push_overwrite of the evicted element is safe (=2ea0527=)
+
+- =container=: Reject over-aligned types in linear_arena at compile time (=1f6dc87=)
+
+- =container=: Fix memory-safety and correctness bugs and tighten type constraints across the module (=2c3974d=)
+
+- =container=: Materialize gap_buffer::insert argument before grow_gap to avoid self-aliasing use-after-free (=1e1652e=)
+
+- =container=: Prune trie::erase along the key path in O(k) instead of rescanning the whole trie (=239dff7=)
+
+- =container=: Tear down, clone, traverse, and compare trie iteratively to avoid stack overflow on deep keys (=82ce693=)
+
+- =container=: Make lru_cache capacity a compile-time NTTP enforced by requires(Capacity >= 1), eliminating the zero-capacity release UB (=224a4d6=)
+
+- =serialization=: Reject CBOR length prefixes that exceed size_type before narrowing, preventing 32-bit truncation and cursor desync (=de67075=)
+
+- =serialization=: Resolve trailing/empty JSON-Pointer tokens in at_path per RFC 6901 (a trailing slash was dropped) (=f2e1b5c=)
+
+- =serialization=: Compare json::value iteratively so deep DOMs are stack-safe like the destructor (=c9846f6=)
+
+- =serialization=: Constrain versioned_decoder to a decode returning expected<T, error> instead of a tautological same_as check (=db75955=)
+
+- =chrono=: Clamp non-finite rate_limiter capacity/refill to zero so a NaN cannot silently disable limiting (=bec8651=)
+
+- =signal=: Reject rvalue-reference signal parameters with a clear static_assert instead of a deep emit-time error (=5be5b60=)
+
+- =ecs=: Install component_pool.hpp, which registry.hpp includes but was missing from the CMake HEADERS file set (=befb4a5=)
+
+- =ecs=: Sweep every storage after destroy fires on_destroy so a component a listener attaches to the dying entity cannot orphan onto a recycled index (=0144c50=)
+
+- =chrono=: Clamp a backward frame_timer delta to zero for parity with rate_limiter's non-monotonic-clock guard (=778e46c=)
+
+- =container=: Compute object_pool slot bounds on integer addresses, avoiding ill-defined relational compare and subtraction of a foreign pointer (=bef51b5=)
+
+- =container=: Reject a sparse_set key at size_type's maximum instead of wrapping its capacity to zero and writing out of bounds (=08b5552=)
+
+- =algorithm=: Fall back to a comparison sort when counting_sort's bucket count would overflow, instead of writing into an empty vector (=693ee65=)
+
+- =algorithm=: Truncate interpolator knots to the common xs/ys length so operator() cannot read out of bounds on a short ys (=0513e53=)
+
+- =algorithm=: Static_assert width>=8 in the non-reflected CRC path so a sub-byte non-reflected spec fails with a clear message, not a width-8 underflow (=fe057c6=)
+
+- =algorithm=: Reject a NaN bracket endpoint in bisection as not_bracketed instead of burning the iteration budget (=265df22=)
+
+- =random=: Drop the ineffective constexpr on poisson's ctor (std::exp is not constexpr), use -= 1 in the shuffle, and correct garbled formula comments + a dead TODO reference (=cf663ad=)
+
+- =math=: Close edge cases found in review - float uniform_real_in upper bound, formatter spec validation, and non-finite matrix inverse (=cb28539=)
+
+- =hooks=: Clear GIT_DIR/GIT_WORK_TREE in pre-push so the ci doctest fetch works (=12725ad=)
+
+- =cmake=: Pull nexenne::all only when all components are loaded so a COMPONENTS subset resolves (=60118ca=)
+
+- =utility=: Take const& in the defaulted flags operator== so clang accepts it (=9cdaccd=)
+
+- =utility=: Expand the enum-reflection folds as flat initializer lists so large windows stay within clang's expression-nesting limit (=20c3a2d=)
+
+- =utility=: Constrain buffer_cursor::put with a leading requires so Doxygen documents its void return (=7655885=)
+
+- =headers=: Include <expected> directly in headers that use it rather than relying on a transitive include (=c0d7b3c=)
+
+- =logging=: Hold async_sink flush until the in-flight record is written, not just until the queue is empty (=cd5cd2e=)
+
+- =geometry=: Correct the epa normal direction (=44a11e0=)
+
+- =utility=: Invoke function_ref through invoke_r and delete dangling callable assignment (=c3e3534=)
+
+- =utility=: Constrain in_place_function on invoke_r and store its target in aligned bytes (=af13d74=)
+
+- =utility=: Run the defer cleanup when moving the callable in throws (=3244628=)
+
+- =utility=: Run the scope_guard cleanup when moving the callable in throws (=b273861=)
+
+- =utility=: Give unique_resource the P0052 move and reset exception guarantees (=1c1335f=)
+
+- =utility=: Constrain lazy on an lvalue factory returning a cacheable object (=c553234=)
+
+- =utility=: Accept pointer-to-member callables in for_each_non_null (=c3ae5b4=)
+
+- =utility=: Include every leaf header from the utility umbrella (=ae96209=)
+
+- =utility=: Range-check narrow_cast before the floating point conversion (=3aac260=)
+
+- =utility=: Guard bit field packing with an overflow-free bounds check (=241bfce=)
+
+- =utility=: Assert the align_up overflow precondition (=6448588=)
+
+- =utility=: Make hash_combine conditionally noexcept and correct its provenance (=15db46c=)
+
+- =utility=: Assert every buffer_cursor precondition (=b663c09=)
+
+- =utility=: Make strong_typedef operators conditionally noexcept and add rvalue get (=5c4312c=)
+
+- =utility=: Compare non_null against nullptr honestly and guard access after move (=256e339=)
+
+- =utility=: Give flags an explicit bool, a popcount, and symmetric operators (=7c287db=)
+
+- =utility=: Scan static_string length to the first terminator (=f6f308c=)
+
+- =utility=: Clamp the enum_to_string scan window to the underlying type (=536e329=)
+
+- =utility=: Make the expected_utils helpers conditionally noexcept (=2514748=)
+
+- =serialization=: Reject non-boolean bytes when decoding a binary bool (=50a501f=)
+
+- =serialization=: Add msgpack read_uint and skip_value and reject oversized decoded ints (=2dbd081=)
+
+- =serialization=: Let the cbor reader consume undefined and skip items and keep writes all-or-nothing (=e83eabe=)
+
+- =serialization=: Harden the json codec against deep DOMs, out-of-range numbers, and invalid escapes (=8a54f15=)
+
+- =container=: Construct small_vector emplace_back the same way on the grow path (=9db5e6b=)
+
+- =container=: Give deque iteration, equality, checked access, and consistent emplace (=818f8e6=)
+
+- =container=: Scale the gap_buffer gap so mid-buffer insert stays amortised O(1) (=01d54bb=)
+
+- =container=: Guard bitset_dynamic size against word-count overflow (=5f9c8bf=)
+
+- =container=: Fail stable_vector reserve loudly on overflow and document iterator invalidation (=c7afc40=)
+
+- =container=: Rehash flat_hash_map in place so churn does not grow it without bound (=efa4cb8=)
+
+- =container=: Materialise the static_flat_map entry before shifting slots (=c532e05=)
+
+- =container=: Bound bimap growth and document its insert argument consumption (=e56845e=)
+
+- =container=: Add sparse_set value_type and document its rejected-key case (=de6f694=)
+
+- =container=: Cap slot_map size at the index type and assert on exhaustion (=c07a570=)
+
+- =container=: Give the dense_map proxy iterator operator-> and constrain its value (=2cc7010=)
+
+- =container=: Destroy and clone binary_tree iteratively to avoid stack overflow (=e7cbe85=)
+
+- =container=: Treat trie string keys as views and propagate const through for_each (=43b5c8f=)
+
+- =container=: Assert intrusive_list link preconditions on insert, move, and destruction (=c8e86ee=)
+
+- =container=: Assert the graph vertex id space is not exhausted (=106c93d=)
+
+- =container=: Assert union_find node indices do not wrap (=646b3f4=)
+
+- =container=: Key the lru_cache index by node storage and release entries on erase (=704f40f=)
+
+- =container=: Make indexed_priority_queue results nodiscard and assert handle exhaustion (=93103c1=)
+
+- =container=: Reject overflowing counts in linear_arena allocate (=07d9a90=)
+
+- =container=: Assert the bloom_filter factory preconditions (=8c4d008=)
+
+- =container=: Constrain scratch_pad allocation on its arena and document alignment (=e19cc4b=)
+
+- =container=: Add mpsc_queue full_approx and tidy its atomics (=c9d4ef2=)
+
+- =ecs=: Harden component iteration, type ids, and registry lifecycle against crashes and forged handles (=7327b06=)
+
+- =math=: Re-reduce scalar mod for large dividends and fix the long double trunc threshold (=8d2bab2=)
+
+- =math=: Reduce enormous angles before the sincos polynomial and tighten the error bounds (=12d8b06=)
+
+- =math=: Return NaN or negative infinity from fast_log for non-positive input (=6014049=)
+
+- =math=: Default normalized to a unit axis and report normalize overflow as an error (=7414168=)
+
+- =math=: Assert vector operator[] bounds on its documented precondition (=18d077f=)
+
+- =math=: Scale the matrix inverse singularity threshold and add the missing matrix operators (=2d73a55=)
+
+- =geometry=: Converge EPA on smooth pairs and report GJK cap exhaustion conservatively (=f3062c1=)
+
+- =geometry=: Make intersects symmetric across shape pairs and reject near-parallel rays (=2da49a5=)
+
+- =geometry=: Release the aabb_tree payload on remove and harden the query stack (=e57809a=)
+
+- =geometry=: Transform OBBs conservatively and reject reflections in decompose (=c3e4d43=)
+
+- =geometry=: Restrict frustum depth convention and add obb, polygon, and triangle helpers (=23c0fca=)
+
+- =algorithm=: Stop graph scans wrapping at 2^bits vertices and guard shortest-path overflow (=988448d=)
+
+- =algorithm=: Correct histogram quantile buckets and make the numerical helpers conditionally noexcept (=c52bad3=)
+
+- =algorithm=: Make binary_search comparisons conditionally noexcept (=03c8d13=)
+
+- =algorithm=: Assert the radix and counting sort buffer sizes (=58c7fff=)
+
+- =algorithm=: Reject embedded zeros in cobs decode and tighten base-n decoding (=ab0d511=)
+
+- =algorithm=: Make crc genuinely constexpr and honestly name crc8 (=e136896=)
+
+- =algorithm=: Form no past-the-end pointers in the xxhash bounds checks (=85f3eda=)
+
+- =chrono=: Clamp before the duration cast so to_count_sat cannot overflow (=c0717c9=)
+
+- =chrono=: Keep interior zero components and honor the format token layout (=0dd4165=)
+
+- =chrono=: Disarm one-shot alarms before the callback and bound the rate limiter and deadline (=d22c23f=)
+
+- =chrono=: Guard hertz_from arithmetic and require a noexcept now in clock_like (=6de6961=)
+
+- =chrono=: Add stopwatch formatters and align the frame_timer parameter order (=c4ff7ad=)
+
+- =filter=: Recompute the sma running sum on wrap and drop the dead butterworth enum (=ad3de19=)
+
+- =filter=: Harden the guards - real accepted state, rate escape hatch, NaN staleness, and noexcept validator (=d696cc1=)
+
+- =logging=: Make file_sink non-movable so a move cannot reset its level (=5b216c4=)
+
+- =logging=: Always terminate a truncated stream_logger line with a newline (=ffb434b=)
+
+- =logging=: Reject a zero async_sink queue limit (=c860c20=)
+
+- =logging=: Guard rotating_file_sink writes against a concurrent force_rotate (=b527b64=)
+
+- =signal=: Match static_signal nested-emit ordering to signal and reclaim dead slots at capacity (=860c958=)
+
+- =signal=: Correct the emit postcondition, complete the umbrella, and add connection formatters (=fd580e1=)
+
+- =benchmark=: Calibrate iterations iteratively, defeat DCE portably, and stop median terminating (=be64a72=)
+
+- =random=: Assert the uniform_int bounds precondition (=61f98c7=)
+
+- =random=: Assert the distribution parameter preconditions (=c12bff1=)
+
+- =random=: Make shuffle conditionally noexcept on the element swap (=0b412e6=)
+
+- =algorithm=: Discard the nodiscard graph add_edge results in the examples (=9601597=)
+
+- =container=: Mark the fallible contiguous mutators nodiscard and document their helpers (=b569d35=)
+
+- =algorithm=: Render result sequences without the libstdc++ range formatter (=44d4005=)
+
+- =math=: Keep constexpr sqrt and round clang -Wdouble-promotion clean (=972d851=)
+
+- =release=: Remove the cliff.toml output that collides with the changelog prepend (=b8398f2=)
+
+- =can=: Correct comparison and packing types (=9009bee=)
+
+- =release=: Preserve changelog header when prepending entries (=7ee7860=)
+
+- =gpio=: Validate requests before device access (=28a842d=)
+
+- =logging=: Render thread ids without a standard formatter (=ac7d13b=)
+
+
+** Build System
+
+- =cmake=: Compile the project's own targets with -fno-math-errno (=fdb479d=)
+
+- =cmake=: Fetch doctest and Doxygen from hash-verified release downloads so clone-and-build needs no setup (=5709de4=)
+
+- =cmake=: Bump doctest to 2.4.12 and raise the policy floor to silence the CMake deprecation warning (=56c50c9=)
+
+- =docs=: Gate Doxygen dot graphs on Graphviz so docs build without it, and install graphviz in CI (=99e8024=)
+
+- =tidy=: Drive clang-tidy warnings-as-errors from .clang-tidy so local and CI match, enforcing compile diagnostics and dropping hicpp-signed-bitwise (=5c30a51=)
+
+- =testing=: Include doctest as a system dependency so its own warnings stay out of our -Werror test builds (=a10eed9=)
+
+- =ci=: Align the CI toolchain to gcc-15 and clang-19 since clang-18 cannot compile std::expected with libstdc++ (=0107555=)
+
+- =tidy=: Split clang-tidy into a strict library config and relaxed shared configs for tests and examples (=16999c6=)
+
+- =utility=: Register the new utility examples in cmake (=8204cd5=)
+
+- =ci=: Move the toolchain to clang 20 and clang-format 20 (=eb21e63=)
+
+- =ci=: Add ci-local.sh to reproduce the workflow matrix locally (=973b251=)
+
+- =gpio=: Register line configuration headers (=a948a67=)
+
+- =gpio=: Register line observation headers (=aa9a07b=)
+
+- =gpio=: Register backend contracts (=9113a67=)
+
+- =gpio=: Register gpio handles (=ba9b697=)
+
+- =gpio=: Register edge processing components (=2e55f44=)
+
+- =gpio=: Register edge sink transports (=e115df1=)
+
+- =gpio=: Register gpio examples (=0040cea=)
+
+- =gpio=: Register the module version (=4b5e05f=)
+
+- =can=: Register the module version (=8fdab45=)
+
+
+** Continuous Integration
+
+- =security=: Pin third-party github actions to full commit shas (=09470e4=)
+
+- =dependabot=: Add config to keep pinned github actions current (=9c26aa7=)
+
+
+** Documentation
+
+- =project=: Document build system, tooling, and docs (=f68f181=)
+
+- =examples=: Add a runnable example per utility class (=25cd286=)
+
+- =examples=: Document a runnable example per utility class (=fa524c0=)
+
+- =utility=: Add per-class usage guides under doc/module (=b2ca5a3=)
+
+- =container=: Document module with error codes and result alias (=619bcdb=)
+
+- =container=: Document static_vector (=4b04fad=)
+
+- =repo=: Nest doc indexes into a hierarchy (=55a4aff=)
+
+- =container=: Document small_vector (=f68421c=)
+
+- =container=: Document ring_buffer (=e89ff3a=)
+
+- =container=: Document stable_vector (=800ef33=)
+
+- =container=: Document bitset_dynamic (=302bdde=)
+
+- =container=: Document linear_arena (=3436b31=)
+
+- =container=: Document scratch_pad (=6ac285f=)
+
+- =container=: Document bag (=26ad2f7=)
+
+- =container=: Document hardening of bitset iterator equality and early-exit any/none, arena over-align guard, bag erase constraint, small_vector and stable_vector hot paths, the ring_buffer wrap diagram, and edge-case tests (=96fbe23=)
+
+- =container=: Document deque (=42797ec=)
+
+- =container=: Document heap (=8dea7f8=)
+
+- =container=: Document gap_buffer (=683c6c4=)
+
+- =repo=: Add complexity and when-to-use sections to all guides, expand the setup and index docs, and refresh the root docs (=10dbf91=)
+
+- =container=: Document object_pool (=4492d2f=)
+
+- =container=: Document intrusive_list (=f2d50cf=)
+
+- =container=: Document sparse_set (=d6dc822=)
+
+- =container=: Document union_find (=21985e8=)
+
+- =container=: Deepen the how-it-works and when-to-use sections of the Phase 3 guides (=f2a9f50=)
+
+- =container=: Document flat_set (=b2ae000=)
+
+- =container=: Document flat_map (=17fa664=)
+
+- =container=: Document static_flat_map (=f055f66=)
+
+- =utility=: Document constexpr_map, superseded by static_flat_map (=708e3b6=)
+
+- =container=: Document flat_hash_map (=3f36c6f=)
+
+- =container=: Document flat_hash_set (=3cb8cf5=)
+
+- =container=: Note object_pool does not destroy live objects at destruction and fix sparse_set reserve wording (=73b5e44=)
+
+- =container=: Document dense_map (=b108908=)
+
+- =container=: Document slot_map (=1118c4d=)
+
+- =container=: Document bimap (=53239f2=)
+
+- =container=: Document lru_cache (=8955117=)
+
+- =container=: Document binary_tree (=4c35c6b=)
+
+- =container=: Document graph (=ced04b8=)
+
+- =container=: Document trie (=4eebe1e=)
+
+- =container=: Document bloom_filter (=b863af9=)
+
+- =container=: Document indexed_priority_queue (=85b8a62=)
+
+- =container=: Document lock-free spsc, mpsc and mpmc concurrent queues (=93dfcbb=)
+
+- =container=: Document hash specializations for value containers (=b296161=)
+
+- =container=: Document to_string, ostream and std::formatter for containers (=aa1a2df=)
+
+- =chrono=: Document portable clock-templated timing primitives module (=13d5e97=)
+
+- =random=: Document a seedable, reproducible RNG module with engines, distributions and sampling (=8341cba=)
+
+- =container=: Document memory-safety and correctness bugs and tighten type constraints across the module (=f0dfb3b=)
+
+- =benchmark=: Document micro-benchmark runner reusing chrono stopwatch and duration formatting (=c67ad3e=)
+
+- =container=: Document transparent heterogeneous lookup to flat_map (=2701cf3=)
+
+- =serialization=: Document JSON, CBOR, MessagePack, binary and COBS codecs under one expected error policy (=2752b39=)
+
+- =filter=: Document discrete-time digital filters for embedded signal conditioning (=ea3472c=)
+
+- =signal=: Document header-only signal/slot multicast callbacks with safe reentrancy (=146224f=)
+
+- =signal=: Document allocation-free fixed-capacity static_signal variant (=e843972=)
+
+- =chrono=: Document fixed_stopwatch to static_stopwatch to match the static_ fixed-capacity naming convention (=e238c32=)
+
+- =ecs=: Document sparse-set entity-component registry with multi-component views and lifecycle signals (=ab8f86f=)
+
+- =ecs=: Document components in a pointer-stable tombstoning pool so views can add and remove components mid-iteration without dangling references (=cdde426=)
+
+- =algorithm=: Document the module with build wiring and a placeholder umbrella (=14dd5f8=)
+
+- =algorithm=: Document index-returning binary-search variants (find_sorted, exponential_search, interpolation_search); fix interpolation_search integer-overflow on extreme spans (=2c13e5a=)
+
+- =algorithm=: Document non-cryptographic hashes (fnv1a, murmur3, xxhash) with little-endian reads; fix murmur3<128> c1 constant (=4992a57=)
+
+- =algorithm=: Document adler32 and a generic Rocksoft-model CRC engine; defer adler32 modulo (zlib NMAX) and reduce over-range seeds (=2c0e4df=)
+
+- =algorithm=: Document encoding codecs (hex/base32/base64 on a generic base_n engine, plus url and cobs) (=14aed64=)
+
+- =algorithm=: Document adler32 into a spec-driven Adler/Fletcher modular-sum family (fletcher16/32/64) (=f81972c=)
+
+- =algorithm=: Document integer sorts counting_sort and radix_sort with a heap-free caller-scratch overload (=179ad77=)
+
+- =algorithm=: Document string algorithms (kmp, boyer_moore, z_function, levenshtein, aho_corasick, suffix_array) (=cee8004=)
+
+- =algorithm=: Document numerical routines (compensated sums, online stats, root finding, quadrature, interpolation, ode steppers, fft) (=da08789=)
+
+- =algorithm=: Document graph algorithms over container::graph (traversal, shortest paths, topological sort, scc, mst, lca) (=e22aeff=)
+
+- =container=: Document lru_cache capacity a compile-time NTTP enforced by requires(Capacity >= 1), eliminating the zero-capacity release UB (=4f614f1=)
+
+- =logging=: Document a header-only logging module with levels, records, sinks, async/sync manager, loggers, LOG_* macros, and a heap-free embedded stream logger (=89080d8=)
+
+- =concepts=: Document concepts the way the STL does and document the rule, renaming same_tag to same_tag_as and the lru_capacity_ok test probe to lru_cache_instantiable (=4db182a=)
+
+- =math=: Document the module with arithmetic concepts, the math_error result policy, and constexpr constants (=4dd8ed2=)
+
+- =docs=: Add the missing algorithm and logging entries to the module index (=77da6e4=)
+
+- =math=: Document scalar utilities and the power, root, and fast-transcendental functions (=483a294=)
+
+- =docs=: Record the math and geometry documentation standard in conventions.org (=2468604=)
+
+- =math=: Explain the power and scalar bit-tricks and conventions in code with references (=e423573=)
+
+- =math=: Document strong angle and degree types, three-speed trigonometry, and Q-format fixed-point (=7fbbdbe=)
+
+- =math=: Document fixed-size vectors, vector algorithms, and the unit-length wrapper (=64fdc11=)
+
+- =repo=: Define the STL-aligned _t naming guideline in the style guide and conventions (=dad36c0=)
+
+- =math=: Document the _t from sin_cos and rename the trig LUT table type (=4c5391e=)
+
+- =container=: Document the _t from lru_cache's internal node struct (=16090f0=)
+
+- =math=: Document the column-major matrix with SIMD products, inverse, and the projection builders (=0e2d803=)
+
+- =repo=: Require reusing the standard library (numbers, algorithms, traits) over reinventing it (=f3203b0=)
+
+- =math=: Document the unit quaternion with slerp variants and Euler-angle conversions (=49500fd=)
+
+- =math=: Document 2D/3D affine transform builders, the look_at view matrix, and parametric curve interpolation (=0f47af5=)
+
+- =math=: Document geometric random samplers for uniform directions, disc and ball points, and angles (=07f8b73=)
+
+- =math=: Document std::hash and std::format support for the value types and finalize the module umbrella (=2e42a81=)
+
+- =math=: Explain the hard math in-code (quaternion, euler, matrix, projection derivations) and correct doc inaccuracies (=0335286=)
+
+- =math=: Document the hard math in-code (quaternion, euler, matrix, projection derivations) and correct doc inaccuracies (=df7681c=)
+
+- =math=: Document the std::format spec to each component of the value-type formatters (=243ec8d=)
+
+- =examples=: Add a per-module showcase and deepen the per-feature tours across all modules (=1bfb87b=)
+
+- =examples=: Document a per-module showcase and deepen the per-feature tours across all modules (=7e2cd1d=)
+
+- =style=: Require a formatter for every public type so its state prints without a custom helper (=17f1f4b=)
+
+- =style=: Require one /** */ block per symbol, no stacked /// comments (=9646b7f=)
+
+- =style=: Require every value class to expose a value_type alias (=827a7c5=)
+
+- =style=: Clarify the Doxygen comment rule and the single-line @brief boundary (=34a0fea=)
+
+- =algorithm=: Convert multi-line /// comments to /** */ blocks (=5e055d2=)
+
+- =ecs=: Convert a multi-line /// comment to a /** */ block (=f49dff8=)
+
+- =filter=: Convert a multi-line /// comment to a /** */ block (=ef74f9b=)
+
+- =serialization=: Convert a multi-line /// comment to a /** */ block (=2743229=)
+
+- =signal=: Convert multi-line /// comments to /** */ blocks (=e1dc2b2=)
+
+- =readme=: Add a documentation hub and link the AI-use disclaimer (=190e106=)
+
+- =repo=: Normalize off page titles and drop a stray backtick from the chrono example (=1f1b950=)
+
+- =repo=: Document unused lambda captures, route self-assignment tests through a pointer, and mark unused fixtures so clang accepts them under -Werror (=f674c21=)
+
+- =utility=: Document discard for explicit value discarding and forbid void-cast discards in the style guide (=8f17e0b=)
+
+- =utility=: Document endian helpers to read and write unsigned integers in a fixed byte order (=13f982f=)
+
+- =utility=: Document buffer_cursor for bounds-tracked navigation of a byte buffer (=b2af53f=)
+
+- =utility=: Document for_each_non_null to apply a callable to each non-null element of a range (=cb65c41=)
+
+- =utility=: List the discard, endian, buffer_cursor, and for_each_non_null guides in the module index (=f08aa56=)
+
+- =container=: Inline the brief on const overloads and drop the operator-new auto-link so older Doxygen resolves them (=4032ae8=)
+
+- =tidy=: Document clang-tidy into a strict library config and relaxed shared configs for tests and examples (=e0de9a3=)
+
+- =agents=: Add agent guide, design and vision hubs, and a role-based docs map (=302d6f2=)
+
+- =release=: Document module-aware release automation (=1d5c056=)
+
+- =agents=: Add the context-first, small-incremental-steps working method (=bd4b5b6=)
+
+- =agents=: Document the context-first, small-incremental-steps working method (=1ca93af=)
+
+- =dependabot=: Document config to keep pinned github actions current (=b6d9b10=)
+
+- =agents=: Scout for reuse and prefer small composable building blocks (=c47d1d4=)
+
+- =agents=: Spell out the no-HTML javadoc doxygen rule in the floor (=887f8f9=)
+
+- =agents=: Standardize assistant entrypoints (=67a6f06=)
+
+- =agents=: Document assistant entrypoints (=035abed=)
+
+- =agents=: Surface ai accountability in the guide (=ca0fa5f=)
+
+- =geometry=: Document the primitive shapes (aabb, sphere, circle, ray, segment, plane, triangle) (=45c3b7c=)
+
+- =geometry=: Document the composite shapes (obb, capsule, polygon, frustum) (=884d63e=)
+
+- =geometry=: Document the cross-type queries (closest_point, intersect) (=4addfbe=)
+
+- =geometry=: Document support overloads for the analytic primitives (=2a8d055=)
+
+- =geometry=: Document the shape transforms and pose aggregates (=9b64885=)
+
+- =geometry=: Document the aabb tree broad-phase bvh (=f19f0be=)
+
+- =geometry=: Document the convex hull support shape and the gjk overlap test (=fb73fb2=)
+
+- =geometry=: Document the epa penetration depth and contact solver (=f04d7c4=)
+
+- =geometry=: Document gjk and epa around the signed-volumes distance subalgorithm (=84c45ca=)
+
+- =geometry=: Document hit point and surface normal from the ray casts (=4ac2a83=)
+
+- =geometry=: Document closest-point queries for triangle, obb, and segment-triangle (=7352f9d=)
+
+- =geometry=: Document a contact manifold from the epa closest face (=df753d7=)
+
+- =geometry=: Document the std::hash specializations for the shapes (=66e29d1=)
+
+- =geometry=: Document the formatters for every shape and the error enum (=26a3787=)
+
+- =geometry=: Refresh the module index for the final header set (=685f4f2=)
+
+- =geometry=: Add the runnable geometry showcase example (=c2cb56a=)
+
+- =geometry=: Document the runnable geometry showcase example (=0614648=)
+
+- =geometry=: Show distance, ray normals, and the contact manifold in the showcase (=1371019=)
+
+- =geometry=: Document the epa normal direction (=7726b9a=)
+
+- =utility=: Document function_ref through invoke_r and delete dangling callable assignment (=100a2ae=)
+
+- =utility=: Document in_place_function on invoke_r and store its target in aligned bytes (=ee024e2=)
+
+- =utility=: Note the overloaded free-function-pointer limitation (=0d242ff=)
+
+- =utility=: Document the overloaded free-function-pointer limitation (=5fbf485=)
+
+- =utility=: Document the defer cleanup when moving the callable in throws (=2345b38=)
+
+- =utility=: Document the scope_guard cleanup when moving the callable in throws (=e9c4d5c=)
+
+- =utility=: Document unique_resource the P0052 move and reset exception guarantees (=8520ebb=)
+
+- =utility=: Document lazy on an lvalue factory returning a cacheable object (=137dfac=)
+
+- =utility=: Document pointer-to-member callables in for_each_non_null (=f8e0553=)
+
+- =utility=: Add a runnable discard example and guide (=53a0fca=)
+
+- =utility=: Document narrow_cast before the floating point conversion (=99f05ca=)
+
+- =utility=: Document bit field packing with an overflow-free bounds check (=9d41206=)
+
+- =utility=: Document the align_up overflow precondition (=d87d927=)
+
+- =utility=: Document hash_combine conditionally noexcept and correct its provenance (=1441f07=)
+
+- =utility=: Add a runnable endian example and little-endian compile-time tests (=22b73eb=)
+
+- =utility=: Document a runnable endian example and little-endian compile-time tests (=cc939f9=)
+
+- =utility=: Document every buffer_cursor precondition (=7b24d13=)
+
+- =utility=: Document strong_typedef operators conditionally noexcept and add rvalue get (=cf1c404=)
+
+- =utility=: Document non_null against nullptr honestly and guard access after move (=1f5caf5=)
+
+- =utility=: Document flags an explicit bool, a popcount, and symmetric operators (=9e4b4a0=)
+
+- =utility=: Document static_string length to the first terminator (=f76ad56=)
+
+- =utility=: Document the enum_to_string scan window to the underlying type (=dd6b385=)
+
+- =utility=: Document the expected_utils helpers conditionally noexcept (=bdb48fc=)
+
+- =utility=: Introspect a callable in the meta example and guide (=ced5ff4=)
+
+- =utility=: Expand the type_list example and guide (=f7edf18=)
+
+- =utility=: Expand the source_location_format guide and tidy its header comment (=b2ec57b=)
+
+- =utility=: Document the source_location_format guide and tidy its header comment (=76957f7=)
+
+- =serialization=: Correct the binary writer skip documentation (=bfc9f52=)
+
+- =serialization=: Document the json codec against deep DOMs, out-of-range numbers, and invalid escapes (=db7a4bd=)
+
+- =serialization=: Fix the utf-8, zig-zag, and discard wording in the binary and codec guides (=3308305=)
+
+- =container=: Document deque iteration, equality, checked access, and consistent emplace (=3088879=)
+
+- =container=: Document the gap_buffer gap so mid-buffer insert stays amortised O(1) (=15372b5=)
+
+- =container=: Document bitset_dynamic size against word-count overflow (=7113f36=)
+
+- =container=: Document stable_vector reserve loudly on overflow and document iterator invalidation (=f4437af=)
+
+- =container=: Soften the static_vector std::vector comparison (=fdf9cd9=)
+
+- =container=: Correct the bag erase_first complexity (=af4ba46=)
+
+- =container=: Document flat_hash_map in place so churn does not grow it without bound (=a2f58c6=)
+
+- =container=: Document bimap growth and document its insert argument consumption (=460f0ab=)
+
+- =container=: Document sparse_set value_type and document its rejected-key case (=a5904f6=)
+
+- =container=: Document and clone binary_tree iteratively to avoid stack overflow (=f61afa4=)
+
+- =container=: Document trie string keys as views and propagate const through for_each (=d24c79d=)
+
+- =container=: Document intrusive_list link preconditions on insert, move, and destruction (=849413b=)
+
+- =container=: Document the graph vertex id space is not exhausted (=9b60a3b=)
+
+- =container=: Document union_find node indices do not wrap (=48ce8b4=)
+
+- =container=: Document mpsc_queue full_approx and tidy its atomics (=fd6f231=)
+
+- =container=: Document formatters for the eight remaining container types (=ecebc4b=)
+
+- =container=: Document std::hash for flat_set, flat_map, static_flat_map, and gap_buffer (=570ac29=)
+
+- =ecs=: Document component iteration, type ids, and registry lifecycle against crashes and forged handles (=4605384=)
+
+- =math=: Document enormous angles before the sincos polynomial and tighten the error bounds (=1afd5f1=)
+
+- =math=: Document angle compound operators and assert the division precondition (=cc6d329=)
+
+- =math=: Document normalized to a unit axis and report normalize overflow as an error (=561e6d0=)
+
+- =math=: Document the matrix inverse singularity threshold and add the missing matrix operators (=fdeaa15=)
+
+- =math=: Document quaternion constructors constexpr and demonstrate the slerp variants (=3884e3b=)
+
+- =math=: Warn that euler angles are radians and note the reversed parameter order (=877379a=)
+
+- =math=: Document that euler angles are radians and note the reversed parameter order (=179c025=)
+
+- =math=: Warn that perspective takes a radian field of view (=8f13660=)
+
+- =math=: Document that perspective takes a radian field of view (=bc108c5=)
+
+- =math=: Document formatters for axis_angle, euler_angles, euler_order, radians, degrees, fixed, and sin_cos (=c18aea8=)
+
+- =math=: Correct the hash file note on signed zero and NaN (=e7270a9=)
+
+- =math=: Document the hash file note on signed zero and NaN (=3290c54=)
+
+- =geometry=: Document EPA on smooth pairs and report GJK cap exhaustion conservatively (=853e874=)
+
+- =geometry=: Document intersects symmetric across shape pairs and reject near-parallel rays (=d078568=)
+
+- =geometry=: Document the aabb_tree payload on remove and harden the query stack (=23112de=)
+
+- =geometry=: Document OBBs conservatively and reject reflections in decompose (=d545558=)
+
+- =geometry=: Document frustum depth convention and add obb, polygon, and triangle helpers (=b0c0fb2=)
+
+- =geometry=: Document closest_point epsilons and convex_hull degeneracies (=ebbf8a9=)
+
+- =geometry=: Add a runnable primitives example (=4c504ae=)
+
+- =geometry=: Document a runnable primitives example (=8820132=)
+
+- =algorithm=: Name the boyer_moore matcher Horspool and assert the string bounds (=c1bbe98=)
+
+- =algorithm=: Document the boyer_moore matcher Horspool and assert the string bounds (=e93b64d=)
+
+- =algorithm=: Document crc genuinely constexpr and honestly name crc8 (=bcfc56d=)
+
+- =algorithm=: Document the format policy and cover the incomplete_input formatter (=fc7bbab=)
+
+- =chrono=: Document interior zero components and honor the format token layout (=4e8377f=)
+
+- =chrono=: Document one-shot alarms before the callback and bound the rate limiter and deadline (=e4df366=)
+
+- =chrono=: Document stopwatch formatters and align the frame_timer parameter order (=3c560a4=)
+
+- =filter=: Document the sma running sum on wrap and drop the dead butterworth enum (=c6e9eb6=)
+
+- =filter=: Document the guards - real accepted state, rate escape hatch, NaN staleness, and noexcept validator (=dd3c1b8=)
+
+- =filter=: Add references and precondition asserts across the smoothing and adaptive filters (=02924ed=)
+
+- =logging=: Share a level token, add thread-id output, and correct the sink and formatter guides (=61c505c=)
+
+- =logging=: Document a level token, add thread-id output, and correct the sink and formatter guides (=307b12d=)
+
+- =signal=: Document static_signal nested-emit ordering to signal and reclaim dead slots at capacity (=1fb4eaf=)
+
+- =signal=: Document the emit postcondition, complete the umbrella, and add connection formatters (=0d2338f=)
+
+- =benchmark=: Document iterations iteratively, defeat DCE portably, and stop median terminating (=0a7da15=)
+
+- =random=: Document the uniform_int bounds precondition (=3b8443a=)
+
+- =random=: Document formatters for the engines and distributions (=71e953e=)
+
+- =repo=: Require a full doxygen block on every function including detail and anonymous helpers (=b0eaf14=)
+
+- =serialization=: Warn that the implicit json array constructor makes auto x{json::array{}} a one-element array (=73d319a=)
+
+- =utility=: Document a canonical cobs framing codec (=f2f7987=)
+
+- =math=: Document radians on euler_angles, from_ypr, perspective, and perspective_zo (=237818f=)
+
+- =signal=: Document every function and bless the connect-at-capacity token contract (=c2d8c42=)
+
+- =signal=: Document every function and bless the connect-at-capacity token contract (=06b495a=)
+
+- =filter=: Document every function and require an explicit fir and lms tap count (=7102800=)
+
+- =benchmark=: Document the calibration helpers and format_time (=e888f6d=)
+
+- =ecs=: Document every internal pool, view, and registry helper (=8e7e56c=)
+
+- =chrono=: Document every detail and private helper function (=1850399=)
+
+- =logging=: Document every sink and formatter helper function (=f8de93a=)
+
+- =utility=: Document every remaining internal helper function (=3dcd381=)
+
+- =math=: Document the fixed raw constructor (=2fb597f=)
+
+- =serialization=: Document every parser, codec, and writer helper function (=8603e12=)
+
+- =algorithm=: Document every internal graph, string, numerical, and encoding helper (=8466b62=)
+
+- =container=: Document every associative container helper function (=d8c0142=)
+
+- =container=: Document the fallible contiguous mutators nodiscard and document their helpers (=6cbdf38=)
+
+- =container=: Document every tree and queue container helper function (=b1dd07b=)
+
+- =container=: Document every formatter, hash, and concurrent container helper (=c888bc1=)
+
+- =container=: Document the slot_map handle to slot_key and give it a formatter (=5274f18=)
+
+- =logging=: Move the build-macro override example out of the header into the config guide (=7730bd1=)
+
+- =logging=: Document the build-macro override example out of the header into the config guide (=a6cf752=)
+
+- =logging=: Correct the default log queue size to 1024 in the config guide (=f2dbc75=)
+
+- =utility=: Capture a runtime offset in the in_place_function example (=5219934=)
+
+- =can=: Document the module scaffold and error policy (=de0887b=)
+
+- =can=: Document the wire frame layer with a runnable example (=3465b2c=)
+
+- =can=: Document signals and scaling with a runnable example (=0b7b07a=)
+
+- =can=: Add a fields example for byte and text signals (=04a3ed1=)
+
+- =can=: Document the message database with a runnable example (=1b136e7=)
+
+- =can=: Add a filters example (=37a3740=)
+
+- =can=: Document the bus io layer with a loopback example (=b8bc611=)
+
+- =can=: Document j1939 identifiers with a runnable example (=a80cce4=)
+
+- =can=: Document the socketcan backend with a runnable example (=9afa1bf=)
+
+- =can=: Add a j1939 transport example (=144ab33=)
+
+- =can=: Document dbc import with a runnable example (=7bfee75=)
+
+- =can=: Add quickstart, monitor, epoll reactor, and console showcases (=71d3572=)
+
+- =gpio=: Add the module overview (=2238bb5=)
+
+- =gpio=: Document line vocabulary (=43651aa=)
+
+- =gpio=: Document backend contracts (=bd6a754=)
+
+- =gpio=: Document gpio handles (=5f2efe0=)
+
+- =gpio=: Document edge delivery (=c4a77f6=)
+
+- =gpio=: Document the Linux backend (=28a5e8c=)
+
+- =gpio=: Register the module guides (=7a1760d=)
+
+- =gpio=: Document snapshots and supervised retries (=57c18dc=)
+
+- =gpio=: Document pumps, watches, and clocks (=a477676=)
+
+- =gpio=: Document event clock selection (=2b9557c=)
+
+
+** Features
+
+- =utility=: Add overloaded std::visit helper (=7552045=)
+
+- =utility=: Add checked narrow_cast (=41881ed=)
+
+- =utility=: Add defer scope-exit guard (=8b0cd3d=)
+
+- =utility=: Add scope_guard with dismiss and engage (=a035ace=)
+
+- =utility=: Add non_null pointer wrapper (=68d464d=)
+
+- =utility=: Add type_list metafunctions (=d3aa38a=)
+
+- =utility=: Add meta helpers (type_name, function_traits) (=ac97666=)
+
+- =utility=: Add hash_combine helpers (=16cd052=)
+
+- =utility=: Add bit manipulation helpers (=3a0a9d4=)
+
+- =utility=: Add power-of-two alignment helpers (=c13573b=)
+
+- =utility=: Add constexpr_map sorted lookup table (=5f12c69=)
+
+- =utility=: Add static_string NTTP-capable string (=70e0567=)
+
+- =utility=: Add type-safe flags bitset over scoped enums (=5c90c8a=)
+
+- =utility=: Add compile-time enum reflection (=1e6c9c3=)
+
+- =utility=: Add strong_typedef opt-in strong type (=4d888a4=)
+
+- =utility=: Add function_ref non-owning callable view (=0106ea1=)
+
+- =utility=: Add in_place_function fixed-storage callable (=20f235d=)
+
+- =utility=: Add thread-safe lazy deferred-initialisation wrapper (=dee451f=)
+
+- =utility=: Add unique_resource generic RAII owner (=76b3866=)
+
+- =utility=: Add std::expected helper functions (=7506683=)
+
+- =utility=: Add source_location formatters (=5f34501=)
+
+- =container=: Scaffold module with error codes and result alias (=953ecd2=)
+
+- =container=: Add static_vector (=b1b5326=)
+
+- =container=: Add small_vector (=0e93c8c=)
+
+- =container=: Add ring_buffer (=8db8f8d=)
+
+- =container=: Add stable_vector (=55bfd47=)
+
+- =container=: Add bitset_dynamic (=cac19f3=)
+
+- =container=: Add linear_arena (=4f48eab=)
+
+- =container=: Add scratch_pad (=1cb5632=)
+
+- =container=: Add bag (=5d8db60=)
+
+- =container=: Add deque (=588b085=)
+
+- =container=: Add heap (=a6f9788=)
+
+- =container=: Add gap_buffer (=204ba5a=)
+
+- =container=: Add object_pool (=68409b4=)
+
+- =container=: Add intrusive_list (=9f41ef0=)
+
+- =container=: Add sparse_set (=61b7c56=)
+
+- =container=: Add union_find (=7fe300a=)
+
+- =container=: Add flat_set (=d182066=)
+
+- =container=: Add flat_map (=a3e1079=)
+
+- =container=: Add static_flat_map (=2ec0d5f=)
+
+- =container=: Add flat_hash_map (=b856f03=)
+
+- =container=: Add flat_hash_set (=4128ddd=)
+
+- =container=: Add dense_map (=04bb3ad=)
+
+- =container=: Add slot_map (=781b287=)
+
+- =container=: Add bimap (=0f846a1=)
+
+- =container=: Add lru_cache (=89433d6=)
+
+- =container=: Add binary_tree (=153326a=)
+
+- =container=: Add graph (=8382986=)
+
+- =container=: Add trie (=b5f3a2b=)
+
+- =container=: Add bloom_filter (=9bfc5cf=)
+
+- =container=: Add indexed_priority_queue (=9595fd6=)
+
+- =container=: Add lock-free spsc, mpsc and mpmc concurrent queues (=5181768=)
+
+- =container=: Add hash specializations for value containers (=852e59b=)
+
+- =container=: Add to_string, ostream and std::formatter for containers (=51c75af=)
+
+- =chrono=: Add portable clock-templated timing primitives module (=f46cadb=)
+
+- =random=: Add a seedable, reproducible RNG module with engines, distributions and sampling (=d428bdc=)
+
+- =chrono=: Add format_scaled for human-readable auto-scaled durations (=1fa990b=)
+
+- =benchmark=: Add micro-benchmark runner reusing chrono stopwatch and duration formatting (=a2e9d00=)
+
+- =container=: Add transparent heterogeneous lookup to flat_map (=944fd41=)
+
+- =serialization=: Add JSON, CBOR, MessagePack, binary and COBS codecs under one expected error policy (=514444d=)
+
+- =filter=: Add discrete-time digital filters for embedded signal conditioning (=a2616e7=)
+
+- =signal=: Add header-only signal/slot multicast callbacks with safe reentrancy (=a8fe5c1=)
+
+- =signal=: Add allocation-free fixed-capacity static_signal variant (=eaa7ad0=)
+
+- =ecs=: Add sparse-set entity-component registry with multi-component views and lifecycle signals (=fd62b11=)
+
+- =algorithm=: Add index-returning binary-search variants (find_sorted, exponential_search, interpolation_search); fix interpolation_search integer-overflow on extreme spans (=662c607=)
+
+- =algorithm=: Add non-cryptographic hashes (fnv1a, murmur3, xxhash) with little-endian reads; fix murmur3<128> c1 constant (=0208ee4=)
+
+- =algorithm=: Add adler32 and a generic Rocksoft-model CRC engine; defer adler32 modulo (zlib NMAX) and reduce over-range seeds (=a78184f=)
+
+- =algorithm=: Add encoding codecs (hex/base32/base64 on a generic base_n engine, plus url and cobs) (=2fecec8=)
+
+- =algorithm=: Generalize adler32 into a spec-driven Adler/Fletcher modular-sum family (fletcher16/32/64) (=3e37e05=)
+
+- =algorithm=: Add integer sorts counting_sort and radix_sort with a heap-free caller-scratch overload (=649460e=)
+
+- =algorithm=: Add string algorithms (kmp, boyer_moore, z_function, levenshtein, aho_corasick, suffix_array) (=aa25d7e=)
+
+- =algorithm=: Add numerical routines (compensated sums, online stats, root finding, quadrature, interpolation, ode steppers, fft) (=391be7e=)
+
+- =algorithm=: Add graph algorithms over container::graph (traversal, shortest paths, topological sort, scc, mst, lca) (=dba3821=)
+
+- =signal=: Give static_connection an operator== mirroring connection so the two handle types match (=1c52356=)
+
+- =logging=: Add a header-only logging module with levels, records, sinks, async/sync manager, loggers, LOG_* macros, and a heap-free embedded stream logger (=5edb78c=)
+
+- =math=: Scaffold the module with arithmetic concepts, the math_error result policy, and constexpr constants (=5d75655=)
+
+- =math=: Add scalar utilities and the power, root, and fast-transcendental functions (=1ecc675=)
+
+- =math=: Add strong angle and degree types, three-speed trigonometry, and Q-format fixed-point (=4f65569=)
+
+- =math=: Add fixed-size vectors, vector algorithms, and the unit-length wrapper (=e36bdc8=)
+
+- =math=: Add the column-major matrix with SIMD products, inverse, and the projection builders (=a25d610=)
+
+- =math=: Add the unit quaternion with slerp variants and Euler-angle conversions (=d5a079b=)
+
+- =math=: Add 2D/3D affine transform builders, the look_at view matrix, and parametric curve interpolation (=6af1d0d=)
+
+- =math=: Add geometric random samplers for uniform directions, disc and ball points, and angles (=fe3b0df=)
+
+- =math=: Add std::hash and std::format support for the value types and finalize the module umbrella (=8fd2bf2=)
+
+- =math=: Forward the std::format spec to each component of the value-type formatters (=8355452=)
+
+- =math=: Add a std::formatter for math_error so result errors print directly (=6df3eae=)
+
+- =container=: Format deque and the ordered flat containers and add a container_error formatter (=cbc9d43=)
+
+- =ecs=: Add entity_id to_string, operator<< and std::formatter support (=c558801=)
+
+- =algorithm=: Add std::formatter support for codec_error and numerical_error (=c000b8b=)
+
+- =serialization=: Add std::formatter support for error and json::value (=4e53c0b=)
+
+- =geometry=: Scaffold the module with the error space and result alias (=b490d2f=)
+
+- =utility=: Add discard for explicit value discarding and forbid void-cast discards in the style guide (=d31474f=)
+
+- =utility=: Add endian helpers to read and write unsigned integers in a fixed byte order (=097dfc5=)
+
+- =utility=: Add buffer_cursor for bounds-tracked navigation of a byte buffer (=d3996c0=)
+
+- =utility=: Add for_each_non_null to apply a callable to each non-null element of a range (=bca3f2b=)
+
+- =release=: Add module-aware release automation (=d76ec15=)
+
+- =geometry=: Add the primitive shapes (aabb, sphere, circle, ray, segment, plane, triangle) (=d57160d=)
+
+- =geometry=: Add the composite shapes (obb, capsule, polygon, frustum) (=319b93e=)
+
+- =geometry=: Add the cross-type queries (closest_point, intersect) (=64e7ddf=)
+
+- =geometry=: Add support overloads for the analytic primitives (=c4eb6fa=)
+
+- =geometry=: Add the shape transforms and pose aggregates (=2f65128=)
+
+- =geometry=: Add the aabb tree broad-phase bvh (=99c35b2=)
+
+- =geometry=: Add the convex hull support shape and the gjk overlap test (=2ea9792=)
+
+- =geometry=: Add the epa penetration depth and contact solver (=5e803be=)
+
+- =geometry=: Rewrite gjk and epa around the signed-volumes distance subalgorithm (=c5f99da=)
+
+- =geometry=: Return hit point and surface normal from the ray casts (=210cd90=)
+
+- =geometry=: Add closest-point queries for triangle, obb, and segment-triangle (=f5eda77=)
+
+- =geometry=: Build a contact manifold from the epa closest face (=12ed2e1=)
+
+- =geometry=: Add the std::hash specializations for the shapes (=4bbf8c9=)
+
+- =geometry=: Add the formatters for every shape and the error enum (=97b5810=)
+
+- =serialization=: Add formatters for the codec type enums and json diagnostics (=20c0c78=)
+
+- =container=: Add heterogeneous lookup to flat_set (=1957512=)
+
+- =container=: Add heterogeneous and rvalue-key overloads to flat_map (=b785bfa=)
+
+- =container=: Add heterogeneous lookup and an initializer_list constructor to flat_hash_set (=710e277=)
+
+- =container=: Add comparator-taking range and initializer_list constructors to heap (=65591c9=)
+
+- =container=: Add formatters for the eight remaining container types (=7396ae4=)
+
+- =container=: Add std::hash for flat_set, flat_map, static_flat_map, and gap_buffer (=19a5f4f=)
+
+- =math=: Add angle compound operators and assert the division precondition (=72c2d54=)
+
+- =math=: Add a fixed value_type and document its truncation (=28c3b18=)
+
+- =math=: Mark quaternion constructors constexpr and demonstrate the slerp variants (=294b3a8=)
+
+- =math=: Add formatters for axis_angle, euler_angles, euler_order, radians, degrees, fixed, and sin_cos (=387a255=)
+
+- =geometry=: Add a frustum_plane formatter and a frustum3 hash (=6dfac14=)
+
+- =filter=: Add formatters for every public filter type (=3d15c0a=)
+
+- =random=: Add formatters for the engines and distributions (=10f4725=)
+
+- =utility=: Add a canonical cobs framing codec (=042d085=)
+
+- =math=: Accept radians on euler_angles, from_ypr, perspective, and perspective_zo (=af4efca=)
+
+- =random=: Add engine state restore, document every function, and pin the canonical vectors on the real engine (=2a4090b=)
+
+- =algorithm=: Add formatters and value_type for the graph result types (=be018f0=)
+
+- =container=: Hoist the slot_map handle to slot_key and give it a formatter (=2c71a81=)
+
+- =can=: Scaffold the module with its error space and result alias (=26c468a=)
+
+- =can=: Add can_id with the SocketCAN word layout and the dlc tables (=fa8139c=)
+
+- =can=: Add the empty-payload-safe, constexpr classic and fd frame (=ea05524=)
+
+- =can=: Add the byte order and the compiled packing plan with a precomputed mask (=9dfbd7c=)
+
+- =can=: Add the signal description and its fluent builder (=989e4f1=)
+
+- =can=: Add the codec with scaling, range-safe encode, and float signals (=36a8feb=)
+
+- =can=: Add byte and text fields, fill, and the not-available policy (=2d880fc=)
+
+- =can=: Add the message with its identifier, byte length, and signal entries (=1dd4854=)
+
+- =can=: Add the immutable message database and its builder (=6efa96c=)
+
+- =can=: Add the identifier filter with masked matching (=af46dcb=)
+
+- =can=: Add the indexed receive registry with allocation-free dispatch (=637ca05=)
+
+- =can=: Add the bus concept, loopback backend, and error frame decoding (=8e124fc=)
+
+- =can=: Add the j1939 identifier with pgn and address decoding (=95eaee8=)
+
+- =can=: Add the linux socketcan backend with kernel-frame conversions (=9d94dfe=)
+
+- =can=: Add the j1939 transport reassembler and bam segmenter (=45637db=)
+
+- =can=: Add the dbc importer with validation, float signals, and metadata (=6a20847=)
+
+- =can=: Add to_string, ostream, and std::formatter for every public can type (=1bab025=)
+
+- =can=: Merge the can module (=2247aae=)
+
+- =gpio=: Scaffold the gpio module with utility, container, and filter deps (=ba9a25a=)
+
+- =gpio=: Add gpio_error and result (=34d1b35=)
+
+- =gpio=: Add line vocabulary and identifiers (=b943ab3=)
+
+- =gpio=: Map physical line polarity (=814c224=)
+
+- =gpio=: Add line descriptions (=9ad0281=)
+
+- =gpio=: Add line configuration (=239ecb5=)
+
+- =gpio=: Add physical edge events (=3451e08=)
+
+- =gpio=: Add logical line values (=d5b18d9=)
+
+- =gpio=: Define the backend concept ladder (=369bf27=)
+
+- =gpio=: Define edge sink transports (=7822e67=)
+
+- =gpio=: Add the in-memory mock backend (=e1122e6=)
+
+- =gpio=: Add polarity-aware line handles (=118621f=)
+
+- =gpio=: Add name-addressed chip handles (=76c3378=)
+
+- =gpio=: Decode physical edge events (=09a0d7e=)
+
+- =gpio=: Debounce edge events (=00f7e33=)
+
+- =gpio=: Track event sequence gaps (=5e92618=)
+
+- =gpio=: Add callback edge transport (=4bc35c1=)
+
+- =gpio=: Add lock-free queue edge transport (=f0bc724=)
+
+- =gpio=: Add the Linux character-device backend (=df9c4ee=)
+
+- =gpio=: Discover chips and lines through chardev (=e123612=)
+
+- =gpio=: Format every public gpio type (=f5e02de=)
+
+- =gpio=: Expose the gpio umbrella header (=7a10fe1=)
+
+- =gpio=: Add the quickstart example (=2ddd83b=)
+
+- =gpio=: Add the discovery example (=b28c8ef=)
+
+- =gpio=: Add the blink example (=9973158=)
+
+- =gpio=: Add the blocking edge example (=9417b3f=)
+
+- =gpio=: Add the reactor example (=d80bde0=)
+
+- =gpio=: Classify retryable errors (=e519a0e=)
+
+- =gpio=: Reconfigure lines without glitches (=6a9d84b=)
+
+- =gpio=: Snapshot initial input levels (=75e0a99=)
+
+- =gpio=: Demonstrate snapshot and reconfigure (=1c3d041=)
+
+- =gpio=: Expose the settled debounce level (=f07d469=)
+
+- =gpio=: Count rejected queue pushes (=3ef27de=)
+
+- =gpio=: Match delivered edge subscriptions (=4c80ba2=)
+
+- =gpio=: Drain edge sources into sinks (=78e58e3=)
+
+- =gpio=: Select the event clock per line (=d6c11a1=)
+
+- =gpio=: Watch line ownership and configuration (=ffd7b5e=)
+
+- =gpio=: Add the line watch example (=c7fe2d0=)
+
+- =gpio=: Select hardware event timestamps (=90d05ce=)
+
+- =gpio=: Route examples through edge sinks (=6872c20=)
+
+- =gpio=: Merge the gpio module (=cf0e25b=)
+
+
+** Maintenance
+
+- =project=: Scaffold build system, tooling, and docs (=46a0378=)
+
+- =algorithm=: Scaffold the module with build wiring and a placeholder umbrella (=e941b2b=)
+
+
+** Performance
+
+- =geometry=: Drop matrix builds and a rotation from the transform and support hot paths (=6aca885=)
+
+
+** Refactoring
+
+- =container=: Post-review hardening of bitset iterator equality and early-exit any/none, arena over-align guard, bag erase constraint, small_vector and stable_vector hot paths, the ring_buffer wrap diagram, and edge-case tests (=2eadfbf=)
+
+- =utility=: Remove constexpr_map, superseded by static_flat_map (=253758c=)
+
+- =benchmark=: Emit to_json through serialization's JSON writer (=f2b70b7=)
+
+- =chrono=: Rename fixed_stopwatch to static_stopwatch to match the static_ fixed-capacity naming convention (=6796145=)
+
+- =ecs=: Store components in a pointer-stable tombstoning pool so views can add and remove components mid-iteration without dangling references (=e791617=)
+
+- =serialization=: Drop the dead m_stack array from the SAX engine and document that MaxDepth bounds real recursion frames (=a00ec65=)
+
+- =container=: Assert static_vector's slot matches T's size and alignment so the contiguous data()/iterator reinterpret cannot mis-stride (=77a8dc7=)
+
+- =concepts=: Name concepts the way the STL does and document the rule, renaming same_tag to same_tag_as and the lru_capacity_ok test probe to lru_cache_instantiable (=d9af3e8=)
+
+- =math=: Drop the _t from sin_cos and rename the trig LUT table type (=d818c67=)
+
+- =container=: Drop the _t from lru_cache's internal node struct (=9dcca26=)
+
+- =math=: Use public type aliases internally and convert multi-line /// docs to blocks (=4af22c1=)
+
+- =utility=: Format source locations with a bounded copy instead of snprintf so there is no format-truncation warning (=9bf7c61=)
+
+- =repo=: Discard ignored results through utility::discard in library headers and declare the utility dependency where it is now used (=6f38768=)
+
+- =examples=: Discard ignored results through utility::discard instead of banned void casts (=84b646c=)
+
+- =logging=: Dispatch and flush sinks through utility::for_each_non_null (=fffefc6=)
+
+- =serialization=: Route the cbor, msgpack, and versioned byte-order helpers through utility endian (=39c4a0d=)
+
+- =serialization=: Manage the binary reader and writer position with utility::buffer_cursor (=6a9fcf5=)
+
+- =serialization=: Manage the cbor, msgpack, and json codec positions with utility::buffer_cursor (=e2a3b4c=)
+
+- =serialization=: Rename cobs max_encoded_size and document empty-frame decoding (=e7e332e=)
+
+- =serialization=: Use cobs max_encoded_size in the round_trip example (=3247c90=)
+
+- =serialization=: Wrap the canonical utility cobs codec (=a15cc10=)
+
+- =algorithm=: Wrap the canonical utility cobs codec (=91a14cc=)
+
+- =filter=: Make format.hpp pull its filter headers directly instead of the umbrella (=ddf0688=)
+
+
+** Style
+
+- =project=: Make two comments ASCII-only and fix container.hpp include order (=51996b3=)
+
+- =math=: Evaluate the Horner polynomials as accumulator steps to fit the column limit (=a3d7725=)
+
+- =math=: Clang-format normalized and quaternion after the internal-alias refactor (=19b8104=)
+
+- =utility=: Drop backticks from the showcase example comment (=43fb133=)
+
+- =serialization=: Store the versioned envelope in a std::array and document its concept (=84345f7=)
+
+- =container=: Add the ring_buffer difference_type alias (=414f283=)
+
+- =container=: Launder object_pool storage and rename its capacity constant (=0d9aa1c=)
+
+- =container=: Launder spsc_queue storage and store it in a std::array (=b4a1c15=)
+
+- =container=: Unify the mpmc_queue cache-line alignment (=8dcc3f2=)
+
+- =ecs=: Drop a backtick from the signals example comment (=a443319=)
+
+- =math=: Mark the random sampling helpers constexpr (=782bdac=)
+
+- =filter=: Drop the include-ordering prose from the umbrella header (=78a2f73=)
+
+- =ecs=: Drop the cross-file declaration notes from view.hpp (=5bc7094=)
+
+- =repo=: Reformat every source with clang-format 20 (=73c4896=)
+
+- =gpio=: Format public headers (=70ee9b4=)
+
+- =gpio=: Format module tests (=29e6ffc=)
+
+- =gpio=: Format runnable examples (=ca32aa8=)
+
+- =gpio=: Size gpio_error storage (=9b92a01=)
+
+- =gpio=: Harden character-device types (=5ce3af6=)
+
+- =repo=: Align preprocessor directives (=95cd66e=)
+
+- =headers=: Apply preprocessor indentation (=bd179f5=)
+
+- =gpio=: Apply preprocessor indentation (=3d5258f=)
+
+- =repo=: Apply clang-format 20 (=a8ce5d1=)
+
+
+** Testing
+
+- =project=: Add coverage for build system, tooling, and docs (=5c2d3e7=)
+
+- =utility=: Add coverage for overloaded std::visit helper (=89a3be9=)
+
+- =utility=: Add coverage for checked narrow_cast (=dc5b36c=)
+
+- =utility=: Add coverage for defer scope-exit guard (=42714a3=)
+
+- =utility=: Add coverage for scope_guard with dismiss and engage (=cb27f67=)
+
+- =utility=: Add coverage for non_null pointer wrapper (=89ca1a4=)
+
+- =utility=: Add coverage for type_list metafunctions (=214a7e7=)
+
+- =utility=: Add coverage for meta helpers (type_name, function_traits) (=f8f8950=)
+
+- =utility=: Add coverage for hash_combine helpers (=77b9d69=)
+
+- =utility=: Add coverage for bit manipulation helpers (=7c5ffbe=)
+
+- =utility=: Add coverage for power-of-two alignment helpers (=91feb3a=)
+
+- =utility=: Add coverage for constexpr_map sorted lookup table (=2d90574=)
+
+- =utility=: Add coverage for static_string NTTP-capable string (=5bfda45=)
+
+- =utility=: Add coverage for type-safe flags bitset over scoped enums (=ba7510b=)
+
+- =utility=: Add coverage for compile-time enum reflection (=4883b87=)
+
+- =utility=: Add coverage for strong_typedef opt-in strong type (=ab225fd=)
+
+- =utility=: Add coverage for function_ref non-owning callable view (=dd2ce76=)
+
+- =utility=: Add coverage for in_place_function fixed-storage callable (=767bdf9=)
+
+- =utility=: Add coverage for thread-safe lazy deferred-initialisation wrapper (=78cbdbb=)
+
+- =utility=: Add coverage for unique_resource generic RAII owner (=94be26a=)
+
+- =utility=: Add coverage for std::expected helper functions (=63ad0ed=)
+
+- =utility=: Add coverage for source_location formatters (=162c0f8=)
+
+- =container=: Add coverage for module with error codes and result alias (=5d838d0=)
+
+- =container=: Add coverage for static_vector (=568fcec=)
+
+- =container=: Add coverage for small_vector (=7f6423f=)
+
+- =container=: Add coverage for ring_buffer (=7ed2d01=)
+
+- =container=: Add coverage for stable_vector (=52e07f0=)
+
+- =container=: Add coverage for bitset_dynamic (=9f694fc=)
+
+- =container=: Add coverage for linear_arena (=25e9a1d=)
+
+- =container=: Add coverage for scratch_pad (=09d829e=)
+
+- =container=: Add coverage for bag (=3b3177a=)
+
+- =container=: Add coverage for hardening of bitset iterator equality and early-exit any/none, arena over-align guard, bag erase constraint, small_vector and stable_vector hot paths, the ring_buffer wrap diagram, and edge-case tests (=2d47a54=)
+
+- =container=: Add coverage for deque (=68a289a=)
+
+- =container=: Add coverage for heap (=cd15a17=)
+
+- =container=: Add coverage for gap_buffer (=5f1b291=)
+
+- =container=: Add coverage for object_pool (=197197e=)
+
+- =container=: Add coverage for intrusive_list (=85a8727=)
+
+- =container=: Add coverage for sparse_set (=ba40811=)
+
+- =container=: Add coverage for union_find (=3266d95=)
+
+- =container=: Add coverage for flat_set (=912f436=)
+
+- =container=: Add coverage for flat_map (=7931648=)
+
+- =container=: Add coverage for static_flat_map (=2f949b5=)
+
+- =utility=: Add coverage for constexpr_map, superseded by static_flat_map (=cf7f91e=)
+
+- =container=: Add coverage for flat_hash_map (=edd541a=)
+
+- =container=: Add coverage for flat_hash_set (=702c1b3=)
+
+- =container=: Add coverage for small_vector emplace_back value before regrow so push_back of an existing element is safe (=66cce9e=)
+
+- =container=: Add coverage for ring_buffer overwrite value before evicting so push_overwrite of the evicted element is safe (=f43daf5=)
+
+- =container=: Add coverage for dense_map (=e08ed8b=)
+
+- =container=: Add coverage for slot_map (=fff62f2=)
+
+- =container=: Add coverage for bimap (=e33576f=)
+
+- =container=: Add coverage for lru_cache (=15d60ad=)
+
+- =container=: Add coverage for binary_tree (=cc01f88=)
+
+- =container=: Add coverage for graph (=923ab2e=)
+
+- =container=: Add coverage for trie (=09a0ec0=)
+
+- =container=: Add coverage for bloom_filter (=b923f78=)
+
+- =container=: Add coverage for indexed_priority_queue (=29ff011=)
+
+- =container=: Add coverage for lock-free spsc, mpsc and mpmc concurrent queues (=69f3fe6=)
+
+- =container=: Add coverage for hash specializations for value containers (=84ce115=)
+
+- =container=: Add coverage for to_string, ostream and std::formatter for containers (=2fae2f3=)
+
+- =chrono=: Add coverage for portable clock-templated timing primitives module (=fe21731=)
+
+- =random=: Add coverage for a seedable, reproducible RNG module with engines, distributions and sampling (=a6aba5f=)
+
+- =container=: Add coverage for memory-safety and correctness bugs and tighten type constraints across the module (=501d303=)
+
+- =chrono=: Add coverage for format_scaled for human-readable auto-scaled durations (=d20c01a=)
+
+- =benchmark=: Add coverage for micro-benchmark runner reusing chrono stopwatch and duration formatting (=f779a57=)
+
+- =container=: Add coverage for transparent heterogeneous lookup to flat_map (=a43f5b0=)
+
+- =serialization=: Add coverage for JSON, CBOR, MessagePack, binary and COBS codecs under one expected error policy (=1a6fa84=)
+
+- =filter=: Add coverage for discrete-time digital filters for embedded signal conditioning (=e2b9a06=)
+
+- =signal=: Add coverage for header-only signal/slot multicast callbacks with safe reentrancy (=c69b6e0=)
+
+- =signal=: Add coverage for allocation-free fixed-capacity static_signal variant (=8cea16e=)
+
+- =chrono=: Add coverage for fixed_stopwatch to static_stopwatch to match the static_ fixed-capacity naming convention (=3315afe=)
+
+- =ecs=: Add coverage for sparse-set entity-component registry with multi-component views and lifecycle signals (=6aaef2b=)
+
+- =ecs=: Add coverage for components in a pointer-stable tombstoning pool so views can add and remove components mid-iteration without dangling references (=721f68e=)
+
+- =algorithm=: Add coverage for the module with build wiring and a placeholder umbrella (=1a31c0c=)
+
+- =utility=: Exhaustively harden the test suite; fix enum_to_string empty-window fold and non_null constexpr-with-assertions (=5da2544=)
+
+- =utility=: Add coverage for harden the test suite; fix enum_to_string empty-window fold and non_null constexpr-with-assertions (=6d2294a=)
+
+- =chrono=: Exhaustively harden the test suite; fix steady_clock_like non-bool hard error and rate_limiter backward-clock anchor regression (=9d174a8=)
+
+- =chrono=: Add coverage for harden the test suite; fix steady_clock_like non-bool hard error and rate_limiter backward-clock anchor regression (=dbc092a=)
+
+- =filter=: Split into themed suites and exhaustively harden them; fix biquad<float> default-Q narrowing (=503cd3e=)
+
+- =filter=: Add coverage for into themed suites and exhaustively harden them; fix biquad<float> default-Q narrowing (=2402842=)
+
+- =signal=: Split out static_signal and exhaustively harden the reentrancy and lifetime suite (=b7256ea=)
+
+- =signal=: Add coverage for out static_signal and exhaustively harden the reentrancy and lifetime suite (=bb2c2a9=)
+
+- =serialization=: Split into per-codec suites with malformed-input fuzzing; fix null-pointer memcpy UB on empty payloads across the codecs (=79d7a2d=)
+
+- =serialization=: Add coverage for into per-codec suites with malformed-input fuzzing; fix null-pointer memcpy UB on empty payloads across the codecs (=19070cb=)
+
+- =container=: Deepen all per-class suites with differential fuzzing, threaded conservation, and non-trivial-type coverage (=cf8501c=)
+
+- =random=: Deepen engine, uniform, distribution, and sampling suites with reference vectors and chi-square goodness-of-fit (=8599d7a=)
+
+- =ecs=: Fill remaining test gaps (signals, query builder, move, recycle); fix all_of/any_of empty-pack unused-parameter under -Werror (=d9285ce=)
+
+- =ecs=: Add coverage for remaining test gaps (signals, query builder, move, recycle); fix all_of/any_of empty-pack unused-parameter under -Werror (=e29083f=)
+
+- =benchmark=: Deepen the deterministic surface (stats relationships, JSON round-trip, anti-optimization primitives) (=66b73f0=)
+
+- =algorithm=: Add coverage for index-returning binary-search variants (find_sorted, exponential_search, interpolation_search); fix interpolation_search integer-overflow on extreme spans (=623d16d=)
+
+- =algorithm=: Add coverage for non-cryptographic hashes (fnv1a, murmur3, xxhash) with little-endian reads; fix murmur3<128> c1 constant (=c5da272=)
+
+- =algorithm=: Add coverage for adler32 and a generic Rocksoft-model CRC engine; defer adler32 modulo (zlib NMAX) and reduce over-range seeds (=2fef6ed=)
+
+- =algorithm=: Add coverage for encoding codecs (hex/base32/base64 on a generic base_n engine, plus url and cobs) (=b45c927=)
+
+- =algorithm=: Add coverage for adler32 into a spec-driven Adler/Fletcher modular-sum family (fletcher16/32/64) (=9709e69=)
+
+- =algorithm=: Add coverage for integer sorts counting_sort and radix_sort with a heap-free caller-scratch overload (=ab96e7c=)
+
+- =algorithm=: Add coverage for string algorithms (kmp, boyer_moore, z_function, levenshtein, aho_corasick, suffix_array) (=31418dd=)
+
+- =algorithm=: Add coverage for numerical routines (compensated sums, online stats, root finding, quadrature, interpolation, ode steppers, fft) (=518819b=)
+
+- =algorithm=: Add coverage for graph algorithms over container::graph (traversal, shortest paths, topological sort, scc, mst, lca) (=ff18a2a=)
+
+- =container=: Add coverage for gap_buffer::insert argument before grow_gap to avoid self-aliasing use-after-free (=54a4a61=)
+
+- =container=: Add coverage for trie::erase along the key path in O(k) instead of rescanning the whole trie (=b921086=)
+
+- =container=: Add coverage for down, clone, traverse, and compare trie iteratively to avoid stack overflow on deep keys (=9a2029f=)
+
+- =container=: Add coverage for lru_cache capacity a compile-time NTTP enforced by requires(Capacity >= 1), eliminating the zero-capacity release UB (=2b05e53=)
+
+- =serialization=: Add coverage for CBOR length prefixes that exceed size_type before narrowing, preventing 32-bit truncation and cursor desync (=56747bc=)
+
+- =serialization=: Add coverage for trailing/empty JSON-Pointer tokens in at_path per RFC 6901 (a trailing slash was dropped) (=299d4de=)
+
+- =serialization=: Add coverage for json::value iteratively so deep DOMs are stack-safe like the destructor (=481b80a=)
+
+- =serialization=: Add coverage for versioned_decoder to a decode returning expected<T, error> instead of a tautological same_as check (=cbc6eee=)
+
+- =chrono=: Add coverage for non-finite rate_limiter capacity/refill to zero so a NaN cannot silently disable limiting (=2420fd0=)
+
+- =signal=: Rename the destroy-during-emit case to match its real behavior and assert later slots still fire (=3103c4c=)
+
+- =ecs=: Add coverage for every storage after destroy fires on_destroy so a component a listener attaches to the dying entity cannot orphan onto a recycled index (=ebc74a0=)
+
+- =chrono=: Add coverage for a backward frame_timer delta to zero for parity with rate_limiter's non-monotonic-clock guard (=b49af19=)
+
+- =signal=: Add coverage for static_connection an operator== mirroring connection so the two handle types match (=def6ede=)
+
+- =container=: Add coverage for a sparse_set key at size_type's maximum instead of wrapping its capacity to zero and writing out of bounds (=8731b30=)
+
+- =algorithm=: Add coverage for back to a comparison sort when counting_sort's bucket count would overflow, instead of writing into an empty vector (=6ee9fc9=)
+
+- =algorithm=: Add coverage for interpolator knots to the common xs/ys length so operator() cannot read out of bounds on a short ys (=aec181d=)
+
+- =algorithm=: Pin the full 128-bit murmur3 verification value and add seeded xxHash known-answer vectors (=c544f19=)
+
+- =project=: Add coverage for two comments ASCII-only and fix container.hpp include order (=8baad52=)
+
+- =logging=: Add coverage for a header-only logging module with levels, records, sinks, async/sync manager, loggers, LOG_* macros, and a heap-free embedded stream logger (=47e1bbf=)
+
+- =concepts=: Add coverage for concepts the way the STL does and document the rule, renaming same_tag to same_tag_as and the lru_capacity_ok test probe to lru_cache_instantiable (=19a0b50=)
+
+- =math=: Add coverage for the module with arithmetic concepts, the math_error result policy, and constexpr constants (=a982bc7=)
+
+- =math=: Add coverage for scalar utilities and the power, root, and fast-transcendental functions (=ee15c91=)
+
+- =math=: Add coverage for strong angle and degree types, three-speed trigonometry, and Q-format fixed-point (=9567774=)
+
+- =math=: Add coverage for fixed-size vectors, vector algorithms, and the unit-length wrapper (=01715c2=)
+
+- =math=: Add coverage for the _t from sin_cos and rename the trig LUT table type (=3fdb62a=)
+
+- =math=: Add coverage for the column-major matrix with SIMD products, inverse, and the projection builders (=0e1258d=)
+
+- =math=: Add coverage for the unit quaternion with slerp variants and Euler-angle conversions (=db49bbb=)
+
+- =math=: Add coverage for 2D/3D affine transform builders, the look_at view matrix, and parametric curve interpolation (=f583b7e=)
+
+- =math=: Add coverage for geometric random samplers for uniform directions, disc and ball points, and angles (=7b4e1c4=)
+
+- =math=: Add coverage for std::hash and std::format support for the value types and finalize the module umbrella (=bdc674c=)
+
+- =math=: Add coverage for edge cases found in review - float uniform_real_in upper bound, formatter spec validation, and non-finite matrix inverse (=03d9a0f=)
+
+- =math=: Add coverage for the std::format spec to each component of the value-type formatters (=06ea02b=)
+
+- =container=: Add coverage for deque and the ordered flat containers and add a container_error formatter (=a824379=)
+
+- =ecs=: Add coverage for entity_id to_string, operator<< and std::formatter support (=fdad367=)
+
+- =algorithm=: Add coverage for std::formatter support for codec_error and numerical_error (=2c6bf3a=)
+
+- =serialization=: Add coverage for std::formatter support for error and json::value (=6a6702e=)
+
+- =geometry=: Add coverage for the module with the error space and result alias (=551e5db=)
+
+- =logging=: Exercise the FILE* json_sink ownership test on a temp file, not stdout, so it does not pollute test output (=4ff47d9=)
+
+- =repo=: Pass double arguments to doctest::Approx so clang does not warn on float-to-double promotion (=06f157b=)
+
+- =repo=: Drop unused lambda captures, route self-assignment tests through a pointer, and mark unused fixtures so clang accepts them under -Werror (=37b4356=)
+
+- =utility=: Add coverage for discard for explicit value discarding and forbid void-cast discards in the style guide (=09d869a=)
+
+- =repo=: Discard ignored results through utility::discard instead of banned void casts (=99fe38a=)
+
+- =utility=: Add coverage for endian helpers to read and write unsigned integers in a fixed byte order (=388bd1a=)
+
+- =utility=: Add coverage for buffer_cursor for bounds-tracked navigation of a byte buffer (=a537b8a=)
+
+- =utility=: Add coverage for for_each_non_null to apply a callable to each non-null element of a range (=5159960=)
+
+- =algorithm=: Bound the keys for the counting_sort check so it does not allocate billions of buckets and OOM (=62a877a=)
+
+- =geometry=: Add coverage for the primitive shapes (aabb, sphere, circle, ray, segment, plane, triangle) (=a666559=)
+
+- =geometry=: Add coverage for the composite shapes (obb, capsule, polygon, frustum) (=98f9af8=)
+
+- =geometry=: Add coverage for the cross-type queries (closest_point, intersect) (=356562d=)
+
+- =geometry=: Add coverage for support overloads for the analytic primitives (=28ed7a1=)
+
+- =geometry=: Add coverage for the shape transforms and pose aggregates (=f3ee34d=)
+
+- =geometry=: Add coverage for the aabb tree broad-phase bvh (=f7c90a3=)
+
+- =geometry=: Add coverage for the convex hull support shape and the gjk overlap test (=596d36b=)
+
+- =geometry=: Add coverage for the epa penetration depth and contact solver (=3d672b6=)
+
+- =geometry=: Add coverage for gjk and epa around the signed-volumes distance subalgorithm (=51d4313=)
+
+- =geometry=: Add coverage for hit point and surface normal from the ray casts (=d6d5806=)
+
+- =geometry=: Add coverage for closest-point queries for triangle, obb, and segment-triangle (=831cd3b=)
+
+- =geometry=: Add coverage for a contact manifold from the epa closest face (=a4b55f6=)
+
+- =geometry=: Add coverage for the std::hash specializations for the shapes (=79fcc6b=)
+
+- =geometry=: Add coverage for the formatters for every shape and the error enum (=2dbbb9a=)
+
+- =geometry=: Add coverage for the epa normal direction (=8c2cafd=)
+
+- =utility=: Add coverage for function_ref through invoke_r and delete dangling callable assignment (=7fd80df=)
+
+- =utility=: Add coverage for in_place_function on invoke_r and store its target in aligned bytes (=270a6f1=)
+
+- =utility=: Add coverage for the defer cleanup when moving the callable in throws (=44bd0d8=)
+
+- =utility=: Add coverage for the scope_guard cleanup when moving the callable in throws (=ad15396=)
+
+- =utility=: Add coverage for unique_resource the P0052 move and reset exception guarantees (=247ea4c=)
+
+- =utility=: Add coverage for lazy on an lvalue factory returning a cacheable object (=5c8be7b=)
+
+- =utility=: Add coverage for pointer-to-member callables in for_each_non_null (=6e7d7bc=)
+
+- =utility=: Add coverage for narrow_cast before the floating point conversion (=2a2857e=)
+
+- =utility=: Add coverage for bit field packing with an overflow-free bounds check (=da5b5b5=)
+
+- =utility=: Add coverage for the align_up overflow precondition (=7aef4a8=)
+
+- =utility=: Add coverage for hash_combine conditionally noexcept and correct its provenance (=1b26458=)
+
+- =utility=: Add coverage for every buffer_cursor precondition (=6fb6bd0=)
+
+- =utility=: Add coverage for strong_typedef operators conditionally noexcept and add rvalue get (=9f980b6=)
+
+- =utility=: Add coverage for non_null against nullptr honestly and guard access after move (=ec9c540=)
+
+- =utility=: Add coverage for flags an explicit bool, a popcount, and symmetric operators (=2fd947f=)
+
+- =utility=: Add coverage for static_string length to the first terminator (=5f9ab69=)
+
+- =utility=: Add coverage for the enum_to_string scan window to the underlying type (=219332e=)
+
+- =serialization=: Add coverage for non-boolean bytes when decoding a binary bool (=10ee4d6=)
+
+- =serialization=: Add coverage for msgpack read_uint and skip_value and reject oversized decoded ints (=ceba172=)
+
+- =serialization=: Add coverage for the cbor reader consume undefined and skip items and keep writes all-or-nothing (=1746f5c=)
+
+- =serialization=: Add coverage for cobs max_encoded_size and document empty-frame decoding (=eabcb9a=)
+
+- =serialization=: Add coverage for formatters for the codec type enums and json diagnostics (=13ecb38=)
+
+- =serialization=: Add coverage for the json codec against deep DOMs, out-of-range numbers, and invalid escapes (=e1aa8bf=)
+
+- =container=: Add coverage for small_vector emplace_back the same way on the grow path (=62d01fa=)
+
+- =container=: Add coverage for deque iteration, equality, checked access, and consistent emplace (=6a1e3a5=)
+
+- =container=: Add coverage for the gap_buffer gap so mid-buffer insert stays amortised O(1) (=ae3bbbc=)
+
+- =container=: Add coverage for bitset_dynamic size against word-count overflow (=a853a27=)
+
+- =container=: Add coverage for the ring_buffer difference_type alias (=c5b2466=)
+
+- =container=: Add coverage for flat_hash_map in place so churn does not grow it without bound (=d6c756a=)
+
+- =container=: Add coverage for heterogeneous lookup to flat_set (=aedd67d=)
+
+- =container=: Add coverage for heterogeneous and rvalue-key overloads to flat_map (=96cbcb6=)
+
+- =container=: Add coverage for heterogeneous lookup and an initializer_list constructor to flat_hash_set (=4a596d5=)
+
+- =container=: Add coverage for the static_flat_map entry before shifting slots (=c712bf2=)
+
+- =container=: Add coverage for bimap growth and document its insert argument consumption (=7524a88=)
+
+- =container=: Add coverage for slot_map size at the index type and assert on exhaustion (=32201ef=)
+
+- =container=: Add coverage for the dense_map proxy iterator operator-> and constrain its value (=3f5d146=)
+
+- =container=: Add coverage for and clone binary_tree iteratively to avoid stack overflow (=fab1105=)
+
+- =container=: Add coverage for trie string keys as views and propagate const through for_each (=f9b3ed0=)
+
+- =container=: Add coverage for intrusive_list link preconditions on insert, move, and destruction (=290cac5=)
+
+- =container=: Add coverage for the graph vertex id space is not exhausted (=aa04134=)
+
+- =container=: Add coverage for union_find node indices do not wrap (=417d217=)
+
+- =container=: Add coverage for the lru_cache index by node storage and release entries on erase (=83e1b5b=)
+
+- =container=: Add coverage for indexed_priority_queue results nodiscard and assert handle exhaustion (=bf4ec59=)
+
+- =container=: Add coverage for overflowing counts in linear_arena allocate (=1d0220c=)
+
+- =container=: Add coverage for the bloom_filter factory preconditions (=72d4c2c=)
+
+- =container=: Add coverage for object_pool storage and rename its capacity constant (=cf18441=)
+
+- =container=: Add coverage for mpsc_queue full_approx and tidy its atomics (=a048746=)
+
+- =container=: Add coverage for formatters for the eight remaining container types (=ac2d5a5=)
+
+- =container=: Add coverage for std::hash for flat_set, flat_map, static_flat_map, and gap_buffer (=4faff82=)
+
+- =ecs=: Add coverage for component iteration, type ids, and registry lifecycle against crashes and forged handles (=30a97e3=)
+
+- =ecs=: Document the format test file and cover a width spec (=b0193b5=)
+
+- =math=: Add coverage for scalar mod for large dividends and fix the long double trunc threshold (=26ea975=)
+
+- =math=: Add coverage for enormous angles before the sincos polynomial and tighten the error bounds (=07126d1=)
+
+- =math=: Add coverage for NaN or negative infinity from fast_log for non-positive input (=5272801=)
+
+- =math=: Add coverage for angle compound operators and assert the division precondition (=9845506=)
+
+- =math=: Add coverage for a fixed value_type and document its truncation (=bdcc92f=)
+
+- =math=: Add coverage for normalized to a unit axis and report normalize overflow as an error (=5c0ee96=)
+
+- =math=: Add coverage for the matrix inverse singularity threshold and add the missing matrix operators (=c4eb58c=)
+
+- =math=: Add coverage for quaternion constructors constexpr and demonstrate the slerp variants (=1a1d640=)
+
+- =math=: Add coverage for formatters for axis_angle, euler_angles, euler_order, radians, degrees, fixed, and sin_cos (=507b7dc=)
+
+- =math=: Add coverage for the hash file note on signed zero and NaN (=e1fd4d1=)
+
+- =math=: Add coverage for the random sampling helpers constexpr (=75ec12b=)
+
+- =geometry=: Add coverage for EPA on smooth pairs and report GJK cap exhaustion conservatively (=e3810d4=)
+
+- =geometry=: Add coverage for intersects symmetric across shape pairs and reject near-parallel rays (=e68bb31=)
+
+- =geometry=: Add coverage for the aabb_tree payload on remove and harden the query stack (=1a2687d=)
+
+- =geometry=: Add coverage for OBBs conservatively and reject reflections in decompose (=b681d40=)
+
+- =geometry=: Add coverage for frustum depth convention and add obb, polygon, and triangle helpers (=5a24c32=)
+
+- =geometry=: Add coverage for a frustum_plane formatter and a frustum3 hash (=e4e5baa=)
+
+- =algorithm=: Add coverage for graph scans wrapping at 2^bits vertices and guard shortest-path overflow (=d8120c4=)
+
+- =algorithm=: Add coverage for histogram quantile buckets and make the numerical helpers conditionally noexcept (=5d5161e=)
+
+- =algorithm=: Add coverage for binary_search comparisons conditionally noexcept (=cfd34a3=)
+
+- =algorithm=: Add coverage for the boyer_moore matcher Horspool and assert the string bounds (=2f8af45=)
+
+- =algorithm=: Add coverage for the radix and counting sort buffer sizes (=64eef22=)
+
+- =algorithm=: Add coverage for embedded zeros in cobs decode and tighten base-n decoding (=f472811=)
+
+- =algorithm=: Add coverage for crc genuinely constexpr and honestly name crc8 (=0bf8f23=)
+
+- =algorithm=: Add coverage for no past-the-end pointers in the xxhash bounds checks (=21600c6=)
+
+- =algorithm=: Add coverage for the format policy and cover the incomplete_input formatter (=83ae2eb=)
+
+- =chrono=: Add coverage for before the duration cast so to_count_sat cannot overflow (=e16a1a3=)
+
+- =chrono=: Add coverage for interior zero components and honor the format token layout (=124acae=)
+
+- =chrono=: Add coverage for one-shot alarms before the callback and bound the rate limiter and deadline (=5997fb0=)
+
+- =chrono=: Add coverage for hertz_from arithmetic and require a noexcept now in clock_like (=3c28aef=)
+
+- =chrono=: Add coverage for stopwatch formatters and align the frame_timer parameter order (=5f0236c=)
+
+- =filter=: Add coverage for the sma running sum on wrap and drop the dead butterworth enum (=50e791e=)
+
+- =filter=: Add coverage for the guards - real accepted state, rate escape hatch, NaN staleness, and noexcept validator (=31e11c5=)
+
+- =filter=: Add coverage for formatters for every public filter type (=b6b487b=)
+
+- =filter=: Add coverage for references and precondition asserts across the smoothing and adaptive filters (=df8c5eb=)
+
+- =logging=: Add coverage for file_sink non-movable so a move cannot reset its level (=5eaebe6=)
+
+- =logging=: Add coverage for terminate a truncated stream_logger line with a newline (=cb648a0=)
+
+- =logging=: Add coverage for a zero async_sink queue limit (=72fccf5=)
+
+- =logging=: Add coverage for rotating_file_sink writes against a concurrent force_rotate (=2655a77=)
+
+- =logging=: Add coverage for a level token, add thread-id output, and correct the sink and formatter guides (=b548bac=)
+
+- =signal=: Add coverage for static_signal nested-emit ordering to signal and reclaim dead slots at capacity (=989423c=)
+
+- =signal=: Add coverage for the emit postcondition, complete the umbrella, and add connection formatters (=38d99dc=)
+
+- =benchmark=: Add coverage for iterations iteratively, defeat DCE portably, and stop median terminating (=f589fef=)
+
+- =random=: Add coverage for the uniform_int bounds precondition (=1a5e2fc=)
+
+- =random=: Add coverage for the distribution parameter preconditions (=94da6b2=)
+
+- =random=: Add coverage for shuffle conditionally noexcept on the element swap (=e281212=)
+
+- =random=: Add coverage for formatters for the engines and distributions (=2b2bfb9=)
+
+- =utility=: Add coverage for a canonical cobs framing codec (=23c6460=)
+
+- =math=: Add coverage for radians on euler_angles, from_ypr, perspective, and perspective_zo (=047639e=)
+
+- =random=: Add coverage for engine state restore, document every function, and pin the canonical vectors on the real engine (=ebde9c3=)
+
+- =algorithm=: Add coverage for formatters and value_type for the graph result types (=f3b9afb=)
+
+- =container=: Add coverage for the fallible contiguous mutators nodiscard and document their helpers (=7861ad5=)
+
+- =container=: Add coverage for the slot_map handle to slot_key and give it a formatter (=3959d2b=)
+
+- =container=: Mark throwing_node comparisons maybe_unused for clang-20 -Werror (=c6b16cb=)
+
+- =serialization=: Pretty-print a shallower DOM to avoid quadratic-whitespace OOM (=7991cf8=)
+
+- =math=: Give doctest::Approx checks double arguments (=75f5dcc=)
+
+- =geometry=: Give doctest::Approx checks double arguments (=caa66d8=)
+
+- =geometry=: Mark the unused eps constant maybe_unused (=ddd062b=)
+
+- =filter=: Give the smoother Approx check a double literal (=1c28d5f=)
+
+- =can=: Cover the can error space (=85e15b6=)
+
+- =can=: Cover the identifier and dlc conversions (=c96fb38=)
+
+- =can=: Cover the wire frame, including empty and compile-time construction (=40d92a9=)
+
+- =can=: Cover the packing plan, including the nine-chunk sawtooth path (=a46e739=)
+
+- =can=: Cover the signal and builder fields (=73e9f53=)
+
+- =can=: Cover encode and decode across integer, float, and edge values (=520b2fb=)
+
+- =can=: Cover byte fields and the not-available policy (=d92a903=)
+
+- =can=: Cover the message database (=b2079dc=)
+
+- =can=: Cover the identifier filter (=d750943=)
+
+- =can=: Cover the registry lookup and decode dispatch (=4b27f15=)
+
+- =can=: Cover the loopback bus and error frame decoding (=6aa6398=)
+
+- =can=: Cover the j1939 identifier (=8adabcc=)
+
+- =can=: Cover the socketcan kernel-frame conversions (=5021ea1=)
+
+- =can=: Cover j1939 transport reassembly and hostile packet sequences (=86d3ea3=)
+
+- =can=: Cover dbc import, hostile input, and the parsed metadata (=dabe64d=)
+
+- =gpio=: Cover edge sink transports (=d2741bd=)
+
 * v0.2.0 - 2026-08-03
 
 ** Bug Fixes
