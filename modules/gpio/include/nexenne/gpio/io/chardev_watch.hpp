@@ -59,14 +59,8 @@ struct line_change {
 
 #ifdef __linux__
 
-#include <cerrno>
-
-#include <linux/gpio.h>
 #include <nexenne/container/static_vector.hpp>
 #include <nexenne/utility/unique_resource.hpp>
-#include <poll.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
 
 namespace nexenne::gpio {
 
@@ -84,7 +78,9 @@ public:
   using native_handle_type = int;
 
   /// Watched-line bookkeeping capacity, mirroring the per-request limit.
-  static constexpr std::size_t max_lines{GPIO_V2_LINES_MAX};
+  // Spelled literally so the kernel header stays out of this file;
+  // src/io/chardev_watch.cpp static_asserts it against GPIO_V2_LINES_MAX.
+  static constexpr std::size_t max_lines{64};
 
 private:
   using fd_handle = utility::unique_resource<int, detail::info_fd_closer>;
@@ -102,7 +98,7 @@ public:
    * @pre None.
    * @post \c is_open() is \c false.
    */
-  explicit chardev_watcher(chip_id const chip = chip_id{0}) noexcept : m_chip{chip} {}
+  explicit chardev_watcher(chip_id const chip = chip_id{0}) noexcept;
 
   /**
    * @brief The chip index this watcher targets.
@@ -112,9 +108,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto chip() const noexcept -> chip_id {
-    return m_chip;
-  }
+  [[nodiscard]] auto chip() const noexcept -> chip_id;
 
   /**
    * @brief Whether the watcher holds an armed chip descriptor.
@@ -124,9 +118,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto is_open() const noexcept -> bool {
-    return m_fd.owns();
-  }
+  [[nodiscard]] auto is_open() const noexcept -> bool;
 
   /**
    * @brief Stops watching and closes the chip descriptor.
@@ -137,10 +129,7 @@ public:
    * @pre None.
    * @post \c is_open() is \c false.
    */
-  auto close() noexcept -> void {
-    m_fd.reset();
-    m_offsets.clear();
-  }
+  auto close() noexcept -> void;
 
   /**
    * @brief Opens the chip and arms a watch on each given line.
@@ -161,29 +150,7 @@ public:
    * @post On success \c is_open() is \c true; on failure the watcher is
    *       closed.
    */
-  auto watch(std::span<line_offset const> const offsets) -> result<void> {
-    if (offsets.empty() || offsets.size() > max_lines) {
-      return std::unexpected{gpio_error::invalid_argument};
-    }
-    close();
-    auto fd{detail::open_chip_readonly(m_chip)};
-    if (!fd.owns()) {
-      return std::unexpected{detail::info_errno()};
-    }
-    for (auto const offset : offsets) {
-      ::gpio_v2_line_info raw{};
-      raw.offset = static_cast<std::uint32_t>(offset.get());
-      if (::ioctl(fd.get(), GPIO_V2_GET_LINEINFO_WATCH_IOCTL, &raw)
-          < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
-        return std::unexpected{
-          errno == EINVAL ? gpio_error::invalid_argument : detail::info_errno()
-        };
-      }
-      utility::discard(m_offsets.push_back(offset));
-    }
-    m_fd = std::move(fd);
-    return {};
-  }
+  auto watch(std::span<line_offset const> const offsets) -> result<void>;
 
   /**
    * @brief Waits for and reads one change record.
@@ -202,61 +169,7 @@ public:
    * @pre \c watch succeeded.
    * @post On a value result one kernel change record was consumed.
    */
-  auto wait_change(std::chrono::nanoseconds const timeout) -> result<std::optional<line_change>> {
-    if (!m_fd.owns()) {
-      return std::unexpected{gpio_error::not_open};
-    }
-
-    ::pollfd poll_target{};
-    poll_target.fd = m_fd.get();
-    poll_target.events = POLLIN;
-    ::timespec wait{};
-    if (timeout.count() >= 0) {
-      auto const seconds{std::chrono::duration_cast<std::chrono::seconds>(timeout)};
-      wait.tv_sec = seconds.count();
-      wait.tv_nsec = (timeout - seconds).count();
-    }
-    int const ready{::ppoll(&poll_target, 1, timeout.count() < 0 ? nullptr : &wait, nullptr)};
-    if (ready < 0) {
-      if (errno == EINTR) {
-        return std::optional<line_change>{};
-      }
-      return std::unexpected{detail::info_errno()};
-    }
-    if (ready == 0) {
-      return std::optional<line_change>{};
-    }
-
-    ::gpio_v2_line_info_changed raw{};
-    ssize_t const got{::read(m_fd.get(), &raw, sizeof(raw))};
-    if (got < 0) {
-      if (errno == EAGAIN || errno == EINTR) {
-        return std::optional<line_change>{};
-      }
-      return std::unexpected{detail::info_errno()};
-    }
-    if (got != static_cast<ssize_t>(sizeof(raw))) {
-      return std::unexpected{gpio_error::io_error};
-    }
-
-    line_change change{};
-    change.info = detail::decode_line_info(raw.info);
-    change.timestamp =
-      event_time{std::chrono::nanoseconds{static_cast<std::int64_t>(raw.timestamp_ns)}};
-    switch (raw.event_type) {
-      case GPIO_V2_LINE_CHANGED_REQUESTED:
-        change.kind = line_change_kind::requested;
-        break;
-      case GPIO_V2_LINE_CHANGED_RELEASED:
-        change.kind = line_change_kind::released;
-        break;
-      case GPIO_V2_LINE_CHANGED_CONFIG:
-      default:
-        change.kind = line_change_kind::reconfigured;
-        break;
-    }
-    return std::optional<line_change>{change};
-  }
+  auto wait_change(std::chrono::nanoseconds const timeout) -> result<std::optional<line_change>>;
 
   /**
    * @brief The pollable chip descriptor for event-loop integration.
@@ -269,9 +182,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto native_handle() const noexcept -> native_handle_type {
-    return m_fd.owns() ? m_fd.get() : -1;
-  }
+  [[nodiscard]] auto native_handle() const noexcept -> native_handle_type;
 };
 
 }  // namespace nexenne::gpio
