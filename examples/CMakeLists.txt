@@ -1,17 +1,12 @@
-# Example programs: one runnable demo per utility class. Built when
+# Example programs: one runnable demo per public component. Built when
 # NEXENNE_BUILD_EXAMPLES is ON (default for a top-level build).
-add_subdirectory(utility)
-add_subdirectory(container)
-add_subdirectory(can)
-add_subdirectory(chrono)
-add_subdirectory(random)
-add_subdirectory(benchmark)
-add_subdirectory(serialization)
-add_subdirectory(filter)
-add_subdirectory(signal)
-add_subdirectory(ecs)
-add_subdirectory(algorithm)
-add_subdirectory(logging)
-add_subdirectory(math)
-add_subdirectory(geometry)
-add_subdirectory(gpio)
+#
+# Driven by the modules the root actually enabled, so turning one off with
+# -DNEXENNE_MODULE_<NAME>=OFF drops its examples instead of failing generation
+# on a dangling nexenne::<name> alias.
+get_property(_nexenne_enabled_modules GLOBAL PROPERTY NEXENNE_MODULES)
+foreach(_module IN LISTS _nexenne_enabled_modules)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_module}/CMakeLists.txt")
+        add_subdirectory(${_module})
+    endif()
+endforeach()
