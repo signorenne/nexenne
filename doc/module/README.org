@@ -2,12 +2,19 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-Every module is header-only C++23, dependency-light, and picked individually,
-exposed as =nexenne::<name>= (both the CMake target and the namespace). A module
-names its dependencies in =module.deps=, and the build discovers and orders
-them automatically. The set below is the public module catalogue. A module may
-only depend on modules below it in the layering, which keeps the bottom of the
-stack free-standing and the whole set acyclic.
+Every module is C++23, dependency-light, and picked individually, exposed as
+=nexenne::<name>= (both the CMake target and the namespace). A module names its
+dependencies in =module.deps=, and the build discovers and orders them
+automatically. The set below is the public module catalogue. A module may only
+depend on modules below it in the layering, which keeps the bottom of the stack
+free-standing and the whole set acyclic.
+
+Header-only is the default and holds for eleven of the fifteen modules. Four are
+compiled static libraries, because their weight is ordinary runtime code that
+every consumer would otherwise rebuild: =can=, =gpio=, =logging=, and
+=serialization=. The generic parts of those modules (the codecs, the concept
+ladders, the format strings) stay in the headers, so a caller's =constexpr= use
+is unaffected. See [[file:../setup/build-system.org][Build system]].
 
 Follow a module to its own index, which lists, per class it provides, a guide
 (purpose, the idea, idiomatic usage) and a runnable example.
@@ -108,7 +115,8 @@ Follow a module to its own index, which lists, per class it provides, a guide
   layouts with scaling and not-available policies, a message =database= with
   filters and an indexed registry, DBC file import, J1939 transport reassembly,
   and a =can_bus= backend with an in-memory loopback and a Linux SocketCAN
-  socket. Header-only and no-throw.
+  socket. No-throw throughout; the wire types and the codec stay =constexpr=
+  even though the backend and the DBC importer are compiled.
 
 * Dependency layering
 
