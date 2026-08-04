@@ -58,12 +58,13 @@ cmake --build build/docs --target nexenne_docs   # or nexenne_<name>_docs
 #+BEGIN_SRC sh
 cmake --preset dev                                  # Debug, tests + examples on
 cmake --build --preset dev
-cmake --build --preset dev --target nexenne_tests   # run every doctest suite
+ctest --preset dev                                  # run every doctest suite
 #+END_SRC
 
-Tests are doctest binaries. The =nexenne_tests= target runs them all; a
-failing suite fails the build. Run one module's suite directly (with doctest
-filters) at =build/dev/bin/nexenne_<name>_tests=.
+Tests are doctest binaries, one per module, registered with CTest and run in
+parallel. =cmake --build --preset dev --target nexenne_tests= is the serial
+build-and-run equivalent. Run one module's suite directly (with doctest filters)
+at =build/dev/bin/nexenne_<name>_tests=.
 
 | preset    | purpose                       |
 |-----------+-------------------------------|

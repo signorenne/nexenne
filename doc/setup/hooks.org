@@ -19,7 +19,7 @@ git config core.hooksPath .githooks
   If =clang-format= is not on =PATH= the check is skipped (it does not fail).
 - [[file:../../.githooks/pre-push][pre-push]] (on push) : the full gate. Runs
   =cmake --preset ci=, =cmake --build --preset ci=, and
-  =cmake --build --preset ci --target nexenne_tests=, so the push is blocked
+  =ctest --preset ci=, so the push is blocked
   unless the project configures, builds with warnings as errors, and every
   doctest suite passes.
 

@@ -174,14 +174,19 @@ Use the narrowest useful command while iterating, then widen before finishing.
 
 ```sh
 cmake --preset dev
-cmake --build --preset dev --target nexenne_tests
+cmake --build --preset dev && ctest --preset dev
 cmake --preset ci
-cmake --build --preset ci --target nexenne_tests
+cmake --build --preset ci && ctest --preset ci
 cmake --preset asan
-cmake --build --preset asan --target nexenne_tests
+cmake --build --preset asan && ctest --preset asan
 cmake -B build/docs -DNEXENNE_BUILD_DOCS=ON
 cmake --build build/docs --target nexenne_docs
+bash scripts/check_sync.sh
+bash scripts/install_smoke.sh
 ```
+
+`ctest` runs the suites in parallel; `cmake --build --preset <p> --target
+nexenne_tests` is the serial build-and-run equivalent.
 
 For one module, run its generated test binary directly, for example:
 

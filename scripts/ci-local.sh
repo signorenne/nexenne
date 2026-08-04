@@ -6,7 +6,8 @@
 #
 # Usage:
 #   scripts/ci-local.sh [check ...]
-# where each check is one of: format gcc clang asan tidy (default: all of them).
+# where each check is one of: sync format gcc clang asan tidy install
+# (default: all of them).
 #
 # Tool names match CI (gcc-15, clang-20, clang-*-20) and are overridable, each
 # falling back to the unversioned name:
@@ -43,6 +44,21 @@ say() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 # a changed CC/CXX on an already-configured cache).
 reset_ci_dir() { rm -rf build/ci; }
 
+check_sync() {
+  say "repo consistency"
+  if bash scripts/check_sync.sh; then record PASS sync; else record FAIL sync; fi
+}
+
+check_install() {
+  say "install + consumer find_package"
+  if [ -z "${GXX}" ]; then record SKIP install; return; fi
+  if CC="${GCC}" CXX="${GXX}" bash scripts/install_smoke.sh; then
+    record PASS install
+  else
+    record FAIL install
+  fi
+}
+
 check_format() {
   say "clang-format"
   if [ -z "${CLANG_FORMAT}" ]; then record SKIP format; return; fi
@@ -61,7 +77,7 @@ build_and_test_ci() {
   reset_ci_dir
   if CC="${cc}" CXX="${cxx}" cmake --preset ci \
       && cmake --build --preset ci \
-      && cmake --build --preset ci --target nexenne_tests; then
+      && ctest --preset ci; then
     record PASS "build-${name}"
   else
     record FAIL "build-${name}"
@@ -73,7 +89,7 @@ check_asan() {
   if [ -z "${GXX}" ]; then record SKIP asan; return; fi
   if CC="${GCC}" CXX="${GXX}" cmake --preset asan \
       && cmake --build --preset asan \
-      && cmake --build --preset asan --target nexenne_tests; then
+      && ctest --preset asan; then
     record PASS asan
   else
     record FAIL asan
@@ -98,14 +114,16 @@ check_tidy() {
 }
 
 checks=("$@")
-[ ${#checks[@]} -eq 0 ] && checks=(format gcc clang asan tidy)
+[ ${#checks[@]} -eq 0 ] && checks=(sync format gcc clang asan tidy install)
 for c in "${checks[@]}"; do
   case "${c}" in
+    sync)   check_sync ;;
     format) check_format ;;
     gcc)    build_and_test_ci gcc "${GCC}" "${GXX}" ;;
     clang)  build_and_test_ci clang "${CLANG}" "${CLANGXX}" ;;
     asan)   check_asan ;;
     tidy)   check_tidy ;;
+    install) check_install ;;
     *) printf 'unknown check: %s\n' "${c}" >&2; exit 2 ;;
   esac
 done

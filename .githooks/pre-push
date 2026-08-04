@@ -22,5 +22,5 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_OBJECT_DIRECTORY
 echo "pre-push: configuring and building (ci preset)"
 cmake --preset ci >/dev/null
 cmake --build --preset ci
-cmake --build --preset ci --target nexenne_tests
+ctest --preset ci
 echo "pre-push: build + doctest OK"

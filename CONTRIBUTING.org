@@ -11,7 +11,7 @@
 5. Use [[file:doc/agent-workflows.org][doc/agent-workflows.org]] for multi-step tasks and
    handoffs.
 6. The =ci= preset must be green before a PR:
-   =cmake --preset ci && cmake --build --preset ci --target nexenne_tests=.
+   =cmake --preset ci && cmake --build --preset ci && ctest --preset ci=.
 
 * Adding a component to a module
 
@@ -39,7 +39,7 @@ One component per commit, =feat(<mod>): add <name>=.
 Enable once per clone: =git config core.hooksPath .githooks=. Then:
 
 - *pre-commit* (fast): staged =.hpp= / =.cpp= files must be clang-format clean.
-- *pre-push* (full): =cmake --preset ci=, the build, and =nexenne_tests= must pass.
+- *pre-push* (full): =cmake --preset ci=, the build, and =ctest --preset ci= must pass.
 
 Bypass either once by prefixing the git command with =NEXENNE_SKIP_HOOK=1=.
 
@@ -50,6 +50,7 @@ A PR merges only when every job is green:
 
 | job           | checks                                            |
 |---------------+---------------------------------------------------|
+| =sync=        | modules registered in docs, examples, umbrella    |
 | =format=      | clang-format is clean                             |
 | =build-test=  | GCC build + doctest suites, warnings as errors    |
 | =build-clang= | Clang build (portability)                         |
