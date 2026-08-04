@@ -24,9 +24,10 @@ component name across the module's four trees:
    surface, edge cases, and =constexpr= use where it applies.
 3. Guide at =doc/module/<mod>/<name>.org= (purpose, how it works, complexity, when
    to use it, usage) and a runnable example at =examples/<mod>/<name>.cpp=.
-4. Wire the name into the module =CMakeLists.txt= (the =HEADERS= list), the
-   umbrella header, =tests/CMakeLists.txt=, =examples/<mod>/CMakeLists.txt=, and
-   the module's doc =README.org=.
+4. Wire the name into the umbrella header, =tests/CMakeLists.txt=,
+   =examples/<mod>/CMakeLists.txt=, and the module's doc =README.org=. The
+   module =CMakeLists.txt= needs no edit: public headers are discovered under
+   =include/=.
 
 Verify before committing: clang-format clean, the =ci= preset green, the =asan=
 preset clean, and the module's Doxygen docs build without warnings

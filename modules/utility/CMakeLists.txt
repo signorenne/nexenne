@@ -15,30 +15,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nexenne_standalone_bootstrap()
 endif()
 
-nexenne_add_module(utility
-    HEADERS
-        include/nexenne/utility/utility.hpp
-        include/nexenne/utility/align.hpp
-        include/nexenne/utility/bit.hpp
-        include/nexenne/utility/defer.hpp
-        include/nexenne/utility/enum_to_string.hpp
-        include/nexenne/utility/expected_utils.hpp
-        include/nexenne/utility/flags.hpp
-        include/nexenne/utility/function_ref.hpp
-        include/nexenne/utility/hash.hpp
-        include/nexenne/utility/in_place_function.hpp
-        include/nexenne/utility/lazy.hpp
-        include/nexenne/utility/meta.hpp
-        include/nexenne/utility/narrow_cast.hpp
-        include/nexenne/utility/non_null.hpp
-        include/nexenne/utility/overloaded.hpp
-        include/nexenne/utility/scope_guard.hpp
-        include/nexenne/utility/source_location_format.hpp
-        include/nexenne/utility/static_string.hpp
-        include/nexenne/utility/strong_typedef.hpp
-        include/nexenne/utility/type_list.hpp
-        include/nexenne/utility/unique_resource.hpp
-)
+nexenne_add_module(utility)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

@@ -16,11 +16,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nexenne_standalone_bootstrap()
 endif()
 
-nexenne_add_module(benchmark
-    HEADERS
-        include/nexenne/benchmark/benchmark.hpp
-        include/nexenne/benchmark/do_not_optimize.hpp
-)
+nexenne_add_module(benchmark)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

@@ -19,11 +19,8 @@ endif()
 # Header-only by default. For a compiled module, add KIND STATIC or SHARED
 # and a SOURCES list. Inter-module dependencies go in a module.deps file next
 # to this one, not here. External libraries go in LINK_PUBLIC / LINK_PRIVATE.
-nexenne_add_module(__MODULE__
-    HEADERS
-        include/nexenne/__MODULE__/__MODULE__.hpp
-        include/nexenne/__MODULE__/example.hpp
-)
+# Public headers are discovered under include/, so adding one needs no edit here.
+nexenne_add_module(__MODULE__)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

@@ -19,15 +19,7 @@ endif()
 # Header-only by default. For a compiled module, add KIND STATIC or SHARED
 # and a SOURCES list. Inter-module dependencies go in a module.deps file next
 # to this one, not here. External libraries go in LINK_PUBLIC / LINK_PRIVATE.
-nexenne_add_module(signal
-    HEADERS
-        include/nexenne/signal/connection.hpp
-        include/nexenne/signal/slot.hpp
-        include/nexenne/signal/emit_blocker.hpp
-        include/nexenne/signal/format.hpp
-        include/nexenne/signal/signal.hpp
-        include/nexenne/signal/static_signal.hpp
-)
+nexenne_add_module(signal)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

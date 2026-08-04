@@ -16,21 +16,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nexenne_standalone_bootstrap()
 endif()
 
-nexenne_add_module(random
-    HEADERS
-        include/nexenne/random/discrete.hpp
-        include/nexenne/random/exponential.hpp
-        include/nexenne/random/format.hpp
-        include/nexenne/random/gamma.hpp
-        include/nexenne/random/normal.hpp
-        include/nexenne/random/pcg.hpp
-        include/nexenne/random/poisson.hpp
-        include/nexenne/random/random.hpp
-        include/nexenne/random/sample.hpp
-        include/nexenne/random/seed_seq.hpp
-        include/nexenne/random/uniform.hpp
-        include/nexenne/random/xoshiro.hpp
-)
+nexenne_add_module(random)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

@@ -50,12 +50,16 @@ only (compiled modules only).
 
 =nexenne_add_module(<name> KIND <kind> ...)= picks how it compiles:
 
-| kind      | when                       | needs             |
-|-----------+----------------------------+-------------------|
-| INTERFACE | header-only (default)      | HEADERS           |
-| STATIC    | static archive             | HEADERS + SOURCES |
-| SHARED    | shared lib, stable ABI     | HEADERS + SOURCES |
-| OBJECT    | special composition        | HEADERS + SOURCES |
+| kind      | when                       | needs   |
+|-----------+----------------------------+---------|
+| INTERFACE | header-only (default)      | nothing |
+| STATIC    | static archive             | SOURCES |
+| SHARED    | shared lib, stable ABI     | SOURCES |
+| OBJECT    | special composition        | SOURCES |
+
+Public headers are discovered: every =.hpp= under =include/= joins the install
+file set automatically, so adding a header needs no CMake edit. Pass =HEADERS=
+explicitly only to install less than the directory holds.
 
 Default to INTERFACE. =SHARED= generates
 =include/nexenne/<name>/<name>_export.hpp=; mark public symbols with
@@ -86,7 +90,7 @@ Build docs with =cmake -B build/docs -DNEXENNE_BUILD_DOCS=ON= then target
 
 - [ ] Name is lowercase snake_case; scaffolded from the template.
 - [ ] Module version is present in =cmake/nexenne_version.cmake=.
-- [ ] Every public header listed in =nexenne_add_module(... HEADERS ...)=.
+- [ ] Every public header reachable from the module umbrella header.
 - [ ] Dependencies declared in =module.deps= (not includes-only).
 - [ ] Tests under =tests/= exercise the public API; new behavior, new tests.
 - [ ] Every public type and enum has a formatter in =format.hpp= (=to_string=,

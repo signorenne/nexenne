@@ -19,15 +19,7 @@ endif()
 # Header-only by default. For a compiled module, add KIND STATIC or SHARED
 # and a SOURCES list. Inter-module dependencies go in a module.deps file next
 # to this one, not here. External libraries go in LINK_PUBLIC / LINK_PRIVATE.
-nexenne_add_module(ecs
-        HEADERS
-        include/nexenne/ecs/ecs.hpp
-        include/nexenne/ecs/type_id.hpp
-        include/nexenne/ecs/component_pool.hpp
-        include/nexenne/ecs/format.hpp
-        include/nexenne/ecs/registry.hpp
-        include/nexenne/ecs/view.hpp
-)
+nexenne_add_module(ecs)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

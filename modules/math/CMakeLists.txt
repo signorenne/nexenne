@@ -16,31 +16,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nexenne_standalone_bootstrap()
 endif()
 
-nexenne_add_module(math
-    HEADERS
-        include/nexenne/math/angle.hpp
-        include/nexenne/math/concepts.hpp
-        include/nexenne/math/constants.hpp
-        include/nexenne/math/curve.hpp
-        include/nexenne/math/error.hpp
-        include/nexenne/math/euler.hpp
-        include/nexenne/math/fixed.hpp
-        include/nexenne/math/format.hpp
-        include/nexenne/math/hash.hpp
-        include/nexenne/math/matrix.hpp
-        include/nexenne/math/power.hpp
-        include/nexenne/math/projection.hpp
-        include/nexenne/math/quaternion.hpp
-        include/nexenne/math/random.hpp
-        include/nexenne/math/scalar.hpp
-        include/nexenne/math/slerp_variants.hpp
-        include/nexenne/math/transform.hpp
-        include/nexenne/math/trigonometry.hpp
-        include/nexenne/math/vector.hpp
-        include/nexenne/math/vector_algorithms.hpp
-        include/nexenne/math/normalized.hpp
-        include/nexenne/math/math.hpp
-)
+nexenne_add_module(math)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

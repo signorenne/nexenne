@@ -9,7 +9,7 @@ include(nexenne_modules)
 # nexenne_add_module(<name>
 #   [KIND <INTERFACE|STATIC|SHARED|OBJECT>]   default INTERFACE (header-only)
 #   [VERSION <ver>]                           default module version manifest
-#   [HEADERS <file>...]                       public headers
+#   [HEADERS <file>...]                       public headers; default: globbed
 #   [SOURCES <file>...]                       required unless KIND is INTERFACE
 #   [LINK_PUBLIC  <lib>...]                   external libs, transitively exposed
 #   [LINK_PRIVATE <lib>...]                   external libs, impl-only (not INTERFACE)
@@ -18,6 +18,14 @@ include(nexenne_modules)
 # Declares the library nexenne::<name>. Inter-module dependencies come from
 # modules/<name>/module.deps, not from an argument here. KIND SHARED also
 # generates include/nexenne/<name>/<name>_export.hpp with NEXENNE_<NAME>_EXPORT.
+#
+# HEADERS defaults to every .hpp under include/. The file set is what install()
+# copies, so a hand-written list is a second registry of the public surface: the
+# in-tree build compiles against BASE_DIRS (the whole directory) and never
+# notices a header missing from FILES, which is exactly how an installed package
+# ends up unable to compile its own umbrella. Discovering them keeps one source
+# of truth, the filesystem. Pass HEADERS explicitly only to install less than
+# the directory holds.
 function(nexenne_add_module name)
     cmake_parse_arguments(NMOD "" "VERSION;KIND" "HEADERS;SOURCES;LINK_PUBLIC;LINK_PRIVATE" ${ARGN})
 
@@ -66,6 +74,13 @@ function(nexenne_add_module name)
     add_library(nexenne::${name} ALIAS ${_target})
     set_target_properties(${_target} PROPERTIES EXPORT_NAME ${name})
     target_compile_features(${_target} ${_pub} cxx_std_23)
+
+    # CONFIGURE_DEPENDS re-runs the glob on every build, so a header added
+    # without touching CMake still reaches the file set and the install.
+    if(NOT NMOD_HEADERS AND IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include")
+        file(GLOB_RECURSE NMOD_HEADERS CONFIGURE_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp")
+    endif()
 
     if(NMOD_HEADERS)
         target_sources(${_target} ${_pub}

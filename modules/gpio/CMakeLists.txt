@@ -19,31 +19,7 @@ endif()
 # Header-only by default. For a compiled module, add KIND STATIC or SHARED
 # and a SOURCES list. Inter-module dependencies go in a module.deps file next
 # to this one, not here. External libraries go in LINK_PUBLIC / LINK_PRIVATE.
-nexenne_add_module(gpio
-    HEADERS
-        include/nexenne/gpio/gpio.hpp
-        include/nexenne/gpio/error.hpp
-        include/nexenne/gpio/format.hpp
-        include/nexenne/gpio/line_types.hpp
-        include/nexenne/gpio/line_spec.hpp
-        include/nexenne/gpio/line_config.hpp
-        include/nexenne/gpio/line_event.hpp
-        include/nexenne/gpio/line_value.hpp
-        include/nexenne/gpio/backend.hpp
-        include/nexenne/gpio/line.hpp
-        include/nexenne/gpio/chip.hpp
-        include/nexenne/gpio/decode.hpp
-        include/nexenne/gpio/debounce.hpp
-        include/nexenne/gpio/drain.hpp
-        include/nexenne/gpio/sequence_tracker.hpp
-        include/nexenne/gpio/sink.hpp
-        include/nexenne/gpio/io/callback_sink.hpp
-        include/nexenne/gpio/io/chardev_chip.hpp
-        include/nexenne/gpio/io/chardev_info.hpp
-        include/nexenne/gpio/io/chardev_watch.hpp
-        include/nexenne/gpio/io/mock_chip.hpp
-        include/nexenne/gpio/io/queue_sink.hpp
-)
+nexenne_add_module(gpio)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

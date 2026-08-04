@@ -16,28 +16,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nexenne_standalone_bootstrap()
 endif()
 
-nexenne_add_module(geometry
-    HEADERS
-        include/nexenne/geometry/aabb.hpp
-        include/nexenne/geometry/capsule.hpp
-        include/nexenne/geometry/circle.hpp
-        include/nexenne/geometry/closest_point.hpp
-        include/nexenne/geometry/concepts.hpp
-        include/nexenne/geometry/convex_hull.hpp
-        include/nexenne/geometry/epa.hpp
-        include/nexenne/geometry/error.hpp
-        include/nexenne/geometry/frustum.hpp
-        include/nexenne/geometry/gjk.hpp
-        include/nexenne/geometry/intersect.hpp
-        include/nexenne/geometry/obb.hpp
-        include/nexenne/geometry/plane.hpp
-        include/nexenne/geometry/polygon.hpp
-        include/nexenne/geometry/ray.hpp
-        include/nexenne/geometry/segment.hpp
-        include/nexenne/geometry/sphere.hpp
-        include/nexenne/geometry/triangle.hpp
-        include/nexenne/geometry/geometry.hpp
-)
+nexenne_add_module(geometry)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

@@ -15,45 +15,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nexenne_standalone_bootstrap()
 endif()
 
-nexenne_add_module(container
-    HEADERS
-        include/nexenne/container/container.hpp
-        include/nexenne/container/bag.hpp
-        include/nexenne/container/bimap.hpp
-        include/nexenne/container/binary_tree.hpp
-        include/nexenne/container/bloom_filter.hpp
-        include/nexenne/container/bitset_dynamic.hpp
-        include/nexenne/container/dense_map.hpp
-        include/nexenne/container/deque.hpp
-        include/nexenne/container/error.hpp
-        include/nexenne/container/flat_hash_map.hpp
-        include/nexenne/container/flat_hash_set.hpp
-        include/nexenne/container/flat_map.hpp
-        include/nexenne/container/flat_set.hpp
-        include/nexenne/container/format.hpp
-        include/nexenne/container/gap_buffer.hpp
-        include/nexenne/container/graph.hpp
-        include/nexenne/container/hash.hpp
-        include/nexenne/container/heap.hpp
-        include/nexenne/container/indexed_priority_queue.hpp
-        include/nexenne/container/intrusive_list.hpp
-        include/nexenne/container/linear_arena.hpp
-        include/nexenne/container/lru_cache.hpp
-        include/nexenne/container/mpmc_queue.hpp
-        include/nexenne/container/mpsc_queue.hpp
-        include/nexenne/container/object_pool.hpp
-        include/nexenne/container/ring_buffer.hpp
-        include/nexenne/container/scratch_pad.hpp
-        include/nexenne/container/slot_map.hpp
-        include/nexenne/container/small_vector.hpp
-        include/nexenne/container/sparse_set.hpp
-        include/nexenne/container/spsc_queue.hpp
-        include/nexenne/container/stable_vector.hpp
-        include/nexenne/container/static_flat_map.hpp
-        include/nexenne/container/static_vector.hpp
-        include/nexenne/container/trie.hpp
-        include/nexenne/container/union_find.hpp
-)
+nexenne_add_module(container)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

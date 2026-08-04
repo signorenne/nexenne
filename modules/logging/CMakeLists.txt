@@ -17,25 +17,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 
 # Header-only. Inter-module dependencies live in module.deps next to this file.
-nexenne_add_module(logging
-        HEADERS
-        include/nexenne/logging/logging.hpp
-        include/nexenne/logging/async_sink.hpp
-        include/nexenne/logging/config.hpp
-        include/nexenne/logging/format_string.hpp
-        include/nexenne/logging/esp_log_sink.hpp
-        include/nexenne/logging/json_sink.hpp
-        include/nexenne/logging/level.hpp
-        include/nexenne/logging/logger.hpp
-        include/nexenne/logging/macros.hpp
-        include/nexenne/logging/manager.hpp
-        include/nexenne/logging/multi_sink.hpp
-        include/nexenne/logging/pattern_formatter.hpp
-        include/nexenne/logging/record.hpp
-        include/nexenne/logging/rotating_file_sink.hpp
-        include/nexenne/logging/sink.hpp
-        include/nexenne/logging/stream_logger.hpp
-)
+nexenne_add_module(logging)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)
