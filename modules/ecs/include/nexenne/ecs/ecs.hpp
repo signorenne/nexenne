@@ -17,7 +17,10 @@
  *   optional exclude list), driven by the smallest matching storage.
  *
  * Pulls in every public header. For finer-grained build dependencies, include
- * the individual leaf headers under \c nexenne/ecs/ directly.
+ * the individual leaf headers under \c nexenne/ecs/ directly. The pool storage
+ * (\c component_pool.hpp) is intentionally excluded: it declares
+ * \c detail::component_pool, an implementation detail the registry includes for
+ * itself, not part of the public surface.
  */
 
 #include <nexenne/ecs/format.hpp>
