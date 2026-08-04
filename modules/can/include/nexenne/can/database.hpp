@@ -58,7 +58,7 @@ public:
    * @pre None.
    * @post \c messages() returns the given messages in order.
    */
-  explicit database(message_list messages) noexcept : m_messages{std::move(messages)} {}
+  explicit database(message_list messages) noexcept;
 
   /**
    * @brief Read-only view of the messages.
@@ -72,9 +72,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto messages() const noexcept -> std::span<message const> {
-    return std::span<message const>{m_messages.data(), m_messages.size()};
-  }
+  [[nodiscard]] auto messages() const noexcept -> std::span<message const>;
 
   /**
    * @brief The number of messages in the database.
@@ -84,9 +82,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto message_count() const noexcept -> std::size_t {
-    return m_messages.size();
-  }
+  [[nodiscard]] auto message_count() const noexcept -> std::size_t;
 
   /**
    * @brief Finds a message by identifier with a linear scan.
@@ -103,14 +99,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto find(can_id const id) const noexcept -> message const* {
-    for (auto const& msg : m_messages) {
-      if (msg.id().identifier() == id.identifier() && msg.id().extended() == id.extended()) {
-        return &msg;
-      }
-    }
-    return nullptr;
-  }
+  [[nodiscard]] auto find(can_id const id) const noexcept -> message const*;
 
   /**
    * @brief Finds a message by name.
@@ -126,14 +115,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto find(std::string_view const name) const noexcept -> message const* {
-    for (auto const& msg : m_messages) {
-      if (msg.name() == name) {
-        return &msg;
-      }
-    }
-    return nullptr;
-  }
+  [[nodiscard]] auto find(std::string_view const name) const noexcept -> message const*;
 };
 
 }  // namespace nexenne::can

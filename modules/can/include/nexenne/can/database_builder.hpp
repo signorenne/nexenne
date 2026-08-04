@@ -52,10 +52,7 @@ public:
    * @pre None.
    * @post The message is appended in order.
    */
-  auto add_message(message msg) -> database_builder& {
-    m_messages.push_back(std::move(msg));
-    return *this;
-  }
+  auto add_message(message msg) -> database_builder&;
 
   /**
    * @brief Builds the database, moving the accumulated messages into it.
@@ -66,9 +63,7 @@ public:
    * @post The returned database holds the added messages in order and the
    *       builder is left empty.
    */
-  [[nodiscard]] auto build() noexcept -> database {
-    return database{std::move(m_messages)};
-  }
+  [[nodiscard]] auto build() noexcept -> database;
 };
 
 }  // namespace nexenne::can

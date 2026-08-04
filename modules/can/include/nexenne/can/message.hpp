@@ -83,8 +83,7 @@ public:
     can_id const id,
     std::string_view const name,
     std::uint8_t const byte_length = max_classic_length
-  ) noexcept
-      : m_id{id}, m_name{name}, m_byte_length{byte_length} {}
+  ) noexcept;
 
   /**
    * @brief Adds a signal, compiling and storing its packing plan.
@@ -97,10 +96,7 @@ public:
    * @post \c signal_count() has grown by one and the new entry holds \p sig and
    *       its compiled plan.
    */
-  auto add_signal(signal const& sig) -> message& {
-    m_signals.push_back(signal_entry{sig, packing_plan::from_signal(sig)});
-    return *this;
-  }
+  auto add_signal(signal const& sig) -> message&;
 
   /**
    * @brief The message identifier.
@@ -110,9 +106,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto id() noexcept -> can_id& {
-    return m_id;
-  }
+  [[nodiscard]] auto id() noexcept -> can_id&;
 
   /**
    * @brief The message identifier.
@@ -122,9 +116,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto id() const noexcept -> can_id const& {
-    return m_id;
-  }
+  [[nodiscard]] auto id() const noexcept -> can_id const&;
 
   /**
    * @brief The message name.
@@ -134,9 +126,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto name() noexcept -> std::string_view& {
-    return m_name;
-  }
+  [[nodiscard]] auto name() noexcept -> std::string_view&;
 
   /**
    * @brief The message name.
@@ -146,9 +136,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto name() const noexcept -> std::string_view const& {
-    return m_name;
-  }
+  [[nodiscard]] auto name() const noexcept -> std::string_view const&;
 
   /**
    * @brief The on-wire payload length in bytes.
@@ -158,9 +146,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto byte_length() noexcept -> std::uint8_t& {
-    return m_byte_length;
-  }
+  [[nodiscard]] auto byte_length() noexcept -> std::uint8_t&;
 
   /**
    * @brief The on-wire payload length in bytes.
@@ -170,9 +156,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto byte_length() const noexcept -> std::uint8_t const& {
-    return m_byte_length;
-  }
+  [[nodiscard]] auto byte_length() const noexcept -> std::uint8_t const&;
 
   /**
    * @brief Mutable view of the signal entries.
@@ -182,9 +166,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto signals() noexcept -> std::span<signal_entry> {
-    return std::span<signal_entry>{m_signals.data(), m_signals.size()};
-  }
+  [[nodiscard]] auto signals() noexcept -> std::span<signal_entry>;
 
   /**
    * @brief Read-only view of the signal entries.
@@ -194,9 +176,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto signals() const noexcept -> std::span<signal_entry const> {
-    return std::span<signal_entry const>{m_signals.data(), m_signals.size()};
-  }
+  [[nodiscard]] auto signals() const noexcept -> std::span<signal_entry const>;
 
   /**
    * @brief The number of signals in the message.
@@ -206,9 +186,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto signal_count() const noexcept -> std::size_t {
-    return m_signals.size();
-  }
+  [[nodiscard]] auto signal_count() const noexcept -> std::size_t;
 
   /**
    * @brief Finds a signal by name.
@@ -222,14 +200,7 @@ public:
    * @post None.
    */
   [[nodiscard]] auto find_signal(std::string_view const name) const noexcept
-    -> std::optional<std::size_t> {
-    for (std::size_t i{0}; i < m_signals.size(); ++i) {
-      if (m_signals[i].definition.name() == name) {
-        return i;
-      }
-    }
-    return std::nullopt;
-  }
+    -> std::optional<std::size_t>;
 };
 
 }  // namespace nexenne::can

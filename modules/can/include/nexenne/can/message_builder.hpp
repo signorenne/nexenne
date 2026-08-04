@@ -51,7 +51,7 @@ public:
    * @pre None.
    * @post The pending message carries \p id and \p name.
    */
-  message_builder(can_id const id, std::string_view const name) noexcept : m_message{id, name} {}
+  message_builder(can_id const id, std::string_view const name) noexcept;
 
   /**
    * @brief Sets the message identifier.
@@ -63,10 +63,7 @@ public:
    * @pre None.
    * @post The pending message's identifier equals \p id.
    */
-  auto identifier(can_id const id) noexcept -> message_builder& {
-    m_message.id() = id;
-    return *this;
-  }
+  auto identifier(can_id const id) noexcept -> message_builder&;
 
   /**
    * @brief Sets the message name.
@@ -78,10 +75,7 @@ public:
    * @pre None.
    * @post The pending message's name equals \p name.
    */
-  auto name(std::string_view const name) noexcept -> message_builder& {
-    m_message.name() = name;
-    return *this;
-  }
+  auto name(std::string_view const name) noexcept -> message_builder&;
 
   /**
    * @brief Sets the on-wire payload length in bytes.
@@ -93,11 +87,7 @@ public:
    * @pre \p byte_length is at most 64.
    * @post The pending message's byte length equals \p byte_length.
    */
-  auto byte_length(std::uint8_t const byte_length) noexcept -> message_builder& {
-    assert(byte_length <= max_fd_length && "message_builder: byte_length exceeds 64");
-    m_message.byte_length() = byte_length;
-    return *this;
-  }
+  auto byte_length(std::uint8_t const byte_length) noexcept -> message_builder&;
 
   /**
    * @brief Adds a signal to the message, compiling its packing plan.
@@ -109,10 +99,7 @@ public:
    * @pre \c sig.length() is between 1 and 64.
    * @post The pending message has gained \p sig.
    */
-  auto add(signal const& sig) -> message_builder& {
-    m_message.add_signal(sig);
-    return *this;
-  }
+  auto add(signal const& sig) -> message_builder&;
 
   /**
    * @brief Returns the assembled message.
@@ -122,9 +109,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto build() const -> message {
-    return m_message;
-  }
+  [[nodiscard]] auto build() const -> message;
 };
 
 }  // namespace nexenne::can

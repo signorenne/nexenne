@@ -17,7 +17,18 @@ endif()
 # Header-only by default. For a compiled module, add KIND STATIC or SHARED
 # and a SOURCES list. Inter-module dependencies go in a module.deps file next
 # to this one, not here. External libraries go in LINK_PUBLIC / LINK_PRIVATE.
-nexenne_add_module(can)
+# Compiled: the SocketCAN backend, the DBC importer, and the J1939 transport are
+# ordinary runtime code, built once here instead of in every consumer TU. The
+# wire types and the signal codec stay constexpr-capable in the headers.
+nexenne_add_module(can KIND STATIC SOURCES
+    src/database.cpp
+    src/database_builder.cpp
+    src/dbc.cpp
+    src/j1939_transport.cpp
+    src/message.cpp
+    src/message_builder.cpp
+    src/io/socketcan_bus.cpp
+)
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)
