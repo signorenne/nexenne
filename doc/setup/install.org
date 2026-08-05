@@ -71,4 +71,4 @@ cleans up. The [[file:ci.org][CI]] =install= job runs it; run it locally with
 
 * See also
 
-[[file:build-system.org][Build system]], [[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]], [[file:ci.org][CI]], [[file:release.org][Release and versioning]].
+[[file:build-system.org][Build system]], [[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]], [[file:ci.org][CI]].

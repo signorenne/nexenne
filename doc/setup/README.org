@@ -34,7 +34,6 @@ The presets are =dev=, =release=, =asan=, =ci= (configure + build) plus the
 - [[file:modules.org][Modules]] : module layout, =module.deps=, discovery and ordering, kinds, standalone builds.
 - [[file:cmake-helpers.org][CMake helpers]] : every function in the =cmake/*.cmake= files, with signatures.
 - [[file:install.org][Install and consume]] : =find_package=, =add_subdirectory=, =FetchContent=.
-- [[file:release.org][Release and versioning]] : module SemVer, snapshot SemVer, RCs, changelog, artifacts.
 
 * Quality gates
 

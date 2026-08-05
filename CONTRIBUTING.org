@@ -63,8 +63,8 @@ A PR merges only when every job is green:
 
 Release PRs are automated. The global =NEXENNE_VERSION= is a snapshot of the
 whole repo; each =NEXENNE_MODULE_<NAME>_VERSION= is the independent package/API
-version for one module. Maintainers use [[file:doc/setup/release.org][Release and versioning]] for stable
-releases, release candidates, artifacts, and rollback rules.
+version for one module. Release automation is currently removed; tag and
+publish by hand until it is reinstated.
 
 * Commit messages
 

@@ -79,4 +79,4 @@ suite. See [[file:testing.org][Testing]].
 
 * See also
 
-[[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]], [[file:testing.org][Testing]], [[file:install.org][Install and consume]], [[file:release.org][Release and versioning]].
+[[file:modules.org][Modules]], [[file:cmake-helpers.org][CMake helpers]], [[file:testing.org][Testing]], [[file:install.org][Install and consume]].

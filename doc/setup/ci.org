@@ -76,16 +76,13 @@ ctest --preset ci
 
 * Release workflows
 
-Release automation lives next to CI but is separate from the merge gate:
-
-| workflow | purpose |
-|----------+---------|
-| =release-pr= | prepares snapshot or module release PRs from =main= |
-| =release-candidate= | publishes =vX.Y.Z-rc.N= or =nexenne-<module>-vX.Y.Z-rc.N= prereleases |
-| =publish-release= | tags and publishes a stable release after a release PR merges |
-
-See [[file:release.org][Release and versioning]] for the maintainer flow.
+None. The release automation (=release-pr=, =release-candidate=,
+=publish-release=, =cliff.toml=, and the release scripts) was removed; =ci.yml=
+is the only workflow. Tag and publish by hand until it is reinstated. The
+per-module and snapshot version numbers still live in
+[[file:../../cmake/nexenne_version.cmake][cmake/nexenne_version.cmake]], which
+the build and the package configs read.
 
 * See also
 
-[[file:hooks.org][Git hooks]], [[file:testing.org][Testing]], [[file:api-docs.org][API docs]], [[file:install.org][Install and consume]], [[file:release.org][Release and versioning]].
+[[file:hooks.org][Git hooks]], [[file:testing.org][Testing]], [[file:api-docs.org][API docs]], [[file:install.org][Install and consume]].

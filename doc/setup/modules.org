@@ -98,4 +98,4 @@ In a standalone build =NEXENNE_BUILD_TESTS= and =NEXENNE_INSTALL= default to ON.
 
 * See also
 
-[[file:cmake-helpers.org][CMake helpers]], [[file:build-system.org][Build system]], [[file:testing.org][Testing]], [[file:install.org][Install and consume]], [[file:release.org][Release and versioning]], [[file:conventions.org][Conventions]].
+[[file:cmake-helpers.org][CMake helpers]], [[file:build-system.org][Build system]], [[file:testing.org][Testing]], [[file:install.org][Install and consume]], [[file:conventions.org][Conventions]].

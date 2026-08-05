@@ -37,7 +37,6 @@ module spokes.
   [[file:doc/module/math/README.org][math]], [[file:doc/module/container/README.org][container]], [[file:doc/module/serialization/README.org][serialization]], [[file:doc/module/algorithm/README.org][algorithm]].
 - /Setup and infrastructure/ ([[file:doc/setup/README.org][doc/setup/]]) : the [[file:doc/setup/build-system.org][build system]], [[file:doc/setup/testing.org][testing]],
   [[file:doc/setup/install.org][install]], [[file:doc/setup/cmake-helpers.org][CMake helpers]], [[file:doc/setup/hooks.org][git hooks]], and [[file:doc/setup/ci.org][CI]].
-  Release/versioning lives in [[file:doc/setup/release.org][release]].
 
 Generated API reference (Doxygen, fetched if not installed):
 

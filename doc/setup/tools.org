@@ -54,8 +54,6 @@ C++23 compiler and CMake with Ninja.
 
 - [[https://docs.github.com/actions][GitHub Actions]] : CI. Workflow in
   [[file:../../.github/workflows/ci.yml][.github/workflows/ci.yml]]; see [[file:ci.org][CI]].
-- [[https://git-cliff.org][git-cliff]] : Conventional Commit changelog and version bump helper for
-  release PRs; config in [[file:../../cliff.toml][cliff.toml]]. See [[file:release.org][Release and versioning]].
 - [[https://docs.github.com/code-security/dependabot][Dependabot]] : weekly
   grouped PRs that keep the SHA-pinned GitHub Actions current; config in
   [[file:../../.github/dependabot.yml][.github/dependabot.yml]]. It tracks the
@@ -74,4 +72,4 @@ C++23 compiler and CMake with Ninja.
 
 * See also
 
-[[file:build-system.org][Build system]], [[file:ci.org][CI]], [[file:conventions.org][Conventions]], [[file:release.org][Release and versioning]], [[file:README.org][setup index]].
+[[file:build-system.org][Build system]], [[file:ci.org][CI]], [[file:conventions.org][Conventions]], [[file:README.org][setup index]].

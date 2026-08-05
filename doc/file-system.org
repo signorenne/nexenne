@@ -23,7 +23,6 @@ nexenne/
 |-- CHANGELOG.org           generated Conventional Commit changelog
 |-- CMakeLists.txt          root build and install rules
 |-- CMakePresets.json       dev, ci, asan, release presets
-|-- cliff.toml              git-cliff changelog and version-bump config
 |-- cmake/                  reusable CMake helpers and package templates
 |-- modules/<name>/         library modules
 |-- examples/<name>/        runnable usage examples

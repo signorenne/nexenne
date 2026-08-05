@@ -41,7 +41,6 @@ pull module or component deep dives only when the task touches them.
 | [[file:setup/hooks.org][setup/hooks.org]]             |       | x       | x    | x      | x      | x       |
 | [[file:setup/ci.org][setup/ci.org]]                |       | x       | x    | x      | x      | x       |
 | [[file:setup/install.org][setup/install.org]]           |       | x       |      | x      |        | x       |
-| [[file:setup/release.org][setup/release.org]]           |       | x       |      | x      | x      | x       |
 | [[file:setup/conventions.org][setup/conventions.org]]       |       | x       | x    | x      | x      | x       |
 | [[file:setup/tools.org][setup/tools.org]]             |       | x       | x    | x      | x      | x       |
 | [[file:../template/MODULE_GUIDE.org][template/MODULE_GUIDE.org]]   |       | x       | x    | x      | x      | x       |
@@ -84,7 +83,7 @@ The graph is hub and spoke, not a lateral web.
 - [[file:agent-workflows.org][agent-workflows.org]] owns reusable multi-step task
   playbooks for agents.
 - [[file:setup/README.org][setup/]] owns infrastructure deep dives: CMake,
-  modules, testing, install, release and versioning, API docs, hooks, CI,
+  modules, testing, install, API docs, hooks, CI,
   conventions, and tools.
 - [[file:module/README.org][module/]] owns the library catalogue. A module index
   owns the public surface of that module. A component leaf owns the narrative
@@ -166,7 +165,6 @@ Every doc family, its purpose, and the roles that load it.
 | [[file:setup/hooks.org][hooks.org]]         | Local git hooks and bypass policy                        | planner, impl, review, module, onboard        |
 | [[file:setup/ci.org][ci.org]]            | GitHub Actions jobs and required gates                   | planner, impl, review, module, onboard        |
 | [[file:setup/install.org][install.org]]       | find_package, add_subdirectory, FetchContent usage       | planner, review, onboard                      |
-| [[file:setup/release.org][release.org]]       | Module and snapshot SemVer, RCs, changelog, artifacts    | planner, review, module, onboard              |
 | [[file:setup/conventions.org][conventions.org]]   | Pointers to enforced style and repo conventions          | planner, impl, review, module, onboard        |
 | [[file:setup/tools.org][tools.org]]         | Compiler, clang, Doxygen, Ninja, ccache expectations     | planner, impl, review, module, onboard        |
 
