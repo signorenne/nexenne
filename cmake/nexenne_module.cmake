@@ -69,6 +69,16 @@ function(nexenne_add_module name)
             VERSION                   ${NMOD_VERSION}
             SOVERSION                 ${_nexenne_module_version_major}
         )
+        # A compiled module's sources are the one place our own code compiles
+        # outside a test or example target. Without this they build with no
+        # warning flags at all, so the code that moved out of headers silently
+        # left -Werror behind. PRIVATE: the flags are ours, not a consumer's.
+        # BUILD_INTERFACE: a static library records even its PRIVATE link
+        # dependencies in the install interface, and nexenne::warnings is a
+        # build-only flag carrier that is deliberately not exported.
+        if(TARGET nexenne::warnings)
+            target_link_libraries(${_target} PRIVATE $<BUILD_INTERFACE:nexenne::warnings>)
+        endif()
     endif()
 
     add_library(nexenne::${name} ALIAS ${_target})
