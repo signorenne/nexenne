@@ -223,7 +223,8 @@ template <crc_spec Spec, typename Range>
     constexpr auto shift_down{width - 8};
     for (auto const e : data) {
       auto const b{static_cast<std::uint8_t>(e)};
-      auto const idx{static_cast<std::uint8_t>(((reg >> shift_down) ^ b) & 0xFFu)};
+      auto const high{static_cast<std::uint8_t>(reg >> shift_down)};
+      auto const idx{static_cast<std::uint8_t>(high ^ b)};
       reg = static_cast<value_type>(((reg << 8) ^ table[idx]) & mask);
     }
     if constexpr (Spec.ref_out) {
@@ -358,7 +359,8 @@ private:
       constexpr auto shift_down{width - 8};
       for (auto const e : data) {
         auto const b{static_cast<std::uint8_t>(e)};
-        auto const idx{static_cast<std::uint8_t>(((m_reg >> shift_down) ^ b) & 0xFFu)};
+        auto const high{static_cast<std::uint8_t>(m_reg >> shift_down)};
+        auto const idx{static_cast<std::uint8_t>(high ^ b)};
         m_reg = static_cast<value_type>(((m_reg << 8) ^ table[idx]) & mask);
       }
     }
