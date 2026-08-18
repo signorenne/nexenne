@@ -109,6 +109,13 @@ jobs:
           sudo apt-get install -y clang-tidy-20 cmake ninja-build
       - name: Configure (compile database)
         run: cmake --preset dev
+      - name: Run clang-tidy (library sources, strict config)
+        run: |
+          sources=$(git ls-files 'modules/*/src/*.cpp' 'modules/*/src/**/*.cpp')
+          if [ -n "$sources" ]; then
+            printf '%s\n' $sources | xargs -r -P"$(nproc)" -I{} \
+              clang-tidy-20 -p build/dev --quiet {}
+          fi
       - name: Run clang-tidy (tests, relaxed shared config)
         run: |
           tests=$(git ls-files 'modules/*/tests/*.cpp')
