@@ -316,8 +316,9 @@ public:
    *                   \p offsets.
    *
    * @return Nothing on success; \c gpio_error::invalid_argument when the
-   *         spans differ in length, \c gpio_error::not_found when any offset
-   *         is not in the request set, otherwise the errno-mapped error.
+   *         spans differ in length or hold more than \c max_lines offsets,
+   *         \c gpio_error::not_found when any offset is not in the request
+   *         set, otherwise the errno-mapped error.
    *
    * @pre None.
    * @post On success \p levels_out holds the level of each offset, observed

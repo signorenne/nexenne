@@ -12,6 +12,7 @@
 
 #include <array>
 #include <chrono>
+#include <span>
 
 #include <nexenne/gpio/backend.hpp>
 #include <nexenne/gpio/io/chardev_chip.hpp>
@@ -49,6 +50,31 @@ TEST_CASE("chardev_chip: a fresh backend is closed with no handle") {
 
   backend.close();  // safe when already closed
   CHECK_FALSE(backend.is_open());
+}
+
+TEST_CASE("chardev_chip: read_lines refuses more offsets than a request can hold") {
+  // read_lines resolves offsets into a max_lines-wide stack table indexed by
+  // the caller's span position. A request set cannot exceed max_lines, but a
+  // caller repeating one offset can, and every repeat used to resolve and
+  // write one past the end.
+  ng::chardev_chip backend{ng::chip_id{0}};
+
+  std::array<ng::line_offset, ng::chardev_chip::max_lines + 1> many{};
+  many.fill(ng::line_offset{0});
+  std::array<bool, ng::chardev_chip::max_lines + 1> levels{};
+
+  auto const refused{backend.read_lines(many, levels)};
+  REQUIRE_FALSE(refused.has_value());
+  CHECK(refused.error() == ng::gpio_error::invalid_argument);
+
+  // Exactly at the bound the size is acceptable, so the closed chip is what
+  // refuses: the guard bounds the table, it does not shrink the contract.
+  auto const at_bound{backend.read_lines(
+    std::span{many}.first(ng::chardev_chip::max_lines),
+    std::span{levels}.first(ng::chardev_chip::max_lines)
+  )};
+  REQUIRE_FALSE(at_bound.has_value());
+  CHECK(at_bound.error() != ng::gpio_error::invalid_argument);
 }
 
 #ifdef __linux__

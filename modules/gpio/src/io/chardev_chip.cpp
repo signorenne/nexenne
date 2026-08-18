@@ -362,6 +362,12 @@ auto chardev_chip::read_lines(
   if (offsets.size() != levels_out.size()) {
     return std::unexpected{gpio_error::invalid_argument};
   }
+  // The index table below is max_lines wide. A request set cannot hold more
+  // than that, but nothing stops a caller repeating one offset past the
+  // limit: every repeat resolves, and the writes run off the end of indices.
+  if (offsets.size() > max_lines) {
+    return std::unexpected{gpio_error::invalid_argument};
+  }
   ::gpio_v2_line_values values{};
   std::array<std::size_t, max_lines> indices{};
   for (std::size_t i{0}; i < offsets.size(); ++i) {
