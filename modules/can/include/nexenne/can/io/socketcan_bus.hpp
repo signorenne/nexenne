@@ -81,10 +81,13 @@ struct socket_closer {
  *
  * @param f Frame to convert; only the first 8 bytes are used.
  *
- * @return A \c can_frame holding the identifier, length, and payload of \p f.
+ * @return A \c can_frame holding the identifier, length, and payload of \p f,
+ *         truncated to the 8 bytes the Classic struct holds. Use
+ *         \c socketcan_bus::send to have an over-long frame refused rather
+ *         than truncated.
  *
- * @pre \c f.length() is at most 8.
- * @post The result's \c can_id equals \c f.id().raw().
+ * @post The result's \c can_id equals \c f.id().raw(), and its \c can_dlc is
+ *       the number of bytes actually copied.
  */
 [[nodiscard]] auto to_can_frame(frame const& f) noexcept -> ::can_frame;
 
@@ -97,10 +100,10 @@ struct socket_closer {
  * @param f Frame to convert.
  *
  * @return A \c canfd_frame holding the identifier, padded length, FD flags, and
- *         payload of \p f.
+ *         payload of \p f, truncated to the 64 bytes the FD struct holds.
  *
- * @pre \c f.length() is at most 64.
- * @post The result's \c can_id equals \c f.id().raw().
+ * @post The result's \c can_id equals \c f.id().raw(), and its \c len is the
+ *       padded length of the bytes actually copied.
  */
 [[nodiscard]] auto to_canfd_frame(frame const& f) noexcept -> ::canfd_frame;
 

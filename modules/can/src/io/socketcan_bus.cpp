@@ -2,7 +2,9 @@
 
 #ifdef __linux__
 
+#include <algorithm>
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 #include <optional>
 #include <span>
@@ -26,19 +28,19 @@ auto socket_closer::operator()(int const fd) const noexcept -> void {
 }  // namespace detail
 
 auto to_can_frame(frame const& f) noexcept -> ::can_frame {
-  assert(
-    f.length() <= max_classic_length && "to_can_frame: length exceeds the 8-byte Classic buffer"
-  );
   ::can_frame out{};
   out.can_id = f.id().raw();
-  out.can_dlc = f.length();
+  // Bounded by the destination, not by the caller's promise: the length is
+  // reachable through frame's mutable length() accessor, so an assert would
+  // be both a contract nobody is forced to keep and gone under NDEBUG.
   auto const payload{f.data()};
-  std::memcpy(static_cast<void*>(out.data), payload.data(), payload.size());
+  auto const copied{std::min<std::size_t>(payload.size(), max_classic_length)};
+  out.can_dlc = static_cast<std::uint8_t>(copied);
+  std::memcpy(static_cast<void*>(out.data), payload.data(), copied);
   return out;
 }
 
 auto to_canfd_frame(frame const& f) noexcept -> ::canfd_frame {
-  assert(f.length() <= max_fd_length && "to_canfd_frame: length exceeds the 64-byte FD buffer");
   ::canfd_frame out{};
   out.can_id = f.id().raw();
   out.len = fd_padded_length(f.length());
@@ -49,7 +51,9 @@ auto to_canfd_frame(frame const& f) noexcept -> ::canfd_frame {
     out.flags |= CANFD_ESI;
   }
   auto const payload{f.data()};
-  std::memcpy(static_cast<void*>(out.data), payload.data(), payload.size());
+  auto const copied{std::min<std::size_t>(payload.size(), max_fd_length)};
+  out.len = fd_padded_length(static_cast<std::uint8_t>(copied));
+  std::memcpy(static_cast<void*>(out.data), payload.data(), copied);
   return out;
 }
 

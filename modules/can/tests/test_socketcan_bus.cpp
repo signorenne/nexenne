@@ -47,6 +47,25 @@ TEST_CASE("socketcan conversion: classic frame round-trips through can_frame") {
   CHECK(*back == original);
 }
 
+TEST_CASE("socketcan conversion: an over-long classic frame cannot overrun the kernel struct") {
+  // frame::length() hands out a mutable reference documented only as "at most
+  // 64", so a Classic frame can carry an FD-sized payload. to_can_frame used
+  // to memcpy all of it into an 8-byte can_frame::data, guarded by an assert
+  // that vanishes under NDEBUG.
+  std::array const payload{b(0x11), b(0x22), b(0x33)};
+  auto oversized{*nc::frame::classic(nc::can_id::standard(0x321), payload)};
+  oversized.length() = 40;
+
+  auto const kernel{nc::to_can_frame(oversized)};
+  CHECK(kernel.can_dlc == nc::max_classic_length);
+  CHECK(kernel.data[0] == 0x11);
+
+  // The same length is fine for the FD converter, whose struct is 64 wide.
+  auto fd_sized{*nc::frame::fd(nc::can_id::standard(0x321), payload)};
+  fd_sized.length() = 40;
+  CHECK(nc::to_canfd_frame(fd_sized).len == 48);  // 40 rounds up to 48
+}
+
 TEST_CASE("socketcan conversion: an extended id keeps its flag through the kernel word") {
   auto const original{*nc::frame::classic(nc::can_id::extended(0x18FEF100), std::array{b(0x01)})};
   auto const kernel{nc::to_can_frame(original)};
