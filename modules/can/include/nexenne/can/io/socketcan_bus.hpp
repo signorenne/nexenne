@@ -176,8 +176,10 @@ public:
    *
    * @param f Frame to send; an FD frame is written as a \c canfd_frame.
    *
-   * @return Empty on success, \c can_error::unsupported when \p f is a CAN FD
-   *         frame but the socket was not opened with \c fd_enabled, or
+   * @return Empty on success, \c can_error::payload_too_large when \p f
+   *         carries more bytes than its frame type allows,
+   *         \c can_error::unsupported when \p f is a CAN FD frame but the
+   *         socket was not opened with \c fd_enabled, or
    *         \c can_error::io_error when the write fails.
    *
    * @pre The bus is open.

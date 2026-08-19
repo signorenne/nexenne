@@ -158,6 +158,12 @@ auto socketcan_bus::open(std::string_view const interface, socket_options const&
 }
 
 auto socketcan_bus::send(frame const& f) -> result<void> {
+  // to_can_frame and to_canfd_frame bound their copies, so an over-long frame
+  // cannot corrupt memory; refusing here means it cannot silently go on the
+  // wire truncated either.
+  if (f.length() > (f.is_fd() ? max_fd_length : max_classic_length)) {
+    return std::unexpected{can_error::payload_too_large};
+  }
   if (f.is_fd()) {
     if (!m_fd_enabled) {
       return std::unexpected{can_error::unsupported};
