@@ -22,7 +22,8 @@
  * thread is joined and the wrapped sink flushed. No queued record is lost on a
  * normal teardown. A producer parked in the \c block policy is released when
  * shutdown begins; the record it was trying to enqueue is dropped, since the
- * queue is closing.
+ * queue is closing. A thread parked in \c flush is released the same way, and
+ * returns once the drain it was waiting on can no longer complete.
  *
  * Concurrency: producers may call \c write concurrently. The wrapped sink's
  * \c write runs only on the single background thread, matching the serial-write

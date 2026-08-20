@@ -22,10 +22,14 @@ async_sink::~async_sink() noexcept {
     auto const lk{std::scoped_lock{m_mu}};
     m_stop = true;
   }
-  // Wake the worker (it may be waiting for records) and any producer parked
-  // on the block policy (it must observe the stop and bail out).
+  // Wake the worker (it may be waiting for records), any producer parked on
+  // the block policy, and any thread parked in flush_out. The flusher matters
+  // as much as the producer: the worker's graceful-shutdown exit returns
+  // without touching m_drained, so without this a parked flusher waits
+  // forever and then has the condition variable destroyed underneath it.
   m_not_empty.notify_all();
   m_not_full.notify_all();
+  m_drained.notify_all();
   if (m_worker.joinable()) {
     m_worker.join();
   }
