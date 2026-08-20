@@ -231,10 +231,18 @@ auto chardev_chip::values_ioctl(unsigned long const request, ::gpio_v2_line_valu
   return {};
 }
 
+static_assert(
+  GPIO_MAX_NAME_SIZE == 32, "chardev_chip: the consumer buffer must track the kernel field"
+);
+
 chardev_chip::chardev_chip(
   chip_id const chip, std::string_view const consumer, std::uint32_t const event_buffer_size
 ) noexcept
-    : m_chip{chip}, m_consumer{consumer}, m_event_buffer_size{event_buffer_size} {}
+    : m_chip{chip}, m_consumer_size{consumer.size()}, m_event_buffer_size{event_buffer_size} {
+  // Copy what fits; m_consumer_size keeps the requested length so open() can
+  // still refuse a label the kernel field cannot hold.
+  std::copy_n(consumer.data(), std::min(consumer.size(), m_consumer.size() - 1), m_consumer.data());
+}
 
 auto chardev_chip::chip() const noexcept -> chip_id {
   return m_chip;
@@ -255,7 +263,7 @@ auto chardev_chip::open(
   if (specs.size() != configs.size() || specs.empty() || specs.size() > max_lines) {
     return std::unexpected{gpio_error::invalid_argument};
   }
-  if (m_consumer.size() >= GPIO_MAX_NAME_SIZE) {
+  if (m_consumer_size >= GPIO_MAX_NAME_SIZE) {
     return std::unexpected{gpio_error::invalid_argument};
   }
   for (auto const& spec : specs) {
@@ -269,7 +277,7 @@ auto chardev_chip::open(
   ::gpio_v2_line_request request{};
   request.num_lines = static_cast<std::uint32_t>(specs.size());
   request.event_buffer_size = m_event_buffer_size;
-  std::memcpy(static_cast<void*>(request.consumer), m_consumer.data(), m_consumer.size());
+  std::memcpy(static_cast<void*>(request.consumer), m_consumer.data(), m_consumer_size);
   for (std::size_t i{0}; i < specs.size(); ++i) {
     request.offsets[i] = static_cast<std::uint32_t>(specs[i].offset().get());
   }

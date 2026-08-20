@@ -13,6 +13,7 @@
 #include <array>
 #include <chrono>
 #include <span>
+#include <string>
 
 #include <nexenne/gpio/backend.hpp>
 #include <nexenne/gpio/io/chardev_chip.hpp>
@@ -50,6 +51,24 @@ TEST_CASE("chardev_chip: a fresh backend is closed with no handle") {
 
   backend.close();  // safe when already closed
   CHECK_FALSE(backend.is_open());
+}
+
+TEST_CASE("chardev_chip: the consumer label is copied, not borrowed") {
+  // The label was held as a string_view and only read much later, inside
+  // open(), so a label built at the call site dangled by the time the ioctl
+  // wanted it. The backend now owns it.
+  auto built{[] {
+    // Past the small-string buffer, so the storage is heap and its release is
+    // unambiguous, and under the 32 bytes the kernel field holds.
+    std::string label{"nexenne-gpio-consumer-probe"};
+    return ng::chardev_chip{ng::chip_id{0}, label};
+  }()};
+
+  // open() copies the label into the request struct before it touches a
+  // device, so this reaches the read whether or not a chip exists. With a
+  // borrowed view that read is a use-after-free.
+  auto const opened{built.open(specs, configs)};
+  CHECK_FALSE(opened.has_value());
 }
 
 TEST_CASE("chardev_chip: read_lines refuses more offsets than a request can hold") {

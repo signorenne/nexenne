@@ -41,6 +41,7 @@
  * distinct instances are independent.
  */
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -144,7 +145,13 @@ private:
   using fd_handle = utility::unique_resource<int, detail::fd_closer>;
 
   chip_id m_chip{0};
-  std::string_view m_consumer{"nexenne-gpio"};
+  // Owned, not borrowed. A string_view member dangles whenever the label is
+  // built at the call site, and the ioctl reads it much later, at open().
+  // Sized like the kernel's consumer field, which src/io/chardev_chip.cpp
+  // static_asserts against GPIO_MAX_NAME_SIZE. The requested length is kept
+  // whole so an over-long label is still refused rather than truncated.
+  std::array<char, 32> m_consumer{};
+  std::size_t m_consumer_size{0};
   std::uint32_t m_event_buffer_size{0};
   fd_handle m_request{};
   container::static_vector<line_offset, max_lines> m_offsets{};
@@ -179,8 +186,9 @@ public:
    *
    * @param chip Index of the chip; selects \c /dev/gpiochipN.
    * @param consumer Consumer label reported to the kernel; shown by tools
-   *                 like \c gpioinfo. Must be shorter than 32 bytes and must
-   *                 outlive the backend.
+   *                 like \c gpioinfo. Copied into the backend, so a temporary
+   *                 is safe. Must be shorter than 32 bytes; a longer label is
+   *                 kept whole enough for \c open to refuse it.
    * @param event_buffer_size Suggested kernel event buffer depth; zero keeps
    *                          the kernel default of 16 events per line.
    *
