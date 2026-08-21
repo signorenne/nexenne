@@ -80,6 +80,24 @@ jobs:
       - run: cmake --build --preset ci
       - run: ctest --preset ci
 
+  freestanding:
+    name: build without the logging host sinks
+    runs-on: ubuntu-24.04
+    env: { CC: gcc-15, CXX: g++-15 }
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install GCC 15
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-15 cmake ninja-build
+      # NEXENNE_LOGGING_HOST_SINKS=OFF drops half the logging library. Nothing
+      # gated the configuration, so it had stopped linking: the headers still
+      # declared what the build no longer compiled. This job is the gate.
+      - run: cmake --preset ci -B build/freestanding -DNEXENNE_LOGGING_HOST_SINKS=OFF
+      - run: cmake --build build/freestanding
+      - run: ctest --test-dir build/freestanding --output-on-failure
+
   asan:
     name: doctest under asan + ubsan
     runs-on: ubuntu-24.04
