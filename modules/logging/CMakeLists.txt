@@ -28,10 +28,12 @@ option(NEXENNE_LOGGING_HOST_SINKS "Build the sinks that need a hosted standard l
 
 set(_logging_sources
     src/record.cpp
-    src/multi_sink.cpp
 )
 if(NEXENNE_LOGGING_HOST_SINKS)
+    # multi_sink derives from sink, so it belongs to the host half despite
+    # holding no host resource of its own.
     list(APPEND _logging_sources
+        src/multi_sink.cpp
         src/sink.cpp
         src/pattern_formatter.cpp
         src/json_sink.cpp
@@ -41,6 +43,14 @@ if(NEXENNE_LOGGING_HOST_SINKS)
 endif()
 
 nexenne_add_module(logging KIND STATIC SOURCES ${_logging_sources})
+
+# Tell the headers which half of the library exists. Without this the option
+# silently removes definitions that sink.hpp still declares and ring_sink still
+# calls, so a freestanding configuration compiles and then fails to link with a
+# wall of undefined references naming standard-library internals.
+if(NOT NEXENNE_LOGGING_HOST_SINKS)
+    target_compile_definitions(nexenne_logging PUBLIC NEXENNE_LOGGING_NO_HOST_SINKS)
+endif()
 
 if(NEXENNE_BUILD_TESTS)
     add_subdirectory(tests)

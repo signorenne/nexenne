@@ -18,6 +18,11 @@
  * "[YYYY-MM-DD HH:MM:SS.mmm] [logger] [LEVEL] file.cpp:line -- msg".
  */
 
+#if defined(NEXENNE_LOGGING_NO_HOST_SINKS)
+#error                                                                                             \
+  "nexenne/logging/sink.hpp needs the host sinks, which this build configured out with NEXENNE_LOGGING_HOST_SINKS=OFF. Include nexenne/logging/stream_logger.hpp instead, which is the header-only freestanding path."
+#endif
+
 #include <atomic>
 #include <chrono>
 #include <cstddef>
