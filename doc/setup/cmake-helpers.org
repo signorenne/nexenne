@@ -91,8 +91,11 @@ An INTERFACE target =nexenne_warnings= (alias =nexenne::warnings=) carrying the
 project's warning flags: GCC and Clang get =-Wall -Wextra -Wpedantic -Wshadow
 -Wconversion -Wsign-conversion -Wold-style-cast= and more (GCC adds a few of its
 own); MSVC gets =/W4 /permissive-=. With =NEXENNE_WARNINGS_AS_ERRORS=ON= it adds
-=-Werror= (or =/WX=). It is build-only, never installed or exported: tests and
-examples opt in, the header-only libraries do not.
+=-Werror= (or =/WX=). It is build-only, never installed or exported. Tests and
+examples opt in, and so does every compiled module's own sources, through
+=$<BUILD_INTERFACE:>= so the flags never reach the export set. A header-only
+module has no sources of its own to compile, so its headers are checked
+wherever a test or example includes them.
 
 * See also
 
