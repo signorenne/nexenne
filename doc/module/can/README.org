@@ -5,7 +5,10 @@
 CAN bus communications: the wire frame for Classic CAN and CAN FD, signal
 encode and decode across Intel and Motorola byte order, a programmatic message and
 signal database with masked lookup, J1939 identifier decoding, and a backend
-abstraction for sending and receiving frames. The module is header-only,
+abstraction for sending and receiving frames. The generic surface is
+header-only; the database and the SocketCAN backend are ordinary runtime code
+compiled into the =nexenne::can= static library, so a consumer must link the
+target rather than only add the include path. The module is
 no-throw, and built for hot paths: frames are trivially copyable, signal packing
 plans are precomputed once, and nothing on the encode, decode, send, or receive
 path allocates.
