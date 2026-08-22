@@ -13,8 +13,10 @@ Since kernel 5.10 every GPIO controller appears as =/dev/gpiochipN=, driven
 through the v2 ioctl interface declared in the kernel header =linux/gpio.h=
 (the old sysfs =/sys/class/gpio= interface is deprecated and the v1 ioctls
 superseded). This is the same interface libgpiod wraps; the backend talks to
-it directly, so the module carries no external library dependency, needs no
-pkg-config, and stays header-only.
+it directly, so the module carries no external library dependency and needs no
+pkg-config. The ioctl surface itself is ordinary runtime code, compiled once
+into the =nexenne::gpio= static library rather than into every consumer's
+translation unit, which also keeps =linux/gpio.h= out of the public headers.
 
 The uAPI in five facts, which explain every constraint the backend has:
 

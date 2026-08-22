@@ -7,7 +7,10 @@ edge, written once and run on backends that do not resemble each other: the
 Linux character device, an in-memory test double, or a user-supplied type over
 an embedded HAL. The core is header-only, heap-free, and exception-free (every
 fallible operation returns =result<T>=, an =std::expected=), so the same
-application code runs on a Linux host and a bare-metal target.
+application code runs on a Linux host and a bare-metal target. The Linux
+character-device backend is the exception: it is compiled into the
+=nexenne::gpio= static library, so a consumer of that backend links the target
+rather than only adding the include path.
 
 The module earns that portability by separating what is usually confused: the
 static /description/ of a line from /how/ one request wants it opened, the
