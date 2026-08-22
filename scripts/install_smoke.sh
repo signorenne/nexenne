@@ -5,6 +5,7 @@
 #
 #   1. every real module's umbrella header compiles against the prefix alone,
 #   2. the generated repo umbrella compiles and links through nexenne::all,
+#      calling into every compiled module so a missing archive is a link error,
 #   3. a scaffolded throwaway module resolves via find_package(nexenne-<mod>)
 #      and find_package(nexenne COMPONENTS <mod>).
 #
@@ -130,10 +131,45 @@ add_executable(nexenne_aggregate_consumer main.cpp)
 target_link_libraries(nexenne_aggregate_consumer PRIVATE nexenne::all)
 EOF
 
+# Calls one function from each compiled module on purpose. Including a header
+# links nothing, so an empty or missing archive for can, gpio, logging, or
+# serialization used to ship green through this script. Each call below forces
+# the linker to resolve a symbol out of the matching archive.
 cat > "$aggregate_src/main.cpp" <<'EOF'
 #include <nexenne/nexenne.hpp>
 
-auto main() -> int { return 0; }
+#include <string_view>
+#include <thread>
+
+auto main() -> int {
+  auto failures{0};
+
+  // serialization: defined in src/json/parse.cpp.
+  if (!nexenne::serialization::json::parse(std::string_view{"{}"}).has_value()) {
+    ++failures;
+  }
+
+  // can: defined in src/database.cpp.
+  if (nexenne::can::database{}.message_count() != 0) {
+    ++failures;
+  }
+
+  // logging: defined in src/record.cpp.
+  if (nexenne::logging::detail::thread_id_to_string(std::this_thread::get_id()).empty()) {
+    ++failures;
+  }
+
+#ifdef __linux__
+  // gpio: defined in src/io/chardev_chip.cpp. Every gpio source is behind the
+  // same Linux guard, so off Linux the archive is legitimately empty.
+  auto chip{nexenne::gpio::chardev_chip{nexenne::gpio::chip_id{0}}};
+  if (chip.is_open()) {
+    ++failures;
+  }
+#endif
+
+  return failures;
+}
 EOF
 
 cmake -S "$aggregate_src" -B "$aggregate_build" -G Ninja \
