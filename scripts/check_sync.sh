@@ -8,7 +8,8 @@
 #   - every module is listed in doc/README.org and doc/module/README.org,
 #   - every module has a doc index and an examples directory,
 #   - every module's catalogue entry states the deps its module.deps declares,
-#   - every public header is reachable from its module umbrella header.
+#   - every public header is reachable from its module umbrella header,
+#   - every source under src/ is listed in the module's SOURCES.
 #
 # Install manifests are not checked here: they are discovered by CMake, and
 # scripts/install_smoke.sh compiles the installed result.
@@ -70,6 +71,18 @@ for dir in modules/*/; do
         done < <(find "${dir}include" -name '*.hpp' | sort)
     else
         fail "$mod: umbrella header ${umbrella} is missing"
+    fi
+
+    # HEADERS is discovered from the filesystem, SOURCES is hand-listed, and
+    # nothing else notices a source that never made it into the list: it simply
+    # is not compiled, and the first sign is an undefined reference in whatever
+    # consumes it. Compare the two directly.
+    if [ -d "${dir}src" ]; then
+        while IFS= read -r source; do
+            rel="${source#"$dir"}"
+            grep -qF "$rel" "${dir}CMakeLists.txt" \
+                || fail "$mod: ${rel} is not listed in SOURCES"
+        done < <(find "${dir}src" -name '*.cpp' | sort)
     fi
 
     [ "$module_ok" = "1" ] && echo "  $mod: ok"
