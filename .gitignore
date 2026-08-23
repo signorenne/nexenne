@@ -111,3 +111,6 @@ __pycache__/
 
 # Local, private working notes (ours, not part of the repo)
 .private/
+
+# Local tooling checkouts and helpers (machine-specific, not part of the repo)
+.tools/
