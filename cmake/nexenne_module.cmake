@@ -62,13 +62,26 @@ function(nexenne_add_module name)
     else()
         set(_pub PUBLIC)
         add_library(${_target} ${NMOD_KIND} ${NMOD_SOURCES})
+        # PIC on every compiled kind, so a static archive can still be linked
+        # into a shared object.
         set_target_properties(${_target} PROPERTIES
-            CXX_VISIBILITY_PRESET     hidden
-            VISIBILITY_INLINES_HIDDEN ON
             POSITION_INDEPENDENT_CODE ON
             VERSION                   ${NMOD_VERSION}
             SOVERSION                 ${_nexenne_module_version_major}
         )
+        # Hidden visibility belongs to a shared library, which has an export
+        # boundary and a generated export header to name it. Forcing it on a
+        # static archive hides the vtables and typeinfo of its polymorphic
+        # types, so an archive linked into two shared objects gives each its
+        # own copy: dynamic_cast, catch by reference, and typeid comparison
+        # then all fail across the boundary. A static archive has no export
+        # boundary, so the consumer's own visibility policy governs.
+        if(NMOD_KIND STREQUAL "SHARED")
+            set_target_properties(${_target} PROPERTIES
+                CXX_VISIBILITY_PRESET     hidden
+                VISIBILITY_INLINES_HIDDEN ON
+            )
+        endif()
         # A compiled module's sources are the one place our own code compiles
         # outside a test or example target. Without this they build with no
         # warning flags at all, so the code that moved out of headers silently
