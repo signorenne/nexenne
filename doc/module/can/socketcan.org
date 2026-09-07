@@ -34,6 +34,12 @@ auto bus = nc::socketcan_bus::open("can0", options);
 if (!bus) { /* can_error::io_error: no such interface, no permission, ... */ }
 #+END_SRC
 
+The defaults match the kernel's, so =open("can0")= with no options behaves like a
+plain =CAN_RAW= socket. In particular =receive_own_messages= is off: a socket
+does not read back the frames it sent, which would otherwise arrive interleaved
+with real bus traffic. Set it when you want that echo, as the monitoring
+examples do.
+
 * Zero-copy-ish conversion
 
 A frame becomes a kernel =can_frame= or =canfd_frame= by copying fields, not by

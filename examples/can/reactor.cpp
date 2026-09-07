@@ -133,8 +133,9 @@ auto main() -> int {
   nc::registry const reg{db};
   nc::message const* const engine{reg.find(nc::can_id::standard(engine_id))};
 
-  nc::socket_options options;  // receive_own_messages defaults to true, so our
-  options.nonblocking = true;  // own periodic sends loop back and are shown too
+  nc::socket_options options;
+  options.nonblocking = true;
+  options.receive_own_messages = true;  // so our own periodic sends are shown too
   auto bus{nc::socketcan_bus::open("vcan0", options)};
   if (!bus) {
     std::println(

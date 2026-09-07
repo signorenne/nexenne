@@ -817,7 +817,8 @@ inline auto operator<<(std::ostream& os, error_report const& report) -> std::ost
 /**
  * @brief Debug string for \c socket_options.
  *
- * Example: \c "socket_options(fd=0, recv_own=1, nonblocking=1, timeout=0ms)".
+ * Example: \c "socket_options(fd=0, recv_own=0, nonblocking=1, timeout=0ms)",
+ * which is a default-constructed \c socket_options.
  *
  * @param options Options to print.
  *

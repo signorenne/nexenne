@@ -13,6 +13,7 @@ nexenne_add_module_tests(can
         test_error_frame.cpp
         test_j1939_id.cpp
         test_socketcan_bus.cpp
+        test_socket_options.cpp
         test_byte_field.cpp
         test_j1939_transport.cpp
         test_signal.cpp

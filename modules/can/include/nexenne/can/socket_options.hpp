@@ -9,6 +9,9 @@
  * path, and whether receiving is non-blocking. The in-memory loopback bus and
  * the Linux SocketCAN backend both read this struct; a backend ignores an option
  * it does not support.
+ *
+ * The defaults match the Linux kernel's, so opening a bus with them behaves the
+ * way a plain \c CAN_RAW socket does.
  */
 
 #include <cstdint>
@@ -20,7 +23,7 @@ namespace nexenne::can {
  */
 struct socket_options {
   bool fd_enabled{false};            ///< Accept and transmit CAN FD frames.
-  bool receive_own_messages{true};   ///< Echo sent frames back to the receive path.
+  bool receive_own_messages{false};  ///< Also deliver this socket's own sends to it.
   bool nonblocking{true};            ///< Receiving returns no frame instead of waiting.
   std::uint32_t read_timeout_ms{0};  ///< Blocking read timeout in ms; 0 means none.
 
