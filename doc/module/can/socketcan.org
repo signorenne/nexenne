@@ -77,8 +77,10 @@ best-effort: a backend that does not provide them leaves the field at zero.
 
 The type still exists off Linux and satisfies the =can_bus= concept, so generic
 code compiles everywhere, but every operation returns =can_error::unsupported=.
-Portable programs target the [[file:io.org][loopback_bus]] for tests and select the SocketCAN
-backend on Linux.
+=descriptor()= exists there too and returns =-1=, so code that reaches for the
+descriptor still builds off Linux and fails cleanly at runtime like everything
+else, rather than failing to compile. Portable programs target the
+[[file:io.org][loopback_bus]] for tests and select the SocketCAN backend on Linux.
 
 * Setting up a virtual interface
 

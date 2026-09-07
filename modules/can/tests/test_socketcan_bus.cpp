@@ -14,6 +14,7 @@
 #include <doctest/doctest.h>
 
 #include <array>
+#include <concepts>
 #include <cstddef>
 
 #include <nexenne/can/bus.hpp>
@@ -33,6 +34,12 @@ constexpr auto b(unsigned const v) noexcept -> std::byte {
 
 TEST_CASE("socketcan_bus satisfies the can_bus concept on every platform") {
   static_assert(nc::can_bus<nc::socketcan_bus>);
+}
+
+TEST_CASE("socketcan_bus exposes descriptor() on every platform") {
+  static_assert(requires(nc::socketcan_bus const& bus) {
+    { bus.descriptor() } noexcept -> std::same_as<int>;
+  });
 }
 
 #ifdef __linux__
@@ -110,6 +117,13 @@ TEST_CASE("socketcan_bus: opening a missing interface fails cleanly") {
   auto const bus{nc::socketcan_bus::open("nx_no_such_can")};
   REQUIRE_FALSE(bus.has_value());
   CHECK(bus.error() == nc::can_error::io_error);
+}
+
+#else  // not Linux
+
+TEST_CASE("socketcan_bus: the stub reports an invalid descriptor") {
+  nc::socketcan_bus const bus;
+  CHECK(bus.descriptor() == -1);
 }
 
 #endif  // __linux__

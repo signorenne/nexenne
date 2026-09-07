@@ -326,6 +326,19 @@ public:
   [[nodiscard]] auto state() const noexcept -> bus_state {
     return bus_state::bus_off;
   }
+
+  /**
+   * @brief The socket descriptor; always invalid on an unavailable backend.
+   *
+   * Present so code reaching for the descriptor to set an unmodelled socket
+   * option still compiles off Linux, and fails cleanly there like every other
+   * operation rather than failing to build.
+   *
+   * @return \c -1, because there is no socket to report.
+   */
+  [[nodiscard]] auto descriptor() const noexcept -> int {
+    return -1;
+  }
 };
 
 static_assert(can_bus<socketcan_bus>, "socketcan_bus must satisfy the can_bus concept");
