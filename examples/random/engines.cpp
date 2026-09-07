@@ -18,7 +18,7 @@
 #include <nexenne/random/seed_seq.hpp>
 #include <nexenne/random/uniform.hpp>
 #include <nexenne/random/xoshiro.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -66,7 +66,7 @@ auto main() -> int {
   rnd::pcg32 walker{99, 1};
   jumper.advance(1000);
   for (int i{0}; i < 1000; ++i) {
-    nexenne::utility::discard(walker.next());
+    nexenne::utility::ignore(walker.next());
   }
   std::println("pcg32 advance(1000) == 1000x next(): {}", jumper.next() == walker.next());
 

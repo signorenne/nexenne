@@ -39,7 +39,7 @@
 #include <utility>
 #include <vector>
 
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::container {
 
@@ -1046,7 +1046,7 @@ auto operator[](Key key) noexcept -> Value&
     return *existing;
   }
   // Insert a copy so key stays valid for the lookup of the new slot below.
-  nexenne::utility::discard(insert(key, Value{}));
+  nexenne::utility::ignore(insert(key, Value{}));
   return *find(key);
 }
 

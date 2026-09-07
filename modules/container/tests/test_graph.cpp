@@ -12,7 +12,7 @@
 
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/graph.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -44,8 +44,8 @@ TEST_CASE("nexenne::container::graph add_edge bounds-checks endpoints, tracks co
 
 TEST_CASE("nexenne::container::graph has_edge and out_degree") {
   cn::graph<> g{3};
-  nexenne::utility::discard(g.add_edge(0, 1));
-  nexenne::utility::discard(g.add_edge(0, 2));
+  nexenne::utility::ignore(g.add_edge(0, 1));
+  nexenne::utility::ignore(g.add_edge(0, 2));
   CHECK(g.has_edge(0, 1));
   CHECK(g.has_edge(0, 2));
   CHECK_FALSE(g.has_edge(0, 0));
@@ -58,8 +58,8 @@ TEST_CASE("nexenne::container::graph has_edge and out_degree") {
 
 TEST_CASE("nexenne::container::graph remove_edge") {
   cn::graph<> g{3};
-  nexenne::utility::discard(g.add_edge(0, 1));
-  nexenne::utility::discard(g.add_edge(0, 2));
+  nexenne::utility::ignore(g.add_edge(0, 1));
+  nexenne::utility::ignore(g.add_edge(0, 2));
   REQUIRE(g.remove_edge(0, 1).has_value());
   CHECK(*g.remove_edge(0, 1) == false);  // already removed, second call is false
   CHECK_FALSE(g.has_edge(0, 1));
@@ -82,9 +82,9 @@ TEST_CASE("nexenne::container::graph edges_of yields a payload span") {
 
 TEST_CASE("nexenne::container::graph neighbors view yields target ids") {
   cn::graph<int> g{4};
-  nexenne::utility::discard(g.add_edge(0, 1, 1));
-  nexenne::utility::discard(g.add_edge(0, 3, 1));
-  nexenne::utility::discard(g.add_edge(0, 2, 1));
+  nexenne::utility::ignore(g.add_edge(0, 1, 1));
+  nexenne::utility::ignore(g.add_edge(0, 3, 1));
+  nexenne::utility::ignore(g.add_edge(0, 2, 1));
   std::vector<std::uint32_t> seen;
   for (auto const n : g.neighbors(0)) {
     seen.push_back(n);
@@ -113,7 +113,7 @@ TEST_CASE("nexenne::container::graph self-loops and parallel edges are allowed")
 
 TEST_CASE("nexenne::container::graph clear and swap") {
   cn::graph<> a{2};
-  nexenne::utility::discard(a.add_edge(0, 1));
+  nexenne::utility::ignore(a.add_edge(0, 1));
   cn::graph<> b{3};
   swap(a, b);
   CHECK(a.vertex_count() == 3);
@@ -127,16 +127,16 @@ TEST_CASE("nexenne::container::graph clear and swap") {
 
 TEST_CASE("nexenne::container::graph equality compares structure and payload") {
   cn::graph<int> a{2};
-  nexenne::utility::discard(a.add_edge(0, 1, 5));
+  nexenne::utility::ignore(a.add_edge(0, 1, 5));
   cn::graph<int> b{2};
-  nexenne::utility::discard(b.add_edge(0, 1, 5));
+  nexenne::utility::ignore(b.add_edge(0, 1, 5));
   cn::graph<int> c{2};
-  nexenne::utility::discard(c.add_edge(0, 1, 6));  // different payload
+  nexenne::utility::ignore(c.add_edge(0, 1, 6));  // different payload
   CHECK(a == b);
   CHECK(a != c);
 
   cn::graph<> d{2};
-  nexenne::utility::discard(d.add_edge(0, 1));
+  nexenne::utility::ignore(d.add_edge(0, 1));
   cn::graph<> e{2};
   CHECK(d != e);  // e has no edge
 }
@@ -175,10 +175,10 @@ TEST_CASE(
   "nexenne::container::graph directed edges are one-way; undirected needs both directions"
 ) {
   cn::graph<> g{2};
-  nexenne::utility::discard(g.add_edge(0, 1));  // directed 0 -> 1 only
+  nexenne::utility::ignore(g.add_edge(0, 1));  // directed 0 -> 1 only
   CHECK(g.has_edge(0, 1));
-  CHECK_FALSE(g.has_edge(1, 0));                // not symmetric
-  nexenne::utility::discard(g.add_edge(1, 0));  // add the reverse to model undirected
+  CHECK_FALSE(g.has_edge(1, 0));               // not symmetric
+  nexenne::utility::ignore(g.add_edge(1, 0));  // add the reverse to model undirected
   CHECK(g.has_edge(1, 0));
   CHECK(g.edge_count() == 2);
   CHECK(*g.out_degree(0) == 1);
@@ -187,9 +187,9 @@ TEST_CASE(
 
 TEST_CASE("nexenne::container::graph remove_edge drops only the first of parallel edges") {
   cn::graph<int> g{2};
-  nexenne::utility::discard(g.add_edge(0, 1, 10));
-  nexenne::utility::discard(g.add_edge(0, 1, 20));
-  nexenne::utility::discard(g.add_edge(0, 1, 30));
+  nexenne::utility::ignore(g.add_edge(0, 1, 10));
+  nexenne::utility::ignore(g.add_edge(0, 1, 20));
+  nexenne::utility::ignore(g.add_edge(0, 1, 30));
   CHECK(g.edge_count() == 3);
   auto const removed{g.remove_edge(0, 1)};  // one call removes exactly one edge
   REQUIRE(removed.has_value());
@@ -205,8 +205,8 @@ TEST_CASE("nexenne::container::graph remove_edge drops only the first of paralle
 
 TEST_CASE("nexenne::container::graph remove a self-loop") {
   cn::graph<> g{1};
-  nexenne::utility::discard(g.add_edge(0, 0));
-  nexenne::utility::discard(g.add_edge(0, 0));
+  nexenne::utility::ignore(g.add_edge(0, 0));
+  nexenne::utility::ignore(g.add_edge(0, 0));
   auto const removed{g.remove_edge(0, 0)};  // one call removes exactly one self-loop
   REQUIRE(removed.has_value());
   CHECK(*removed == true);
@@ -216,8 +216,8 @@ TEST_CASE("nexenne::container::graph remove a self-loop") {
 
 TEST_CASE("nexenne::container::graph payload-free edges_of and neighbors") {
   cn::graph<> g{3};
-  nexenne::utility::discard(g.add_edge(0, 2));
-  nexenne::utility::discard(g.add_edge(0, 1));
+  nexenne::utility::ignore(g.add_edge(0, 2));
+  nexenne::utility::ignore(g.add_edge(0, 1));
   auto const out{g.edges_of(0)};
   REQUIRE(out.size() == 2);
   CHECK(out[0].target == 2);
@@ -245,11 +245,11 @@ TEST_CASE("nexenne::container::graph carries a non-trivial std::string payload")
 
 TEST_CASE("nexenne::container::graph equality is positional on per-vertex insertion order") {
   cn::graph<int> a{2};
-  nexenne::utility::discard(a.add_edge(0, 1, 1));
-  nexenne::utility::discard(a.add_edge(0, 1, 2));
+  nexenne::utility::ignore(a.add_edge(0, 1, 1));
+  nexenne::utility::ignore(a.add_edge(0, 1, 2));
   cn::graph<int> b{2};
-  nexenne::utility::discard(b.add_edge(0, 1, 2));  // reversed insertion order
-  nexenne::utility::discard(b.add_edge(0, 1, 1));
+  nexenne::utility::ignore(b.add_edge(0, 1, 2));  // reversed insertion order
+  nexenne::utility::ignore(b.add_edge(0, 1, 1));
   CHECK(a != b);  // same multiset of edges, different order
 
   cn::graph<int> c{3};  // different vertex count

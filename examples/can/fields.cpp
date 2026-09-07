@@ -24,7 +24,7 @@
 #include <nexenne/can/registry.hpp>
 #include <nexenne/can/signal.hpp>
 #include <nexenne/can/signal_builder.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -44,7 +44,7 @@ auto main() -> int {
   };
   auto frame{*nc::frame::filled(nc::can_id::standard(0x100), 8, byte_of(0xFF))};
   auto const plan{nc::packing_plan::from_signal(temperature)};
-  nexenne::utility::discard(nc::encode(temperature, plan, frame, 25.0));
+  nexenne::utility::ignore(nc::encode(temperature, plan, frame, 25.0));
   std::println("filled frame: {}", frame);
 
   // The other bytes are still 0xFF; a second 8-bit field there reads as the
@@ -56,7 +56,7 @@ auto main() -> int {
   std::array<std::byte, 8> blank{};
   auto text_frame{*nc::frame::classic(nc::can_id::standard(0x200), blank)};
   nc::byte_field const tag{0, 8, "tag"};
-  nexenne::utility::discard(nc::write_text(tag, text_frame, "HELLO"));
+  nexenne::utility::ignore(nc::write_text(tag, text_frame, "HELLO"));
   std::println("text field: '{}'", nc::read_text(tag, text_frame).value_or(""));
 
   // Multiplexed message.

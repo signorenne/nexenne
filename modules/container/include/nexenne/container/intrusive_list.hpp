@@ -37,7 +37,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::container {
 
@@ -555,7 +555,7 @@ public:
    * @complexity \c O(1).
    */
   constexpr auto push_back(T& value) noexcept -> void {
-    nexenne::utility::discard(insert(end(), value));
+    nexenne::utility::ignore(insert(end(), value));
   }
 
   /**
@@ -569,7 +569,7 @@ public:
    * @complexity \c O(1).
    */
   constexpr auto push_front(T& value) noexcept -> void {
-    nexenne::utility::discard(insert(begin(), value));
+    nexenne::utility::ignore(insert(begin(), value));
   }
 
   /**

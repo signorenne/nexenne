@@ -67,7 +67,7 @@ auto transport_reassembler::erase(
   for (std::size_t i{0}; i < m_sessions.size(); ++i) {
     if (m_sessions[i].source == source && m_sessions[i].destination == destination) {
       m_sessions[i] = std::move(m_sessions[m_sessions.size() - 1]);
-      nexenne::utility::discard(m_sessions.pop_back());
+      nexenne::utility::ignore(m_sessions.pop_back());
       return;
     }
   }

@@ -37,7 +37,7 @@
 #include <nexenne/can/message_builder.hpp>
 #include <nexenne/can/registry.hpp>
 #include <nexenne/can/signal_builder.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -224,13 +224,13 @@ auto publish(
         continue;
       }
       if (std::isnan(value)) {
-        nexenne::utility::discard(nc::write_not_available(entry.plan, f));
+        nexenne::utility::ignore(nc::write_not_available(entry.plan, f));
       } else {
-        nexenne::utility::discard(nc::encode(entry.definition, entry.plan, f, value));
+        nexenne::utility::ignore(nc::encode(entry.definition, entry.plan, f, value));
       }
     }
   }
-  nexenne::utility::discard(bus.send(f));
+  nexenne::utility::ignore(bus.send(f));
 }
 
 auto change_tag(signal_monitor::value_change const change) -> std::string_view {
@@ -329,7 +329,7 @@ auto main() -> int {
     auto unknown{nc::frame::classic(nc::can_id::standard(unknown_id), payload)};
     if (unknown) {
       unknown->timestamp_ns() = 305'000'000;
-      nexenne::utility::discard(bus.send(*unknown));
+      nexenne::utility::ignore(bus.send(*unknown));
     }
   }
   monitor.poll(bus);

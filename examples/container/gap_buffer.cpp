@@ -10,7 +10,7 @@
 #include <string>
 
 #include <nexenne/container/gap_buffer.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -35,7 +35,7 @@ auto main() -> int {
   std::println("fixed:     {}", to_string(line));
 
   if (line.move_cursor_to(line.size()).has_value()) {
-    nexenne::utility::discard(line.erase_backward());  // backspace the last char
+    nexenne::utility::ignore(line.erase_backward());  // backspace the last char
   }
   std::println("backspace: {}", to_string(line));
   // typed:     helo

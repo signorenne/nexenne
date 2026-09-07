@@ -22,7 +22,7 @@
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/graph.hpp>
 #include <nexenne/container/indexed_priority_queue.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::algorithm {
 
@@ -211,7 +211,7 @@ dijkstra(nexenne::container::graph<E, V> const& g, V const source, WeightFn weig
       if (candidate < distances[target]) {
         distances[target] = candidate;
         if (handles[target] != no_h) {
-          nexenne::utility::discard(pq.update(handles[target], entry{edge.target, candidate}));
+          nexenne::utility::ignore(pq.update(handles[target], entry{edge.target, candidate}));
         } else {
           handles[target] = pq.push(entry{edge.target, candidate});
         }

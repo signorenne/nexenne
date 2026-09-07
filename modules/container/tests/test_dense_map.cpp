@@ -15,7 +15,7 @@
 #include <vector>
 
 #include <nexenne/container/dense_map.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 

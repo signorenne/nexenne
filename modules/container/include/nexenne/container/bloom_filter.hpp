@@ -36,7 +36,7 @@
 
 #include <nexenne/container/bitset_dynamic.hpp>
 #include <nexenne/container/error.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::container {
 
@@ -264,7 +264,7 @@ public:
   auto insert(T const& value) noexcept -> void {
     auto const [h1, h2]{hash_pair(value)};
     for (size_type k{0}; k < m_num_hashes; ++k) {
-      nexenne::utility::discard(m_bits.set(bit_for(k, h1, h2)));
+      nexenne::utility::ignore(m_bits.set(bit_for(k, h1, h2)));
     }
     ++m_insertions;
   }

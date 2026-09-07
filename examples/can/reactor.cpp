@@ -53,7 +53,7 @@
 #include <nexenne/can/registry.hpp>
 #include <nexenne/can/signal_builder.hpp>
 #include <nexenne/can/socket_options.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 #include <nexenne/utility/unique_resource.hpp>
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
@@ -117,7 +117,7 @@ auto transmit(
   for (auto const& [name, value] : values) {
     for (nc::signal_entry const& entry : msg.signals()) {
       if (entry.definition.name() == name) {
-        nu::discard(nc::encode(entry.definition, entry.plan, *built, value));
+        nu::ignore(nc::encode(entry.definition, entry.plan, *built, value));
       }
     }
   }
@@ -150,12 +150,12 @@ auto main() -> int {
   sigemptyset(&mask);
   sigaddset(&mask, SIGINT);
   sigaddset(&mask, SIGTERM);
-  nu::discard(::sigprocmask(SIG_BLOCK, &mask, nullptr));
+  nu::ignore(::sigprocmask(SIG_BLOCK, &mask, nullptr));
 
   // RAII descriptors: unique_resource closes each on every exit path, including
   // the early returns below. make_unique_resource_checked skips the deleter on
   // failure (the -1 sentinel an open syscall returns).
-  auto const closer{[](int fd) { nu::discard(::close(fd)); }};
+  auto const closer{[](int fd) { nu::ignore(::close(fd)); }};
   auto epoll{nu::make_unique_resource_checked(::epoll_create1(EPOLL_CLOEXEC), -1, closer)};
   auto timer{nu::make_unique_resource_checked(
     ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC), -1, closer
@@ -173,7 +173,7 @@ auto main() -> int {
     .it_interval = {.tv_sec = 0, .tv_nsec = heartbeat_ms * 1'000'000},
     .it_value = {.tv_sec = 0, .tv_nsec = heartbeat_ms * 1'000'000},
   };
-  nu::discard(::timerfd_settime(timer.get(), 0, &period, nullptr));
+  nu::ignore(::timerfd_settime(timer.get(), 0, &period, nullptr));
 
   // Register the CAN socket, the timer, and the signal fd; a real app adds its
   // other descriptors here too.
@@ -211,12 +211,12 @@ auto main() -> int {
 
       if (fd == signals.get()) {
         signalfd_siginfo info{};
-        nu::discard(::read(fd, &info, sizeof(info)));
+        nu::ignore(::read(fd, &info, sizeof(info)));
         std::println("\nsignal {} received, shutting down", info.ssi_signo);
         running = false;
       } else if (fd == timer.get()) {
         std::uint64_t expirations{};
-        nu::discard(::read(fd, &expirations, sizeof(expirations)));
+        nu::ignore(::read(fd, &expirations, sizeof(expirations)));
         ++beats;
         if (engine != nullptr) {
           // rpm and temperature cycle so the values keep changing within range.

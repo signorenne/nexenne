@@ -25,7 +25,7 @@
 #include <utility>
 
 #include <nexenne/serialization/serialization.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -46,8 +46,8 @@ auto main() -> int {
   {
     auto buf{std::array<std::byte, 64>{}};
     auto w{ser::binary::writer{buf}};
-    nexenne::utility::discard(w.write(std::uint32_t{42}));
-    nexenne::utility::discard(w.write(std::string_view{"hi"}));
+    nexenne::utility::ignore(w.write(std::uint32_t{42}));
+    nexenne::utility::ignore(w.write(std::string_view{"hi"}));
     auto r{ser::binary::reader{w.written()}};
     auto const n{r.read<std::uint32_t>()};
     auto const s{r.read_string()};
@@ -58,8 +58,8 @@ auto main() -> int {
   {
     auto buf{std::array<std::byte, 64>{}};
     auto w{ser::cbor::writer{buf}};
-    nexenne::utility::discard(w.write_uint(1000));
-    nexenne::utility::discard(w.write_string("cbor"));
+    nexenne::utility::ignore(w.write_uint(1000));
+    nexenne::utility::ignore(w.write_string("cbor"));
     auto r{ser::cbor::reader{w.written()}};
     auto const a{r.read_uint()};
     auto const b{r.read_string()};
@@ -97,13 +97,13 @@ auto main() -> int {
   {
     auto buf{std::array<std::byte, 64>{}};
     auto w{ser::cbor::writer{buf}};
-    nexenne::utility::discard(w.write_array_header(2));
+    nexenne::utility::ignore(w.write_array_header(2));
     for (auto const& [id, ok] : std::array<std::pair<int, bool>, 2>{{{1, true}, {2, false}}}) {
-      nexenne::utility::discard(w.write_map_header(2));
-      nexenne::utility::discard(w.write_string("id"));
-      nexenne::utility::discard(w.write_uint(static_cast<std::uint64_t>(id)));
-      nexenne::utility::discard(w.write_string("ok"));
-      nexenne::utility::discard(w.write_bool(ok));
+      nexenne::utility::ignore(w.write_map_header(2));
+      nexenne::utility::ignore(w.write_string("id"));
+      nexenne::utility::ignore(w.write_uint(static_cast<std::uint64_t>(id)));
+      nexenne::utility::ignore(w.write_string("ok"));
+      nexenne::utility::ignore(w.write_bool(ok));
     }
 
     auto r{ser::cbor::reader{w.written()}};

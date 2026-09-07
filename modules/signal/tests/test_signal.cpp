@@ -9,7 +9,7 @@
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/signal/signal.hpp>
 #include <nexenne/signal/slot.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -1137,9 +1137,7 @@ TEST_CASE(
   [[maybe_unused]] auto first{sig.connect([&] noexcept {
     log.push_back(1);
     c_target.disconnect();  // a not-yet-fired slot: marked dead before it runs
-    nexenne::utility::discard(sig.connect([&] noexcept {
-      log.push_back(99);
-    }));  // mid-emit connect
+    nexenne::utility::ignore(sig.connect([&] noexcept { log.push_back(99); }));  // mid-emit connect
   })};
   // Alive at the start of the emit, but disconnected earlier in it, so it must
   // not be invoked, contradicting the old @post ("every slot alive at the start").

@@ -38,7 +38,7 @@
 #include <nexenne/container/ring_buffer.hpp>
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/record.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::logging {
 

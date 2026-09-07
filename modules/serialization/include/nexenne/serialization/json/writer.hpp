@@ -38,10 +38,10 @@
  * \code
  * auto buf{std::array<char, 256>{}};
  * auto w{json::writer{buf}};
- * nexenne::utility::discard(w.begin_object());
- * nexenne::utility::discard(w.key("name"), w.value("alice"));
- * nexenne::utility::discard(w.key("age"), w.value(30));
- * nexenne::utility::discard(w.end_object());
+ * nexenne::utility::ignore(w.begin_object());
+ * nexenne::utility::ignore(w.key("name"), w.value("alice"));
+ * nexenne::utility::ignore(w.key("age"), w.value(30));
+ * nexenne::utility::ignore(w.end_object());
  * auto const out{w.view()};   // std::string_view into buf
  * \endcode
  */

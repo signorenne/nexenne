@@ -48,7 +48,7 @@
 #include <nexenne/container/static_vector.hpp>
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/utility/defer.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 #include <nexenne/utility/in_place_function.hpp>
 
 namespace nexenne::signal {
@@ -333,7 +333,7 @@ public:
     if (m_owned.size() == Capacity) {
       return false;
     }
-    nexenne::utility::discard(m_owned.push_back(static_scoped_connection{c}));
+    nexenne::utility::ignore(m_owned.push_back(static_scoped_connection{c}));
     return true;
   }
 
@@ -576,7 +576,7 @@ public:
     requires detail::slot_connectable<Fn, slot_fn_type, R, Args...>
   auto connect(Fn&& fn, static_slot<Capacity>& owner, int const priority = 0) -> static_connection {
     auto c{connect(std::forward<Fn>(fn), priority)};
-    nexenne::utility::discard(owner.track(c));
+    nexenne::utility::ignore(owner.track(c));
     return c;
   }
 
@@ -875,7 +875,7 @@ private:
     auto const id{m_next_id++};
     auto entry{slot_entry{.id = id, .priority = priority, .alive = true, .once = once}};
     entry.fn_obj = slot_fn_type{std::forward<Fn>(fn)};
-    nexenne::utility::discard(m_slots.push_back(std::move(entry)));
+    nexenne::utility::ignore(m_slots.push_back(std::move(entry)));
     if (m_emit_depth > 0) {
       // Append only: the live prefix must not move while an emit iterates it. The
       // new slot's id sits at or past the emit watermark, so this emit and any
@@ -1000,7 +1000,7 @@ private:
     for (auto i{pos}; i + 1 < m_slots.size(); ++i) {
       m_slots[i] = std::move(m_slots[i + 1]);
     }
-    nexenne::utility::discard(m_slots.pop_back());
+    nexenne::utility::ignore(m_slots.pop_back());
   }
 
   /**
@@ -1023,7 +1023,7 @@ private:
       }
     }
     while (m_slots.size() > write) {
-      nexenne::utility::discard(m_slots.pop_back());
+      nexenne::utility::ignore(m_slots.pop_back());
     }
   }
 };

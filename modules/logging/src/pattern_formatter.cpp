@@ -10,7 +10,7 @@
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/pattern_formatter.hpp>
 #include <nexenne/logging/record.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::logging {
 
@@ -49,9 +49,9 @@ auto pattern_formatter::append_time(
   auto const tt{std::chrono::system_clock::to_time_t(secs)};
   std::tm tm{};
 #ifdef _WIN32
-  nexenne::utility::discard(gmtime_s(&tm, &tt));
+  nexenne::utility::ignore(gmtime_s(&tm, &tt));
 #else
-  nexenne::utility::discard(gmtime_r(&tt, &tm));
+  nexenne::utility::ignore(gmtime_r(&tt, &tm));
 #endif
   auto const ms{(std::chrono::floor<std::chrono::milliseconds>(t) - secs).count()};
   if (include_date) {

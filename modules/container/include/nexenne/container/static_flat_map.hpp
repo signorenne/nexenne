@@ -32,7 +32,7 @@
 #include <utility>
 
 #include <nexenne/container/error.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::container {
 
@@ -118,7 +118,7 @@ public:
    */
   constexpr static_flat_map(std::initializer_list<value_type> const init) noexcept {
     for (auto const& entry : init) {
-      nexenne::utility::discard(insert(entry));
+      nexenne::utility::ignore(insert(entry));
     }
   }
 

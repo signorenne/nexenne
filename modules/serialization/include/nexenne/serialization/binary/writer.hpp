@@ -56,7 +56,7 @@
 
 #include <nexenne/serialization/error.hpp>
 #include <nexenne/utility/buffer_cursor.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::serialization::binary {
 
@@ -345,7 +345,7 @@ public:
       m_cursor.advance(n);
     } else {
       for (auto const& x : xs) {
-        nexenne::utility::discard(write(x));  // sub-write already bounds-checked above
+        nexenne::utility::ignore(write(x));  // sub-write already bounds-checked above
       }
     }
     return {};

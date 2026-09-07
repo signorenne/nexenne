@@ -8,7 +8,7 @@ set(_utility_examples
     buffer_cursor
     cobs
     defer
-    discard
+    ignore
     endian
     enum_to_string
     expected_utils

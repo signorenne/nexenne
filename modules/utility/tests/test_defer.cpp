@@ -13,7 +13,7 @@
 #include <vector>
 
 #include <nexenne/utility/defer.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -173,7 +173,7 @@ TEST_CASE("nexenne::utility::defer invokes the cleanup when its move into the gu
   // so the constructor runs it before letting the exception escape.
   int runs{0};
   CHECK_THROWS_AS(
-    nexenne::utility::discard(nexenne::utility::defer{throwing_move_cleanup{runs, true}}),
+    nexenne::utility::ignore(nexenne::utility::defer{throwing_move_cleanup{runs, true}}),
     std::runtime_error
   );
   CHECK(runs == 1);  // the cleanup ran exactly once despite the failed construction

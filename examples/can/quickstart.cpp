@@ -29,7 +29,7 @@
 #include <nexenne/can/registry.hpp>
 #include <nexenne/can/signal.hpp>
 #include <nexenne/can/signal_builder.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -80,10 +80,8 @@ auto main() -> int {
   // 3. Encode: pack physical values into a frame. Start from 0xFF so any byte we
   //    do not set reads back as "not available".
   auto tx{*nc::frame::filled(nc::can_id::standard(0x100), 8, byte_of(0xFF))};
-  nexenne::utility::discard(nc::encode(speed, nc::packing_plan::from_signal(speed), tx, 87.5));
-  nexenne::utility::discard(
-    nc::encode(oil_temp, nc::packing_plan::from_signal(oil_temp), tx, 90.0)
-  );
+  nexenne::utility::ignore(nc::encode(speed, nc::packing_plan::from_signal(speed), tx, 87.5));
+  nexenne::utility::ignore(nc::encode(oil_temp, nc::packing_plan::from_signal(oil_temp), tx, 90.0));
   std::println("1-3 encoded: {}", tx);
 
   // 4. Decode: the registry calls back per signal with its physical value, and
@@ -109,7 +107,7 @@ auto main() -> int {
   std::array<std::byte, 8> text_bytes{};
   auto text_frame{*nc::frame::classic(nc::can_id::standard(0x700), text_bytes)};
   nc::byte_field const tag{0, 8, "tag"};
-  nexenne::utility::discard(nc::write_text(tag, text_frame, "HELLO"));
+  nexenne::utility::ignore(nc::write_text(tag, text_frame, "HELLO"));
   std::println("7   text field: '{}'", nc::read_text(tag, text_frame).value_or(""));
 
   // 8. Multiplexing: a selector byte picks which signals are present.
@@ -147,7 +145,7 @@ auto main() -> int {
 
   // 9. Send and receive over an in-memory bus (swap for socketcan_bus on Linux).
   nc::loopback_bus bus;
-  nexenne::utility::discard(bus.send(tx));
+  nexenne::utility::ignore(bus.send(tx));
   if (auto const got{bus.receive()}; got && got->has_value()) {
     std::println("9   looped back: {}", **got);
   }

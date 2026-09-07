@@ -34,7 +34,7 @@
 #include <nexenne/can/frame.hpp>
 #include <nexenne/can/id.hpp>
 #include <nexenne/can/socket_options.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 #ifdef __linux__
 

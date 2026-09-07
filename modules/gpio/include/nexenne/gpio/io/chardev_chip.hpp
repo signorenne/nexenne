@@ -55,7 +55,7 @@
 #include <nexenne/gpio/line_event.hpp>
 #include <nexenne/gpio/line_spec.hpp>
 #include <nexenne/gpio/line_types.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 #ifdef __linux__
 

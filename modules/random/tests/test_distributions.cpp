@@ -17,7 +17,7 @@
 #include <nexenne/random/normal.hpp>
 #include <nexenne/random/pcg.hpp>
 #include <nexenne/random/poisson.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -122,7 +122,7 @@ TEST_CASE("nexenne::random::normal_distribution reset discards the cached variat
   // and immediately diverge from dist_b.
   rnd::pcg32 g_warm{305, 1};
   rnd::normal_distribution<double> dist_a{0.0, 1.0};
-  nexenne::utility::discard(dist_a.sample(g_warm));  // advances g_warm by two draws
+  nexenne::utility::ignore(dist_a.sample(g_warm));  // advances g_warm by two draws
   dist_a.reset();
 
   rnd::normal_distribution<double> dist_b{0.0, 1.0};
@@ -591,7 +591,7 @@ TEST_CASE("distributions accept their documented positive parameters (M2)") {
 
   rnd::poisson_distribution<> const p{4.0};
   CHECK(p.mean() == doctest::Approx(4.0));
-  nexenne::utility::discard(p.sample(g));  // a non-negative event count
+  nexenne::utility::ignore(p.sample(g));  // a non-negative event count
 }
 
 }  // namespace

@@ -26,7 +26,7 @@
 #include <nexenne/algorithm/graph/tarjan_scc.hpp>
 #include <nexenne/algorithm/graph/topological_sort.hpp>
 #include <nexenne/container/graph.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace alg = nexenne::algorithm;
 namespace nc = nexenne::container;
@@ -35,19 +35,19 @@ using V = std::uint32_t;
 auto main() -> int {
   // A weighted DAG: 0 -> 1 -> 3, 0 -> 2 -> 3. Two paths to vertex 3, costs 3 and 5.
   auto g{nc::graph<double, V>(4)};
-  nexenne::utility::discard(g.add_edge(0, 1, 1.0));
-  nexenne::utility::discard(g.add_edge(0, 2, 4.0));
-  nexenne::utility::discard(g.add_edge(1, 3, 2.0));
-  nexenne::utility::discard(g.add_edge(2, 3, 1.0));
+  nexenne::utility::ignore(g.add_edge(0, 1, 1.0));
+  nexenne::utility::ignore(g.add_edge(0, 2, 4.0));
+  nexenne::utility::ignore(g.add_edge(1, 3, 2.0));
+  nexenne::utility::ignore(g.add_edge(2, 3, 1.0));
 
   // bfs visits in nondecreasing hop count; the visitor is called once per vertex.
   std::printf("bfs from 0     :");
-  nexenne::utility::discard(alg::bfs(g, V{0}, [](V const u) { std::printf(" %u", u); }));
+  nexenne::utility::ignore(alg::bfs(g, V{0}, [](V const u) { std::printf(" %u", u); }));
   std::printf("\n");
 
   // dfs goes deep before wide; same O(V + E) cost, different visit order.
   std::printf("dfs from 0     :");
-  nexenne::utility::discard(alg::dfs(g, V{0}, [](V const u) { std::printf(" %u", u); }));
+  nexenne::utility::ignore(alg::dfs(g, V{0}, [](V const u) { std::printf(" %u", u); }));
   std::printf("\n");
 
   // dijkstra: single-source shortest paths with non-negative weights, the
@@ -59,9 +59,9 @@ auto main() -> int {
   // bellman_ford is slower (O(V*E)) but the right call when weights may be
   // negative; it also reports a negative cycle (here: none, so the result holds).
   auto neg{nc::graph<double, V>(3)};
-  nexenne::utility::discard(neg.add_edge(0, 1, 4.0));
-  nexenne::utility::discard(neg.add_edge(0, 2, 5.0));
-  nexenne::utility::discard(neg.add_edge(1, 2, -3.0));  // a negative edge dijkstra could not handle
+  nexenne::utility::ignore(neg.add_edge(0, 1, 4.0));
+  nexenne::utility::ignore(neg.add_edge(0, 2, 5.0));
+  nexenne::utility::ignore(neg.add_edge(1, 2, -3.0));  // a negative edge dijkstra could not handle
   if (auto const bf{alg::bellman_ford(neg, V{0})}) {
     std::printf("bellman 0->2   = %.1f  (via 1: 4 + -3 = 1)\n", bf.value()[2]);
   } else {
@@ -107,7 +107,7 @@ auto main() -> int {
   // connected_components: dense per-vertex labels via union-find, O(V + E*alpha).
   // Add an isolated vertex 4 to split the graph into two components.
   auto cc_graph{g};
-  nexenne::utility::discard(cc_graph.add_vertex());
+  nexenne::utility::ignore(cc_graph.add_vertex());
   auto const cc{alg::connected_components(cc_graph)};
   std::printf("components     = %zu  (vertex 4 stands alone)\n", cc.num_components);
 

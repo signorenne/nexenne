@@ -13,7 +13,7 @@
 #include <nexenne/chrono/profiler.hpp>
 #include <nexenne/chrono/rate_limiter.hpp>
 #include <nexenne/chrono/scope_timer.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -42,7 +42,7 @@ TEST_CASE("nexenne::chrono::frame_timer averages fps over a window") {
   CHECK(ft.tick() == clk::duration::zero());  // first tick: no delta
   for (int i{0}; i < 4; ++i) {
     clk::advance(10ms);  // 100 fps frames
-    nexenne::utility::discard(ft.tick());
+    nexenne::utility::ignore(ft.tick());
   }
   CHECK(ft.fps() == doctest::Approx(100.0));
   CHECK(ft.frame_count() == 5);
@@ -173,7 +173,7 @@ TEST_CASE("nexenne::chrono::scope_timer ctad deduces the default steady clock") 
   int calls{0};
   {
     ch::scope_timer t{[&](std::chrono::steady_clock::duration) { ++calls; }};
-    nexenne::utility::discard(t.elapsed());
+    nexenne::utility::ignore(t.elapsed());
   }
   CHECK(calls == 1);
 }
@@ -373,7 +373,7 @@ TEST_CASE("nexenne::chrono::frame_timer fixed step gives that exact delta") {
   using clk = ch::basic_manual_clock<struct ft_step_tag>;
   clk::reset();
   ch::frame_timer<4, clk> ft;
-  nexenne::utility::discard(ft.tick());  // prime
+  nexenne::utility::ignore(ft.tick());  // prime
   clk::advance(16ms);
   CHECK(std::chrono::duration_cast<ms>(ft.tick()) == 16ms);
   clk::advance(33ms);
@@ -385,12 +385,12 @@ TEST_CASE("nexenne::chrono::frame_timer fps reflects the average frame time") {
   using clk = ch::basic_manual_clock<struct ft_fps_tag>;
   clk::reset();
   ch::frame_timer<8, clk> ft;
-  nexenne::utility::discard(ft.tick());  // prime
+  nexenne::utility::ignore(ft.tick());  // prime
   // two frames: 10ms and 30ms -> mean 20ms -> 50 fps
   clk::advance(10ms);
-  nexenne::utility::discard(ft.tick());
+  nexenne::utility::ignore(ft.tick());
   clk::advance(30ms);
-  nexenne::utility::discard(ft.tick());
+  nexenne::utility::ignore(ft.tick());
   CHECK(ft.fps() == doctest::Approx(50.0));
 }
 
@@ -398,18 +398,18 @@ TEST_CASE("nexenne::chrono::frame_timer window evicts old frames") {
   using clk = ch::basic_manual_clock<struct ft_window_tag>;
   clk::reset();
   ch::frame_timer<2, clk> ft;  // only the last 2 deltas matter for fps
-  nexenne::utility::discard(ft.tick());
+  nexenne::utility::ignore(ft.tick());
   // fill the window with two slow 100ms frames (10 fps)
   clk::advance(100ms);
-  nexenne::utility::discard(ft.tick());
+  nexenne::utility::ignore(ft.tick());
   clk::advance(100ms);
-  nexenne::utility::discard(ft.tick());
+  nexenne::utility::ignore(ft.tick());
   CHECK(ft.fps() == doctest::Approx(10.0));
   // now two fast 10ms frames push the slow ones out (100 fps)
   clk::advance(10ms);
-  nexenne::utility::discard(ft.tick());
+  nexenne::utility::ignore(ft.tick());
   clk::advance(10ms);
-  nexenne::utility::discard(ft.tick());
+  nexenne::utility::ignore(ft.tick());
   CHECK(ft.fps() == doctest::Approx(100.0));
 }
 
@@ -417,9 +417,9 @@ TEST_CASE("nexenne::chrono::frame_timer survives a long-pause frame") {
   using clk = ch::basic_manual_clock<struct ft_pause_tag>;
   clk::reset();
   ch::frame_timer<2, clk> ft;
-  nexenne::utility::discard(ft.tick());
+  nexenne::utility::ignore(ft.tick());
   clk::advance(10ms);
-  nexenne::utility::discard(ft.tick());
+  nexenne::utility::ignore(ft.tick());
   // a single huge 2-second hitch
   clk::advance(2s);
   auto const d{ft.tick()};
@@ -434,7 +434,7 @@ TEST_CASE("nexenne::chrono::frame_timer reset returns to the unstarted state") {
   ch::frame_timer<4, clk> ft;
   for (int i{0}; i < 3; ++i) {
     clk::advance(10ms);
-    nexenne::utility::discard(ft.tick());
+    nexenne::utility::ignore(ft.tick());
   }
   CHECK(ft.frame_count() == 3);
   ft.reset();
@@ -450,9 +450,9 @@ TEST_CASE("nexenne::chrono::frame_timer fps stays zero when frames have no durat
   using clk = ch::basic_manual_clock<struct ft_zerodur_tag>;
   clk::reset();
   ch::frame_timer<4, clk> ft;
-  nexenne::utility::discard(ft.tick());
-  nexenne::utility::discard(ft.tick());     // zero-delta frame
-  nexenne::utility::discard(ft.tick());     // another zero-delta frame
+  nexenne::utility::ignore(ft.tick());
+  nexenne::utility::ignore(ft.tick());      // zero-delta frame
+  nexenne::utility::ignore(ft.tick());      // another zero-delta frame
   CHECK(ft.fps() == doctest::Approx(0.0));  // sum_ns <= 0 guard kicks in
   CHECK(ft.frame_count() == 3);
 }
@@ -461,12 +461,12 @@ TEST_CASE("nexenne::chrono::frame_timer window-size-one tracks only the latest f
   using clk = ch::basic_manual_clock<struct ft_one_tag>;
   clk::reset();
   ch::frame_timer<1, clk> ft;
-  nexenne::utility::discard(ft.tick());
+  nexenne::utility::ignore(ft.tick());
   clk::advance(50ms);
-  nexenne::utility::discard(ft.tick());  // 20 fps
+  nexenne::utility::ignore(ft.tick());  // 20 fps
   CHECK(ft.fps() == doctest::Approx(20.0));
   clk::advance(20ms);
-  nexenne::utility::discard(ft.tick());  // window holds only this 20ms -> 50 fps
+  nexenne::utility::ignore(ft.tick());  // window holds only this 20ms -> 50 fps
   CHECK(ft.fps() == doctest::Approx(50.0));
 }
 
@@ -474,7 +474,7 @@ TEST_CASE("nexenne::chrono::frame_timer clamps a backward delta to zero") {
   using clk = ch::basic_manual_clock<struct ft_back_tag>;
   clk::reset();
   ch::frame_timer<4, clk> ft;
-  nexenne::utility::discard(ft.tick());  // prime m_last at t == 0
+  nexenne::utility::ignore(ft.tick());  // prime m_last at t == 0
   clk::advance(10ms);
   CHECK(ft.tick() > clk::duration::zero());   // forward delta is positive
   clk::advance(-20ms);                        // clock jumps backward

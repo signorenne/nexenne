@@ -33,7 +33,7 @@
 
 #include <nexenne/logging/format_string.hpp>
 #include <nexenne/logging/level.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::logging {
 
@@ -59,7 +59,7 @@ struct file_writer {
    */
   auto operator()(std::span<char const> const bytes) const noexcept -> void {
     if (stream != nullptr) {
-      nexenne::utility::discard(std::fwrite(bytes.data(), 1, bytes.size(), stream));
+      nexenne::utility::ignore(std::fwrite(bytes.data(), 1, bytes.size(), stream));
     }
   }
 };

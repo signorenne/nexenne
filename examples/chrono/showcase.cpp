@@ -38,7 +38,7 @@
 #include <nexenne/chrono/rate_limiter.hpp>
 #include <nexenne/chrono/scope_timer.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -143,7 +143,7 @@ auto main() -> int {
     if (wait > clk::duration::zero()) {
       clk::advance(wait);
     }
-    nexenne::utility::discard(gate.try_acquire());
+    nexenne::utility::ignore(gate.try_acquire());
 
     auto const dt{frames.tick()};
 

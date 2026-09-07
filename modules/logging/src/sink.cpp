@@ -7,7 +7,7 @@
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/record.hpp>
 #include <nexenne/logging/sink.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::logging {
 
@@ -41,12 +41,12 @@ auto console_sink::write_out(record const& r) noexcept -> void {
   auto* const out{pick_stream(r.severity)};
   // fwrite is the smallest portable atomic write for FILE*; glibc serialises
   // a full fwrite call.
-  nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), out));
+  nexenne::utility::ignore(std::fwrite(line.data(), 1, line.size(), out));
 }
 
 auto console_sink::flush_out() noexcept -> void {
-  nexenne::utility::discard(std::fflush(stdout));
-  nexenne::utility::discard(std::fflush(stderr));
+  nexenne::utility::ignore(std::fflush(stdout));
+  nexenne::utility::ignore(std::fflush(stderr));
 }
 
 auto console_sink::pick_stream(level const sev) const noexcept -> std::FILE* {
@@ -78,19 +78,19 @@ auto file_sink::write_out(record const& r) noexcept -> void {
     return;
   }
   auto const line{default_format(r)};
-  nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), m_file));
+  nexenne::utility::ignore(std::fwrite(line.data(), 1, line.size(), m_file));
 }
 
 auto file_sink::flush_out() noexcept -> void {
   if (m_file != nullptr) {
-    nexenne::utility::discard(std::fflush(m_file));
+    nexenne::utility::ignore(std::fflush(m_file));
   }
 }
 
 auto file_sink::close() noexcept -> void {
   if (m_file != nullptr) {
-    nexenne::utility::discard(std::fflush(m_file));
-    nexenne::utility::discard(std::fclose(m_file));
+    nexenne::utility::ignore(std::fflush(m_file));
+    nexenne::utility::ignore(std::fclose(m_file));
     m_file = nullptr;
   }
 }

@@ -50,7 +50,7 @@
 #include <nexenne/can/registry.hpp>
 #include <nexenne/can/signal_builder.hpp>
 #include <nexenne/can/socket_options.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 #include <nexenne/utility/unique_resource.hpp>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
@@ -220,7 +220,7 @@ auto main() -> int {
     return 0;
   }
 
-  auto const closer{[](int fd) { nu::discard(::close(fd)); }};
+  auto const closer{[](int fd) { nu::ignore(::close(fd)); }};
   auto epoll{nu::make_unique_resource_checked(::epoll_create1(EPOLL_CLOEXEC), -1, closer)};
   auto timer{nu::make_unique_resource_checked(
     ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC), -1, closer
@@ -233,7 +233,7 @@ auto main() -> int {
     .it_interval = {.tv_sec = 0, .tv_nsec = heartbeat_ms * 1'000'000},
     .it_value = {.tv_sec = 0, .tv_nsec = heartbeat_ms * 1'000'000},
   };
-  nu::discard(::timerfd_settime(timer.get(), 0, &period, nullptr));
+  nu::ignore(::timerfd_settime(timer.get(), 0, &period, nullptr));
 
   auto const watch{[&](int fd) {
     epoll_event ev{};
@@ -286,11 +286,11 @@ auto main() -> int {
       std::println("auto heartbeat {}", auto_tx ? "on" : "off");
     } else if (cmd == "filter") {
       if (!rest.empty() && rest[0] == "clear") {
-        nu::discard(bus->set_filters({}));
+        nu::ignore(bus->set_filters({}));
         std::println("filters cleared");
       } else if (std::uint32_t id{0}; !rest.empty() && parse_hex_u32(rest[0], id)) {
         std::array const filters{nc::filter::equals(make_id(id, false))};
-        nu::discard(bus->set_filters(filters));
+        nu::ignore(bus->set_filters(filters));
         std::println("filter set to 0x{:X}", id);
       } else {
         std::println("usage: filter <id>|clear");
@@ -373,13 +373,13 @@ auto main() -> int {
         }
       } else if (fd == timer.get()) {
         std::uint64_t expirations{};
-        nu::discard(::read(fd, &expirations, sizeof(expirations)));
+        nu::ignore(::read(fd, &expirations, sizeof(expirations)));
         ++beats;
         if (auto_tx && engine != nullptr) {
           std::array<std::byte, 8> const zeros{};
           auto built{nc::frame::classic(engine->id(), zeros)};
           for (nc::signal_entry const& entry : engine->signals()) {
-            nu::discard(
+            nu::ignore(
               nc::encode(
                 entry.definition,
                 entry.plan,

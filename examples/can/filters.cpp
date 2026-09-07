@@ -18,7 +18,7 @@
 #include <nexenne/can/frame.hpp>
 #include <nexenne/can/id.hpp>
 #include <nexenne/can/io/loopback_bus.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -66,13 +66,13 @@ auto main() -> int {
   // filters; the loopback bus filters in software).
   nc::loopback_bus bus;
   std::array const filters{nc::filter::standard(0x700, 0x700)};
-  nexenne::utility::discard(bus.set_filters(filters));
+  nexenne::utility::ignore(bus.set_filters(filters));
 
   std::array const payload{byte_of(0x01)};
-  nexenne::utility::discard(
+  nexenne::utility::ignore(
     bus.send(*nc::frame::classic(nc::can_id::standard(0x123), payload))
   );  // dropped
-  nexenne::utility::discard(
+  nexenne::utility::ignore(
     bus.send(*nc::frame::classic(nc::can_id::standard(0x7AB), payload))
   );  // kept
   if (auto const got{bus.receive()}; got && got->has_value()) {

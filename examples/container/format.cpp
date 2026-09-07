@@ -13,7 +13,7 @@
 #include <string>
 
 #include <nexenne/container/format.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -23,9 +23,9 @@ namespace cn = nexenne::container;
 
 auto main() -> int {
   cn::static_vector<int, 8> v;
-  nexenne::utility::discard(v.push_back(1));
-  nexenne::utility::discard(v.push_back(2));
-  nexenne::utility::discard(v.push_back(3));
+  nexenne::utility::ignore(v.push_back(1));
+  nexenne::utility::ignore(v.push_back(2));
+  nexenne::utility::ignore(v.push_back(3));
 
   cn::flat_hash_map<std::string, int> m;
   m.insert("a", 1);

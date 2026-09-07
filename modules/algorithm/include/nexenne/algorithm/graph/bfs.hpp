@@ -19,7 +19,7 @@
 #include <nexenne/container/bitset_dynamic.hpp>
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/graph.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::algorithm {
 
@@ -63,7 +63,7 @@ auto bfs(nexenne::container::graph<E, V> const& g, V const source, Visitor&& vis
   auto head{std::size_t{0}};
 
   queue.push_back(source);
-  nexenne::utility::discard(visited.set(static_cast<std::size_t>(source)));
+  nexenne::utility::ignore(visited.set(static_cast<std::size_t>(source)));
 
   while (head < queue.size()) {
     auto const u{queue[head]};
@@ -78,7 +78,7 @@ auto bfs(nexenne::container::graph<E, V> const& g, V const source, Visitor&& vis
     for (auto const& edge : g.edges_of(u)) {
       auto const target_idx{static_cast<std::size_t>(edge.target)};
       if (!visited[target_idx]) {
-        nexenne::utility::discard(visited.set(target_idx));
+        nexenne::utility::ignore(visited.set(target_idx));
         queue.push_back(edge.target);
       }
     }

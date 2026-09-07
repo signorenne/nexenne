@@ -24,7 +24,7 @@
 #include <nexenne/gpio/io/queue_sink.hpp>
 #include <nexenne/gpio/line.hpp>
 #include <nexenne/gpio/sequence_tracker.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -71,18 +71,18 @@ auto main() -> int {
 
   // 2b) Take the startup baseline: without it, an edge-driven consumer
   //     knows nothing about a line until its first edge.
-  nexenne::utility::discard(chip.snapshot([](ng::line_value const& value) {
+  nexenne::utility::ignore(chip.snapshot([](ng::line_value const& value) {
     std::println("baseline: {}", value);
   }));
 
   // 3) Logical-domain read and write by name.
-  nexenne::utility::discard(backend.set_physical(ng::line_offset{17}, false));  // press
+  nexenne::utility::ignore(backend.set_physical(ng::line_offset{17}, false));  // press
   std::println("button pressed: {}", *chip.read("button"));
-  nexenne::utility::discard(chip.write("led", true));
+  nexenne::utility::ignore(chip.write("led", true));
 
   // 4) Or mint a cheap line handle and keep it.
   auto led{*chip.line_for("led")};
-  nexenne::utility::discard(led.toggle());
+  nexenne::utility::ignore(led.toggle());
   std::println("led after toggle: {}", *led.read());
 
   // 5) The edge path: the backend emits raw physical events; the drain loop
@@ -101,11 +101,11 @@ auto main() -> int {
   };
   // One statement per inject: argument evaluation order is unspecified, and
   // the queue must receive these in chronological order.
-  nexenne::utility::discard(backend.inject(raw(1, 0ms, true)));    // idle high (released)
-  nexenne::utility::discard(backend.inject(raw(2, 20ms, false)));  // press: bounce...
-  nexenne::utility::discard(backend.inject(raw(3, 21ms, true)));   // ...bounce...
-  nexenne::utility::discard(backend.inject(raw(5, 22ms, false)));  // ...settles (4 lost)
-  nexenne::utility::discard(backend.inject(raw(6, 40ms, false)));
+  nexenne::utility::ignore(backend.inject(raw(1, 0ms, true)));    // idle high (released)
+  nexenne::utility::ignore(backend.inject(raw(2, 20ms, false)));  // press: bounce...
+  nexenne::utility::ignore(backend.inject(raw(3, 21ms, true)));   // ...bounce...
+  nexenne::utility::ignore(backend.inject(raw(5, 22ms, false)));  // ...settles (4 lost)
+  nexenne::utility::ignore(backend.inject(raw(6, 40ms, false)));
 
   // The production shape: pump everything ready into a lock-free ring in
   // one call, then consume from the ring at the application's own pace.
@@ -117,7 +117,7 @@ auto main() -> int {
   ng::event_debounce debounce{5ms};
   ng::sequence_tracker tracker{};
   while (auto const drained{ring.try_pop()}) {
-    nexenne::utility::discard(tracker.feed(drained->sequence));
+    nexenne::utility::ignore(tracker.feed(drained->sequence));
     if (auto const settled{debounce.feed(*drained)}) {
       std::println("settled: {}", ng::decode(specs[0], *settled));
     }

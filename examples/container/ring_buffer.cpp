@@ -14,7 +14,7 @@
 
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/ring_buffer.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -28,7 +28,7 @@ auto main() -> int {
   std::println("empty {}, full {}, cap {}", queue.empty(), queue.full(), queue.capacity());
 
   for (int const job : {1, 2, 3}) {
-    nexenne::utility::discard(queue.push(job));  // succeeds while there is room
+    nexenne::utility::ignore(queue.push(job));  // succeeds while there is room
   }
   std::println("after 3 pushes: size {}, full {}", queue.size(), queue.full());
 

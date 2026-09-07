@@ -110,7 +110,7 @@ auto socketcan_bus::open(std::string_view const interface, socket_options const&
     // Best-effort receive timestamps; a backend without them just leaves the
     // frame timestamp at zero.
     int const stamp{1};
-    utility::discard(::setsockopt(raw, SOL_SOCKET, SO_TIMESTAMPNS, &stamp, sizeof(stamp)));
+    utility::ignore(::setsockopt(raw, SOL_SOCKET, SO_TIMESTAMPNS, &stamp, sizeof(stamp)));
   }
   {
     // Subscribe to error frames; without this filter the kernel never delivers
@@ -246,7 +246,7 @@ auto socketcan_bus::set_filters(std::span<filter const> const filters) -> result
   }
   container::static_vector<::can_filter, max_filters> kernel_filters;
   for (filter const f : filters) {
-    nexenne::utility::discard(kernel_filters.push_back(::can_filter{f.id(), f.mask()}));
+    nexenne::utility::ignore(kernel_filters.push_back(::can_filter{f.id(), f.mask()}));
   }
   auto const length{static_cast<socklen_t>(kernel_filters.size() * sizeof(::can_filter))};
   if (::setsockopt(m_socket.get(), SOL_CAN_RAW, CAN_RAW_FILTER, kernel_filters.data(), length)

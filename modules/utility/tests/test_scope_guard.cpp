@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 #include <nexenne/utility/scope_guard.hpp>
 
 namespace {
@@ -246,7 +246,7 @@ TEST_CASE("nexenne::utility::scope_guard invokes the cleanup when its move into 
   // move would leak, so the constructor runs it before the exception escapes.
   int runs{0};
   CHECK_THROWS_AS(
-    nexenne::utility::discard(nexenne::utility::scope_guard{throwing_move_cleanup{runs, true}}),
+    nexenne::utility::ignore(nexenne::utility::scope_guard{throwing_move_cleanup{runs, true}}),
     std::runtime_error
   );
   CHECK(runs == 1);  // the cleanup ran exactly once despite the failed construction

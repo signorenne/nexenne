@@ -24,7 +24,7 @@
 #include <vector>
 
 #include <nexenne/ecs/ecs.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace ecs = nexenne::ecs;
 

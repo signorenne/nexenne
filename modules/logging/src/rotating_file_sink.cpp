@@ -7,7 +7,7 @@
 
 #include <nexenne/logging/record.hpp>
 #include <nexenne/logging/rotating_file_sink.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::logging {
 
@@ -56,14 +56,14 @@ auto rotating_file_sink::write_out(record const& r) noexcept -> void {
       return;  // re-open failed
     }
   }
-  nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), m_file));
+  nexenne::utility::ignore(std::fwrite(line.data(), 1, line.size(), m_file));
   m_current_size += line.size();
 }
 
 auto rotating_file_sink::flush_out() noexcept -> void {
   auto const guard{std::lock_guard{m_mutex}};
   if (m_file != nullptr) {
-    nexenne::utility::discard(std::fflush(m_file));
+    nexenne::utility::ignore(std::fflush(m_file));
   }
 }
 
@@ -76,7 +76,7 @@ auto rotating_file_sink::open_current() noexcept -> void {
   m_current_size = 0;
   if (m_file != nullptr) {
     // Seek to the end to pick up the size of a pre-existing file.
-    nexenne::utility::discard(std::fseek(m_file, 0, SEEK_END));
+    nexenne::utility::ignore(std::fseek(m_file, 0, SEEK_END));
     auto const pos{std::ftell(m_file)};
     m_current_size = pos > 0 ? static_cast<std::size_t>(pos) : 0;
   }
@@ -84,8 +84,8 @@ auto rotating_file_sink::open_current() noexcept -> void {
 
 auto rotating_file_sink::close_current() noexcept -> void {
   if (m_file != nullptr) {
-    nexenne::utility::discard(std::fflush(m_file));
-    nexenne::utility::discard(std::fclose(m_file));
+    nexenne::utility::ignore(std::fflush(m_file));
+    nexenne::utility::ignore(std::fclose(m_file));
     m_file = nullptr;
   }
 }
@@ -95,18 +95,18 @@ auto rotating_file_sink::rotate() noexcept -> void {
   if (m_max_files > 0) {
     // Drop the oldest backup so the rename chain stays within the cap.
     auto const oldest{rotated_name(m_max_files)};
-    nexenne::utility::discard(std::remove(oldest.c_str()));
+    nexenne::utility::ignore(std::remove(oldest.c_str()));
     // Shift: foo.log.{N-1} -> foo.log.N, down to foo.log.1 -> foo.log.2.
     for (std::size_t i{m_max_files}; i > 1; i = i - 1) {
       auto const src{rotated_name(i - 1)};
       auto const dst{rotated_name(i)};
-      nexenne::utility::discard(std::rename(src.c_str(), dst.c_str()));
+      nexenne::utility::ignore(std::rename(src.c_str(), dst.c_str()));
     }
     // Active foo.log -> foo.log.1.
-    nexenne::utility::discard(std::rename(m_base_path.c_str(), rotated_name(1).c_str()));
+    nexenne::utility::ignore(std::rename(m_base_path.c_str(), rotated_name(1).c_str()));
   } else {
     // max_files == 0 means "truncate" rather than archive.
-    nexenne::utility::discard(std::remove(m_base_path.c_str()));
+    nexenne::utility::ignore(std::remove(m_base_path.c_str()));
   }
   open_current();
 }

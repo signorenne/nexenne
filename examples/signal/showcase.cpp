@@ -36,7 +36,7 @@
 #include <nexenne/signal/signal.hpp>
 #include <nexenne/signal/slot.hpp>
 #include <nexenne/signal/static_signal.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace sig = nexenne::signal;
 
@@ -174,7 +174,7 @@ auto main() -> int {
   [[maybe_unused]] auto const spring{
     bus.on_damage().connect_once([&indicator](damage_event const&) noexcept {
       std::println("  trap springs and disarms the indicator");
-      nexenne::utility::discard(indicator.disconnect());  // safe: deferred to emit end
+      nexenne::utility::ignore(indicator.disconnect());  // safe: deferred to emit end
     })
   };
   std::println("trigger the trap:");

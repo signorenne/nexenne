@@ -43,7 +43,7 @@
 
 #include <nexenne/container/static_vector.hpp>
 #include <nexenne/signal/connection.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::signal {
 
@@ -129,7 +129,7 @@ public:
     if (m_owned.size() == Capacity) {
       return false;
     }
-    nexenne::utility::discard(m_owned.push_back(scoped_connection{std::move(c)}));
+    nexenne::utility::ignore(m_owned.push_back(scoped_connection{std::move(c)}));
     return true;
   }
 

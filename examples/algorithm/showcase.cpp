@@ -44,7 +44,7 @@
 #include <nexenne/algorithm/string/levenshtein.hpp>
 #include <nexenne/algorithm/string/z_function.hpp>
 #include <nexenne/container/graph.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace alg = nexenne::algorithm;
 namespace nc = nexenne::container;
@@ -255,7 +255,7 @@ auto main() -> int {
   auto const link{[&](std::string_view const dep, std::string_view const user) {
     auto const d{index_of(dep)};
     auto const u{index_of(user)};
-    nexenne::utility::discard(deps.add_edge(d, u, static_cast<double>(table[d].size)));
+    nexenne::utility::ignore(deps.add_edge(d, u, static_cast<double>(table[d].size)));
   }};
   link("hero_idle.anim", "hero_run.anim");  // run reuses the idle skeleton
   link("tileset.png", "hero_idle.anim");    // idle samples the tileset

@@ -7,7 +7,7 @@
 #include <nexenne/logging/json_sink.hpp>
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/record.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::logging {
 
@@ -19,8 +19,8 @@ json_sink::json_sink(std::FILE* const out) noexcept : m_file{out} {}
 
 json_sink::~json_sink() noexcept {
   if (m_owns_file && m_file != nullptr) {
-    nexenne::utility::discard(std::fflush(m_file));
-    nexenne::utility::discard(std::fclose(m_file));
+    nexenne::utility::ignore(std::fflush(m_file));
+    nexenne::utility::ignore(std::fclose(m_file));
   }
 }
 
@@ -64,12 +64,12 @@ auto json_sink::write_out(record const& r) noexcept -> void {
   line += R"("})";
   line += '\n';
 
-  nexenne::utility::discard(std::fwrite(line.data(), 1, line.size(), m_file));
+  nexenne::utility::ignore(std::fwrite(line.data(), 1, line.size(), m_file));
 }
 
 auto json_sink::flush_out() noexcept -> void {
   if (m_file != nullptr) {
-    nexenne::utility::discard(std::fflush(m_file));
+    nexenne::utility::ignore(std::fflush(m_file));
   }
 }
 

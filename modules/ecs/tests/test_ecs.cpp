@@ -18,7 +18,7 @@
 
 #include <nexenne/ecs/ecs.hpp>
 #include <nexenne/signal/connection.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -1464,7 +1464,7 @@ TEST_CASE("registry.destroy rejects a listener re-adding to the dying (now-inval
     })
   };
   auto const a{r.create()};
-  nexenne::utility::discard(r.add<health>(a, health{.hp = 100}));
+  nexenne::utility::ignore(r.add<health>(a, health{.hp = 100}));
   auto const a_index{a.index()};
 
   CHECK(r.destroy(a));
@@ -1479,8 +1479,8 @@ TEST_CASE("values() range-for tolerates append then tombstone mid-iteration (C1)
   auto r{registry{}};
   auto const e0{r.create()};
   auto const e1{r.create()};
-  nexenne::utility::discard(r.add<health>(e0, health{.hp = 1}));
-  nexenne::utility::discard(r.add<health>(e1, health{.hp = 2}));
+  nexenne::utility::ignore(r.add<health>(e0, health{.hp = 1}));
+  nexenne::utility::ignore(r.add<health>(e1, health{.hp = 2}));
 
   auto visited{0};
   auto sum{0};
@@ -1494,8 +1494,8 @@ TEST_CASE("values() range-for tolerates append then tombstone mid-iteration (C1)
       // the fix the cursor re-read the grown slot count, stepped over the
       // tombstone, and dereferenced a null slot past the captured end().
       auto const tmp{r.create()};
-      nexenne::utility::discard(r.add<health>(tmp, health{.hp = 99}));
-      nexenne::utility::discard(r.remove<health>(tmp));
+      nexenne::utility::ignore(r.add<health>(tmp, health{.hp = 99}));
+      nexenne::utility::ignore(r.remove<health>(tmp));
     }
   }
   CHECK(visited == 2);  // only the two originally-live slots
@@ -1534,7 +1534,7 @@ TEST_CASE("an on_destroy listener destroying the same entity does not recurse (M
     })
   };
   auto const a{r.create()};
-  nexenne::utility::discard(r.add<health>(a, health{.hp = 1}));
+  nexenne::utility::ignore(r.add<health>(a, health{.hp = 1}));
 
   CHECK(r.destroy(a));          // must not stack-overflow via mutual recursion
   CHECK(fire_count == 1);       // fired exactly once
@@ -1560,9 +1560,9 @@ TEST_CASE("clear() fires on_destroy for every live component (M4)") {
 
   auto const a{r.create()};
   auto const b{r.create()};
-  nexenne::utility::discard(r.add<position>(a, position{}));
-  nexenne::utility::discard(r.add<health>(a, health{.hp = 1}));
-  nexenne::utility::discard(r.add<position>(b, position{}));
+  nexenne::utility::ignore(r.add<position>(a, position{}));
+  nexenne::utility::ignore(r.add<health>(a, health{.hp = 1}));
+  nexenne::utility::ignore(r.add<position>(b, position{}));
 
   r.clear();
 

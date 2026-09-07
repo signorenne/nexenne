@@ -16,7 +16,7 @@
 
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/signal/static_signal.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -99,7 +99,7 @@ auto main() -> int {
   [[maybe_unused]] auto const watchdog{tick.connect([&logger](int frame) noexcept {
     if (frame == 2) {
       std::println("  watchdog silences the logger");
-      nexenne::utility::discard(logger.disconnect());  // safe mid-emit, deferred sweep
+      nexenne::utility::ignore(logger.disconnect());  // safe mid-emit, deferred sweep
     }
   })};
 

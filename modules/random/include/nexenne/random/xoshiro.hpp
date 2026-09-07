@@ -29,7 +29,7 @@
 #include <cstdint>
 #include <limits>
 
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::random {
 
@@ -86,7 +86,7 @@ private:
           s[2] ^= m_s[2];
           s[3] ^= m_s[3];
         }
-        nexenne::utility::discard(next());
+        nexenne::utility::ignore(next());
       }
     }
     m_s = s;

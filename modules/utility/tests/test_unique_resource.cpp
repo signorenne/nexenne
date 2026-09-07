@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 #include <nexenne/utility/unique_resource.hpp>
 
 namespace {
@@ -46,7 +46,7 @@ TEST_CASE("nexenne::utility::unique_resource deleter runs exactly once, never tw
   int closes{0};
   {
     auto r{util::unique_resource{7, [&](int) { ++closes; }}};
-    util::discard(r);
+    util::ignore(r);
   }
   CHECK(closes == 1);
 }
@@ -106,7 +106,7 @@ TEST_CASE("nexenne::utility::unique_resource moving from a non-owning source sta
   int closes{0};
   {
     auto a{util::unique_resource{7, [&](int) { ++closes; }}};
-    util::discard(a.release());  // a now owns nothing
+    util::ignore(a.release());  // a now owns nothing
     auto b{std::move(a)};
     CHECK_FALSE(a.owns());
     CHECK_FALSE(b.owns());  // ownership flag transferred faithfully
@@ -141,7 +141,7 @@ TEST_CASE(
 ) {
   std::vector<int> closed;
   auto r{util::unique_resource{1, [&](int v) { closed.push_back(v); }}};
-  util::discard(r.release());  // non-owning, holds no live resource
+  util::ignore(r.release());  // non-owning, holds no live resource
   r.reset(9);
   CHECK(r.owns());
   CHECK(r.get() == 9);
@@ -174,7 +174,7 @@ TEST_CASE("nexenne::utility::make_unique_resource_checked compares with a hetero
   CHECK_FALSE(bad.owns());
   auto good{util::make_unique_resource_checked(long{5}, -1, closer)};
   CHECK(good.owns());
-  util::discard(good.release());  // avoid the +1 from good
+  util::ignore(good.release());  // avoid the +1 from good
   CHECK(closes == 0);
 }
 
@@ -296,7 +296,7 @@ TEST_CASE("nexenne::utility::unique_resource move-assign from a non-owning sourc
   using owner = util::unique_resource<int, std::function<void(int)>>;
   owner a{1, [&](int) { ++closes_a; }};
   owner b{2, [&](int) { ++closes_b; }};
-  util::discard(b.release());  // b owns nothing
+  util::ignore(b.release());  // b owns nothing
   a = std::move(b);
   CHECK(closes_a == 1);   // a's old resource was released
   CHECK_FALSE(a.owns());  // and a took over b's non-owning state

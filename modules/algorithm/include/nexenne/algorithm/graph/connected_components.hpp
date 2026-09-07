@@ -17,7 +17,7 @@
 
 #include <nexenne/container/graph.hpp>
 #include <nexenne/container/union_find.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::algorithm {
 
@@ -68,7 +68,7 @@ template <typename E, std::unsigned_integral V>
 
   for (auto const u : g.vertices()) {
     for (auto const& edge : g.edges_of(u)) {
-      nexenne::utility::discard(uf.unite(u, edge.target));
+      nexenne::utility::ignore(uf.unite(u, edge.target));
     }
   }
 

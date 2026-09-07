@@ -20,7 +20,7 @@
 #include <nexenne/can/packing_plan.hpp>
 #include <nexenne/can/signal.hpp>
 #include <nexenne/can/signal_builder.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -56,8 +56,8 @@ auto main() -> int {
   auto frame{*nc::frame::classic(nc::can_id::standard(0x100), zeros)};
 
   // Encode the physical values; the codec inverts the scaling and packs the bits.
-  nexenne::utility::discard(nc::encode(speed, speed_plan, frame, 87.5));
-  nexenne::utility::discard(nc::encode(oil_temp, oil_plan, frame, 90.0));
+  nexenne::utility::ignore(nc::encode(speed, speed_plan, frame, 87.5));
+  nexenne::utility::ignore(nc::encode(oil_temp, oil_plan, frame, 90.0));
   std::println("encoded: {}", frame);
 
   // Decode them back out.
@@ -77,10 +77,10 @@ auto main() -> int {
   auto intel_frame{*nc::frame::classic(nc::can_id::standard(0x1), intel_bytes)};
   auto motorola_frame{*nc::frame::classic(nc::can_id::standard(0x1), motorola_bytes)};
   nc::signal const little{0, 16, nc::byte_order::little_endian, false};
-  nexenne::utility::discard(
+  nexenne::utility::ignore(
     nc::encode(little, nc::packing_plan::from_signal(little), intel_frame, 0x1234)
   );
-  nexenne::utility::discard(nc::encode(big, big_plan, motorola_frame, 0x1234));
+  nexenne::utility::ignore(nc::encode(big, big_plan, motorola_frame, 0x1234));
   std::println("0x1234 intel    -> {}", intel_frame);
   std::println("0x1234 motorola -> {}", motorola_frame);
 

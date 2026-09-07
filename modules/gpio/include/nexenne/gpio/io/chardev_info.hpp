@@ -28,7 +28,7 @@
 
 #include <nexenne/gpio/error.hpp>
 #include <nexenne/gpio/line_types.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::gpio {
 

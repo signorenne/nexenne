@@ -28,7 +28,7 @@
 #include <utility>
 
 #include <nexenne/container/error.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::container {
 
@@ -341,7 +341,7 @@ public:
    */
   constexpr ring_buffer(ring_buffer const& other) noexcept {
     for (auto const& value : other) {
-      nexenne::utility::discard(push(value));
+      nexenne::utility::ignore(push(value));
     }
   }
 
@@ -376,7 +376,7 @@ public:
     if (this != &other) {
       clear();
       for (auto const& value : other) {
-        nexenne::utility::discard(push(value));
+        nexenne::utility::ignore(push(value));
       }
     }
     return *this;

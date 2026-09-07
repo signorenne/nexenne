@@ -35,7 +35,7 @@
 #include <nexenne/can/id.hpp>
 #include <nexenne/can/j1939_id.hpp>
 #include <nexenne/container/small_vector.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::can {
 

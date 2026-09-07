@@ -10,7 +10,7 @@
 #include <string>
 
 #include <nexenne/container/format.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -19,9 +19,9 @@ using namespace std::string_literals;
 
 TEST_CASE("nexenne::container::format sequence containers print as [a, b, c]") {
   cn::static_vector<int, 8> v;
-  nexenne::utility::discard(v.push_back(1));
-  nexenne::utility::discard(v.push_back(2));
-  nexenne::utility::discard(v.push_back(3));
+  nexenne::utility::ignore(v.push_back(1));
+  nexenne::utility::ignore(v.push_back(2));
+  nexenne::utility::ignore(v.push_back(3));
   CHECK(cn::to_string(v) == "static_vector[1, 2, 3]");
   CHECK(std::format("{}", v) == "static_vector[1, 2, 3]");  // std::formatter path
 
@@ -31,7 +31,7 @@ TEST_CASE("nexenne::container::format sequence containers print as [a, b, c]") {
 
 TEST_CASE("nexenne::container::format operator<< streams the same text") {
   cn::static_vector<int, 4> v;
-  nexenne::utility::discard(v.push_back(7));
+  nexenne::utility::ignore(v.push_back(7));
   std::ostringstream os;
   os << v;
   CHECK(os.str() == "static_vector[7]");
@@ -39,8 +39,8 @@ TEST_CASE("nexenne::container::format operator<< streams the same text") {
 
 TEST_CASE("nexenne::container::format bitset prints MSB-first binary") {
   cn::bitset_dynamic b(4);
-  nexenne::utility::discard(b.set(0));  // least significant
-  nexenne::utility::discard(b.set(3));  // most significant
+  nexenne::utility::ignore(b.set(0));  // least significant
+  nexenne::utility::ignore(b.set(3));  // most significant
   // bits printed MSB..LSB: bit3=1, bit2=0, bit1=0, bit0=1 -> 1001
   CHECK(cn::to_string(b) == "bitset_dynamic(size=4, bits=0b1001)");
 }
@@ -68,7 +68,7 @@ TEST_CASE("nexenne::container::format trie prints quoted keys") {
 
 TEST_CASE("nexenne::container::format graph prints adjacency") {
   cn::graph<int> g{2};
-  nexenne::utility::discard(g.add_edge(0, 1, 9));
+  nexenne::utility::ignore(g.add_edge(0, 1, 9));
   CHECK(cn::to_string(g) == "graph{0:[1(9)], 1:[]}");
 }
 
@@ -101,9 +101,9 @@ TEST_CASE("nexenne::container::format stable_vector and small_vector print as se
 
 TEST_CASE("nexenne::container::format ring_buffer prints in FIFO order") {
   cn::ring_buffer<int, 4> r;
-  nexenne::utility::discard(r.push(1));
-  nexenne::utility::discard(r.push(2));
-  nexenne::utility::discard(r.push(3));
+  nexenne::utility::ignore(r.push(1));
+  nexenne::utility::ignore(r.push(2));
+  nexenne::utility::ignore(r.push(3));
   CHECK(cn::to_string(r) == "ring_buffer[1, 2, 3]");
   CHECK(std::format("{}", r) == "ring_buffer[1, 2, 3]");
 
@@ -136,7 +136,7 @@ TEST_CASE("nexenne::container::format binary_tree prints in sorted order") {
 
 TEST_CASE("nexenne::container::format union_find groups members by root") {
   cn::union_find<unsigned> uf{4};
-  nexenne::utility::discard(uf.unite(0, 1));
+  nexenne::utility::ignore(uf.unite(0, 1));
   auto const str{cn::to_string(uf)};
   CHECK(str.starts_with("union_find["));
   CHECK(str.find("{0, 1}") != std::string::npos);  // 0 and 1 share a set
@@ -147,14 +147,14 @@ TEST_CASE("nexenne::container::format union_find groups members by root") {
 
 TEST_CASE("nexenne::container::format dense_map prints key: value") {
   cn::dense_map<unsigned, int> m;
-  nexenne::utility::discard(m.insert(3u, 30));
+  nexenne::utility::ignore(m.insert(3u, 30));
   CHECK(cn::to_string(m) == "dense_map{3: 30}");
   CHECK(std::format("{}", m) == "dense_map{3: 30}");
 }
 
 TEST_CASE("nexenne::container::format flat_hash_set prints set-like") {
   cn::flat_hash_set<int> s;
-  nexenne::utility::discard(s.insert(5));
+  nexenne::utility::ignore(s.insert(5));
   CHECK(cn::to_string(s) == "flat_hash_set{5}");
   CHECK(std::format("{}", s) == "flat_hash_set{5}");
 
@@ -206,7 +206,7 @@ TEST_CASE("nexenne::container::format gap_buffer prints as a sequence") {
 
 TEST_CASE("nexenne::container::format operator<< matches to_string across types") {
   cn::ring_buffer<int, 4> r;
-  nexenne::utility::discard(r.push(9));
+  nexenne::utility::ignore(r.push(9));
   std::ostringstream os;
   os << r;
   CHECK(os.str() == cn::to_string(r));
@@ -222,12 +222,12 @@ TEST_CASE("nexenne::container::format nested containers format recursively") {
   // A static_vector of static_vectors: the inner formatter must run per element.
   cn::static_vector<cn::static_vector<int, 4>, 4> outer;
   cn::static_vector<int, 4> a;
-  nexenne::utility::discard(a.push_back(1));
-  nexenne::utility::discard(a.push_back(2));
+  nexenne::utility::ignore(a.push_back(1));
+  nexenne::utility::ignore(a.push_back(2));
   cn::static_vector<int, 4> b;
-  nexenne::utility::discard(b.push_back(3));
-  nexenne::utility::discard(outer.push_back(a));
-  nexenne::utility::discard(outer.push_back(b));
+  nexenne::utility::ignore(b.push_back(3));
+  nexenne::utility::ignore(outer.push_back(a));
+  nexenne::utility::ignore(outer.push_back(b));
   CHECK(cn::to_string(outer) == "static_vector[static_vector[1, 2], static_vector[3]]");
   CHECK(std::format("{}", outer) == "static_vector[static_vector[1, 2], static_vector[3]]");
 }

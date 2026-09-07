@@ -48,7 +48,7 @@
 #include <thread>
 
 #include <nexenne/logging/sink.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::logging {
 

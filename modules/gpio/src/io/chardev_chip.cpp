@@ -307,7 +307,7 @@ auto chardev_chip::open(
   }
   m_request.reset(request.fd);
   for (auto const& spec : specs) {
-    utility::discard(m_offsets.push_back(spec.offset()));
+    utility::ignore(m_offsets.push_back(spec.offset()));
   }
   return {};
 }

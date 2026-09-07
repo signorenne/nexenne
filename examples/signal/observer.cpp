@@ -20,7 +20,7 @@
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/signal/signal.hpp>
 #include <nexenne/signal/slot.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 

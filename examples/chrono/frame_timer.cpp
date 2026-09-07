@@ -12,7 +12,7 @@
 
 #include <nexenne/chrono/frame_timer.hpp>
 #include <nexenne/chrono/manual_clock.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -27,10 +27,10 @@ auto main() -> int {
   clk::reset();
   ch::frame_timer<8, clk> ft;  // 8-frame averaging window
 
-  nexenne::utility::discard(ft.tick());  // first tick: establishes the baseline (dt 0)
+  nexenne::utility::ignore(ft.tick());  // first tick: establishes the baseline (dt 0)
   for (int i{0}; i < 8; ++i) {
     clk::advance(16ms);  // ~60 fps frames (16 ms each)
-    nexenne::utility::discard(ft.tick());
+    nexenne::utility::ignore(ft.tick());
   }
 
   std::println("frames: {}", ft.frame_count());

@@ -8,7 +8,7 @@
 #include <string>
 
 #include <nexenne/container/bimap.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 

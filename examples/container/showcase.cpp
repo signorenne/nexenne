@@ -32,7 +32,7 @@
 #include <nexenne/container/slot_map.hpp>
 #include <nexenne/container/small_vector.hpp>
 #include <nexenne/container/union_find.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace cn = nexenne::container;
 
@@ -177,7 +177,7 @@ auto main() -> int {
   // The goblin acts early, then reschedules itself far out: update() re-heapifies
   // in place, no scan to find its old entry.
   if (auto const* const h{think_handle.find("goblin")}) {
-    nexenne::utility::discard(scheduler.update(*h, 9));
+    nexenne::utility::ignore(scheduler.update(*h, 9));
   }
   std::println("  soonest think now at tick {}", *scheduler.top());  // hero at 2
 
@@ -203,7 +203,7 @@ auto main() -> int {
   std::println("== 5. Squad connectivity (union_find) ==");
   cn::union_find_u32 squads{static_cast<std::uint32_t>(world.capacity())};
   // The hero and the boss ally; the goblin and the crate are incidental.
-  nexenne::utility::discard(squads.unite(hero.index(), boss.index()));
+  nexenne::utility::ignore(squads.unite(hero.index(), boss.index()));
   std::println("  hero & boss same squad: {}", *squads.connected(hero.index(), boss.index()));
   std::println("  hero & goblin same squad: {}", *squads.connected(hero.index(), goblin.index()));
 
@@ -229,12 +229,12 @@ auto main() -> int {
     auto const tick{*scheduler.top()};
     auto const* const who{owner_of.find(top_h)};
     if (who == nullptr) {
-      nexenne::utility::discard(scheduler.erase(top_h));  // unknown handle (cannot happen here)
+      nexenne::utility::ignore(scheduler.erase(top_h));  // unknown handle (cannot happen here)
       continue;
     }
     auto* const actor{resolve(*who)};
     if (actor == nullptr) {
-      nexenne::utility::discard(
+      nexenne::utility::ignore(
         scheduler.erase(top_h)
       );  // entity died earlier; cancel its stale think
       continue;
@@ -253,10 +253,10 @@ auto main() -> int {
           // The goblin dies: erase it from the store and cancel its scheduled
           // think by handle. Its name lookup will now miss; its slot may recycle.
           if (auto const* const gh{by_name.find("goblin")}) {
-            nexenne::utility::discard(world.erase(*gh));
+            nexenne::utility::ignore(world.erase(*gh));
           }
           if (auto const* const gth{think_handle.find("goblin")}) {
-            nexenne::utility::discard(scheduler.erase(*gth));
+            nexenne::utility::ignore(scheduler.erase(*gth));
           }
           by_name.erase("goblin");
           log(std::format("t{}: goblin defeated", tick));
@@ -265,10 +265,10 @@ auto main() -> int {
         log(std::format("t{}: hero patrols (no target)", tick));
       }
       // The hero thinks again two ticks later: update() re-heapifies by handle.
-      nexenne::utility::discard(scheduler.update(top_h, tick + 2));
+      nexenne::utility::ignore(scheduler.update(top_h, tick + 2));
     } else {
       log(std::format("t{}: {} thinks (hp {})", tick, *who, actor->health));
-      nexenne::utility::discard(scheduler.update(top_h, tick + 3));  // reschedule, three ticks out
+      nexenne::utility::ignore(scheduler.update(top_h, tick + 3));  // reschedule, three ticks out
     }
   }
 

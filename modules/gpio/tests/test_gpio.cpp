@@ -76,7 +76,7 @@ TEST_CASE("gpio: raw bounces become one settled, polarity-correct press") {
       break;
     }
     // Drops are observed, not fatal: the settled level below still lands.
-    utility::discard(tracker.feed((**drained).sequence));
+    utility::ignore(tracker.feed((**drained).sequence));
     if (auto const settled{debounce.feed(**drained)}) {
       REQUIRE(sink.push(*settled));
     }

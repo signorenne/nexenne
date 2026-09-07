@@ -14,7 +14,7 @@
 #include <vector>
 
 #include <nexenne/container/bitset_dynamic.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -26,8 +26,8 @@ static_assert(std::forward_iterator<bs::set_bit_iterator>);
 // bitset_dynamic is usable at compile time.
 static_assert([] {
   bs b(10);
-  nexenne::utility::discard(b.set(3));
-  nexenne::utility::discard(b.set(7));
+  nexenne::utility::ignore(b.set(3));
+  nexenne::utility::ignore(b.set(7));
   return b.size() == 10 && b[3] && b[7] && !b[0] && b.count() == 2;
 }());
 
@@ -62,7 +62,7 @@ static_assert([] {
 // find_first_set, the unary complement, and the move are constexpr.
 static_assert([] {
   bs b(130);
-  nexenne::utility::discard(b.set(129));
+  nexenne::utility::ignore(b.set(129));
   auto const first{b.find_first_set()};
   bs moved{std::move(b)};
   return first == 129 && moved[129] && moved.find_first_set(0) == 129
@@ -106,7 +106,7 @@ TEST_CASE("nexenne::container::bitset_dynamic set_all/reset_all/flip_all and any
   CHECK(b.count() == 100);  // tail bits masked, not 128
   b.flip_all();
   CHECK(b.none());
-  nexenne::utility::discard(b.set(50));
+  nexenne::utility::ignore(b.set(50));
   CHECK(b.any());
   b.reset_all();
   CHECK(b.none());
@@ -121,8 +121,8 @@ TEST_CASE("nexenne::container::bitset_dynamic count masks the tail (size not a m
 TEST_CASE("nexenne::container::bitset_dynamic find_first_set") {
   bs b(200);
   CHECK(b.find_first_set() == 200);  // none -> size
-  nexenne::utility::discard(b.set(130));
-  nexenne::utility::discard(b.set(5));
+  nexenne::utility::ignore(b.set(130));
+  nexenne::utility::ignore(b.set(5));
   CHECK(b.find_first_set() == 5);
   CHECK(b.find_first_set(6) == 130);
   CHECK(b.find_first_set(131) == 200);
@@ -130,9 +130,9 @@ TEST_CASE("nexenne::container::bitset_dynamic find_first_set") {
 
 TEST_CASE("nexenne::container::bitset_dynamic set_bits iterates indices sparsely") {
   bs b(300);
-  nexenne::utility::discard(b.set(1));
-  nexenne::utility::discard(b.set(64));
-  nexenne::utility::discard(b.set(200));
+  nexenne::utility::ignore(b.set(1));
+  nexenne::utility::ignore(b.set(64));
+  nexenne::utility::ignore(b.set(200));
   std::vector<std::size_t> indices;
   for (auto const i : b.set_bits()) {
     indices.push_back(i);
@@ -195,7 +195,7 @@ TEST_CASE("nexenne::container::bitset_dynamic push_back and clear") {
 
 TEST_CASE("nexenne::container::bitset_dynamic move zeros source; copy is independent; swap") {
   bs a(10);
-  nexenne::utility::discard(a.set(3));
+  nexenne::utility::ignore(a.set(3));
   bs b{std::move(a)};
   CHECK(b.size() == 10);
   CHECK(b[3]);
@@ -203,7 +203,7 @@ TEST_CASE("nexenne::container::bitset_dynamic move zeros source; copy is indepen
 
   bs c{b};
   CHECK(c == b);
-  nexenne::utility::discard(c.set(4));
+  nexenne::utility::ignore(c.set(4));
   CHECK_FALSE(b[4]);  // deep copy
 
   bs d(5);
@@ -214,8 +214,8 @@ TEST_CASE("nexenne::container::bitset_dynamic move zeros source; copy is indepen
 
 TEST_CASE("nexenne::container::bitset_dynamic words exposes the raw storage") {
   bs b(64);
-  nexenne::utility::discard(b.set(0));
-  nexenne::utility::discard(b.set(63));
+  nexenne::utility::ignore(b.set(0));
+  nexenne::utility::ignore(b.set(63));
   auto const w{b.words()};
   CHECK(w.size() == 1);
   CHECK(w[0] == ((std::uint64_t{1} << 0) | (std::uint64_t{1} << 63)));
@@ -322,9 +322,9 @@ TEST_CASE("nexenne::container::bitset_dynamic word-boundary sizes 127/128/129 ma
 
 TEST_CASE("nexenne::container::bitset_dynamic highest bit of a full word is addressable") {
   bs b(128);
-  nexenne::utility::discard(b.set(63));   // top bit of word 0
-  nexenne::utility::discard(b.set(64));   // bottom bit of word 1
-  nexenne::utility::discard(b.set(127));  // top bit of word 1, the last bit
+  nexenne::utility::ignore(b.set(63));   // top bit of word 0
+  nexenne::utility::ignore(b.set(64));   // bottom bit of word 1
+  nexenne::utility::ignore(b.set(127));  // top bit of word 1, the last bit
   CHECK(b[63]);
   CHECK(b[64]);
   CHECK(b[127]);
@@ -338,9 +338,9 @@ TEST_CASE("nexenne::container::bitset_dynamic highest bit of a full word is addr
 TEST_CASE(
   "nexenne::container::bitset_dynamic find_first_set when only bit is in last partial word"
 ) {
-  bs b(130);                              // three words, last word holds bits 128..129
-  CHECK(b.find_first_set() == 130);       // empty -> sentinel
-  nexenne::utility::discard(b.set(129));  // sole set bit, in the partial tail word
+  bs b(130);                             // three words, last word holds bits 128..129
+  CHECK(b.find_first_set() == 130);      // empty -> sentinel
+  nexenne::utility::ignore(b.set(129));  // sole set bit, in the partial tail word
   CHECK(b.find_first_set() == 129);
   CHECK(b.find_first_set(129) == 129);
   CHECK(b.find_first_set(130) == 130);  // from >= size -> sentinel
@@ -354,8 +354,8 @@ TEST_CASE(
 
 TEST_CASE("nexenne::container::bitset_dynamic find_first_set scans from inside a word") {
   bs b(64);
-  nexenne::utility::discard(b.set(10));
-  nexenne::utility::discard(b.set(40));
+  nexenne::utility::ignore(b.set(10));
+  nexenne::utility::ignore(b.set(40));
   CHECK(b.find_first_set(0) == 10);
   CHECK(b.find_first_set(10) == 10);  // inclusive of from
   CHECK(b.find_first_set(11) == 40);
@@ -367,10 +367,10 @@ TEST_CASE(
   "nexenne::container::bitset_dynamic set_bits iterates a full word and across the boundary"
 ) {
   bs b(128);
-  nexenne::utility::discard(b.set(0));
-  nexenne::utility::discard(b.set(63));
-  nexenne::utility::discard(b.set(64));
-  nexenne::utility::discard(b.set(127));
+  nexenne::utility::ignore(b.set(0));
+  nexenne::utility::ignore(b.set(63));
+  nexenne::utility::ignore(b.set(64));
+  nexenne::utility::ignore(b.set(127));
   std::vector<std::size_t> const indices(b.set_bits().begin(), b.set_bits().end());
   CHECK(indices == std::vector<std::size_t>{0, 63, 64, 127});
 
@@ -402,10 +402,10 @@ TEST_CASE(
 ) {
   // OR/XOR only touch the shared low words; the wider operand keeps its tail.
   bs wide(130);
-  nexenne::utility::discard(wide.set(100));
-  nexenne::utility::discard(wide.set(129));
+  nexenne::utility::ignore(wide.set(100));
+  nexenne::utility::ignore(wide.set(129));
   bs narrow(5);
-  nexenne::utility::discard(narrow.set(0));
+  nexenne::utility::ignore(narrow.set(0));
 
   auto const o{wide | narrow};
   CHECK(o.size() == 130);
@@ -457,15 +457,15 @@ TEST_CASE("nexenne::container::bitset_dynamic flip-all then count equals size ac
 
 TEST_CASE("nexenne::container::bitset_dynamic copy assignment and self-assignment") {
   bs a(70);
-  nexenne::utility::discard(a.set(5));
-  nexenne::utility::discard(a.set(69));
+  nexenne::utility::ignore(a.set(5));
+  nexenne::utility::ignore(a.set(69));
   bs b(3);
   b = a;  // copy assign over a differently sized target
   CHECK(b == a);
   CHECK(b.size() == 70);
   CHECK(b[5]);
   CHECK(b[69]);
-  nexenne::utility::discard(b.set(0));
+  nexenne::utility::ignore(b.set(0));
   CHECK_FALSE(a[0]);  // deep copy, independent storage
 
   // Self copy-assignment is a no-op (assigned through a pointer so the
@@ -480,8 +480,8 @@ TEST_CASE("nexenne::container::bitset_dynamic copy assignment and self-assignmen
 
 TEST_CASE("nexenne::container::bitset_dynamic move assignment zeros the source") {
   bs a(80);
-  nexenne::utility::discard(a.set(7));
-  nexenne::utility::discard(a.set(70));
+  nexenne::utility::ignore(a.set(7));
+  nexenne::utility::ignore(a.set(70));
   bs b(2);
   b = std::move(a);
   CHECK(b.size() == 80);
@@ -492,7 +492,7 @@ TEST_CASE("nexenne::container::bitset_dynamic move assignment zeros the source")
 
   // Self move-assignment must leave the object intact.
   bs c(10);
-  nexenne::utility::discard(c.set(4));
+  nexenne::utility::ignore(c.set(4));
   auto& self{c};
   c = std::move(self);
   CHECK(c.size() == 10);
@@ -568,8 +568,8 @@ TEST_CASE(
 
 TEST_CASE("nexenne::container::bitset_dynamic const-correctness of read-only queries") {
   bs src(70);
-  nexenne::utility::discard(src.set(3));
-  nexenne::utility::discard(src.set(64));
+  nexenne::utility::ignore(src.set(3));
+  nexenne::utility::ignore(src.set(64));
   bs const b{src};
   CHECK(b.size() == 70);
   CHECK(b.word_size() == 2);
@@ -593,7 +593,7 @@ TEST_CASE("nexenne::container::bitset_dynamic capacity helpers preserve value") 
   CHECK(bs::max_size() == std::numeric_limits<std::size_t>::max() - (bs::bits_per_word - 1));
 
   bs b(5);
-  nexenne::utility::discard(b.set(2));
+  nexenne::utility::ignore(b.set(2));
   b.reserve(1000);  // capacity only; value and size unchanged
   CHECK(b.size() == 5);
   CHECK(b[2]);
@@ -610,9 +610,9 @@ TEST_CASE("nexenne::container::bitset_dynamic capacity helpers preserve value") 
 
 TEST_CASE("nexenne::container::bitset_dynamic member swap exchanges state") {
   bs a(10);
-  nexenne::utility::discard(a.set(1));
+  nexenne::utility::ignore(a.set(1));
   bs b(70);
-  nexenne::utility::discard(b.set(64));
+  nexenne::utility::ignore(b.set(64));
   a.swap(b);
   CHECK(a.size() == 70);
   CHECK(a[64]);

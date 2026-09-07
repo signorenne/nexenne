@@ -9,7 +9,7 @@
 #include <nexenne/signal/emit_blocker.hpp>
 #include <nexenne/signal/format.hpp>
 #include <nexenne/signal/static_signal.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -400,7 +400,7 @@ TEST_CASE("nexenne::signal::static_signal connect during emit appends past the l
     order.push_back(1);
     // Connect a brand-new slot from inside the running emit. It must NOT fire
     // in this emit, but must be present afterwards.
-    nexenne::utility::discard(sig.connect([&] noexcept { order.push_back(99); }));
+    nexenne::utility::ignore(sig.connect([&] noexcept { order.push_back(99); }));
   })};
 
   sig.emit();  // only the first slot fires
@@ -427,7 +427,7 @@ TEST_CASE("nexenne::signal::static_signal slot connected mid-emit is re-sorted a
       if (!added) {
         added = true;
         // priority -5: belongs BEFORE the priority-10 appender after re-sort.
-        nexenne::utility::discard(sig.connect([&] noexcept { order.push_back(-5); }, -5));
+        nexenne::utility::ignore(sig.connect([&] noexcept { order.push_back(-5); }, -5));
       }
     },
     10
@@ -517,7 +517,7 @@ TEST_CASE("nexenne::signal::static_signal connecting many slots mid-emit forces 
   [[maybe_unused]] auto first{sig.connect([&] noexcept {
     ++fired;
     for (auto i{0}; i < 5; ++i) {
-      nexenne::utility::discard(sig.connect([&] noexcept { ++fired; }));
+      nexenne::utility::ignore(sig.connect([&] noexcept { ++fired; }));
     }
   })};
 
@@ -574,7 +574,7 @@ TEST_CASE("nexenne::signal::static_signal reentrant connect during emit allocate
   [[maybe_unused]] auto first{sig.connect([&] noexcept {
     ++fired;
     if (sig.size() < 5) {
-      nexenne::utility::discard(sig.connect([&] noexcept { ++fired; }));
+      nexenne::utility::ignore(sig.connect([&] noexcept { ++fired; }));
     }
   })};
 
@@ -593,8 +593,8 @@ TEST_CASE("nexenne::signal::static_slot tracking allocates nothing") {
   auto const before{alloc_counter::snapshot()};
   {
     auto tracker{static_slot<4>{}};
-    nexenne::utility::discard(sig.connect([&] noexcept { ++n; }, tracker));
-    nexenne::utility::discard(sig.connect([&] noexcept { ++n; }, tracker));
+    nexenne::utility::ignore(sig.connect([&] noexcept { ++n; }, tracker));
+    nexenne::utility::ignore(sig.connect([&] noexcept { ++n; }, tracker));
     sig.emit();
   }  // tracker destruction disconnects, still no heap
   sig.emit();
@@ -713,8 +713,8 @@ TEST_CASE("nexenne::signal::static_slot auto-disconnects all on destruction") {
   auto n{0};
   {
     auto tracker{static_slot<2>{}};
-    nexenne::utility::discard(sig.connect([&] noexcept { ++n; }, tracker));
-    nexenne::utility::discard(sig.connect([&] noexcept { ++n; }, tracker));
+    nexenne::utility::ignore(sig.connect([&] noexcept { ++n; }, tracker));
+    nexenne::utility::ignore(sig.connect([&] noexcept { ++n; }, tracker));
     CHECK(tracker.size() == 2);
     CHECK(tracker.full());
     sig.emit();
@@ -729,7 +729,7 @@ TEST_CASE("nexenne::signal::static_slot clear disconnects but stays usable") {
   auto sig{static_signal<void()>{}};
   auto n{0};
   auto tracker{static_slot<2>{}};
-  nexenne::utility::discard(sig.connect([&] noexcept { ++n; }, tracker));
+  nexenne::utility::ignore(sig.connect([&] noexcept { ++n; }, tracker));
   sig.emit();
   CHECK(n == 1);
 
@@ -738,7 +738,7 @@ TEST_CASE("nexenne::signal::static_slot clear disconnects but stays usable") {
   sig.emit();
   CHECK(n == 1);  // detached
 
-  nexenne::utility::discard(sig.connect([&] noexcept { ++n; }, tracker));
+  nexenne::utility::ignore(sig.connect([&] noexcept { ++n; }, tracker));
   sig.emit();
   CHECK(n == 2);  // reusable
 }
@@ -749,14 +749,14 @@ TEST_CASE("nexenne::signal::static_slot reports capacity and full state") {
   CHECK(tracker.capacity() == 2);
   CHECK(tracker.empty());
 
-  nexenne::utility::discard(sig.connect([] noexcept {}, tracker));
-  nexenne::utility::discard(sig.connect([] noexcept {}, tracker));
+  nexenne::utility::ignore(sig.connect([] noexcept {}, tracker));
+  nexenne::utility::ignore(sig.connect([] noexcept {}, tracker));
   CHECK(tracker.full());
   CHECK(tracker.size() == 2);
 
   // Over-capacity connect: the connection stays live but untracked; the slot
   // is still added to the signal.
-  nexenne::utility::discard(sig.connect([] noexcept {}, tracker));
+  nexenne::utility::ignore(sig.connect([] noexcept {}, tracker));
   CHECK(tracker.size() == 2);  // overflow ignored
   CHECK(sig.size() == 3);      // signal still got the slot
 }
@@ -802,7 +802,7 @@ TEST_CASE("nexenne::signal::static_signal member-function connect with static_sl
   auto r{receiver{}};
   {
     auto owner{static_slot<2>{}};
-    nexenne::utility::discard(sig.connect<&receiver::on_event>(r, owner));
+    nexenne::utility::ignore(sig.connect<&receiver::on_event>(r, owner));
     sig.emit(5);
     CHECK(r.hits == 5);
   }  // owner dropped
@@ -831,7 +831,7 @@ TEST_CASE("nexenne::signal::static_sink forwards connect_once, slot, and member 
   [[maybe_unused]] auto const once{sink.connect_once([&](int v) noexcept { once_hits += v; })};
   {
     auto owner{static_slot<2>{}};
-    nexenne::utility::discard(sink.connect<&receiver::on_event>(r, owner));
+    nexenne::utility::ignore(sink.connect<&receiver::on_event>(r, owner));
     sig.emit(7);
     CHECK(r.hits == 7);
     CHECK(once_hits == 7);
@@ -906,7 +906,7 @@ TEST_CASE(
       if (!connected) {
         connected = true;
         // priority -5: sorts BEFORE this slot, but must not be seen this emit.
-        nexenne::utility::discard(sig.connect([&] noexcept { order.push_back(-5); }, -5));
+        nexenne::utility::ignore(sig.connect([&] noexcept { order.push_back(-5); }, -5));
       }
       if (!reentered) {
         reentered = true;
@@ -979,7 +979,7 @@ TEST_CASE("nexenne::signal::static_signal [m1] size() reflects a mid-emit connec
   auto sig{static_signal<void(), 8>{}};
   auto size_during{std::size_t{0}};
   [[maybe_unused]] auto a{sig.connect([&] noexcept {
-    nexenne::utility::discard(sig.connect([] noexcept {}));
+    nexenne::utility::ignore(sig.connect([] noexcept {}));
     size_during = sig.size();
   })};
 

@@ -5,7 +5,7 @@
 
 #include <print>
 
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 #include <nexenne/utility/unique_resource.hpp>
 
 namespace {
@@ -43,7 +43,7 @@ auto main() -> int {
     // make_unique_resource_checked packages into one call.
     auto file{nexenne::utility::unique_resource{-1, closer}};
     if (file.get() == -1) {
-      nexenne::utility::discard(file.release());
+      nexenne::utility::ignore(file.release());
     }
     std::println("failed-open owns: {}", file.owns());
   }

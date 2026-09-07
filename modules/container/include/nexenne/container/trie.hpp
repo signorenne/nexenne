@@ -34,7 +34,7 @@
 #include <vector>
 
 #include <nexenne/container/flat_map.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::container {
 
@@ -314,7 +314,7 @@ public:
       } else {
         auto fresh{std::make_unique<node>()};
         auto* const raw{fresh.get()};
-        nexenne::utility::discard(cur->children.try_emplace(uc, std::move(fresh)));
+        nexenne::utility::ignore(cur->children.try_emplace(uc, std::move(fresh)));
         cur = raw;
       }
     }
@@ -371,7 +371,7 @@ public:
       if (child == nullptr || child->value.has_value() || !child->children.empty()) {
         break;
       }
-      nexenne::utility::discard(it->first->children.erase(it->second));
+      nexenne::utility::ignore(it->first->children.erase(it->second));
     }
     return true;
   }
@@ -748,7 +748,7 @@ private:
         if (child != nullptr) {
           auto fresh{std::make_unique<node>()};
           auto* const raw{fresh.get()};
-          nexenne::utility::discard(d->children.try_emplace(uc, std::move(fresh)));
+          nexenne::utility::ignore(d->children.try_emplace(uc, std::move(fresh)));
           work.emplace_back(child.get(), raw);
         }
       }

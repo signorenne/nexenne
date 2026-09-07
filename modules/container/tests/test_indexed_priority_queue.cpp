@@ -16,7 +16,7 @@
 
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/indexed_priority_queue.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -126,7 +126,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue handles stay valid across 
   auto const h1{q.push(1)};
   auto const h2{q.push(2)};
   q.push(3);
-  nexenne::utility::discard(q.pop());  // removes 3
+  nexenne::utility::ignore(q.pop());  // removes 3
   // h1 and h2 still address their values after the pop reorganised the heap
   CHECK(*q.value_at(h1).value() == 1);
   CHECK(*q.value_at(h2).value() == 2);
@@ -246,7 +246,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue recycles handles after rem
   max_pq q;
   auto const h0{q.push(1)};
   auto const h1{q.push(2)};
-  nexenne::utility::discard(q.pop());  // removes 2 (top), frees h1
+  nexenne::utility::ignore(q.pop());  // removes 2 (top), frees h1
   CHECK_FALSE(q.contains(h1));
   CHECK(q.contains(h0));
   auto const h2{q.push(3)};  // should reuse the freed handle slot
@@ -285,7 +285,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue heap invariant holds after
       case 1:
         if (!q.empty()) {
           auto const top{q.top_handle().value()};
-          nexenne::utility::discard(q.pop());
+          nexenne::utility::ignore(q.pop());
           std::erase(live, top);
         }
         break;

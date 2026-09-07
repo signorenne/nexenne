@@ -16,7 +16,7 @@
 #include <vector>
 
 #include <nexenne/container/flat_hash_map.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 

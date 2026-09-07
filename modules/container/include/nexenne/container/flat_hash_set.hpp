@@ -28,7 +28,7 @@
 #include <utility>
 
 #include <nexenne/container/flat_hash_map.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::container {
 
@@ -112,7 +112,7 @@ public:
    */
   flat_hash_set(std::initializer_list<T> const init) noexcept : m_map{init.size()} {
     for (auto const& value : init) {
-      nexenne::utility::discard(m_map.insert(value, detail::empty_value{}));
+      nexenne::utility::ignore(m_map.insert(value, detail::empty_value{}));
     }
   }
 

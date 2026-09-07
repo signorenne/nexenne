@@ -18,7 +18,7 @@
 #include <type_traits>
 
 #include <nexenne/filter/filter.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -68,7 +68,7 @@ TEST_CASE("nexenne::filter::ema first sample seeds the output (no startup lag)")
 
 TEST_CASE("nexenne::filter::ema alpha=1 passes the input through unchanged") {
   auto f{flt::ema{1.0}};
-  nexenne::utility::discard(f.push(0.0));
+  nexenne::utility::ignore(f.push(0.0));
   CHECK(f.push(42.0) == doctest::Approx(42.0));
   CHECK(f.push(-7.0) == doctest::Approx(-7.0));
   CHECK(f.push(3.5) == doctest::Approx(3.5));
@@ -94,7 +94,7 @@ TEST_CASE("nexenne::filter::ema exact recurrence y += alpha*(x - y)") {
 
 TEST_CASE("nexenne::filter::ema step response converges to DC with monotonic approach") {
   auto f{flt::ema{0.1}};
-  nexenne::utility::discard(f.push(0.0));  // seed at 0
+  nexenne::utility::ignore(f.push(0.0));  // seed at 0
   auto prev{f.value()};
   for (auto i{0}; i < 200; ++i) {
     auto const y{f.push(100.0)};
@@ -117,8 +117,8 @@ TEST_CASE("nexenne::filter::ema impulse response decays geometrically") {
 
 TEST_CASE("nexenne::filter::ema reset returns to a fresh filter state") {
   auto f{flt::ema{0.3}};
-  nexenne::utility::discard(f.push(9.0));
-  nexenne::utility::discard(f.push(3.0));
+  nexenne::utility::ignore(f.push(9.0));
+  nexenne::utility::ignore(f.push(3.0));
   f.reset();
   CHECK(f.value() == doctest::Approx(0.0));
   // The next push reseeds directly, exactly like a fresh filter.
@@ -137,8 +137,8 @@ TEST_CASE("nexenne::filter::ema reset(initial) primes at a known value") {
 TEST_CASE("nexenne::filter::ema float and double instantiations agree") {
   auto fd{flt::ema<double>{0.25}};
   auto ff{flt::ema<float>{0.25F}};
-  nexenne::utility::discard(fd.push(4.0));
-  nexenne::utility::discard(ff.push(4.0F));
+  nexenne::utility::ignore(fd.push(4.0));
+  nexenne::utility::ignore(ff.push(4.0F));
   CHECK(static_cast<double>(ff.push(8.0F)) == doctest::Approx(fd.push(8.0)));
 }
 
@@ -172,9 +172,9 @@ TEST_CASE("nexenne::filter::sma window size 1 is a passthrough") {
 
 TEST_CASE("nexenne::filter::sma sliding window drops the oldest sample") {
   auto f{flt::sma<double, 3>{}};
-  nexenne::utility::discard(f.push(10.0));
-  nexenne::utility::discard(f.push(20.0));
-  nexenne::utility::discard(f.push(30.0));
+  nexenne::utility::ignore(f.push(10.0));
+  nexenne::utility::ignore(f.push(20.0));
+  nexenne::utility::ignore(f.push(30.0));
   CHECK(f.value() == doctest::Approx(20.0));     // (10+20+30)/3
   CHECK(f.push(40.0) == doctest::Approx(30.0));  // (20+30+40)/3
   CHECK(f.push(50.0) == doctest::Approx(40.0));  // (30+40+50)/3
@@ -183,21 +183,21 @@ TEST_CASE("nexenne::filter::sma sliding window drops the oldest sample") {
 TEST_CASE("nexenne::filter::sma filled reports when the window is full") {
   auto f{flt::sma<double, 3>{}};
   CHECK_FALSE(f.filled());
-  nexenne::utility::discard(f.push(1.0));
+  nexenne::utility::ignore(f.push(1.0));
   CHECK(f.count() == 1);
-  nexenne::utility::discard(f.push(2.0));
+  nexenne::utility::ignore(f.push(2.0));
   CHECK_FALSE(f.filled());
-  nexenne::utility::discard(f.push(3.0));
+  nexenne::utility::ignore(f.push(3.0));
   CHECK(f.filled());
   CHECK(f.count() == 3);
-  nexenne::utility::discard(f.push(4.0));
+  nexenne::utility::ignore(f.push(4.0));
   CHECK(f.count() == 3);  // count saturates at N
 }
 
 TEST_CASE("nexenne::filter::sma step response converges exactly to the DC level") {
   auto f{flt::sma<double, 8>{}};
   for (auto i{0}; i < 8; ++i) {
-    nexenne::utility::discard(f.push(5.0));
+    nexenne::utility::ignore(f.push(5.0));
   }
   CHECK(f.value() == doctest::Approx(5.0));  // a full window of 5 averages to 5
 }
@@ -211,9 +211,9 @@ TEST_CASE("nexenne::filter::sma value() matches push() without advancing") {
 
 TEST_CASE("nexenne::filter::sma reset clears window and matches a fresh filter") {
   auto f{flt::sma<double, 4>{}};
-  nexenne::utility::discard(f.push(1.0));
-  nexenne::utility::discard(f.push(2.0));
-  nexenne::utility::discard(f.push(3.0));
+  nexenne::utility::ignore(f.push(1.0));
+  nexenne::utility::ignore(f.push(2.0));
+  nexenne::utility::ignore(f.push(3.0));
   f.reset();
   CHECK(f.count() == 0);
   CHECK_FALSE(f.filled());
@@ -226,8 +226,8 @@ TEST_CASE("nexenne::filter::sma float and double agree on the window average") {
   auto fd{flt::sma<double, 4>{}};
   auto ff{flt::sma<float, 4>{}};
   for (auto const x : {2.0, 4.0, 6.0, 8.0}) {
-    nexenne::utility::discard(fd.push(x));
-    nexenne::utility::discard(ff.push(static_cast<float>(x)));
+    nexenne::utility::ignore(fd.push(x));
+    nexenne::utility::ignore(ff.push(static_cast<float>(x)));
   }
   CHECK(fd.value() == doctest::Approx(5.0));
   CHECK(static_cast<double>(ff.value()) == doctest::Approx(5.0));
@@ -250,14 +250,14 @@ TEST_CASE("nexenne::filter::lowpass first sample seeds directly") {
 TEST_CASE("nexenne::filter::lowpass DC gain is one (passes a constant)") {
   auto lp{flt::lowpass{10.0, 1000.0}};
   for (auto i{0}; i < 500; ++i) {
-    nexenne::utility::discard(lp.push(5.0));
+    nexenne::utility::ignore(lp.push(5.0));
   }
   CHECK(lp.value() == doctest::Approx(5.0).epsilon(1e-6));
 }
 
 TEST_CASE("nexenne::filter::lowpass step response is monotonic toward the input") {
   auto lp{flt::lowpass{50.0, 1000.0}};
-  nexenne::utility::discard(lp.push(0.0));
+  nexenne::utility::ignore(lp.push(0.0));
   auto prev{lp.value()};
   for (auto i{0}; i < 300; ++i) {
     auto const y{lp.push(1.0)};
@@ -272,7 +272,7 @@ TEST_CASE("nexenne::filter::lowpass attenuates a fast alternating signal") {
   auto lp{flt::lowpass{10.0, 1000.0}};
   // +1, -1, +1, -1 ... is the fastest representable signal (Nyquist).
   for (auto i{0}; i < 500; ++i) {
-    nexenne::utility::discard(lp.push(i % 2 == 0 ? 1.0 : -1.0));
+    nexenne::utility::ignore(lp.push(i % 2 == 0 ? 1.0 : -1.0));
   }
   CHECK(std::abs(lp.value()) < 0.1);
 }
@@ -281,7 +281,7 @@ TEST_CASE("nexenne::filter::lowpass attenuates a high-frequency sine") {
   auto lp{flt::lowpass{10.0, 1000.0}};
   for (auto i{0}; i < 500; ++i) {
     auto const x{std::sin(2.0 * pi * 200.0 * static_cast<double>(i) / 1000.0)};
-    nexenne::utility::discard(lp.push(x));
+    nexenne::utility::ignore(lp.push(x));
   }
   CHECK(std::abs(lp.value()) < 0.1);
 }
@@ -300,8 +300,8 @@ TEST_CASE("nexenne::filter::lowpass cutoff() recomputes the coefficient") {
 TEST_CASE("nexenne::filter::lowpass reset matches a fresh filter and keeps the cutoff") {
   auto lp{flt::lowpass{10.0, 1000.0}};
   auto const a{lp.alpha()};
-  nexenne::utility::discard(lp.push(7.0));
-  nexenne::utility::discard(lp.push(3.0));
+  nexenne::utility::ignore(lp.push(7.0));
+  nexenne::utility::ignore(lp.push(3.0));
   lp.reset();
   CHECK(lp.value() == doctest::Approx(0.0));
   CHECK(lp.alpha() == doctest::Approx(a));  // coefficient preserved
@@ -313,8 +313,8 @@ TEST_CASE("nexenne::filter::lowpass float and double track the same step") {
   auto ld{flt::lowpass<double>{50.0, 1000.0}};
   auto lf{flt::lowpass<float>{50.0F, 1000.0F}};
   for (auto i{0}; i < 200; ++i) {
-    nexenne::utility::discard(ld.push(1.0));
-    nexenne::utility::discard(lf.push(1.0F));
+    nexenne::utility::ignore(ld.push(1.0));
+    nexenne::utility::ignore(lf.push(1.0F));
   }
   CHECK(static_cast<double>(lf.value()) == doctest::Approx(ld.value()).epsilon(1e-4));
 }
@@ -336,7 +336,7 @@ TEST_CASE("nexenne::filter::highpass first sample emits zero") {
 TEST_CASE("nexenne::filter::highpass blocks DC (constant input converges to zero)") {
   auto hp{flt::highpass{10.0, 1000.0}};
   for (auto i{0}; i < 500; ++i) {
-    nexenne::utility::discard(hp.push(5.0));  // pure DC
+    nexenne::utility::ignore(hp.push(5.0));  // pure DC
   }
   CHECK(std::abs(hp.value()) < 1e-3);
 }
@@ -357,7 +357,7 @@ TEST_CASE("nexenne::filter::highpass exact difference equation on a step") {
 TEST_CASE("nexenne::filter::highpass passes a fast alternating signal") {
   auto hp{flt::highpass{10.0, 1000.0}};
   for (auto i{0}; i < 200; ++i) {
-    nexenne::utility::discard(hp.push(i % 2 == 0 ? 1.0 : -1.0));
+    nexenne::utility::ignore(hp.push(i % 2 == 0 ? 1.0 : -1.0));
   }
   // With alpha near 1 the alternating component survives with near-unit swing.
   CHECK(std::abs(hp.value()) > 0.8);
@@ -378,8 +378,8 @@ TEST_CASE("nexenne::filter::highpass impulse response onset and decay") {
 TEST_CASE("nexenne::filter::highpass reset matches a fresh filter and keeps the cutoff") {
   auto hp{flt::highpass{10.0, 1000.0}};
   auto const a{hp.alpha()};
-  nexenne::utility::discard(hp.push(4.0));
-  nexenne::utility::discard(hp.push(9.0));
+  nexenne::utility::ignore(hp.push(4.0));
+  nexenne::utility::ignore(hp.push(9.0));
   hp.reset();
   CHECK(hp.value() == doctest::Approx(0.0));
   CHECK(hp.alpha() == doctest::Approx(a));
@@ -403,8 +403,8 @@ TEST_CASE("nexenne::filter::highpass lowpass complementary sum reconstructs the 
   auto hp{flt::highpass{50.0, 1000.0}};
   auto const x{7.0};
   for (auto i{0}; i < 2000; ++i) {
-    nexenne::utility::discard(lp.push(x));
-    nexenne::utility::discard(hp.push(x));
+    nexenne::utility::ignore(lp.push(x));
+    nexenne::utility::ignore(hp.push(x));
   }
   // Low-pass holds the DC, high-pass has rejected it: their sum is the input.
   CHECK(lp.value() + hp.value() == doctest::Approx(x).epsilon(1e-3));
@@ -413,8 +413,8 @@ TEST_CASE("nexenne::filter::highpass lowpass complementary sum reconstructs the 
 TEST_CASE("nexenne::filter::highpass float and double agree on a step") {
   auto hd{flt::highpass<double>{10.0, 1000.0}};
   auto hf{flt::highpass<float>{10.0F, 1000.0F}};
-  nexenne::utility::discard(hd.push(0.0));
-  nexenne::utility::discard(hf.push(0.0F));
+  nexenne::utility::ignore(hd.push(0.0));
+  nexenne::utility::ignore(hf.push(0.0F));
   CHECK(static_cast<double>(hf.push(1.0F)) == doctest::Approx(hd.push(1.0)).epsilon(1e-5));
 }
 
@@ -472,7 +472,7 @@ TEST_CASE("nexenne::filter::biquad lowpass DC gain is one") {
   // And empirically: a sustained DC input settles at the input level.
   auto run{bq};
   for (auto i{0}; i < 500; ++i) {
-    nexenne::utility::discard(run.push(1.0));
+    nexenne::utility::ignore(run.push(1.0));
   }
   CHECK(run.value() == doctest::Approx(1.0).epsilon(1e-3));
 }
@@ -494,7 +494,7 @@ TEST_CASE("nexenne::filter::biquad highpass matches RBJ cookbook and blocks DC")
   // DC gain of a high-pass is zero: b0+b1+b2 == 0.
   CHECK(c.b0 + c.b1 + c.b2 == doctest::Approx(0.0));
   for (auto i{0}; i < 500; ++i) {
-    nexenne::utility::discard(bq.push(1.0));
+    nexenne::utility::ignore(bq.push(1.0));
   }
   CHECK(std::abs(bq.value()) < 1e-3);
 }
@@ -543,7 +543,7 @@ TEST_CASE("nexenne::filter::biquad notch kills its center frequency") {
   auto bq{flt::biquad<double>::make_notch(100.0, 1000.0, 5.0)};
   for (auto i{0}; i < 1000; ++i) {
     auto const x{std::sin(2.0 * pi * 100.0 * static_cast<double>(i) / 1000.0)};
-    nexenne::utility::discard(bq.push(x));
+    nexenne::utility::ignore(bq.push(x));
   }
   CHECK(std::abs(bq.value()) < 0.05);
 }
@@ -565,7 +565,7 @@ TEST_CASE("nexenne::filter::biquad notch passes a far-off frequency") {
 TEST_CASE("nexenne::filter::biquad reset clears both delay elements") {
   auto bq{flt::biquad<double>::make_lowpass(50.0, 1000.0)};
   for (auto i{0}; i < 50; ++i) {
-    nexenne::utility::discard(bq.push(1.0));
+    nexenne::utility::ignore(bq.push(1.0));
   }
   bq.reset();
   CHECK(bq.value() == doctest::Approx(0.0));
@@ -581,8 +581,8 @@ TEST_CASE("nexenne::filter::biquad float and double lowpass DC gains both unity"
   auto bd{flt::biquad<double>::make_lowpass(50.0, 1000.0)};
   auto bf{flt::biquad<float>::make_lowpass(50.0F, 1000.0F)};
   for (auto i{0}; i < 500; ++i) {
-    nexenne::utility::discard(bd.push(1.0));
-    nexenne::utility::discard(bf.push(1.0F));
+    nexenne::utility::ignore(bd.push(1.0));
+    nexenne::utility::ignore(bf.push(1.0F));
   }
   CHECK(bd.value() == doctest::Approx(1.0).epsilon(1e-3));
   CHECK(static_cast<double>(bf.value()) == doctest::Approx(1.0).epsilon(1e-3));
@@ -598,7 +598,7 @@ TEST_CASE("nexenne::filter::butterworth order-2 lowpass has unity DC gain") {
   auto f{flt::butterworth<double, 1>{}};
   f.design_low_pass(100.0, 1000.0);
   for (auto i{0}; i < 400; ++i) {
-    nexenne::utility::discard(f.push(1.0));
+    nexenne::utility::ignore(f.push(1.0));
   }
   CHECK(f.value() == doctest::Approx(1.0).epsilon(1e-3));
 }
@@ -611,7 +611,7 @@ TEST_CASE("nexenne::filter::butterworth order-4 lowpass per-section Q is textboo
   auto f{flt::butterworth<double, 2>{}};
   f.design_low_pass(100.0, 1000.0);
   for (auto i{0}; i < 600; ++i) {
-    nexenne::utility::discard(f.push(1.0));
+    nexenne::utility::ignore(f.push(1.0));
   }
   CHECK(f.value() == doctest::Approx(1.0).epsilon(1e-3));
 
@@ -629,7 +629,7 @@ TEST_CASE("nexenne::filter::butterworth order-4 lowpass per-section Q is textboo
   CHECK((c1.b0 + c1.b1 + c1.b2) / (1.0 + c1.a1 + c1.a2) == doctest::Approx(1.0));
   // Feeding the same DC through the two reference sections also yields 1.
   for (auto i{0}; i < 600; ++i) {
-    nexenne::utility::discard(s1.push(s0.push(1.0)));
+    nexenne::utility::ignore(s1.push(s0.push(1.0)));
   }
   CHECK(s1.value() == doctest::Approx(1.0).epsilon(1e-3));
 }
@@ -639,7 +639,7 @@ TEST_CASE("nexenne::filter::butterworth maximally-flat lowpass attenuates above 
   f.design_low_pass(10.0, 1000.0);
   for (auto i{0}; i < 600; ++i) {
     auto const x{std::sin(2.0 * pi * 200.0 * static_cast<double>(i) / 1000.0)};
-    nexenne::utility::discard(f.push(x));
+    nexenne::utility::ignore(f.push(x));
   }
   CHECK(std::abs(f.value()) < 0.01);
 }
@@ -648,7 +648,7 @@ TEST_CASE("nexenne::filter::butterworth highpass design removes DC") {
   auto f{flt::butterworth<double, 2>{}};
   f.design_high_pass(50.0, 1000.0);
   for (auto i{0}; i < 600; ++i) {
-    nexenne::utility::discard(f.push(1.0));
+    nexenne::utility::ignore(f.push(1.0));
   }
   CHECK(std::abs(f.value()) < 1e-3);
 }
@@ -657,12 +657,12 @@ TEST_CASE("nexenne::filter::butterworth reset clears state but preserves coeffic
   auto f{flt::butterworth<double, 1>{}};
   f.design_low_pass(100.0, 1000.0);
   for (auto i{0}; i < 100; ++i) {
-    nexenne::utility::discard(f.push(1.0));
+    nexenne::utility::ignore(f.push(1.0));
   }
   f.reset();
   CHECK(f.value() == doctest::Approx(0.0));
   for (auto i{0}; i < 400; ++i) {
-    nexenne::utility::discard(f.push(1.0));
+    nexenne::utility::ignore(f.push(1.0));
   }
   CHECK(f.value() == doctest::Approx(1.0).epsilon(1e-3));
 }
@@ -671,7 +671,7 @@ TEST_CASE("nexenne::filter::butterworth float lowpass also has unity DC gain") {
   auto f{flt::butterworth<float, 2>{}};
   f.design_low_pass(50.0F, 1000.0F);
   for (auto i{0}; i < 600; ++i) {
-    nexenne::utility::discard(f.push(1.0F));
+    nexenne::utility::ignore(f.push(1.0F));
   }
   CHECK(static_cast<double>(f.value()) == doctest::Approx(1.0).epsilon(1e-3));
 }
@@ -709,7 +709,7 @@ TEST_CASE("nexenne::filter::fir DC gain equals the sum of taps (step response)")
   auto const coeffs{std::array<double, 4>{0.1, 0.2, 0.3, 0.4}};  // sum 1.0
   auto f{flt::fir<double, 4>{std::span<double const, 4>{coeffs}}};
   for (auto i{0}; i < 4; ++i) {
-    nexenne::utility::discard(f.push(2.0));
+    nexenne::utility::ignore(f.push(2.0));
   }
   CHECK(f.value() == doctest::Approx(2.0));  // 2.0 * sum(coeffs) == 2.0
 }
@@ -755,8 +755,8 @@ TEST_CASE("nexenne::filter::fir value mirrors the last push; reset clears histor
 TEST_CASE("nexenne::filter::fir reset matches a fresh filter") {
   auto const coeffs{std::array<double, 3>{0.5, 0.25, 0.25}};
   auto f{flt::fir<double, 3>{std::span<double const, 3>{coeffs}}};
-  nexenne::utility::discard(f.push(7.0));
-  nexenne::utility::discard(f.push(2.0));
+  nexenne::utility::ignore(f.push(7.0));
+  nexenne::utility::ignore(f.push(2.0));
   f.reset();
   auto fresh{flt::fir<double, 3>{std::span<double const, 3>{coeffs}}};
   CHECK(f.push(4.0) == doctest::Approx(fresh.push(4.0)));
@@ -769,15 +769,15 @@ TEST_CASE("nexenne::filter::fir float and double agree on a known convolution") 
   auto fd{flt::fir<double, 3>{std::span<double const, 3>{cd}}};
   auto ff{flt::fir<float, 3>{std::span<float const, 3>{cf}}};
   for (auto const x : {1.0, 2.0, 3.0, 4.0}) {
-    nexenne::utility::discard(fd.push(x));
-    nexenne::utility::discard(ff.push(static_cast<float>(x)));
+    nexenne::utility::ignore(fd.push(x));
+    nexenne::utility::ignore(ff.push(static_cast<float>(x)));
   }
   CHECK(static_cast<double>(ff.value()) == doctest::Approx(fd.value()));
 }
 
 TEST_CASE("nexenne::filter::ema propagates a NaN input through the blend") {
   auto f{flt::ema{0.5}};
-  nexenne::utility::discard(f.push(1.0));
+  nexenne::utility::ignore(f.push(1.0));
   auto const y{f.push(std::numeric_limits<double>::quiet_NaN())};
   CHECK(std::isnan(y));  // documented: no special NaN handling
 }
@@ -785,7 +785,7 @@ TEST_CASE("nexenne::filter::ema propagates a NaN input through the blend") {
 TEST_CASE("nexenne::filter::sma very long constant run stays at steady state") {
   auto f{flt::sma<double, 8>{}};
   for (auto i{0}; i < 100000; ++i) {
-    nexenne::utility::discard(f.push(3.0));
+    nexenne::utility::ignore(f.push(3.0));
   }
   CHECK(f.value() == doctest::Approx(3.0));  // no drift from incremental sum
 }
@@ -793,7 +793,7 @@ TEST_CASE("nexenne::filter::sma very long constant run stays at steady state") {
 TEST_CASE("nexenne::filter::lowpass very long constant run holds DC exactly") {
   auto lp{flt::lowpass{10.0, 1000.0}};
   for (auto i{0}; i < 100000; ++i) {
-    nexenne::utility::discard(lp.push(2.5));
+    nexenne::utility::ignore(lp.push(2.5));
   }
   CHECK(lp.value() == doctest::Approx(2.5).epsilon(1e-9));
 }
@@ -803,11 +803,11 @@ TEST_CASE("nexenne::filter::lowpass very long constant run holds DC exactly") {
 TEST_CASE("nexenne::filter::sma recovers exactly after a large-magnitude burst (M1)") {
   auto f{flt::sma<float, 8>{}};
   for (auto i{0}; i < 8; ++i) {
-    nexenne::utility::discard(f.push(1e8f));
+    nexenne::utility::ignore(f.push(1e8f));
   }
   // Flush the window with small samples; after 8 pushes it holds only 1.0f.
   for (auto i{0}; i < 100; ++i) {
-    nexenne::utility::discard(f.push(1.0f));
+    nexenne::utility::ignore(f.push(1.0f));
   }
   CHECK(f.value() == doctest::Approx(1.0));  // exact mean of eight 1.0f samples
 }
@@ -820,7 +820,7 @@ TEST_CASE("nexenne::filter::butterworth default arguments and shape-carrying des
   static_assert(decltype(f)::sections == 2);
   static_assert(decltype(f)::order == 4);
   f.design_low_pass(100.0, 1000.0);
-  nexenne::utility::discard(f.push(1.0));
+  nexenne::utility::ignore(f.push(1.0));
   CHECK(std::isfinite(f.value()));
 }
 

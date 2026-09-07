@@ -32,7 +32,7 @@
 #include <nexenne/gpio/line_event.hpp>
 #include <nexenne/gpio/line_spec.hpp>
 #include <nexenne/gpio/line_types.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::gpio {
 
@@ -107,7 +107,7 @@ public:
         specs[i].direction() == line_direction::output && configs[i].initial_value()
       };
       // The capacity check above guarantees these cannot fail.
-      utility::discard(
+      utility::ignore(
         m_specs.push_back(specs[i]),
         m_configs.push_back(configs[i]),
         m_levels.push_back(starts_high)
@@ -407,7 +407,7 @@ public:
       return false;
     }
     // The size check above guarantees the push cannot fail.
-    utility::discard(m_events.push_back(event));
+    utility::ignore(m_events.push_back(event));
     return true;
   }
 };

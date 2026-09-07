@@ -38,7 +38,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::utility {
 
@@ -102,7 +102,7 @@ private:
     resource_type& resource, deleter_type& deleter
   ) noexcept(std::is_nothrow_move_constructible_v<resource_type>) -> resource_type {
     if constexpr (std::is_nothrow_move_constructible_v<resource_type>) {
-      discard(deleter);
+      ignore(deleter);
       return std::move(resource);
     } else {
       try {
@@ -137,7 +137,7 @@ private:
     deleter_type& deleter, resource_type& resource
   ) noexcept(std::is_nothrow_move_constructible_v<deleter_type>) -> deleter_type {
     if constexpr (std::is_nothrow_move_constructible_v<deleter_type>) {
-      discard(resource);
+      ignore(resource);
       return std::move(deleter);
     } else {
       try {
@@ -580,7 +580,7 @@ make_unique_resource_checked(Resource resource, Invalid const& invalid, Deleter 
 ) -> unique_resource<Resource, Deleter> {
   auto guard{unique_resource<Resource, Deleter>{std::move(resource), std::move(deleter)}};
   if (guard.get() == invalid) {
-    discard(guard.release());
+    ignore(guard.release());
   }
   return guard;
 }

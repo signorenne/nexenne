@@ -27,7 +27,7 @@
 #include <nexenne/gpio/format.hpp>
 #include <nexenne/gpio/io/callback_sink.hpp>
 #include <nexenne/gpio/io/chardev_chip.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 #include <nexenne/utility/scope_guard.hpp>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
@@ -131,8 +131,8 @@ auto main(int const argc, char** const argv) -> int {
     for (int i{0}; i < count; ++i) {
       if (ready[static_cast<std::size_t>(i)].data.fd == timer_fd) {
         std::uint64_t expirations{};
-        nexenne::utility::discard(::read(timer_fd, &expirations, sizeof(expirations)));
-        nexenne::utility::discard(led.toggle());
+        nexenne::utility::ignore(::read(timer_fd, &expirations, sizeof(expirations)));
+        nexenne::utility::ignore(led.toggle());
         ticks += 1;
       } else {
         // Pump every event the readiness covered straight into a handler;
@@ -142,7 +142,7 @@ auto main(int const argc, char** const argv) -> int {
           return true;
         }};
         ng::callback_sink sink{handler};
-        nexenne::utility::discard(ng::drain_events(backend, sink));
+        nexenne::utility::ignore(ng::drain_events(backend, sink));
       }
     }
   }

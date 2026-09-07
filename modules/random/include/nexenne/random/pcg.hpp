@@ -35,7 +35,7 @@
 #include <cstdint>
 #include <limits>
 
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::random {
 
@@ -83,9 +83,9 @@ public:
    */
   constexpr pcg32(std::uint64_t const state, std::uint64_t const sequence) noexcept
       : m_state{0}, m_inc{(sequence << 1u) | 1u} {
-    nexenne::utility::discard(next());
+    nexenne::utility::ignore(next());
     m_state += state;
-    nexenne::utility::discard(next());
+    nexenne::utility::ignore(next());
   }
 
   /**

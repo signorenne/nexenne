@@ -18,7 +18,7 @@
 #include <nexenne/gpio/chip.hpp>
 #include <nexenne/gpio/format.hpp>
 #include <nexenne/gpio/io/chardev_chip.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 

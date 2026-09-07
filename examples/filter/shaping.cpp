@@ -23,7 +23,7 @@
 #include <nexenne/filter/hysteresis.hpp>
 #include <nexenne/filter/slew.hpp>
 #include <nexenne/filter/timed_debounce.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -36,7 +36,7 @@ auto main() -> int {
   // first push seeds directly; every later push moves by at most the rate, so a
   // step becomes a ramp - exactly what protects a motor or LED from a jolt.
   auto sl{flt::slew{5.0}};
-  nexenne::utility::discard(sl.push(0.0));
+  nexenne::utility::ignore(sl.push(0.0));
   std::print("1. slew(5) toward 100 ->");
   for (auto n{0}; n < 4; ++n) {
     std::print(" {:.0f}", sl.push(100.0));
@@ -63,12 +63,12 @@ auto main() -> int {
   // mechanical-switch contact-bounce reject.
   auto db{flt::debounce<bool, 3>{}};
   for (auto const r : {false, false, false}) {
-    nexenne::utility::discard(db.push(r));
+    nexenne::utility::ignore(db.push(r));
   }
   std::println("3. debounce(3): lone glitch true -> {}", db.push(true));
   db.reset();
   for (auto const r : {false, false, false}) {
-    nexenne::utility::discard(db.push(r));
+    nexenne::utility::ignore(db.push(r));
   }
   auto const d1{db.push(true)};
   auto const d2{db.push(true)};
@@ -130,10 +130,10 @@ auto main() -> int {
   std::println("7. timed_debounce(20ms): a changed level promotes after the period:");
   auto td{flt::timed_debounce<std::chrono::milliseconds>{std::chrono::milliseconds{20}}};
   using ms = std::chrono::milliseconds;
-  nexenne::utility::discard(td.update(ms{0}, false));  // first sample seeds stable=false
-  auto const t1{td.update(ms{5}, true)};               // candidate starts, not yet settled
-  auto const t2{td.update(ms{10}, true)};              // still within the period
-  auto const t3{td.update(ms{30}, true)};              // 25 ms held, promotes to true
+  nexenne::utility::ignore(td.update(ms{0}, false));  // first sample seeds stable=false
+  auto const t1{td.update(ms{5}, true)};              // candidate starts, not yet settled
+  auto const t2{td.update(ms{10}, true)};             // still within the period
+  auto const t3{td.update(ms{30}, true)};             // 25 ms held, promotes to true
   std::println(
     "   t=5 settled? {}  t=10 settled? {}  t=30 settled? {}",
     t1.has_value(),

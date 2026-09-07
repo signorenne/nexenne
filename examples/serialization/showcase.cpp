@@ -41,7 +41,7 @@
 #include <vector>
 
 #include <nexenne/serialization/serialization.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace ser = nexenne::serialization;
 
@@ -276,7 +276,7 @@ auto main() -> int {
   auto other{std::array<std::byte, 16>{}};
   {
     auto w{ser::binary::writer{other}};
-    nexenne::utility::discard(ser::write_header(w, 0x434F4E46, save_version));  // 'CONF'
+    nexenne::utility::ignore(ser::write_header(w, 0x434F4E46, save_version));  // 'CONF'
   }
   auto bad_reader{ser::binary::reader{other}};
   auto const rejected{ser::decode_with(bad_reader, save_magic, save_codec{})};

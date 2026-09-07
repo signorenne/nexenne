@@ -39,7 +39,7 @@
 #include <vector>
 
 #include <nexenne/container/stable_vector.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::ecs::detail {
 
@@ -138,7 +138,7 @@ public:
       // The sparse array stores slot + 1 as a key_type, so the slot index must
       // fit key_type with room for the + 1 sentinel bias.
       assert(slot < std::numeric_limits<key_type>::max() && "component_pool slot count overflow");
-      nexenne::utility::discard(m_slots.push_back(slot_type{entry{key, std::move(value)}}));
+      nexenne::utility::ignore(m_slots.push_back(slot_type{entry{key, std::move(value)}}));
       m_sparse[key] = static_cast<key_type>(slot) + 1;
     }
     ++m_size;

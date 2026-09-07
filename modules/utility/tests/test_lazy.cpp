@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 #include <nexenne/utility/lazy.hpp>
 
 namespace {
@@ -127,7 +127,7 @@ TEST_CASE("nexenne::utility::lazy retries after the factory throws") {
     return 99;
   }}};
 
-  CHECK_THROWS_AS(util::discard(*value), std::runtime_error);
+  CHECK_THROWS_AS(util::ignore(*value), std::runtime_error);
   CHECK_FALSE(value.has_value());
 
   CHECK(*value == 99);  // call_once did not latch the throwing attempt
@@ -178,16 +178,16 @@ TEST_CASE("nexenne::utility::lazy materialises only on access, never on construc
   CHECK(runs == 0);
 
   // Single materialisation.
-  util::discard(value.get());
+  util::ignore(value.get());
   CHECK(runs == 1);
 
   // Many subsequent accesses through all accessors: still one run.
-  util::discard(value.get());
-  util::discard(*value);
-  util::discard(value.operator->());
-  util::discard(std::as_const(value).get());
-  util::discard(*std::as_const(value));
-  util::discard(std::as_const(value).operator->());
+  util::ignore(value.get());
+  util::ignore(*value);
+  util::ignore(value.operator->());
+  util::ignore(std::as_const(value).get());
+  util::ignore(*std::as_const(value));
+  util::ignore(std::as_const(value).operator->());
   CHECK(runs == 1);
 }
 
@@ -281,9 +281,9 @@ TEST_CASE("nexenne::utility::lazy retries multiple times until the factory succe
     return 500;
   }}};
 
-  CHECK_THROWS_AS(util::discard(*value), std::runtime_error);
+  CHECK_THROWS_AS(util::ignore(*value), std::runtime_error);
   CHECK_FALSE(value.has_value());
-  CHECK_THROWS_AS(util::discard(value.get()), std::runtime_error);
+  CHECK_THROWS_AS(util::ignore(value.get()), std::runtime_error);
   CHECK_FALSE(value.has_value());
   CHECK(attempts == 2);
 

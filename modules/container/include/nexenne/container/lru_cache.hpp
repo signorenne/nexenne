@@ -32,7 +32,7 @@
 
 #include <nexenne/container/flat_hash_map.hpp>
 #include <nexenne/container/intrusive_list.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::container {
 
@@ -166,7 +166,7 @@ private:
     // which the Capacity >= 1 constraint guarantees.
     auto* const evicted{m_lru.back()};
     m_lru.erase(*evicted);
-    nexenne::utility::discard(m_index.erase(std::addressof(evicted->key)));
+    nexenne::utility::ignore(m_index.erase(std::addressof(evicted->key)));
     return evicted;
   }
 
@@ -302,7 +302,7 @@ public:
     entry->key = std::move(key);
     entry->value = std::move(value);
     m_lru.push_front(*entry);
-    nexenne::utility::discard(m_index.insert(std::addressof(entry->key), entry));
+    nexenne::utility::ignore(m_index.insert(std::addressof(entry->key), entry));
   }
 
   /**
@@ -386,7 +386,7 @@ public:
     }
     auto* const entry{*slot};
     m_lru.erase(*entry);
-    nexenne::utility::discard(m_index.erase(std::addressof(key)));
+    nexenne::utility::ignore(m_index.erase(std::addressof(key)));
     // Release the payload so an erased entry does not pin its resources in the
     // pool until the slot is next reused (the default-initializable constraint
     // makes this reset well-formed).

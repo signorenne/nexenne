@@ -10,7 +10,7 @@
 #include <string>
 
 #include <nexenne/random/format.hpp>
-#include <nexenne/utility/discard.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -82,7 +82,7 @@ TEST_CASE("distribution formatters forward the spec to each parameter") {
 TEST_CASE("an invalid parameter spec is rejected by the component formatter") {
   rnd::exponential_distribution<double> const dist{1.0};
   CHECK_THROWS_AS(
-    nexenne::utility::discard(std::vformat("{:Z}", std::make_format_args(dist))), std::format_error
+    nexenne::utility::ignore(std::vformat("{:Z}", std::make_format_args(dist))), std::format_error
   );
 }
 
