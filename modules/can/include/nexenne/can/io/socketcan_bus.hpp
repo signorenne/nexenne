@@ -228,10 +228,12 @@ public:
   /**
    * @brief The underlying socket descriptor, for advanced use.
    *
-   * @return The raw file descriptor the bus owns.
+   * Use it to drive the bus from an event loop, or to set a socket option this
+   * module does not model, such as \c CAN_RAW_LOOPBACK.
    *
-   * @pre The bus is open.
-   * @post None.
+   * @return The raw file descriptor the bus owns, or \c -1 when it owns none,
+   *         which is the case for a moved-from bus. Never the descriptor of a
+   *         socket another bus has taken ownership of.
    */
   [[nodiscard]] auto descriptor() const noexcept -> int;
 };

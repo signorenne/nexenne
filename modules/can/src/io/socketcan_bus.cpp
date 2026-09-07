@@ -261,7 +261,9 @@ auto socketcan_bus::state() const noexcept -> bus_state {
 }
 
 auto socketcan_bus::descriptor() const noexcept -> int {
-  return m_socket.get();
+  // Moving an int copies it, so a moved-from bus still stores the descriptor
+  // another bus now owns; only the ownership flag distinguishes them.
+  return m_socket.owns() ? m_socket.get() : -1;
 }
 
 }  // namespace nexenne::can

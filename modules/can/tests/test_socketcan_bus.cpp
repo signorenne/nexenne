@@ -5,6 +5,10 @@
  * The frame conversions and the bound-socket error paths are tested directly; a
  * live send and receive needs a CAN interface, so it is left to the runnable
  * example and skipped here.
+ *
+ * For the same reason the moved-from descriptor() guard is uncovered: the
+ * constructor is private, so only open() can build a bus, and that needs a real
+ * interface. The non-Linux branch below covers the invalid-descriptor result.
  */
 
 #include <doctest/doctest.h>
