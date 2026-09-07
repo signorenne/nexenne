@@ -44,11 +44,15 @@ template <typename Float>
 /**
  * @brief Whether the floating-point \p from truncates to a value of \p To.
  *
- * The comparison happens entirely in \p From, against the half-open range
- * \c (To_min-1, To_max+1) whose endpoints are exact powers of two, so no
- * float-to-integer conversion (the operation whose validity is being decided)
- * is performed. A NaN compares false against both bounds and is reported as
- * out of range.
+ * The comparison happens entirely in \p From, so no float-to-integer
+ * conversion (the operation whose validity is being decided) is performed.
+ * Both bounds are exact powers of two: a signed \p To accepts
+ * \c [-2^digits, 2^digits), that is \c [To_min, To_max+1), and an unsigned
+ * \p To accepts \c (-1, 2^digits), that is \c (-1, To_max+1). The signed lower
+ * bound is inclusive at \c To_min, so a value in \c (To_min-1, To_min) is
+ * reported out of range although it truncates to \c To_min; \c narrow_cast
+ * rejects it either way, since its fraction does not survive the round trip.
+ * A NaN compares false against both bounds and is reported as out of range.
  *
  * @tparam To Integral target type.
  * @tparam From Floating-point source type.
