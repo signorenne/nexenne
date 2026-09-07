@@ -162,7 +162,7 @@ Things to keep in mind:
 nexenne::container::union_find_u32 uf{node_count};
 
 for (auto const [a, b] : edges) {
-  nexenne::utility::discard(uf.unite(a, b));   // O(alpha(n))
+  nexenne::utility::ignore(uf.unite(a, b));   // O(alpha(n))
 }
 auto const components{uf.count()};     // number of disjoint sets
 if (*uf.connected(x, y)) { ... }       // result<bool>, O(alpha(n))

@@ -21,7 +21,7 @@ possible: a chip index cannot be passed as a line offset, a timestamp cannot be
 passed as a timeout, and an active-low button is =true= when pressed no matter
 how it is wired.
 
-It builds on [[file:../utility/README.org][utility]] (strong identifiers, RAII resources, =discard=),
+It builds on [[file:../utility/README.org][utility]] (strong identifiers, RAII resources, =ignore=),
 [[file:../container/README.org][container]] (=static_vector=, the lock-free =spsc_queue=), and
 [[file:../filter/README.org][filter]] (the =timed_debounce= settle engine), so it adds no heap of its own.
 
@@ -50,7 +50,7 @@ ng::chip<ng::chardev_chip> chip{backend};
 if (auto const opened{chip.open(specs, configs)}; !opened) { /* handle */ }
 
 if (*chip.read("button")) {                  // true means pressed, always
-  nexenne::utility::discard(chip.write("led", true));
+  nexenne::utility::ignore(chip.write("led", true));
 }
 
 while (auto const event{backend.wait_event(100ms)}) {

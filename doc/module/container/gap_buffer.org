@@ -188,7 +188,7 @@ for (char const ch : "hello") { line.insert(ch); }   // O(1) each at the cursor
 if (line.move_cursor_to(2).has_value()) {            // reposition once
   line.insert('!');                                  // O(1) burst of edits here
 }
-nexenne::utility::discard(line.erase_backward());    // backspace, O(1)
+nexenne::utility::ignore(line.erase_backward());    // backspace, O(1)
 #+END_SRC
 
 Runnable: [[file:../../../examples/container/gap_buffer.cpp][examples/container/gap_buffer.cpp]]

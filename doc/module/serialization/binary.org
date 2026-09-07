@@ -84,8 +84,8 @@ namespace ser = nexenne::serialization;
 
 auto buf{std::array<std::byte, 64>{}};
 auto w{ser::binary::writer{buf}};
-nexenne::utility::discard(w.write(std::uint32_t{42}));
-nexenne::utility::discard(w.write(std::string_view{"hi"}));
+nexenne::utility::ignore(w.write(std::uint32_t{42}));
+nexenne::utility::ignore(w.write(std::string_view{"hi"}));
 
 auto r{ser::binary::reader{w.written()}};
 auto const n{r.read<std::uint32_t>()};   // 42

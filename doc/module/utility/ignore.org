@@ -1,0 +1,113 @@
+#+TITLE: ignore
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=nexenne::utility::ignore= evaluates its arguments and throws the results away.
+It is the explicit, greppable replacement for the =(void)expr= and
+=static_cast<void>(expr)= idioms, both of which the style guide bans.
+
+* The problem it solves
+
+Sometimes a value must be computed but not used: a =[[nodiscard]]= result the
+caller genuinely does not need, or an expression evaluated only for its side
+effect. The C and C++ tradition is to write =(void)x= or =static_cast<void>(x)=.
+This repo bans both, for two reasons:
+
+- A cast is a smell. =(void)x= and =static_cast<void>(x)= read as type
+  surgery, not as intent, and they are easy to skim past in review. A named call
+  says what is happening: this value is deliberately dropped.
+- Casts to =void= are hard to search for and easy to overload with other
+  meanings. A single named function is one thing to grep, one thing to audit,
+  and one place to hang a comment.
+
+=ignore= turns the drop into a verb: the intent lives in the name, not hidden
+in a cast.
+
+* Unnamed results only
+
+=ignore= takes an *unnamed* result. A *named* entity that is deliberately not
+read takes =[[maybe_unused]]= on its own declaration instead. That covers three
+shapes this repo actually has:
+
+#+BEGIN_SRC cpp
+// A guard held only for its destructor. It is not being dropped; it must live.
+[[maybe_unused]] auto const guard{nexenne::utility::scope_guard{[&] { ++runs; }}};
+
+// A parameter an unsupported-platform stub never touches.
+auto read([[maybe_unused]] line_offset const offset) const -> result<bool> {
+  return std::unexpected{gpio_error::unsupported};
+}
+
+// A structured binding where only some names are read.
+for ([[maybe_unused]] auto const [k, v] : map) { total += v; }
+#+END_SRC
+
+The attribute is the standard tool, it sits where the reader already looks, and
+it makes no claim that the value is being thrown away. Wrapping a named entity
+in a drop-shaped call says the opposite of what the code means, which is why
+the two cases are kept apart.
+
+* How it works
+
+=ignore= is a single variadic function template:
+
+#+BEGIN_EXAMPLE
+template <typename... Ts>
+constexpr auto ignore(Ts&&... args) noexcept -> void {}
+#+END_EXAMPLE
+
+Each argument is evaluated at the call site, so side effects happen and any
+exception thrown while computing an argument still propagates. Each is bound to
+a forwarding reference and then ignored because the body is empty. Passing a
+value as a function argument counts as a use, so a =[[nodiscard]]= result is
+consumed without a warning. It is =constexpr= and =noexcept=, and because the
+body does nothing the compiler inlines it away to nothing.
+
+* API tour
+
+- =ignore(args...)= : evaluates every argument, in order, and ignores the
+  results. =constexpr=, =noexcept=, variadic.
+
+That is the whole surface. There is no return, no state, and no configuration.
+
+* Usage
+
+#+BEGIN_SRC cpp
+// Drop a [[nodiscard]] result we do not need.
+nexenne::utility::ignore(try_reserve(buffer, 1024));
+
+// Evaluate several side-effecting calls and drop all their results at once.
+nexenne::utility::ignore(bump(), bump());
+
+// For a named declaration that might be unused, use the attribute:
+[[maybe_unused]] std::size_t const cap{buffer.capacity()};
+#+END_SRC
+
+* Pitfalls
+
+- *It forces evaluation, it does not suppress it.* Every argument is computed;
+  =ignore= only drops the value afterwards.
+- *It is not a lint silencer beyond unused results.* It does not quiet "this
+  could be =const=" or similar diagnostics, only the unused-value and
+  =[[nodiscard]]= warnings.
+- *Not for a volatile read that must stay observable.* Binding to a reference
+  does not perform a =volatile= load, so =ignore= is the wrong tool for a
+  benchmark sink that must force a memory read.
+
+* Comparison with the standard library
+
+| technique                         | greppable | evaluates | style-guide status  |
+|-----------------------------------+-----------+-----------+---------------------|
+| =ignore(x)= (this)                | yes       | yes       | required            |
+| =(void)x=                         | no        | yes       | banned              |
+| =static_cast<void>(x)=            | no        | yes       | banned              |
+| =[[maybe_unused]]= on a name      | n/a       | n/a       | required for names  |
+
+The standard library has no equivalent named helper: the closest tools are the
+two void casts this function replaces, and the =[[maybe_unused]]= attribute for
+named declarations. Reach for =ignore= to drop an unnamed value, and for
+=[[maybe_unused]]= when the entity has a name and simply is not read.
+
+Runnable: [[file:../../../examples/utility/ignore.cpp][examples/utility/ignore.cpp]]

@@ -32,7 +32,7 @@ ng::chip<ng::chardev_chip> chip{backend};
 if (auto const opened{chip.open(specs, configs)}; !opened) { /* ... */ }
 
 auto const pressed{chip.read("button")};          // result<bool>, logical
-nexenne::utility::discard(chip.write("led", true));
+nexenne::utility::ignore(chip.write("led", true));
 
 auto led{chip.line_for("led")};                   // optional<line<B>>
 #+END_SRC
@@ -59,7 +59,7 @@ to the callable, in table order. Call it once after =open= (and after a
 supervised reopen), then switch to the event path:
 
 #+BEGIN_SRC C++
-nexenne::utility::discard(chip.snapshot([&](ng::line_value const& value) {
+nexenne::utility::ignore(chip.snapshot([&](ng::line_value const& value) {
   state.apply(value);            // the baseline every observer starts from
 }));
 #+END_SRC

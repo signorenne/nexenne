@@ -145,7 +145,7 @@ auto const plan{nc::packing_plan::from_signal(speed)};
 std::array<std::byte, 8> bytes{};
 auto frame{*nc::frame::classic(nc::can_id::standard(0x100), bytes)};
 
-nexenne::utility::discard(nc::encode(speed, plan, frame, 87.5));  // raw 8750 -> bytes 2E 22
+nexenne::utility::ignore(nc::encode(speed, plan, frame, 87.5));  // raw 8750 -> bytes 2E 22
 auto const value{nc::decode(speed, plan, frame)};                // result<double> holding 87.5
 #+END_SRC
 

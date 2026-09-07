@@ -120,7 +120,7 @@ auto const closer{[](int const fd) noexcept { fake_close(fd); }};
 
 auto file{nexenne::utility::unique_resource{fake_open("/dev/sensor"), closer}};
 if (file.get() == -1) {
-  nexenne::utility::discard(file.release());  // failed open: do not close -1
+  nexenne::utility::ignore(file.release());  // failed open: do not close -1
 }
 if (file.owns()) {
   int const fd{file.get()};  // use the descriptor

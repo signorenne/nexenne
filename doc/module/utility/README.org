@@ -22,7 +22,7 @@ Include a single header (=nexenne/utility/<name>.hpp=) or the umbrella
 * Ranges and values
 
 - [[file:for_each_non_null.org][for_each_non_null]] : apply a callable to each non-null element of a range.
-- [[file:discard.org][discard]] : evaluate and discard a value (replaces void casts).
+- [[file:ignore.org][ignore]] : evaluate and ignore a value (replaces void casts).
 
 * Scope and resource management
 

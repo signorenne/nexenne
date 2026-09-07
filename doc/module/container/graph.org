@@ -125,7 +125,7 @@ Things to keep in mind:
 #+BEGIN_SRC cpp
 nexenne::container::graph<int> g{4};   // 4 vertices, int edge payload
 
-nexenne::utility::discard(g.add_edge(0, 1, 5));   // O(1), out_of_range on a bad id
+nexenne::utility::ignore(g.add_edge(0, 1, 5));   // O(1), out_of_range on a bad id
 for (auto const& e : g.edges_of(0)) { visit(e.target, e.data); }  // span
 for (auto const n : g.neighbors(0)) { visit(n); }                 // target ids
 #+END_SRC

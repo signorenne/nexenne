@@ -139,7 +139,7 @@ released, reconfigured). Watching is read-only and never claims a line.
 
 #+BEGIN_SRC C++
 ng::chardev_watcher watcher{ng::chip_id{0}};
-nexenne::utility::discard(watcher.watch(offsets));
+nexenne::utility::ignore(watcher.watch(offsets));
 // register watcher.native_handle() readable, then on readiness:
 while (auto const change{watcher.wait_change(0ns)}) {
   if (!change->has_value()) { break; }
