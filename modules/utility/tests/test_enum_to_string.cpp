@@ -65,6 +65,22 @@ static_assert(util::enum_to_string<512>(big_e::large) == "large");
 // Unscoped enums reflect too.
 static_assert(util::enumeration<unscoped_e>);
 
+template <typename T, int N>
+struct holder {
+  enum class state : std::uint8_t {
+    on,
+    off
+  };
+};
+
+using nested_e = holder<int, 3>::state;
+
+static_assert(util::enum_name<nested_e::off>() == "off");
+static_assert(util::enum_to_string(nested_e::on) == "on");
+static_assert(util::enum_cast<nested_e>("off") == nested_e::off);
+static_assert(util::enum_values<nested_e>() == std::array{nested_e::on, nested_e::off});
+static_assert(util::enum_name<static_cast<nested_e>(7)>().empty());
+
 // A Range wider than a narrow underlying type is clamped to the representable
 // values instead of wrapping: uint8_t holds [0, 256), so a 512-wide window
 // must not revisit (and double-count) values 0 and 2.

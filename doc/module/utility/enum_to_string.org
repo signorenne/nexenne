@@ -40,8 +40,11 @@ Clang: auto detail::enum_value_name() [V = color::green]
                               both share the "V = " marker
 #+END_EXAMPLE
 
-The parser finds the ="V = "= marker, takes the token up to the next =,=, =;=, or
-=]=, and strips any =Namespace::Enum::= qualifier to leave the trailing name.
+The parser finds the ="V = "= marker, takes the value up to the closing =]= (or
+GCC's ="; "= separator before it), and strips any =Namespace::Enum::= qualifier
+to leave the trailing name. It cannot stop at the first =,= or =]=: an enum
+nested in a class template renders as =outer<int, 3>::E::green=, whose argument
+list can hold both.
 When =V= is not a named enumerator the compiler renders a cast placeholder like
 =(color)5= or =((anonymous namespace)::color)5=, so the qualifier is stripped
 first (the prefix can itself contain parentheses) and then a token that still

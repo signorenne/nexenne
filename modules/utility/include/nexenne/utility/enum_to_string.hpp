@@ -47,8 +47,9 @@ namespace detail {
 /**
  * @brief Extracts the enumerator name of \p V from \c __PRETTY_FUNCTION__.
  *
- * Parses the compiler's pretty-function signature for the token after
- * \c "V = ", strips any qualifier prefix, and rejects the signature
+ * Parses the compiler's pretty-function signature for the value after
+ * \c "V = " (bounded like \c type_name: by the last \c ']', or by GCC's
+ * \c "; " before it), strips any qualifier prefix, and rejects the signature
  * placeholders a non-enumerator value produces (a residual parenthesis, or a
  * leading digit or minus). Returns an empty view on an unsupported compiler.
  *
@@ -71,11 +72,14 @@ template <auto V>
     return {};
   }
   auto const start{eq + 4};
-  auto const term{fn.find_first_of(",;]", start)};
-  if (term == std::string_view::npos) {
+  auto end{fn.rfind(']')};
+  if (auto const semi{fn.find("; ", start)}; semi != std::string_view::npos && semi < end) {
+    end = semi;
+  }
+  if (end == std::string_view::npos || end <= start) {
     return {};
   }
-  auto name{fn.substr(start, term - start)};
+  auto name{fn.substr(start, end - start)};
   // Strip any qualifier prefix to leave the trailing token. The prefix can
   // contain parentheses (an enumerator in an anonymous namespace renders as
   // "(anonymous namespace)::E::name"), so it MUST be stripped before the
