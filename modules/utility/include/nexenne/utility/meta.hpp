@@ -181,7 +181,7 @@ NEXENNE_UTILITY_MEMFN_TRAITS(const volatile, &&)
 /// @endcond
 
 /**
- * @brief The return type of callable \p F (reference stripped first).
+ * @brief The return type of callable \p F (reference and cv stripped first).
  *
  * @tparam F A callable type supported by \c function_traits.
  *
@@ -189,7 +189,7 @@ NEXENNE_UTILITY_MEMFN_TRAITS(const volatile, &&)
  * @post None.
  */
 template <typename F>
-using function_return_t = typename function_traits<std::remove_reference_t<F>>::return_type;
+using function_return_t = typename function_traits<std::remove_cvref_t<F>>::return_type;
 
 /**
  * @brief The parameter types of callable \p F as a \c type_list.
@@ -200,7 +200,7 @@ using function_return_t = typename function_traits<std::remove_reference_t<F>>::
  * @post None.
  */
 template <typename F>
-using function_args_t = typename function_traits<std::remove_reference_t<F>>::arguments;
+using function_args_t = typename function_traits<std::remove_cvref_t<F>>::arguments;
 
 /**
  * @brief The number of parameters of callable \p F.
@@ -211,7 +211,7 @@ using function_args_t = typename function_traits<std::remove_reference_t<F>>::ar
  * @post None.
  */
 template <typename F>
-inline constexpr std::size_t function_arity_v{function_traits<std::remove_reference_t<F>>::arity};
+inline constexpr std::size_t function_arity_v{function_traits<std::remove_cvref_t<F>>::arity};
 
 /**
  * @brief The type of the \p I-th parameter of callable \p F.
@@ -226,7 +226,7 @@ inline constexpr std::size_t function_arity_v{function_traits<std::remove_refere
  * @post None.
  */
 template <typename F, std::size_t I>
-using function_arg_t = typename function_traits<std::remove_reference_t<F>>::template arg_t<I>;
+using function_arg_t = typename function_traits<std::remove_cvref_t<F>>::template arg_t<I>;
 
 /**
  * @brief Whether the type of callable \p F is \c noexcept.
@@ -237,8 +237,6 @@ using function_arg_t = typename function_traits<std::remove_reference_t<F>>::tem
  * @post None.
  */
 template <typename F>
-inline constexpr bool function_is_noexcept_v{
-  function_traits<std::remove_reference_t<F>>::is_noexcept
-};
+inline constexpr bool function_is_noexcept_v{function_traits<std::remove_cvref_t<F>>::is_noexcept};
 
 }  // namespace nexenne::utility

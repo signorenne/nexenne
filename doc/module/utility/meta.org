@@ -50,10 +50,12 @@ specialisation exposes, through =function_traits_base=:
 - =arg_t<I>= : the =I=-th parameter type,
 - =is_noexcept= : whether the callable type is =noexcept=.
 
-The =function_*= aliases are thin wrappers that strip a reference from =F= and
-read those members: =function_return_t=, =function_args_t=, =function_arity_v=,
-=function_arg_t=, =function_is_noexcept_v=. Prefer the aliases; touch
-=function_traits= directly only to add a specialisation.
+The =function_*= aliases are thin wrappers that strip references and cv
+qualifiers from =F= and read those members: =function_return_t=,
+=function_args_t=, =function_arity_v=, =function_arg_t=,
+=function_is_noexcept_v=. Stripping cv matters because =decltype= of a variable
+declared the house way, =auto const fp{&f}=, is a const pointer. Prefer the
+aliases; touch =function_traits= directly only to add a specialisation.
 
 ** =type_name=: parse the pretty-function signature
 

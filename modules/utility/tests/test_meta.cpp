@@ -87,6 +87,17 @@ static_assert(util::function_arity_v<fn_ptr_ne> == 0);
 static_assert(util::function_is_noexcept_v<fn_ptr_ne>);
 static_assert(std::same_as<util::function_args_t<fn_ptr_ne>, util::type_list<>>);
 
+using const_fn_ptr = int (*const)(char, long);
+static_assert(util::function_arity_v<const_fn_ptr> == 2);
+static_assert(std::same_as<util::function_return_t<const_fn_ptr>, int>);
+static_assert(std::same_as<util::function_arg_t<const_fn_ptr, 1>, long>);
+static_assert(
+  std::same_as<util::function_args_t<const_fn_ptr const&>, util::type_list<char, long>>
+);
+static_assert(util::function_is_noexcept_v<void (*const volatile)() noexcept>);
+static_assert(util::function_arity_v<functor const> == 1);
+static_assert(util::function_arity_v<functor const&> == 1);
+
 // Plain function-type noexcept form already covered by `fn`; add the pointer
 // form and an args-bearing noexcept function type.
 using fn_type_ne = bool(int) noexcept;
