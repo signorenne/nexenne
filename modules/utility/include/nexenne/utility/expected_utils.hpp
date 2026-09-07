@@ -18,6 +18,7 @@
 
 #include <concepts>
 #include <expected>
+#include <functional>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -189,7 +190,9 @@ template <typename E, typename... Args>
  * @brief Like \c value_or, but the fallback is a callable taking the error.
  *
  * Returns the contained value on success; on error, invokes \p fn with the
- * error and returns its result. \p fn is only called on the error path.
+ * error through \c std::invoke_r (so a pointer to a member function of the
+ * error type also works) and returns its result. \p fn is only called on the
+ * error path.
  *
  * @tparam T Value type.
  * @tparam E Error type.
@@ -220,7 +223,7 @@ template <typename T, typename E, typename Fn>
   if (e) {
     return *e;
   }
-  return std::forward<Fn>(fn)(e.error());
+  return std::invoke_r<T>(std::forward<Fn>(fn), e.error());
 }
 
 /**
@@ -247,7 +250,7 @@ template <typename T, typename E, typename Fn>
   if (e) {
     return std::move(*e);
   }
-  return std::forward<Fn>(fn)(std::move(e).error());
+  return std::invoke_r<T>(std::forward<Fn>(fn), std::move(e).error());
 }
 
 }  // namespace nexenne::utility

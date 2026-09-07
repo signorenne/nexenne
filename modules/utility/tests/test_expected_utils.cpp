@@ -49,6 +49,22 @@ TEST_CASE("nexenne::utility::try_or falls back through the error") {
   CHECK(util::try_or(exp{std::unexpect, "e"}, [](std::string const&) { return -1; }) == -1);
 }
 
+struct sensor_fault {
+  int code{};
+
+  [[nodiscard]] auto fallback() const -> int {
+    return -code;
+  }
+};
+
+TEST_CASE("nexenne::utility::try_or accepts a pointer to member function as the fallback") {
+  using reading = std::expected<int, sensor_fault>;
+  reading const failed{std::unexpect, sensor_fault{7}};
+  CHECK(util::try_or(failed, &sensor_fault::fallback) == -7);
+  CHECK(util::try_or(reading{std::unexpect, sensor_fault{3}}, &sensor_fault::fallback) == -3);
+  CHECK(util::try_or(reading{11}, &sensor_fault::fallback) == 11);
+}
+
 TEST_CASE("nexenne::utility rvalue overloads move the contained value out") {
   using exp_ptr = std::expected<std::unique_ptr<int>, std::string>;
   auto opt{util::into_optional(exp_ptr{std::make_unique<int>(5)})};
