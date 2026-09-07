@@ -160,7 +160,9 @@ hash_args(Args const&... args) noexcept((detail::nothrow_hashable_v<Args> && ...
  * is order-sensitive: \c [1,2] and \c [2,1] hash differently. An empty range
  * hashes to zero. \c noexcept exactly when the element \c std::hash call is.
  *
- * @tparam Range Range whose element type is hashable.
+ * @tparam Range Range, iterable through a const reference, whose element type
+ *               is hashable. A view that can only be iterated when mutable,
+ *               such as \c std::views::filter, is rejected by the constraint.
  * @param range Range whose elements are hashed in order.
  *
  * @return The combined hash of the range elements.
@@ -171,7 +173,7 @@ hash_args(Args const&... args) noexcept((detail::nothrow_hashable_v<Args> && ...
  * @complexity \c O(M) for a range of \c M elements.
  */
 template <std::ranges::input_range Range>
-  requires hashable<std::ranges::range_value_t<Range>>
+  requires std::ranges::input_range<Range const> && hashable<std::ranges::range_value_t<Range>>
 [[nodiscard]] auto hash_range(
   Range const& range
 ) noexcept(detail::nothrow_hashable_v<std::ranges::range_value_t<Range>>) -> std::size_t {

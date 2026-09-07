@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <functional>
 #include <list>
+#include <ranges>
 #include <string>
 #include <utility>
 #include <vector>
@@ -36,6 +37,21 @@ struct throwing_key {
 // specialisation must expose its constants.
 static_assert(util::detail::hash_mix<>::magic != 0);
 static_assert(sizeof(std::size_t) == 4 || sizeof(std::size_t) == 8);
+
+template <typename R>
+concept range_hashable = requires(R const& r) { util::hash_range(r); };
+
+struct is_even {
+  [[nodiscard]] constexpr auto operator()(int const x) const noexcept -> bool {
+    return x % 2 == 0;
+  }
+};
+
+using evens_view = std::ranges::filter_view<std::ranges::ref_view<std::vector<int>>, is_even>;
+
+static_assert(range_hashable<std::vector<int>>);
+static_assert(range_hashable<std::ranges::iota_view<int, int>>);
+static_assert(!range_hashable<evens_view>);
 
 }  // namespace
 
@@ -186,6 +202,10 @@ TEST_CASE("nexenne::utility combiners accept a type whose std::hash may throw") 
   util::hash_combine(seed, throwing_key{7});
   CHECK(direct == seed);
   CHECK(util::hash_args(throwing_key{7}) == util::hash_args(7));  // forwards to hash<int>
+}
+
+TEST_CASE("nexenne::utility::hash_range hashes a const-iterable view like its elements") {
+  CHECK(util::hash_range(std::views::iota(1, 4)) == util::hash_range(std::array{1, 2, 3}));
 }
 
 TEST_CASE("nexenne::utility::hash_range reflects element multiplicity") {

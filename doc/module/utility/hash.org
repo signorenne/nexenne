@@ -56,7 +56,9 @@ same input. It is a combiner for in-memory hash tables, nothing more.
 - =hash_args(args...)= : starts from a zero seed, folds the pack in, and returns
   the result, the usual body of a =std::hash= specialisation for an aggregate.
 - =hash_range(range)= : starts from a zero seed and folds every element in
-  iteration order; an empty range hashes to zero.
+  iteration order; an empty range hashes to zero. The range is read through a
+  const reference, so it must be iterable as const: a =std::views::filter= view
+  is turned away by the constraint (copy it into a container first).
 
 Every component must satisfy the =hashable= concept: a =std::hash= specialisation
 whose result converts to =std::size_t=. Each combiner is *conditionally
