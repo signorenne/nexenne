@@ -6,7 +6,7 @@
  * live send and receive needs a CAN interface, so it is left to the runnable
  * example and skipped here.
  *
- * For the same reason the moved-from descriptor() guard is uncovered: the
+ * For the same reason the moved-from native_handle() guard is uncovered: the
  * constructor is private, so only open() can build a bus, and that needs a real
  * interface. The non-Linux branch below covers the invalid-descriptor result.
  */
@@ -36,9 +36,9 @@ TEST_CASE("socketcan_bus satisfies the can_bus concept on every platform") {
   static_assert(nc::can_bus<nc::socketcan_bus>);
 }
 
-TEST_CASE("socketcan_bus exposes descriptor() on every platform") {
+TEST_CASE("socketcan_bus exposes native_handle() on every platform") {
   static_assert(requires(nc::socketcan_bus const& bus) {
-    { bus.descriptor() } noexcept -> std::same_as<int>;
+    { bus.native_handle() } noexcept -> std::same_as<nc::socketcan_bus::native_handle_type>;
   });
 }
 
@@ -123,7 +123,7 @@ TEST_CASE("socketcan_bus: opening a missing interface fails cleanly") {
 
 TEST_CASE("socketcan_bus: the stub reports an invalid descriptor") {
   nc::socketcan_bus const bus;
-  CHECK(bus.descriptor() == -1);
+  CHECK(bus.native_handle() == -1);
 }
 
 #endif  // __linux__

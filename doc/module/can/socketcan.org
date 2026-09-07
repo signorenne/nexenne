@@ -83,7 +83,7 @@ best-effort: a backend that does not provide them leaves the field at zero.
 
 The type still exists off Linux and satisfies the =can_bus= concept, so generic
 code compiles everywhere, but every operation returns =can_error::unsupported=.
-=descriptor()= exists there too and returns =-1=, so code that reaches for the
+=native_handle()= exists there too and returns =-1=, so code that reaches for the
 descriptor still builds off Linux and fails cleanly at runtime like everything
 else, rather than failing to compile. Portable programs target the
 [[file:io.org][loopback_bus]] for tests and select the SocketCAN backend on Linux.
@@ -106,7 +106,7 @@ safe to run anywhere. Inject and observe traffic from another terminal with the
 
 A real application does not block on =receive= or spin polling it. Open the bus
 with =nonblocking= set (the default), so =receive= returns =std::nullopt= instead
-of waiting, and add =descriptor()=, the raw socket file descriptor, to an event
+of waiting, and add =native_handle()=, the raw socket file descriptor, to an event
 loop such as =epoll=. The loop sleeps until the socket is readable, then drains
 =receive= until it reports nothing ready, all on one thread alongside the
 application's other descriptors and timers.
@@ -120,12 +120,12 @@ so they are always closed.
 
 =socket_options= carries the handful of knobs that mean something to every
 backend. The kernel offers more, and rather than mirror all of them, =open= hands
-back the socket through =descriptor()= so a program can set the rest itself:
+back the socket through =native_handle()= so a program can set the rest itself:
 
 #+BEGIN_SRC C++
 #ifdef __linux__
   int const loopback{0};  // 1 = enabled, the kernel default
-  ::setsockopt(bus->descriptor(), SOL_CAN_RAW, CAN_RAW_LOOPBACK,
+  ::setsockopt(bus->native_handle(), SOL_CAN_RAW, CAN_RAW_LOOPBACK,
                &loopback, sizeof(loopback));
 #endif
 #+END_SRC

@@ -142,6 +142,8 @@ struct socket_closer {
 class socketcan_bus {
 public:
   using value_type = frame;
+  /// The pollable socket file descriptor type.
+  using native_handle_type = int;
 
   /// @brief Largest number of hardware filters installed in one call.
   static constexpr std::size_t max_filters{64};
@@ -235,7 +237,7 @@ public:
    *         which is the case for a moved-from bus. Never the descriptor of a
    *         socket another bus has taken ownership of.
    */
-  [[nodiscard]] auto descriptor() const noexcept -> int;
+  [[nodiscard]] auto native_handle() const noexcept -> native_handle_type;
 };
 
 static_assert(can_bus<socketcan_bus>, "socketcan_bus must satisfy the can_bus concept");
@@ -256,6 +258,8 @@ namespace nexenne::can {
 class socketcan_bus {
 public:
   using value_type = frame;
+  /// The pollable handle type; always \c -1 here.
+  using native_handle_type = int;
 
   /**
    * @brief Reports that SocketCAN is unavailable on this platform.
@@ -336,7 +340,7 @@ public:
    *
    * @return \c -1, because there is no socket to report.
    */
-  [[nodiscard]] auto descriptor() const noexcept -> int {
+  [[nodiscard]] auto native_handle() const noexcept -> native_handle_type {
     return -1;
   }
 };

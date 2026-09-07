@@ -260,7 +260,7 @@ auto socketcan_bus::state() const noexcept -> bus_state {
   return m_state;
 }
 
-auto socketcan_bus::descriptor() const noexcept -> int {
+auto socketcan_bus::native_handle() const noexcept -> native_handle_type {
   // Moving an int copies it, so a moved-from bus still stores the descriptor
   // another bus now owns; only the ownership flag distinguishes them.
   return m_socket.owns() ? m_socket.get() : -1;

@@ -241,7 +241,7 @@ auto main() -> int {
     ev.data.fd = fd;
     return ::epoll_ctl(epoll.get(), EPOLL_CTL_ADD, fd, &ev) == 0;
   }};
-  if (!watch(bus->descriptor()) || !watch(timer.get()) || !watch(STDIN_FILENO)) {
+  if (!watch(bus->native_handle()) || !watch(timer.get()) || !watch(STDIN_FILENO)) {
     std::println("epoll_ctl failed");
     return 1;
   }
@@ -391,7 +391,7 @@ auto main() -> int {
           }
           send(*built);
         }
-      } else if (fd == bus->descriptor()) {
+      } else if (fd == bus->native_handle()) {
         while (true) {
           auto const received{bus->receive()};
           if (!received || !received->has_value()) {

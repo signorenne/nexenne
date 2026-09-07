@@ -184,7 +184,7 @@ auto main() -> int {
     ev.data.fd = fd;
     return ::epoll_ctl(epoll.get(), EPOLL_CTL_ADD, fd, &ev) == 0;
   }};
-  if (!watch(bus->descriptor()) || !watch(timer.get()) || !watch(signals.get())) {
+  if (!watch(bus->native_handle()) || !watch(timer.get()) || !watch(signals.get())) {
     std::println("epoll_ctl failed");
     return 1;
   }
@@ -229,7 +229,7 @@ auto main() -> int {
              {"engine_running", 1.0}}
           );
         }
-      } else if (fd == bus->descriptor()) {
+      } else if (fd == bus->native_handle()) {
         // Drain every frame the socket has buffered from this one wakeup.
         while (true) {
           auto const received{bus->receive()};
