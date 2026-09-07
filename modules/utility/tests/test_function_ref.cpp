@@ -40,6 +40,14 @@ auto returns_void(int& sink) -> void {
   sink += 1;
 }
 
+auto quadruple(int const x) noexcept -> int {
+  return x * 4;
+}
+
+auto widen(long const x) -> long {
+  return x + 1;
+}
+
 // A type whose copies/moves are counted, so we can assert function_ref never
 // duplicates its target.
 struct copy_counter {
@@ -322,6 +330,21 @@ TEST_CASE("nexenne::utility::function_ref binds a pointer to member function") {
   util::function_ref<int(widget const&)> const fr{pmf};
   widget const w{};
   CHECK(fr(w) == 7);
+}
+
+TEST_CASE("nexenne::utility::function_ref stores a noexcept or convertible function pointer") {
+  util::function_ref<int(int)> const by_address{&quadruple};
+  util::function_ref<int(int)> const by_name{quadruple};
+  util::function_ref<int(int)> const converted{&widen};
+  util::function_ref<int(int)> const converted_by_name{widen};
+  CHECK(by_address(3) == 12);
+  CHECK(by_name(3) == 12);
+  CHECK(converted(3) == 4);
+  CHECK(converted_by_name(3) == 4);
+
+  using widen_ptr = long (*)(long);
+  widen_ptr const null_widen{nullptr};
+  CHECK_FALSE(static_cast<bool>(util::function_ref<int(int)>{null_widen}));
 }
 
 TEST_CASE("nexenne::utility::function_ref constructed from a null function pointer is empty") {

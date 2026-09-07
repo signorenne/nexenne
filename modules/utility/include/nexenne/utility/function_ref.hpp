@@ -35,6 +35,24 @@
 
 namespace nexenne::utility {
 
+/// @cond INTERNAL
+namespace detail {
+
+/**
+ * @brief Whether \p T, with cv and references ignored, is a pointer to a function.
+ *
+ * @tparam T Candidate type.
+ */
+template <typename T>
+inline constexpr bool is_function_pointer_v{
+  std::is_pointer_v<std::remove_cvref_t<T>>
+  && std::is_function_v<std::remove_pointer_t<std::remove_cvref_t<T>>>
+};
+
+}  // namespace detail
+
+/// @endcond
+
 /**
  * @brief Primary template; only the \c R(Args...) specialisation is defined.
  *
@@ -119,7 +137,10 @@ public:
    * @brief Binds the view to a callable that must outlive it.
    *
    * Stores the address of \p f and a thunk that forwards the call. Excluded for
-   * \c function_ref arguments and for callables not invocable as \c R(Args...).
+   * \c function_ref arguments, for callables not invocable as \c R(Args...),
+   * and for functions and function pointers, which the pointer constructors
+   * store by value instead (taking the address of a temporary pointer would
+   * dangle).
    *
    * @tparam F Callable type invocable as \c R(Args...).
    * @param f Callable to refer to; its address is captured and it must outlive
@@ -130,6 +151,7 @@ public:
    */
   template <typename F>
     requires(!std::is_same_v<std::remove_cvref_t<F>, function_ref>
+             && !std::is_function_v<std::remove_reference_t<F>> && !detail::is_function_pointer_v<F>
              && std::is_invocable_r_v<R, F&, Args...>)
   // NOLINTNEXTLINE(hicpp-explicit-conversions): a callable view binds implicitly
   function_ref(F&& f) noexcept : m_obj{std::addressof(f)}, m_thunk{make_thunk<F>()} {}
@@ -153,6 +175,36 @@ public:
       m_obj = reinterpret_cast<void const*>(fn);
       m_thunk = [](void const* p, Args... args) -> R {
         auto const fp{reinterpret_cast<function_ptr>(const_cast<void*>(p))};
+        return std::invoke_r<R>(fp, std::forward<Args>(args)...);
+      };
+    }
+  }
+
+  /**
+   * @brief Binds the view to any other function pointer invocable as \c R(Args...).
+   *
+   * Covers a \c noexcept function and a function whose signature only converts
+   * to \c R(Args...) (a \c long(long) viewed as \c int(int)), passed as a
+   * pointer or named directly. Like the exact overload it stores the pointer
+   * itself, never its address, so there is no dangling risk; a null \p fn
+   * yields an empty view.
+   *
+   * @tparam G Function type \p fn points to.
+   * @param fn Function pointer invocable as \c R(Args...), or null.
+   *
+   * @pre None.
+   * @post When \p fn is non-null, \c operator \c bool is \c true and calling
+   *       the view invokes \p fn; when \p fn is null the view is empty and
+   *       \c operator \c bool is \c false.
+   */
+  template <typename G>
+    requires std::is_function_v<G> && std::is_invocable_r_v<R, G*, Args...>
+  // NOLINTNEXTLINE(hicpp-explicit-conversions): a callable view binds implicitly
+  function_ref(G* fn) noexcept {
+    if (fn != nullptr) {
+      m_obj = reinterpret_cast<void const*>(fn);
+      m_thunk = [](void const* p, Args... args) -> R {
+        auto const fp{reinterpret_cast<G*>(const_cast<void*>(p))};
         return std::invoke_r<R>(fp, std::forward<Args>(args)...);
       };
     }

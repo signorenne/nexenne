@@ -57,7 +57,11 @@ the same as passing two pointers.
 A free function pointer binds through a dedicated constructor that stores the
 function pointer itself (reinterpreted into =m_obj=) rather than the address
 of a pointer variable, so a =function_ref= to a plain function carries no
-dangling risk at all. A null function pointer produces the empty state instead
+dangling risk at all. That holds for every function pointer invocable as
+=R(Args...)=, not only the exact =R(*)(Args...)=: a =noexcept= function (the
+house default) and a function whose signature merely converts (=long(long)=
+viewed as =int(int)=) take the same by-value path, whether passed as a pointer
+or named directly. A null function pointer produces the empty state instead
 of a view that claims to be callable.
 
 A default-constructed view is empty: =explicit operator bool= reports =false=
@@ -97,8 +101,9 @@ view does not propagate const to the referent.
 - =operator=(T)= is deleted for arbitrary callables (see above); copies of the
   view itself assign freely.
 
-Only plain =R(Args...)= signatures are supported; cv-qualified or noexcept
-signatures such as =R(Args...) const= are not.
+Only plain =R(Args...)= signatures are supported for the view itself;
+cv-qualified or noexcept signatures such as =function_ref<R(Args...) const>= are
+not. The bound function may still be =noexcept=.
 
 * Usage
 
