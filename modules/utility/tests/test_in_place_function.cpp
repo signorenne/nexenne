@@ -123,6 +123,33 @@ TEST_CASE("nexenne::utility::in_place_function stores a free function pointer") 
   CHECK(cb2(5) == 10);
 }
 
+struct gauge {
+  int level{};
+
+  [[nodiscard]] auto read() const -> int {
+    return level;
+  }
+};
+
+TEST_CASE("nexenne::utility::in_place_function from a null pointer or empty wrapper is empty") {
+  using doubler_ptr = int (*)(int);
+  doubler_ptr const null_fn{nullptr};
+  CHECK_FALSE(static_cast<bool>(callback{null_fn}));
+
+  using read_ptr = int (gauge::*)() const;
+  read_ptr const null_member{nullptr};
+  CHECK_FALSE(static_cast<bool>(util::in_place_function<int(gauge const&)>{null_member}));
+
+  CHECK_FALSE(static_cast<bool>(util::in_place_function<int(int), 64>{callback{}}));
+
+  auto const reader{util::in_place_function<int(gauge const&)>{&gauge::read}};
+  REQUIRE(static_cast<bool>(reader));
+  CHECK(reader(gauge{7}) == 7);
+  auto const nested{util::in_place_function<int(int), 64>{callback{&free_doubler}}};
+  REQUIRE(static_cast<bool>(nested));
+  CHECK(nested(4) == 8);
+}
+
 TEST_CASE("nexenne::utility::in_place_function stores a non-capturing lambda") {
   callback cb{[](int y) { return y + 1; }};
   CHECK(cb(41) == 42);

@@ -14,7 +14,8 @@
  *
  * It is move-only (a moved-from instance is empty), calling an empty instance
  * asserts in debug, \c explicit \c operator \c bool tests for non-empty, and
- * the default \p Capacity is 64 bytes.
+ * the default \p Capacity is 64 bytes. Built from a null function pointer, a
+ * null pointer to member, or an empty \c in_place_function, it is empty.
  *
  * \code
  * using callback = nexenne::utility::in_place_function<int(int), 32>;
@@ -46,6 +47,45 @@ namespace nexenne::utility {
  */
 template <typename Sig, std::size_t Capacity = 64>
 class in_place_function;
+
+/// @cond INTERNAL
+namespace detail {
+
+/**
+ * @brief Whether \p T is a specialisation of \c in_place_function.
+ *
+ * @tparam T Candidate type.
+ */
+template <typename T>
+inline constexpr bool is_in_place_function_v{false};
+
+/**
+ * @brief Partial specialisation matching every \c in_place_function.
+ *
+ * @tparam Sig Signature of the matched specialisation.
+ * @tparam Capacity Capacity of the matched specialisation.
+ */
+template <typename Sig, std::size_t Capacity>
+inline constexpr bool is_in_place_function_v<in_place_function<Sig, Capacity>>{true};
+
+/**
+ * @brief Whether a callable of type \p F can be empty and then has no target.
+ *
+ * True for function pointers, pointers to members, and \c in_place_function
+ * itself: the three kinds \c std::move_only_function also treats as empty
+ * when null.
+ *
+ * @tparam F Decayed callable type.
+ */
+template <typename F>
+inline constexpr bool nullable_callable_v{
+  (std::is_pointer_v<F> && std::is_function_v<std::remove_pointer_t<F>>)
+  || std::is_member_pointer_v<F> || is_in_place_function_v<F>
+};
+
+}  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Fixed-capacity, heap-free type-erased callable with signature \c R(Args...).
@@ -147,7 +187,10 @@ public:
    * @pre \c sizeof(std::decay_t<F>) is at most \p Capacity and its alignment is
    *      at most \c alignof(std::max_align_t).
    * @post \c operator \c bool is \c true and calling the function invokes the
-   *       stored callable.
+   *       stored callable, unless \p f is a null function pointer, a null
+   *       pointer to member, or an empty \c in_place_function (of any
+   *       capacity): those carry no target, so the function stays empty, as
+   *       \c std::move_only_function does.
    *
    * @throws Anything the callable's selected constructor throws.
    */
@@ -161,6 +204,12 @@ public:
   // NOLINTNEXTLINE(hicpp-explicit-conversions): a callable wrapper binds implicitly
   in_place_function(F&& f) noexcept(std::is_nothrow_constructible_v<std::decay_t<F>, F&&>) {
     using fn = std::decay_t<F>;
+    if constexpr (detail::nullable_callable_v<fn>
+                  && !std::is_function_v<std::remove_reference_t<F>>) {
+      if (!f) {
+        return;
+      }
+    }
     std::construct_at(reinterpret_cast<fn*>(m_storage.data()), std::forward<F>(f));
     m_vt = &s_vtable<fn>;
   }

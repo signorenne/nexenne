@@ -80,7 +80,10 @@ the source's vtable pointer, so a moved-from instance is empty. Copying is
 deleted. A default-constructed or =nullptr=-constructed instance is empty,
 =explicit operator bool= reports =false=, and calling an empty instance
 asserts in debug (undefined behaviour under =NDEBUG=). =reset()= destroys the
-stored callable and returns to the empty state.
+stored callable and returns to the empty state. Wrapping a null function
+pointer, a null pointer to member, or an empty =in_place_function= of any
+capacity also yields an empty instance, as with =std::move_only_function=:
+those carry no target to call.
 
 ** Shallow const
 
