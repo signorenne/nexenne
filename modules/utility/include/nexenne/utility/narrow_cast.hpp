@@ -76,6 +76,36 @@ template <typename To, typename From>
   }
 }
 
+/**
+ * @brief Whether converting \p to back to \p From reproduces \p from.
+ *
+ * The comparison behind \c narrow_cast's debug check, made safe for an
+ * integral \p From and a floating \p To: rounding can carry the value one
+ * step past \p From's own range (\c INT32_MAX becomes \c 2^31 as a
+ * \c float), and converting that back would itself be undefined behaviour. So
+ * \p to is range-checked in the floating domain first, and a value outside
+ * \p From's range is reported as not round-tripping.
+ *
+ * @tparam To Arithmetic type \p from was converted to.
+ * @tparam From Arithmetic type of the original value.
+ * @param to The converted value.
+ * @param from The original value.
+ *
+ * @return \c true when \p to converts back to exactly \p from.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <typename To, typename From>
+[[nodiscard]] constexpr auto round_trips(To const to, From const from) noexcept -> bool {
+  if constexpr (std::is_floating_point_v<To> && !std::is_floating_point_v<From>) {
+    if (!float_in_integral_range<From>(to)) {
+      return false;
+    }
+  }
+  return static_cast<From>(to) == from;
+}
+
 /// @endcond
 
 }  // namespace detail
@@ -92,8 +122,10 @@ template <typename To, typename From>
  * because a \c static_cast of an out-of-range (or NaN) value is undefined
  * behaviour and would fire before any round-trip check could run; the check
  * compares against exact power-of-two bounds so the boundaries classify
- * correctly. With \c NDEBUG defined the asserts vanish and the call compiles
- * to exactly the \c static_cast.
+ * correctly. The cast back is guarded the same way for an integral source and
+ * a floating target, where rounding can carry the value past the source type's
+ * range (\c INT32_MAX becomes \c 2^31 as a \c float). With \c NDEBUG defined
+ * the asserts vanish and the call compiles to exactly the \c static_cast.
  *
  * @tparam To Target arithmetic type.
  * @tparam From Source arithmetic type, deduced.
@@ -129,7 +161,7 @@ template <typename To, typename From>
     );
   }
   auto const to{static_cast<To>(from)};
-  assert(static_cast<From>(to) == from && "narrow_cast: value changed during narrowing conversion");
+  assert(detail::round_trips(to, from) && "narrow_cast: value changed during narrowing conversion");
   if constexpr (!std::is_floating_point_v<To> && !std::is_floating_point_v<From>
                 && std::is_signed_v<To> != std::is_signed_v<From>) {
     assert(

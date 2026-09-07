@@ -29,7 +29,10 @@ to two checks before returning:
 
 1. A *round-trip* check: =static_cast<From>(result) == from=. If narrowing lost
    information, casting back cannot reproduce the original, and the assert fires.
-   This catches the common case (=narrow_cast<std::int16_t>(70000)=).
+   This catches the common case (=narrow_cast<std::int16_t>(70000)=). For an
+   integral source and a floating target the cast back is range-checked first
+   (see below): =narrow_cast<float>(INT32_MAX)= rounds to =2^31=, and converting
+   that back to =int= would itself be undefined.
 2. A *sign* check, only when exactly one of =To= and =From= is signed and neither
    is floating point: the result and the source must share a sign. The round trip
    alone would wave through =narrow_cast<unsigned>(-1)=, which maps to the maximum

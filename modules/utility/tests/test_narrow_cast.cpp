@@ -99,6 +99,29 @@ static_assert(
   !detail::float_in_integral_range<std::int8_t>(-std::numeric_limits<double>::infinity())
 );
 
+static_assert(!detail::round_trips(
+  static_cast<float>(std::numeric_limits<std::int32_t>::max()),
+  std::numeric_limits<std::int32_t>::max()
+));
+static_assert(!detail::round_trips(
+  static_cast<double>(std::numeric_limits<std::int64_t>::max()),
+  std::numeric_limits<std::int64_t>::max()
+));
+static_assert(!detail::round_trips(
+  static_cast<float>(std::numeric_limits<std::uint64_t>::max()),
+  std::numeric_limits<std::uint64_t>::max()
+));
+static_assert(
+  detail::round_trips(static_cast<float>(std::int32_t{16777216}), std::int32_t{16777216})
+);
+static_assert(
+  !detail::round_trips(static_cast<float>(std::int32_t{16777217}), std::int32_t{16777217})
+);
+static_assert(
+  narrow_cast<double>(std::numeric_limits<std::int32_t>::max()) == 2147483647.0,
+  "an int32 is exact in a double, so the guarded round trip accepts it"
+);
+
 TEST_CASE("narrow_cast preserves in-range integer values at run time") {
   CHECK(narrow_cast<std::int16_t>(std::int32_t{300}) == 300);
   CHECK(narrow_cast<std::uint8_t>(std::int32_t{255}) == 255);
