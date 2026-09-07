@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <memory>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -434,6 +435,43 @@ static_assert(
     util::unique_resource<int, void (*)(int)>>,
   "unique_resource CTAD deduces R and D from its arguments"
 );
+
+struct fragile_handle {
+  int fd{-1};
+
+  fragile_handle() = default;
+
+  explicit fragile_handle(int const f) noexcept : fd{f} {}
+
+  fragile_handle(fragile_handle const&) = default;
+
+  fragile_handle(fragile_handle&& other) : fd{other.fd} {
+    if (fd == 13) {
+      throw std::runtime_error{"fragile_handle: move"};
+    }
+  }
+
+  auto operator=(fragile_handle const&) -> fragile_handle& = default;
+
+  auto operator=(fragile_handle&&) noexcept -> fragile_handle& = default;
+
+  ~fragile_handle() = default;
+};
+
+TEST_CASE("nexenne::utility::unique_resource release keeps ownership when the move throws") {
+  auto closed{0};
+  auto const closer{[&closed](fragile_handle const&) noexcept { ++closed; }};
+  {
+    util::unique_resource<fragile_handle, decltype(closer)> r{fragile_handle{5}, closer};
+    r.reset(fragile_handle{13});
+    static_assert(!noexcept(r.release()), "release can throw exactly when the move can");
+    CHECK_THROWS_AS(util::discard(r.release()), std::runtime_error);
+    CHECK(r.owns());
+    CHECK(r.get().fd == 13);
+    CHECK(closed == 1);
+  }
+  CHECK(closed == 2);
+}
 
 // operator-> exists for a pointer resource (the non-pointer absence is a
 // constrained-away member; its negative is compiler-fragile to assert inline,

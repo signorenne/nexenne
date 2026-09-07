@@ -38,7 +38,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <nexenne/utility/ignore.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::utility {
 
@@ -102,7 +102,7 @@ private:
     resource_type& resource, deleter_type& deleter
   ) noexcept(std::is_nothrow_move_constructible_v<resource_type>) -> resource_type {
     if constexpr (std::is_nothrow_move_constructible_v<resource_type>) {
-      ignore(deleter);
+      discard(deleter);
       return std::move(resource);
     } else {
       try {
@@ -137,7 +137,7 @@ private:
     deleter_type& deleter, resource_type& resource
   ) noexcept(std::is_nothrow_move_constructible_v<deleter_type>) -> deleter_type {
     if constexpr (std::is_nothrow_move_constructible_v<deleter_type>) {
-      ignore(resource);
+      discard(resource);
       return std::move(deleter);
     } else {
       try {
@@ -463,10 +463,16 @@ public:
    *       resource; \c get() refers to the moved-from stored value, which for
    *       a move-only \p Resource is its valid but unspecified moved-from
    *       state (a trivially copyable handle keeps its value).
+   *
+   * @throws Anything the move of the resource throws; ownership is then
+   *         unchanged, so the deleter still runs for the kept resource.
    */
-  [[nodiscard]] auto release() noexcept -> resource_type {
+  [[nodiscard]] auto release() noexcept(std::is_nothrow_move_constructible_v<resource_type>)
+    -> resource_type {
+    // Move out before clearing m_owns: a throwing move must leave ownership intact.
+    auto released{std::move(m_resource)};
     m_owns = false;
-    return std::move(m_resource);
+    return released;
   }
 
   /**
@@ -580,7 +586,7 @@ make_unique_resource_checked(Resource resource, Invalid const& invalid, Deleter 
 ) -> unique_resource<Resource, Deleter> {
   auto guard{unique_resource<Resource, Deleter>{std::move(resource), std::move(deleter)}};
   if (guard.get() == invalid) {
-    ignore(guard.release());
+    discard(guard.release());
   }
   return guard;
 }

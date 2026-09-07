@@ -100,7 +100,8 @@ pointer so the owner reads like a smart pointer.
 - =reset()= : run the deleter now and go non-owning.
 - =reset(r)= : release the current handle, then adopt =r= with the same deleter.
 - =release()= : =[[nodiscard]]=; surrender the handle without running the
-  deleter, so the caller must release it.
+  deleter, so the caller must release it. It is =noexcept= exactly when the
+  handle's move is; if that move throws, the owner keeps the handle.
 - =get()= : const reference to the handle; =get_deleter()= : the deleter.
 - =owns()= : whether a resource is currently owned.
 - =operator->= / =operator*= : for pointer handles.
