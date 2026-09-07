@@ -228,9 +228,9 @@ TEST_CASE("registry iterates live entities") {
 
 TEST_CASE("registry iterator skips destroyed entities") {
   auto r{registry{}};
-  auto const a{r.create()};
+  [[maybe_unused]] auto const a{r.create()};
   auto const b{r.create()};
-  auto const c{r.create()};
+  [[maybe_unused]] auto const c{r.create()};
   r.destroy(b);
 
   auto count{0};
@@ -241,8 +241,6 @@ TEST_CASE("registry iterator skips destroyed entities") {
   }
   CHECK(count == 2);
   CHECK(r.alive() == 2);
-  nexenne::utility::discard(a);
-  nexenne::utility::discard(c);
 }
 
 TEST_CASE("registry satisfies std::ranges::input_range") {
@@ -274,41 +272,41 @@ TEST_CASE("empty registry iterator is end") {
 TEST_CASE("registry on_construct fires after first add<T>") {
   auto r{registry{}};
   auto seen{std::vector<entity_id>{}};
-  auto conn{r.on_construct<position>().connect([&](entity_id const e, position const&) noexcept {
-    seen.push_back(e);
-  })};
+  [[maybe_unused]] auto conn{r.on_construct<position>().connect(
+    [&](entity_id const e, position const&) noexcept { seen.push_back(e); }
+  )};
 
   auto const a{r.create()};
   r.add<position>(a, {1.0f, 2.0f});
 
   REQUIRE(seen.size() == 1);
   CHECK(seen[0] == a);
-  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry on_construct does NOT fire on replacement") {
   auto r{registry{}};
   auto construct_count{0};
-  auto conn{r.on_construct<position>().connect([&](entity_id, position const&) noexcept {
-    ++construct_count;
-  })};
+  [[maybe_unused]] auto conn{r.on_construct<position>().connect(
+    [&](entity_id, position const&) noexcept { ++construct_count; }
+  )};
 
   auto const a{r.create()};
   r.add<position>(a, {1.0f, 0.0f});
   r.add<position>(a, {2.0f, 0.0f});  // replacement, not construct
 
   CHECK(construct_count == 1);
-  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry on_update fires when add replaces") {
   auto r{registry{}};
   auto update_count{0};
   auto last_value{0.0f};
-  auto conn{r.on_update<position>().connect([&](entity_id, position const& p) noexcept {
-    ++update_count;
-    last_value = p.x;
-  })};
+  [[maybe_unused]] auto conn{
+    r.on_update<position>().connect([&](entity_id, position const& p) noexcept {
+      ++update_count;
+      last_value = p.x;
+    })
+  };
 
   auto const a{r.create()};
   r.add<position>(a, {1.0f, 0.0f});  // construct, no update
@@ -317,15 +315,14 @@ TEST_CASE("registry on_update fires when add replaces") {
 
   CHECK(update_count == 2);
   CHECK(last_value == 9.0f);
-  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry patch fires on_update with mutated value") {
   auto r{registry{}};
   auto seen_x{0.0f};
-  auto conn{r.on_update<position>().connect([&](entity_id, position const& p) noexcept {
-    seen_x = p.x;
-  })};
+  [[maybe_unused]] auto conn{
+    r.on_update<position>().connect([&](entity_id, position const& p) noexcept { seen_x = p.x; })
+  };
 
   auto const a{r.create()};
   r.add<position>(a, {1.0f, 0.0f});
@@ -334,30 +331,30 @@ TEST_CASE("registry patch fires on_update with mutated value") {
   CHECK(ok);
   CHECK(seen_x == 42.0f);
   CHECK(r.get<position>(a).value().get().x == 42.0f);
-  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("patch on missing component returns false and does not fire") {
   auto r{registry{}};
   auto fired{false};
-  auto conn{r.on_update<position>().connect([&](entity_id, position const&) noexcept {
-    fired = true;
-  })};
+  [[maybe_unused]] auto conn{
+    r.on_update<position>().connect([&](entity_id, position const&) noexcept { fired = true; })
+  };
   auto const a{r.create()};
   auto const ok{r.patch<position>(a, [](position& p) noexcept { p.x = 1; })};
   CHECK_FALSE(ok);
   CHECK_FALSE(fired);
-  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry on_destroy fires before remove<T>") {
   auto r{registry{}};
   auto seen_value{0.0f};
   auto still_valid{false};
-  auto conn{r.on_destroy<position>().connect([&](entity_id const e, position const& p) noexcept {
-    seen_value = p.x;
-    still_valid = e.generation() != 0;
-  })};
+  [[maybe_unused]] auto conn{
+    r.on_destroy<position>().connect([&](entity_id const e, position const& p) noexcept {
+      seen_value = p.x;
+      still_valid = e.generation() != 0;
+    })
+  };
 
   auto const a{r.create()};
   r.add<position>(a, {7.0f, 0.0f});
@@ -366,19 +363,18 @@ TEST_CASE("registry on_destroy fires before remove<T>") {
   CHECK(seen_value == 7.0f);
   CHECK(still_valid);
   CHECK_FALSE(r.has<position>(a));
-  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry destroy fires on_destroy for every component") {
   auto r{registry{}};
   auto pos_count{0};
   auto vel_count{0};
-  auto c1{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept {
-    ++pos_count;
-  })};
-  auto c2{r.on_destroy<velocity>().connect([&](entity_id, velocity const&) noexcept {
-    ++vel_count;
-  })};
+  [[maybe_unused]] auto c1{
+    r.on_destroy<position>().connect([&](entity_id, position const&) noexcept { ++pos_count; })
+  };
+  [[maybe_unused]] auto c2{
+    r.on_destroy<velocity>().connect([&](entity_id, velocity const&) noexcept { ++vel_count; })
+  };
 
   auto const a{r.create()};
   r.add<position>(a, {1.0f, 0.0f});
@@ -387,20 +383,18 @@ TEST_CASE("registry destroy fires on_destroy for every component") {
 
   CHECK(pos_count == 1);
   CHECK(vel_count == 1);
-  nexenne::utility::discard(c1);
-  nexenne::utility::discard(c2);
 }
 
 TEST_CASE("destroy does NOT fire on_destroy for components the entity lacks") {
   auto r{registry{}};
   auto pos_count{0};
   auto vel_count{0};
-  auto c1{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept {
-    ++pos_count;
-  })};
-  auto c2{r.on_destroy<velocity>().connect([&](entity_id, velocity const&) noexcept {
-    ++vel_count;
-  })};
+  [[maybe_unused]] auto c1{
+    r.on_destroy<position>().connect([&](entity_id, position const&) noexcept { ++pos_count; })
+  };
+  [[maybe_unused]] auto c2{
+    r.on_destroy<velocity>().connect([&](entity_id, velocity const&) noexcept { ++vel_count; })
+  };
 
   auto const a{r.create()};
   r.add<position>(a, {});
@@ -409,21 +403,18 @@ TEST_CASE("destroy does NOT fire on_destroy for components the entity lacks") {
 
   CHECK(pos_count == 1);
   CHECK(vel_count == 0);
-  nexenne::utility::discard(c1);
-  nexenne::utility::discard(c2);
 }
 
 TEST_CASE("subscribing before any entity has the component works") {
   auto r{registry{}};
   auto fired{false};
-  auto conn{r.on_construct<position>().connect([&](entity_id, position const&) noexcept {
-    fired = true;
-  })};
+  [[maybe_unused]] auto conn{
+    r.on_construct<position>().connect([&](entity_id, position const&) noexcept { fired = true; })
+  };
 
   auto const a{r.create()};
   r.add<position>(a, {});
   CHECK(fired);
-  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("scoped_connection auto-disconnects on scope exit") {
@@ -449,8 +440,7 @@ TEST_CASE("on_construct sink cannot fire the signal directly") {
   // The sink type does not have emit() or operator() - this is a
   // compile-time guarantee, not a runtime check. We just verify the
   // sink exposes connect.
-  auto conn{sink.connect([](entity_id, position const&) noexcept {})};
-  nexenne::utility::discard(conn);
+  [[maybe_unused]] auto conn{sink.connect([](entity_id, position const&) noexcept {})};
 }
 
 // type_id
@@ -719,8 +709,8 @@ TEST_CASE("registry.view<C>() member returns equivalent view") {
 
 TEST_CASE("registry.each(callback) walks live entities") {
   auto r{registry{}};
-  auto const a{r.create()};
-  auto const b{r.create()};
+  [[maybe_unused]] auto const a{r.create()};
+  [[maybe_unused]] auto const b{r.create()};
   r.create();  // discarded handle
 
   auto count{0};
@@ -729,8 +719,6 @@ TEST_CASE("registry.each(callback) walks live entities") {
     ++count;
   });
   CHECK(count == 3);
-  nexenne::utility::discard(a);
-  nexenne::utility::discard(b);
 }
 
 TEST_CASE("registry.all_of / any_of") {
@@ -839,10 +827,9 @@ TEST_CASE("destroy is safe when an on_destroy listener registers a new component
   // The listener attaches a brand-new component type during the destroy, which
   // creates a first-ever health storage and reallocates the type-erased storage
   // table mid-loop. Must not use-after-free.
-  auto conn{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept {
-    r.add<health>(other, {42});
-  })};
-  nexenne::utility::discard(conn);
+  [[maybe_unused]] auto conn{r.on_destroy<position>().connect(
+    [&](entity_id, position const&) noexcept { r.add<health>(other, {42}); }
+  )};
 
   CHECK(r.destroy(victim));
   CHECK_FALSE(r.valid(victim));
@@ -964,17 +951,18 @@ TEST_CASE("listener may structurally modify the same storage without dangling") 
   // dangle that reference; the pointer-stable pool must not.
   auto observed_x{-1.0f};
   auto* observed_addr{static_cast<position*>(nullptr)};
-  auto conn{r.on_construct<position>().connect([&](entity_id const e, position& p) noexcept {
-    if (e == first) {
-      observed_addr = &p;
-      for (auto i{0}; i < 500; ++i) {
-        auto const other{r.create()};
-        r.add<position>(other, {static_cast<float>(i), 0.0f, 0.0f});
+  [[maybe_unused]] auto conn{
+    r.on_construct<position>().connect([&](entity_id const e, position& p) noexcept {
+      if (e == first) {
+        observed_addr = &p;
+        for (auto i{0}; i < 500; ++i) {
+          auto const other{r.create()};
+          r.add<position>(other, {static_cast<float>(i), 0.0f, 0.0f});
+        }
+        observed_x = p.x;  // read AFTER the storage grew under us
       }
-      observed_x = p.x;  // read AFTER the storage grew under us
-    }
-  })};
-  nexenne::utility::discard(conn);
+    })
+  };
 
   r.add<position>(first, {123.0f, 0.0f, 0.0f});
   CHECK(observed_x == 123.0f);  // reference stayed valid mid-growth
@@ -1035,24 +1023,21 @@ TEST_CASE("multiple listeners on the same on_construct signal all fire") {
   auto count_a{0};
   auto count_b{0};
   auto count_c{0};
-  auto ca{r.on_construct<position>().connect([&](entity_id, position const&) noexcept {
-    ++count_a;
-  })};
-  auto cb{r.on_construct<position>().connect([&](entity_id, position const&) noexcept {
-    ++count_b;
-  })};
-  auto cc{r.on_construct<position>().connect([&](entity_id, position const&) noexcept {
-    ++count_c;
-  })};
+  [[maybe_unused]] auto ca{
+    r.on_construct<position>().connect([&](entity_id, position const&) noexcept { ++count_a; })
+  };
+  [[maybe_unused]] auto cb{
+    r.on_construct<position>().connect([&](entity_id, position const&) noexcept { ++count_b; })
+  };
+  [[maybe_unused]] auto cc{
+    r.on_construct<position>().connect([&](entity_id, position const&) noexcept { ++count_c; })
+  };
 
   auto const e{r.create()};
   r.add<position>(e, {});
   CHECK(count_a == 1);
   CHECK(count_b == 1);
   CHECK(count_c == 1);
-  nexenne::utility::discard(ca);
-  nexenne::utility::discard(cb);
-  nexenne::utility::discard(cc);
 }
 
 TEST_CASE("manually disconnected connection stops firing") {
@@ -1077,9 +1062,9 @@ TEST_CASE("one of several listeners can be dropped, the rest keep firing") {
   auto r{registry{}};
   auto kept{0};
   auto dropped{0};
-  auto keep_conn{r.on_construct<position>().connect([&](entity_id, position const&) noexcept {
-    ++kept;
-  })};
+  [[maybe_unused]] auto keep_conn{
+    r.on_construct<position>().connect([&](entity_id, position const&) noexcept { ++kept; })
+  };
   auto drop_conn{connection{
     r.on_construct<position>().connect([&](entity_id, position const&) noexcept { ++dropped; })
   }};
@@ -1092,24 +1077,24 @@ TEST_CASE("one of several listeners can be dropped, the rest keep firing") {
   r.add<position>(r.create(), {});
   CHECK(kept == 2);     // survivor keeps firing
   CHECK(dropped == 1);  // dropped one stayed silent
-  nexenne::utility::discard(keep_conn);
 }
 
 TEST_CASE("on_update listener may read another component of the entity") {
   auto r{registry{}};
   auto observed_hp{-1};
-  auto conn{r.on_update<position>().connect([&](entity_id const e, position const&) noexcept {
-    if (auto const h{r.get<health>(e)}; h.has_value()) {
-      observed_hp = h.value().get().hp;
-    }
-  })};
+  [[maybe_unused]] auto conn{
+    r.on_update<position>().connect([&](entity_id const e, position const&) noexcept {
+      if (auto const h{r.get<health>(e)}; h.has_value()) {
+        observed_hp = h.value().get().hp;
+      }
+    })
+  };
 
   auto const e{r.create()};
   r.add<health>(e, {77});
   r.add<position>(e, {1.0f, 0.0f});  // construct, no update
   r.add<position>(e, {2.0f, 0.0f});  // replace -> on_update reads health
   CHECK(observed_hp == 77);
-  nexenne::utility::discard(conn);
 }
 
 // added: all_of / any_of edge cases
@@ -1473,9 +1458,11 @@ TEST_CASE("registry.destroy rejects a listener re-adding to the dying (now-inval
   // proofing), so it reads invalid inside the listener: an add() targeting it
   // returns false and attaches nothing, and the recycled index comes up clean.
   auto add_result{true};
-  auto conn{r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
-    add_result = r.add<position>(e, position{.x = 9.0F, .y = 9.0F, .z = 9.0F});
-  })};
+  [[maybe_unused]] auto conn{
+    r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
+      add_result = r.add<position>(e, position{.x = 9.0F, .y = 9.0F, .z = 9.0F});
+    })
+  };
   auto const a{r.create()};
   nexenne::utility::discard(r.add<health>(a, health{.hp = 100}));
   auto const a_index{a.index()};
@@ -1486,7 +1473,6 @@ TEST_CASE("registry.destroy rejects a listener re-adding to the dying (now-inval
   auto const b{r.create()};
   REQUIRE(b.index() == a_index);    // recycled the freed index
   CHECK_FALSE(r.has<position>(b));  // no stale component inherited
-  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("values() range-for tolerates append then tombstone mid-iteration (C1)") {
@@ -1541,10 +1527,12 @@ TEST_CASE("an on_destroy listener destroying the same entity does not recurse (M
   auto r{registry{}};
   auto reentry_result{true};
   auto fire_count{0};
-  auto conn{r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
-    ++fire_count;
-    reentry_result = r.destroy(e);  // nested destroy of the SAME entity
-  })};
+  [[maybe_unused]] auto conn{
+    r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
+      ++fire_count;
+      reentry_result = r.destroy(e);  // nested destroy of the SAME entity
+    })
+  };
   auto const a{r.create()};
   nexenne::utility::discard(r.add<health>(a, health{.hp = 1}));
 
@@ -1557,17 +1545,18 @@ TEST_CASE("an on_destroy listener destroying the same entity does not recurse (M
   auto const b{r.create()};
   auto const c{r.create()};
   CHECK(b.index() != c.index());
-  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("clear() fires on_destroy for every live component (M4)") {
   auto r{registry{}};
   auto pos_count{0};
   auto hp_count{0};
-  auto c1{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept {
-    ++pos_count;
+  [[maybe_unused]] auto c1{
+    r.on_destroy<position>().connect([&](entity_id, position const&) noexcept { ++pos_count; })
+  };
+  [[maybe_unused]] auto c2{r.on_destroy<health>().connect([&](entity_id, health const&) noexcept {
+    ++hp_count;
   })};
-  auto c2{r.on_destroy<health>().connect([&](entity_id, health const&) noexcept { ++hp_count; })};
 
   auto const a{r.create()};
   auto const b{r.create()};
@@ -1580,8 +1569,6 @@ TEST_CASE("clear() fires on_destroy for every live component (M4)") {
   CHECK(pos_count == 2);  // a and b both carried a position
   CHECK(hp_count == 1);   // only a carried a health
   CHECK(r.alive() == 0);
-  nexenne::utility::discard(c1);
-  nexenne::utility::discard(c2);
 }
 
 // Distinct tag type per thread, so first-touch of each races only on the

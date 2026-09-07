@@ -63,12 +63,12 @@ auto main() -> int {
   auto temp{sensor{}};
 
   // A priority-ordered logger: lower priority fires first.
-  auto log{temp.readings().connect(
+  [[maybe_unused]] auto log{temp.readings().connect(
     [](double const c) noexcept { std::println("  log[prio -1]: {:.1f} C", c); }, -1
   )};
 
   // A one-shot calibration hook that fires only on the first reading.
-  auto calib{temp.readings().connect_once([](double const c) noexcept {
+  [[maybe_unused]] auto calib{temp.readings().connect_once([](double const c) noexcept {
     std::println("  calibrate once at {:.1f} C", c);
   })};
 
@@ -87,9 +87,6 @@ auto main() -> int {
 
   std::println("after the display expired:");
   temp.publish(24.0);  // only the logger remains
-
-  nexenne::utility::discard(log);
-  nexenne::utility::discard(calib);
 
   // A directly-owned signal shows scoped_connection (RAII disconnect) and
   // emit_blocker (scoped, save-and-restore emission suppression).
@@ -114,26 +111,23 @@ auto main() -> int {
   // clear the whole signal at once (here, a "tear down the UI" moment).
   std::println("\nexplicit disconnect and disconnect_all:");
   auto chime{alarm.connect([] noexcept { std::println("  chime"); })};
-  auto buzz{alarm.connect([] noexcept { std::println("  buzz"); })};
+  // disconnect_all below strands this handle: its slot is gone, so it no-ops.
+  [[maybe_unused]] auto buzz{alarm.connect([] noexcept { std::println("  buzz"); })};
   std::println("both connected ({} slots):", alarm.size());
   alarm.emit();  // chime, buzz
   std::println("disconnect chime explicitly: {}", chime.disconnect());
   alarm.emit();  // buzz only
   alarm.disconnect_all();
   std::println("after disconnect_all, empty: {}", alarm.empty());
-  nexenne::utility::discard(buzz);  // its slot is already gone; the handle now no-ops
 
   // A non-void signal: each slot returns a value and emit_and_collect gathers
   // them in fire order. A poll like this fans one query out to every registered
   // responder, then folds the answers - no central response table to maintain.
   std::println("\nvote tally via emit_and_collect:");
   auto poll{sg::signal<bool(int)>{}};
-  auto const a{poll.connect([](int n) noexcept { return n > 0; })};
-  auto const b{poll.connect([](int n) noexcept { return n % 2 == 0; })};
-  auto const c{poll.connect([](int n) noexcept { return n < 100; })};
-  nexenne::utility::discard(a);
-  nexenne::utility::discard(b);
-  nexenne::utility::discard(c);
+  [[maybe_unused]] auto const a{poll.connect([](int n) noexcept { return n > 0; })};
+  [[maybe_unused]] auto const b{poll.connect([](int n) noexcept { return n % 2 == 0; })};
+  [[maybe_unused]] auto const c{poll.connect([](int n) noexcept { return n < 100; })};
   std::vector<bool> const votes{poll.emit_and_collect(42)};
   auto yes{0};
   for (bool const v : votes) {

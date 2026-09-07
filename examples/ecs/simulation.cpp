@@ -38,12 +38,11 @@ auto main() -> int {
   auto reg{ec::registry{}};
 
   // React to a position being torn down (on destroy or remove).
-  auto despawn{
+  [[maybe_unused]] auto despawn{
     reg.on_destroy<position>().connect([](ec::entity_id const e, position const& p) noexcept {
       std::println("  despawn entity {} at ({:.1f}, {:.1f})", e.index(), p.x, p.y);
     })
   };
-  nexenne::utility::discard(despawn);
 
   // Spawn five entities; entity 2 is frozen so the movement system skips it.
   auto ents{std::vector<ec::entity_id>{}};

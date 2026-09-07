@@ -263,8 +263,7 @@ public:
    * @pre None.
    * @post None.
    */
-  auto watch(std::span<line_offset const> const offsets) -> result<void> {
-    utility::discard(offsets);
+  auto watch([[maybe_unused]] std::span<line_offset const> const offsets) -> result<void> {
     return std::unexpected{gpio_error::unsupported};
   }
 
@@ -278,8 +277,8 @@ public:
    * @pre None.
    * @post None.
    */
-  auto wait_change(std::chrono::nanoseconds const timeout) -> result<std::optional<line_change>> {
-    utility::discard(timeout);
+  auto wait_change([[maybe_unused]] std::chrono::nanoseconds const timeout)
+    -> result<std::optional<line_change>> {
     return std::unexpected{gpio_error::unsupported};
   }
 

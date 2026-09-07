@@ -434,12 +434,10 @@ public:
    */
   explicit chardev_chip(
     chip_id const chip = chip_id{0},
-    std::string_view const consumer = "nexenne-gpio",
-    std::uint32_t const event_buffer_size = 0
+    [[maybe_unused]] std::string_view const consumer = "nexenne-gpio",
+    [[maybe_unused]] std::uint32_t const event_buffer_size = 0
   ) noexcept
-      : m_chip{chip} {
-    utility::discard(consumer, event_buffer_size);
-  }
+      : m_chip{chip} {}
 
   /**
    * @brief The chip index this stub was constructed with.
@@ -464,9 +462,10 @@ public:
    * @pre None.
    * @post None.
    */
-  auto open(std::span<line_spec const> const specs, std::span<line_config const> const configs)
-    -> result<void> {
-    utility::discard(specs, configs);
+  auto open(
+    [[maybe_unused]] std::span<line_spec const> const specs,
+    [[maybe_unused]] std::span<line_config const> const configs
+  ) -> result<void> {
     return std::unexpected{gpio_error::unsupported};
   }
 
@@ -500,8 +499,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto read(line_offset const offset) const -> result<bool> {
-    utility::discard(offset);
+  [[nodiscard]] auto read([[maybe_unused]] line_offset const offset) const -> result<bool> {
     return std::unexpected{gpio_error::unsupported};
   }
 
@@ -516,8 +514,8 @@ public:
    * @pre None.
    * @post None.
    */
-  auto write(line_offset const offset, bool const physical) -> result<void> {
-    utility::discard(offset, physical);
+  auto write([[maybe_unused]] line_offset const offset, [[maybe_unused]] bool const physical)
+    -> result<void> {
     return std::unexpected{gpio_error::unsupported};
   }
 
@@ -532,10 +530,10 @@ public:
    * @pre None.
    * @post None.
    */
-  auto
-  read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out) const
-    -> result<void> {
-    utility::discard(offsets, levels_out);
+  auto read_lines(
+    [[maybe_unused]] std::span<line_offset const> const offsets,
+    [[maybe_unused]] std::span<bool> const levels_out
+  ) const -> result<void> {
     return std::unexpected{gpio_error::unsupported};
   }
 
@@ -550,10 +548,10 @@ public:
    * @pre None.
    * @post None.
    */
-  auto
-  write_lines(std::span<line_offset const> const offsets, std::span<bool const> const levels_in)
-    -> result<void> {
-    utility::discard(offsets, levels_in);
+  auto write_lines(
+    [[maybe_unused]] std::span<line_offset const> const offsets,
+    [[maybe_unused]] std::span<bool const> const levels_in
+  ) -> result<void> {
     return std::unexpected{gpio_error::unsupported};
   }
 
@@ -568,10 +566,10 @@ public:
    * @pre None.
    * @post None.
    */
-  auto
-  reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
-    -> result<void> {
-    utility::discard(specs, configs);
+  auto reconfigure(
+    [[maybe_unused]] std::span<line_spec const> const specs,
+    [[maybe_unused]] std::span<line_config const> const configs
+  ) -> result<void> {
     return std::unexpected{gpio_error::unsupported};
   }
 
@@ -585,8 +583,8 @@ public:
    * @pre None.
    * @post None.
    */
-  auto wait_event(std::chrono::nanoseconds const timeout) -> result<std::optional<line_event>> {
-    utility::discard(timeout);
+  auto wait_event([[maybe_unused]] std::chrono::nanoseconds const timeout)
+    -> result<std::optional<line_event>> {
     return std::unexpected{gpio_error::unsupported};
   }
 

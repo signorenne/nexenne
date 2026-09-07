@@ -108,8 +108,7 @@ TEST_CASE("nexenne::signal::static_signal connect then emit fires the slot") {
 TEST_CASE("nexenne::signal::static_signal operator() aliases emit") {
   auto sig{static_signal<void(int)>{}};
   auto got{0};
-  auto const conn{sig.connect([&](int v) noexcept { got = v; })};
-  nexenne::utility::discard(conn);
+  [[maybe_unused]] auto const conn{sig.connect([&](int v) noexcept { got = v; })};
 
   sig(11);
   CHECK(got == 11);
@@ -118,12 +117,9 @@ TEST_CASE("nexenne::signal::static_signal operator() aliases emit") {
 TEST_CASE("nexenne::signal::static_signal multiple slots fire in insertion order") {
   auto sig{static_signal<void(int)>{}};
   auto log{std::vector<int>{}};
-  auto const c1{sig.connect([&](int n) noexcept { log.push_back(n * 1); })};
-  auto const c2{sig.connect([&](int n) noexcept { log.push_back(n * 2); })};
-  auto const c3{sig.connect([&](int n) noexcept { log.push_back(n * 3); })};
-  nexenne::utility::discard(c1);
-  nexenne::utility::discard(c2);
-  nexenne::utility::discard(c3);
+  [[maybe_unused]] auto const c1{sig.connect([&](int n) noexcept { log.push_back(n * 1); })};
+  [[maybe_unused]] auto const c2{sig.connect([&](int n) noexcept { log.push_back(n * 2); })};
+  [[maybe_unused]] auto const c3{sig.connect([&](int n) noexcept { log.push_back(n * 3); })};
 
   sig.emit(5);
   REQUIRE(log.size() == 3);
@@ -134,8 +130,7 @@ TEST_CASE("nexenne::signal::static_signal multiple slots fire in insertion order
 
 TEST_CASE("nexenne::signal::static_signal forwards reference arguments without copying") {
   auto sig{static_signal<void(int&)>{}};
-  auto const conn{sig.connect([](int& n) noexcept { n *= 2; })};
-  nexenne::utility::discard(conn);
+  [[maybe_unused]] auto const conn{sig.connect([](int& n) noexcept { n *= 2; })};
 
   auto value{5};
   sig.emit(value);
@@ -145,10 +140,8 @@ TEST_CASE("nexenne::signal::static_signal forwards reference arguments without c
 TEST_CASE("nexenne::signal::static_signal copies a by-value arg once per slot") {
   auto sig{static_signal<void(copy_probe)>{}};
   auto sum{0};
-  auto const c1{sig.connect([&](copy_probe p) noexcept { sum += p.value; })};
-  auto const c2{sig.connect([&](copy_probe p) noexcept { sum += p.value; })};
-  nexenne::utility::discard(c1);
-  nexenne::utility::discard(c2);
+  [[maybe_unused]] auto const c1{sig.connect([&](copy_probe p) noexcept { sum += p.value; })};
+  [[maybe_unused]] auto const c2{sig.connect([&](copy_probe p) noexcept { sum += p.value; })};
 
   copy_probe::reset();
   auto const arg{copy_probe{7}};
@@ -163,11 +156,10 @@ TEST_CASE("nexenne::signal::static_signal copies a by-value arg once per slot") 
 TEST_CASE("nexenne::signal::static_signal value-returning slots discard their results on emit") {
   auto sig{static_signal<int(int)>{}};
   auto last{0};
-  auto const conn{sig.connect([&](int n) noexcept -> int {
+  [[maybe_unused]] auto const conn{sig.connect([&](int n) noexcept -> int {
     last = n;
     return n * 2;
   })};
-  nexenne::utility::discard(conn);
 
   sig.emit(7);
   CHECK(last == 7);  // emit returns void; the slot's int is discarded
@@ -192,12 +184,9 @@ TEST_CASE("nexenne::signal::static_signal disconnect removes the slot") {
 TEST_CASE("nexenne::signal::static_signal disconnect_all clears every slot") {
   auto sig{static_signal<void()>{}};
   auto n{0};
-  auto const c1{sig.connect([&] noexcept { ++n; })};
-  auto const c2{sig.connect([&] noexcept { ++n; })};
-  auto const c3{sig.connect([&] noexcept { ++n; })};
-  nexenne::utility::discard(c1);
-  nexenne::utility::discard(c2);
-  nexenne::utility::discard(c3);
+  [[maybe_unused]] auto const c1{sig.connect([&] noexcept { ++n; })};
+  [[maybe_unused]] auto const c2{sig.connect([&] noexcept { ++n; })};
+  [[maybe_unused]] auto const c3{sig.connect([&] noexcept { ++n; })};
   CHECK(sig.size() == 3);
 
   sig.disconnect_all();
@@ -209,12 +198,9 @@ TEST_CASE("nexenne::signal::static_signal disconnect_all clears every slot") {
 TEST_CASE("nexenne::signal::static_signal lower priority fires first") {
   auto sig{static_signal<void()>{}};
   auto log{std::vector<int>{}};
-  auto const c_low{sig.connect([&] noexcept { log.push_back(2); }, 10)};
-  auto const c_mid{sig.connect([&] noexcept { log.push_back(1); }, 0)};
-  auto const c_high{sig.connect([&] noexcept { log.push_back(0); }, -5)};
-  nexenne::utility::discard(c_low);
-  nexenne::utility::discard(c_mid);
-  nexenne::utility::discard(c_high);
+  [[maybe_unused]] auto const c_low{sig.connect([&] noexcept { log.push_back(2); }, 10)};
+  [[maybe_unused]] auto const c_mid{sig.connect([&] noexcept { log.push_back(1); }, 0)};
+  [[maybe_unused]] auto const c_high{sig.connect([&] noexcept { log.push_back(0); }, -5)};
 
   sig.emit();
   REQUIRE(log.size() == 3);
@@ -226,14 +212,12 @@ TEST_CASE("nexenne::signal::static_signal lower priority fires first") {
 TEST_CASE("nexenne::signal::static_signal equal priority keeps insertion order (stable)") {
   auto sig{static_signal<void(), 8>{}};
   auto order{std::vector<int>{}};
-  auto const c1{sig.connect([&] noexcept { order.push_back(1); }, 10)};
-  auto const c2{sig.connect([&] noexcept { order.push_back(2); }, 5)};
-  auto const c3{sig.connect([&] noexcept { order.push_back(3); }, 15)};
-  auto const c4{sig.connect([&] noexcept { order.push_back(4); }, 5)};  // tied w/ c2
-  nexenne::utility::discard(c1);
-  nexenne::utility::discard(c2);
-  nexenne::utility::discard(c3);
-  nexenne::utility::discard(c4);
+  [[maybe_unused]] auto const c1{sig.connect([&] noexcept { order.push_back(1); }, 10)};
+  [[maybe_unused]] auto const c2{sig.connect([&] noexcept { order.push_back(2); }, 5)};
+  [[maybe_unused]] auto const c3{sig.connect([&] noexcept { order.push_back(3); }, 15)};
+  [[maybe_unused]] auto const c4{
+    sig.connect([&] noexcept { order.push_back(4); }, 5)
+  };  // tied w/ c2
 
   sig.emit();
   CHECK(order == std::vector{2, 4, 1, 3});
@@ -281,8 +265,7 @@ TEST_CASE("nexenne::signal::static_signal connect past MaxSlots fails without co
 TEST_CASE("nexenne::signal::static_signal disconnecting frees a slot for reuse") {
   auto sig{static_signal<void(), 2>{}};
   auto a{sig.connect([] noexcept {})};
-  auto const b{sig.connect([] noexcept {})};
-  nexenne::utility::discard(b);
+  [[maybe_unused]] auto const b{sig.connect([] noexcept {})};
   CHECK(sig.full());
 
   auto const blocked{sig.connect([] noexcept {})};
@@ -290,10 +273,9 @@ TEST_CASE("nexenne::signal::static_signal disconnecting frees a slot for reuse")
 
   CHECK(a.disconnect());
   CHECK_FALSE(sig.full());
-  auto const reused{sig.connect([] noexcept {})};  // room again
+  [[maybe_unused]] auto const reused{sig.connect([] noexcept {})};  // room again
   CHECK(reused.has_target());
   CHECK(sig.full());
-  nexenne::utility::discard(reused);
 }
 
 TEST_CASE("nexenne::signal::static_signal accepts a callable that fits SlotCapacity") {
@@ -302,8 +284,7 @@ TEST_CASE("nexenne::signal::static_signal accepts a callable that fits SlotCapac
   auto sink{0};
   auto const a{1000};
   auto const b{7};
-  auto const conn{sig.connect([&sink](int v) noexcept { sink = a + b + v; })};
-  nexenne::utility::discard(conn);
+  [[maybe_unused]] auto const conn{sig.connect([&sink](int v) noexcept { sink = a + b + v; })};
 
   sig.emit(1);
   CHECK(sink == 1008);
@@ -315,8 +296,7 @@ TEST_CASE("nexenne::signal::static_signal an exactly-fitting capturing lambda wo
   // small capturing closure is still inline.
   auto sig{static_signal<void(), 2, 16>{}};
   auto fired{0};
-  auto const conn{sig.connect([&fired] noexcept { ++fired; })};
-  nexenne::utility::discard(conn);
+  [[maybe_unused]] auto const conn{sig.connect([&fired] noexcept { ++fired; })};
 
   sig.emit();
   CHECK(fired == 1);
@@ -325,8 +305,7 @@ TEST_CASE("nexenne::signal::static_signal an exactly-fitting capturing lambda wo
 TEST_CASE("nexenne::signal::static_signal connect_once fires exactly once then is swept") {
   auto sig{static_signal<void(int)>{}};
   auto seen{std::vector<int>{}};
-  auto const conn{sig.connect_once([&](int n) noexcept { seen.push_back(n); })};
-  nexenne::utility::discard(conn);
+  [[maybe_unused]] auto const conn{sig.connect_once([&](int n) noexcept { seen.push_back(n); })};
 
   sig.emit(1);
   sig.emit(2);
@@ -340,10 +319,8 @@ TEST_CASE("nexenne::signal::static_signal once slot mixed with a persistent slot
   auto sig{static_signal<void()>{}};
   auto n{0};
   auto once{0};
-  auto const a{sig.connect([&] noexcept { ++n; })};
-  auto const b{sig.connect_once([&] noexcept { ++once; })};
-  nexenne::utility::discard(a);
-  nexenne::utility::discard(b);
+  [[maybe_unused]] auto const a{sig.connect([&] noexcept { ++n; })};
+  [[maybe_unused]] auto const b{sig.connect_once([&] noexcept { ++once; })};
 
   sig.emit();
   sig.emit();
@@ -355,13 +332,12 @@ TEST_CASE("nexenne::signal::static_signal once slot mixed with a persistent slot
 TEST_CASE("nexenne::signal::static_signal once slot re-emitting itself does not loop") {
   auto sig{static_signal<void()>{}};
   auto n{0};
-  auto const c{sig.connect_once([&] noexcept {
+  [[maybe_unused]] auto const c{sig.connect_once([&] noexcept {
     ++n;
     if (n < 5) {
       sig.emit();  // a still-alive once slot would recurse without bound
     }
   })};
-  nexenne::utility::discard(c);
 
   sig.emit();
   CHECK(n == 1);  // marked dead before invoke, so the re-entrant emit skips it
@@ -371,8 +347,7 @@ TEST_CASE("nexenne::signal::static_signal once slot re-emitting itself does not 
 TEST_CASE("nexenne::signal::static_signal block / unblock suppresses emit") {
   auto sig{static_signal<void()>{}};
   auto fired{0};
-  auto const c{sig.connect([&fired] noexcept { ++fired; })};
-  nexenne::utility::discard(c);
+  [[maybe_unused]] auto const c{sig.connect([&fired] noexcept { ++fired; })};
 
   sig.block();
   CHECK(sig.is_blocked());
@@ -390,8 +365,7 @@ TEST_CASE("nexenne::signal::static_signal satisfies blockable and works with emi
 
   auto sig{static_signal<void()>{}};
   auto fired{0};
-  auto const c{sig.connect([&fired] noexcept { ++fired; })};
-  nexenne::utility::discard(c);
+  [[maybe_unused]] auto const c{sig.connect([&fired] noexcept { ++fired; })};
   {
     auto const guard{nexenne::signal::emit_blocker{sig}};
     sig.emit();
@@ -406,8 +380,7 @@ TEST_CASE("nexenne::signal::static_signal satisfies blockable and works with emi
 TEST_CASE("nexenne::signal::static_signal nested emit_blocker restores the prior block") {
   auto sig{static_signal<void()>{}};
   auto fired{0};
-  auto const c{sig.connect([&fired] noexcept { ++fired; })};
-  nexenne::utility::discard(c);
+  [[maybe_unused]] auto const c{sig.connect([&fired] noexcept { ++fired; })};
 
   auto outer{nexenne::signal::emit_blocker{sig}};
   {
@@ -423,13 +396,12 @@ TEST_CASE("nexenne::signal::static_signal nested emit_blocker restores the prior
 TEST_CASE("nexenne::signal::static_signal connect during emit appends past the live length") {
   auto sig{static_signal<void(), 8>{}};
   auto order{std::vector<int>{}};
-  auto first{sig.connect([&] noexcept {
+  [[maybe_unused]] auto first{sig.connect([&] noexcept {
     order.push_back(1);
     // Connect a brand-new slot from inside the running emit. It must NOT fire
     // in this emit, but must be present afterwards.
     nexenne::utility::discard(sig.connect([&] noexcept { order.push_back(99); }));
   })};
-  nexenne::utility::discard(first);
 
   sig.emit();  // only the first slot fires
   REQUIRE(order.size() == 1);
@@ -449,7 +421,7 @@ TEST_CASE("nexenne::signal::static_signal slot connected mid-emit is re-sorted a
   auto sig{static_signal<void(), 8>{}};
   auto order{std::vector<int>{}};
   auto added{false};
-  auto first{sig.connect(
+  [[maybe_unused]] auto first{sig.connect(
     [&] noexcept {
       order.push_back(10);
       if (!added) {
@@ -460,7 +432,6 @@ TEST_CASE("nexenne::signal::static_signal slot connected mid-emit is re-sorted a
     },
     10
   )};
-  nexenne::utility::discard(first);
 
   sig.emit();  // only the appender fires; new slot deferred
   REQUIRE(order.size() == 1);
@@ -492,7 +463,7 @@ TEST_CASE("nexenne::signal::static_signal slot can disconnect itself during emit
 TEST_CASE("nexenne::signal::static_signal slot disconnecting a not-yet-fired slot skips it") {
   auto sig{static_signal<void(), 8>{}};
   auto log{std::vector<int>{}};
-  auto c1{static_connection{}};
+  [[maybe_unused]] auto c1{static_connection{}};
   auto c2{static_connection{}};
   auto c3{static_connection{}};
 
@@ -514,7 +485,6 @@ TEST_CASE("nexenne::signal::static_signal slot disconnecting a not-yet-fired slo
   CHECK(log[0] == 1);
   CHECK(log[1] == 2);
   CHECK(sig.size() == 2);
-  nexenne::utility::discard(c1);
 }
 
 TEST_CASE("nexenne::signal::static_signal nested emit is safe") {
@@ -522,16 +492,14 @@ TEST_CASE("nexenne::signal::static_signal nested emit is safe") {
   auto outer{0};
   auto inner{0};
   auto reentered{false};
-  auto first{sig.connect([&] noexcept {
+  [[maybe_unused]] auto first{sig.connect([&] noexcept {
     ++outer;
     if (!reentered) {
       reentered = true;
       sig.emit();  // nested emit of the same signal
     }
   })};
-  auto second{sig.connect([&] noexcept { ++inner; })};
-  nexenne::utility::discard(first);
-  nexenne::utility::discard(second);
+  [[maybe_unused]] auto second{sig.connect([&] noexcept { ++inner; })};
 
   sig.emit();
   // Outer emit visits both; the nested emit (from the first slot) also visits
@@ -546,13 +514,12 @@ TEST_CASE("nexenne::signal::static_signal connecting many slots mid-emit forces 
   // the running callable. New slots are skipped this emit, present next emit.
   auto sig{static_signal<void(), 8>{}};
   auto fired{0};
-  auto first{sig.connect([&] noexcept {
+  [[maybe_unused]] auto first{sig.connect([&] noexcept {
     ++fired;
     for (auto i{0}; i < 5; ++i) {
       nexenne::utility::discard(sig.connect([&] noexcept { ++fired; }));
     }
   })};
-  nexenne::utility::discard(first);
 
   sig.emit();  // only first fires; the 5 deferred are not visited
   CHECK(fired == 1);
@@ -562,13 +529,11 @@ TEST_CASE("nexenne::signal::static_signal connecting many slots mid-emit forces 
 TEST_CASE("nexenne::signal::static_signal disconnect_all during emit defers and clears") {
   auto sig{static_signal<void(), 8>{}};
   auto fired{0};
-  auto first{sig.connect([&] noexcept {
+  [[maybe_unused]] auto first{sig.connect([&] noexcept {
     ++fired;
     sig.disconnect_all();  // marks all dead; swept after the emit
   })};
-  auto second{sig.connect([&] noexcept { ++fired; })};
-  nexenne::utility::discard(first);
-  nexenne::utility::discard(second);
+  [[maybe_unused]] auto second{sig.connect([&] noexcept { ++fired; })};
 
   sig.emit();
   // first fires and marks every slot dead, so second (not yet visited) is
@@ -581,14 +546,14 @@ TEST_CASE("nexenne::signal::static_signal disconnect_all during emit defers and 
 
 TEST_CASE("nexenne::signal::static_signal connect + emit + disconnect allocate nothing") {
   auto sig{static_signal<void(int), 8, 32>{}};
-  auto total{0};
+  [[maybe_unused]] auto total{0};
 
   auto const before{alloc_counter::snapshot()};
 
   // Connect several slots (capturing lambdas, inline storage).
   auto c0{sig.connect([&](int v) noexcept { total += v; })};
   auto c1{sig.connect([&](int v) noexcept { total += v * 2; }, -1)};
-  auto c2{sig.connect_once([&](int v) noexcept { total += v * 3; })};
+  [[maybe_unused]] auto c2{sig.connect_once([&](int v) noexcept { total += v * 3; })};
 
   // Emit a few times.
   sig.emit(1);
@@ -601,21 +566,17 @@ TEST_CASE("nexenne::signal::static_signal connect + emit + disconnect allocate n
 
   auto const after{alloc_counter::snapshot()};
   CHECK(after - before == 0);  // ZERO allocations across the whole sequence
-
-  nexenne::utility::discard(c2);
-  nexenne::utility::discard(total);
 }
 
 TEST_CASE("nexenne::signal::static_signal reentrant connect during emit allocates nothing") {
   auto sig{static_signal<void(), 8>{}};
   auto fired{0};
-  auto first{sig.connect([&] noexcept {
+  [[maybe_unused]] auto first{sig.connect([&] noexcept {
     ++fired;
     if (sig.size() < 5) {
       nexenne::utility::discard(sig.connect([&] noexcept { ++fired; }));
     }
   })};
-  nexenne::utility::discard(first);
 
   auto const before{alloc_counter::snapshot()};
   sig.emit();  // appends a slot mid-emit, then re-sorts at the end
@@ -703,10 +664,9 @@ TEST_CASE("nexenne::signal::static_scoped_connection move-construct keeps the sl
   auto sig{static_signal<void()>{}};
   auto n{0};
   auto first{static_scoped_connection{sig.connect([&] noexcept { ++n; })}};
-  auto second{std::move(first)};  // move-construct
+  [[maybe_unused]] auto second{std::move(first)};  // move-construct
   sig.emit();
   CHECK(n == 1);  // moved-into object owns it
-  nexenne::utility::discard(second);
 }
 
 TEST_CASE("nexenne::signal::static_scoped_connection release disarms the auto-disconnect") {
@@ -809,13 +769,12 @@ TEST_CASE("nexenne::signal::static_slot track returns false when full without di
   auto c1{sig.connect([&] noexcept { ++count; })};
   CHECK(tracker.track(c1));  // room for one
 
-  auto const c2{sig.connect([&] noexcept { ++count; })};
+  [[maybe_unused]] auto const c2{sig.connect([&] noexcept { ++count; })};
   CHECK_FALSE(tracker.track(c2));  // full: reports false, must NOT disconnect c2
   CHECK(c2.has_target());
 
   sig.emit();
   CHECK(count == 2);  // both still fire
-  nexenne::utility::discard(c2);
 }
 
 namespace {
@@ -831,8 +790,7 @@ struct receiver {
 TEST_CASE("nexenne::signal::static_signal member-function connect shortcut") {
   auto sig{static_signal<void(int)>{}};
   auto r{receiver{}};
-  auto const c{sig.connect<&receiver::on_event>(r)};
-  nexenne::utility::discard(c);
+  [[maybe_unused]] auto const c{sig.connect<&receiver::on_event>(r)};
 
   sig.emit(3);
   sig.emit(4);
@@ -856,8 +814,7 @@ TEST_CASE("nexenne::signal::static_sink exposes connect but hides emit") {
   auto sig{static_signal<void(int)>{}};
   auto sink{sig.as_sink()};
   auto got{0};
-  auto const c{sink.connect([&](int v) noexcept { got = v; })};
-  nexenne::utility::discard(c);
+  [[maybe_unused]] auto const c{sink.connect([&](int v) noexcept { got = v; })};
 
   CHECK(sink.size() == 1);
   CHECK_FALSE(sink.empty());
@@ -871,8 +828,7 @@ TEST_CASE("nexenne::signal::static_sink forwards connect_once, slot, and member 
   auto r{receiver{}};
   auto once_hits{0};
 
-  auto const once{sink.connect_once([&](int v) noexcept { once_hits += v; })};
-  nexenne::utility::discard(once);
+  [[maybe_unused]] auto const once{sink.connect_once([&](int v) noexcept { once_hits += v; })};
   {
     auto owner{static_slot<2>{}};
     nexenne::utility::discard(sink.connect<&receiver::on_event>(r, owner));
@@ -910,8 +866,7 @@ TEST_CASE("nexenne::signal::static_signal stays consistent after full teardown a
   CHECK(b.disconnect());
   CHECK(sig.empty());
 
-  auto const c{sig.connect([&] noexcept { n += 10; })};
-  nexenne::utility::discard(c);
+  [[maybe_unused]] auto const c{sig.connect([&] noexcept { n += 10; })};
   sig.emit();
   CHECK(n == 12);
 }
@@ -945,7 +900,7 @@ TEST_CASE(
   auto order{std::vector<int>{}};
   auto connected{false};
   auto reentered{false};
-  auto a{sig.connect(
+  [[maybe_unused]] auto a{sig.connect(
     [&] noexcept {
       order.push_back(10);
       if (!connected) {
@@ -960,7 +915,6 @@ TEST_CASE(
     },
     10
   )};
-  nexenne::utility::discard(a);
 
   sig.emit();
   // Outer runs A, connects B, re-enters; the nested emit runs only A again, so no
@@ -984,8 +938,8 @@ TEST_CASE(
   auto runs{0};
   auto replacement_valid{false};
   auto reconnected{false};
-  auto a{sig.connect_once([&] noexcept { ++runs; })};  // fires once, then dead
-  auto b{sig.connect([&] noexcept {
+  [[maybe_unused]] auto a{sig.connect_once([&] noexcept { ++runs; })};  // fires once, then dead
+  [[maybe_unused]] auto b{sig.connect([&] noexcept {
     ++runs;
     if (!reconnected) {
       reconnected = true;
@@ -993,8 +947,6 @@ TEST_CASE(
       replacement_valid = r.has_target();
     }
   })};
-  nexenne::utility::discard(a);
-  nexenne::utility::discard(b);
   CHECK(sig.full());
 
   sig.emit();
@@ -1013,10 +965,8 @@ TEST_CASE(
   // No emit in flight means no dead-but-unswept entries, so a full signal still
   // rejects a connect with an invalid handle.
   auto sig{static_signal<void(), 2>{}};
-  auto const a{sig.connect([] noexcept {})};
-  auto const b{sig.connect([] noexcept {})};
-  nexenne::utility::discard(a);
-  nexenne::utility::discard(b);
+  [[maybe_unused]] auto const a{sig.connect([] noexcept {})};
+  [[maybe_unused]] auto const b{sig.connect([] noexcept {})};
   CHECK(sig.full());
   auto const c{sig.connect([] noexcept {})};
   CHECK_FALSE(c.has_target());
@@ -1028,11 +978,10 @@ TEST_CASE("nexenne::signal::static_signal [m1] size() reflects a mid-emit connec
   // size() grows immediately even though the new slot is not visited this emit.
   auto sig{static_signal<void(), 8>{}};
   auto size_during{std::size_t{0}};
-  auto a{sig.connect([&] noexcept {
+  [[maybe_unused]] auto a{sig.connect([&] noexcept {
     nexenne::utility::discard(sig.connect([] noexcept {}));
     size_during = sig.size();
   })};
-  nexenne::utility::discard(a);
 
   sig.emit();
   CHECK(size_during == 2);  // a plus the just-added slot, counted right away
@@ -1042,11 +991,10 @@ TEST_CASE(
   "nexenne::signal::static_signal [m4] static_connection formats via to_string and format"
 ) {
   auto sig{static_signal<void()>{}};
-  auto const c{sig.connect([] noexcept {})};
+  [[maybe_unused]] auto const c{sig.connect([] noexcept {})};
   CHECK(to_string(c).starts_with("static_connection(id="));
   CHECK(std::format("{}", c) == to_string(c));
   CHECK(to_string(static_connection{}) == "static_connection(id=0, has_target=false)");
-  nexenne::utility::discard(c);
 }
 
 }  // namespace

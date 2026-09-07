@@ -102,30 +102,28 @@ auto main() -> int {
   // 1. The HUD logs every hit. A plain captureless lambda is stored as a raw
   // function pointer (no type-erasure thunk), so emit is one indirect call.
   std::println("== 1. Event bus ==");
-  auto const hud{bus.on_damage().connect([](damage_event const& ev) noexcept {
+  [[maybe_unused]] auto const hud{bus.on_damage().connect([](damage_event const& ev) noexcept {
     std::println("  HUD: -{} hp", ev.amount);
   })};
-  nexenne::utility::discard(hud);
 
   // 2. Priority ties systems into a fixed order without them knowing about each
   // other: physics (priority -10) must settle the hit before audio (priority 5)
   // reacts to it. Lower fires first; equal priorities keep insertion order.
   std::println("== 2. Ordered systems ==");
-  auto const physics{bus.on_damage().connect(
+  [[maybe_unused]] auto const physics{bus.on_damage().connect(
     [](damage_event const&) noexcept { std::println("  physics: apply knockback"); }, -10
   )};
-  auto const audio{bus.on_damage().connect(
+  [[maybe_unused]] auto const audio{bus.on_damage().connect(
     [](damage_event const&) noexcept { std::println("  audio: play 'hit' sound"); }, 5
   )};
-  nexenne::utility::discard(physics);
-  nexenne::utility::discard(audio);
 
   // A one-shot achievement hook: connect_once arms it for exactly one emit, then
   // the slot sweeps itself. No wrapper, no manual "remove me after firing" flag.
-  auto const first_blood{bus.on_damage().connect_once([](damage_event const& ev) noexcept {
-    std::println("  achievement: first blood by {}!", ev.source);
-  })};
-  nexenne::utility::discard(first_blood);
+  [[maybe_unused]] auto const first_blood{
+    bus.on_damage().connect_once([](damage_event const& ev) noexcept {
+      std::println("  achievement: first blood by {}!", ev.source);
+    })
+  };
 
   // 3. Lifetime safety. The goblin lives only inside this scope; when it dies,
   // its tracked subscription disappears with it. The bus keeps firing afterward
@@ -148,10 +146,9 @@ auto main() -> int {
   // block rather than for an object's lifetime.
   std::println("== 4. Scoped + blocked emission ==");
   {
-    auto const shield{sig::scoped_connection{bus.on_damage().connect(
+    [[maybe_unused]] auto const shield{sig::scoped_connection{bus.on_damage().connect(
       [](damage_event const& ev) noexcept { std::println("  shield absorbs {}", ev.amount); }
     )}};
-    nexenne::utility::discard(shield);
 
     // emit_blocker mutes the whole damage channel for a scope (an invulnerability
     // frame, say) and restores the prior state on exit - nesting-correct, unlike
@@ -174,11 +171,12 @@ auto main() -> int {
   auto indicator{bus.on_damage().connect(
     [](damage_event const&) noexcept { std::println("  indicator: trap is armed"); }, -1
   )};
-  auto const spring{bus.on_damage().connect_once([&indicator](damage_event const&) noexcept {
-    std::println("  trap springs and disarms the indicator");
-    nexenne::utility::discard(indicator.disconnect());  // safe: deferred to emit end
-  })};
-  nexenne::utility::discard(spring);
+  [[maybe_unused]] auto const spring{
+    bus.on_damage().connect_once([&indicator](damage_event const&) noexcept {
+      std::println("  trap springs and disarms the indicator");
+      nexenne::utility::discard(indicator.disconnect());  // safe: deferred to emit end
+    })
+  };
   std::println("trigger the trap:");
   bus.deal_damage(damage_event{.source = "tripwire", .amount = 3});
   std::println("next hit (indicator already gone, trap spent):");
@@ -190,12 +188,11 @@ auto main() -> int {
   // fans out to every registered modifier with no central table to maintain.
   std::println("== 6. Aggregated damage modifiers ==");
   auto modifiers{sig::signal<double(int)>{}};
-  auto const crit{modifiers.connect([](int base) noexcept { return base > 5 ? 2.0 : 1.0; })};
-  auto const vuln{modifiers.connect([](int) noexcept { return 1.5; })};
-  auto const armor{modifiers.connect([](int) noexcept { return 0.8; })};
-  nexenne::utility::discard(crit);
-  nexenne::utility::discard(vuln);
-  nexenne::utility::discard(armor);
+  [[maybe_unused]] auto const crit{modifiers.connect([](int base) noexcept {
+    return base > 5 ? 2.0 : 1.0;
+  })};
+  [[maybe_unused]] auto const vuln{modifiers.connect([](int) noexcept { return 1.5; })};
+  [[maybe_unused]] auto const armor{modifiers.connect([](int) noexcept { return 0.8; })};
   auto const factors{modifiers.emit_and_collect(10)};
   auto product{1.0};
   for (auto const f : factors) {
@@ -210,15 +207,13 @@ auto main() -> int {
   // dispatcher on a tight target where the action count is known up front.
   std::println("== 7. Heap-free input dispatcher ==");
   auto input{sig::static_signal<void(std::uint8_t), 3>{}};
-  auto const move{input.connect([](std::uint8_t key) noexcept {
+  [[maybe_unused]] auto const move{input.connect([](std::uint8_t key) noexcept {
     std::println("  move handler sees key {}", key);
   })};
-  auto const fire{input.connect(
+  [[maybe_unused]] auto const fire{input.connect(
     [](std::uint8_t) noexcept { std::println("  fire handler triggers"); }, -1  // fires first
   )};
   auto menu{input.connect([](std::uint8_t) noexcept { std::println("  menu toggles"); })};
-  nexenne::utility::discard(move);
-  nexenne::utility::discard(fire);
 
   std::println("dispatcher full at capacity {}: {}", input.capacity(), input.full());
   auto const overflow{input.connect([](std::uint8_t) noexcept {})};  // no room: signal is full
@@ -236,10 +231,9 @@ auto main() -> int {
   menu.disconnect();
   std::println("menu disconnected; a slot is free again: full() = {}", input.full());
   {
-    auto transient{sig::static_scoped_connection{input.connect([](std::uint8_t) noexcept {
-      std::println("  transient input hook");
-    })}};
-    nexenne::utility::discard(transient);
+    [[maybe_unused]] auto transient{sig::static_scoped_connection{
+      input.connect([](std::uint8_t) noexcept { std::println("  transient input hook"); })
+    }};
     std::println("transient took the freed slot; full() = {}", input.full());
     std::println("dispatch key 13 (transient now in the pool, menu gone):");
     input.emit(std::uint8_t{13});

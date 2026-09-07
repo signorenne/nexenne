@@ -129,12 +129,11 @@ auto main() -> int {
   // component is torn down, whether by remove<health> or by destroy(entity). A
   // system never has to poll for deaths: it reacts to the signal. The returned
   // connection is kept alive for the program's duration.
-  auto death_log{
+  [[maybe_unused]] auto death_log{
     reg.on_destroy<health>().connect([](ecs::entity_id const e, health const& h) noexcept {
       std::println("  [signal] entity {} died with hp {}", e.index(), h.hp);
     })
   };
-  nexenne::utility::discard(death_log);
 
   // 2. Movement system. view<position, velocity>() visits exactly the entities
   // that carry both, and .exclude<frozen>() drops the held-in-place debris. The

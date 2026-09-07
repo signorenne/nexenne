@@ -142,7 +142,9 @@ auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> s
   // shape * scale, which is exactly how a designer reasons about a payout
   // curve. A normal would allow negative gold; an exponential has no "typical
   // value" hump. Gamma fits.
-  constexpr std::array<std::string_view, 3> rarity_names{"common", "rare", "legendary"};
+  [[maybe_unused]] constexpr std::array<std::string_view, 3> rarity_names{
+    "common", "rare", "legendary"
+  };
   rng::discrete_distribution<double> rarity{{70.0, 25.0, 5.0}};
   // Mean payout 200 gold (shape 2 * scale 100), with a long upper tail.
   rng::gamma_distribution<double> gold{2.0, 100.0};
@@ -169,7 +171,6 @@ auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> s
       rarity_tally[1],
       rarity_tally[2]
     );
-    nexenne::utility::discard(rarity_names);
     std::println("  total gold        {:.0f}", total_gold);
   }
 

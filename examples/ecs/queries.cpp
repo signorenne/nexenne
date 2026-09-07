@@ -116,9 +116,7 @@ auto main() -> int {
   // whichever reads better. Here we just sum positions without mutating.
   std::println("== 5. range-for over view<position, velocity> ==");
   float sum_x{0.0F};
-  for (auto [e, p, v] : reg.view<position, velocity>()) {
-    nexenne::utility::discard(e);
-    nexenne::utility::discard(v);
+  for ([[maybe_unused]] auto [e, p, v] : reg.view<position, velocity>()) {
     sum_x += p.x;
   }
   std::println("  sum of mover x-coords: {:.1f}", sum_x);

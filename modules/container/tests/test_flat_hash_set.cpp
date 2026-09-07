@@ -278,8 +278,7 @@ TEST_CASE("nexenne::container::flat_hash_set differential against std::unordered
     CHECK(flat.contains(key));
   }
   std::size_t flat_count{0};
-  for (auto const& v : flat) {
-    nexenne::utility::discard(v);
+  for ([[maybe_unused]] auto const& v : flat) {
     ++flat_count;
   }
   CHECK(flat_count == ref.size());

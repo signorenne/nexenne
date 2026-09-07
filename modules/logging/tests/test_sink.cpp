@@ -134,12 +134,9 @@ TEST_CASE("nexenne::logging::file_sink is not movable and keeps its level filter
 
 TEST_CASE("nexenne::logging::console_sink constructs with each routing policy") {
   // Smoke: construction and a write must not crash (output goes to the console).
-  lg::console_sink def{};
-  lg::console_sink out{lg::console_sink::stream::stdout_only};
-  lg::console_sink err{lg::console_sink::stream::stderr_only};
-  nexenne::utility::discard(def);
-  nexenne::utility::discard(out);
-  nexenne::utility::discard(err);
+  [[maybe_unused]] lg::console_sink def{};
+  [[maybe_unused]] lg::console_sink out{lg::console_sink::stream::stdout_only};
+  [[maybe_unused]] lg::console_sink err{lg::console_sink::stream::stderr_only};
   CHECK(true);
 }
 

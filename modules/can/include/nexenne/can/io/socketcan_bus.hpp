@@ -266,11 +266,10 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] static auto
-  open(std::string_view const interface, socket_options const& options = {})
-    -> result<socketcan_bus> {
-    nexenne::utility::discard(interface);
-    nexenne::utility::discard(options);
+  [[nodiscard]] static auto open(
+    [[maybe_unused]] std::string_view const interface,
+    [[maybe_unused]] socket_options const& options = {}
+  ) -> result<socketcan_bus> {
     return std::unexpected{can_error::unsupported};
   }
 
@@ -284,8 +283,7 @@ public:
    * @pre None.
    * @post None.
    */
-  auto send(frame const& f) -> result<void> {
-    nexenne::utility::discard(f);
+  auto send([[maybe_unused]] frame const& f) -> result<void> {
     return std::unexpected{can_error::unsupported};
   }
 
@@ -311,8 +309,7 @@ public:
    * @pre None.
    * @post None.
    */
-  auto set_filters(std::span<filter const> const filters) -> result<void> {
-    nexenne::utility::discard(filters);
+  auto set_filters([[maybe_unused]] std::span<filter const> const filters) -> result<void> {
     return std::unexpected{can_error::unsupported};
   }
 

@@ -48,9 +48,8 @@ struct empty_value {
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto operator==(empty_value lhs, empty_value rhs) noexcept
-    -> bool {
-    nexenne::utility::discard(lhs, rhs);
+  [[nodiscard]] friend constexpr auto
+  operator==([[maybe_unused]] empty_value lhs, [[maybe_unused]] empty_value rhs) noexcept -> bool {
     return true;
   }
 

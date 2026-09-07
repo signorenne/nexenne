@@ -54,8 +54,7 @@ TEST_CASE("nexenne::utility::defer runs the callable once at scope exit") {
 TEST_CASE("nexenne::utility::defer runs exactly once, never more") {
   auto runs{0};
   for (auto i{0}; i < 5; ++i) {
-    auto const guard{nexenne::utility::defer{[&] { ++runs; }}};
-    nexenne::utility::discard(guard);
+    [[maybe_unused]] auto const guard{nexenne::utility::defer{[&] { ++runs; }}};
   }
   CHECK(runs == 5);  // exactly one run per scope entry, no extras
 }
@@ -162,8 +161,9 @@ TEST_CASE("nexenne::utility::defer propagates a throwing cleanup on a normal sco
   // The destructor is conditionally noexcept: outside stack unwinding, a
   // throwing cleanup leaves the destructor and reaches the caller.
   auto const leave_scope{[] {
-    auto const guard{nexenne::utility::defer{[] { throw std::runtime_error{"cleanup failed"}; }}};
-    nexenne::utility::discard(guard);
+    [[maybe_unused]] auto const guard{nexenne::utility::defer{[] {
+      throw std::runtime_error{"cleanup failed"};
+    }}};
   }};
   CHECK_THROWS_AS(leave_scope(), std::runtime_error);
 }

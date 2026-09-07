@@ -58,7 +58,7 @@ auto main() -> int {
   auto temp{sensor{}};
 
   // A priority-ordered logger (lower priority fires first).
-  auto log{temp.readings().connect(
+  [[maybe_unused]] auto log{temp.readings().connect(
     [](double const c) noexcept { std::println("  log[prio -1]: {:.1f} C", c); }, -1
   )};
 
@@ -70,8 +70,6 @@ auto main() -> int {
 
   std::println("after the display expired:");
   temp.publish(22.5);  // only the logger remains
-
-  nexenne::utility::discard(log);
 
   // Capacity is fixed: a connect past the bound fails instead of allocating.
   auto bus{sg::static_signal<void(), 2>{}};
@@ -90,22 +88,20 @@ auto main() -> int {
   auto tick{sg::static_signal<void(int), 4>{}};
 
   // A one-shot startup hook fires on the first tick only, then sweeps itself.
-  auto const startup{tick.connect_once([](int frame) noexcept {
+  [[maybe_unused]] auto const startup{tick.connect_once([](int frame) noexcept {
     std::println("  startup on frame {}", frame);
   })};
-  nexenne::utility::discard(startup);
 
   // A persistent frame logger, and a self-disarming watchdog that disconnects
   // the logger from inside its own invocation. static_signal defers the removal
   // to the end of the outermost emit, so iterating this emit stays valid.
   auto logger{tick.connect([](int frame) noexcept { std::println("  frame {}", frame); })};
-  auto const watchdog{tick.connect([&logger](int frame) noexcept {
+  [[maybe_unused]] auto const watchdog{tick.connect([&logger](int frame) noexcept {
     if (frame == 2) {
       std::println("  watchdog silences the logger");
       nexenne::utility::discard(logger.disconnect());  // safe mid-emit, deferred sweep
     }
   })};
-  nexenne::utility::discard(watchdog);
 
   std::println("\nheap-free tick channel:");
   tick.emit(1);  // startup, frame 1

@@ -45,7 +45,7 @@ auto main() -> int {
   std::println("== 1. Construct / update / destroy order ==");
   int total{0};
 
-  auto on_add{
+  [[maybe_unused]] auto on_add{
     reg.on_construct<score>().connect([&total](ecs::entity_id const e, score const& s) noexcept {
       total += s.points;
       std::println("  construct: entity {} +{}  (total {})", e.index(), s.points, total);
@@ -54,21 +54,18 @@ auto main() -> int {
 
   // on_update sees the value AFTER the change. We do not know the old value here,
   // so this listener just reports; the patch below recomputes the total directly.
-  auto on_change{
+  [[maybe_unused]] auto on_change{
     reg.on_update<score>().connect([](ecs::entity_id const e, score const& s) noexcept {
       std::println("  update:    entity {} now {}", e.index(), s.points);
     })
   };
 
-  auto on_remove{
+  [[maybe_unused]] auto on_remove{
     reg.on_destroy<score>().connect([&total](ecs::entity_id const e, score const& s) noexcept {
       total -= s.points;
       std::println("  destroy:   entity {} -{}  (total {})", e.index(), s.points, total);
     })
   };
-  nexenne::utility::discard(on_add);
-  nexenne::utility::discard(on_change);
-  nexenne::utility::discard(on_remove);
 
   auto const a{reg.create()};
   auto const b{reg.create()};
@@ -101,10 +98,9 @@ auto main() -> int {
   // changes to you, so you never scan the whole world to find what moved.
   std::println("== 3. A signal-built observer log ==");
   auto spawned_log{std::vector<ecs::entity_id>{}};
-  auto observer{reg.on_construct<score>().connect(
+  [[maybe_unused]] auto observer{reg.on_construct<score>().connect(
     [&spawned_log](ecs::entity_id const e, score const&) noexcept { spawned_log.push_back(e); }
   )};
-  nexenne::utility::discard(observer);
 
   for (int i{0}; i < 3; ++i) {
     auto const e{reg.create()};

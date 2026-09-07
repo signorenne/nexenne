@@ -398,8 +398,7 @@ namespace nexenne::gpio {
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto read_chip_info(chip_id const chip) -> result<chip_info> {
-  utility::discard(chip);
+[[nodiscard]] inline auto read_chip_info([[maybe_unused]] chip_id const chip) -> result<chip_info> {
   return std::unexpected{gpio_error::unsupported};
 }
 
@@ -414,9 +413,9 @@ namespace nexenne::gpio {
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto read_line_info(chip_id const chip, line_offset const offset)
+[[nodiscard]] inline auto
+read_line_info([[maybe_unused]] chip_id const chip, [[maybe_unused]] line_offset const offset)
   -> result<line_info> {
-  utility::discard(chip, offset);
   return std::unexpected{gpio_error::unsupported};
 }
 
@@ -431,9 +430,9 @@ namespace nexenne::gpio {
  * @pre None.
  * @post None.
  */
-[[nodiscard]] inline auto find_line(chip_id const chip, std::string_view const name)
+[[nodiscard]] inline auto
+find_line([[maybe_unused]] chip_id const chip, [[maybe_unused]] std::string_view const name)
   -> result<std::optional<line_offset>> {
-  utility::discard(chip, name);
   return std::unexpected{gpio_error::unsupported};
 }
 

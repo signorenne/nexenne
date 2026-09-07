@@ -91,10 +91,9 @@ TEST_CASE("nexenne::container::bimap iterates left-to-right pairs") {
   b.insert(2, "two");
   int key_sum{0};
   std::size_t count{0};
-  for (auto const& [l, r] : b) {
+  for ([[maybe_unused]] auto const& [l, r] : b) {
     key_sum += l;
     ++count;
-    nexenne::utility::discard(r);
   }
   CHECK(key_sum == 3);
   CHECK(count == 2);

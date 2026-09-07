@@ -126,8 +126,7 @@ TEST_CASE("nexenne::container::dense_map const iteration and mutable-to-const co
   CHECK(ci != m.end());
   map_t const& cm{m};
   int total{0};
-  for (auto const [k, v] : cm) {
-    nexenne::utility::discard(k);
+  for ([[maybe_unused]] auto const [k, v] : cm) {
     total += v;
   }
   CHECK(total == 30);
@@ -312,8 +311,7 @@ TEST_CASE("nexenne::container::dense_map iterator post-increment and default con
   auto const copy{it++};  // post-increment returns the pre-advance position
   CHECK((*copy).first != (*it).first);
   CHECK(++it == m.end());
-  map_t::iterator const def{};  // default-constructed iterator is well-formed
-  nexenne::utility::discard(def);
+  [[maybe_unused]] map_t::iterator const def{};  // default-constructed iterator is well-formed
 }
 
 TEST_CASE("nexenne::container::dense_map self swap is a no-op") {

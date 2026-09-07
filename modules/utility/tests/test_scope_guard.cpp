@@ -90,8 +90,7 @@ TEST_CASE("nexenne::utility::scope_guard is active immediately after constructio
 TEST_CASE("nexenne::utility::scope_guard active guard runs exactly once") {
   auto runs{0};
   {
-    auto const guard{nexenne::utility::scope_guard{[&] { ++runs; }}};
-    nexenne::utility::discard(guard);
+    [[maybe_unused]] auto const guard{nexenne::utility::scope_guard{[&] { ++runs; }}};
   }
   CHECK(runs == 1);  // not zero, not two
 }
@@ -218,8 +217,7 @@ TEST_CASE("nexenne::utility::scope_guard works with a function pointer") {
   }
   CHECK(counter == 0);
   {
-    auto const guard{nexenne::utility::scope_guard{+[] { ++counter; }}};
-    nexenne::utility::discard(guard);
+    [[maybe_unused]] auto const guard{nexenne::utility::scope_guard{+[] { ++counter; }}};
   }
   CHECK(counter == 1);
 }
@@ -228,10 +226,9 @@ TEST_CASE("nexenne::utility::scope_guard propagates a throwing cleanup on a norm
   // The destructor is conditionally noexcept: outside stack unwinding, a
   // throwing active cleanup leaves the destructor and reaches the caller.
   auto const leave_scope{[] {
-    auto const guard{nexenne::utility::scope_guard{[] {
+    [[maybe_unused]] auto const guard{nexenne::utility::scope_guard{[] {
       throw std::runtime_error{"cleanup failed"};
     }}};
-    nexenne::utility::discard(guard);
   }};
   CHECK_THROWS_AS(leave_scope(), std::runtime_error);
 }

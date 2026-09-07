@@ -74,12 +74,11 @@ auto main() -> int {
   // 3. Patch: mutate in place and notify. A patch listener observes the value
   // AFTER the mutation. We wire on_update<name> first, then patch.
   std::println("== 3. Patch and on_update ==");
-  auto update_log{
+  [[maybe_unused]] auto update_log{
     reg.on_update<name>().connect([](ecs::entity_id const who, name const& n) noexcept {
       std::println("  [on_update] entity {} now tag {}", who.index(), n.tag);
     })
   };
-  nexenne::utility::discard(update_log);
   reg.patch<name>(e, [](name& n) noexcept { n.tag += 100; });
 
   // 4. Destroy and generation safety. Capture the slot index, destroy the

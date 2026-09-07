@@ -114,14 +114,13 @@ auto main() -> int {
       auto id{std::uint64_t{0}};
       auto ok{false};
       for (auto p{std::uint64_t{0}}; p < *pairs; ++p) {
-        auto const key{r.read_string()};
+        [[maybe_unused]] auto const key{r.read_string()};
         // Peek the value's type to branch, rather than assuming a fixed layout.
         if (*r.peek_type() == ser::cbor::type::boolean) {
           ok = *r.read_bool();
         } else {
           id = *r.read_uint();
         }
-        nexenne::utility::discard(key);
       }
       decoded += std::format("{}{}:{}", i == 0 ? "" : " ", id, ok);
     }
