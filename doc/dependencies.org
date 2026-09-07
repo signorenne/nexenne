@@ -22,6 +22,12 @@ keeps the library useful, portable, and understandable.
 Use =modules/<mod>/module.deps= for nexenne modules, one module name per line.
 That file is the source of truth for build ordering and target linkage.
 
+List a module there even when only the module's tests or examples use it (filter
+lists =utility= for =utility::ignore= in its tests): the standalone module
+bootstrap reads only =module.deps=, so a test-only dependency kept anywhere else
+would break a standalone test build, and a second list would be a second
+registry.
+
 Do not add a =DEPENDS= argument to a module CMake call for another nexenne
 module. Do not duplicate the dependency in the root build.
 
