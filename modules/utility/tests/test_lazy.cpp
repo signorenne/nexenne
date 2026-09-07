@@ -67,6 +67,23 @@ static_assert(
   "a factory invocable only as an rvalue is rejected: materialise calls the stored lvalue"
 );
 
+struct pinned {
+  pinned() = default;
+  pinned(pinned const&) = delete;
+  auto operator=(pinned const&) -> pinned& = delete;
+};
+
+struct pinned_factory {
+  auto operator()() const -> pinned {
+    return {};
+  }
+};
+
+static_assert(
+  !caches_factory<pinned_factory>,
+  "a factory returning a non-movable type is rejected: the optional cache moves the result in"
+);
+
 TEST_CASE("nexenne::utility::lazy runs the factory once on first access") {
   int runs{0};
   auto value{util::lazy{[&] {

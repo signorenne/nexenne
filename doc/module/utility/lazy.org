@@ -124,6 +124,10 @@ factory a single time, and read the same value.
 - *Non-movable, non-copyable, no reset.* Once built, the value is fixed. A
   =lazy= cannot live in a container that relocates its elements; hold it behind
   a stable address (a class member, a =std::unique_ptr=) if the owner must move.
+- *The cached type must be movable.* The factory's result is moved into the
+  =std::optional= cache, so a factory returning a non-movable type (one holding
+  a =std::mutex=, say) is rejected by the constraint. Return a
+  =std::unique_ptr= to it instead.
 - *At most once on success.* If you need a value that can be invalidated and
   recomputed, =lazy= is the wrong tool.
 - *A throwing factory retries.* On failure nothing is cached and the next access

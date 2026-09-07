@@ -47,14 +47,15 @@ namespace nexenne::utility {
  * factory. Concurrent first accesses are safe and run the factory exactly once.
  *
  * @tparam Factory Callable invocable as an lvalue with no arguments, returning
- *                 a non-void, non-reference object type (so it can be cached
- *                 in a \c std::optional).
+ *                 a non-void, non-reference, move-constructible object type
+ *                 (the result is moved into a \c std::optional cache).
  *
  * @pre None.
  * @post A freshly constructed \c lazy has not yet run its factory.
  */
 template <typename Factory>
   requires std::invocable<Factory&> && std::is_object_v<std::invoke_result_t<Factory&>>
+           && std::move_constructible<std::invoke_result_t<Factory&>>
 class lazy {
 public:
   using value_type = std::invoke_result_t<Factory&>;
