@@ -247,8 +247,10 @@ and git, never in a per-file banner.
 
 *Every public type ships a formatter so its state prints with no caller-written
 helper.* If a user would otherwise write a =for= loop or a hand-rolled string to
-inspect a value, the type is missing its formatter. For each public value type
-(and each public enum, errors included) provide the three layers, in order:
+inspect a value, the type is missing its formatter. For each public type,
+stateful engines, contexts, buses, backends, managers and sinks included (they
+print a one-line summary of their observable state), and each public enum,
+errors included, provide the three layers, in order:
 
 - =to_string(x)= returning a readable =std::string=,
 - =operator<<(std::ostream&, x)= that streams =to_string=,
