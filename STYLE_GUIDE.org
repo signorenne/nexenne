@@ -119,11 +119,17 @@ Trailing return type, always:
 
 Accessors and returns:
 
-- No =get_= / =set_= prefixes: an accessor is =position()=, a mutator is
-  =position(p)=. Keep verb prefixes for actions.
-- Return =T const&= to read a non-trivial member (or =T= by value when cheap);
-  do not hand out a non-const reference to internal state unless mutation
-  through it is intended.
+- An accessor takes no parameter and follows the object's constness: =x()
+  const= returns =T const&= (or =T= by value when cheap) and =x()= on a
+  non-const object returns =T&=, so a const object stays read-only and a
+  mutable one is edited in place. A value the member must keep (a non-negative
+  radius, a unit direction) is a documented precondition on what is written
+  through the reference, not a validating setter.
+- A call that takes parameters is an operation, not an accessor: name it with
+  a verb (=move_cursor_to(pos)=, =apply_filters(f)=, =drive(offset, level)=).
+  No =get_= prefix. =set_x(value)= is kept only for a member a reference cannot
+  expose because writing it has to do more than store, such as an atomic store
+  (=set_min_level=) or a swap that bumps an epoch (=set_callback=).
 - Add ref-qualifiers where it matters: =value() const&= returns =T const&=,
   =value() &&= returns =T&&= so callers can move out of an rvalue.
 
