@@ -1691,7 +1691,9 @@ struct std::hash<nexenne::utility::strong_typedef<Tag, T, Ops>> {
  * @brief \c std::common_type specialisation for two same-tag wrappers.
  *
  * The result wraps the common underlying type and the union of both capability
- * sets.
+ * sets. When the underlying types have no common type the specialisation does
+ * not match, so \c std::common_type has no member \c type and a probe such as
+ * \c std::common_with reports \c false instead of failing to compile.
  *
  * @tparam Tag Shared tag type.
  * @tparam T First underlying type.
@@ -1705,6 +1707,7 @@ template <
   typename U,
   nexenne::utility::ability O1,
   nexenne::utility::ability O2>
+  requires requires { typename std::common_type_t<T, U>; }
 struct std::common_type<
   nexenne::utility::strong_typedef<Tag, T, O1>,
   nexenne::utility::strong_typedef<Tag, U, O2>> {

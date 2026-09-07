@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <compare>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -551,6 +552,18 @@ TEST_CASE("nexenne::utility::strong_typedef common_type unions underlying and ab
   static_assert(util::has(common::abilities, ability::ordered));
   CHECK(true);
 }
+
+struct mismatch_tag {};
+
+using mismatch_number = util::strong_typedef<mismatch_tag, int, ability::equality>;
+using mismatch_text = util::strong_typedef<mismatch_tag, std::string, ability::equality>;
+
+template <typename A, typename B>
+concept has_common_type = requires { typename std::common_type<A, B>::type; };
+
+static_assert(!has_common_type<mismatch_number, mismatch_text>);
+static_assert(!std::common_with<mismatch_number, mismatch_text>);
+static_assert(has_common_type<id16, id32>);
 
 // constexpr usage of the whole surface
 
