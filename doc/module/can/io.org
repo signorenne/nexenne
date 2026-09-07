@@ -102,13 +102,16 @@ socket on a CAN interface, converts a =frame= to and from the kernel
 =struct can_frame= and =canfd_frame= by copying fields (the identifier already uses
 the kernel layout), installs the filters as a hardware filter array, and produces
 the error frames decoded above. It satisfies the same =can_bus= concept, so code
-written against the loopback bus runs unchanged against real hardware. It is
-documented in its own guide when it lands.
+written against the loopback bus runs unchanged against real hardware. It has its
+own guide, [[file:socketcan.org][socketcan]], which also covers the kernel socket options this module
+leaves to the caller.
 
 * See also
 
 - [[file:frame.org][frame]] : the frames a bus carries.
 - [[file:database.org][database]] : the registry that decodes received frames, and the shared filter type.
+- [[file:socketcan.org][socketcan]] : the Linux backend, its socket options, and the escape hatch for the
+  options this module does not model.
 
 * Further reading
 

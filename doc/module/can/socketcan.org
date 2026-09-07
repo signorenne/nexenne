@@ -116,6 +116,45 @@ received frames through a [[file:database.org][registry]] while a =timerfd= driv
 with the socket and timer descriptors owned by =nexenne::utility::unique_resource=
 so they are always closed.
 
+* Socket options the module does not model
+
+=socket_options= carries the handful of knobs that mean something to every
+backend. The kernel offers more, and rather than mirror all of them, =open= hands
+back the socket through =descriptor()= so a program can set the rest itself:
+
+#+BEGIN_SRC C++
+#ifdef __linux__
+  int const loopback{0};  // 1 = enabled, the kernel default
+  ::setsockopt(bus->descriptor(), SOL_CAN_RAW, CAN_RAW_LOOPBACK,
+               &loopback, sizeof(loopback));
+#endif
+#+END_SRC
+
+This is safe after =open= for this option in particular, because the kernel reads
+the flag on every transmit rather than once at bind time. An option consumed at
+bind time would have to be part of =socket_options= instead.
+
+** Local loopback is not the same as receiving your own sends
+
+These two options are easy to confuse, and they act on opposite ends of the path:
+
+#+BEGIN_EXAMPLE
+  CAN_RAW_LOOPBACK      send side     do MY sent frames get echoed to local sockets?
+  CAN_RAW_RECV_OWN_MSGS receive side  do I get to see the echoes of MY OWN sends?
+#+END_EXAMPLE
+
+=CAN_RAW_LOOPBACK= is read on the transmit path. Clearing it means the frames
+this socket sends are not echoed to any local socket, which is the useful setting
+when one application owns the bus and nothing else on the machine needs to see
+its traffic. It does not filter what arrives: frames from other applications
+still reach this socket the ordinary way, off the wire.
+
+=CAN_RAW_RECV_OWN_MSGS= is read on the receive path, and it decides whether the
+echoes of this socket's own sends are delivered back to it. That is the option to
+reach for when a monitor should display its own transmissions, and it is the one
+=socket_options::receive_own_messages= sets. Both are off by default, here and in
+the kernel.
+
 * See also
 
 - [[file:io.org][io]] : the bus concept, the loopback backend, and error-frame decoding.
