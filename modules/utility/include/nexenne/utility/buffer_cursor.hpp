@@ -62,6 +62,9 @@ public:
    * @brief The total size of the underlying buffer in elements.
    *
    * @return The buffer size.
+   *
+   * @pre None.
+   * @post None.
    */
   [[nodiscard]] constexpr auto size() const noexcept -> size_type {
     return m_buf.size();
@@ -71,6 +74,9 @@ public:
    * @brief The current offset from the start of the buffer.
    *
    * @return The number of elements already consumed.
+   *
+   * @pre None.
+   * @post None.
    */
   [[nodiscard]] constexpr auto position() const noexcept -> size_type {
     return m_pos;
@@ -80,6 +86,9 @@ public:
    * @brief The number of elements between the current position and the end.
    *
    * @return \c size() minus \c position().
+   *
+   * @pre None.
+   * @post None.
    */
   [[nodiscard]] constexpr auto remaining() const noexcept -> size_type {
     return m_buf.size() - m_pos;
@@ -89,6 +98,9 @@ public:
    * @brief Reports whether the cursor has reached the end.
    *
    * @return \c true when no elements remain.
+   *
+   * @pre None.
+   * @post None.
    */
   [[nodiscard]] constexpr auto exhausted() const noexcept -> bool {
     return m_pos >= m_buf.size();
@@ -102,6 +114,9 @@ public:
    * @param n Element count to test for.
    *
    * @return \c true when \p n is at or below \c remaining().
+   *
+   * @pre None.
+   * @post None.
    */
   [[nodiscard]] constexpr auto has(size_type const n) const noexcept -> bool {
     return n <= remaining();
@@ -111,6 +126,9 @@ public:
    * @brief A pointer to the element at the current position.
    *
    * @return Address of the current element (one past the end when exhausted).
+   *
+   * @pre None.
+   * @post None.
    */
   [[nodiscard]] constexpr auto data() const noexcept -> Byte* {
     return m_buf.data() + m_pos;
@@ -228,6 +246,7 @@ public:
   /**
    * @brief Resets the position to the start of the buffer.
    *
+   * @pre None.
    * @post \c position() is zero.
    */
   constexpr auto rewind() noexcept -> void {
@@ -238,6 +257,9 @@ public:
    * @brief The whole underlying buffer view.
    *
    * @return The span the cursor was constructed with.
+   *
+   * @pre None.
+   * @post None.
    */
   [[nodiscard]] constexpr auto buffer() const noexcept -> std::span<Byte> {
     return m_buf;
@@ -250,6 +272,9 @@ public:
    * the portion already consumed.
    *
    * @return A span over \c [0, position()).
+   *
+   * @pre None.
+   * @post None.
    */
   [[nodiscard]] constexpr auto consumed() const noexcept -> std::span<Byte> {
     return m_buf.first(m_pos);
