@@ -104,6 +104,18 @@ Trailing return type, always:
 - =[[nodiscard]]= on pure functions that return a value.
 - =noexcept= when it never throws; =constexpr= / =consteval= when usable at
   compile time.
+- A =noexcept= promise must hold for every accepted type. A function that runs
+  caller-supplied code (an element's copy or move, a callback, a deleter, a
+  visitor, a user shape) is conditionally =noexcept=, on exactly that code:
+  =noexcept(std::is_nothrow_invocable_v<F&, Args...>)= for a callable,
+  =noexcept(std::is_nothrow_move_constructible_v<T>)= (or the copy trait) for an
+  element. A throw from such code then propagates instead of terminating, and
+  an unconditional =noexcept= is kept only where nothing the caller supplies
+  runs. Destructors are the exception: they stay =noexcept=, as the standard
+  library assumes, even when they run caller code. So is code that runs a
+  type-erased callable no trait can see through: =signal::emit= runs stored
+  slots and =stream_logger='s log calls run the caller's formatters, and both
+  stay =noexcept=, so a throw there terminates.
 
 Accessors and returns:
 
