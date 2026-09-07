@@ -91,7 +91,10 @@ template-ids like =std::common_type_t<value_t<A>, value_t<B>>= as a named
   non-copyable and non-movable by the rule above.
 - Where a move-assignment must re-establish a member whose type is not
   move-assignable (a captured lambda has no =operator==), reconstruct it with
-  =std::destroy_at= + =std::construct_at= rather than assigning.
+  =std::destroy_at= + =std::construct_at= rather than assigning. Such a member
+  must not be =[[no_unique_address]]=: re-creating a potentially-overlapping
+  subobject in place is undefined, and it may clobber a neighbour stored in its
+  tail padding.
 
 * Functions
 
@@ -184,7 +187,9 @@ Forbidden: =T x(...)=, =auto x = expr=, =int x = 0=. Members default with
 - Mark =constexpr= / =noexcept=; avoid needless allocations; =std::move= only
   on a genuine ownership transfer (never a =const= or a return value).
 - Mark a potentially-empty stored member (a stateless deleter, comparator, or
-  allocator) =[[no_unique_address]]= so it costs no space.
+  allocator) =[[no_unique_address]]= so it costs no space, unless it is rebuilt
+  in place (see Special members); a type that may be either keeps two members
+  and stores the value in the one that fits (see =unique_resource=).
 - Debug-only contract checks: =assert(cond && "msg")= on a documented =@pre=;
   the precondition is the caller's to uphold and is undefined behaviour (not an
   exception) in release.
