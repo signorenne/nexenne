@@ -291,7 +291,10 @@ widely-included headers, so formatting is opt-in by including =format.hpp=.
   strings, and prose docs alike. Use a comma, a colon, or parentheses for an
   aside; use Doxygen =\c= for inline code in a comment.
 - *No HTML* in comments.
-- In function bodies, comment the /why/, never the /what/. Default to none.
+- *Inline comments are near zero.* The Doxygen block and the Org guide carry the
+  explanation; a =//= comment is kept only where a reader would otherwise get
+  the code wrong. Math and geometry code is the exception: a technique keeps
+  its inline reference (a paper, a book section, a derivation step).
 
 ** Doxygen on every symbol, public or not
 
