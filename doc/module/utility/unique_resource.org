@@ -150,9 +150,11 @@ that same sentinel guard into one call.
 - *Check owns() before get().* A default-constructed, moved-from, or released
   instance owns nothing and runs no deleter; after =release= the stored value is
   moved-from and should not be trusted.
-- *The deleter must not throw.* The destructor and =reset= are =noexcept=, so a
-  deleter that throws when invoked there terminates the program. Keep deleters
-  non-throwing.
+- *Mark the deleter =noexcept=.* =reset= and move assignment are =noexcept=
+  exactly when invoking the deleter is, so a lambda written without =noexcept=
+  makes them potentially throwing; a throw from =reset= propagates with the
+  instance already non-owning. The destructor is always =noexcept=, so a
+  deleter that throws there terminates the program.
 - *Move-only.* It cannot be copied; pass by move or by reference. A moved-from
   source is left non-owning.
 

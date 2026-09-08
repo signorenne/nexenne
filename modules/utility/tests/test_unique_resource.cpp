@@ -316,7 +316,7 @@ TEST_CASE(
 
   auto a{make(1)};
   auto b{make(2)};
-  static_assert(std::is_nothrow_move_assignable_v<decltype(a)>);
+  static_assert(!std::is_nothrow_move_assignable_v<decltype(a)>);
   static_assert(std::is_nothrow_move_constructible_v<decltype(a)>);
 
   a = std::move(b);
@@ -374,8 +374,12 @@ static_assert(
   "nothrow-movable members give a noexcept move constructor"
 );
 static_assert(
-  std::is_nothrow_move_assignable_v<util::unique_resource<int, void (*)(int)>>,
-  "nothrow-assignable members give a noexcept move assignment"
+  std::is_nothrow_move_assignable_v<util::unique_resource<int, void (*)(int) noexcept>>,
+  "nothrow-assignable members and a noexcept deleter give a noexcept move assignment"
+);
+static_assert(
+  !std::is_nothrow_move_assignable_v<util::unique_resource<int, void (*)(int)>>,
+  "move assignment releases the old resource, so a deleter that may throw makes it throwing"
 );
 static_assert(
   !std::is_nothrow_move_constructible_v<util::unique_resource<int, throwing_move_deleter>>,
@@ -568,5 +572,29 @@ TEST_CASE("nexenne::utility::unique_resource release keeps ownership when the mo
 // constrained-away member; its negative is compiler-fragile to assert inline,
 // and is covered behaviourally by the pointer-resource access tests above).
 static_assert(requires(util::unique_resource<int*, void (*)(int*)> r) { r.operator->(); });
+
+TEST_CASE("nexenne::utility::unique_resource reset is noexcept exactly when its deleter is") {
+  auto const quiet{[](int) noexcept {}};
+  auto const loud{[](int) {}};
+  using quiet_resource = util::unique_resource<int, std::remove_const_t<decltype(quiet)>>;
+  using loud_resource = util::unique_resource<int, std::remove_const_t<decltype(loud)>>;
+  static_assert(noexcept(std::declval<quiet_resource&>().reset()));
+  static_assert(!noexcept(std::declval<loud_resource&>().reset()));
+  static_assert(std::is_nothrow_destructible_v<loud_resource>);
+  CHECK(true);
+}
+
+TEST_CASE("nexenne::utility::unique_resource reset propagates a throwing deleter, disarmed") {
+  auto calls{0};
+  auto r{util::unique_resource{7, [&calls](int) {
+                                 ++calls;
+                                 throw std::runtime_error{"close failed"};
+                               }}};
+  CHECK_THROWS_AS(r.reset(), std::runtime_error);
+  CHECK_FALSE(r.owns());
+  CHECK(calls == 1);
+  r.reset();
+  CHECK(calls == 1);
+}
 
 }  // namespace

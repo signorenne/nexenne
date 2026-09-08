@@ -144,9 +144,11 @@ deleter_or_placeholder(Make&& make) noexcept(!Used || std::is_nothrow_invocable_
  * @pre \p Deleter is invocable with an lvalue \p Resource.
  * @post A default-constructed instance owns nothing; \c owns() is \c false.
  *
- * @warning The deleter is invoked from the destructor and from \c reset, both
- *          of which are \c noexcept: a deleter that throws when invoked there
- *          terminates the program. Keep deleters non-throwing.
+ * @note \c reset and move assignment run the deleter, so each is \c noexcept
+ *       exactly when invoking the deleter is: a deleter declared \c noexcept
+ *       makes them \c noexcept, and one that may throw lets its exception
+ *       propagate. The destructor is always \c noexcept, so a deleter that
+ *       throws there terminates the program: keep deleters non-throwing.
  */
 template <typename Resource, typename Deleter>
 class unique_resource {
@@ -162,6 +164,10 @@ private:
   // well defined for a member that is not potentially overlapping, so it is
   // stored plainly. Exactly one of the two members holds the deleter.
   static constexpr bool assignable_deleter{std::is_move_assignable_v<deleter_type>};
+
+  // Whether running the deleter on the resource cannot throw: the noexcept of
+  // every member that releases the resource.
+  static constexpr bool nothrow_release{std::is_nothrow_invocable_v<deleter_type&, resource_type&>};
 
   resource_type m_resource{};
   [[no_unique_address]] std::
@@ -512,7 +518,7 @@ public:
    *         throw \c *this owns nothing and \p other still owns its resource.
    */
   auto operator=(unique_resource&& other) noexcept(
-    nothrow_transfer_v<resource_type> && nothrow_transfer_v<deleter_type>
+    nothrow_release && nothrow_transfer_v<resource_type> && nothrow_transfer_v<deleter_type>
   ) -> unique_resource& {
     if (this != &other) {
       reset();
@@ -585,13 +591,18 @@ public:
   /**
    * @brief Releases the owned resource, running the deleter if owning.
    *
-   * @pre The deleter does not throw when invoked (the destructor is
-   *      \c noexcept, so a throwing deleter terminates the program).
+   * Always \c noexcept, as destructors are in this library: a deleter that
+   * throws here terminates the program.
+   *
+   * @pre The deleter does not throw when invoked.
    * @post \c owns() is \c false; any previously owned resource has had its
    *       deleter run exactly once.
    */
   ~unique_resource() noexcept {
-    reset();
+    if (m_owns) {
+      m_owns = false;
+      deleter_ref()(m_resource);
+    }
   }
 
   /**
@@ -601,15 +612,18 @@ public:
    * non-owning. Does nothing when already non-owning, so repeated calls never
    * double-release.
    *
-   * @pre The deleter does not throw when invoked (this function is
-   *      \c noexcept, so a throwing deleter terminates the program).
+   * @pre None.
    * @post \c owns() is \c false; the deleter ran exactly once for any resource
    *       owned on entry.
+   *
+   * @throws Whatever the deleter throws, after which \c owns() is \c false;
+   *         \c noexcept when invoking the deleter is.
    */
-  auto reset() noexcept -> void {
+  auto reset() noexcept(nothrow_release) -> void {
     if (m_owns) {
-      deleter_ref()(m_resource);
+      // Disarm first, so a throwing deleter never runs a second time.
       m_owns = false;
+      deleter_ref()(m_resource);
     }
   }
 
@@ -630,10 +644,12 @@ public:
    *       \c owns() is \c false and \p resource has been disposed of.
    *
    * @throws Anything the assignment of \p resource throws, after \p resource
-   *         has been disposed of via the deleter.
+   *         has been disposed of via the deleter, and whatever the deleter
+   *         throws.
    */
-  auto reset(resource_type resource) noexcept(std::is_nothrow_move_assignable_v<resource_type>)
-    -> void {
+  auto reset(
+    resource_type resource
+  ) noexcept(nothrow_release && std::is_nothrow_move_assignable_v<resource_type>) -> void {
     reset();
     if constexpr (std::is_nothrow_move_assignable_v<resource_type>) {
       m_resource = std::move(resource);
