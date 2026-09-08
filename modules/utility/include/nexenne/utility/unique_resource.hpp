@@ -73,6 +73,54 @@ concept p0052_initialisable_from =
   std::constructible_from<Member, From>
   && (std::is_nothrow_constructible_v<Member, From> || std::constructible_from<Member, From&>);
 
+/**
+ * @brief Placeholder for whichever deleter member is not in use.
+ *
+ * \c unique_resource keeps its deleter in one of two members, so exactly one
+ * holds a \c Deleter and the other is this empty type.
+ *
+ * @tparam Tag Distinguishes the two placeholders.
+ */
+template <int Tag>
+struct unused_deleter_slot {
+  /**
+   * @brief Constructs the placeholder.
+   *
+   * @pre None.
+   * @post None.
+   */
+  constexpr unused_deleter_slot() noexcept = default;
+};
+
+/**
+ * @brief Runs \p make when \p Used is true, otherwise yields the placeholder.
+ *
+ * Lets a constructor initialise both deleter members from one expression while
+ * evaluating it once, for the member in use.
+ *
+ * @tparam Used Whether this member holds the deleter.
+ * @tparam Tag The placeholder tag for this member.
+ * @tparam Make Callable producing the deleter.
+ * @param make Produces the deleter; called only when \p Used is true.
+ *
+ * @return The deleter, or the empty placeholder.
+ *
+ * @pre None.
+ * @post \p make ran exactly once when \p Used is true, and never otherwise.
+ *
+ * @throws Whatever \p make throws.
+ */
+template <bool Used, int Tag, typename Make>
+constexpr auto
+deleter_or_placeholder(Make&& make) noexcept(!Used || std::is_nothrow_invocable_v<Make>)
+  -> decltype(auto) {
+  if constexpr (Used) {
+    return std::forward<Make>(make)();
+  } else {
+    return unused_deleter_slot<Tag>{};
+  }
+}
+
 }  // namespace detail
 
 /// @endcond
@@ -108,9 +156,52 @@ public:
   using deleter_type = Deleter;
 
 private:
+  // An assignable deleter is moved by assignment, so it may overlap its
+  // neighbours ([[no_unique_address]]). A non-assignable one (a capturing
+  // lambda) is moved by destroying and re-creating it in place, which is only
+  // well defined for a member that is not potentially overlapping, so it is
+  // stored plainly. Exactly one of the two members holds the deleter.
+  static constexpr bool assignable_deleter{std::is_move_assignable_v<deleter_type>};
+
   resource_type m_resource{};
-  [[no_unique_address]] deleter_type m_deleter{};
+  [[no_unique_address]] std::
+    conditional_t<assignable_deleter, deleter_type, detail::unused_deleter_slot<0>>
+      m_overlapping_deleter{};
+  std::conditional_t<assignable_deleter, detail::unused_deleter_slot<1>, deleter_type>
+    m_plain_deleter{};
   bool m_owns{false};
+
+  /**
+   * @brief The member that holds the deleter.
+   *
+   * @return A reference to the stored deleter.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto deleter_ref() noexcept -> deleter_type& {
+    if constexpr (assignable_deleter) {
+      return m_overlapping_deleter;
+    } else {
+      return m_plain_deleter;
+    }
+  }
+
+  /**
+   * @brief The member that holds the deleter, read-only.
+   *
+   * @return A const reference to the stored deleter.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto deleter_ref() const noexcept -> deleter_type const& {
+    if constexpr (assignable_deleter) {
+      return m_overlapping_deleter;
+    } else {
+      return m_plain_deleter;
+    }
+  }
 
   /**
    * @brief Initialises the resource member for an owning constructor, P0052 style.
@@ -221,7 +312,12 @@ private:
     && detail::nothrow_member_init_v<deleter_type, DD>
   )
       : m_resource{init_resource<RR, DD>(resource, deleter, owns)}
-      , m_deleter{init_deleter<DD>(deleter, m_resource, owns)}
+      , m_overlapping_deleter{detail::deleter_or_placeholder<assignable_deleter, 0>([&] {
+        return init_deleter<DD>(deleter, m_resource, owns);
+      })}
+      , m_plain_deleter{detail::deleter_or_placeholder<!assignable_deleter, 1>([&] {
+        return init_deleter<DD>(deleter, m_resource, owns);
+      })}
       , m_owns{owns} {}
 
   /**
@@ -252,14 +348,14 @@ private:
     unique_resource& other, [[maybe_unused]] resource_type& resource
   ) noexcept(std::is_nothrow_move_constructible_v<deleter_type>) -> deleter_type {
     if constexpr (std::is_nothrow_move_constructible_v<deleter_type>) {
-      return std::move_if_noexcept(other.m_deleter);
+      return std::move_if_noexcept(other.deleter_ref());
     } else {
       try {
-        return std::move_if_noexcept(other.m_deleter);
+        return std::move_if_noexcept(other.deleter_ref());
       } catch (...) {
         if constexpr (std::is_nothrow_move_constructible_v<resource_type>) {
           if (other.m_owns) {
-            other.m_deleter(resource);
+            other.deleter_ref()(resource);
             other.m_owns = false;
           }
         }
@@ -379,7 +475,12 @@ public:
     && std::is_nothrow_move_constructible_v<deleter_type>
   )
       : m_resource{std::move_if_noexcept(other.m_resource)}
-      , m_deleter{guarded_deleter_steal(other, m_resource)}
+      , m_overlapping_deleter{detail::deleter_or_placeholder<assignable_deleter, 0>([&] {
+        return guarded_deleter_steal(other, m_resource);
+      })}
+      , m_plain_deleter{detail::deleter_or_placeholder<!assignable_deleter, 1>([&] {
+        return guarded_deleter_steal(other, m_resource);
+      })}
       , m_owns{std::exchange(other.m_owns, false)} {}
 
   /**
@@ -418,11 +519,11 @@ public:
       if constexpr (nothrow_transfer_v<resource_type>) {
         if constexpr (nothrow_transfer_v<deleter_type>) {
           transfer_member(m_resource, other.m_resource);
-          transfer_member(m_deleter, other.m_deleter);
+          transfer_member(deleter_ref(), other.deleter_ref());
         } else {
           // The deleter assignment can throw: do it first, by copy, so a
           // failure leaves other's resource and deleter pair untouched.
-          m_deleter = std::as_const(other.m_deleter);
+          deleter_ref() = std::as_const(other.deleter_ref());
           transfer_member(m_resource, other.m_resource);
         }
       } else {
@@ -430,10 +531,10 @@ public:
           // The resource assignment can throw: do it first, by copy, so a
           // failure leaves other still owning its intact resource.
           m_resource = std::as_const(other.m_resource);
-          transfer_member(m_deleter, other.m_deleter);
+          transfer_member(deleter_ref(), other.deleter_ref());
         } else {
           m_resource = std::as_const(other.m_resource);
-          m_deleter = std::as_const(other.m_deleter);
+          deleter_ref() = std::as_const(other.deleter_ref());
         }
       }
       m_owns = std::exchange(other.m_owns, false);
@@ -507,7 +608,7 @@ public:
    */
   auto reset() noexcept -> void {
     if (m_owns) {
-      m_deleter(m_resource);
+      deleter_ref()(m_resource);
       m_owns = false;
     }
   }
@@ -542,7 +643,7 @@ public:
       try {
         m_resource = std::as_const(resource);
       } catch (...) {
-        m_deleter(resource);
+        deleter_ref()(resource);
         throw;
       }
     }
@@ -599,7 +700,7 @@ public:
    * @post None.
    */
   [[nodiscard]] auto get_deleter() const noexcept -> deleter_type const& {
-    return m_deleter;
+    return deleter_ref();
   }
 
   /**
