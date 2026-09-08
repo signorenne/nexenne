@@ -489,4 +489,23 @@ static_assert([] {
   return a.size() == 1 && a[0] == 7 && b.size() == 3 && b[0] == 1;
 }());
 
+TEST_CASE("nexenne::container::bag erase_all accepts a reference to its own element") {
+  cn::bag<int> ints{7, 5, 3, 7};
+  CHECK(ints.erase_all(ints[1]) == 1);
+  CHECK(ints.size() == 3);
+  CHECK(std::ranges::count(ints, 7) == 2);
+  CHECK(std::ranges::count(ints, 3) == 1);
+
+  std::string const a(64, 'a');
+  std::string const z(64, 'z');
+  cn::bag<std::string> strings{a, z, a};
+  CHECK(strings.erase_all(strings[2]) == 2);
+  REQUIRE(strings.size() == 1);
+  CHECK(strings[0] == z);
+
+  cn::bag<int> same{4, 4, 4};
+  CHECK(same.erase_all(same[0]) == 3);
+  CHECK(same.empty());
+}
+
 }  // namespace

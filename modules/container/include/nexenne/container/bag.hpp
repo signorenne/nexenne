@@ -27,6 +27,7 @@
 #include <expected>
 #include <initializer_list>
 #include <iterator>
+#include <memory>
 #include <span>
 #include <utility>
 #include <vector>
@@ -361,21 +362,34 @@ public:
   /**
    * @brief Removes every element equal to \p value.
    *
-   * Walks from the back so each swap-pop is \c O(1).
+   * Walks from the back so each swap-pop is \c O(1). \p value may refer to an
+   * element of this bag: that element is moved out first and serves as the
+   * needle, so no swap-pop can overwrite or destroy what is being compared
+   * against.
    *
    * @param value Value to remove every occurrence of.
    *
    * @return The number of elements removed.
    *
    * @pre None.
-   * @post No element equal to \p value remains; \c size() shrank by the return
-   *       value.
+   * @post No element equal to \p value (as it was on entry) remains;
+   *       \c size() shrank by the return value.
    *
    * @complexity \c O(size).
    */
   constexpr auto erase_all(T const& value) noexcept -> size_type
-    requires(std::equality_comparable<T> && std::assignable_from<T&, T>)
+    requires(
+      std::equality_comparable<T> && std::move_constructible<T> && std::assignable_from<T&, T>
+    )
   {
+    auto const aliased{std::ranges::find_if(m_data, [&value](T const& element) noexcept {
+      return std::addressof(element) == std::addressof(value);
+    })};
+    if (aliased != m_data.end()) {
+      T needle(std::move(*aliased));
+      swap_pop(static_cast<size_type>(aliased - m_data.begin()));
+      return 1 + erase_all(needle);
+    }
     size_type removed{0};
     size_type i{m_data.size()};
     while (i > 0) {
