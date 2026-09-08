@@ -59,12 +59,16 @@ once, at this scope's exit" a guarantee rather than a hope, and it is why a
 
 ** The construction leak guard
 
-Following P0052, if moving the callable into the member throws, the cleanup
-must not be silently lost. The private =guarded_move= invokes the callable
-immediately through the still-intact argument and then lets the exception
-propagate, so no guard is left half-built and no cleanup vanishes. The catch
-path is compiled only when the move can actually throw, so a nothrow callable
-pays nothing.
+Following P0052, the constructor forwards its argument and moves it into the
+member only when that move cannot throw; otherwise it copies from the caller's
+object. If that initialisation throws, the private =guarded_init= invokes the
+caller's still-intact callable and then lets the exception propagate, so no
+guard is left half-built, no cleanup vanishes, and the cleanup never runs on a
+half-moved callable. That holds for an lvalue, a =std::move=d name, and a
+temporary alike. A move-only callable whose move can throw has nothing to copy,
+so it is moved, and on failure it runs in whatever state its move left it. The
+catch path is compiled only when initialisation can actually throw, so a
+nothrow callable pays nothing.
 
 ** The conditionally-noexcept destructor
 
@@ -77,7 +81,8 @@ non-throwing.
 
 * API tour
 
-- =defer(Fn fn)= : moves =fn= in; the guard will invoke it at scope exit.
+- =defer(G&& fn)= : takes =fn= in (moved when that cannot throw, copied
+  otherwise); the guard will invoke it at scope exit.
 - =~defer()= : runs the callable exactly once; conditionally =noexcept=.
 - deduction guide =defer(Fn) -> defer<Fn>= : write =defer{lambda}= directly.
 - =function_type= : the stored callable type =Fn=.

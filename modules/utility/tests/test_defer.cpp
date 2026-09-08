@@ -42,6 +42,66 @@ struct throwing_move_cleanup {
   }
 };
 
+struct flaky_cleanup {
+  std::vector<int>* log{nullptr};
+  int tag{0};
+  bool copy_throws{false};
+
+  flaky_cleanup(std::vector<int>& sink, int const id, bool const throws) noexcept
+      : log{&sink}, tag{id}, copy_throws{throws} {}
+
+  flaky_cleanup(flaky_cleanup const& other)
+      : log{other.log}, tag{other.tag}, copy_throws{other.copy_throws} {
+    if (copy_throws) {
+      throw std::runtime_error{"copy failed"};
+    }
+  }
+
+  // NOLINTBEGIN(performance-noexcept-move-constructor,bugprone-exception-escape)
+  flaky_cleanup(flaky_cleanup&& other) noexcept(false)
+      : log{other.log}, tag{other.tag}, copy_throws{other.copy_throws} {
+    other.tag = -1;
+    throw std::runtime_error{"move failed"};
+  }
+
+  // NOLINTEND(performance-noexcept-move-constructor,bugprone-exception-escape)
+
+  auto operator=(flaky_cleanup const&) -> flaky_cleanup& = delete;
+  auto operator=(flaky_cleanup&&) -> flaky_cleanup& = delete;
+  ~flaky_cleanup() = default;
+
+  auto operator()() const -> void {
+    log->push_back(tag);
+  }
+};
+
+TEST_CASE("nexenne::utility::defer copies a moved-in callable whose move can throw") {
+  std::vector<int> log;
+  flaky_cleanup source{log, 7, false};
+  {
+    auto const guard{nexenne::utility::defer{std::move(source)}};
+    CHECK(log.empty());
+  }
+  CHECK(log == std::vector{7});
+}
+
+TEST_CASE("nexenne::utility::defer runs the caller's intact callable when copying it throws") {
+  std::vector<int> log;
+  flaky_cleanup const source{log, 8, true};
+  CHECK_THROWS_AS(nexenne::utility::ignore(nexenne::utility::defer{source}), std::runtime_error);
+  CHECK(log == std::vector{8});
+}
+
+TEST_CASE("nexenne::utility::defer copies an lvalue callable instead of moving it") {
+  std::vector<int> log;
+  flaky_cleanup const source{log, 9, false};
+  {
+    auto const guard{nexenne::utility::defer{source}};
+    CHECK(log.empty());
+  }
+  CHECK(log == std::vector{9});
+}
+
 TEST_CASE("nexenne::utility::defer runs the callable once at scope exit") {
   auto runs{0};
   {
