@@ -14,13 +14,13 @@ happens.
 
 * What it provides
 
-| type                        | output                          | format spec          |
-|-----------------------------+---------------------------------+----------------------|
-| =cobs::error=               | the enumerator name             | string, e.g. ={:>16}= |
-| =flags<E>=                  | the raw mask as unsigned        | integer, e.g. ={:#x}= |
-| =static_string<N>=          | the content                     | string               |
-| =strong_typedef<Tag, T, O>= | the underlying value            | whatever =T= accepts |
-| =ability=                   | the flag or group name          | string               |
+| type                        | output                                                                    | format spec                      |
+|-----------------------------+---------------------------------------------------------------------------+----------------------------------|
+| =cobs::error=               | the enumerator name                                                       | string, e.g. ={:>16}=            |
+| =flags<E>=                  | the raw mask as unsigned, or the set bits' names when =E= has =to_string= | integer, e.g. ={:#x}=, or string |
+| =static_string<N>=          | the content                                                               | string                           |
+| =strong_typedef<Tag, T, O>= | the underlying value                                                      | whatever =T= accepts             |
+| =ability=                   | the flag or group name                                                    | string                           |
 
 =to_string(x)= returns that text as a =std::string= (the named types keep
 their =constexpr= =std::string_view= =to_string=) and =operator<<= streams it.

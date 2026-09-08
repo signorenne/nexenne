@@ -91,6 +91,13 @@ decimal, ={:#b}= in binary, ={:#x}= in hex, with no hand-cast of =raw()= at
 the call site. A signed underlying type prints its two's-complement bit
 pattern rather than a sign.
 
+When the enum has names, a set prints them instead: if =to_string(e)=, found
+by argument-dependent lookup next to the enum, returns a =std::string_view=,
+={}= prints the names of the set bits joined by spaces (for example
+="fdf brs"=) and a string spec such as ={:>12}= pads the text. =to_string= and
+=operator<<= give the same text as =std::format("{}")=. Format =raw()= to see
+such a set's bits as a number.
+
 * API tour
 
 - =flags()= : empty set; =none()= is true.
@@ -106,8 +113,9 @@ pattern rather than a sign.
 - =| & ^ ~= and =|= &= ^== : bitwise algebra over =flags= and =E= operands.
 - =value_type= / =enum_type= / =underlying_type= / =unsigned_type= : the enum
   and its integer types.
-- =std::formatter<flags<E>>= (from =format.hpp=) : prints the raw mask; integer
-  format specs pass through.
+- =std::formatter<flags<E>>=, =to_string=, =operator<<= (from =format.hpp=) :
+  the raw mask with integer specs, or the bit names when the enum has
+  =to_string(E)=.
 
 * Usage
 
@@ -149,8 +157,10 @@ auto const restored{perms::from_raw(full.raw())};  // serialisation round-trip
   =~f & perm::rwx=) when only defined bits may travel further.
 - *=from_raw= trusts its input.* No validation is performed, so a stray raw
   value can carry undefined bits into the set.
-- *The formatter prints numbers, not names.* It shows the raw mask through
-  the integer formatter; it does not decode bits back into enumerator names.
+- *Names need a =to_string(E)=.* Without one next to the enum, the formatter
+  shows the raw mask through the integer formatter; it cannot invent names.
+  With one, integer specs such as ={:#x}= no longer apply to the set: format
+  =raw()= for the number.
 
 * Comparison with the standard library and Qt
 

@@ -6,7 +6,8 @@
  *
  * Kept out of the type headers because the \c format standard header is heavy
  * and those headers are included across the library. Include this header (or
- * the \c utility.hpp umbrella) wherever \c std::format prints a COBS \c error, a \c flags set, a
+ * the \c utility.hpp umbrella) wherever \c std::format prints a COBS \c error,
+ * a \c flags set, a
  * \c static_string, a \c strong_typedef or an \c ability. Format specs pass
  * through to the underlying formatter: a string spec such as "{:>8}" for the
  * named and string types, an integer or floating spec for \c flags and
@@ -26,6 +27,65 @@
 #include <nexenne/utility/flags.hpp>
 #include <nexenne/utility/static_string.hpp>
 #include <nexenne/utility/strong_typedef.hpp>
+
+/// @cond INTERNAL
+namespace nexenne::utility::flag_naming {
+
+/**
+ * @brief Poison pill: hides every enclosing \c to_string from the name probe.
+ *
+ * Only argument-dependent lookup can then find a \c to_string for the enum,
+ * so a flag set's own \c to_string never answers for its bits.
+ */
+auto to_string() -> void = delete;
+
+/**
+ * @brief An enum whose values have names.
+ *
+ * \c to_string(e), found by argument-dependent lookup, returns a
+ * \c std::string_view.
+ *
+ * @tparam E Enumeration to probe.
+ */
+template <typename E>
+concept named_enum = requires(E const e) {
+  { to_string(e) } -> std::same_as<std::string_view>;
+};
+
+/**
+ * @brief The names of the bits set in \p value, joined by single spaces.
+ *
+ * @tparam E Named scoped enumeration of the set.
+ * @param value Flag set to name.
+ *
+ * @return The names in ascending bit order; empty for an empty set.
+ *
+ * @pre Every set bit of \p value is an enumerator of \p E.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot grow.
+ */
+template <named_enum E>
+[[nodiscard]] auto joined_names(flags<E> const value) -> std::string {
+  using unsigned_type = typename flags<E>::unsigned_type;
+  auto const bits{static_cast<unsigned_type>(value.raw())};
+  auto out{std::string{}};
+  for (auto i{0}; i < std::numeric_limits<unsigned_type>::digits; ++i) {
+    auto const bit{static_cast<unsigned_type>(unsigned_type{1} << static_cast<unsigned>(i))};
+    if ((bits & bit) == 0) {
+      continue;
+    }
+    if (!out.empty()) {
+      out += ' ';
+    }
+    out += to_string(static_cast<E>(bit));
+  }
+  return out;
+}
+
+}  // namespace nexenne::utility::flag_naming
+
+/// @endcond
 
 /**
  * @brief \c std::formatter specialisation printing a COBS \c error by its name.
@@ -54,7 +114,11 @@ struct std::formatter<nexenne::utility::cobs::error> : std::formatter<std::strin
 };
 
 /**
- * @brief \c std::formatter specialisation printing the raw mask.
+ * @brief \c std::formatter specialisation printing the raw mask of an unnamed
+ * flag set.
+ *
+ * Used when the enum has no \c to_string (a set of a named enum prints the
+ * names of its bits instead, below).
  * Formats the raw bits converted to the unsigned counterpart of the underlying
  * type and inherits that integer formatter, so format specs pass straight
  * through: \c {} prints the mask in decimal, \c {:\#b} in binary, \c {:\#x} in
@@ -65,6 +129,7 @@ struct std::formatter<nexenne::utility::cobs::error> : std::formatter<std::strin
  * @tparam CharT Character type of the format context.
  */
 template <nexenne::utility::scoped_enum E, typename CharT>
+  requires(!nexenne::utility::flag_naming::named_enum<E>)
 struct std::formatter<nexenne::utility::flags<E>, CharT>
     : std::formatter<typename nexenne::utility::flags<E>::unsigned_type, CharT> {
   /**
@@ -84,6 +149,42 @@ struct std::formatter<nexenne::utility::flags<E>, CharT>
     using unsigned_type = typename nexenne::utility::flags<E>::unsigned_type;
     return std::formatter<unsigned_type, CharT>::format(
       static_cast<unsigned_type>(value.raw()), ctx
+    );
+  }
+};
+
+/**
+ * @brief \c std::formatter specialisation printing a named flag set's bit
+ * names.
+ *
+ * Used when an argument-dependent \c to_string(E) returns a
+ * \c std::string_view: \c {} prints the set bits' names joined by spaces (for
+ * example \c "fdf brs"), and a string spec such as "{:>12}" pads the text. Call
+ * \c raw() to format the bits as a number instead.
+ *
+ * @tparam E Named scoped enum type of the flag set.
+ */
+template <nexenne::utility::flag_naming::named_enum E>
+  requires nexenne::utility::scoped_enum<E>
+struct std::formatter<nexenne::utility::flags<E>, char> : std::formatter<std::string_view, char> {
+  /**
+   * @brief Formats \p value as the names of its set bits.
+   *
+   * @tparam Context Formatting context type.
+   * @param value Flag set to format.
+   * @param ctx Format context to write into.
+   *
+   * @return The output iterator past the formatted text.
+   *
+   * @pre Every set bit of \p value is an enumerator of \p E.
+   * @post None.
+   *
+   * @throws std::bad_alloc if building the name string fails.
+   */
+  template <typename Context>
+  auto format(nexenne::utility::flags<E> const value, Context& ctx) const {
+    return std::formatter<std::string_view, char>::format(
+      nexenne::utility::flag_naming::joined_names(value), ctx
     );
   }
 };
@@ -122,7 +223,8 @@ struct std::formatter<nexenne::utility::static_string<N>, char>
 };
 
 /**
- * @brief \c std::formatter specialisation inheriting the underlying type's formatter.
+ * @brief \c std::formatter specialisation inheriting the underlying type's
+ * formatter.
  *
  * Format specs such as "{:>8}" or "{:.2f}" pass straight through to \p T.
  *
@@ -196,23 +298,30 @@ inline auto operator<<(std::ostream& os, ability const flag) -> std::ostream& {
 }
 
 /**
- * @brief Debug string for a flag set: its raw mask in decimal.
+ * @brief Debug string for a flag set: its bit names, or its raw mask.
  *
- * The same text \c std::format("{}") prints.
+ * A set of a named enum (an argument-dependent \c to_string(E) returning a
+ * \c std::string_view) renders the names of its set bits joined by spaces, an
+ * empty set as the empty string; any other set renders its mask in decimal, as
+ * \c std::format("{}") does.
  *
  * @tparam E Scoped enum type of the set.
  * @param value Flag set to describe.
  *
- * @return The mask in decimal.
+ * @return The description.
  *
- * @pre None.
+ * @pre For a named enum, every set bit is an enumerator of \p E.
  * @post None.
  *
  * @throws std::bad_alloc if the string cannot be allocated.
  */
 template <scoped_enum E>
 [[nodiscard]] auto to_string(flags<E> const value) -> std::string {
-  return std::format("{}", value);
+  if constexpr (flag_naming::named_enum<E>) {
+    return flag_naming::joined_names(value);
+  } else {
+    return std::format("{}", value);
+  }
 }
 
 /**
@@ -224,7 +333,7 @@ template <scoped_enum E>
  *
  * @return Reference to \p os.
  *
- * @pre None.
+ * @pre As for \c to_string.
  * @post The description of \p value has been written to \p os.
  */
 template <scoped_enum E>
