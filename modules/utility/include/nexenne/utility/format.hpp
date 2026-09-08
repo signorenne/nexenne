@@ -13,9 +13,14 @@
  * \c strong_typedef.
  */
 
+#include <concepts>
 #include <cstddef>
 #include <format>
+#include <limits>
+#include <ostream>
+#include <string>
 #include <string_view>
+#include <type_traits>
 
 #include <nexenne/utility/cobs.hpp>
 #include <nexenne/utility/flags.hpp>
@@ -50,7 +55,6 @@ struct std::formatter<nexenne::utility::cobs::error> : std::formatter<std::strin
 
 /**
  * @brief \c std::formatter specialisation printing the raw mask.
- *
  * Formats the raw bits converted to the unsigned counterpart of the underlying
  * type and inherits that integer formatter, so format specs pass straight
  * through: \c {} prints the mask in decimal, \c {:\#b} in binary, \c {:\#x} in
@@ -173,3 +177,152 @@ struct std::formatter<nexenne::utility::ability> : std::formatter<std::string_vi
     return std::formatter<std::string_view>::format(nexenne::utility::to_string(flag), ctx);
   }
 };
+
+namespace nexenne::utility {
+
+/**
+ * @brief Streams an \c ability by its name.
+ *
+ * @param os Output stream.
+ * @param flag Ability to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The name of \p flag has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, ability const flag) -> std::ostream& {
+  return os << to_string(flag);
+}
+
+/**
+ * @brief Debug string for a flag set: its raw mask in decimal.
+ *
+ * The same text \c std::format("{}") prints.
+ *
+ * @tparam E Scoped enum type of the set.
+ * @param value Flag set to describe.
+ *
+ * @return The mask in decimal.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <scoped_enum E>
+[[nodiscard]] auto to_string(flags<E> const value) -> std::string {
+  return std::format("{}", value);
+}
+
+/**
+ * @brief Streams a flag set via its \c to_string.
+ *
+ * @tparam E Scoped enum type of the set.
+ * @param os Output stream.
+ * @param value Flag set to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The description of \p value has been written to \p os.
+ */
+template <scoped_enum E>
+auto operator<<(std::ostream& os, flags<E> const value) -> std::ostream& {
+  return os << to_string(value);
+}
+
+/**
+ * @brief The text of a \c static_string as a \c std::string.
+ *
+ * @tparam N Capacity of the string.
+ * @param s String to copy.
+ *
+ * @return A copy of the stored characters.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <std::size_t N>
+[[nodiscard]] auto to_string(static_string<N> const& s) -> std::string {
+  return std::string{s.view()};
+}
+
+/**
+ * @brief Streams a \c static_string's text.
+ *
+ * @tparam N Capacity of the string.
+ * @param os Output stream.
+ * @param s String to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The characters of \p s have been written to \p os.
+ */
+template <std::size_t N>
+auto operator<<(std::ostream& os, static_string<N> const& s) -> std::ostream& {
+  return os << s.view();
+}
+
+/**
+ * @brief Debug string for a \c strong_typedef: its underlying value, formatted.
+ *
+ * @tparam Tag Tag type of the wrapper.
+ * @tparam T Underlying value type, formattable.
+ * @tparam Ops Capability set of the wrapper.
+ * @param value Wrapper to describe.
+ *
+ * @return \c std::format("{}", value.get()).
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <typename Tag, std::formattable<char> T, ability Ops>
+[[nodiscard]] auto to_string(strong_typedef<Tag, T, Ops> const& value) -> std::string {
+  return std::format("{}", value.get());
+}
+
+/**
+ * @brief Streams a \c strong_typedef via its \c to_string.
+ *
+ * @tparam Tag Tag type of the wrapper.
+ * @tparam T Underlying value type, formattable.
+ * @tparam Ops Capability set of the wrapper.
+ * @param os Output stream.
+ * @param value Wrapper to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The underlying value of \p value has been written to \p os.
+ */
+template <typename Tag, std::formattable<char> T, ability Ops>
+auto operator<<(std::ostream& os, strong_typedef<Tag, T, Ops> const& value) -> std::ostream& {
+  return os << to_string(value);
+}
+
+}  // namespace nexenne::utility
+
+namespace nexenne::utility::cobs {
+
+/**
+ * @brief Streams a COBS \c error by its name.
+ *
+ * @param os Output stream.
+ * @param e Error code to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The name of \p e has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, error const e) -> std::ostream& {
+  return os << to_string(e);
+}
+
+}  // namespace nexenne::utility::cobs

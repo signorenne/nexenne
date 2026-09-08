@@ -4,8 +4,9 @@
 
 * Purpose
 
-=format.hpp= holds the =std::formatter= specialisations for the utility types,
-so =std::format("{}", x)= and =std::print= accept them. It is separate from the
+=format.hpp= holds the three formatting layers for the utility types: a
+=std::formatter= specialisation, so =std::format("{}", x)= and =std::print=
+accept them, and a =to_string= and an =operator<<= that give the same text. It is separate from the
 type headers because =<format>= is heavy and those headers reach most of the
 library: code that only uses =flags=, =cobs= or =strong_typedef= does not pay for
 it. Include =format.hpp= (or the =utility.hpp= umbrella) where the formatting
@@ -21,6 +22,8 @@ happens.
 | =strong_typedef<Tag, T, O>= | the underlying value            | whatever =T= accepts |
 | =ability=                   | the flag or group name          | string               |
 
+=to_string(x)= returns that text as a =std::string= (the named types keep
+their =constexpr= =std::string_view= =to_string=) and =operator<<= streams it.
 The type guides describe each output in detail: [[file:cobs.org][cobs]], [[file:flags.org][flags]],
 [[file:static_string.org][static_string]] and [[file:strong_typedef.org][strong_typedef]].
 
