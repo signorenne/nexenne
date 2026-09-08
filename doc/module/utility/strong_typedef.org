@@ -92,6 +92,14 @@ underlying =std::common_type_t=, and the sanitised, unioned abilities. The same
 rebinding is exposed as a =std::common_type= specialisation for two same-tag
 wrappers.
 
+A mixed pair is only accepted when its common type holds every value of both
+operands. Between integral underlyings the usual arithmetic conversions can
+flip a sign (=int= with =unsigned= has the common type =unsigned=, so =-1=
+would compare equal to =UINT_MAX=), and the wrapper would hide the
+=-Wsign-conversion= the raw expression triggers. So =int16= with =uint8= (common
+type =int=) and =int64= with =uint32= combine, while =int32= with =uint32= is
+rejected by the operator constraints: convert one side explicitly first.
+
 Scalar =scale= operations (=value * scalar=, =value / scalar=) keep the original
 strong type by folding the result back into =T=, mirroring =operator*=. A =ratio=
 (=value / value=, same tag) instead yields a /bare/ dimensionless scalar of the

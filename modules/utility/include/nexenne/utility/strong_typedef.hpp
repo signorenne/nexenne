@@ -331,6 +331,39 @@ template <typename X, ability Flag>
 inline constexpr bool has_op{has(ops_of<X>, Flag)};
 
 /**
+ * @brief Whether \p Common represents every value of \p T.
+ *
+ * Only integral pairs are constrained, because only there can the usual
+ * arithmetic conversions flip a sign: \c int with \c unsigned has the common
+ * type \c unsigned, which turns \c -1 into \c UINT_MAX. \p Common must be
+ * signed when \p T is, and must have at least as many value bits.
+ *
+ * @tparam Common Common underlying type of a same-tag operation.
+ * @tparam T Underlying type of one operand.
+ */
+template <typename Common, typename T>
+inline constexpr bool represents_all_v{
+  !std::integral<Common> || !std::integral<T>
+  || ((!std::is_signed_v<T> || std::is_signed_v<Common>) && std::numeric_limits<Common>::digits >= std::numeric_limits<T>::digits)
+};
+
+/**
+ * @brief Whether a same-tag operation on \p A and \p B keeps every operand value.
+ *
+ * Gates the mixed-underlying binary operators: \c int16 with \c uint8 (common
+ * type \c int) passes, \c int32 with \c uint32 (common type \c uint32) does
+ * not. Identical underlying types always pass.
+ *
+ * @tparam A Left strong type.
+ * @tparam B Right strong type.
+ */
+template <typename A, typename B>
+inline constexpr bool lossless_common_v{
+  represents_all_v<common_value_t<A, B>, value_t<A>>
+  && represents_all_v<common_value_t<A, B>, value_t<B>>
+};
+
+/**
  * @brief Casts \p v to \p To, eliding the cast when the types already match.
  *
  * Centralising fold-backs here keeps the operators free of narrowing in braced
@@ -472,7 +505,11 @@ template <std::signed_integral S>
  * Two specialisations that share \p T but differ in \p Tag are unrelated types,
  * so the compiler rejects mixing them. Operations beyond construction, value
  * access, hashing and formatting are enabled only when the matching
- * \c ability flag is set in \p Ops.
+ * \c ability flag is set in \p Ops. Same-tag wrappers over different
+ * underlying types combine through their common type, but only when that type
+ * holds every value of both operands: \c int16 with \c uint8 works,
+ * \c int32 with \c uint32 (whose common type would turn \c -1 into
+ * \c UINT32_MAX) does not.
  *
  * @tparam Tag Unique tag type distinguishing wrappers that share \p T.
  * @tparam T Underlying value type.
@@ -1007,7 +1044,8 @@ using common_strong_t = strong_typedef<
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::add> && detail::has_op<B, ability::add>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B> && detail::has_op<A, ability::add>
+           && detail::has_op<B, ability::add>
            && requires(detail::value_t<A> u, detail::value_t<B> v) { u + v; }
 [[nodiscard]] constexpr auto operator+(A const& a, B const& b) noexcept(noexcept(a.get() + b.get()))
   -> detail::common_strong_t<A, B> {
@@ -1030,8 +1068,8 @@ template <strong_typedef_like A, strong_typedef_like B>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::subtract>
-           && detail::has_op<B, ability::subtract>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B>
+           && detail::has_op<A, ability::subtract> && detail::has_op<B, ability::subtract>
            && requires(detail::value_t<A> u, detail::value_t<B> v) { u - v; }
 [[nodiscard]] constexpr auto operator-(A const& a, B const& b) noexcept(noexcept(a.get() - b.get()))
   -> detail::common_strong_t<A, B> {
@@ -1124,8 +1162,8 @@ template <strong_typedef_like X>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::modulo>
-           && detail::has_op<B, ability::modulo>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B>
+           && detail::has_op<A, ability::modulo> && detail::has_op<B, ability::modulo>
            && requires(detail::value_t<A> u, detail::value_t<B> v) { u % v; }
 [[nodiscard]] constexpr auto operator%(A const& a, B const& b) noexcept(noexcept(a.get() % b.get()))
   -> detail::common_strong_t<A, B> {
@@ -1225,7 +1263,7 @@ template <strong_typedef_like X, typename S>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::ratio>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B> && detail::has_op<A, ability::ratio>
            && detail::has_op<B, ability::ratio>
            && requires(detail::value_t<A> u, detail::value_t<B> v) { u / v; }
 [[nodiscard]] constexpr auto operator/(A const& a, B const& b) noexcept(noexcept(a.get() / b.get()))
@@ -1248,8 +1286,8 @@ template <strong_typedef_like A, strong_typedef_like B>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::bit_and>
-           && detail::has_op<B, ability::bit_and>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B>
+           && detail::has_op<A, ability::bit_and> && detail::has_op<B, ability::bit_and>
            && requires(detail::value_t<A> u, detail::value_t<B> v) { u & v; }
 [[nodiscard]] constexpr auto operator&(A const& a, B const& b) noexcept(noexcept(a.get() & b.get()))
   -> detail::common_strong_t<A, B> {
@@ -1272,8 +1310,8 @@ template <strong_typedef_like A, strong_typedef_like B>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::bit_or>
-           && detail::has_op<B, ability::bit_or>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B>
+           && detail::has_op<A, ability::bit_or> && detail::has_op<B, ability::bit_or>
            && requires(detail::value_t<A> u, detail::value_t<B> v) { u | v; }
 [[nodiscard]] constexpr auto operator|(A const& a, B const& b) noexcept(noexcept(a.get() | b.get()))
   -> detail::common_strong_t<A, B> {
@@ -1296,8 +1334,8 @@ template <strong_typedef_like A, strong_typedef_like B>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::bit_xor>
-           && detail::has_op<B, ability::bit_xor>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B>
+           && detail::has_op<A, ability::bit_xor> && detail::has_op<B, ability::bit_xor>
            && requires(detail::value_t<A> u, detail::value_t<B> v) { u ^ v; }
 [[nodiscard]] constexpr auto operator^(A const& a, B const& b) noexcept(noexcept(a.get() ^ b.get()))
   -> detail::common_strong_t<A, B> {
@@ -1397,8 +1435,8 @@ template <strong_typedef_like X, typename S>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::equality>
-           && detail::has_op<B, ability::equality>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B>
+           && detail::has_op<A, ability::equality> && detail::has_op<B, ability::equality>
            && requires(detail::value_t<A> u, detail::value_t<B> v) { u == v; }
 [[nodiscard]] constexpr auto
 operator==(A const& a, B const& b) noexcept(noexcept(a.get() == b.get())) -> bool {
@@ -1420,8 +1458,8 @@ operator==(A const& a, B const& b) noexcept(noexcept(a.get() == b.get())) -> boo
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::ordered>
-           && detail::has_op<B, ability::ordered>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B>
+           && detail::has_op<A, ability::ordered> && detail::has_op<B, ability::ordered>
            && requires(detail::value_t<A> u, detail::value_t<B> v) { u <=> v; }
 [[nodiscard]] constexpr auto
 operator<=>(A const& a, B const& b) noexcept(noexcept(a.get() <=> b.get()))
@@ -1588,8 +1626,9 @@ template <strong_typedef_like X>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::saturating>
-           && detail::has_op<B, ability::saturating> && std::integral<detail::common_value_t<A, B>>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B>
+           && detail::has_op<A, ability::saturating> && detail::has_op<B, ability::saturating>
+           && std::integral<detail::common_value_t<A, B>>
 [[nodiscard]] constexpr auto sat_add(A const& a, B const& b) noexcept(noexcept(a.get() + b.get()))
   -> detail::common_strong_t<A, B> {
   using ret = detail::common_strong_t<A, B>;
@@ -1612,8 +1651,9 @@ template <strong_typedef_like A, strong_typedef_like B>
  * @post None.
  */
 template <strong_typedef_like A, strong_typedef_like B>
-  requires same_tag_as<A, B> && detail::has_op<A, ability::saturating>
-           && detail::has_op<B, ability::saturating> && std::integral<detail::common_value_t<A, B>>
+  requires same_tag_as<A, B> && detail::lossless_common_v<A, B>
+           && detail::has_op<A, ability::saturating> && detail::has_op<B, ability::saturating>
+           && std::integral<detail::common_value_t<A, B>>
 [[nodiscard]] constexpr auto sat_sub(A const& a, B const& b) noexcept(noexcept(a.get() - b.get()))
   -> detail::common_strong_t<A, B> {
   using ret = detail::common_strong_t<A, B>;

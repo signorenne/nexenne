@@ -431,6 +431,35 @@ TEST_CASE("nexenne::utility::strong_typedef mixed-underlying arithmetic picks th
   CHECK(sum.get() == 80000U);
 }
 
+struct sign_tag {};
+
+using sign_ops =
+  std::integral_constant<ability, ability::equality | ability::ordered | ability::add>;
+using wide_signed = util::strong_typedef<sign_tag, std::int64_t, sign_ops::value>;
+using signed_word = util::strong_typedef<sign_tag, std::int32_t, sign_ops::value>;
+using narrow_signed = util::strong_typedef<sign_tag, std::int16_t, sign_ops::value>;
+using unsigned_word = util::strong_typedef<sign_tag, std::uint32_t, sign_ops::value>;
+using narrow_unsigned = util::strong_typedef<sign_tag, std::uint8_t, sign_ops::value>;
+
+template <typename A, typename B>
+concept addable_with = requires(A const& a, B const& b) { a + b; };
+
+template <typename A, typename B>
+concept equatable_with = requires(A const& a, B const& b) { a == b; };
+
+static_assert(!addable_with<signed_word, unsigned_word>);
+static_assert(!addable_with<unsigned_word, signed_word>);
+static_assert(!equatable_with<signed_word, unsigned_word>);
+static_assert(addable_with<narrow_signed, narrow_unsigned>);
+static_assert(equatable_with<wide_signed, unsigned_word>);
+static_assert(addable_with<unsigned_word, unsigned_word>);
+
+TEST_CASE("nexenne::utility::strong_typedef mixes signedness only through a lossless common type") {
+  CHECK((narrow_signed{-1} + narrow_unsigned{255}).get() == 254);
+  CHECK(wide_signed{-1} != unsigned_word{4294967295U});
+  CHECK(wide_signed{4294967295} == unsigned_word{4294967295U});
+}
+
 // compound assignment returns *this
 
 TEST_CASE("nexenne::utility::strong_typedef compound assignment chains and returns self") {
