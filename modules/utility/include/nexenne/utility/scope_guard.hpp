@@ -46,32 +46,46 @@ private:
   bool m_active{true};
 
   /**
-   * @brief Move-constructs the stored callable, running \p fn if the move throws.
+   * @brief Initialises the stored callable from the caller's argument, P0052 style.
    *
-   * P0052 scope_exit semantics: if moving the callable into the member throws,
-   * the cleanup must not be silently lost, so \p fn runs immediately (via the
-   * still-intact argument) before the exception propagates. The return object is
-   * the member itself (guaranteed elision), so the catch sees the real move. The
-   * catch path exists only when the move can actually throw, so the \c noexcept
-   * instantiation contains no unreachable rethrow.
+   * Follows P0052 \c scope_exit: the forwarded argument is used when that
+   * cannot throw; otherwise the member is copied from the caller's object,
+   * which a failure therefore leaves intact, and that intact object runs
+   * before the exception propagates, so the freshly armed cleanup is never
+   * lost or run on a half-moved callable. A move-only callable whose move can
+   * throw has no copy to fall back on, so it is moved, and on failure the
+   * caller's object runs in whatever state its throwing move left it. The
+   * result is elided straight into \c m_fn.
    *
-   * @param fn Callable to move into the guard; invoked if the move throws.
+   * @tparam G Forwarded argument type.
+   * @param fn The caller's callable; invoked if initialising the member throws.
    *
-   * @return The callable, move-constructed from \p fn.
+   * @return The callable to store.
    *
    * @pre None.
-   * @post The returned callable owns the moved-from state of \p fn.
+   * @post On a throw, \p fn has been invoked exactly once.
    *
-   * @throws Anything the move of \p fn throws, after \p fn has been invoked.
+   * @throws Anything initialising the member throws, after \p fn has run.
    */
-  [[nodiscard]] static auto
-  guarded_move(function_type& fn) noexcept(std::is_nothrow_move_constructible_v<function_type>)
-    -> function_type {
-    if constexpr (std::is_nothrow_move_constructible_v<function_type>) {
-      return std::move(fn);
+  template <typename G>
+  [[nodiscard]] static auto guarded_init(G& fn) noexcept(
+    std::is_nothrow_constructible_v<function_type, G>
+    || std::is_nothrow_constructible_v<function_type, G&>
+  ) -> function_type {
+    if constexpr (std::is_nothrow_constructible_v<function_type, G>) {
+      return static_cast<function_type>(std::forward<G>(fn));
+    } else if constexpr (std::is_nothrow_constructible_v<function_type, G&>) {
+      return static_cast<function_type>(fn);
+    } else if constexpr (std::is_constructible_v<function_type, G&>) {
+      try {
+        return static_cast<function_type>(fn);
+      } catch (...) {
+        fn();
+        throw;
+      }
     } else {
       try {
-        return std::move(fn);
+        return static_cast<function_type>(std::forward<G>(fn));
       } catch (...) {
         fn();
         throw;
@@ -81,23 +95,32 @@ private:
 
 public:
   /**
-   * @brief Constructs an active guard, taking ownership of \p fn.
+   * @brief Constructs an active guard from the cleanup callable \p fn.
    *
-   * Matches P0052 \c scope_exit: if moving \p fn into the guard throws, \p fn
-   * is invoked immediately (the freshly armed cleanup is never silently lost)
-   * and the exception then propagates; no guard is constructed in that case.
+   * Matches P0052 \c scope_exit: \p fn is moved in only when that cannot
+   * throw and copied otherwise, so if initialising the guard throws, the
+   * caller's intact \p fn runs (the freshly armed cleanup is never silently
+   * lost) before the exception propagates and no guard is constructed. That
+   * holds whether \p fn is an lvalue, a moved-from name, or a temporary.
    *
-   * @param fn Callable to run at scope exit while active, moved into the guard.
+   * @tparam G Type of the callable argument, forwarded.
+   * @param fn Callable to run at scope exit while the guard is active.
    *
    * @pre None.
-   * @post The guard is active and holds \p fn.
+   * @post The guard is active and holds the callable.
    *
-   * @throws Anything the move of \p fn throws, after \p fn has been invoked.
+   * @throws Anything initialising the stored callable throws, after \p fn has
+   *         been invoked.
    */
-  explicit scope_guard(
-    function_type fn
-  ) noexcept(std::is_nothrow_move_constructible_v<function_type>)
-      : m_fn{guarded_move(fn)} {}
+  template <typename G>
+    requires(!std::same_as<std::remove_cvref_t<G>, scope_guard>)
+            && std::constructible_from<function_type, G>
+            && std::invocable<std::remove_reference_t<G>&>
+  explicit scope_guard(G&& fn) noexcept(
+    std::is_nothrow_constructible_v<function_type, G>
+    || std::is_nothrow_constructible_v<function_type, G&>
+  )
+      : m_fn{guarded_init<G>(fn)} {}
 
   scope_guard(scope_guard const&) = delete;
   auto operator=(scope_guard const&) -> scope_guard& = delete;

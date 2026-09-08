@@ -58,10 +58,14 @@ the full expression, not at scope exit) is a compile-time warning: name it.
 
 ** The construction leak guard
 
-Following P0052, if moving the callable into the member throws, the freshly
-armed cleanup must not be lost: the private =guarded_move= invokes it
-immediately through the still-intact argument and rethrows, so no guard is left
-half-built. The catch path is compiled only when the move can throw.
+Following P0052, the constructor forwards its argument and moves it into the
+member only when that move cannot throw; otherwise it copies from the caller's
+object. If that initialisation throws, the freshly armed cleanup must not be
+lost: the private =guarded_init= invokes the caller's still-intact callable and
+rethrows, so no guard is left half-built and the cleanup never runs on a
+half-moved callable, whether the argument is an lvalue, a =std::move=d name, or
+a temporary. A move-only callable whose move can throw has nothing to copy, so
+it is moved. The catch path is compiled only when initialisation can throw.
 
 ** The conditionally-noexcept destructor
 
@@ -72,7 +76,8 @@ destructor-throws rule. Keep the cleanup non-throwing.
 
 * API tour
 
-- =scope_guard(Fn fn)= : moves =fn= in; the guard starts active.
+- =scope_guard(G&& fn)= : takes =fn= in (moved when that cannot throw, copied
+  otherwise); the guard starts active.
 - =dismiss()= : cancel, so the callable will not run at destruction.
 - =engage()= : re-arm a dismissed guard.
 - =is_active()= : =true= while armed, =false= after =dismiss=.
