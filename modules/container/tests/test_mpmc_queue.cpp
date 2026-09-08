@@ -6,7 +6,9 @@
 #include <doctest/doctest.h>
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <thread>
@@ -19,6 +21,14 @@
 namespace {
 
 namespace cn = nexenne::container;
+
+constexpr auto top{std::numeric_limits<std::size_t>::max()};
+constexpr auto half{top / 2};
+static_assert(cn::detail::mpmc_sequence_distance(half + 1, half) == 1);
+static_assert(cn::detail::mpmc_sequence_distance(half, half + 1) == -1);
+static_assert(cn::detail::mpmc_sequence_distance(0, top) == 1);
+static_assert(cn::detail::mpmc_sequence_distance(top, 0) == -1);
+static_assert(cn::detail::mpmc_sequence_distance(7, 7) == 0);
 
 TEST_CASE("nexenne::container::mpmc_queue single-threaded fill, drain, full, empty") {
   cn::mpmc_queue<int, 4> q;

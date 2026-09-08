@@ -38,6 +38,37 @@
 
 namespace nexenne::container {
 
+namespace detail {
+
+/// @cond INTERNAL
+
+/**
+ * @brief Signed distance from \p pos to a slot's sequence \p seq.
+ *
+ * Both counters grow without bound and wrap modulo \c 2^bits, so the
+ * difference is taken in \c std::size_t, where wrapping is defined, and only
+ * then read as signed. Subtracting the counters after converting each to
+ * \c std::ptrdiff_t overflows once they straddle \c 2^(bits-1), which on a
+ * 32-bit target is a few billion operations away.
+ *
+ * @param seq Sequence number stored in the slot.
+ * @param pos Counter position the caller expects the slot to be at.
+ *
+ * @return Zero when the slot is ready for \p pos, negative when it lags
+ *         behind, positive when it is ahead.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] constexpr auto
+mpsc_sequence_distance(std::size_t const seq, std::size_t const pos) noexcept -> std::ptrdiff_t {
+  return static_cast<std::ptrdiff_t>(seq - pos);
+}
+
+/// @endcond
+
+}  // namespace detail
+
 /**
  * @brief Lock-free multi-producer / single-consumer bounded ring queue.
  *
@@ -220,7 +251,7 @@ public:
     while (true) {
       auto& s{m_slots[pos & mask]};
       auto const seq{s.sequence.load(std::memory_order_acquire)};
-      auto const diff{static_cast<std::ptrdiff_t>(seq) - static_cast<std::ptrdiff_t>(pos)};
+      auto const diff{detail::mpsc_sequence_distance(seq, pos)};
       if (diff == 0) {
         if (m_tail.compare_exchange_weak(
               pos, pos + 1, std::memory_order_relaxed, std::memory_order_relaxed
@@ -255,7 +286,7 @@ public:
     auto const pos{m_head.load(std::memory_order_relaxed)};
     auto& s{m_slots[pos & mask]};
     auto const seq{s.sequence.load(std::memory_order_acquire)};
-    auto const diff{static_cast<std::ptrdiff_t>(seq) - static_cast<std::ptrdiff_t>(pos + 1)};
+    auto const diff{detail::mpsc_sequence_distance(seq, pos + 1)};
     if (diff < 0) {
       return std::unexpected{container_error::empty};
     }
@@ -281,7 +312,7 @@ public:
     auto const pos{m_head.load(std::memory_order_relaxed)};
     auto& s{m_slots[pos & mask]};
     auto const seq{s.sequence.load(std::memory_order_acquire)};
-    auto const diff{static_cast<std::ptrdiff_t>(seq) - static_cast<std::ptrdiff_t>(pos + 1)};
+    auto const diff{detail::mpsc_sequence_distance(seq, pos + 1)};
     if (diff < 0) {
       return std::nullopt;
     }
