@@ -17,8 +17,6 @@
 
 namespace {
 
-// A cleanup whose move constructor throws on demand, to exercise the P0052
-// invoke-then-rethrow guarantee of the constructor.
 struct throwing_move_cleanup {
   int* runs{nullptr};
   bool throw_on_move{false};
@@ -116,7 +114,7 @@ TEST_CASE("nexenne::utility::defer runs exactly once, never more") {
   for (auto i{0}; i < 5; ++i) {
     [[maybe_unused]] auto const guard{nexenne::utility::defer{[&] { ++runs; }}};
   }
-  CHECK(runs == 5);  // exactly one run per scope entry, no extras
+  CHECK(runs == 5);
 }
 
 TEST_CASE("nexenne::utility::defer runs on early return out of a scope") {
@@ -124,9 +122,9 @@ TEST_CASE("nexenne::utility::defer runs on early return out of a scope") {
   auto const fn{[&] {
     auto const guard{nexenne::utility::defer{[&] { ++runs; }}};
     if (runs == 0) {
-      return;  // early return still triggers cleanup
+      return;
     }
-    ++runs;  // unreachable
+    ++runs;
   }};
   fn();
   CHECK(runs == 1);
@@ -191,7 +189,7 @@ TEST_CASE("nexenne::utility::defer captures by value snapshots state at construc
   int observed{0};
   {
     auto const guard{nexenne::utility::defer{[&observed, value] { observed = value; }}};
-    value = 99;  // mutating the original does not change the captured copy
+    value = 99;
   }
   CHECK(observed == 1);
 }
@@ -218,8 +216,6 @@ TEST_CASE("nexenne::utility::defer mutable lambda mutates its own captured state
 }
 
 TEST_CASE("nexenne::utility::defer propagates a throwing cleanup on a normal scope exit") {
-  // The destructor is conditionally noexcept: outside stack unwinding, a
-  // throwing cleanup leaves the destructor and reaches the caller.
   auto const leave_scope{[] {
     [[maybe_unused]] auto const guard{nexenne::utility::defer{[] {
       throw std::runtime_error{"cleanup failed"};
@@ -229,19 +225,14 @@ TEST_CASE("nexenne::utility::defer propagates a throwing cleanup on a normal sco
 }
 
 TEST_CASE("nexenne::utility::defer invokes the cleanup when its move into the guard throws") {
-  // P0052 scope_exit semantics: a cleanup lost to a throwing move would leak,
-  // so the constructor runs it before letting the exception escape.
   int runs{0};
   CHECK_THROWS_AS(
     nexenne::utility::ignore(nexenne::utility::defer{throwing_move_cleanup{runs, true}}),
     std::runtime_error
   );
-  CHECK(runs == 1);  // the cleanup ran exactly once despite the failed construction
+  CHECK(runs == 1);
 }
 
-// The destructor's noexcept mirrors the callable's: a potentially-throwing
-// cleanup makes the destructor potentially throwing, a noexcept one keeps it
-// noexcept.
 static_assert(
   !std::is_nothrow_destructible_v<nexenne::utility::defer<void (*)()>>,
   "a potentially-throwing cleanup gives a potentially-throwing destructor"
@@ -251,10 +242,7 @@ static_assert(
   "a noexcept cleanup gives a noexcept destructor"
 );
 
-// The constructor's noexcept mirrors the callable's move constructor. Note that
-// is_nothrow_constructible also folds in the destructor, so the positive case
-// uses a noexcept callable (whose invocation, and thus the destructor, cannot
-// throw) to isolate the move.
+// is_nothrow_constructible folds in the destructor, hence the noexcept callable.
 static_assert(
   std::
     is_nothrow_constructible_v<nexenne::utility::defer<void (*)() noexcept>, void (*)() noexcept>,
@@ -267,8 +255,6 @@ static_assert(
   "a throwing-move callable gives a potentially-throwing constructor"
 );
 
-// The constraint requires the callable to be invocable as an lvalue: the
-// destructor calls the stored member, not a temporary.
 static_assert(
   [] {
     struct rvalue_only {
@@ -279,8 +265,6 @@ static_assert(
   "defer rejects a callable invocable only as an rvalue"
 );
 
-// A defer over a function pointer is neither copyable nor movable: it is bound
-// to its scope.
 static_assert(
   !std::movable<nexenne::utility::defer<void (*)()>>,
   "defer is scope-bound: neither copyable nor movable"
@@ -295,7 +279,6 @@ static_assert(
   "defer has an implicitly deleted move constructor"
 );
 
-// The CTAD guide deduces Fn from the constructor argument.
 static_assert(
   std::is_same_v<
     decltype(nexenne::utility::defer{std::declval<void (*)()>()}),
@@ -303,13 +286,11 @@ static_assert(
   "defer CTAD deduces Fn from its argument"
 );
 
-// function_type is the stored callable type.
 static_assert(
   std::is_same_v<nexenne::utility::defer<void (*)()>::function_type, void (*)()>,
   "defer exposes its Fn as function_type"
 );
 
-// The constructor is explicit: no implicit conversion from a callable.
 static_assert(
   !std::is_convertible_v<void (*)(), nexenne::utility::defer<void (*)()>>,
   "defer has an explicit constructor"

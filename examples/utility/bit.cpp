@@ -44,8 +44,6 @@ auto main() -> int {
     "enabled = {}, error = {}", util::test_bit(reg, enable_bit), util::test_bit(reg, error_bit)
   );
 
-  // Read-modify-write: pack_bits clears then rewrites only the named field, so
-  // the channel and flag bits around it survive the update untouched.
   reg = util::pack_bits<std::uint16_t>(reg, 63, threshold_offset, threshold_width);
   std::println(
     "after threshold update: register = 0b{:016b}, channel = {}, threshold = {}",

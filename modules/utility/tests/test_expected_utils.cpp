@@ -96,12 +96,12 @@ TEST_CASE("nexenne::utility::into_optional const lvalue copies, source untouched
   auto const opt{util::into_optional(src)};
   REQUIRE(opt.has_value());
   CHECK(*opt == 99);
-  CHECK(src.has_value());  // const lvalue overload does not consume the source
+  CHECK(src.has_value());
   CHECK(src.value() == 99);
 
   exp const bad{std::unexpect, "boom"};
   CHECK(util::into_optional(bad) == std::nullopt);
-  CHECK_FALSE(bad.has_value());  // unchanged
+  CHECK_FALSE(bad.has_value());
   CHECK(bad.error() == "boom");
 }
 
@@ -118,13 +118,12 @@ TEST_CASE(
   auto miss{util::into_optional(exp_ptr{std::unexpect, "no"})};
   CHECK_FALSE(miss.has_value());
 
-  // The moved-out source's value is null after into_optional moved from it.
   exp_ptr src{std::make_unique<int>(64)};
   auto got{util::into_optional(std::move(src))};
   REQUIRE(got.has_value());
   CHECK(**got == 64);
-  REQUIRE(src.has_value());       // still engaged...
-  CHECK(src.value() == nullptr);  // ...but the pointer was moved out
+  REQUIRE(src.has_value());
+  CHECK(src.value() == nullptr);
 }
 
 TEST_CASE("nexenne::utility::into_optional void overload reports success as bool and is noexcept") {
@@ -148,7 +147,6 @@ TEST_CASE("nexenne::utility::flatten const lvalue with non-trivial value and err
   nested const inner_err{exp_str{std::unexpect, "inner"}};
   CHECK(util::flatten(inner_err).error() == "inner");
 
-  // const lvalue overload leaves the source intact.
   CHECK(ok.has_value());
   CHECK(ok.value().value() == "deep");
 }
@@ -174,7 +172,6 @@ TEST_CASE("nexenne::utility::flatten rvalue moves a move-only inner value out") 
 }
 
 TEST_CASE("nexenne::utility::first_error returns the earliest of several errors") {
-  // Multiple errors: the leftmost wins regardless of how many follow.
   auto const r{util::first_error(
     evoid{}, evoid{}, evoid{std::unexpect, "third"}, evoid{std::unexpect, "fourth"}, evoid{}
   )};
@@ -194,8 +191,6 @@ TEST_CASE("nexenne::utility::first_error error at the very last position is foun
 }
 
 TEST_CASE("nexenne::utility::first_error does not short-circuit argument evaluation") {
-  // All arguments are evaluated at the call site before first_error runs;
-  // the fold itself only selects among already-built values.
   int built{0};
   auto make_ok{[&]() -> evoid {
     ++built;
@@ -209,7 +204,7 @@ TEST_CASE("nexenne::utility::first_error does not short-circuit argument evaluat
   auto const r{util::first_error(make_err(), make_ok(), make_ok())};
   REQUIRE_FALSE(r.has_value());
   CHECK(r.error() == "fail");
-  CHECK(built == 3);  // every argument was constructed, no short-circuit
+  CHECK(built == 3);
 }
 
 TEST_CASE("nexenne::utility::try_or does not invoke the fallback on the value path") {
@@ -219,7 +214,7 @@ TEST_CASE("nexenne::utility::try_or does not invoke the fallback on the value pa
     return -1;
   })};
   CHECK(v == 17);
-  CHECK(calls == 0);  // fallback never runs on success
+  CHECK(calls == 0);
 }
 
 TEST_CASE("nexenne::utility::try_or passes the error to the fallback") {
@@ -259,11 +254,10 @@ TEST_CASE("nexenne::utility::try_or rvalue overload moves the error into the fal
     return out;
   })};
   REQUIRE(v != nullptr);
-  CHECK(*v == 12);  // "rvalue-error" has 12 characters
+  CHECK(*v == 12);
 }
 
 TEST_CASE("nexenne::utility chaining: transform/and_then succeed then flatten") {
-  // Build a nested expected via and_then returning an expected, then flatten it.
   auto produce{[](int x) -> std::expected<exp, std::string> {
     if (x < 0) {
       return std::unexpected{std::string{"negative"}};
@@ -288,23 +282,23 @@ TEST_CASE("nexenne::utility chaining short-circuits: later step not called after
     ++second_calls;
     return x * 2;
   })};
-  // Feed the chained result into try_or to read the error path.
   auto const value{util::try_or(result, [](std::string const& e) {
     return e == "early" ? -100 : -1;
   })};
   CHECK(value == -100);
-  CHECK(second_calls == 0);  // transform never ran after the propagated error
+  CHECK(second_calls == 0);
 }
 
 TEST_CASE("nexenne::utility chaining: error injected in the middle of a chain") {
   int tail_calls{0};
-  auto const result{exp{5}
-                      .and_then([](int x) -> exp { return exp{x + 5}; })               // ok -> 10
-                      .and_then([](int) -> exp { return exp{std::unexpect, "mid"}; })  // fails here
-                      .transform([&](int x) {
-                        ++tail_calls;
-                        return x;
-                      })};
+  auto const result{exp{5}.and_then(
+                            [](int x) -> exp { return exp{x + 5}; }
+  ).and_then([](int) -> exp {
+     return exp{std::unexpect, "mid"};
+   }).transform([&](int x) {
+    ++tail_calls;
+    return x;
+  })};
   REQUIRE_FALSE(result.has_value());
   CHECK(result.error() == "mid");
   CHECK(tail_calls == 0);
@@ -321,7 +315,6 @@ TEST_CASE("nexenne::utility chaining with void-returning steps via first_error")
     return evoid{std::unexpect, std::string{msg}};
   }};
 
-  // All steps run (arguments eagerly evaluated), first_error picks the earliest failure.
   auto const r{util::first_error(step(true, "a"), step(false, "b"), step(false, "c"))};
   REQUIRE_FALSE(r.has_value());
   CHECK(r.error() == "b");
@@ -334,7 +327,6 @@ TEST_CASE("nexenne::utility chaining with void-returning steps via first_error")
 }
 
 TEST_CASE("nexenne::utility chaining: void expected combined with into_optional bool") {
-  // and_then on expected<void, E> chains void steps; into_optional reports the bool.
   auto const ok{evoid{}.and_then([]() -> evoid { return evoid{}; }).and_then([]() -> evoid {
     return evoid{};
   })};
@@ -360,7 +352,6 @@ TEST_CASE("nexenne::utility chaining: deeply nested expected flattened then into
 }
 
 TEST_CASE("nexenne::utility chaining: try_or supplies a default that flows into more work") {
-  // Error path: try_or yields a recovery value, then transform continues.
   auto const recovered{util::try_or(exp{std::unexpect, "lost"}, [](std::string const&) {
     return 3;
   })};

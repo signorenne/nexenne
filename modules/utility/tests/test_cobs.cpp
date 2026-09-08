@@ -16,14 +16,12 @@ namespace {
 namespace cobs = nexenne::utility::cobs;
 using cobs::error;
 
-// Round-trip helper: encode then decode and compare to the original.
 auto round_trip(std::vector<std::byte> const& payload) -> std::vector<std::byte> {
   std::vector<std::byte> encoded(cobs::max_encoded_size(payload.size()));
   auto const enc{cobs::encode(payload, encoded)};
   REQUIRE(enc);
   encoded.resize(*enc);
 
-  // The encoded form must never contain a zero byte (so 0x00 can delimit frames).
   for (auto const b : encoded) {
     CHECK(b != std::byte{0});
   }
@@ -35,7 +33,6 @@ auto round_trip(std::vector<std::byte> const& payload) -> std::vector<std::byte>
   return decoded;
 }
 
-// Encode into a max-sized buffer and return the encoded frame on its own.
 auto encode_frame(std::vector<std::byte> const& payload) -> std::vector<std::byte> {
   std::vector<std::byte> encoded(cobs::max_encoded_size(payload.size()));
   auto const enc{cobs::encode(payload, encoded)};
@@ -117,7 +114,6 @@ TEST_CASE("nexenne::utility::cobs encode reports output_too_small") {
   REQUIRE_FALSE(r);
   CHECK(r.error() == error::output_too_small);
 
-  // A zero-length output buffer is rejected before the first write.
   std::array<std::byte, 0> none{};
   auto const r0{cobs::encode(bytes({1}), none)};
   REQUIRE_FALSE(r0);
@@ -125,8 +121,6 @@ TEST_CASE("nexenne::utility::cobs encode reports output_too_small") {
 }
 
 TEST_CASE("nexenne::utility::cobs encode into an exact-size buffer succeeds") {
-  // Every capacity strictly below the exact encoded size must error; the exact
-  // size (which may be under max_encoded_size) must succeed.
   auto const payload{bytes({1, 0, 2, 3, 0, 4, 5, 6})};
   auto const exact{encode_frame(payload).size()};
   for (std::size_t cap{0}; cap < exact; ++cap) {
@@ -142,13 +136,12 @@ TEST_CASE("nexenne::utility::cobs encode into an exact-size buffer succeeds") {
 }
 
 TEST_CASE("nexenne::utility::cobs decode rejects a zero byte in the frame") {
-  auto const bad{bytes({3, 1, 0, 2})};  // contains an illegal 0x00
+  auto const bad{bytes({3, 1, 0, 2})};
   std::array<std::byte, 8> out{};
   auto const r{cobs::decode(bad, out)};
   REQUIRE_FALSE(r);
   CHECK(r.error() == error::invalid_input);
 
-  // A lone zero code byte is also rejected.
   auto const lone{bytes({0})};
   auto const r2{cobs::decode(lone, out)};
   REQUIRE_FALSE(r2);
@@ -168,13 +161,12 @@ TEST_CASE("nexenne::utility::cobs decode rejects an embedded 0x00 at every posit
 }
 
 TEST_CASE("nexenne::utility::cobs decode reports truncated_input on a short frame") {
-  auto const truncated{bytes({5, 1, 2})};  // code says 4 data bytes, only 2 present
+  auto const truncated{bytes({5, 1, 2})};
   std::array<std::byte, 8> out{};
   auto const r{cobs::decode(truncated, out)};
   REQUIRE_FALSE(r);
   CHECK(r.error() == error::truncated_input);
 
-  // A leading code byte that overruns the frame length.
   auto const overrun{bytes({10, 1, 2, 3})};
   auto const r2{cobs::decode(overrun, out)};
   REQUIRE_FALSE(r2);
@@ -184,7 +176,7 @@ TEST_CASE("nexenne::utility::cobs decode reports truncated_input on a short fram
 TEST_CASE("nexenne::utility::cobs decode reports output_too_small") {
   auto const payload{bytes({1, 0, 2, 0, 3, 0, 4})};
   auto const frame{encode_frame(payload)};
-  std::vector<std::byte> out(payload.size() - 1);  // one byte short
+  std::vector<std::byte> out(payload.size() - 1);
   auto const r{cobs::decode(frame, out)};
   REQUIRE_FALSE(r);
   CHECK(r.error() == error::output_too_small);
@@ -220,7 +212,7 @@ TEST_CASE("nexenne::utility::cobs every random-ish payload round-trips and stays
     return static_cast<std::uint8_t>(state >> 24);
   }};
   for (int trial{0}; trial < 64; ++trial) {
-    std::size_t const n{static_cast<std::size_t>(next()) * 3};  // up to ~765 bytes
+    std::size_t const n{static_cast<std::size_t>(next()) * 3};
     std::vector<std::byte> payload;
     payload.reserve(n);
     for (std::size_t i{0}; i < n; ++i) {

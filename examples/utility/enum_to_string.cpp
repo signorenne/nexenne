@@ -17,8 +17,6 @@
 
 #include <nexenne/utility/enum_to_string.hpp>
 
-// Reflect a small state machine's enum: list every state, name a runtime value,
-// and parse a name back into a value, all without a hand-written table.
 namespace {
 
 enum class connection : std::uint8_t {
@@ -32,7 +30,6 @@ enum class connection : std::uint8_t {
 }  // namespace
 
 auto main() -> int {
-  // Compile-time facts.
   static_assert(nexenne::utility::enum_name<connection::connected>() == "connected");
   static_assert(nexenne::utility::enum_count<connection>() == 5);
 
@@ -41,11 +38,9 @@ auto main() -> int {
     std::println("  {} = {}", std::to_underlying(state), nexenne::utility::enum_to_string(state));
   }
 
-  // Runtime value -> name.
   auto const current{connection::closing};
   std::println("current state: {}", nexenne::utility::enum_to_string(current));
 
-  // Runtime name -> value, with a miss for good measure.
   for (auto const name : {std::string_view{"connected"}, std::string_view{"frobnicate"}}) {
     if (auto const parsed{nexenne::utility::enum_cast<connection>(name)}; parsed.has_value()) {
       std::println("parsed '{}' -> {}", name, std::to_underlying(*parsed));

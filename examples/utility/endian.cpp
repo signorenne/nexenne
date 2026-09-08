@@ -27,7 +27,6 @@ namespace util = nexenne::utility;
 
 namespace {
 
-// An 8-byte header: 2-byte type, 2-byte sequence, 4-byte payload length.
 struct header {
   std::uint16_t type{};
   std::uint16_t sequence{};
@@ -46,7 +45,6 @@ auto dump(std::span<std::byte const> const bytes) -> void {
 auto main() -> int {
   auto const message{header{.type = 0x0107, .sequence = 42, .payload_length = 512}};
 
-  // Network protocols conventionally send the most significant byte first.
   auto wire{std::array<std::byte, 8>{}};
   auto const out{std::span{wire}};
   util::write_be(out.subspan<0, 2>(), message.type);
@@ -55,7 +53,6 @@ auto main() -> int {
   std::print("big-endian wire:   ");
   dump(wire);
 
-  // The same layout little-endian, as a file format might store it.
   auto disk{std::array<std::byte, 8>{}};
   auto const log{std::span{disk}};
   util::write_le(log.subspan<0, 2>(), message.type);
@@ -64,8 +61,6 @@ auto main() -> int {
   std::print("little-endian log: ");
   dump(disk);
 
-  // Decoding names the type explicitly (there is no value to deduce it from)
-  // and uses the same fixed sub-spans, so the offsets live in one place.
   auto const from_wire{header{
     .type = util::read_be<std::uint16_t>(out.subspan<0, 2>()),
     .sequence = util::read_be<std::uint16_t>(out.subspan<2, 2>()),
@@ -90,7 +85,6 @@ auto main() -> int {
     from_disk.payload_length
   );
 
-  // The helpers are constexpr, so a layout can be proven at compile time.
   static_assert([] {
     auto buf{std::array<std::byte, 2>{}};
     util::write_be(std::span{buf}, std::uint16_t{0x0107});

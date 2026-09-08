@@ -29,7 +29,6 @@ static_assert(std::is_nothrow_move_constructible_v<callback>);
 static_assert(std::is_nothrow_move_assignable_v<callback>);
 static_assert(std::is_same_v<callback::result_type, int>);
 
-// The default capacity is 64 bytes (documented contract).
 static_assert(util::in_place_function<void()>::capacity == 64);
 
 struct big_functor {
@@ -38,11 +37,9 @@ struct big_functor {
   auto operator()() const -> void {}
 };
 
-// A too-large callable is rejected at compile time; a fitting capacity accepts it.
 static_assert(!std::is_constructible_v<util::in_place_function<void(), 8>, big_functor>);
 static_assert(std::is_constructible_v<util::in_place_function<void(), 64>, big_functor>);
 
-// A callable that exactly fills the capacity is accepted; one byte larger is not.
 struct exact_32 {
   std::array<char, 32> data{};
 
@@ -58,19 +55,14 @@ struct over_32 {
 static_assert(std::is_constructible_v<util::in_place_function<void(), 32>, exact_32>);
 static_assert(!std::is_constructible_v<util::in_place_function<void(), 32>, over_32>);
 
-// An over-aligned callable is rejected (alignment must be <= max_align_t).
-// NOTE: this is a documented COMPILE error, asserted negatively rather than
-// instantiated. A type aligned beyond max_align_t fails the requires clause.
 struct alignas(2 * alignof(std::max_align_t)) over_aligned {
   auto operator()() const -> void {}
 };
 
 static_assert(!std::is_constructible_v<util::in_place_function<void(), 256>, over_aligned>);
 
-// A non-invocable type is rejected.
 static_assert(!std::is_constructible_v<callback, int>);
 
-// A callable whose return type does not convert to R is rejected.
 struct returns_pointer {
   auto operator()(int) const -> char const* {
     return "x";
@@ -79,9 +71,6 @@ struct returns_pointer {
 
 static_assert(!std::is_constructible_v<callback, returns_pointer>);
 
-// A callable with a throwing move constructor is rejected: the vtable's move
-// entry is noexcept, so only nothrow-movable callables may live in the buffer
-// (the same requirement std::move_only_function places on its SBO path).
 struct throwing_move {
   throwing_move() = default;
 
@@ -99,11 +88,6 @@ struct throwing_move {
 
 static_assert(!std::is_constructible_v<callback, throwing_move>);
 
-// COMPILE-ERROR DOCUMENTATION: the following would fail to compile because the
-// target exceeds the inline capacity; we do NOT instantiate it, only assert the
-// negative trait above (big_functor into capacity 8).
-//   util::in_place_function<void(), 8> bad{big_functor{}};  // ill-formed
-
 auto free_doubler(int x) -> int {
   return x * 2;
 }
@@ -119,7 +103,7 @@ TEST_CASE("nexenne::utility::in_place_function stores a free function pointer") 
   CHECK(static_cast<bool>(cb));
   CHECK(cb(21) == 42);
 
-  callback cb2{free_doubler};  // decays to pointer
+  callback cb2{free_doubler};
   CHECK(cb2(5) == 10);
 }
 
@@ -161,7 +145,7 @@ TEST_CASE("nexenne::utility::in_place_function stores a stateful mutable lambda"
     return n;
   }};
   CHECK(cb(2) == 2);
-  CHECK(cb(3) == 5);  // mutable captures persist across calls
+  CHECK(cb(3) == 5);
   CHECK(cb(10) == 15);
 }
 
@@ -202,7 +186,7 @@ TEST_CASE("nexenne::utility::in_place_function nullptr, reset, reassign") {
 
 TEST_CASE("nexenne::utility::in_place_function reset on an empty instance is a no-op") {
   callback cb;
-  cb.reset();  // must not crash or assert
+  cb.reset();
   CHECK_FALSE(static_cast<bool>(cb));
   cb.reset();
   CHECK_FALSE(static_cast<bool>(cb));
@@ -214,9 +198,9 @@ TEST_CASE("nexenne::utility::in_place_function reassignment destroys the old cal
   CHECK(first.use_count() == 2);
 
   auto second{std::make_shared<int>(0)};
-  cb = callback{[second](int y) { return y; }};  // move-assign a fresh target
-  CHECK(first.use_count() == 1);                 // old callable destroyed exactly once
-  CHECK(second.use_count() == 2);                // new callable now held
+  cb = callback{[second](int y) { return y; }};
+  CHECK(first.use_count() == 1);
+  CHECK(second.use_count() == 2);
   CHECK(static_cast<bool>(cb));
 }
 
@@ -230,7 +214,6 @@ TEST_CASE("nexenne::utility::in_place_function invokes through a const wrapper")
 }
 
 TEST_CASE("nexenne::utility::in_place_function const wrapper invokes a mutating stored lambda") {
-  // operator() is const, but a mutable stored lambda still mutates its captures.
   auto cb{util::in_place_function<int(), 32>{[n = 0]() mutable { return ++n; }}};
   auto const& cref{cb};
   CHECK(cref() == 1);
@@ -241,7 +224,7 @@ TEST_CASE("nexenne::utility::in_place_function const wrapper invokes a mutating 
 TEST_CASE("nexenne::utility::in_place_function self-move-assign is a no-op") {
   auto cb{callback{[](int y) { return y + 1; }}};
   auto& alias{cb};
-  cb = std::move(alias);  // guarded self-move
+  cb = std::move(alias);
   CHECK(static_cast<bool>(cb));
   CHECK(cb(1) == 2);
 }
@@ -252,7 +235,7 @@ TEST_CASE("nexenne::utility::in_place_function self-move-assign does not destroy
   CHECK(tracker.use_count() == 2);
   auto& alias{cb};
   cb = std::move(alias);
-  CHECK(tracker.use_count() == 2);  // self-move preserved the stored callable
+  CHECK(tracker.use_count() == 2);
   CHECK(static_cast<bool>(cb));
 }
 
@@ -260,9 +243,9 @@ TEST_CASE("nexenne::utility::in_place_function destroys the stored callable") {
   auto tracker{std::make_shared<int>(0)};
   {
     util::in_place_function<void(), 32> const held{[tracker] {}};
-    CHECK(tracker.use_count() == 2);  // capture copied into storage
+    CHECK(tracker.use_count() == 2);
   }
-  CHECK(tracker.use_count() == 1);  // destructor ran the callable's destructor
+  CHECK(tracker.use_count() == 1);
 }
 
 TEST_CASE("nexenne::utility::in_place_function move-assign destroys the old callable") {
@@ -272,7 +255,7 @@ TEST_CASE("nexenne::utility::in_place_function move-assign destroys the old call
   util::in_place_function<void(), 32> b{[second] {}};
 
   a = std::move(b);
-  CHECK(first.use_count() == 1);  // a's previous callable destroyed exactly once
+  CHECK(first.use_count() == 1);
   CHECK(static_cast<bool>(a));
 }
 
@@ -281,7 +264,7 @@ TEST_CASE("nexenne::utility::in_place_function move-construct transfers ownershi
   util::in_place_function<void(), 32> a{[tracker] {}};
   CHECK(tracker.use_count() == 2);
   util::in_place_function<void(), 32> b{std::move(a)};
-  CHECK(tracker.use_count() == 2);  // moved, not copied: still exactly one holder
+  CHECK(tracker.use_count() == 2);
   CHECK_FALSE(static_cast<bool>(a));
   CHECK(static_cast<bool>(b));
 }
@@ -294,7 +277,7 @@ TEST_CASE("nexenne::utility::in_place_function move-assign into empty does not l
     CHECK(tracker.use_count() == 2);
     dst = std::move(src);
   }
-  CHECK(tracker.use_count() == 2);  // dst holds it; src destroyed empty
+  CHECK(tracker.use_count() == 2);
   dst.reset();
   CHECK(tracker.use_count() == 1);
 }
@@ -306,8 +289,6 @@ TEST_CASE("nexenne::utility::in_place_function move preserves captured state") {
 }
 
 TEST_CASE("nexenne::utility::in_place_function destruction counter via explicit destructor") {
-  // A target whose destructor increments a counter: verify destruction happens
-  // exactly when expected (no leak, no double free).
   static int destructions{0};
   destructions = 0;
 
@@ -338,18 +319,16 @@ TEST_CASE("nexenne::utility::in_place_function destruction counter via explicit 
     util::in_place_function<int(), 32> a{tracked{}};
     CHECK(destructions == 0);
     util::in_place_function<int(), 32> b{std::move(a)};
-    CHECK(destructions == 0);  // moved-from inner target was deactivated
+    CHECK(destructions == 0);
     CHECK(b() == 1);
   }
-  CHECK(destructions == 1);  // destroyed exactly once at end of scope
+  CHECK(destructions == 1);
 }
 
 TEST_CASE("nexenne::utility::in_place_function returns by value, reference, and void") {
-  // by value
   util::in_place_function<int(int), 32> by_value{[](int x) { return x + 1; }};
   CHECK(by_value(1) == 2);
 
-  // by reference, with mutation propagating through the returned reference
   int store{0};
   util::in_place_function<int&(int), 32> by_ref{[&store](int v) -> int& {
     store = v;
@@ -360,7 +339,6 @@ TEST_CASE("nexenne::utility::in_place_function returns by value, reference, and 
   ref = 13;
   CHECK(store == 13);
 
-  // void return with a by-reference out-parameter mutated in place
   util::in_place_function<void(int&), 32> voider{[](int& v) { v *= 2; }};
   int sink{21};
   voider(sink);
@@ -391,7 +369,7 @@ TEST_CASE("nexenne::utility::in_place_function forwards multiple args and perfec
 
 TEST_CASE("nexenne::utility::in_place_function reassign from empty back to filled") {
   callback cb{[](int y) { return y; }};
-  cb = nullptr;  // nullptr converts to an empty target
+  cb = nullptr;
   CHECK_FALSE(static_cast<bool>(cb));
   cb = [](int y) { return y * 5; };
   CHECK(static_cast<bool>(cb));
@@ -400,7 +378,6 @@ TEST_CASE("nexenne::utility::in_place_function reassign from empty back to fille
 
 TEST_CASE("nexenne::utility::in_place_function void signature discards the callable's return") {
   int calls{0};
-  // The stored lambda returns int; the void signature discards it (invoke_r).
   util::in_place_function<void(int), 32> cb{[&calls](int x) {
     ++calls;
     return x;
@@ -419,13 +396,11 @@ TEST_CASE("nexenne::utility::in_place_function propagates exceptions from the ca
   }};
   CHECK(cb(3) == 3);
   CHECK_THROWS_AS(cb(-1), std::runtime_error);
-  CHECK(static_cast<bool>(cb));  // still usable after the throw
+  CHECK(static_cast<bool>(cb));
   CHECK(cb(4) == 4);
 }
 
 TEST_CASE("nexenne::utility::in_place_function const-defined wrapper runs a mutable lambda") {
-  // The storage is mutable, so shallow-const invocation is well-defined even
-  // when the wrapper object itself is defined const.
   auto const cb{util::in_place_function<int(), 32>{[n = 0]() mutable { return ++n; }}};
   CHECK(cb() == 1);
   CHECK(cb() == 2);

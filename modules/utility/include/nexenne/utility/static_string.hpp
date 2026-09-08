@@ -91,9 +91,6 @@ struct static_string {
    * @post The result is at most \c N - 1.
    */
   [[nodiscard]] constexpr auto size() const noexcept -> std::size_t {
-    // The invariant guarantees a terminator inside the buffer (the default
-    // constructor zero-fills, the array constructor asserts str[N - 1] is
-    // NUL), so this constexpr scan is bounded and safe.
     return std::char_traits<value_type>::length(data.data());
   }
 
@@ -205,8 +202,6 @@ struct static_string {
   operator+(static_string const& a, static_string<M> const& b) noexcept
     -> static_string<N + M - 1> {
     static_string<N + M - 1> out{};
-    // Copy the content runs, not the raw buffers: a partially filled left
-    // operand must not push NUL padding between the two contents.
     std::copy_n(a.data.begin(), a.size(), out.data.begin());
     std::copy_n(b.data.begin(), b.size(), out.data.begin() + a.size());
     return out;

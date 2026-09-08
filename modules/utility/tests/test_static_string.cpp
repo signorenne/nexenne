@@ -31,35 +31,31 @@ static_assert(util::static_string{"abc"}[0] == 'a');
 static_assert(named<"hello">::name() == "hello");
 static_assert(!util::static_string{"x"}.empty());
 static_assert((util::static_string{"ab"} + util::static_string{"cd"}).view() == "abcd");
-static_assert((util::static_string{""} + util::static_string{"cd"}).view() == "cd");  // empty lhs
-static_assert((util::static_string{"ab"} + util::static_string{""}).view() == "ab");  // empty rhs
+static_assert((util::static_string{""} + util::static_string{"cd"}).view() == "cd");
+static_assert((util::static_string{"ab"} + util::static_string{""}).view() == "ab");
 static_assert(
   ((util::static_string{"ab"} + util::static_string{"cd"}) + util::static_string{"ef"}).view()
   == "abcdef"
-);  // chained concatenation
+);
 static_assert(util::static_string{"abc"} == util::static_string{"abc"});
 static_assert(util::static_string{"abc"} != util::static_string{"abd"});
-static_assert(util::static_string{"abc"} < util::static_string{"abd"});  // lexicographic <=>
+static_assert(util::static_string{"abc"} < util::static_string{"abd"});
 
-// A default-constructed buffer of any capacity is the empty string.
 static_assert(util::static_string<8>{}.empty());
 static_assert(util::static_string<8>{}.size() == 0);
 static_assert(util::static_string<8>{}.view().empty());
 
-// A partially filled buffer reports the scanned content length, not the
-// capacity: size() stops at the first NUL byte.
 constexpr auto make_partial() noexcept -> util::static_string<8> {
   util::static_string<8> s{};
   s.data[0] = 'h';
   s.data[1] = 'i';
-  return s;  // bytes 2..7 stay zero, so the invariant holds
+  return s;
 }
 
 static_assert(make_partial().size() == 2);
 static_assert(make_partial().view() == "hi");
 static_assert(!make_partial().empty());
 
-// A max-capacity string fills every byte but the terminator: size() == N - 1.
 static_assert(util::static_string<4>{"abc"}.size() == 3);
 static_assert(util::static_string<4>{"abc"}.view() == "abc");
 
@@ -73,13 +69,13 @@ TEST_CASE("nexenne::utility::static_string formats and hashes via its body") {
 
 TEST_CASE("nexenne::utility::static_string is null-terminated and iterates its body") {
   constexpr auto s{util::static_string{"abc"}};
-  CHECK(std::string_view{s.c_str()} == "abc");  // c_str() is null-terminated
+  CHECK(std::string_view{s.c_str()} == "abc");
 
   std::string collected;
   for (auto const ch : s) {
     collected.push_back(ch);
   }
-  CHECK(collected == "abc");  // begin()/end() span the body, not the terminator
+  CHECK(collected == "abc");
 }
 
 }  // namespace

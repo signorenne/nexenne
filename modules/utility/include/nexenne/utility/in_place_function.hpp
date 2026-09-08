@@ -128,20 +128,13 @@ private:
     move_fn move;
   };
 
-  // mutable enables the shallow-const call semantics documented on the class:
-  // the const operator() reaches the bytes without a const_cast, which would be
-  // undefined behaviour for a const-defined object.
   alignas(std::max_align_t) mutable std::array<std::byte, Capacity> m_storage{};
   vtable const* m_vt{nullptr};
 
-  // Every vtable entry recomputes the F* from the raw storage address. That
-  // pointer is not pointer-interconvertible with the F object living inside
-  // the bytes, so std::launder is required at each read/destroy site.
+  // The storage address is not pointer-interconvertible with F: launder each use.
   template <typename F>
   static constexpr vtable const s_vtable{
     .invoke = [](void* p, Args... args) -> R {
-      // invoke_r matches the is_invocable_r_v constraint: it discards the
-      // result for void signatures and supports pointers to members.
       return std::invoke_r<R>(*std::launder(static_cast<F*>(p)), std::forward<Args>(args)...);
     },
     .destroy = [](void* p) noexcept { std::destroy_at(std::launder(static_cast<F*>(p))); },

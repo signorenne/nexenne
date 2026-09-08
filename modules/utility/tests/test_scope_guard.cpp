@@ -17,8 +17,6 @@
 
 namespace {
 
-// A cleanup whose move constructor throws on demand, to exercise the P0052
-// invoke-then-rethrow guarantee of the constructor.
 struct throwing_move_cleanup {
   int* runs{nullptr};
   bool throw_on_move{false};
@@ -157,7 +155,7 @@ TEST_CASE("nexenne::utility::scope_guard active guard runs exactly once") {
   {
     [[maybe_unused]] auto const guard{nexenne::utility::scope_guard{[&] { ++runs; }}};
   }
-  CHECK(runs == 1);  // not zero, not two
+  CHECK(runs == 1);
 }
 
 TEST_CASE("nexenne::utility::scope_guard dismiss is idempotent") {
@@ -165,7 +163,7 @@ TEST_CASE("nexenne::utility::scope_guard dismiss is idempotent") {
   {
     auto guard{nexenne::utility::scope_guard{[&] { ++runs; }}};
     guard.dismiss();
-    guard.dismiss();  // double dismiss is safe
+    guard.dismiss();
     CHECK_FALSE(guard.is_active());
   }
   CHECK(runs == 0);
@@ -175,7 +173,7 @@ TEST_CASE("nexenne::utility::scope_guard engage is idempotent") {
   auto runs{0};
   {
     auto guard{nexenne::utility::scope_guard{[&] { ++runs; }}};
-    guard.engage();  // already active
+    guard.engage();
     guard.engage();
     CHECK(guard.is_active());
   }
@@ -198,7 +196,7 @@ TEST_CASE("nexenne::utility::scope_guard runs on early return out of a scope") {
   auto runs{0};
   auto const fn{[&] {
     auto const guard{nexenne::utility::scope_guard{[&] { ++runs; }}};
-    return;  // early return triggers cleanup
+    return;
   }};
   fn();
   CHECK(runs == 1);
@@ -211,7 +209,7 @@ TEST_CASE("nexenne::utility::scope_guard runs during stack unwinding when active
     throw std::runtime_error{"boom"};
   } catch (...) {  // NOLINT(bugprone-empty-catch)
   }
-  CHECK(ran);  // active guard fires during unwinding
+  CHECK(ran);
 }
 
 TEST_CASE("nexenne::utility::scope_guard honours dismissal during unwinding and runs LIFO") {
@@ -222,7 +220,7 @@ TEST_CASE("nexenne::utility::scope_guard honours dismissal during unwinding and 
     throw std::runtime_error{"boom"};
   } catch (...) {  // NOLINT(bugprone-empty-catch)
   }
-  CHECK_FALSE(ran);  // dismissed: does not run even while unwinding
+  CHECK_FALSE(ran);
 
   std::vector<int> order;
   {
@@ -238,21 +236,20 @@ TEST_CASE("nexenne::utility::scope_guard guards run LIFO with selective dismissa
     auto first{nexenne::utility::scope_guard{[&] { order.push_back(1); }}};
     auto second{nexenne::utility::scope_guard{[&] { order.push_back(2); }}};
     auto third{nexenne::utility::scope_guard{[&] { order.push_back(3); }}};
-    second.dismiss();  // only the middle one is cancelled
+    second.dismiss();
   }
   CHECK(order == std::vector{3, 1});
 }
 
 TEST_CASE("nexenne::utility::scope_guard commit-or-rollback idiom") {
-  // Classic use: arm a rollback, dismiss it only after the work succeeds.
   std::vector<int> log;
   auto const commit{[&](bool succeed) {
     auto rollback{nexenne::utility::scope_guard{[&] { log.push_back(-1); }}};
     if (!succeed) {
-      return;  // rollback fires
+      return;
     }
     log.push_back(1);
-    rollback.dismiss();  // success: no rollback
+    rollback.dismiss();
   }};
 
   commit(true);
@@ -288,8 +285,6 @@ TEST_CASE("nexenne::utility::scope_guard works with a function pointer") {
 }
 
 TEST_CASE("nexenne::utility::scope_guard propagates a throwing cleanup on a normal scope exit") {
-  // The destructor is conditionally noexcept: outside stack unwinding, a
-  // throwing active cleanup leaves the destructor and reaches the caller.
   auto const leave_scope{[] {
     [[maybe_unused]] auto const guard{nexenne::utility::scope_guard{[] {
       throw std::runtime_error{"cleanup failed"};
@@ -307,19 +302,14 @@ TEST_CASE("nexenne::utility::scope_guard dismissed throwing cleanup never runs, 
 }
 
 TEST_CASE("nexenne::utility::scope_guard invokes the cleanup when its move into the guard throws") {
-  // P0052 scope_exit semantics: a freshly armed cleanup lost to a throwing
-  // move would leak, so the constructor runs it before the exception escapes.
   int runs{0};
   CHECK_THROWS_AS(
     nexenne::utility::ignore(nexenne::utility::scope_guard{throwing_move_cleanup{runs, true}}),
     std::runtime_error
   );
-  CHECK(runs == 1);  // the cleanup ran exactly once despite the failed construction
+  CHECK(runs == 1);
 }
 
-// The destructor's noexcept mirrors the callable's: a potentially-throwing
-// cleanup makes the destructor potentially throwing, a noexcept one keeps it
-// noexcept.
 static_assert(
   !std::is_nothrow_destructible_v<nexenne::utility::scope_guard<void (*)()>>,
   "a potentially-throwing cleanup gives a potentially-throwing destructor"
@@ -329,10 +319,7 @@ static_assert(
   "a noexcept cleanup gives a noexcept destructor"
 );
 
-// The constructor's noexcept mirrors the callable's move constructor. Note that
-// is_nothrow_constructible also folds in the destructor, so the positive case
-// uses a noexcept callable (whose invocation, and thus the destructor, cannot
-// throw) to isolate the move.
+// is_nothrow_constructible folds in the destructor, hence the noexcept callable.
 static_assert(
   std::is_nothrow_constructible_v<
     nexenne::utility::scope_guard<void (*)() noexcept>,
@@ -346,8 +333,6 @@ static_assert(
   "a throwing-move callable gives a potentially-throwing constructor"
 );
 
-// The constraint requires the callable to be invocable as an lvalue: the
-// destructor calls the stored member, not a temporary.
 static_assert(
   [] {
     struct rvalue_only {
@@ -358,7 +343,6 @@ static_assert(
   "scope_guard rejects a callable invocable only as an rvalue"
 );
 
-// A scope_guard over a function pointer is neither copyable nor movable.
 static_assert(
   !std::movable<nexenne::utility::scope_guard<void (*)()>>,
   "scope_guard is scope-bound: neither copyable nor movable"
@@ -371,7 +355,6 @@ static_assert(
   "scope_guard has an implicitly deleted move constructor"
 );
 
-// CTAD deduces Fn; function_type exposes it.
 static_assert(
   std::is_same_v<
     decltype(nexenne::utility::scope_guard{std::declval<void (*)()>()}),
@@ -383,7 +366,6 @@ static_assert(
   "scope_guard exposes its Fn as function_type"
 );
 
-// The constructor is explicit.
 static_assert(
   !std::is_convertible_v<void (*)(), nexenne::utility::scope_guard<void (*)()>>,
   "scope_guard has an explicit constructor"

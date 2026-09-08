@@ -17,7 +17,6 @@ using nexenne::utility::buffer_cursor;
 
 }  // namespace
 
-// Construction, queries and navigation are all usable at compile time.
 static_assert([] {
   auto storage{std::array<std::byte, 8>{}};
   auto cur{buffer_cursor{std::span{storage}}};
@@ -36,7 +35,7 @@ static_assert([] {
   if (cur.position() != 0 || cur.exhausted()) {
     return false;
   }
-  cur.put(std::byte{0x09});  // write one byte and advance
+  cur.put(std::byte{0x09});
   cur.seek(0);
   return cur.next() == std::byte{0x09} && cur.position() == 1 && cur.consumed().size() == 1;
 }());
@@ -64,7 +63,7 @@ TEST_CASE("nexenne::utility::buffer_cursor take advances, peek does not") {
 
   auto const viewed{cur.peek(3)};
   CHECK(viewed.size() == 3);
-  CHECK(cur.position() == 0);  // peek leaves the cursor put
+  CHECK(cur.position() == 0);
 
   auto const taken{cur.take(3)};
   CHECK(taken.size() == 3);
@@ -80,7 +79,7 @@ TEST_CASE(
   wcur.put(std::byte{0x11});
   wcur.put(std::byte{0x22});
   CHECK(wcur.position() == 2);
-  CHECK(wcur.consumed().size() == 2);  // the two bytes written so far
+  CHECK(wcur.consumed().size() == 2);
 
   auto rcur{buffer_cursor{std::span<std::byte const>{storage}}};
   CHECK(std::to_integer<int>(rcur.next()) == 0x11);
@@ -96,7 +95,7 @@ TEST_CASE("nexenne::utility::buffer_cursor seek moves to an absolute offset") {
   CHECK(cur.remaining() == 3);
   cur.retreat(2);
   CHECK(cur.position() == 3);
-  cur.retreat();  // steps back one by default
+  cur.retreat();
   CHECK(cur.position() == 2);
   cur.seek(0);
   CHECK(cur.position() == 0);
@@ -108,12 +107,12 @@ TEST_CASE("nexenne::utility::buffer_cursor over an empty buffer is exhausted fro
   CHECK(cur.position() == 0);
   CHECK(cur.remaining() == 0);
   CHECK(cur.exhausted());
-  CHECK(cur.has(0));  // zero more elements always fit
+  CHECK(cur.has(0));
   CHECK_FALSE(cur.has(1));
-  CHECK(cur.data() == nullptr);  // one past the end of an empty span
+  CHECK(cur.data() == nullptr);
   CHECK(cur.buffer().empty());
   CHECK(cur.consumed().empty());
-  cur.seek(0);  // the only valid seek target
+  cur.seek(0);
   cur.advance(0);
   cur.rewind();
   CHECK(cur.position() == 0);
@@ -125,9 +124,9 @@ TEST_CASE("nexenne::utility::buffer_cursor peek(0) and take(0) are empty and do 
 
   CHECK(cur.peek(0).empty());
   CHECK(cur.take(0).empty());
-  CHECK(cur.position() == 0);  // a zero-length take does not advance
+  CHECK(cur.position() == 0);
 
-  cur.advance(2);  // exhausted: zero-length views are still valid
+  cur.advance(2);
   CHECK(cur.peek(0).empty());
   CHECK(cur.take(0).empty());
   CHECK(cur.position() == 2);
@@ -140,18 +139,16 @@ TEST_CASE("nexenne::utility::buffer_cursor take returns the exact underlying byt
   auto cur{buffer_cursor{std::span{storage}}};
   cur.advance(1);
 
-  auto const taken{cur.take(3)};  // must alias storage[1..3], not just have size 3
+  auto const taken{cur.take(3)};
   REQUIRE(taken.size() == 3);
   CHECK(taken.data() == storage.data() + 1);
   CHECK(std::to_integer<int>(taken[0]) == 0xAD);
   CHECK(std::to_integer<int>(taken[1]) == 0xBE);
   CHECK(std::to_integer<int>(taken[2]) == 0xEF);
 
-  // Writing through the taken span writes the underlying storage.
   taken[0] = std::byte{0x77};
   CHECK(std::to_integer<int>(storage[1]) == 0x77);
 
-  // peek at the new position views the same byte take would return.
   auto const peeked{cur.peek(1)};
   CHECK(peeked.data() == storage.data() + 4);
   CHECK(std::to_integer<int>(peeked[0]) == 0x42);

@@ -22,9 +22,6 @@
 #include <nexenne/utility/format.hpp>
 #include <nexenne/utility/static_string.hpp>
 
-// static_string is structural, so it can be a non-type template parameter.
-// Here it tags a strong-typed unit at compile time: the unit symbol lives in
-// the type, and the symbol is recovered at runtime through view()/formatter.
 namespace {
 
 template <nexenne::utility::static_string Symbol>
@@ -39,18 +36,13 @@ struct quantity {
 }  // namespace
 
 auto main() -> int {
-  // Compile-time concatenation builds a derived unit symbol.
   constexpr auto metre{nexenne::utility::static_string{"m"}};
   constexpr auto per_s{nexenne::utility::static_string{"/s"}};
   constexpr auto speed_sym{metre + per_s};
   static_assert(speed_sym.view() == "m/s");
   static_assert(speed_sym.size() == 3);
 
-  // N is the capacity bound, not the length. size() scans to the first NUL, so
-  // a buffer with an interior terminator reports the shorter content length: a
-  // static_string<6> built from "ab\0cd" holds capacity 6 but size() 2. A
-  // default-constructed instance is EMPTY, whatever N is.
-  constexpr auto padded{nexenne::utility::static_string{"ab\0cd"}};  // static_string<6>
+  constexpr auto padded{nexenne::utility::static_string{"ab\0cd"}};
   static_assert(padded.size() == 2);
   static_assert(padded.view() == "ab");
   constexpr auto blank{nexenne::utility::static_string<16>{}};
@@ -59,12 +51,10 @@ auto main() -> int {
   auto const distance{quantity<"m">{42.0}};
   auto const mass{quantity<"kg">{7.5}};
 
-  // The formatter specialisation lets a static_string drop straight into format.
   std::println("{:>6.1f} {}", distance.value, decltype(distance)::symbol());
   std::println("{:>6.1f} {}", mass.value, decltype(mass)::symbol());
   std::println("derived unit: {}", speed_sym);
 
-  // std::hash specialisation makes it a usable key ("water" is static_string<6>).
   auto density{std::unordered_map<nexenne::utility::static_string<6>, double>{}};
   density.emplace(nexenne::utility::static_string{"water"}, 1000.0);
   density.emplace(nexenne::utility::static_string{"steel"}, 7850.0);

@@ -15,11 +15,7 @@ namespace {
 
 using nexenne::utility::for_each_non_null;
 
-// Detection wrapped in named concepts: GCC reports a bare
-// !requires { for_each_non_null(...); } whose only candidate is removed by an
-// unsatisfied constraint as a hard error rather than an unsatisfied
-// requirement, so the negative checks below go through a concept where the
-// removal soft-fails cleanly.
+// Named concepts, not bare requires: GCC hard-errors on the rejected candidate.
 template <typename Range, typename Fn>
 concept applies_to = requires(Range range, Fn fn) { for_each_non_null(range, fn); };
 
@@ -32,7 +28,7 @@ TEST_CASE("nexenne::utility::for_each_non_null skips null raw pointers") {
 
   auto sum{0};
   for_each_non_null(ptrs, [&sum](int& value) { sum += value; });
-  CHECK(sum == 3);  // only a and b were visited
+  CHECK(sum == 3);
 }
 
 TEST_CASE("nexenne::utility::for_each_non_null preserves order and passes the pointee") {
@@ -77,15 +73,11 @@ TEST_CASE("nexenne::utility::for_each_non_null invokes a pointer to member via s
   sink b;
   auto const ptrs{std::array<sink*, 3>{&a, nullptr, &b}};
 
-  // The callable goes through std::invoke, so a pointer to member of the
-  // pointee type works directly.
   for_each_non_null(ptrs, &sink::flush);
   CHECK(a.flushes == 1);
   CHECK(b.flushes == 1);
 }
 
-// The constraint has two legs: the elements must compare to nullptr, and the
-// callable must accept the dereferenced element.
 static_assert(
   applies_to<std::vector<int*>, void (*)(int&)>,
   "a pointer range with a matching callable is accepted"

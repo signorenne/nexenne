@@ -15,7 +15,6 @@ namespace {
 
 namespace util = nexenne::utility;
 
-// CTAD deduces overloaded<Ts...> from the constructor arguments.
 static_assert(std::is_aggregate_v<util::overloaded<>>);
 
 TEST_CASE("nexenne::utility::overloaded dispatches a variant by alternative") {
@@ -40,12 +39,12 @@ TEST_CASE("nexenne::utility::overloaded invokes directly and falls back to a gen
   auto const dispatch{nexenne::utility::overloaded{
     [](int) { return 1; },
     [](double) { return 2; },
-    [](auto const&) { return 0; },  // generic catch-all
+    [](auto const&) { return 0; },
   }};
 
   CHECK(dispatch(5) == 1);
   CHECK(dispatch(3.0) == 2);
-  CHECK(dispatch("text") == 0);  // neither int nor double: generic handler
+  CHECK(dispatch("text") == 0);
 }
 
 TEST_CASE("nexenne::utility::overloaded merges two lambdas") {
@@ -79,7 +78,7 @@ TEST_CASE("nexenne::utility::overloaded merges N lambdas") {
     [](long) { return 5; },
   }};
 
-  CHECK(dispatch(true) == 4);  // bool resolves before int/long
+  CHECK(dispatch(true) == 4);
   CHECK(dispatch(5L) == 5);
   CHECK(dispatch(0.0) == 2);
 }
@@ -88,17 +87,15 @@ TEST_CASE("nexenne::utility::overloaded supports a mutable stateful lambda") {
   auto counter{0};
   auto dispatch{util::overloaded{
     [count = 0](int) mutable { return ++count; },
-    // Also mutable: mixing a non-const (mutable) and a const call operator whose
-    // parameter types interconvert (int/double) makes the call ambiguous, because
-    // the object-constness and argument conversions rank in opposite directions.
+    // Also mutable: a const operator() beside the mutable one makes the call ambiguous.
     [&counter](double) mutable { return ++counter; },
   }};
 
-  CHECK(dispatch(0) == 1);  // mutable capture advances
+  CHECK(dispatch(0) == 1);
   CHECK(dispatch(0) == 2);
   CHECK(dispatch(0) == 3);
 
-  CHECK(dispatch(0.0) == 1);  // reference capture mutates the outer variable
+  CHECK(dispatch(0.0) == 1);
   CHECK(dispatch(0.0) == 2);
   CHECK(counter == 2);
 }

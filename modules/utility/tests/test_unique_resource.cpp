@@ -27,7 +27,7 @@ TEST_CASE("nexenne::utility::unique_resource runs the deleter once at destructio
     CHECK(r.get() == 7);
     CHECK(closed == -1);
   }
-  CHECK(closed == 7);  // deleter ran with the right resource value
+  CHECK(closed == 7);
 }
 
 TEST_CASE(
@@ -37,7 +37,7 @@ TEST_CASE(
   {
     util::unique_resource<int, std::function<void(int)>> r;
     CHECK_FALSE(r.owns());
-    r = util::unique_resource<int, std::function<void(int)>>{};  // still nothing
+    r = util::unique_resource<int, std::function<void(int)>>{};
     CHECK_FALSE(r.owns());
   }
   CHECK(closes == 0);
@@ -58,21 +58,18 @@ TEST_CASE(
   {
     auto r{util::unique_resource{7, [&](int fd) { closed = fd; }}};
     auto const fd{r.release()};
-    CHECK(fd == 7);  // release returns the owned resource
+    CHECK(fd == 7);
     CHECK_FALSE(r.owns());
   }
-  CHECK(closed == -1);  // deleter never ran
+  CHECK(closed == -1);
 }
 
 TEST_CASE("nexenne::utility::unique_resource double release is safe and idempotent") {
   int closes{0};
   auto r{util::unique_resource{7, [&](int) { ++closes; }}};
   auto const first{r.release()};
-  auto const second{r.release()};  // already non-owning
+  auto const second{r.release()};
   CHECK(first == 7);
-  // The stored value is moved-from after release; an int handle is trivially
-  // copyable, so its moved-from state happens to keep the value. A move-only
-  // resource would NOT still be readable here (see the unique_ptr release test).
   CHECK(second == 7);
   CHECK_FALSE(r.owns());
   CHECK(closes == 0);
@@ -82,9 +79,8 @@ TEST_CASE("nexenne::utility::unique_resource get and get_deleter access the stor
   auto const deleter{[](int) {}};
   auto r{util::unique_resource{7, deleter}};
   CHECK(r.get() == 7);
-  // get_deleter returns a reference to the stored deleter; verify it is callable.
   r.get_deleter()(r.get());
-  CHECK(r.owns());  // calling get_deleter() does not change ownership
+  CHECK(r.owns());
 }
 
 TEST_CASE(
@@ -94,22 +90,22 @@ TEST_CASE(
   {
     auto a{util::unique_resource{7, [&](int) { ++closes; }}};
     auto b{std::move(a)};
-    CHECK_FALSE(a.owns());  // source disarmed
+    CHECK_FALSE(a.owns());
     CHECK(b.owns());
     CHECK(b.get() == 7);
     CHECK(closes == 0);
   }
-  CHECK(closes == 1);  // only b's deleter ran
+  CHECK(closes == 1);
 }
 
 TEST_CASE("nexenne::utility::unique_resource moving from a non-owning source stays non-owning") {
   int closes{0};
   {
     auto a{util::unique_resource{7, [&](int) { ++closes; }}};
-    util::ignore(a.release());  // a now owns nothing
+    util::ignore(a.release());
     auto b{std::move(a)};
     CHECK_FALSE(a.owns());
-    CHECK_FALSE(b.owns());  // ownership flag transferred faithfully
+    CHECK_FALSE(b.owns());
   }
   CHECK(closes == 0);
 }
@@ -130,10 +126,10 @@ TEST_CASE(
   r.reset(2);
   CHECK(r.owns());
   CHECK(r.get() == 2);
-  CHECK(closed == std::vector{1});  // old resource released, new one adopted
+  CHECK(closed == std::vector{1});
   r.reset();
   CHECK_FALSE(r.owns());
-  CHECK(closed == std::vector{1, 2});  // new resource released too, via the same deleter
+  CHECK(closed == std::vector{1, 2});
 }
 
 TEST_CASE(
@@ -141,11 +137,11 @@ TEST_CASE(
 ) {
   std::vector<int> closed;
   auto r{util::unique_resource{1, [&](int v) { closed.push_back(v); }}};
-  util::ignore(r.release());  // non-owning, holds no live resource
+  util::ignore(r.release());
   r.reset(9);
   CHECK(r.owns());
   CHECK(r.get() == 9);
-  CHECK(closed.empty());  // nothing was owned, so nothing was deleted on adopt
+  CHECK(closed.empty());
   r.reset();
   CHECK(closed == std::vector{9});
 }
@@ -155,7 +151,7 @@ TEST_CASE("nexenne::utility::make_unique_resource_checked skips the invalid sent
   auto const closer{[&](int) { ++closes; }};
   {
     auto bad{util::make_unique_resource_checked(-1, -1, closer)};
-    CHECK_FALSE(bad.owns());  // resource == invalid: ownership released
+    CHECK_FALSE(bad.owns());
   }
   CHECK(closes == 0);
   {
@@ -169,12 +165,11 @@ TEST_CASE("nexenne::utility::make_unique_resource_checked skips the invalid sent
 TEST_CASE("nexenne::utility::make_unique_resource_checked compares with a heterogeneous sentinel") {
   int closes{0};
   auto const closer{[&](long) { ++closes; }};
-  // Resource is long, invalid sentinel is int; comparison is via operator==.
   auto bad{util::make_unique_resource_checked(long{-1}, -1, closer)};
   CHECK_FALSE(bad.owns());
   auto good{util::make_unique_resource_checked(long{5}, -1, closer)};
   CHECK(good.owns());
-  util::ignore(good.release());  // avoid the +1 from good
+  util::ignore(good.release());
   CHECK(closes == 0);
 }
 
@@ -185,7 +180,6 @@ TEST_CASE("nexenne::utility::unique_resource gives pointer access") {
   CHECK(*r == 42);
   CHECK(r.get() == &obj);
 
-  // operator* yields a mutable reference: writes go through to the object.
   *r = 7;
   CHECK(obj == 7);
 
@@ -214,7 +208,7 @@ TEST_CASE("nexenne::utility::unique_resource owns a unique_ptr as a move-only re
   CHECK(r.owns());
   CHECK(*r.get() == 3);
   r.reset();
-  CHECK(observed == 3);  // deleter saw the live resource before reset cleared owns
+  CHECK(observed == 3);
 }
 
 TEST_CASE(
@@ -229,13 +223,13 @@ TEST_CASE(
                                  }}};
     auto b{std::move(a)};
     CHECK_FALSE(a.owns());
-    CHECK(a.get() == nullptr);  // the moved-from unique_ptr resource is null
+    CHECK(a.get() == nullptr);
     CHECK(b.owns());
     REQUIRE(b.get() != nullptr);
     CHECK(*b.get() == 5);
     CHECK(observed == 0);
   }
-  CHECK(observed == 5);  // only the destination's deleter saw the live pointer
+  CHECK(observed == 5);
 }
 
 TEST_CASE("nexenne::utility::unique_resource move-assign transfers a move-only resource") {
@@ -254,13 +248,13 @@ TEST_CASE("nexenne::utility::unique_resource move-assign transfers a move-only r
               }
             }};
     a = std::move(b);
-    CHECK(observed == std::vector{1});  // a's old resource released on assignment
+    CHECK(observed == std::vector{1});
     CHECK(a.owns());
     REQUIRE(a.get() != nullptr);
     CHECK(*a.get() == 2);
     CHECK_FALSE(b.owns());
   }
-  CHECK(observed == std::vector{1, 102});  // b's deleter travelled with b's resource
+  CHECK(observed == std::vector{1, 102});
 }
 
 TEST_CASE(
@@ -271,23 +265,22 @@ TEST_CASE(
   REQUIRE(held != nullptr);
   CHECK(*held == 9);
   CHECK_FALSE(r.owns());
-  CHECK(r.get() == nullptr);  // moved-from unique_ptr: null, not the old value
+  CHECK(r.get() == nullptr);
 }
 
 TEST_CASE("nexenne::utility::unique_resource move-assign releases the old resource") {
   int closes_a{0};
   int closes_b{0};
   {
-    // Same deleter type (std::function) so the two are the same move-assignable type.
     using owner = util::unique_resource<int, std::function<void(int)>>;
     owner a{1, [&](int) { ++closes_a; }};
     owner b{2, [&](int) { ++closes_b; }};
     a = std::move(b);
-    CHECK(closes_a == 1);  // a's original resource released on assignment
+    CHECK(closes_a == 1);
     CHECK(a.get() == 2);
     CHECK_FALSE(b.owns());
   }
-  CHECK(closes_b == 1);  // a (now owning b's resource and deleter) released at scope exit
+  CHECK(closes_b == 1);
 }
 
 TEST_CASE("nexenne::utility::unique_resource move-assign from a non-owning source disarms target") {
@@ -296,19 +289,16 @@ TEST_CASE("nexenne::utility::unique_resource move-assign from a non-owning sourc
   using owner = util::unique_resource<int, std::function<void(int)>>;
   owner a{1, [&](int) { ++closes_a; }};
   owner b{2, [&](int) { ++closes_b; }};
-  util::ignore(b.release());  // b owns nothing
+  util::ignore(b.release());
   a = std::move(b);
-  CHECK(closes_a == 1);   // a's old resource was released
-  CHECK_FALSE(a.owns());  // and a took over b's non-owning state
+  CHECK(closes_a == 1);
+  CHECK_FALSE(a.owns());
   CHECK(closes_b == 0);
 }
 
 TEST_CASE(
   "nexenne::utility::unique_resource move-assign rebuilds a non-assignable lambda deleter"
 ) {
-  // A capturing lambda has no assignment operator, so the assignment must
-  // transfer it by destroy-and-reconstruct (transfer_member); that transfer is
-  // nothrow because the lambda's move constructor is.
   std::vector<int> closed;
   auto const make{[&closed](int const v) {
     return util::unique_resource{v, [&closed](int const x) { closed.push_back(x); }};
@@ -320,24 +310,24 @@ TEST_CASE(
   static_assert(std::is_nothrow_move_constructible_v<decltype(a)>);
 
   a = std::move(b);
-  CHECK(closed == std::vector{1});  // a's old resource released on assignment
+  CHECK(closed == std::vector{1});
   CHECK(a.owns());
   CHECK(a.get() == 2);
   CHECK_FALSE(b.owns());
   a.reset();
-  CHECK(closed == std::vector{1, 2});  // the transferred deleter still records into closed
+  CHECK(closed == std::vector{1, 2});
 }
 
 TEST_CASE("nexenne::utility::unique_resource self-move and double-reset are safe") {
   int closes{0};
   auto r{util::unique_resource{1, [&](int) { ++closes; }}};
   auto& alias{r};
-  r = std::move(alias);  // guarded self-move
+  r = std::move(alias);
   CHECK(r.owns());
   CHECK(closes == 0);
 
   r.reset();
-  r.reset();  // idempotent: deleter does not run twice
+  r.reset();
   CHECK(closes == 1);
 }
 
@@ -346,16 +336,14 @@ TEST_CASE(
 ) {
   std::vector<int> closed;
   auto r{util::unique_resource{10, [&](int v) { closed.push_back(v); }}};
-  r.reset(20);  // deletes 10
-  r.reset(30);  // deletes 20
+  r.reset(20);
+  r.reset(30);
   CHECK(r.get() == 30);
   CHECK(closed == std::vector{10, 20});
-  r.reset();  // deletes 30
+  r.reset();
   CHECK(closed == std::vector{10, 20, 30});
 }
 
-// A deleter whose special members can throw, for the conditional-noexcept
-// static assertions below. Declarations suffice: the traits never call them.
 struct throwing_move_deleter {
   throwing_move_deleter() = default;
   throwing_move_deleter(throwing_move_deleter&&) noexcept(false);
@@ -367,8 +355,6 @@ struct throwing_move_deleter {
   auto operator()(int) const -> void;
 };
 
-// The moves are conditionally noexcept: nothrow members give nothrow moves,
-// and a member with throwing special members surfaces in the specification.
 static_assert(
   std::is_nothrow_move_constructible_v<util::unique_resource<int, void (*)(int)>>,
   "nothrow-movable members give a noexcept move constructor"
@@ -420,7 +406,6 @@ static_assert(
   "a deleter whose copy can throw gives a potentially-throwing owning constructor"
 );
 
-// unique_resource is move-only, never copyable.
 static_assert(
   !std::is_copy_constructible_v<util::unique_resource<int, std::function<void(int)>>>,
   "unique_resource is non-copyable"
@@ -438,7 +423,6 @@ static_assert(
   "unique_resource is move-assignable"
 );
 
-// Nested type aliases.
 static_assert(
   std::is_same_v<util::unique_resource<int, void (*)(int)>::resource_type, int>,
   "unique_resource exposes resource_type"
@@ -448,7 +432,6 @@ static_assert(
   "unique_resource exposes deleter_type"
 );
 
-// CTAD from a resource and deleter; make_unique_resource_checked yields the same type.
 static_assert(
   std::is_same_v<
     decltype(util::unique_resource{std::declval<int>(), std::declval<void (*)(int)>()}),
@@ -568,9 +551,6 @@ TEST_CASE("nexenne::utility::unique_resource release keeps ownership when the mo
   CHECK(closed == 2);
 }
 
-// operator-> exists for a pointer resource (the non-pointer absence is a
-// constrained-away member; its negative is compiler-fragile to assert inline,
-// and is covered behaviourally by the pointer-resource access tests above).
 static_assert(requires(util::unique_resource<int*, void (*)(int*)> r) { r.operator->(); });
 
 TEST_CASE("nexenne::utility::unique_resource reset is noexcept exactly when its deleter is") {
@@ -597,9 +577,7 @@ TEST_CASE("nexenne::utility::unique_resource reset propagates a throwing deleter
   CHECK(calls == 1);
 }
 
-TEST_CASE("nexenne::utility::unique_resource owns a void pointer handle (utility-21)") {
-  // A C API handle such as void* used to fail to instantiate: operator*
-  // spelled a reference to void.
+TEST_CASE("nexenne::utility::unique_resource owns a void pointer handle") {
   auto released{static_cast<void*>(nullptr)};
   auto storage{0};
   {

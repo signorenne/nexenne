@@ -168,6 +168,7 @@ private:
   [[no_unique_address]] std::
     conditional_t<assignable_deleter, deleter_type, detail::unused_deleter_slot<0>>
       m_overlapping_deleter{};
+  // Re-created in place on move, which is UB for a potentially overlapping member.
   std::conditional_t<assignable_deleter, detail::unused_deleter_slot<1>, deleter_type>
     m_plain_deleter{};
   bool m_owns{false};
@@ -522,15 +523,11 @@ public:
           transfer_member(m_resource, other.m_resource);
           transfer_member(deleter_ref(), other.deleter_ref());
         } else {
-          // The deleter assignment can throw: do it first, by copy, so a
-          // failure leaves other's resource and deleter pair untouched.
           deleter_ref() = std::as_const(other.deleter_ref());
           transfer_member(m_resource, other.m_resource);
         }
       } else {
         if constexpr (nothrow_transfer_v<deleter_type>) {
-          // The resource assignment can throw: do it first, by copy, so a
-          // failure leaves other still owning its intact resource.
           m_resource = std::as_const(other.m_resource);
           transfer_member(deleter_ref(), other.deleter_ref());
         } else {
@@ -649,8 +646,6 @@ public:
     if constexpr (std::is_nothrow_move_assignable_v<resource_type>) {
       m_resource = std::move(resource);
     } else {
-      // P0052: assign from a const lvalue so the incoming handle is still
-      // intact and can be disposed of when the assignment throws.
       try {
         m_resource = std::as_const(resource);
       } catch (...) {

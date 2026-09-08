@@ -33,8 +33,6 @@ struct throwing_key {
   int id{};
 };
 
-// The width-tuned mixer only admits a 4- or 8-byte std::size_t; the active
-// specialisation must expose its constants.
 static_assert(util::detail::hash_mix<>::magic != 0);
 static_assert(sizeof(std::size_t) == 4 || sizeof(std::size_t) == 8);
 
@@ -75,9 +73,6 @@ struct std::hash<throwing_key> {
 
 namespace {
 
-// A throwing std::hash still satisfies hashable, but every combiner loses its
-// noexcept: the combiners are conditionally noexcept, propagating exactly
-// whether the underlying std::hash call can throw.
 static_assert(util::hashable<throwing_key>);
 static_assert(!util::detail::nothrow_hashable_v<throwing_key>);
 static_assert(
@@ -89,8 +84,6 @@ static_assert(!noexcept(util::hash_combine_each(
 static_assert(!noexcept(util::hash_args(std::declval<throwing_key const&>())));
 static_assert(!noexcept(util::hash_range(std::declval<std::vector<throwing_key> const&>())));
 
-// The noexcept of each combiner tracks the std::hash call exactly, so for a
-// nothrow-hashable type (int on every mainstream library) it is preserved.
 static_assert(
   noexcept(util::hash_combine(std::declval<std::size_t&>(), std::declval<int const&>()))
   == util::detail::nothrow_hashable_v<int>
@@ -118,7 +111,6 @@ TEST_CASE("nexenne::utility::hash_args mixes heterogeneous values") {
 }
 
 TEST_CASE("nexenne::utility::hash_args of a single value matches hashing it directly") {
-  // hash_args(x) == hash_combine(0, x), the documented one-value behaviour.
   std::size_t seed{0};
   util::hash_combine(seed, 12345);
   CHECK(util::hash_args(12345) == seed);
@@ -132,12 +124,12 @@ TEST_CASE("nexenne::utility::hash_combine folds into an existing seed in order")
   std::size_t b{0};
   util::hash_combine_each(b, 1, 2);
 
-  CHECK(a == b);  // manual two-step fold equals hash_combine_each
+  CHECK(a == b);
   CHECK(a == util::hash_args(1, 2));
 }
 
 TEST_CASE("nexenne::utility::hash_combine_each matches a manual left fold") {
-  std::size_t seed{99};  // non-zero starting accumulator
+  std::size_t seed{99};
   util::hash_combine_each(seed, 7, 8, 9);
 
   std::size_t manual{99};
@@ -151,7 +143,7 @@ TEST_CASE("nexenne::utility::hash_combine_each matches a manual left fold") {
 TEST_CASE("nexenne::utility::hash_combine_each on an empty pack is the identity") {
   std::size_t seed{0xABCD};
   util::hash_combine_each(seed);
-  CHECK(seed == 0xABCD);  // unchanged
+  CHECK(seed == 0xABCD);
 }
 
 TEST_CASE("nexenne::utility::hash_combine is order-sensitive for two values") {
@@ -191,17 +183,16 @@ TEST_CASE("nexenne::utility::hash of empty input is zero") {
   CHECK(util::hash_range(std::vector<int>{}) == 0);
 
   std::size_t seed{0};
-  util::hash_combine_each(seed);  // empty pack leaves the seed unchanged
+  util::hash_combine_each(seed);
   CHECK(seed == 0);
 }
 
 TEST_CASE("nexenne::utility combiners accept a type whose std::hash may throw") {
-  // The value path is identical to the nothrow one; only the noexcept differs.
   auto const direct{util::hash_args(throwing_key{7})};
   std::size_t seed{0};
   util::hash_combine(seed, throwing_key{7});
   CHECK(direct == seed);
-  CHECK(util::hash_args(throwing_key{7}) == util::hash_args(7));  // forwards to hash<int>
+  CHECK(util::hash_args(throwing_key{7}) == util::hash_args(7));
 }
 
 TEST_CASE("nexenne::utility::hash_range hashes a const-iterable view like its elements") {
@@ -220,7 +211,6 @@ TEST_CASE("nexenne::utility distinct inputs differ in practice") {
   CHECK(util::hash_args(0) != util::hash_args(1));
   CHECK(util::hash_args(1, 0) != util::hash_args(0, 1));
   CHECK(util::hash_args(std::string{"abc"}) != util::hash_args(std::string{"abd"}));
-  // Zero-seed combine of a zero hash is still nonzero (the magic constant mixes in).
   std::size_t seed{0};
   util::hash_combine(seed, std::size_t{0});
   CHECK(seed != 0);

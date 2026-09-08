@@ -38,8 +38,6 @@ struct resize {
 
 using event = std::variant<click, key_press, resize>;
 
-// Pattern 1: one branch per alternative. Every type is handled explicitly; if a
-// new alternative were added to the event variant, this would fail to compile.
 auto describe(event const& e) -> std::string {
   return std::visit(
     util::overloaded{
@@ -51,9 +49,6 @@ auto describe(event const& e) -> std::string {
   );
 }
 
-// Pattern 2: handle the one alternative we care about and default the rest with
-// a generic lambda. The typed resize overload is more specialised, so it wins
-// for resize events; everything else falls through to the generic auto branch.
 auto only_resizes(event const& e) -> std::string {
   return std::visit(
     util::overloaded{
@@ -71,16 +66,10 @@ auto main() -> int {
   for (event const& e : events) {
     std::println("{}", describe(e));
   }
-  // click at (10, 20)
-  // key 'q' pressed
-  // resized to 800x600
 
   std::println("--- only resizes ---");
   for (event const& e : events) {
     std::println("{}", only_resizes(e));
   }
-  // (ignored)
-  // (ignored)
-  // RESIZE 800x600
   return 0;
 }

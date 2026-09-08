@@ -131,9 +131,9 @@ encode(std::span<std::byte const> const in, std::span<std::byte> const out) noex
     return std::unexpected{error::output_too_small};
   }
 
-  std::size_t write{1};     // out[0] is reserved for the first code byte.
-  std::size_t code_idx{0};  // Slot the current run's code byte will land in.
-  std::uint8_t code{1};     // One more than the non-zero bytes seen in the run.
+  std::size_t write{1};
+  std::size_t code_idx{0};
+  std::uint8_t code{1};
 
   for (std::size_t read{0}; read < in.size(); ++read) {
     if (in[read] != std::byte{0}) {
@@ -141,7 +141,7 @@ encode(std::span<std::byte const> const in, std::span<std::byte> const out) noex
         return std::unexpected{error::output_too_small};
       }
       out[write++] = in[read];
-      if (++code == 0xFF) {  // The run is a full block; flush it and open a new one.
+      if (++code == 0xFF) {
         out[code_idx] = static_cast<std::byte>(code);
         if (write >= cap) {
           return std::unexpected{error::output_too_small};
@@ -149,7 +149,7 @@ encode(std::span<std::byte const> const in, std::span<std::byte> const out) noex
         code_idx = write++;
         code = 1;
       }
-    } else {  // A zero closes the run: write its code byte and start the next run.
+    } else {
       out[code_idx] = static_cast<std::byte>(code);
       if (write >= cap) {
         return std::unexpected{error::output_too_small};
@@ -201,7 +201,7 @@ decode(std::span<std::byte const> const in, std::span<std::byte> const out) noex
   while (read < n) {
     std::uint8_t const code{std::to_integer<std::uint8_t>(in[read++])};
     if (code == 0) {
-      return std::unexpected{error::invalid_input};  // No zeros in a COBS frame.
+      return std::unexpected{error::invalid_input};
     }
     for (std::uint8_t i{1}; i < code; ++i) {
       if (read >= n) {
@@ -209,14 +209,14 @@ decode(std::span<std::byte const> const in, std::span<std::byte> const out) noex
       }
       std::byte const b{in[read++]};
       if (b == std::byte{0}) {
-        return std::unexpected{error::invalid_input};  // A valid frame has no zeros.
+        return std::unexpected{error::invalid_input};
       }
       if (write >= out.size()) {
         return std::unexpected{error::output_too_small};
       }
       out[write++] = b;
     }
-    if (code != 0xFF && read < n) {  // A non-full block implies a payload zero.
+    if (code != 0xFF && read < n) {
       if (write >= out.size()) {
         return std::unexpected{error::output_too_small};
       }

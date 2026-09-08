@@ -70,8 +70,7 @@ template <typename To, typename From>
   if constexpr (std::is_signed_v<To>) {
     return from >= -bound && from < bound;
   } else {
-    // Anything in (-1, 0) truncates to zero, which is representable; the
-    // round-trip assert still rejects it afterwards for changing the value.
+    // (-1, 0) truncates to a representable zero; the round-trip check rejects it.
     return from > From{-1} && from < bound;
   }
 }
@@ -154,9 +153,6 @@ template <typename To, typename From>
   requires std::is_arithmetic_v<To> && std::is_arithmetic_v<From>
 [[nodiscard]] constexpr auto narrow_cast(From const from) noexcept -> To {
   if constexpr (std::is_floating_point_v<From> && !std::is_floating_point_v<To>) {
-    // The cast below is undefined for an out-of-range or NaN source, so the
-    // range must be validated first; in a constant evaluation a violation is a
-    // compile error rather than a runtime abort.
     assert(
       detail::float_in_integral_range<To>(from)
       && "narrow_cast: floating-point value out of range of the target type"

@@ -24,16 +24,13 @@ namespace {
 
 using nexenne::utility::narrow_cast;
 
-// The cast is unconditionally noexcept and constexpr.
 static_assert(noexcept(narrow_cast<std::int8_t>(0)));
 
-// Same-type and widening conversions never change the value.
 static_assert(narrow_cast<int>(5) == 5);
 static_assert(narrow_cast<std::int64_t>(std::int32_t{-7}) == -7);
 static_assert(narrow_cast<std::uint64_t>(std::uint32_t{42}) == 42u);
 static_assert(narrow_cast<double>(3.0F) == 3.0);
 
-// Exact boundary values of the target type round-trip cleanly.
 static_assert(narrow_cast<std::int8_t>(127) == std::numeric_limits<std::int8_t>::max());
 static_assert(narrow_cast<std::int8_t>(-128) == std::numeric_limits<std::int8_t>::min());
 static_assert(narrow_cast<std::uint8_t>(255) == std::numeric_limits<std::uint8_t>::max());
@@ -42,15 +39,10 @@ static_assert(narrow_cast<std::int16_t>(32767) == 32767);
 static_assert(narrow_cast<std::int16_t>(-32768) == -32768);
 static_assert(narrow_cast<std::uint16_t>(65535) == 65535u);
 
-// Cross-sign conversions are allowed as long as the value and sign survive.
 static_assert(narrow_cast<unsigned>(5) == 5u);
 static_assert(narrow_cast<int>(5u) == 5);
 static_assert(narrow_cast<std::uint32_t>(std::int64_t{0}) == 0u);
 
-// Float-to-integral narrowing at the exact target boundaries: the range check
-// runs before the cast, so these are well-defined even in a constant
-// expression (where any UB would be a compile error, making these
-// static_asserts the strongest possible no-UB witness).
 static_assert(narrow_cast<std::int8_t>(127.0) == 127);
 static_assert(narrow_cast<std::int8_t>(-128.0) == -128);
 static_assert(narrow_cast<std::uint8_t>(255.0) == 255u);
@@ -61,10 +53,6 @@ static_assert(narrow_cast<std::uint32_t>(4294967295.0) == 4294967295u);
 // The largest float below 2^31 (2^31 - 128, exactly representable).
 static_assert(narrow_cast<std::int32_t>(2147483520.0F) == 2147483520);
 
-// The classifier behind the pre-cast range check, probed directly so the
-// reject side (which would assert inside narrow_cast) is covered too. The
-// bounds are exact powers of two, so the first out-of-range integer on either
-// side must classify as false.
 namespace detail = nexenne::utility::detail;
 
 static_assert(detail::float_in_integral_range<std::int8_t>(127.0));
@@ -74,8 +62,6 @@ static_assert(!detail::float_in_integral_range<std::int8_t>(-129.0));
 static_assert(detail::float_in_integral_range<std::uint8_t>(255.0));
 static_assert(!detail::float_in_integral_range<std::uint8_t>(256.0));
 static_assert(!detail::float_in_integral_range<std::uint8_t>(-1.0));
-// (-1, 0) truncates to zero, so the range check admits it; the round-trip
-// assert inside narrow_cast is what rejects the value change afterwards.
 static_assert(detail::float_in_integral_range<std::uint8_t>(-0.5));
 // 2^63 rounds to itself as a double, one past the signed maximum.
 static_assert(!detail::float_in_integral_range<std::int64_t>(9223372036854775808.0));
@@ -84,8 +70,6 @@ static_assert(detail::float_in_integral_range<std::int64_t>(-9223372036854775808
 static_assert(detail::float_in_integral_range<std::uint64_t>(18446744073709549568.0));
 static_assert(!detail::float_in_integral_range<std::uint64_t>(18446744073709551616.0));
 
-// NaN compares false against both bounds, so it is classified out of range for
-// every integral target (the documented NaN behaviour: assert in debug).
 static_assert(
   !detail::float_in_integral_range<std::int32_t>(std::numeric_limits<double>::quiet_NaN())
 );
@@ -171,9 +155,7 @@ TEST_CASE("narrow_cast on floating point: exactly representable values") {
   );
 }
 
-TEST_CASE("narrow_cast on floating point: integral targets at their boundaries") {
-  // Executed at run time so the pre-cast range check runs under the
-  // sanitizers: none of these may reach an out-of-range float-to-int cast.
+TEST_CASE("narrow_cast on floating point: integral target boundaries at run time") {
   CHECK(narrow_cast<std::int8_t>(127.0) == 127);
   CHECK(narrow_cast<std::int8_t>(-128.0) == -128);
   CHECK(narrow_cast<std::uint8_t>(255.0) == 255);

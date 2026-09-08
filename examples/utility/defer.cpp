@@ -17,10 +17,9 @@
 
 namespace {
 
-// Stand-ins for C-style APIs that have no RAII of their own.
 auto open_connection(std::string const& host) -> int {
   std::println("open connection to {}", host);
-  return 7;  // pretend file descriptor
+  return 7;
 }
 
 auto close_connection(int const fd) -> void {
@@ -35,9 +34,6 @@ auto unlock_region() -> void {
   std::println("unlock region");
 }
 
-// Each cleanup is written on the line right after its acquisition, so no exit
-// path can forget it. Guards run in reverse order of declaration, so the region
-// unlocks before the connection closes, mirroring the acquisition order.
 auto fetch(std::string const& host, bool const fail_early) -> bool {
   int const fd{open_connection(host)};
   auto const closer{nexenne::utility::defer{[&] { close_connection(fd); }}};
@@ -47,11 +43,11 @@ auto fetch(std::string const& host, bool const fail_early) -> bool {
 
   if (fail_early) {
     std::println("abort early; both guards still run on the way out");
-    return false;  // unlock then close run here
+    return false;
   }
 
   std::println("transfer data over fd {}", fd);
-  return true;  // unlock then close run here too
+  return true;
 }
 
 }  // namespace
@@ -62,6 +58,5 @@ auto main() -> int {
   std::println("--- early-return path ---");
   bool const aborted{fetch("example.org", true)};
   std::println("results: {} then {}", ok, aborted);
-  // Both paths print a matching unlock then close pair.
   return 0;
 }

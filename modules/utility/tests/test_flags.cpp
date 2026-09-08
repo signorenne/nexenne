@@ -31,7 +31,6 @@ static_assert(util::flags<perm>{}.none());
 static_assert(util::flags{perm::read}.has(perm::read));
 static_assert(!util::flags{perm::read}.has(perm::write));
 
-// Boolean test and popcount.
 static_assert(!static_cast<bool>(util::flags<perm>{}));
 static_assert(static_cast<bool>(util::flags{perm::read}));
 static_assert(util::flags<perm>{}.count() == 0);
@@ -45,16 +44,15 @@ static_assert(util::flags<perm>::from_raw(std::uint8_t{0b011}) == rw);
 constexpr auto rw_mask{static_cast<perm>(0b011)};
 static_assert(util::flags{perm::read}.has_any(rw_mask));
 static_assert(!util::flags{perm::read}.has_all(rw_mask));
-static_assert(rw.has_all(rw_mask));                            // both bits set -> has_all true
-static_assert(!util::flags{perm::read}.has_any(perm::write));  // disjoint -> has_any false
+static_assert(rw.has_all(rw_mask));
+static_assert(!util::flags{perm::read}.has_any(perm::write));
 
-// Complement, intersection, symmetric difference, enum-on-left.
 static_assert((~util::flags{perm::read}).has(perm::write));
 static_assert(!(~util::flags{perm::read}).has(perm::read));
-static_assert((~util::flags{perm::read}).raw() == 0xFE);  // narrow-underlying complement
+static_assert((~util::flags{perm::read}).raw() == 0xFE);
 static_assert((rw & util::flags{perm::write}) == util::flags{perm::write});
 static_assert((util::flags{perm::read} ^ util::flags{perm::read}).none());
-static_assert((perm::read | util::flags{perm::write}) == rw);  // enum | flags
+static_assert((perm::read | util::flags{perm::write}) == rw);
 static_assert(util::flags<perm>::from_raw(std::uint8_t{0xFF}).raw() == 0xFF);
 
 TEST_CASE("nexenne::utility::flags mutate in place and chain") {
@@ -70,29 +68,27 @@ TEST_CASE("nexenne::utility::flags mutate in place and chain") {
   f.toggle(perm::write);
   CHECK(f.has(perm::write));
   f.toggle(perm::write);
-  CHECK_FALSE(f.has(perm::write));  // toggle twice restores
+  CHECK_FALSE(f.has(perm::write));
 
   f.clear_all();
   CHECK(f.none());
   CHECK_FALSE(f.any());
 }
 
-// Compound assignment operators, both the flags and the enumerator overloads,
-// at compile time.
 static_assert([] {
   auto x{util::flags<perm>{}};
-  x |= perm::read;                // enum overload
-  x |= util::flags{perm::write};  // flags overload
+  x |= perm::read;
+  x |= util::flags{perm::write};
   return x.raw();
 }() == 0b011);
 static_assert([] {
   auto x{rw};
-  x &= perm::read;  // keep only read
+  x &= perm::read;
   return x.raw();
 }() == 0b001);
 static_assert([] {
   auto x{rw};
-  x ^= util::flags{perm::read};  // drop read
+  x ^= util::flags{perm::read};
   return x.raw();
 }() == 0b010);
 
@@ -103,10 +99,10 @@ TEST_CASE("nexenne::utility::flags compound assignment operators") {
   f |= util::flags{perm::write};
   CHECK(f == rw);
 
-  f &= perm::write;  // intersect down to a single bit
+  f &= perm::write;
   CHECK(f == util::flags{perm::write});
 
-  f ^= perm::write;  // symmetric-difference back to empty
+  f ^= perm::write;
   CHECK(f.none());
 
   f ^= util::flags{perm::exec};
@@ -114,21 +110,17 @@ TEST_CASE("nexenne::utility::flags compound assignment operators") {
 }
 
 TEST_CASE("nexenne::utility::flags binary operators mix flags and enumerators") {
-  // The full symmetric overload set: | & ^ each accept an enumerator on
-  // either side and return a flags.
   CHECK((rw & perm::write) == util::flags{perm::write});
   CHECK((perm::write & rw) == util::flags{perm::write});
   CHECK((rw ^ perm::read) == util::flags{perm::write});
   CHECK((perm::read ^ rw) == util::flags{perm::write});
   CHECK((perm::read | util::flags{perm::exec}).raw() == 0b101);
   CHECK((util::flags{perm::read} | perm::exec).raw() == 0b101);
-  // Idempotence / annihilation.
   CHECK((rw | rw) == rw);
   CHECK((rw & rw) == rw);
   CHECK((rw ^ rw).none());
 }
 
-// The enum-operand binary operators are constexpr and symmetric.
 static_assert((rw & perm::read) == util::flags{perm::read});
 static_assert((perm::read & rw) == util::flags{perm::read});
 static_assert((rw ^ perm::write) == util::flags{perm::read});
@@ -140,7 +132,7 @@ TEST_CASE("nexenne::utility::flags converts to bool and counts set bits") {
   CHECK(f.count() == 0);
 
   f.set(perm::read).set(perm::exec);
-  CHECK(static_cast<bool>(f));  // explicit: usable directly in an if condition
+  CHECK(static_cast<bool>(f));
   if (f) {
     CHECK(f.count() == 2);
   }
@@ -150,8 +142,6 @@ TEST_CASE("nexenne::utility::flags converts to bool and counts set bits") {
 }
 
 TEST_CASE("nexenne::utility::flags formats its raw mask through std::format") {
-  // The formatter prints the unsigned raw value; specs pass through to the
-  // integer formatter.
   CHECK(std::format("{}", rw) == "3");
   CHECK(std::format("{:#05b}", rw) == "0b011");
   CHECK(std::format("{:#x}", util::flags{perm::exec}) == "0x4");
@@ -160,14 +150,12 @@ TEST_CASE("nexenne::utility::flags formats its raw mask through std::format") {
 
 TEST_CASE("nexenne::utility::flags empty-mask query semantics") {
   auto const empty_mask{static_cast<perm>(0)};
-  // No bits requested: 'has all of nothing' is vacuously true, 'has any' false.
   CHECK(rw.has(empty_mask));
   CHECK(rw.has_all(empty_mask));
   CHECK_FALSE(rw.has_any(empty_mask));
-  CHECK(util::flags<perm>{}.has(empty_mask));  // even an empty set has all of nothing
+  CHECK(util::flags<perm>{}.has(empty_mask));
 }
 
-// A wide underlying type exercises far-apart bits and a full-width complement.
 enum class wide : std::uint32_t {
   low = 1u << 0,
   mid = 1u << 15,
@@ -187,18 +175,14 @@ TEST_CASE("nexenne::utility::flags over a wide underlying type") {
   CHECK_FALSE(f.has(wide::mid));
   CHECK(f.raw() == (1u << 0 | 1u << 31));
 
-  // Round-trip the raw value through from_raw.
   CHECK(util::flags<wide>::from_raw(f.raw()) == f);
 
-  // Complement sets every other bit, including mid.
   auto const inv{~f};
   CHECK(inv.has(wide::mid));
   CHECK_FALSE(inv.has(wide::low));
   CHECK(inv.raw() == ~f.raw());
 }
 
-// A bare scoped enum defaults to a SIGNED int underlying type; count() and the
-// formatter must go through the unsigned counterpart, never the sign.
 enum class option {
   alpha = 1 << 0,
   beta = 1 << 1,
@@ -218,11 +202,9 @@ TEST_CASE("nexenne::utility::flags over a signed underlying type") {
   CHECK_FALSE(f.has(option::gamma));
   CHECK(f.count() == 1);
 
-  // The complement of an empty set is raw ~0, negative as a signed int; the
-  // bit count and the formatting still see the two's-complement pattern.
   auto const all{~util::flags<option>{}};
   CHECK(all.raw() == -1);
-  CHECK(all.count() == std::size_t{32});  // every bit of the 32-bit underlying int
+  CHECK(all.count() == std::size_t{32});
   CHECK(all.has(option::beta));
   CHECK(std::format("{:#x}", all) == "0xffffffff");
 

@@ -72,17 +72,11 @@ template <typename T>
 [[nodiscard]] constexpr auto type_name() noexcept -> std::string_view {
 #if defined(__GNUC__) || defined(__clang__)
   auto const fn{std::string_view{__PRETTY_FUNCTION__}};
-  // Clang renders the parameter as "[T = X]" and GCC as "[with T = X; ...]";
-  // both share the "T = " marker.
   auto const marker{fn.find("T = ")};
   if (marker == std::string_view::npos) {
     return {};
   }
   auto const start{marker + 4};
-  // The last ']' bounds the spelling and survives array types like int[5] and
-  // nested templates whose own ']' precede it. GCC packs any extra signature
-  // entries after a "; ", which, when present before that bracket, is the
-  // tighter, correct end.
   auto end{fn.rfind(']')};
   if (auto const semi{fn.find("; ", start)}; semi != std::string_view::npos && semi < end) {
     end = semi;
@@ -130,8 +124,6 @@ struct function_traits_base {
 };
 
 }  // namespace detail
-
-/// @cond INTERNAL
 
 /**
  * @brief Extracts the return type, arity, argument types, and \c noexcept-ness

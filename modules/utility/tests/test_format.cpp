@@ -47,9 +47,7 @@ TEST_CASE("nexenne::utility::format.hpp alone formats every utility type") {
   CHECK(std::format("{}", util::ability::scale) == "scale");
 }
 
-TEST_CASE(
-  "nexenne::utility::format.hpp gives every utility type to_string and operator<< (utility-20)"
-) {
+TEST_CASE("nexenne::utility::format.hpp gives every utility type to_string and operator<<") {
   CHECK(util::to_string(util::flags{bit::a} | bit::b) == "3");
   CHECK(util::to_string(util::static_string{"ab"}) == std::string{"ab"});
   CHECK(util::to_string(count{7}) == "7");

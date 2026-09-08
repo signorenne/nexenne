@@ -74,8 +74,6 @@ template <auto V>
 [[nodiscard]] constexpr auto enum_value_name() noexcept -> std::string_view {
 #if defined(__GNUC__) || defined(__clang__)
   auto const fn{std::string_view{__PRETTY_FUNCTION__}};
-  // GCC: "... enum_value_name() [with auto V = E::name; ...]"
-  // Clang: "auto detail::enum_value_name() [V = E::name]"; both share "V = ".
   auto const eq{fn.find("V = ")};
   if (eq == std::string_view::npos) {
     return {};
@@ -89,17 +87,11 @@ template <auto V>
     return {};
   }
   auto name{fn.substr(start, end - start)};
-  // Strip any qualifier prefix to leave the trailing token. The prefix can
-  // contain parentheses (an enumerator in an anonymous namespace renders as
-  // "(anonymous namespace)::E::name"), so it MUST be stripped before the
-  // placeholder check below, or valid enumerators are wrongly rejected.
+  // Must precede the parenthesis check: "(anonymous namespace)::" has parentheses.
   auto const sep{name.rfind("::")};
   if (sep != std::string_view::npos) {
     name.remove_prefix(sep + 2);
   }
-  // Reject signature placeholders for non-enumerator values: compilers render
-  // those as "(E)0" or "((anonymous namespace)::E)0", so after stripping the
-  // token still carries a parenthesis or starts with a digit or '-'.
   if (name.empty() || name.find_first_of("()") != std::string_view::npos) {
     return {};
   }
@@ -163,11 +155,6 @@ template <typename E>
   }
 }
 
-// The integer sequences below are built over int, not the underlying type, to
-// avoid overflow when the underlying type is narrow: a
-// std::make_integer_sequence<std::uint8_t, 256> would silently produce zero
-// elements because 256 is not representable.
-
 /**
  * @brief Counts the named enumerators across the scan window.
  *
@@ -188,8 +175,6 @@ template <typename E, int Min, int... Is>
 [[nodiscard]] constexpr auto enum_count_impl(std::integer_sequence<int, Is...>) noexcept
   -> std::size_t {
   auto count{std::size_t{0}};
-  // Flat braced-init expansion rather than a sum fold, which would nest one
-  // operator per element and exceed clang's expression-nesting limit.
   [[maybe_unused]] std::initializer_list<int> const expansion{
     (count +=
      (enum_value_name<static_cast<E>(Min + Is)>().empty() ? std::size_t{0} : std::size_t{1}),
@@ -219,8 +204,6 @@ template <typename E, int Min, std::size_t N, int... Is>
 constexpr auto enum_values_impl(std::array<E, N>& out, std::integer_sequence<int, Is...>) noexcept
   -> void {
   auto i{std::size_t{0}};
-  // Flat braced-init expansion (evaluated left-to-right, so values pack in
-  // order) rather than a comma fold, which would exceed clang's nesting limit.
   [[maybe_unused]] std::initializer_list<int> const expansion{(
     enum_value_name<static_cast<E>(Min + Is)>().empty() ? 0
                                                         : (out[i++] = static_cast<E>(Min + Is), 0)

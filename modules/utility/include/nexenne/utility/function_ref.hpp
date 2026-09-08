@@ -116,12 +116,8 @@ private:
   template <typename F>
   [[nodiscard]] static auto make_thunk() noexcept -> thunk_type {
     return [](void const* p, Args... args) -> R {
-      // const_cast is sound: when constructed from a non-const F we stored the
-      // const-stripped pointer in the void const*.
       using bare = std::remove_reference_t<F>;
       auto& f{*const_cast<bare*>(static_cast<bare const*>(p))};
-      // invoke_r matches the is_invocable_r_v constraint: it discards the
-      // result for void signatures and supports pointers to members.
       return std::invoke_r<R>(f, std::forward<Args>(args)...);
     };
   }

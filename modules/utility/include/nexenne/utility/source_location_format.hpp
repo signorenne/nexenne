@@ -133,11 +133,11 @@ template <std::size_t N>
   -> std::string_view {
   auto const file{detail::basename_of(loc.file_name())};
   auto pos{std::size_t{0}};
-  auto const cap{buf.size() - 1};  // leave one slot to null-terminate buf
+  auto const cap{buf.size() - 1};
   detail::append(buf, pos, cap, file);
   detail::append(buf, pos, cap, ":");
   detail::append_line(buf, pos, cap, loc.line());
-  buf[pos] = '\0';  // pos <= cap < N, so this is always in range
+  buf[pos] = '\0';
   return std::string_view{buf.data(), pos};
 }
 
@@ -165,13 +165,13 @@ template <std::size_t N>
   -> std::string_view {
   auto const file{detail::basename_of(loc.file_name())};
   auto pos{std::size_t{0}};
-  auto const cap{buf.size() - 1};  // leave one slot to null-terminate buf
+  auto const cap{buf.size() - 1};
   detail::append(buf, pos, cap, file);
   detail::append(buf, pos, cap, ":");
   detail::append_line(buf, pos, cap, loc.line());
   detail::append(buf, pos, cap, " in ");
   detail::append(buf, pos, cap, std::string_view{loc.function_name()});
-  buf[pos] = '\0';  // pos <= cap < N, so this is always in range
+  buf[pos] = '\0';
   return std::string_view{buf.data(), pos};
 }
 

@@ -112,8 +112,6 @@ template <typename T, typename E>
   std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_constructible_v<E>
 ) -> std::expected<T, E> {
   if (!e) {
-    // In-place error construction: one copy of E, so the noexcept condition
-    // above is exact (std::unexpected would copy and then move the error).
     return std::expected<T, E>{std::unexpect, e.error()};
   }
   return *e;
@@ -140,8 +138,6 @@ template <typename T, typename E>
   std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_constructible_v<E>
 ) -> std::expected<T, E> {
   if (!e) {
-    // In-place error construction: one move of E, so the noexcept condition
-    // above is exact.
     return std::expected<T, E>{std::unexpect, std::move(e).error()};
   }
   return std::move(*e);
@@ -181,8 +177,6 @@ template <typename E, typename... Args>
   std::expected<void, E> const& first, Args const&... rest
 ) noexcept(std::is_nothrow_copy_constructible_v<E>) -> std::expected<void, E> {
   if (!first) {
-    // In-place error construction: one copy of E, so the noexcept condition
-    // above is exact.
     return std::expected<void, E>{std::unexpect, first.error()};
   }
   if constexpr (sizeof...(rest) > 0) {

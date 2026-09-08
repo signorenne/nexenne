@@ -22,7 +22,6 @@ auto compute(int a, double b) noexcept -> double {
   return a * b;
 }
 
-// A compile-time category label, exercising the always_false_v idiom.
 template <typename T>
 constexpr auto category() noexcept -> std::string_view {
   if constexpr (std::is_integral_v<T>) {
@@ -45,9 +44,6 @@ auto main() -> int {
   static_assert(category<int>() == "integral");
   static_assert(category<double>() == "floating");
 
-  // The primary template also introspects a functor by delegating to its
-  // operator(). A concrete (non-generic) lambda has one signature, so it works
-  // exactly like a free function; a generic auto-parameter lambda would not.
   auto const scale{[](float x, int n) { return x * static_cast<float>(n); }};
   using scaler = decltype(scale);
   static_assert(util::function_arity_v<scaler> == 2);

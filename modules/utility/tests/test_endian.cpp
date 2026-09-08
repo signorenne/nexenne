@@ -18,7 +18,6 @@ namespace util = nexenne::utility;
 
 }  // namespace
 
-// The helpers are constexpr, so they round-trip at compile time too.
 static_assert([] {
   auto buf{std::array<std::byte, 2>{}};
   util::write_be(std::span{buf}, std::uint16_t{0x1234});
@@ -26,7 +25,6 @@ static_assert([] {
          && util::read_be<std::uint16_t>(std::span{buf}) == 0x1234U;
 }());
 
-// The little-endian pair is constexpr too, mirroring the big-endian check.
 static_assert([] {
   auto buf{std::array<std::byte, 2>{}};
   util::write_le(std::span{buf}, std::uint16_t{0x1234});
@@ -34,8 +32,6 @@ static_assert([] {
          && util::read_le<std::uint16_t>(std::span{buf}) == 0x1234U;
 }());
 
-// Top-bit-set values survive at compile time in both orders at 64 bits, where a
-// sign-extending shift bug would corrupt the high byte.
 static_assert([] {
   auto buf{std::array<std::byte, 8>{}};
   util::write_be(std::span{buf}, std::uint64_t{0x8000'0000'0000'0001ULL});
@@ -82,7 +78,6 @@ TEST_CASE("nexenne::utility byte order round-trips every width") {
 }
 
 TEST_CASE("nexenne::utility byte order round-trips top-bit-set values at every width") {
-  // 0x80... patterns catch any accidental sign extension in the byte shifts.
   auto buf{std::array<std::byte, 8>{}};
 
   util::write_be(std::span{buf}.first<1>(), std::uint8_t{0x80U});
@@ -102,10 +97,10 @@ TEST_CASE("nexenne::utility byte order round-trips top-bit-set values at every w
 
   util::write_be(std::span{buf}, std::uint64_t{0x8000'0000'0000'0001ULL});
   CHECK(util::read_be<std::uint64_t>(std::span{buf}) == 0x8000'0000'0000'0001ULL);
-  CHECK(std::to_integer<int>(buf[0]) == 0x80);  // the top bit lands in the first byte
+  CHECK(std::to_integer<int>(buf[0]) == 0x80);
   util::write_le(std::span{buf}, std::uint64_t{0x8000'0000'0000'0001ULL});
   CHECK(util::read_le<std::uint64_t>(std::span{buf}) == 0x8000'0000'0000'0001ULL);
-  CHECK(std::to_integer<int>(buf[7]) == 0x80);  // and in the last byte for LE
+  CHECK(std::to_integer<int>(buf[7]) == 0x80);
 }
 
 TEST_CASE("nexenne::utility byte order round-trips all-ones values at every width") {
@@ -131,7 +126,7 @@ TEST_CASE("nexenne::utility byte order round-trips all-ones values at every widt
   util::write_le(std::span{buf}, ~std::uint64_t{0});
   CHECK(util::read_le<std::uint64_t>(std::span{buf}) == ~std::uint64_t{0});
   for (auto const b : buf) {
-    CHECK(std::to_integer<int>(b) == 0xFF);  // every byte is saturated either way
+    CHECK(std::to_integer<int>(b) == 0xFF);
   }
 }
 

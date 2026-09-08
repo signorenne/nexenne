@@ -40,7 +40,7 @@ TEST_CASE("nexenne::utility::non_null wraps and forwards a raw pointer") {
   nn->bump();
   CHECK(w.value == 42);
 
-  widget* const raw{nn};  // implicit conversion
+  widget* const raw{nn};
   CHECK(raw == &w);
 }
 
@@ -55,9 +55,9 @@ TEST_CASE("nexenne::utility::non_null compares by pointer, unequal to nullptr wh
   CHECK_FALSE(first == other);
 
   CHECK_FALSE(first == nullptr);
-  CHECK_FALSE(nullptr == first);  // reversed candidate
-  CHECK(first != nullptr);        // synthesized from ==
-  CHECK(nullptr != first);        // reversed + synthesized
+  CHECK_FALSE(nullptr == first);
+  CHECK(first != nullptr);
+  CHECK(nullptr != first);
 }
 
 TEST_CASE("nexenne::utility::non_null compares against a raw pointer in both directions") {
@@ -65,17 +65,15 @@ TEST_CASE("nexenne::utility::non_null compares against a raw pointer in both dir
   widget b{};
   non_null<widget*> const nn{&a};
 
-  // The exact-match overload resolves what used to be an ambiguous comparison
-  // and never routes the raw pointer through the asserting constructor.
   CHECK(nn == &a);
-  CHECK(&a == nn);  // rewritten candidate: raw == wrapper
+  CHECK(&a == nn);
   CHECK_FALSE(nn == &b);
   CHECK_FALSE(&b == nn);
-  CHECK(nn != &b);  // synthesized from ==
+  CHECK(nn != &b);
   CHECK(&b != nn);
 
   widget* const null_raw{nullptr};
-  CHECK_FALSE(nn == null_raw);  // a null raw pointer compares safely: no assert
+  CHECK_FALSE(nn == null_raw);
   CHECK(null_raw != nn);
 }
 
@@ -93,20 +91,18 @@ TEST_CASE("nexenne::utility::non_null inequality is synthesized from equality") 
 TEST_CASE("nexenne::utility::non_null owns a unique_ptr without copying it") {
   non_null<std::unique_ptr<widget>> const nn{std::make_unique<widget>(41)};
 
-  CHECK(nn->value == 41);  // operator-> chains through unique_ptr, no copy
+  CHECK(nn->value == 41);
   nn->bump();
   CHECK((*nn).value == 42);
-  CHECK(nn.get() != nullptr);  // get() returns a reference, no copy
+  CHECK(nn.get() != nullptr);
 }
 
 TEST_CASE("nexenne::utility::non_null exposes the wrapped unique_ptr as a reference") {
   non_null<std::unique_ptr<widget>> const nn{std::make_unique<widget>(3)};
 
-  // get() returns a const reference: no copy is made (unique_ptr is non-copyable
-  // so a by-value return would not even compile).
   static_assert(std::is_same_v<decltype(nn.get()), std::unique_ptr<widget> const&>);
   static_assert(std::is_same_v<decltype(nn.operator->()), std::unique_ptr<widget> const&>);
-  CHECK(nn.get().get() != nullptr);  // unique_ptr::get on the underlying handle
+  CHECK(nn.get().get() != nullptr);
   CHECK((*nn).value == 3);
 }
 
@@ -118,17 +114,16 @@ TEST_CASE("nexenne::utility::non_null does not churn a shared_ptr's refcount") {
   nn->bump();
   (*nn).bump();
   CHECK(nn.get()->value == 9);
-  CHECK(sp.use_count() == refs);  // access added no references
+  CHECK(sp.use_count() == refs);
 }
 
 TEST_CASE("nexenne::utility::non_null shared_ptr copies refcount on construction") {
   auto sp{std::make_shared<widget>(1)};
   auto const before{sp.use_count()};
 
-  non_null<std::shared_ptr<widget>> const nn{sp};  // copies the handle: +1 ref
+  non_null<std::shared_ptr<widget>> const nn{sp};
   CHECK(sp.use_count() == before + 1);
 
-  // Implicit conversion yields a copy of the shared_ptr: +1 ref while it lives.
   {
     std::shared_ptr<widget> const taken{nn};
     CHECK(taken.get() == sp.get());
@@ -142,13 +137,13 @@ TEST_CASE("nexenne::utility::non_null preserves the pointee's constness") {
   non_null<widget const*> const nn{&w};
   static_assert(std::is_same_v<decltype(*nn), widget const&>);
   CHECK((*nn).value == 5);
-  CHECK(nn->peek() == 5);  // only const members reachable
+  CHECK(nn->peek() == 5);
 }
 
 TEST_CASE("nexenne::utility::non_null is copyable and copies the wrapped pointer") {
   widget w{12};
   non_null<widget*> const original{&w};
-  non_null<widget*> const copy{original};  // copy construction
+  non_null<widget*> const copy{original};
 
   CHECK(copy.get() == original.get());
   CHECK(copy == original);
@@ -156,7 +151,7 @@ TEST_CASE("nexenne::utility::non_null is copyable and copies the wrapped pointer
   non_null<widget*> assigned{&w};
   widget other{99};
   non_null<widget*> const src{&other};
-  assigned = src;  // copy assignment
+  assigned = src;
   CHECK(assigned.get() == &other);
   CHECK(assigned == src);
 }
@@ -166,17 +161,12 @@ TEST_CASE("nexenne::utility::non_null is movable, moving a unique_ptr through it
   widget* const raw{source.get().get()};
 
   non_null<std::unique_ptr<widget>> const moved{std::move(source)};
-  CHECK(moved.get().get() == raw);  // ownership transferred to the new wrapper
+  CHECK(moved.get().get() == raw);
   CHECK(moved->value == 55);
 
-  // Contract: the moved-from wrapper holds null; its invariant is suspended
-  // and the only valid operations are destruction and reassignment. The
-  // nullptr comparison is the one honest, non-asserting probe of that state
-  // (every accessor asserts in debug builds when used after a move).
   CHECK(source == nullptr);  // NOLINT(bugprone-use-after-move): the contract under test
   CHECK(nullptr == source);
 
-  // Reassignment restores the invariant and makes the wrapper usable again.
   source = std::make_unique<widget>(7);
   CHECK(source != nullptr);
   CHECK(source->value == 7);
@@ -187,11 +177,8 @@ TEST_CASE("nexenne::utility::non_null hashes like the pointer it wraps") {
   widget b{};
   non_null<widget*> const nn{&a};
 
-  // std::hash<non_null<T>> forwards to std::hash<T>, so a wrapper and its raw
-  // pointer land in the same bucket.
   CHECK(std::hash<non_null<widget*>>{}(nn) == std::hash<widget*>{}(&a));
 
-  // And that makes non_null usable directly as an unordered key.
   std::unordered_set<non_null<widget*>> const watched{nn};
   CHECK(watched.contains(nn));
   CHECK_FALSE(watched.contains(non_null<widget*>{&b}));
@@ -202,7 +189,7 @@ TEST_CASE("nexenne::utility::non_null wraps a pointer to const-qualified data ro
   non_null<int const*> const nn{&datum};
 
   CHECK(*nn == 77);
-  int const* const back{nn};  // implicit conversion preserves const
+  int const* const back{nn};
   CHECK(back == &datum);
   static_assert(std::is_same_v<decltype(*nn), int const&>);
 }
@@ -223,12 +210,9 @@ TEST_CASE("nexenne::utility::non_null is usable in a constexpr context") {
   static_assert(nn.get() == &storage);
   constexpr int const* raw{nn};
   static_assert(raw == &storage);
-  // nn == nullptr compares the pointer, which the undefined-behavior sanitizer
-  // instruments into a non-constant form, so this leg is checked at runtime.
+  // Runtime, not static_assert: UBSan makes the pointer comparison non-constant.
   CHECK(!(nn == nullptr));
 }
-
-// compile-time properties
 
 static_assert(std::is_same_v<non_null<widget*>::value_type, widget*>);
 static_assert(
@@ -237,10 +221,8 @@ static_assert(
 static_assert(std::is_same_v<non_null<std::shared_ptr<widget>>::element_type, widget>);
 static_assert(std::is_same_v<non_null<widget*>::element_type, widget>);
 static_assert(std::is_same_v<non_null<widget*>::pointer_type, widget*>);
-// pointer_traits<widget const*>::element_type is `widget const`, not `widget`.
 static_assert(std::is_same_v<non_null<widget const*>::element_type, widget const>);
 
-// Constructing or assigning from nullptr is rejected at compile time.
 static_assert(
   !std::is_constructible_v<non_null<int*>, std::nullptr_t>,
   "non_null must reject nullptr at compile time"
@@ -250,19 +232,14 @@ static_assert(
   "non_null must reject nullptr assignment at compile time"
 );
 
-// A non-const non_null is still constructible/assignable from its pointer type.
 static_assert(std::is_constructible_v<non_null<widget*>, widget*>);
 
-// Implicit conversion from a raw pointer is intended (single-argument ctor).
 static_assert(std::is_convertible_v<widget*, non_null<widget*>>);
 
-// And the implicit conversion back to the pointer type exists.
 static_assert(std::is_convertible_v<non_null<widget*>, widget*>);
 
-// Trivially copyable when the wrapped pointer is (a raw pointer): registers.
 static_assert(std::is_trivially_copyable_v<non_null<widget*>>);
 
-// Construction is noexcept (the assert is debug-only and does not throw).
 static_assert(std::is_nothrow_constructible_v<non_null<widget*>, widget*>);
 
 }  // namespace

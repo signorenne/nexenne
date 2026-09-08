@@ -662,8 +662,10 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr explicit operator bool() const noexcept
-    requires(has(Ops, ability::boolean)) && (!std::same_as<std::remove_cv_t<T>, bool>)
-            && requires(T const& v) { static_cast<bool>(v); }
+    requires(
+      has(Ops, ability::boolean) && (!std::same_as<std::remove_cv_t<T>, bool>)
+      && requires(T const& v) { static_cast<bool>(v); }
+    )
   {
     return static_cast<bool>(m_value);
   }
@@ -684,7 +686,7 @@ public:
    */
   constexpr auto operator+=(strong_typedef const& o) noexcept(noexcept(m_value + o.m_value))
     -> strong_typedef&
-    requires(has(Ops, ability::add)) && requires(T& a, T const& b) { a + b; }
+    requires(has(Ops, ability::add) && requires(T& a, T const& b) { a + b; })
   {
     m_value = detail::convert<T>(m_value + o.m_value);
     return *this;
@@ -706,7 +708,7 @@ public:
    */
   constexpr auto operator-=(strong_typedef const& o) noexcept(noexcept(m_value - o.m_value))
     -> strong_typedef&
-    requires(has(Ops, ability::subtract)) && requires(T& a, T const& b) { a - b; }
+    requires(has(Ops, ability::subtract) && requires(T& a, T const& b) { a - b; })
   {
     m_value = detail::convert<T>(m_value - o.m_value);
     return *this;
@@ -767,7 +769,7 @@ public:
    */
   constexpr auto operator%=(strong_typedef const& o) noexcept(noexcept(m_value % o.m_value))
     -> strong_typedef&
-    requires(has(Ops, ability::modulo)) && requires(T& a, T const& b) { a % b; }
+    requires(has(Ops, ability::modulo) && requires(T& a, T const& b) { a % b; })
   {
     m_value = detail::convert<T>(m_value % o.m_value);
     return *this;
@@ -789,7 +791,7 @@ public:
    */
   constexpr auto operator&=(strong_typedef const& o) noexcept(noexcept(m_value & o.m_value))
     -> strong_typedef&
-    requires(has(Ops, ability::bit_and)) && requires(T& a, T const& b) { a & b; }
+    requires(has(Ops, ability::bit_and) && requires(T& a, T const& b) { a & b; })
   {
     m_value = detail::convert<T>(m_value & o.m_value);
     return *this;
@@ -811,7 +813,7 @@ public:
    */
   constexpr auto operator|=(strong_typedef const& o) noexcept(noexcept(m_value | o.m_value))
     -> strong_typedef&
-    requires(has(Ops, ability::bit_or)) && requires(T& a, T const& b) { a | b; }
+    requires(has(Ops, ability::bit_or) && requires(T& a, T const& b) { a | b; })
   {
     m_value = detail::convert<T>(m_value | o.m_value);
     return *this;
@@ -833,7 +835,7 @@ public:
    */
   constexpr auto operator^=(strong_typedef const& o) noexcept(noexcept(m_value ^ o.m_value))
     -> strong_typedef&
-    requires(has(Ops, ability::bit_xor)) && requires(T& a, T const& b) { a ^ b; }
+    requires(has(Ops, ability::bit_xor) && requires(T& a, T const& b) { a ^ b; })
   {
     m_value = detail::convert<T>(m_value ^ o.m_value);
     return *this;
@@ -898,7 +900,7 @@ public:
    * @post \c get() is one greater than before.
    */
   constexpr auto operator++() noexcept(noexcept(++m_value)) -> strong_typedef&
-    requires(has(Ops, ability::increment)) && requires(T& v) { ++v; }
+    requires(has(Ops, ability::increment) && requires(T& v) { ++v; })
   {
     ++m_value;
     return *this;
@@ -913,7 +915,7 @@ public:
    * @post \c get() is one less than before.
    */
   constexpr auto operator--() noexcept(noexcept(--m_value)) -> strong_typedef&
-    requires(has(Ops, ability::decrement)) && requires(T& v) { --v; }
+    requires(has(Ops, ability::decrement) && requires(T& v) { --v; })
   {
     --m_value;
     return *this;
@@ -930,7 +932,7 @@ public:
   constexpr auto
   operator++(int) noexcept(std::is_nothrow_copy_constructible_v<T> && noexcept(++m_value))
     -> strong_typedef
-    requires(has(Ops, ability::increment)) && requires(T& v) { v++; }
+    requires(has(Ops, ability::increment) && requires(T& v) { v++; })
   {
     auto tmp{*this};
     ++m_value;
@@ -948,7 +950,7 @@ public:
   constexpr auto
   operator--(int) noexcept(std::is_nothrow_copy_constructible_v<T> && noexcept(--m_value))
     -> strong_typedef
-    requires(has(Ops, ability::decrement)) && requires(T& v) { v--; }
+    requires(has(Ops, ability::decrement) && requires(T& v) { v--; })
   {
     auto tmp{*this};
     --m_value;

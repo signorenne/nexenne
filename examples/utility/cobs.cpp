@@ -22,7 +22,6 @@ namespace cobs = nexenne::utility::cobs;
 
 namespace {
 
-// Encodes one payload and appends the 0x00 frame delimiter to the stream.
 auto frame_into(std::vector<std::byte>& stream, std::span<std::byte const> const payload) -> void {
   std::vector<std::byte> encoded(cobs::max_encoded_size(payload.size()));
   auto const n{cobs::encode(payload, encoded)};
@@ -32,10 +31,9 @@ auto frame_into(std::vector<std::byte>& stream, std::span<std::byte const> const
   }
   encoded.resize(*n);
   stream.insert(stream.end(), encoded.begin(), encoded.end());
-  stream.push_back(std::byte{0});  // the delimiter, guaranteed absent from the frame
+  stream.push_back(std::byte{0});
 }
 
-// Splits the stream on 0x00 and decodes each frame back to its payload.
 auto read_frames(std::span<std::byte const> const stream) -> void {
   std::size_t start{0};
   for (std::size_t i{0}; i < stream.size(); ++i) {
@@ -43,7 +41,7 @@ auto read_frames(std::span<std::byte const> const stream) -> void {
       continue;
     }
     auto const frame{stream.subspan(start, i - start)};
-    std::vector<std::byte> decoded(frame.size());  // never longer than the frame
+    std::vector<std::byte> decoded(frame.size());
     auto const n{cobs::decode(frame, decoded)};
     if (!n) {
       std::println("decode failed: {}", cobs::to_string(n.error()));

@@ -17,14 +17,14 @@ namespace {
 namespace util = nexenne::utility;
 
 static_assert(util::detail::basename_of("a/b/c.cpp") == "c.cpp");
-static_assert(util::detail::basename_of("c.cpp") == "c.cpp");        // no separator
-static_assert(util::detail::basename_of("a\\b\\c.cpp") == "c.cpp");  // backslash
-static_assert(util::detail::basename_of("a/b\\c.cpp") == "c.cpp");   // mixed separators
+static_assert(util::detail::basename_of("c.cpp") == "c.cpp");
+static_assert(util::detail::basename_of("a\\b\\c.cpp") == "c.cpp");
+static_assert(util::detail::basename_of("a/b\\c.cpp") == "c.cpp");
 static_assert(util::detail::basename_of("/abs/path/file") == "file");
-static_assert(util::detail::basename_of("a/b/").empty());  // trailing separator
-static_assert(util::detail::basename_of("/").empty());     // lone separator
+static_assert(util::detail::basename_of("a/b/").empty());
+static_assert(util::detail::basename_of("/").empty());
 static_assert(util::detail::basename_of("").empty());
-static_assert(util::detail::basename_of("/.") == ".");  // dotfile-ish
+static_assert(util::detail::basename_of("/.") == ".");
 
 TEST_CASE("nexenne::utility::format_short yields exactly basename:line") {
   std::array<char, 256> buf{};
@@ -40,12 +40,11 @@ TEST_CASE("nexenne::utility::format_short strips the directory and keeps the lin
   auto const loc{std::source_location::current()};
   auto const tag{util::format_short(loc, buf)};
 
-  // No path separator survives, and the line number follows a single colon.
   CHECK(tag.find('/') == std::string_view::npos);
   CHECK(tag.find('\\') == std::string_view::npos);
   auto const colon{tag.find(':')};
   REQUIRE(colon != std::string_view::npos);
-  CHECK(tag.find(':', colon + 1) == std::string_view::npos);  // exactly one colon
+  CHECK(tag.find(':', colon + 1) == std::string_view::npos);
 
   auto const line_text{tag.substr(colon + 1)};
   CHECK(line_text == std::to_string(loc.line()));
@@ -57,7 +56,7 @@ TEST_CASE("nexenne::utility::format_short reflects different call-site lines") {
   std::array<char, 256> b{};
   auto const tag_a{util::format_short(std::source_location::current(), a)};
   auto const tag_b{util::format_short(std::source_location::current(), b)};
-  CHECK(tag_a != tag_b);  // different physical lines => different tags
+  CHECK(tag_a != tag_b);
 }
 
 TEST_CASE("nexenne::utility::format_long appends the function name") {
@@ -72,14 +71,11 @@ TEST_CASE("nexenne::utility::format_long embeds the enclosing function name") {
   std::array<char, 256> buf{};
   auto const tag{util::format_long(std::source_location::current(), buf)};
 
-  // The text after " in " is the function name; here that contains the
-  // doctest-generated runner symbol for this case. It must be non-empty.
   auto const pos{tag.find(" in ")};
   REQUIRE(pos != std::string_view::npos);
   auto const func{tag.substr(pos + 4)};
   CHECK_FALSE(func.empty());
 
-  // The long form starts with exactly the short form for the same location.
   std::array<char, 256> short_buf{};
   auto const loc{std::source_location::current()};
   auto const short_tag{util::format_short(loc, short_buf)};
@@ -98,7 +94,6 @@ TEST_CASE("nexenne::utility formatters truncate into a tiny buffer") {
 }
 
 TEST_CASE("nexenne::utility truncation never overruns the buffer and stays a prefix") {
-  // The truncated short tag is a prefix of the untruncated one.
   std::array<char, 256> full_buf{};
   auto const loc{std::source_location::current()};
   auto const full{std::string{util::format_short(loc, full_buf)}};
@@ -106,7 +101,7 @@ TEST_CASE("nexenne::utility truncation never overruns the buffer and stays a pre
   std::array<char, 4> tiny{};
   auto const t4{util::format_short(loc, tiny)};
   CHECK(t4.size() <= tiny.size() - 1);
-  CHECK(full.compare(0, t4.size(), std::string{t4}) == 0);  // truncation is a prefix
+  CHECK(full.compare(0, t4.size(), std::string{t4}) == 0);
 
   std::array<char, 8> small{};
   auto const t8{util::format_short(loc, small)};
@@ -121,7 +116,6 @@ TEST_CASE("nexenne::utility truncation never overruns the buffer and stays a pre
 
 TEST_CASE("nexenne::utility format_long truncation respects the one-char buffer") {
   std::array<char, 1> one{};
-  // A 1-byte buffer holds only the NUL terminator, so nothing usable is written.
   CHECK(util::format_long(std::source_location::current(), one).empty());
 }
 
@@ -129,7 +123,6 @@ TEST_CASE("nexenne::utility format_short fills a buffer sized to the exact lengt
   std::array<char, 64> buf{};
   auto const loc{std::source_location::current()};
   auto const tag{util::format_short(loc, buf)};
-  // Re-running with a buffer exactly one larger than the text yields identical output.
   std::array<char, 64> buf2{};
   auto const tag2{util::format_short(loc, buf2)};
   CHECK(tag == tag2);

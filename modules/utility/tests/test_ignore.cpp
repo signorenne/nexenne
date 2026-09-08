@@ -19,7 +19,6 @@ using nexenne::utility::ignore;
 
 }  // namespace
 
-// ignore is unconditionally noexcept and usable at compile time.
 static_assert(noexcept(ignore(1)));
 static_assert([] {
   auto sum{0};
@@ -37,12 +36,10 @@ TEST_CASE("nexenne::utility::ignore evaluates and drops its arguments") {
 
   ignore(bump());
   ignore(bump(), bump());
-  CHECK(calls == 3);  // every argument was evaluated exactly once
+  CHECK(calls == 3);
 }
 
 TEST_CASE("nexenne::utility::ignore consumes a [[nodiscard]] result") {
-  // Calling through ignore counts as a use, so there is no warning and the
-  // value is dropped.
   ignore(nodiscard_result());
   CHECK(true);
 }

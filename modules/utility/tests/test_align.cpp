@@ -16,62 +16,50 @@ namespace {
 namespace util = nexenne::utility;
 
 static_assert(util::align_up(std::size_t{200}, std::size_t{64}) == 256);
-static_assert(util::align_up(std::size_t{256}, std::size_t{64}) == 256);  // already aligned
+static_assert(util::align_up(std::size_t{256}, std::size_t{64}) == 256);
 static_assert(util::align_down(std::size_t{200}, std::size_t{64}) == 192);
 static_assert(util::is_aligned(std::size_t{256}, std::size_t{64}));
 static_assert(!util::is_aligned(std::size_t{200}, std::size_t{64}));
 
-// Zero is aligned to everything and rounds to itself.
 static_assert(util::align_up(std::size_t{0}, std::size_t{64}) == 0);
 static_assert(util::align_down(std::size_t{0}, std::size_t{64}) == 0);
 static_assert(util::is_aligned(std::size_t{0}, std::size_t{64}));
 
-// Alignment of one is the identity / always aligned.
 static_assert(util::align_up(std::size_t{5}, std::size_t{1}) == 5);
 static_assert(util::align_down(std::size_t{5}, std::size_t{1}) == 5);
 static_assert(util::is_aligned(std::size_t{5}, std::size_t{1}));
 static_assert(util::is_aligned(std::size_t{0}, std::size_t{1}));
 
-// Rounding-up at the boundary: one past a multiple rounds to the next.
 static_assert(util::align_up(std::size_t{65}, std::size_t{64}) == 128);
 static_assert(util::align_up(std::size_t{1}, std::size_t{64}) == 64);
-static_assert(util::align_down(std::size_t{63}, std::size_t{64}) == 0);  // value < alignment
+static_assert(util::align_down(std::size_t{63}, std::size_t{64}) == 0);
 static_assert(util::align_down(std::size_t{50}, std::size_t{64}) == 0);
-static_assert(util::align_down(std::size_t{256}, std::size_t{64}) == 256);  // already aligned
+static_assert(util::align_down(std::size_t{256}, std::size_t{64}) == 256);
 
-// A large power-of-two alignment.
 static_assert(util::align_up(std::size_t{1}, std::size_t{1} << 20) == (std::size_t{1} << 20));
 static_assert(
   util::align_down(std::size_t{(1u << 20) + 7}, std::size_t{1} << 20) == (std::size_t{1} << 20)
 );
 
-// Smallest power-of-two alignments behave like a modulo classifier.
 static_assert(util::align_up(std::size_t{3}, std::size_t{2}) == 4);
 static_assert(util::align_down(std::size_t{3}, std::size_t{2}) == 2);
 static_assert(util::is_aligned(std::size_t{4}, std::size_t{2}));
 static_assert(!util::is_aligned(std::size_t{3}, std::size_t{2}));
 
-// Narrow unsigned types: stay clear of the value+(alignment-1) overflow on the
-// align_up path (its documented precondition), but exercise the wide range.
-static_assert(util::align_up<std::uint8_t>(0x40, 0x80) == 0x80);  // rounds up to the top bit
-static_assert(util::align_up<std::uint8_t>(0x80, 0x80) == 0x80);  // already aligned, no overflow
-static_assert(util::align_up<std::uint8_t>(0x40, 0x40) == 0x40);  // already aligned
+static_assert(util::align_up<std::uint8_t>(0x40, 0x80) == 0x80);
+static_assert(util::align_up<std::uint8_t>(0x80, 0x80) == 0x80);
+static_assert(util::align_up<std::uint8_t>(0x40, 0x40) == 0x40);
 static_assert(util::align_down<std::uint8_t>(0xFF, 0x80) == 0x80);
 static_assert(util::align_down<std::uint8_t>(0x7F, 0x80) == 0x00);
 static_assert(util::is_aligned<std::uint8_t>(0x80, 0x80));
 static_assert(!util::is_aligned<std::uint8_t>(0x40, 0x80));
 
-// Other unsigned widths in constexpr.
 static_assert(util::align_up<std::uint16_t>(0x1001, 0x1000) == 0x2000);
 static_assert(util::align_down<std::uint32_t>(0xDEADBEEF, 0x10000) == 0xDEAD0000);
 static_assert(util::align_up<std::uint64_t>(0x1, 0x8000000000000000ULL) == 0x8000000000000000ULL);
 
-// The documented align_up overflow boundary: the largest valid input is the
-// last aligned value of the type (max - (alignment - 1)); anything above it
-// would wrap and now asserts in debug (a failed assert in a constant
-// expression does not compile, so the boundary here is the proof it holds).
-static_assert(util::align_up<std::uint8_t>(0xC0, 0x40) == 0xC0);  // 192 is the last 64-multiple
-static_assert(util::align_up<std::uint8_t>(0xBF, 0x40) == 0xC0);  // largest value that rounds up
+static_assert(util::align_up<std::uint8_t>(0xC0, 0x40) == 0xC0);
+static_assert(util::align_up<std::uint8_t>(0xBF, 0x40) == 0xC0);
 static_assert(
   util::align_up(std::numeric_limits<std::size_t>::max() - 63, std::size_t{64})
   == std::numeric_limits<std::size_t>::max() - 63
@@ -79,20 +67,18 @@ static_assert(
 
 TEST_CASE("nexenne::utility::align_up / align_down on integrals") {
   CHECK(util::align_up(std::size_t{200}, std::size_t{64}) == 256);
-  CHECK(util::align_up(std::size_t{256}, std::size_t{64}) == 256);  // already aligned
+  CHECK(util::align_up(std::size_t{256}, std::size_t{64}) == 256);
   CHECK(util::align_up(std::size_t{0}, std::size_t{64}) == 0);
   CHECK(util::align_up(std::size_t{1}, std::size_t{64}) == 64);
-  CHECK(util::align_up(std::size_t{65}, std::size_t{64}) == 128);  // crosses the boundary
+  CHECK(util::align_up(std::size_t{65}, std::size_t{64}) == 128);
 
   CHECK(util::align_down(std::size_t{200}, std::size_t{64}) == 192);
-  CHECK(util::align_down(std::size_t{256}, std::size_t{64}) == 256);  // already aligned
-  CHECK(util::align_down(std::size_t{63}, std::size_t{64}) == 0);     // value < alignment
+  CHECK(util::align_down(std::size_t{256}, std::size_t{64}) == 256);
+  CHECK(util::align_down(std::size_t{63}, std::size_t{64}) == 0);
   CHECK(util::align_down(std::size_t{0}, std::size_t{64}) == 0);
 }
 
 TEST_CASE("nexenne::utility::align_up accepts the last aligned value of the type") {
-  // The overflow precondition boundary at run time: the maximum representable
-  // aligned value must pass the debug assert and round to itself.
   auto const last_aligned{std::numeric_limits<std::size_t>::max() - 63};
   CHECK(util::align_up(last_aligned, std::size_t{64}) == last_aligned);
   CHECK(util::align_up(last_aligned - 1, std::size_t{64}) == last_aligned);
@@ -101,8 +87,6 @@ TEST_CASE("nexenne::utility::align_up accepts the last aligned value of the type
 }
 
 TEST_CASE("nexenne::utility::align_up / align_down are mutually consistent") {
-  // For every power-of-two alignment and many values, the down value is at most
-  // the value, the up value is at least it, and both are aligned multiples.
   for (std::size_t k{0}; k < 12; ++k) {
     auto const a{std::size_t{1} << k};
     for (std::size_t v{0}; v < 300; ++v) {
@@ -114,7 +98,6 @@ TEST_CASE("nexenne::utility::align_up / align_down are mutually consistent") {
       CHECK(util::is_aligned(up, a));
       CHECK(down % a == 0);
       CHECK(up % a == 0);
-      // up - down is 0 (aligned) or exactly one alignment step.
       CHECK((up == down || up == down + a));
       if (util::is_aligned(v, a)) {
         CHECK(up == v);
@@ -144,10 +127,10 @@ TEST_CASE("nexenne::utility::align_up aligns a pointer") {
   CHECK(util::is_aligned(down, std::size_t{64}));
   CHECK(down == static_cast<void*>(arena));
 
-  CHECK(up == static_cast<void*>(arena + 64));  // exact rounded-up address
+  CHECK(up == static_cast<void*>(arena + 64));
 
   auto* const aligned{static_cast<void*>(arena)};
-  CHECK(util::align_up(aligned, std::size_t{64}) == aligned);  // already aligned: unchanged
+  CHECK(util::align_up(aligned, std::size_t{64}) == aligned);
   CHECK_FALSE(util::is_aligned(static_cast<void*>(arena + 1), std::size_t{64}));
 }
 
@@ -176,11 +159,10 @@ TEST_CASE("nexenne::utility pointer overloads sweep an arena") {
 TEST_CASE("nexenne::utility pointer overloads work on a typed pointer and void") {
   alignas(16) int data[8]{};
   int* const p{&data[0]};
-  CHECK(util::is_aligned(p, std::size_t{16}));       // alignas guarantees this
-  CHECK(util::align_down(p, std::size_t{16}) == p);  // already aligned
+  CHECK(util::is_aligned(p, std::size_t{16}));
+  CHECK(util::align_down(p, std::size_t{16}) == p);
   CHECK(util::align_up(p, std::size_t{16}) == p);
 
-  // Typed align_up returns a T* with the rounded address.
   int* const offset{reinterpret_cast<int*>(reinterpret_cast<std::byte*>(p) + 4)};
   CHECK_FALSE(util::is_aligned(offset, std::size_t{16}));
   auto* const rounded{util::align_up(offset, std::size_t{16})};
