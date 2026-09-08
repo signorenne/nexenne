@@ -21,11 +21,30 @@ happens.
 | =static_string<N>=          | the content                                                               | string                           |
 | =strong_typedef<Tag, T, O>= | the underlying value                                                      | whatever =T= accepts             |
 | =ability=                   | the flag or group name                                                    | string                           |
+| =buffer_cursor<B>=          | =buffer_cursor(position=2, size=8)=                                       | string                           |
+| =lazy<F>=                   | =lazy(42)= once accessed, =lazy(pending)= before                          | string                           |
+| =non_null<T>=               | =non_null(0x...)=, the address it holds                                   | string                           |
+| =unique_resource<R, D>=     | =unique_resource(owns=true, handle=3)=                                    | string                           |
+| =scope_guard<Fn>=           | =scope_guard(armed)= or =scope_guard(dismissed)=                          | string                           |
+| =defer<Fn>=                 | =defer(armed)=                                                            | string                           |
+| =function_ref<Sig>=         | =function_ref(bound)= or =function_ref(empty)=                            | string                           |
+| =in_place_function<Sig, N>= | =in_place_function(bound, capacity=N)=, or =empty=                        | string                           |
 
 =to_string(x)= returns that text as a =std::string= (the named types keep
 their =constexpr= =std::string_view= =to_string=) and =operator<<= streams it.
 The type guides describe each output in detail: [[file:cobs.org][cobs]], [[file:flags.org][flags]],
 [[file:static_string.org][static_string]] and [[file:strong_typedef.org][strong_typedef]].
+
+The stateful helpers print a one-line summary of what their accessors expose,
+and printing never changes that state: a =lazy= that has not been accessed
+prints =lazy(pending)= without running its factory, and prints =lazy(ready)=
+once accessed when its value type has no formatter. =non_null= reads the
+address through =std::to_address=, so a smart pointer prints the object it
+points at, and a moved-from wrapper prints =non_null(null)=. =unique_resource=
+prints a pointer handle as its address (never as the text a =char*= points
+at) and leaves out a handle that has no formatter. The metaprogramming helpers
+(=type_list=, =overloaded=, =is_strong_typedef=, =function_traits=) hold no
+state and have no formatter.
 
 * Usage
 
