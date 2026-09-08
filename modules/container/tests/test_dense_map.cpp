@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -376,6 +377,22 @@ TEST_CASE("nexenne::container::dense_map find(k)->second compiles via the proxy 
   CHECK(it->second == 20);
   it->second = 21;  // the arrow yields a live reference
   CHECK(*m.at(2) == 21);
+}
+
+TEST_CASE("nexenne::container::dense_map rejects the unindexable key without desyncing") {
+  cn::dense_map<std::size_t, int> m;
+  auto const top{std::numeric_limits<std::size_t>::max()};
+  CHECK_FALSE(m.insert(top, 111));
+  CHECK_FALSE(m.insert_or_assign(top, 222));
+  CHECK_FALSE(m.emplace(top, 333));
+  CHECK_FALSE(m.contains(top));
+  CHECK(m.empty());
+  CHECK(m.values().empty());
+
+  CHECK(m.insert(5, 555));
+  REQUIRE(m.at(5) != nullptr);
+  CHECK(*m.at(5) == 555);
+  CHECK(m.keys().size() == m.values().size());
 }
 
 }  // namespace

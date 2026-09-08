@@ -96,19 +96,19 @@ public:
    * @param value Value to store, moved in on a fresh insertion.
    *
    * @return \c true on a fresh insertion, \c false when \p k was already present
-   *         (its value is left untouched).
+   *         (its value is left untouched) or is a key \c sparse_set rejects.
    *
    * @pre None.
-   * @post \p k is present. On a fresh insertion \c size() grew by one and value
+   * @post \p k is present unless \c sparse_set rejected it, in which case the
+   *       map is unchanged. On a fresh insertion \c size() grew by one and value
    *       references and spans may be invalidated by reallocation.
    *
    * @complexity Amortised \c O(1).
    */
   constexpr auto insert(key_type const k, value_type value) noexcept -> bool {
-    if (m_set.contains(k)) {
+    if (!m_set.insert(k)) {
       return false;
     }
-    m_set.insert(k);
     m_values.push_back(std::move(value));
     return true;
   }
@@ -120,11 +120,12 @@ public:
    * @param value Value to store, moved into the map.
    *
    * @return \c true on a fresh insertion, \c false when an existing value was
-   *         replaced.
+   *         replaced or \p k is a key \c sparse_set rejects.
    *
    * @pre None.
-   * @post \p k maps to \p value. On a fresh insertion \c size() grew by one and
-   *       value references and spans may be invalidated by reallocation.
+   * @post \p k maps to \p value, unless \c sparse_set rejected \p k, in which
+   *       case the map is unchanged. On a fresh insertion \c size() grew by one
+   *       and value references and spans may be invalidated by reallocation.
    *
    * @complexity Amortised \c O(1).
    */
@@ -133,7 +134,9 @@ public:
       m_values[*pos] = std::move(value);
       return false;
     }
-    m_set.insert(k);
+    if (!m_set.insert(k)) {
+      return false;
+    }
     m_values.push_back(std::move(value));
     return true;
   }
@@ -146,10 +149,12 @@ public:
    * @param args Arguments forwarded to \p Value's constructor.
    *
    * @return \c true on a fresh insertion, \c false when \p k was already present
-   *         (its value is left untouched and \p args are not used).
+   *         (its value is left untouched) or is a key \c sparse_set rejects; in
+   *         both cases \p args are not used.
    *
    * @pre None.
-   * @post \p k is present. On a fresh insertion \c size() grew by one and value
+   * @post \p k is present unless \c sparse_set rejected it, in which case the
+   *       map is unchanged. On a fresh insertion \c size() grew by one and value
    *       references and spans may be invalidated by reallocation.
    *
    * @complexity Amortised \c O(1).
@@ -157,10 +162,9 @@ public:
   template <typename... Args>
     requires std::constructible_from<value_type, Args...>
   constexpr auto emplace(key_type const k, Args&&... args) noexcept -> bool {
-    if (m_set.contains(k)) {
+    if (!m_set.insert(k)) {
       return false;
     }
-    m_set.insert(k);
     m_values.emplace_back(std::forward<Args>(args)...);
     return true;
   }

@@ -58,7 +58,9 @@ the key is appended to the sparse set (taking the next dense index) and the valu
 is pushed onto the value vector, so both grow by one at the same index.
 =insert= leaves an existing key's value untouched and returns =false=;
 =insert_or_assign= overwrites it in place; =emplace= constructs the value
-directly in the vector slot. The key is never hashed.
+directly in the vector slot. The key is never hashed. A key the sparse set
+rejects (see [[file:sparse_set.org][sparse_set]]) makes all three return =false= and
+leaves the map unchanged.
 
 #+BEGIN_EXAMPLE
 insert(5, v5) into the map above (5 is new):
