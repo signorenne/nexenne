@@ -30,7 +30,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
-#include <format>
 #include <span>
 #include <string_view>
 
@@ -220,29 +219,3 @@ decode(std::span<std::byte const> const in, std::span<std::byte> const out) noex
 }
 
 }  // namespace nexenne::utility::cobs
-
-/**
- * @brief \c std::formatter specialisation printing a COBS \c error by its name.
- *
- * Forwards to \c to_string, so \c std::format("{}", error::invalid_input)
- * yields \c "invalid_input" and a string spec such as "{:>16}" pads the name.
- */
-template <>
-struct std::formatter<nexenne::utility::cobs::error> : std::formatter<std::string_view> {
-  /**
-   * @brief Formats \p e by writing its name.
-   *
-   * @tparam Context Formatting context type.
-   * @param e Error code to format.
-   * @param ctx Format context to write into.
-   *
-   * @return The output iterator past the formatted text.
-   *
-   * @pre None.
-   * @post None.
-   */
-  template <typename Context>
-  auto format(nexenne::utility::cobs::error const e, Context& ctx) const {
-    return std::formatter<std::string_view>::format(nexenne::utility::cobs::to_string(e), ctx);
-  }
-};

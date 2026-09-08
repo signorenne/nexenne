@@ -84,7 +84,7 @@ bits.
 
 =raw()= exposes the underlying integer for a register write or a wire
 format, and =from_raw= rebuilds a =flags= from one without validation. The
-=std::formatter= specialisation formats the raw bits converted to the
+=std::formatter= specialisation, in [[file:format.org][format.hpp]], formats the raw bits converted to the
 unsigned counterpart of the underlying type and inherits that integer
 formatter, so format specs pass straight through: ={}= prints the mask in
 decimal, ={:#b}= in binary, ={:#x}= in hex, with no hand-cast of =raw()= at
@@ -106,8 +106,8 @@ pattern rather than a sign.
 - =| & ^ ~= and =|= &= ^== : bitwise algebra over =flags= and =E= operands.
 - =value_type= / =enum_type= / =underlying_type= / =unsigned_type= : the enum
   and its integer types.
-- =std::formatter<flags<E>>= : prints the raw mask; integer format specs pass
-  through.
+- =std::formatter<flags<E>>= (from =format.hpp=) : prints the raw mask; integer
+  format specs pass through.
 
 * Usage
 

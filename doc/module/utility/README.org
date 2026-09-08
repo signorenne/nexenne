@@ -61,3 +61,4 @@ Include a single header (=nexenne/utility/<name>.hpp=) or the umbrella
 - [[file:enum_to_string.org][enum_to_string]] : compile-time enum reflection.
 - [[file:expected_utils.org][expected_utils]] : ergonomic helpers for =std::expected=.
 - [[file:source_location_format.org][source_location_format]] : format a source location into a buffer.
+- [[file:format.org][format]] : =std::formatter= specialisations for the utility types.

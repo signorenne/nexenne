@@ -11,6 +11,7 @@
 #include <type_traits>
 
 #include <nexenne/utility/flags.hpp>
+#include <nexenne/utility/format.hpp>
 
 namespace {
 

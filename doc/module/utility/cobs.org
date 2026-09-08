@@ -88,7 +88,8 @@ Everything lives in =nexenne::utility::cobs= and operates on
 - =decode(in, out)= : recover the payload from one frame (delimiter excluded);
   returns the byte count or =error::invalid_input= / =error::truncated_input= /
   =error::output_too_small=.
-- =error= : the failure enum, with =to_string= and a =std::formatter=.
+- =error= : the failure enum, with =to_string= and a =std::formatter= (from
+  [[file:format.org][format.hpp]]).
 
 * Usage
 

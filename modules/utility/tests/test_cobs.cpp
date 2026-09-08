@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <nexenne/utility/cobs.hpp>
+#include <nexenne/utility/format.hpp>
 
 namespace {
 

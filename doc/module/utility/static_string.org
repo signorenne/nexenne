@@ -82,7 +82,8 @@ left operand does not push NUL padding between the two contents; the result
 
 =operator===/=operator<=>= are defaulted and compare the whole buffer, so two
 static strings compare only when they have the same =N=, that is, the same type.
-The =std::hash= and =std::formatter= specialisations both delegate to the
+The =std::hash= specialisation and the =std::formatter= one (in
+[[file:format.org][format.hpp]]) both delegate to the
 =std::string_view= versions over =view()=, so a =static_string= keys an
 unordered container and accepts the full string format spec (for example
 ="{:>8}"=). The formatter uses a templated context so it composes with any
@@ -101,7 +102,8 @@ output iterator.
 - =begin()= / =end()= : iterators over the content.
 - =operator+= : compile-time concatenation to a =static_string<N + M - 1>=.
 - =operator===/=operator<=>= : defaulted, buffer-wise, same-=N= only.
-- =std::hash= / =std::formatter= specialisations : map key and format argument.
+- =std::hash= / =std::formatter= (from =format.hpp=) specialisations : map key
+  and format argument.
 - =value_type= : =char=.
 
 * Usage

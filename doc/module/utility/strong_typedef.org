@@ -106,7 +106,8 @@ strong type by folding the result back into =T=, mirroring =operator*=. A =ratio
 common underlying, on purpose: the units cancel. Free functions cover the rest:
 =abs=, =sat_add= / =sat_sub=, =popcount= / =rotl= / =rotr= and the bit counts,
 plus =to_underlying= for explicit unwrapping. The header also specialises
-=std::hash= and =std::formatter= (format specs pass straight through to =T=).
+=std::hash=, and [[file:format.org][format.hpp]] adds =std::formatter= (format specs pass
+straight through to =T=).
 
 * Ability reference
 
@@ -147,8 +148,8 @@ on an unsigned underlying).
 
 The enum itself is usable at compile time and prints: =has(set, flag)= tests
 membership, =sanitized<U>(set)= clears unsigned-only flags, =to_string(flag)=
-names a single flag or group, and =std::formatter<ability>= makes
-=std::format("{}", ability::scale)= yield ="scale"=.
+names a single flag or group, and =std::formatter<ability>= (from =format.hpp=)
+makes =std::format("{}", ability::scale)= yield ="scale"=.
 
 * API tour
 
@@ -165,7 +166,8 @@ names a single flag or group, and =std::formatter<ability>= makes
 - opt-in operators and free functions per the ability table above.
 - =is_strong_typedef<X>= and the =strong_typedef_like= concept : detect wrappers
   (the concept also accepts cv-qualified and reference candidates).
-- =std::hash=, =std::formatter= and =std::common_type= specialisations.
+- =std::hash= and =std::common_type= specialisations, plus =std::formatter= from
+  =format.hpp=.
 
 * Usage
 

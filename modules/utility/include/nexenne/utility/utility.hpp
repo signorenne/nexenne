@@ -15,6 +15,7 @@
 #include <nexenne/utility/expected_utils.hpp>
 #include <nexenne/utility/flags.hpp>
 #include <nexenne/utility/for_each_non_null.hpp>
+#include <nexenne/utility/format.hpp>
 #include <nexenne/utility/function_ref.hpp>
 #include <nexenne/utility/hash.hpp>
 #include <nexenne/utility/ignore.hpp>

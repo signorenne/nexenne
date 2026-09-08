@@ -33,6 +33,7 @@
 #include <nexenne/utility/enum_to_string.hpp>
 #include <nexenne/utility/expected_utils.hpp>
 #include <nexenne/utility/flags.hpp>
+#include <nexenne/utility/format.hpp>
 #include <nexenne/utility/function_ref.hpp>
 #include <nexenne/utility/narrow_cast.hpp>
 #include <nexenne/utility/non_null.hpp>

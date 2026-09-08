@@ -14,6 +14,7 @@ set(_utility_examples
     expected_utils
     flags
     for_each_non_null
+    format
     function_ref
     hash
     in_place_function

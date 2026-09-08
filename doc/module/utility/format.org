@@ -1,0 +1,49 @@
+#+TITLE: format
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=format.hpp= holds the =std::formatter= specialisations for the utility types,
+so =std::format("{}", x)= and =std::print= accept them. It is separate from the
+type headers because =<format>= is heavy and those headers reach most of the
+library: code that only uses =flags=, =cobs= or =strong_typedef= does not pay for
+it. Include =format.hpp= (or the =utility.hpp= umbrella) where the formatting
+happens.
+
+* What it provides
+
+| type                        | output                          | format spec          |
+|-----------------------------+---------------------------------+----------------------|
+| =cobs::error=               | the enumerator name             | string, e.g. ={:>16}= |
+| =flags<E>=                  | the raw mask as unsigned        | integer, e.g. ={:#x}= |
+| =static_string<N>=          | the content                     | string               |
+| =strong_typedef<Tag, T, O>= | the underlying value            | whatever =T= accepts |
+| =ability=                   | the flag or group name          | string               |
+
+The type guides describe each output in detail: [[file:cobs.org][cobs]], [[file:flags.org][flags]],
+[[file:static_string.org][static_string]] and [[file:strong_typedef.org][strong_typedef]].
+
+* Usage
+
+#+BEGIN_SRC cpp
+#include <format>
+#include <nexenne/utility/flags.hpp>
+#include <nexenne/utility/format.hpp>
+
+enum class perm : unsigned { read = 1U, write = 2U };
+
+auto const text{std::format("{:#b}", nexenne::utility::flags{perm::read} | perm::write)};
+// text == "0b11"
+#+END_SRC
+
+* Gotchas
+
+- *Include it where you format.* Without =format.hpp= a =std::format= call on
+  one of these types fails to compile, with an error about a missing
+  =std::formatter=; nothing falls back silently.
+- *=source_location_format= is separate.* It writes a =std::source_location=
+  into a caller buffer without =<format>=; see
+  [[file:source_location_format.org][source_location_format]].
+
+Runnable: [[file:../../../examples/utility/format.cpp][examples/utility/format.cpp]]

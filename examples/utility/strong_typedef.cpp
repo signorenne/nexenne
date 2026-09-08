@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <print>
 
+#include <nexenne/utility/format.hpp>
 #include <nexenne/utility/strong_typedef.hpp>
 
 namespace {

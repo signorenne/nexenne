@@ -7,12 +7,12 @@
  * Wraps a scoped enum whose enumerators are power-of-two bit values and offers
  * \c set / \c clear / \c toggle / \c has plus bitwise operators with correct
  * return types, so there is no implicit \c int promotion and no accidental
- * mixing of unrelated enums. A \c std::formatter prints the raw mask.
+ * mixing of unrelated enums. The \c std::formatter printing the raw mask lives
+ * in \c format.hpp.
  */
 
 #include <bit>
 #include <cstddef>
-#include <format>
 #include <type_traits>
 
 namespace nexenne::utility {
@@ -522,39 +522,3 @@ public:
 };
 
 }  // namespace nexenne::utility
-
-/**
- * @brief \c std::formatter specialisation printing the raw mask.
- *
- * Formats the raw bits converted to the unsigned counterpart of the underlying
- * type and inherits that integer formatter, so format specs pass straight
- * through: \c {} prints the mask in decimal, \c {:\#b} in binary, \c {:\#x} in
- * hex. A signed underlying type prints its two's-complement bit pattern
- * rather than a sign.
- *
- * @tparam E Scoped enum type of the flag set.
- * @tparam CharT Character type of the format context.
- */
-template <nexenne::utility::scoped_enum E, typename CharT>
-struct std::formatter<nexenne::utility::flags<E>, CharT>
-    : std::formatter<typename nexenne::utility::flags<E>::unsigned_type, CharT> {
-  /**
-   * @brief Formats \p value by formatting its raw bits as an unsigned integer.
-   *
-   * @tparam Context Formatting context type.
-   * @param value Flag set to format.
-   * @param ctx Format context to write into.
-   *
-   * @return The output iterator past the formatted text.
-   *
-   * @pre None.
-   * @post None.
-   */
-  template <typename Context>
-  auto format(nexenne::utility::flags<E> const value, Context& ctx) const {
-    using unsigned_type = typename nexenne::utility::flags<E>::unsigned_type;
-    return std::formatter<unsigned_type, CharT>::format(
-      static_cast<unsigned_type>(value.raw()), ctx
-    );
-  }
-};

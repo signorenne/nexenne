@@ -6,6 +6,7 @@
 #include <print>
 #include <unordered_map>
 
+#include <nexenne/utility/format.hpp>
 #include <nexenne/utility/static_string.hpp>
 
 // static_string is structural, so it can be a non-type template parameter.

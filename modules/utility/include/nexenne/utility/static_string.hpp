@@ -17,7 +17,6 @@
 #include <cassert>
 #include <compare>
 #include <cstddef>
-#include <format>
 #include <functional>
 #include <string_view>
 
@@ -253,38 +252,5 @@ struct std::hash<nexenne::utility::static_string<N>> {
   [[nodiscard]] auto operator()(nexenne::utility::static_string<N> const& s) const noexcept
     -> std::size_t {
     return std::hash<std::string_view>{}(s.view());
-  }
-};
-
-/**
- * @brief \c std::formatter specialisation for \c static_string.
- *
- * Formats the body with full string format-spec support (for example "{:>8}")
- * by inheriting the \c std::string_view formatter.
- *
- * @tparam N Buffer size of the static string.
- *
- * @pre None.
- * @post None.
- */
-template <std::size_t N>
-struct std::formatter<nexenne::utility::static_string<N>, char>
-    : std::formatter<std::string_view, char> {
-  /**
-   * @brief Formats \p s by formatting its body as a \c string_view.
-   *
-   * @tparam Context Formatting context type.
-   * @param s Static string to format.
-   * @param ctx Format context to write into.
-   *
-   * @return The output iterator past the formatted text.
-   *
-   * @pre None.
-   * @post The body has been written into \p ctx using the inherited spec.
-   */
-  template <typename Context>
-  auto format(nexenne::utility::static_string<N> const& s, Context& ctx) const
-    -> decltype(ctx.out()) {
-    return std::formatter<std::string_view, char>::format(s.view(), ctx);
   }
 };

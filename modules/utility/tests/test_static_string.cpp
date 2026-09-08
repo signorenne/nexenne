@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include <nexenne/utility/format.hpp>
 #include <nexenne/utility/static_string.hpp>
 
 namespace {

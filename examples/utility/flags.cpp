@@ -7,6 +7,7 @@
 #include <print>
 
 #include <nexenne/utility/flags.hpp>
+#include <nexenne/utility/format.hpp>
 
 // A type-safe permission bitfield. The scoped enum keeps unrelated bitmasks
 // from mixing, and flags<E> gives readable set/has/operators without leaking

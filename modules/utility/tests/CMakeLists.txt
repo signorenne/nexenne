@@ -11,6 +11,7 @@ nexenne_add_module_tests(utility
         test_expected_utils.cpp
         test_flags.cpp
         test_for_each_non_null.cpp
+        test_format.cpp
         test_function_ref.cpp
         test_hash.cpp
         test_in_place_function.cpp

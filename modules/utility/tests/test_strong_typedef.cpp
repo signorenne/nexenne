@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include <nexenne/utility/format.hpp>
 #include <nexenne/utility/strong_typedef.hpp>
 
 namespace {

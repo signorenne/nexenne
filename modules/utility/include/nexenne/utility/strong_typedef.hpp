@@ -38,7 +38,6 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
-#include <format>
 #include <functional>
 #include <limits>
 #include <string_view>
@@ -1755,61 +1754,4 @@ struct std::common_type<
     Tag,
     std::common_type_t<T, U>,
     nexenne::utility::sanitized<std::common_type_t<T, U>>(O1 | O2)>;
-};
-
-/**
- * @brief \c std::formatter specialisation inheriting the underlying type's formatter.
- *
- * Format specs such as "{:>8}" or "{:.2f}" pass straight through to \p T.
- *
- * @tparam Tag Tag type of the wrapper.
- * @tparam T Underlying value type.
- * @tparam Ops Capability set of the wrapper.
- * @tparam CharT Character type of the format context.
- */
-template <typename Tag, typename T, nexenne::utility::ability Ops, typename CharT>
-struct std::formatter<nexenne::utility::strong_typedef<Tag, T, Ops>, CharT>
-    : std::formatter<T, CharT> {
-  /**
-   * @brief Formats \p value by formatting its underlying value.
-   *
-   * @tparam Context Formatting context type.
-   * @param value Wrapper to format.
-   * @param ctx Format context to write into.
-   *
-   * @return The output iterator past the formatted text.
-   *
-   * @pre None.
-   * @post None.
-   */
-  template <typename Context>
-  auto format(nexenne::utility::strong_typedef<Tag, T, Ops> const& value, Context& ctx) const {
-    return std::formatter<T, CharT>::format(value.get(), ctx);
-  }
-};
-
-/**
- * @brief \c std::formatter specialisation printing an \c ability by its name.
- *
- * Forwards to \c to_string, so \c std::format("{}", ability::scale) yields
- * \c "scale" and a string spec such as "{:>10}" pads the name.
- */
-template <>
-struct std::formatter<nexenne::utility::ability> : std::formatter<std::string_view> {
-  /**
-   * @brief Formats \p flag by writing its name.
-   *
-   * @tparam Context Formatting context type.
-   * @param flag Flag, named group or \c none to format.
-   * @param ctx Format context to write into.
-   *
-   * @return The output iterator past the formatted text.
-   *
-   * @pre None.
-   * @post None.
-   */
-  template <typename Context>
-  auto format(nexenne::utility::ability flag, Context& ctx) const {
-    return std::formatter<std::string_view>::format(nexenne::utility::to_string(flag), ctx);
-  }
 };
