@@ -70,9 +70,12 @@ Every operation that has a live handle in flight disposes of it through the
 deleter before letting an exception escape, so a resource is never silently
 leaked:
 
-- *Owning constructor.* If moving the handle into its member throws, the deleter
-  is invoked on the still-intact handle first. If moving the deleter throws
-  after the handle is stored, the deleter is invoked on the stored handle.
+- *Owning constructor.* The arguments are forwarded, and each member is moved
+  in only when that cannot throw; otherwise it is copied from the caller's
+  argument, which stays intact. If initialising the handle throws, the caller's
+  deleter is invoked on the caller's handle first. If initialising the deleter
+  throws after the handle is stored, the caller's deleter is invoked on the
+  stored handle. That covers every argument, lvalue, moved, or temporary.
 - *Move constructor.* The handle is taken with =std::move_if_noexcept=, so a
   throwing handle transfer leaves the source fully intact. If initialising the
   deleter throws after the handle was genuinely moved out, the moved handle is
@@ -106,8 +109,10 @@ pointer so the owner reads like a smart pointer.
 - =owns()= : whether a resource is currently owned.
 - =operator->= / =operator*= : for pointer handles.
 - =make_unique_resource_checked(resource, invalid, deleter)= : construct owning,
-  but immediately release when =resource == invalid= so the deleter never runs
-  for a failed acquisition (for example =-1= from =open=).
+  or, when =resource == invalid=, store the sentinel without owning it, so the
+  deleter never runs for a failed acquisition (for example =-1= from =open=),
+  not even when building the result throws; =get()= still reports the
+  sentinel.
 - =value_type= / =resource_type= : the handle type; =deleter_type= : the deleter.
 
 * Usage

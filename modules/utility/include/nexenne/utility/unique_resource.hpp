@@ -34,13 +34,48 @@
  * \endcode
  */
 
+#include <concepts>
 #include <memory>
 #include <type_traits>
 #include <utility>
 
-#include <nexenne/utility/discard.hpp>
-
 namespace nexenne::utility {
+
+/// @cond INTERNAL
+namespace detail {
+
+/**
+ * @brief Whether initialising a \p Member from a \p From argument, P0052 style, cannot throw.
+ *
+ * P0052 initialises a member from the forwarded argument when that cannot
+ * throw and copies from the caller's argument otherwise, so the
+ * initialisation is non-throwing when either route is.
+ *
+ * @tparam Member Stored member type.
+ * @tparam From Forwarded argument type, possibly an lvalue reference.
+ */
+template <typename Member, typename From>
+inline constexpr bool nothrow_member_init_v{
+  std::is_nothrow_constructible_v<Member, From> || std::is_nothrow_constructible_v<Member, From&>
+};
+
+/**
+ * @brief Whether a \p Member can be initialised from a \p From argument, P0052 style.
+ *
+ * Either the forwarded argument initialises it without throwing, or a copy
+ * from the caller's argument is available as the fallback.
+ *
+ * @tparam Member Stored member type.
+ * @tparam From Forwarded argument type, possibly an lvalue reference.
+ */
+template <typename Member, typename From>
+concept p0052_initialisable_from =
+  std::constructible_from<Member, From>
+  && (std::is_nothrow_constructible_v<Member, From> || std::constructible_from<Member, From&>);
+
+}  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Move-only RAII owner pairing a resource handle with a deleter.
@@ -78,76 +113,116 @@ private:
   bool m_owns{false};
 
   /**
-   * @brief Moves the resource for the owning constructor, disposing it on a throw.
+   * @brief Initialises the resource member for an owning constructor, P0052 style.
    *
-   * P0052 leak guard: the return object is elided into \c m_resource, so a
-   * throwing move of \p resource is caught here and the still-intact handle is
-   * disposed via \p deleter before the exception propagates. The catch path
-   * exists only when the move can actually throw, so the \c noexcept
-   * instantiation contains no unreachable rethrow.
+   * The forwarded argument is used when that cannot throw; otherwise the
+   * member is copied from the caller's argument, so a failure leaves that
+   * argument intact. If the initialisation throws while \p owns is set, the
+   * caller's handle is disposed of through the caller's deleter before the
+   * exception propagates. The result is elided straight into \c m_resource.
    *
-   * @param resource Handle being moved into the owner.
-   * @param deleter Releaser invoked on \p resource if the move throws.
+   * @tparam RR Forwarded resource argument type.
+   * @tparam DD Forwarded deleter argument type.
+   * @param resource Caller's resource argument.
+   * @param deleter Caller's deleter argument, invoked on \p resource on a throw.
+   * @param owns Whether \p resource is a live handle; the checked factory
+   *             passes \c false for the invalid sentinel.
    *
-   * @return The moved resource value.
+   * @return The resource value to store.
    *
    * @pre \p deleter is a valid releaser for \p resource.
-   * @post On success the returned value carries \p resource's handle; on a
-   *       throw \p resource has been disposed of via \p deleter.
+   * @post On a throw with \p owns set, \p resource has been disposed of.
    *
-   * @throws Anything the move construction of \p resource throws, after that
-   *         handle has been disposed of via \p deleter.
+   * @throws Anything initialising the resource throws.
    */
-  [[nodiscard]] static auto guarded_resource_move(
-    resource_type& resource, deleter_type& deleter
-  ) noexcept(std::is_nothrow_move_constructible_v<resource_type>) -> resource_type {
-    if constexpr (std::is_nothrow_move_constructible_v<resource_type>) {
-      discard(deleter);
-      return std::move(resource);
+  template <typename RR, typename DD>
+  [[nodiscard]] static auto init_resource(
+    RR& resource, [[maybe_unused]] DD& deleter, [[maybe_unused]] bool const owns
+  ) noexcept(detail::nothrow_member_init_v<resource_type, RR>) -> resource_type {
+    if constexpr (std::is_nothrow_constructible_v<resource_type, RR>) {
+      return static_cast<resource_type>(std::forward<RR>(resource));
+    } else if constexpr (std::is_nothrow_constructible_v<resource_type, RR&>) {
+      return static_cast<resource_type>(resource);
     } else {
       try {
-        return std::move(resource);
+        return static_cast<resource_type>(resource);
       } catch (...) {
-        deleter(resource);
+        if (owns) {
+          deleter(resource);
+        }
         throw;
       }
     }
   }
 
   /**
-   * @brief Moves the deleter for the owning constructor, disposing the handle on a throw.
+   * @brief Initialises the deleter member for an owning constructor, P0052 style.
    *
-   * P0052 leak guard: \c m_resource already holds the handle, so a throwing
-   * move of \p deleter disposes \p resource via the still-valid \p deleter
-   * argument before the exception propagates.
+   * The forwarded argument is used when that cannot throw; otherwise the
+   * member is copied from the caller's argument, which therefore stays
+   * intact. If the initialisation throws while \p owns is set, the already
+   * stored handle is disposed of through that intact deleter before the
+   * exception propagates.
    *
-   * @param deleter Deleter being moved into the owner.
-   * @param resource Already-stored handle, disposed via \p deleter on a throw.
+   * @tparam DD Forwarded deleter argument type.
+   * @param deleter Caller's deleter argument.
+   * @param resource The already stored resource member.
+   * @param owns Whether \p resource is a live handle.
    *
-   * @return The moved deleter value.
+   * @return The deleter value to store.
    *
    * @pre \p deleter is a valid releaser for \p resource.
-   * @post On success the returned value carries the deleter; on a throw
-   *       \p resource has been disposed of via \p deleter.
+   * @post On a throw with \p owns set, \p resource has been disposed of.
    *
-   * @throws Anything the move construction of \p deleter throws, after
-   *         \p resource has been disposed of via \p deleter.
+   * @throws Anything initialising the deleter throws.
    */
-  [[nodiscard]] static auto guarded_deleter_move(
-    deleter_type& deleter, resource_type& resource
-  ) noexcept(std::is_nothrow_move_constructible_v<deleter_type>) -> deleter_type {
-    if constexpr (std::is_nothrow_move_constructible_v<deleter_type>) {
-      discard(resource);
-      return std::move(deleter);
+  template <typename DD>
+  [[nodiscard]] static auto init_deleter(
+    DD& deleter, [[maybe_unused]] resource_type& resource, [[maybe_unused]] bool const owns
+  ) noexcept(detail::nothrow_member_init_v<deleter_type, DD>) -> deleter_type {
+    if constexpr (std::is_nothrow_constructible_v<deleter_type, DD>) {
+      return static_cast<deleter_type>(std::forward<DD>(deleter));
+    } else if constexpr (std::is_nothrow_constructible_v<deleter_type, DD&>) {
+      return static_cast<deleter_type>(deleter);
     } else {
       try {
-        return std::move(deleter);
+        return static_cast<deleter_type>(deleter);
       } catch (...) {
-        deleter(resource);
+        if (owns) {
+          deleter(resource);
+        }
         throw;
       }
     }
   }
+
+  /**
+   * @brief Constructs from a resource, its deleter, and an explicit ownership flag.
+   *
+   * The shared body of the owning constructor and \c make_unique_resource_checked,
+   * which passes \c false for an invalid sentinel so that no path, a failing
+   * one included, ever hands the sentinel to the deleter.
+   *
+   * @tparam RR Forwarded resource argument type.
+   * @tparam DD Forwarded deleter argument type.
+   * @param resource Handle to store.
+   * @param deleter Callable that releases \p resource.
+   * @param owns Whether the new instance owns \p resource.
+   *
+   * @pre \p deleter is a valid releaser for \p resource.
+   * @post \c owns() equals \p owns; \c get() returns the stored resource.
+   *
+   * @throws Anything initialising a member throws, after a live handle has been
+   *         disposed of via \p deleter.
+   */
+  template <typename RR, typename DD>
+  unique_resource(RR&& resource, DD&& deleter, bool const owns) noexcept(
+    detail::nothrow_member_init_v<resource_type, RR>
+    && detail::nothrow_member_init_v<deleter_type, DD>
+  )
+      : m_resource{init_resource<RR, DD>(resource, deleter, owns)}
+      , m_deleter{init_deleter<DD>(deleter, m_resource, owns)}
+      , m_owns{owns} {}
 
   /**
    * @brief Steals the deleter for the move constructor, cleaning up on a throw.
@@ -252,30 +327,33 @@ public:
   /**
    * @brief Constructs an owning instance from a resource and its deleter.
    *
-   * Both arguments are moved in. After construction the instance owns the
-   * resource and invokes \p deleter on it at destruction or \c reset, unless
-   * ownership is first transferred or released. Following P0052, the
-   * construction never leaks: if moving \p resource into the member throws,
-   * \p deleter is invoked on \p resource; if moving \p deleter into the member
-   * throws after the resource was stored, \p deleter is invoked on the stored
-   * resource. In both cases the exception then propagates.
+   * P0052 construction: each member is initialised from the forwarded argument
+   * when that cannot throw, and copied from the caller's argument otherwise, so
+   * a failure never leaves an argument half-moved. If initialising either
+   * member throws, the caller's deleter is invoked on the handle (the caller's
+   * resource, or the one already stored) before the exception propagates, so an
+   * acquired resource never leaks. The caller's arguments are only moved from
+   * when those moves cannot throw.
    *
-   * @param resource Handle to take ownership of, moved into the owner.
-   * @param deleter Callable that releases \p resource, moved into the owner.
+   * @tparam RR Resource argument type, forwarded.
+   * @tparam DD Deleter argument type, forwarded.
+   * @param resource Handle to take ownership of.
+   * @param deleter Callable that releases \p resource.
    *
    * @pre \p deleter is a valid releaser for \p resource.
    * @post \c owns() is \c true; \c get() returns the stored resource.
    *
-   * @throws Anything the move of \p resource or \p deleter throws, after the
+   * @throws Anything initialising the resource or the deleter throws, after the
    *         handle has been disposed of via \p deleter.
    */
-  unique_resource(resource_type resource, deleter_type deleter) noexcept(
-    std::is_nothrow_move_constructible_v<resource_type>
-    && std::is_nothrow_move_constructible_v<deleter_type>
+  template <typename RR, typename DD>
+    requires detail::p0052_initialisable_from<resource_type, RR>
+             && detail::p0052_initialisable_from<deleter_type, DD>
+  unique_resource(RR&& resource, DD&& deleter) noexcept(
+    detail::nothrow_member_init_v<resource_type, RR>
+    && detail::nothrow_member_init_v<deleter_type, DD>
   )
-      : m_resource{guarded_resource_move(resource, deleter)}
-      , m_deleter{guarded_deleter_move(deleter, m_resource)}
-      , m_owns{true} {}
+      : unique_resource{std::forward<RR>(resource), std::forward<DD>(deleter), true} {}
 
   /**
    * @brief Move-constructs from \p other, transferring ownership.
@@ -380,6 +458,28 @@ public:
    * @post None.
    */
   auto operator=(unique_resource const&) -> unique_resource& = delete;
+
+  /**
+   * @brief Grants the checked factory the flag-taking constructor.
+   *
+   * @tparam R Forwarded resource argument type.
+   * @tparam Invalid Sentinel type comparable to the resource.
+   * @tparam D Forwarded deleter argument type.
+   * @param resource Handle to take ownership of unless it equals \p invalid.
+   * @param invalid Sentinel value denoting a failed acquisition.
+   * @param deleter Callable that releases \p resource.
+   *
+   * @return See \c make_unique_resource_checked.
+   *
+   * @pre See \c make_unique_resource_checked.
+   * @post See \c make_unique_resource_checked.
+   */
+  template <typename R, typename Invalid, typename D>
+  friend auto
+  make_unique_resource_checked(R&& resource, Invalid const& invalid, D&& deleter) noexcept(
+    detail::nothrow_member_init_v<std::decay_t<R>, R>
+    && detail::nothrow_member_init_v<std::decay_t<D>, D>
+  ) -> unique_resource<std::decay_t<R>, std::decay_t<D>>;
 
   /**
    * @brief Releases the owned resource, running the deleter if owning.
@@ -560,35 +660,40 @@ unique_resource(R, D) -> unique_resource<R, D>;
 /**
  * @brief Builds a \c unique_resource that does not release an invalid handle.
  *
- * Constructs a \c unique_resource owning \p resource with \p deleter. If
+ * Constructs a \c unique_resource holding \p resource and \p deleter. When
  * \p resource compares equal to \p invalid (the sentinel of a failed
- * acquisition, such as \c -1 from a failed \c open), ownership is immediately
- * released so the deleter is NOT invoked for the invalid handle.
+ * acquisition, such as \c -1 from a failed \c open), the result stores the
+ * sentinel without owning it, so \c get() still reports it and the deleter is
+ * never invoked on it: not at destruction, and not when building the result
+ * throws. A valid handle is owned, with P0052's no-leak construction.
  *
- * @tparam Resource The owned handle type.
- * @tparam Invalid Sentinel type comparable to \p Resource via \c ==.
- * @tparam Deleter Callable invocable as \c deleter(resource).
- * @param resource Handle to take ownership of, moved into the owner.
+ * @tparam R Resource argument type, forwarded; the stored type is its decay.
+ * @tparam Invalid Sentinel type comparable to the resource via \c ==.
+ * @tparam D Deleter argument type, forwarded; the stored type is its decay.
+ * @param resource Handle to take ownership of unless it equals \p invalid.
  * @param invalid Sentinel value denoting a failed acquisition.
- * @param deleter Callable that releases \p resource, moved into the owner.
+ * @param deleter Callable that releases \p resource.
  *
  * @return A \c unique_resource that owns \p resource when it differs from
- *         \p invalid, and owns nothing otherwise.
+ *         \p invalid, and holds it without owning it otherwise.
  *
  * @pre \p resource and \p invalid are comparable with \c operator==.
  * @post The result's \c owns() is \c false when \p resource equals \p invalid,
- *       and \c true otherwise.
+ *       and \c true otherwise; \c get() returns the stored resource.
+ *
+ * @throws Anything initialising the resource or the deleter throws, after a
+ *         valid handle has been disposed of via \p deleter.
  */
-template <typename Resource, typename Invalid, typename Deleter>
+template <typename R, typename Invalid, typename D>
 [[nodiscard]] auto
-make_unique_resource_checked(Resource resource, Invalid const& invalid, Deleter deleter) noexcept(
-  std::is_nothrow_move_constructible_v<Resource> && std::is_nothrow_move_constructible_v<Deleter>
-) -> unique_resource<Resource, Deleter> {
-  auto guard{unique_resource<Resource, Deleter>{std::move(resource), std::move(deleter)}};
-  if (guard.get() == invalid) {
-    discard(guard.release());
-  }
-  return guard;
+make_unique_resource_checked(R&& resource, Invalid const& invalid, D&& deleter) noexcept(
+  detail::nothrow_member_init_v<std::decay_t<R>, R>
+  && detail::nothrow_member_init_v<std::decay_t<D>, D>
+) -> unique_resource<std::decay_t<R>, std::decay_t<D>> {
+  bool const owns{!(resource == invalid)};
+  return unique_resource<std::decay_t<R>, std::decay_t<D>>{
+    std::forward<R>(resource), std::forward<D>(deleter), owns
+  };
 }
 
 }  // namespace nexenne::utility

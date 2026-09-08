@@ -46,8 +46,7 @@ TEST_CASE(
 TEST_CASE("nexenne::utility::unique_resource deleter runs exactly once, never twice") {
   int closes{0};
   {
-    auto r{util::unique_resource{7, [&](int) { ++closes; }}};
-    util::ignore(r);
+    [[maybe_unused]] auto r{util::unique_resource{7, [&](int) { ++closes; }}};
   }
   CHECK(closes == 1);
 }
@@ -387,17 +386,34 @@ static_assert(
   "a throwing-assign deleter gives a potentially-throwing move assignment"
 );
 
-// The owning constructor is likewise conditionally noexcept, per P0052.
+struct throwing_copy_deleter {
+  throwing_copy_deleter() = default;
+  throwing_copy_deleter(throwing_copy_deleter&&) noexcept(false);
+  throwing_copy_deleter(throwing_copy_deleter const&) noexcept(false);
+  auto operator=(throwing_copy_deleter&&) noexcept(false) -> throwing_copy_deleter&;
+  auto operator=(throwing_copy_deleter const&) noexcept(false) -> throwing_copy_deleter&;
+  ~throwing_copy_deleter() = default;
+
+  auto operator()(int) const -> void;
+};
+
 static_assert(
   std::is_nothrow_constructible_v<util::unique_resource<int, void (*)(int)>, int, void (*)(int)>,
   "nothrow-movable members give a noexcept owning constructor"
 );
 static_assert(
-  !std::is_nothrow_constructible_v<
+  std::is_nothrow_constructible_v<
     util::unique_resource<int, throwing_move_deleter>,
     int,
     throwing_move_deleter>,
-  "a throwing-move deleter gives a potentially-throwing owning constructor"
+  "a throwing-move deleter with a nothrow copy is copied in, so the constructor is noexcept"
+);
+static_assert(
+  !std::is_nothrow_constructible_v<
+    util::unique_resource<int, throwing_copy_deleter>,
+    int,
+    throwing_copy_deleter>,
+  "a deleter whose copy can throw gives a potentially-throwing owning constructor"
 );
 
 // unique_resource is move-only, never copyable.
@@ -445,6 +461,7 @@ struct fragile_handle {
 
   fragile_handle(fragile_handle const&) = default;
 
+  // NOLINTNEXTLINE(performance-noexcept-move-constructor): models a handle whose move throws
   fragile_handle(fragile_handle&& other) : fd{other.fd} {
     if (fd == 13) {
       throw std::runtime_error{"fragile_handle: move"};
@@ -458,6 +475,80 @@ struct fragile_handle {
   ~fragile_handle() = default;
 };
 
+struct counting_closer {
+  std::vector<int>* closed{nullptr};
+  bool copy_throws{false};
+
+  counting_closer(std::vector<int>* const sink, bool const throws) noexcept
+      : closed{sink}, copy_throws{throws} {}
+
+  counting_closer(counting_closer const& other)
+      : closed{other.closed}, copy_throws{other.copy_throws} {
+    if (copy_throws) {
+      throw std::runtime_error{"counting_closer: copy"};
+    }
+  }
+
+  // Models a deleter whose move throws like its copy, hence the delegation.
+  // NOLINTBEGIN(performance-noexcept-move-constructor,cert-oop11-cpp,performance-move-constructor-init)
+  counting_closer(counting_closer&& other) noexcept(false)
+      : counting_closer{static_cast<counting_closer const&>(other)} {}
+
+  // NOLINTEND(performance-noexcept-move-constructor,cert-oop11-cpp,performance-move-constructor-init)
+
+  auto operator=(counting_closer const&) -> counting_closer& = default;
+
+  auto operator=(counting_closer&&) -> counting_closer& = default;
+
+  ~counting_closer() = default;
+
+  auto operator()(int const fd) const noexcept -> void {
+    closed->push_back(fd);
+  }
+};
+
+TEST_CASE("nexenne::utility::unique_resource construction releases the handle when a copy throws") {
+  std::vector<int> closed;
+  counting_closer const closer{&closed, true};
+  CHECK_THROWS_AS((util::unique_resource<int, counting_closer>{4, closer}), std::runtime_error);
+  CHECK(closed == std::vector{4});
+
+  closed.clear();
+  counting_closer moved{&closed, true};
+  CHECK_THROWS_AS(
+    (util::unique_resource<int, counting_closer>{5, std::move(moved)}), std::runtime_error
+  );
+  CHECK(closed == std::vector{5});
+}
+
+TEST_CASE("nexenne::utility::unique_resource copies a deleter whose move can throw") {
+  std::vector<int> closed;
+  {
+    counting_closer source{&closed, false};
+    util::unique_resource<int, counting_closer> const r{6, std::move(source)};
+    CHECK(r.owns());
+  }
+  CHECK(closed == std::vector{6});
+}
+
+TEST_CASE("nexenne::utility::make_unique_resource_checked never deletes the sentinel") {
+  std::vector<int> closed;
+  counting_closer const closer{&closed, true};
+  CHECK_THROWS_AS(
+    util::ignore(util::make_unique_resource_checked(7, -1, closer)), std::runtime_error
+  );
+  CHECK(closed == std::vector{7});
+  closed.clear();
+  CHECK_THROWS_AS(
+    util::ignore(util::make_unique_resource_checked(-1, -1, closer)), std::runtime_error
+  );
+  CHECK(closed.empty());
+  auto const quiet{util::make_unique_resource_checked(-1, -1, counting_closer{&closed, false})};
+  CHECK_FALSE(quiet.owns());
+  CHECK(quiet.get() == -1);
+  CHECK(closed.empty());
+}
+
 TEST_CASE("nexenne::utility::unique_resource release keeps ownership when the move throws") {
   auto closed{0};
   auto const closer{[&closed](fragile_handle const&) noexcept { ++closed; }};
@@ -465,7 +556,7 @@ TEST_CASE("nexenne::utility::unique_resource release keeps ownership when the mo
     util::unique_resource<fragile_handle, decltype(closer)> r{fragile_handle{5}, closer};
     r.reset(fragile_handle{13});
     static_assert(!noexcept(r.release()), "release can throw exactly when the move can");
-    CHECK_THROWS_AS(util::discard(r.release()), std::runtime_error);
+    CHECK_THROWS_AS(util::ignore(r.release()), std::runtime_error);
     CHECK(r.owns());
     CHECK(r.get().fd == 13);
     CHECK(closed == 1);
