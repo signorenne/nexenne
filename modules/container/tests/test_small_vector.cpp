@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <any>
 #include <array>
 #include <compare>
 #include <cstddef>
@@ -728,6 +729,22 @@ TEST_CASE("nexenne::container::small_vector emplace_back grow path matches const
   auto& warm{hot.emplace_back(3, 5)};  // size < capacity: hot path
   CHECK(warm.size() == 3);
   CHECK(warm == grown);  // both paths build the identical element
+}
+
+TEST_CASE(
+  "nexenne::container::small_vector swap keeps sizes for an element constructible from the vector"
+) {
+  cn::small_vector<std::any, 4> a;
+  a.push_back(1);
+  a.push_back(2);
+  cn::small_vector<std::any, 4> b;
+  b.push_back(3);
+  a.swap(b);
+  REQUIRE(a.size() == 1);
+  REQUIRE(b.size() == 2);
+  CHECK(std::any_cast<int>(a[0]) == 3);
+  CHECK(std::any_cast<int>(b[0]) == 1);
+  CHECK(std::any_cast<int>(b[1]) == 2);
 }
 
 }  // namespace

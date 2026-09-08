@@ -338,4 +338,11 @@ TEST_CASE(
   CHECK(q.empty());
 }
 
+TEST_CASE("nexenne::container::indexed_priority_queue emplace constructs with parentheses") {
+  cn::indexed_priority_queue<std::vector<int>> q;
+  q.emplace(std::size_t{3}, 7);
+  REQUIRE(q.top() != nullptr);
+  CHECK(*q.top() == std::vector<int>(3, 7));
+}
+
 }  // namespace

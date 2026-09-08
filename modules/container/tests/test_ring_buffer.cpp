@@ -5,6 +5,7 @@
 
 #include <doctest/doctest.h>
 
+#include <any>
 #include <concepts>
 #include <cstddef>
 #include <memory>
@@ -708,5 +709,17 @@ static_assert([] {
 // sibling container exposes, so generic code using Container::difference_type
 // compiles against it too.
 static_assert(std::same_as<cn::ring_buffer<int, 4>::difference_type, std::ptrdiff_t>);
+
+TEST_CASE("nexenne::container::ring_buffer push_overwrite builds the same element full or not") {
+  using any_vec = std::vector<std::any>;
+  any_vec const three(3, std::any{1});
+  cn::ring_buffer<any_vec, 1> r;
+  r.push_overwrite(three);
+  REQUIRE(r.back() != nullptr);
+  CHECK(r.back()->size() == 3);
+  r.push_overwrite(three);
+  REQUIRE(r.back() != nullptr);
+  CHECK(r.back()->size() == 3);
+}
 
 }  // namespace

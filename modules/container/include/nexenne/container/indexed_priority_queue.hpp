@@ -395,7 +395,8 @@ public:
   constexpr auto emplace(Args&&... args) noexcept -> handle_type {
     auto const h{allocate_handle()};
     auto const pos{m_heap.size()};
-    m_heap.push_back(entry{T{std::forward<Args>(args)...}, h});
+    // Parentheses: braces would prefer an initializer_list constructor.
+    m_heap.push_back(entry{T(std::forward<Args>(args)...), h});
     m_position[h] = pos;
     sift_up(pos);
     return h;

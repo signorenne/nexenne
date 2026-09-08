@@ -400,7 +400,8 @@ public:
       swap(m_capacity, other.m_capacity);
       return;
     }
-    auto temp{std::move(*this)};
+    // Parentheses: braces would pick an initializer_list constructor (std::any elements).
+    small_vector temp(std::move(*this));
     *this = std::move(other);
     other = std::move(temp);
   }

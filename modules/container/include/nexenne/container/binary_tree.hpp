@@ -83,7 +83,7 @@ private:
      * @post \c left, \c right, and \c parent are null.
      */
     template <typename... Args>
-    explicit constexpr node(Args&&... args) noexcept : value{std::forward<Args>(args)...} {}
+    explicit constexpr node(Args&&... args) noexcept : value(std::forward<Args>(args)...) {}
 
     /**
      * @brief Tears the subtree rooted at this node down iteratively.
@@ -542,7 +542,8 @@ public:
   template <typename... Args>
     requires std::constructible_from<T, Args...>
   constexpr auto emplace(Args&&... args) noexcept -> bool {
-    T value{std::forward<Args>(args)...};
+    // Parentheses: braces would prefer an initializer_list constructor.
+    T value(std::forward<Args>(args)...);
     return emplace_impl(std::move(value));
   }
 

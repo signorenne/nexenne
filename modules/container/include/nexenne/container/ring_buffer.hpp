@@ -171,7 +171,9 @@ private:
       // Full: m_tail == m_head, so this slot holds the oldest element.
       // Materialize the value before destroying that slot, so an argument
       // aliasing the evicted element (push_overwrite(r[0])) stays valid.
-      T value{std::forward<Args>(args)...};
+      // Parentheses, like the construct_at below: braces would prefer an
+      // initializer_list constructor and build a different element.
+      T value(std::forward<Args>(args)...);
       std::destroy_at(value_ptr(m_tail));
       std::construct_at(value_ptr(m_tail), std::move(value));
       m_head = advance(m_head);

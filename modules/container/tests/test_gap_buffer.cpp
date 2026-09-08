@@ -5,6 +5,7 @@
 
 #include <doctest/doctest.h>
 
+#include <any>
 #include <cstddef>
 #include <iterator>
 #include <memory>
@@ -445,6 +446,18 @@ TEST_CASE("nexenne::container::gap_buffer mid-buffer insert stays amortised O(1)
   CHECK(small < 20.0);
   CHECK(large < 20.0);
   CHECK(large < small * 2.0 + 5.0);
+}
+
+TEST_CASE("nexenne::container::gap_buffer insert into a full gap copies the element exactly") {
+  using any_vec = std::vector<std::any>;
+  any_vec const three(3, std::any{1});
+  cn::gap_buffer<any_vec> g;
+  g.insert(three);
+  any_vec moved(3, std::any{2});
+  g.insert(std::move(moved));
+  REQUIRE(g.size() == 2);
+  CHECK(g[0].size() == 3);
+  CHECK(g[1].size() == 3);
 }
 
 }  // namespace

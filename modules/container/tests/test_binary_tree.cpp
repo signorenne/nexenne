@@ -5,6 +5,8 @@
 
 #include <doctest/doctest.h>
 
+#include <any>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <random>
@@ -453,5 +455,25 @@ TEST_CASE("nexenne::container::binary_tree constructs from initializer list and 
 
 // m10: emplace is constrained on std::constructible_from<T, Args...>.
 static_assert(requires(tree_t t) { t.emplace(1); });
+
+using any_vec = std::vector<std::any>;
+
+struct shorter {
+  auto operator()(any_vec const& l, any_vec const& r) const noexcept -> bool {
+    return l.size() < r.size();
+  }
+};
+
+TEST_CASE("nexenne::container::binary_tree constructs values with parentheses") {
+  cn::binary_tree<std::vector<int>> t;
+  CHECK(t.emplace(std::size_t{3}, 7));
+  REQUIRE(t.size() == 1);
+  CHECK(*t.begin() == std::vector<int>(3, 7));
+
+  cn::binary_tree<any_vec, shorter> by_size;
+  CHECK(by_size.insert(any_vec(3, std::any{1})));
+  REQUIRE(by_size.size() == 1);
+  CHECK(by_size.begin()->size() == 3);
+}
 
 }  // namespace

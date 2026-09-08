@@ -733,7 +733,7 @@ public:
     if (gap_size() == 0) {
       // grow_gap reallocates m_buffer, so materialize the value first in case it
       // aliases an element of this same buffer (e.g. insert(b[k])).
-      auto materialized{value};
+      T materialized(value);  // parentheses: never an initializer_list
       grow_gap(initial_gap);
       m_buffer[m_gap_begin] = std::move(materialized);
     } else {
@@ -756,7 +756,7 @@ public:
     if (gap_size() == 0) {
       // Move into a local before grow_gap reallocates, in case value aliases an
       // element of this same buffer (e.g. insert(std::move(b[k]))).
-      auto materialized{std::move(value)};
+      T materialized(std::move(value));  // parentheses: never an initializer_list
       grow_gap(initial_gap);
       m_buffer[m_gap_begin] = std::move(materialized);
     } else {
