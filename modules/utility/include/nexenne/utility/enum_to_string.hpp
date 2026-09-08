@@ -12,6 +12,9 @@
  * points scan a bounded window of underlying values, defaulting to
  * \c [0, 256); widen or shift it with the \c Range and \c Min parameters for
  * enums (including signed ones) whose enumerators fall outside that window.
+ * The scan runs at compile time into a table of the named enumerators and
+ * their bare names, which the runtime lookups search, so the binary carries
+ * neither the scan nor the compiler signatures the names are cut from.
  * The window is clamped to the values representable by the enum's underlying
  * type, so an oversized \c Range never wraps a narrow underlying type and
  * never scans a value twice. The scanned enum must have a fixed underlying
@@ -21,6 +24,7 @@
  * evaluation. Requires GCC or Clang; other compilers see no named enumerators.
  */
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <initializer_list>
@@ -105,23 +109,6 @@ template <auto V>
 }
 
 /**
- * @brief Reports whether \p V is a named enumerator whose name equals \p name.
- *
- * @tparam V A literal enumerator value of some enum type.
- * @param name Candidate enumerator name to compare against.
- *
- * @return \c true when \p V names a real enumerator whose name equals \p name.
- *
- * @pre None.
- * @post None.
- */
-template <auto V>
-[[nodiscard]] constexpr auto enum_name_matches(std::string_view const name) noexcept -> bool {
-  auto const candidate{enum_value_name<V>()};
-  return !candidate.empty() && candidate == name;
-}
-
-/**
  * @brief A half-open scan window \c [min, min + range) of underlying values.
  *
  * Produced by \c clamped_window and consumed by every range-scanning entry
@@ -175,40 +162,6 @@ template <typename E>
 // avoid overflow when the underlying type is narrow: a
 // std::make_integer_sequence<std::uint8_t, 256> would silently produce zero
 // elements because 256 is not representable.
-
-/**
- * @brief Finds the name of the enumerator whose underlying value is \p target.
- *
- * Expands the index pack into a flat braced-init sequence (not a fold, which
- * would exceed Clang's expression-nesting limit) and returns the first matching
- * enumerator name, scanning underlying values from \p Min upward.
- *
- * @tparam E Enum type being searched.
- * @tparam Min First underlying value the index pack maps to.
- * @tparam Is Index pack offsetting \p Min across the scan window.
- * @param target Underlying value to match.
- *
- * @return The matching enumerator name, or an empty view when none matches.
- *
- * @pre None.
- * @post None.
- */
-template <typename E, int Min, int... Is>
-[[nodiscard]] constexpr auto
-enum_search(std::underlying_type_t<E> const target, std::integer_sequence<int, Is...>) noexcept
-  -> std::string_view {
-  auto result{std::string_view{}};
-  // A braced-init-list expands the pack into a flat, left-to-right sequence.
-  // A fold expression would nest one binary operator per element and so blow
-  // past clang's expression-nesting limit (256) for large search windows. The
-  // leading empty-check keeps first-match-wins semantics.
-  [[maybe_unused]] std::initializer_list<int> const expansion{
-    (result.empty() && target == static_cast<std::underlying_type_t<E>>(Min + Is)
-       ? (result = enum_value_name<static_cast<E>(Min + Is)>(), 0)
-       : 0)...
-  };
-  return result;
-}
 
 /**
  * @brief Counts the named enumerators across the scan window.
@@ -269,36 +222,99 @@ constexpr auto enum_values_impl(std::array<E, N>& out, std::integer_sequence<int
 }
 
 /**
- * @brief Finds the enumerator whose name equals \p name across the window.
+ * @brief The named enumerators of the scan window, gathered at compile time.
  *
- * Expands the index pack into a flat braced-init sequence (not an \c || fold,
- * which would exceed Clang's expression-nesting limit) and returns the first
- * enumerator, value from \p Min upward, whose name matches.
- *
- * @tparam E Enum type being produced.
+ * @tparam E Enum type being reflected.
  * @tparam Min First underlying value the index pack maps to.
+ * @tparam N Number of named enumerators in the window.
  * @tparam Is Index pack offsetting \p Min across the scan window.
- * @param name Enumerator name to look up.
+ * @param window The index pack, passed for deduction.
  *
- * @return The matching enumerator, or \c std::nullopt when none matches.
+ * @return The named enumerators in ascending underlying-value order.
  *
- * @pre None.
+ * @pre \p N equals the number of named enumerators in the window.
  * @post None.
  */
-template <typename E, int Min, int... Is>
-[[nodiscard]] constexpr auto
-enum_cast_impl(std::string_view const name, std::integer_sequence<int, Is...>) noexcept
-  -> std::optional<E> {
-  auto result{std::optional<E>{}};
-  // Flat braced-init expansion rather than an || fold, which would exceed
-  // clang's expression-nesting limit; the guard keeps first-match-wins.
-  [[maybe_unused]] std::initializer_list<int> const expansion{
-    (!result && enum_name_matches<static_cast<E>(Min + Is)>(name)
-       ? (result = static_cast<E>(Min + Is), 0)
-       : 0)...
-  };
-  return result;
+template <typename E, int Min, std::size_t N, int... Is>
+[[nodiscard]] consteval auto
+collect_enum_values(std::integer_sequence<int, Is...> const window) noexcept -> std::array<E, N> {
+  auto out{std::array<E, N>{}};
+  enum_values_impl<E, Min>(out, window);
+  return out;
 }
+
+/**
+ * @brief The characters of one enumerator name, owned by a constant.
+ *
+ * Holds exactly the name, not the compiler signature it was cut from, so a
+ * table of these costs only the names in the binary.
+ *
+ * @tparam N Length of the name.
+ */
+template <std::size_t N>
+struct enum_name_buffer {
+  std::array<char, N> chars{};  ///< The name, without a terminator.
+
+  /**
+   * @brief The stored name.
+   *
+   * @return A view of the \p N stored characters.
+   *
+   * @pre None.
+   * @post The view is valid for the lifetime of the buffer.
+   */
+  [[nodiscard]] constexpr auto view() const noexcept -> std::string_view {
+    return std::string_view{chars.data(), N};
+  }
+};
+
+/**
+ * @brief The name of enumerator \p V, copied out of the signature at compile time.
+ *
+ * \c enum_value_name is only ever evaluated here as a constant, so neither it
+ * nor the full \c __PRETTY_FUNCTION__ text reaches the binary; only this
+ * buffer does, and only for enumerators a runtime lookup can return.
+ *
+ * @tparam V A named enumerator.
+ */
+template <auto V>
+inline constexpr auto stored_enum_name_v{[] {
+  constexpr auto name{enum_value_name<V>()};
+  auto out{enum_name_buffer<name.size()>{}};
+  std::ranges::copy(name, out.chars.begin());
+  return out;
+}()};
+
+/**
+ * @brief Compile-time table of the named enumerators of one scan window.
+ *
+ * Every runtime lookup searches these arrays instead of instantiating one
+ * signature parser per scanned value: the window is scanned once, during
+ * compilation, and the binary keeps only the values and the bare names.
+ *
+ * @tparam E Enum type being reflected.
+ * @tparam Min First underlying value of the (already clamped) window.
+ * @tparam Range Number of underlying values in the (already clamped) window.
+ */
+template <typename E, int Min, int Range>
+struct enum_table {
+  /// @brief Number of named enumerators in the window.
+  static constexpr std::size_t count{
+    enum_count_impl<E, Min>(std::make_integer_sequence<int, Range>{})
+  };
+
+  /// @brief The named enumerators, in ascending underlying-value order.
+  static constexpr std::array<E, count> values{
+    collect_enum_values<E, Min, count>(std::make_integer_sequence<int, Range>{})
+  };
+
+  /// @brief The name of each entry of \c values, at the same index.
+  static constexpr std::array<std::string_view, count> names{
+    []<std::size_t... I>(std::index_sequence<I...>) {
+      return std::array<std::string_view, count>{stored_enum_name_v<values[I]>.view()...};
+    }(std::make_index_sequence<count>{})
+  };
+};
 
 /// @endcond
 
@@ -326,10 +342,12 @@ template <auto V>
 /**
  * @brief Runtime enumerator-to-string lookup over a bounded value range.
  *
- * Linearly searches the underlying values \c [Min, Min + Range) for \p value
- * and returns its enumerator name. The window is clamped to the values
- * representable by \p E's underlying type, so an oversized \p Range never
- * wraps a narrow underlying type or scans a value twice.
+ * Returns the name of \p value if it is a named enumerator in the underlying
+ * values \c [Min, Min + Range). The window is scanned once at compile time
+ * into a table of the named enumerators, so the lookup is a linear search of
+ * that table and the binary holds only the bare names. The window is clamped
+ * to the values representable by \p E's underlying type, so an oversized
+ * \p Range never wraps a narrow underlying type or scans a value twice.
  *
  * @tparam Range Number of underlying values to scan. Defaults to 256.
  * @tparam Min First underlying value to scan. Defaults to 0.
@@ -343,7 +361,8 @@ template <auto V>
  *      enum needs an explicit enum-base).
  * @post None.
  *
- * @complexity \c O(Range) comparisons.
+ * @complexity \c O(N) comparisons over the \c N named enumerators in the
+ *             window; the \c O(Range) scan happens at compile time.
  *
  * @warning For an enum without a fixed underlying type, casting a scanned
  *          value outside its range of values is undefined behaviour and Clang
@@ -354,9 +373,12 @@ template <auto V>
 template <int Range = 256, int Min = 0, enumeration E>
 [[nodiscard]] constexpr auto enum_to_string(E const value) noexcept -> std::string_view {
   constexpr auto window{detail::clamped_window<E>(Min, Range)};
-  return detail::enum_search<E, window.min>(
-    static_cast<std::underlying_type_t<E>>(value), std::make_integer_sequence<int, window.range>{}
-  );
+  using table = detail::enum_table<E, window.min, window.range>;
+  auto const hit{std::ranges::find(table::values, value)};
+  if (hit == table::values.end()) {
+    return {};
+  }
+  return table::names[static_cast<std::size_t>(hit - table::values.begin())];
 }
 
 /**
@@ -391,7 +413,7 @@ template <int Range = 256, int Min = 0, enumeration E>
 template <enumeration E, int Range = 256, int Min = 0>
 [[nodiscard]] constexpr auto enum_count() noexcept -> std::size_t {
   constexpr auto window{detail::clamped_window<E>(Min, Range)};
-  return detail::enum_count_impl<E, window.min>(std::make_integer_sequence<int, window.range>{});
+  return detail::enum_table<E, window.min, window.range>::count;
 }
 
 /**
@@ -425,18 +447,18 @@ template <enumeration E, int Range = 256, int Min = 0>
 template <enumeration E, int Range = 256, int Min = 0>
 [[nodiscard]] constexpr auto enum_values() noexcept -> std::array<E, enum_count<E, Range, Min>()> {
   constexpr auto window{detail::clamped_window<E>(Min, Range)};
-  auto out{std::array<E, enum_count<E, Range, Min>()>{}};
-  detail::enum_values_impl<E, window.min>(out, std::make_integer_sequence<int, window.range>{});
-  return out;
+  return detail::enum_table<E, window.min, window.range>::values;
 }
 
 /**
  * @brief Runtime string-to-enumerator lookup over a bounded value range.
  *
  * Returns the first enumerator in \c [Min, Min + Range) whose name equals
- * \p name, or \c std::nullopt when none matches. The window is clamped to the
- * values representable by \p E's underlying type, so an oversized \p Range
- * never wraps a narrow underlying type or scans a value twice.
+ * \p name, or \c std::nullopt when none matches. Like \c enum_to_string it
+ * searches the compile-time table of named enumerators, so no signature is
+ * parsed at run time. The window is clamped to the values representable by
+ * \p E's underlying type, so an oversized \p Range never wraps a narrow
+ * underlying type or scans a value twice.
  *
  * @tparam E Enum type to produce (named first, so call sites read
  *           \c enum_cast<color>("red")).
@@ -450,7 +472,8 @@ template <enumeration E, int Range = 256, int Min = 0>
  *      enum needs an explicit enum-base).
  * @post None.
  *
- * @complexity \c O(Range) comparisons.
+ * @complexity \c O(N) name comparisons over the \c N named enumerators in
+ *             the window; the \c O(Range) scan happens at compile time.
  *
  * @warning For an enum without a fixed underlying type, casting a scanned
  *          value outside its range of values is undefined behaviour and Clang
@@ -462,9 +485,12 @@ template <enumeration E, int Range = 256, int Min = 0>
 template <enumeration E, int Range = 256, int Min = 0>
 [[nodiscard]] constexpr auto enum_cast(std::string_view const name) noexcept -> std::optional<E> {
   constexpr auto window{detail::clamped_window<E>(Min, Range)};
-  return detail::enum_cast_impl<E, window.min>(
-    name, std::make_integer_sequence<int, window.range>{}
-  );
+  using table = detail::enum_table<E, window.min, window.range>;
+  auto const hit{std::ranges::find(table::names, name)};
+  if (hit == table::names.end()) {
+    return std::nullopt;
+  }
+  return table::values[static_cast<std::size_t>(hit - table::names.begin())];
 }
 
 }  // namespace nexenne::utility

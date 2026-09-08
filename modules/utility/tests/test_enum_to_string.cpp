@@ -168,6 +168,12 @@ static_assert(util::enum_cast<signed_e, 256, -1>("neg") == signed_e::neg);
 static_assert(util::enum_cast<big_e>("large") == std::nullopt);  // 300 out of default window
 static_assert(util::enum_cast<big_e, 512>("large") == big_e::large);
 
+using color_table = util::detail::enum_table<color, 0, 256>;
+static_assert(color_table::count == 3);
+static_assert(color_table::values == std::array{color::red, color::green, color::blue});
+static_assert(color_table::names[0] == "red");
+static_assert(color_table::names[2] == "blue");
+
 static_assert(util::enum_to_string(util::enum_cast<color>("blue").value()) == "blue");
 static_assert(util::enum_cast<color>(util::enum_to_string(color::green)).value() == color::green);
 

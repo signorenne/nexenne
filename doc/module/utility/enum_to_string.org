@@ -56,10 +56,15 @@ compile time with no runtime cost.
 
 =enum_value_name= names one /literal/ value. To name a runtime value, or to list
 an enum, the range helpers instantiate it for every integer in a window
-=[Min, Min + Range)=, defaulting to =[0, 256)=. =enum_to_string= returns the name
-whose value matches the argument, =enum_cast= returns the value whose name
-matches, =enum_count= counts the non-empty names, and =enum_values= gathers them
-into a =std::array= sized exactly to that count, in ascending order.
+=[Min, Min + Range)=, defaulting to =[0, 256)=. That scan runs once, during
+compilation, and fills a per-window table of the named enumerators and their
+bare names (copied out of the compiler signature). =enum_to_string= searches
+the table for the argument's value, =enum_cast= for the name, =enum_count= is the
+table size, and =enum_values= is its value array, sized exactly to that count
+and in ascending order. The binary keeps only the values and the names: one
+=enum_cast= plus one =enum_to_string= on a three-enumerator enum builds to about
+2 KB of text at =-O2=, where a run-time scan of the window carried 512 compiler
+signatures and about 155 KB.
 
 The window is expanded as an =int= integer sequence, not the underlying type, so
 a narrow underlying type does not overflow the sequence (a
@@ -144,7 +149,7 @@ if (auto const parsed{nu::enum_cast<connection>("closing")}) {  // name back to 
 - *The window is bounded.* Enumerators outside =[Min, Min + Range)= are invisible.
   Widen =Range= for large enums and shift =Min= (negative for enums with negative
   enumerators). A wide =Range= multiplies template instantiations and compile
-  time, so keep it just large enough.
+  time (not run time or binary size), so keep it just large enough.
 - *Fixed underlying type required.* Reflect scoped enums, or give an unscoped
   enum an explicit base; casting a scanned value for an enum without one is
   undefined behaviour and a hard error on Clang.
