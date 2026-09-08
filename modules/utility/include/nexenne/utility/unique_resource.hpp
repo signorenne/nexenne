@@ -751,12 +751,17 @@ public:
    *
    * @return Reference to the object the owned pointer refers to.
    *
+   * Absent for a pointer to \c void, which has nothing to dereference; the
+   * return type is spelled so that such a resource still instantiates.
+   *
    * @pre \p Resource is a pointer type; the owned pointer is non-null and
    *      refers to a live object.
    * @post None.
    */
-  [[nodiscard]] auto operator*() const noexcept -> std::remove_pointer_t<resource_type>&
+  [[nodiscard]] auto operator*() const noexcept
+    -> std::add_lvalue_reference_t<std::remove_pointer_t<resource_type>>
     requires std::is_pointer_v<resource_type>
+             && (!std::is_void_v<std::remove_pointer_t<resource_type>>)
   {
     return *m_resource;
   }

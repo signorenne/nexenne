@@ -597,4 +597,19 @@ TEST_CASE("nexenne::utility::unique_resource reset propagates a throwing deleter
   CHECK(calls == 1);
 }
 
+TEST_CASE("nexenne::utility::unique_resource owns a void pointer handle (utility-21)") {
+  // A C API handle such as void* used to fail to instantiate: operator*
+  // spelled a reference to void.
+  auto released{static_cast<void*>(nullptr)};
+  auto storage{0};
+  {
+    auto r{util::unique_resource{static_cast<void*>(&storage), [&released](void* const p) noexcept {
+                                   released = p;
+                                 }}};
+    CHECK(r.get() == &storage);
+    CHECK(r.operator->() == &storage);
+  }
+  CHECK(released == &storage);
+}
+
 }  // namespace
