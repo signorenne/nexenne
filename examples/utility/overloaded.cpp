@@ -4,9 +4,11 @@
  *
  * overloaded bundles several lambdas into one callable whose overload set is
  * the union of theirs, the canonical std::visit visitor. Two patterns here:
- *   1. one typed lambda per alternative (exhaustive, missing branch = error);
- *   2. a few typed lambdas plus a generic auto catch-all (handle some, default
- *      the rest), where the typed overloads win by being more specialised.
+ *
+ *   1. one typed lambda per alternative: exhaustive, so adding an alternative
+ *      to the event variant makes the visit fail to compile;
+ *   2. a typed lambda for the one alternative of interest plus a generic
+ *      catch-all, where the typed overload wins by being more specialised.
  */
 
 #include <print>

@@ -1,6 +1,13 @@
 /**
  * @file
  * @brief Place cleanup next to acquisition with nexenne::utility::defer.
+ *
+ * Stand-ins for C-style connection and lock APIs, which have no RAII of their
+ * own, are paired with a \c defer written on the line right after each
+ * acquisition, so no exit path can forget it. Guards run in reverse order of
+ * declaration, so the region unlocks before the connection closes, mirroring
+ * the acquisition order. Both the successful and the early-return path print a
+ * matching unlock then close pair.
  */
 
 #include <print>

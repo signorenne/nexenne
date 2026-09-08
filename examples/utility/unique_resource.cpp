@@ -1,6 +1,18 @@
 /**
  * @file
  * @brief Own a handle and release it once, via nexenne::utility::unique_resource.
+ *
+ * A stand-in for a POSIX-style descriptor API, where open returns -1 on
+ * failure, drives four scopes:
+ *
+ *   1. a live handle whose deleter fires exactly once at the end of the block;
+ *   2. a failed acquisition: ownership of the -1 sentinel is released so the
+ *      deleter never runs on a junk handle, which is what
+ *      \c make_unique_resource_checked packages into one call;
+ *   3. \c reset closes the first descriptor right away, then adopts a second
+ *      one with the same deleter, closed at the end of the block;
+ *   4. \c release hands the raw handle back and suppresses the deleter, so the
+ *      caller closes it.
  */
 
 #include <print>

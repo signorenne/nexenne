@@ -1,6 +1,13 @@
 /**
  * @file
  * @brief Reflect a state-machine enum with nexenne::utility::enum_to_string.
+ *
+ * A small connection state machine is reflected without a hand-written table:
+ *
+ *   1. compile-time facts: the name of one enumerator and the state count;
+ *   2. every state listed with its value and name;
+ *   3. a runtime value turned into its name;
+ *   4. names parsed back into values, including one that does not match.
  */
 
 #include <cstdint>

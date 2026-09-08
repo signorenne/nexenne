@@ -1,6 +1,19 @@
 /**
  * @file
  * @brief Tag a strong-typed unit at compile time with static_string.
+ *
+ * \c static_string is structural, so it can be a non-type template parameter:
+ * here it tags a unit, the symbol lives in the type, and the symbol is recovered
+ * at runtime through \c view or the formatter. The example:
+ *
+ *   1. concatenates two symbols at compile time into a derived unit;
+ *   2. shows that the template argument is a capacity bound, not the length:
+ *      \c size scans to the first NUL, so a literal holding "ab", a NUL, and
+ *      "cd" (capacity 6) has size 2, and a default-constructed instance is
+ *      empty whatever its capacity;
+ *   3. formats quantities with their symbols through the formatter;
+ *   4. uses \c static_string as an unordered_map key through its \c std::hash
+ *      specialisation ("water" has capacity 6).
  */
 
 #include <print>

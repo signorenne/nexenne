@@ -33,6 +33,7 @@ concept hashable = requires(T const& value) {
   { std::hash<T>{}(value) } -> std::convertible_to<std::size_t>;
 };
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -55,18 +56,30 @@ struct hash_mix {
   );
 };
 
+/**
+ * @brief Mixing parameters for a 64-bit \c std::size_t.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <>
 struct hash_mix<8> {
-  static constexpr std::size_t magic{0x9e3779b97f4a7c15ULL};
-  static constexpr int left{6};
-  static constexpr int right{2};
+  static constexpr std::size_t magic{0x9e3779b97f4a7c15ULL};  ///< 2^64 over the golden ratio.
+  static constexpr int left{6};                               ///< Left shift of the seed.
+  static constexpr int right{2};                              ///< Right shift of the seed.
 };
 
+/**
+ * @brief Mixing parameters for a 32-bit \c std::size_t.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <>
 struct hash_mix<4> {
-  static constexpr std::size_t magic{0x9e3779b9U};
-  static constexpr int left{15};
-  static constexpr int right{13};
+  static constexpr std::size_t magic{0x9e3779b9U};  ///< 2^32 over the golden ratio.
+  static constexpr int left{15};                    ///< Left shift of the seed.
+  static constexpr int right{13};                   ///< Right shift of the seed.
 };
 
 /**
@@ -81,6 +94,8 @@ template <typename T>
 inline constexpr bool nothrow_hashable_v{noexcept(std::hash<T>{}(std::declval<T const&>()))};
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Mixes \p value into \p seed with a seed-and-mix combining step.

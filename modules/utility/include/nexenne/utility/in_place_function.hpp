@@ -114,8 +114,8 @@ class in_place_function<R(Args...), Capacity> {
   static_assert(Capacity > 0, "in_place_function: Capacity must be greater than zero");
 
 public:
-  using result_type = R;
-  static constexpr std::size_t capacity{Capacity};
+  using result_type = R;                            ///< Return type of a call.
+  static constexpr std::size_t capacity{Capacity};  ///< Inline storage size in bytes.
 
 private:
   using invoke_fn = R (*)(void*, Args...);

@@ -2,9 +2,15 @@
  * @file
  * @brief A compile-time registry of message types for a tiny dispatcher.
  *
- * Keeps a list of the message structs a subsystem understands, then queries it
- * purely at compile time: how many, the stable wire id of each, and whether a
- * candidate type is registered.
+ * Keeps a list of the message structs a subsystem understands, in wire order,
+ * then queries it purely at compile time. Only telemetry carries a payload, and
+ * one stray message is deliberately left unregistered.
+ *
+ *   1. Count the messages, read one by index, and test membership.
+ *   2. Derive a stable wire id as the index of a type within the list.
+ *   3. Filter out the payload-free control messages, which take a fast
+ *      dispatch path.
+ *   4. Extend the list, and deduplicate a concatenation back to the original.
  */
 
 #include <print>

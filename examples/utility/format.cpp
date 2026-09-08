@@ -1,6 +1,10 @@
 /**
  * @file
  * @brief Printing the nexenne::utility types with std::format via format.hpp.
+ *
+ * The type headers stay free of the format header; format.hpp adds the
+ * formatters, so only the translation units that print pay for it. Each line
+ * prints one utility type, with format specs where the type forwards them.
  */
 
 #include <array>

@@ -87,7 +87,7 @@ class function_ref;
 template <typename R, typename... Args>
 class function_ref<R(Args...)> {
 public:
-  using signature_type = R(Args...);
+  using signature_type = R(Args...);  ///< Call signature of the view.
 
 private:
   using thunk_type = R (*)(void const*, Args...);
@@ -101,7 +101,9 @@ private:
    *
    * The returned function pointer casts the type-erased object pointer back to
    * \p F and invokes it through \c std::invoke_r, which discards the result for
-   * a \c void signature and supports pointers to members.
+   * a \c void signature and supports pointers to members. The \c const_cast
+   * that restores a non-const \p F is sound: the view stored that object's
+   * address, only typed as \c void \c const*.
    *
    * @tparam F Callable type the thunk restores from the object pointer.
    *

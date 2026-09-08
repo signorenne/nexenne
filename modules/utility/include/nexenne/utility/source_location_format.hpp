@@ -114,7 +114,8 @@ auto append_line(
  *
  * The file path is reduced to its basename so the output is short and
  * grep-friendly. The returned view points into \p buf, which must outlive it,
- * and is truncated to fit when \p buf is too small.
+ * and is truncated to fit when \p buf is too small. The last byte of \p buf is
+ * reserved for the NUL terminator written after the text.
  *
  * @tparam N Size of the caller-supplied buffer.
  * @param loc Source location to format.
@@ -145,7 +146,8 @@ template <std::size_t N>
  *
  * Like \c format_short but also appends the enclosing function name. The
  * returned view points into \p buf, which must outlive it, and is truncated to
- * fit when \p buf is too small.
+ * fit when \p buf is too small. The last byte of \p buf is reserved for the NUL
+ * terminator written after the text.
  *
  * @tparam N Size of the caller-supplied buffer.
  * @param loc Source location to format.

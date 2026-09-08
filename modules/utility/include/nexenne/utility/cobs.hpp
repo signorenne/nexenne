@@ -106,6 +106,12 @@ enum class error : std::uint8_t {
  * bound is checked before every write, so a buffer sized to the exact encoded
  * length (which may be smaller than \c max_encoded_size) still succeeds.
  *
+ * The output is a sequence of blocks, each a code byte \c c followed by
+ * \c c-1 non-zero payload bytes. A block with \c c below \c 0xFF stands for
+ * its bytes plus one zero (implicit after the last block); \c 0xFF marks a full
+ * 254-byte run with no implied zero. The encoder reserves each block's code slot
+ * when the block opens and back-fills it when a zero or a full run closes it.
+ *
  * @param in Payload bytes (may contain zeros; may be empty).
  * @param out Destination; size it with \c max_encoded_size(in.size()).
  *
@@ -162,7 +168,9 @@ encode(std::span<std::byte const> const in, std::span<std::byte> const out) noex
  * Reverses \c encode. Pass one frame, the bytes between two \c 0x00 delimiters
  * with the delimiters excluded; no trailing delimiter is expected. A conformant
  * frame is zero-free, so any \c 0x00 met in a code or data position is rejected.
- * No allocation is performed.
+ * No allocation is performed. Each code byte \c c is followed by \c c-1 data
+ * bytes; a block whose code is below \c 0xFF and which is not the last in the
+ * frame contributes one payload zero after its data.
  *
  * @param in Encoded bytes (one frame, delimiter byte NOT included).
  * @param out Destination for the recovered payload.

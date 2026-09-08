@@ -70,9 +70,9 @@ concept hashable = requires(T const value) {
 template <detail::pointer_like T>
 class non_null {
 public:
-  using value_type = T;
-  using pointer_type = T;
-  using element_type = typename std::pointer_traits<pointer_type>::element_type;
+  using value_type = T;    ///< Wrapped pointer type.
+  using pointer_type = T;  ///< Wrapped pointer type, named for its role.
+  using element_type = typename std::pointer_traits<pointer_type>::element_type;  ///< Pointee type.
 
 private:
   pointer_type m_ptr;

@@ -93,7 +93,9 @@ template <typename E>
  * @brief Collapses \c expected<expected<T, E>, E> into \c expected<T, E>.
  *
  * The outer error passes through unchanged; otherwise the inner \c expected
- * becomes the result.
+ * becomes the result. The error is built in place (\c std::unexpect), so it is
+ * copied exactly once and the \c noexcept condition is exact; going through
+ * \c std::unexpected would copy and then move it.
  *
  * @tparam T Value type.
  * @tparam E Error type, shared by both nesting levels.
@@ -119,6 +121,9 @@ template <typename T, typename E>
 
 /**
  * @brief Rvalue overload of \c flatten that moves the inner value or error out.
+ *
+ * The error is built in place, so it is moved exactly once and the
+ * \c noexcept condition is exact.
  *
  * @tparam T Value type.
  * @tparam E Error type, shared by both nesting levels.
@@ -148,7 +153,8 @@ template <typename T, typename E>
  * Scans the arguments left to right and returns the first that holds an error;
  * if every argument succeeded, returns a value-holding \c expected<void, E>.
  * The arguments themselves are already evaluated at the call, so this does not
- * short-circuit their evaluation.
+ * short-circuit their evaluation. The returned error is built in place, so it
+ * is copied exactly once and the \c noexcept condition is exact.
  *
  * @tparam E Error type.
  * @tparam Args Remaining \c expected<void, E> argument types.

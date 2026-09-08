@@ -37,7 +37,7 @@ template <typename Fn>
   requires std::invocable<Fn&>
 class [[nodiscard]] defer final {
 public:
-  using function_type = Fn;
+  using function_type = Fn;  ///< Cleanup callable run at scope exit.
 
 private:
   function_type m_fn;

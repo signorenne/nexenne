@@ -1,6 +1,14 @@
 /**
  * @file
  * @brief Drop values on purpose with nexenne::utility::ignore.
+ *
+ *   1. A [[nodiscard]] reserve call is made only for its side effect, and
+ *      \c ignore says so without the banned (void) or \c static_cast<void>
+ *      spellings.
+ *   2. \c ignore evaluates every argument, so two [[nodiscard]] calls both run
+ *      and both results are dropped in one statement.
+ *   3. A named declaration that merely might go unused takes the standard
+ *      [[maybe_unused]] attribute instead; \c ignore is for an unnamed result.
  */
 
 #include <cstddef>

@@ -5,6 +5,12 @@
  * A 3D grid cell needs a hash so it can live in an unordered_map: we fold its
  * fields with hash_args, and show a sequence hashes order-sensitively via
  * hash_range.
+ *
+ *   1. Equal keys hash equal (the map contract), and the field mixing is
+ *      order-sensitive, so transposed coordinates land in different buckets.
+ *   2. hash_combine_each folds more state into an existing seed, matching the
+ *      one-shot hash_args.
+ *   3. hash_range over two orderings of the same values differs.
  */
 
 #include <array>

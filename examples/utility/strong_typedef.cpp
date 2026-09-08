@@ -3,10 +3,16 @@
  * @brief Brand quantities and identifiers with nexenne::utility::strong_typedef.
  *
  * A tour of the opt-in model: a tag makes a type distinct, and the ability
- * bitmask grants exactly the operators that make sense for it. Here a length
- * and a duration are unit-safe quantities, an image size divided by a page size
- * yields a dimensionless page count (a different unit), device ids only compare,
- * and every wrapper formats straight through its underlying value.
+ * bitmask grants exactly the operators that make sense for it. The example:
+ *
+ *   1. adds two lengths and scales one by a scalar; the results stay
+ *      \c quantity types, and adding a length to a duration does not compile
+ *      because the two tags are unrelated;
+ *   2. divides an image size by a page size, a ratio that yields a bare
+ *      unsigned integer, and wraps it back into a distinct page-count unit;
+ *   3. compares two device ids, an \c identifier that compares and hashes but
+ *      has no arithmetic, so adding them does not compile;
+ *   4. formats every wrapper straight through its underlying value.
  */
 
 #include <cstdint>

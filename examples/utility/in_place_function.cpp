@@ -1,6 +1,21 @@
 /**
  * @file
  * @brief Store a capturing callable without the heap, via in_place_function.
+ *
+ * A cart keeps a discount rule as a heap-free, move-only callback whose
+ * callable lives inside 32 bytes of inline storage. The capacity is a
+ * compile-time contract: a capture set that does not fit is a compile error at
+ * the construction site, never a silent heap fallback. The example:
+ *
+ *   1. stores a lambda capturing an offset derived from \c argc (1 on a normal
+ *      launch), so the capture is a real runtime copy held in the inline
+ *      storage rather than a folded constant;
+ *   2. moves the callback, which relocates the callable and leaves the source
+ *      empty;
+ *   3. reassigns it, destroying the old callable and storing the new one in
+ *      place;
+ *   4. resets it to empty; calling an empty instance asserts in debug builds,
+ *      so check \c operator \c bool first when emptiness is possible.
  */
 
 #include <print>

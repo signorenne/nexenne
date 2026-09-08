@@ -1,6 +1,12 @@
 /**
  * @file
  * @brief Act on the live elements of a range, via nexenne::utility::for_each_non_null.
+ *
+ *   1. A slot table holds some empty (null) entries; the callback only ever sees
+ *      a live sink, so it never checks for null.
+ *   2. A pointer to member is a valid callable: \c std::invoke turns
+ *      \c &sink::flush into a flush call on each non-null element, and smart
+ *      pointers work as the handle too.
  */
 
 #include <array>

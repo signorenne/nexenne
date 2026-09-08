@@ -58,8 +58,8 @@ template <typename Factory>
            && std::move_constructible<std::invoke_result_t<Factory&>>
 class lazy {
 public:
-  using value_type = std::invoke_result_t<Factory&>;
-  using factory_type = Factory;
+  using value_type = std::invoke_result_t<Factory&>;  ///< Type the factory produces.
+  using factory_type = Factory;                       ///< Callable that builds the value.
 
 private:
   mutable std::once_flag m_once;

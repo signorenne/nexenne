@@ -153,20 +153,15 @@ deleter_or_placeholder(Make&& make) noexcept(!Used || std::is_nothrow_invocable_
 template <typename Resource, typename Deleter>
 class unique_resource {
 public:
-  using value_type = Resource;
-  using resource_type = value_type;
-  using deleter_type = Deleter;
+  using value_type = Resource;       ///< Owned handle type.
+  using resource_type = value_type;  ///< Owned handle type, named for its role.
+  using deleter_type = Deleter;      ///< Callable that releases the handle.
 
 private:
-  // An assignable deleter is moved by assignment, so it may overlap its
-  // neighbours ([[no_unique_address]]). A non-assignable one (a capturing
-  // lambda) is moved by destroying and re-creating it in place, which is only
-  // well defined for a member that is not potentially overlapping, so it is
-  // stored plainly. Exactly one of the two members holds the deleter.
+  /// @brief Whether the deleter is moved by assignment and so may overlap its neighbours.
   static constexpr bool assignable_deleter{std::is_move_assignable_v<deleter_type>};
 
-  // Whether running the deleter on the resource cannot throw: the noexcept of
-  // every member that releases the resource.
+  /// @brief Whether running the deleter cannot throw: the \c noexcept of every release.
   static constexpr bool nothrow_release{std::is_nothrow_invocable_v<deleter_type&, resource_type&>};
 
   resource_type m_resource{};

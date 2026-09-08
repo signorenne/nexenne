@@ -6,11 +6,11 @@
 
 =format.hpp= holds the three formatting layers for the utility types: a
 =std::formatter= specialisation, so =std::format("{}", x)= and =std::print=
-accept them, and a =to_string= and an =operator<<= that give the same text. It is separate from the
-type headers because =<format>= is heavy and those headers reach most of the
-library: code that only uses =flags=, =cobs= or =strong_typedef= does not pay for
-it. Include =format.hpp= (or the =utility.hpp= umbrella) where the formatting
-happens.
+accept them, and a =to_string= and an =operator<<= that give the same text. It
+is separate from the type headers because =<format>= is heavy and those headers
+reach most of the library: code that only uses =flags=, =cobs= or
+=strong_typedef= does not pay for it. Include =format.hpp= (or the =utility.hpp=
+umbrella) where the formatting happens.
 
 * What it provides
 

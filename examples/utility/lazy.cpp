@@ -1,6 +1,16 @@
 /**
  * @file
  * @brief Compute a value once on first use, via nexenne::utility::lazy.
+ *
+ * A config load stands in for an expensive computation paid for only when the
+ * value is used. The \c lazy is non-movable and thread-safe: its factory runs at
+ * most once under \c std::call_once. The example:
+ *
+ *   1. shows that nothing is computed before the first access;
+ *   2. races four threads on that first access, which \c call_once serialises,
+ *      so a counter proves the factory ran exactly once and every thread read
+ *      the same value;
+ *   3. reads the cached value again without re-running the factory.
  */
 
 #include <atomic>

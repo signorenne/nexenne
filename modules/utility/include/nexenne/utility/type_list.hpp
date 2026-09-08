@@ -53,20 +53,50 @@ struct tl_size<type_list<Ts...>> : std::integral_constant<std::size_t, sizeof...
 template <typename L>
 inline constexpr auto tl_size_v{tl_size<L>::value};
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief Recursive lookup behind \c tl_at: drops \p N heads, then exposes \c type.
+ *
+ * @tparam N Remaining number of elements to skip.
+ * @tparam Ts Remaining elements.
+ *
+ * @pre \p N is less than the number of \p Ts.
+ * @post None.
+ */
 template <std::size_t N, typename... Ts>
 struct tl_at_impl;
 
+/**
+ * @brief Base case: index zero names the current head.
+ *
+ * @tparam Head Element at the requested index.
+ * @tparam Tail Elements after it.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename Head, typename... Tail>
 struct tl_at_impl<0, Head, Tail...> {
-  using type = Head;
+  using type = Head;  ///< The element at the requested index.
 };
 
+/**
+ * @brief Recursive step: drops the head and looks up index \p N minus one.
+ *
+ * @tparam N Remaining number of elements to skip, non-zero.
+ * @tparam Head Element being dropped.
+ * @tparam Tail Elements still searched.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <std::size_t N, typename Head, typename... Tail>
 struct tl_at_impl<N, Head, Tail...> : tl_at_impl<N - 1, Tail...> {};
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief The type at index \p N of a \c type_list.
@@ -113,11 +143,33 @@ struct tl_contains<type_list<Ts...>, T> : std::bool_constant<(std::is_same_v<T, 
 template <typename L, typename T>
 inline constexpr auto tl_contains_v{tl_contains<L, T>::value};
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief Recursive search behind \c tl_index_of, counting the index in \p I.
+ *
+ * @tparam I Index of the first remaining element.
+ * @tparam T Type to locate.
+ * @tparam Ts Remaining elements.
+ *
+ * @pre \p T is among \p Ts.
+ * @post None.
+ */
 template <std::size_t I, typename T, typename... Ts>
 struct tl_index_of_impl;
 
+/**
+ * @brief Recursive step: yields \p I on a match, otherwise searches the tail.
+ *
+ * @tparam I Index of \p Head.
+ * @tparam T Type to locate.
+ * @tparam Head Element compared against \p T.
+ * @tparam Tail Elements searched next.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <std::size_t I, typename T, typename Head, typename... Tail>
 struct tl_index_of_impl<I, T, Head, Tail...>
     : std::conditional_t<
@@ -125,12 +177,22 @@ struct tl_index_of_impl<I, T, Head, Tail...>
         std::integral_constant<std::size_t, I>,
         tl_index_of_impl<I + 1, T, Tail...>> {};
 
+/**
+ * @brief Exhausted list: \p T is absent, so instantiation is a compile error.
+ *
+ * @tparam I Size of the searched list.
+ * @tparam T Type that was not found.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <std::size_t I, typename T>
 struct tl_index_of_impl<I, T> {
   static_assert(false, "tl_index_of: type not in list");
 };
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Index of the first occurrence of type \p T in a \c type_list.
@@ -166,9 +228,18 @@ inline constexpr auto tl_index_of_v{tl_index_of<L, T>::value};
 template <typename L, typename T>
 struct tl_push_back;
 
+/**
+ * @brief Specialisation that unpacks the list into \p Ts.
+ *
+ * @tparam T Type to append.
+ * @tparam Ts Elements of the source list.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename T, typename... Ts>
 struct tl_push_back<type_list<Ts...>, T> {
-  using type = type_list<Ts..., T>;
+  using type = type_list<Ts..., T>;  ///< The list with \p T appended.
 };
 
 /// @brief Convenience alias for \c tl_push_back<L, T>::type.
@@ -187,9 +258,18 @@ using tl_push_back_t = typename tl_push_back<L, T>::type;
 template <typename L, typename T>
 struct tl_push_front;
 
+/**
+ * @brief Specialisation that unpacks the list into \p Ts.
+ *
+ * @tparam T Type to prepend.
+ * @tparam Ts Elements of the source list.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename T, typename... Ts>
 struct tl_push_front<type_list<Ts...>, T> {
-  using type = type_list<T, Ts...>;
+  using type = type_list<T, Ts...>;  ///< The list with \p T prepended.
 };
 
 /// @brief Convenience alias for \c tl_push_front<L, T>::type.
@@ -210,9 +290,18 @@ using tl_push_front_t = typename tl_push_front<L, T>::type;
 template <typename L1, typename L2>
 struct tl_concat;
 
+/**
+ * @brief Specialisation that unpacks both lists.
+ *
+ * @tparam As Elements of the first list.
+ * @tparam Bs Elements of the second list.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename... As, typename... Bs>
 struct tl_concat<type_list<As...>, type_list<Bs...>> {
-  using type = type_list<As..., Bs...>;
+  using type = type_list<As..., Bs...>;  ///< The elements of both lists, in order.
 };
 
 /// @brief Convenience alias for \c tl_concat<L1, L2>::type.
@@ -233,25 +322,65 @@ using tl_concat_t = typename tl_concat<L1, L2>::type;
 template <typename L, template <typename> class F>
 struct tl_transform;
 
+/**
+ * @brief Specialisation that unpacks the list into \p Ts.
+ *
+ * @tparam F Unary class template applied to each element.
+ * @tparam Ts Elements of the source list.
+ *
+ * @pre \c F<T>::type is valid for every element.
+ * @post None.
+ */
 template <template <typename> class F, typename... Ts>
 struct tl_transform<type_list<Ts...>, F> {
-  using type = type_list<typename F<Ts>::type...>;
+  using type = type_list<typename F<Ts>::type...>;  ///< The transformed list.
 };
 
 /// @brief Convenience alias for \c tl_transform<L, F>::type.
 template <typename L, template <typename> class F>
 using tl_transform_t = typename tl_transform<L, F>::type;
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief Recursive fold behind \c tl_filter, collecting kept elements in \p Acc.
+ *
+ * @tparam Pred Unary predicate class template.
+ * @tparam Acc \c type_list of the elements kept so far.
+ * @tparam Ts Remaining elements.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <template <typename> class Pred, typename Acc, typename... Ts>
 struct tl_filter_impl;
 
+/**
+ * @brief Base case: no elements remain, so the accumulator is the result.
+ *
+ * @tparam Pred Unary predicate class template.
+ * @tparam Acc \c type_list of the kept elements.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <template <typename> class Pred, typename Acc>
 struct tl_filter_impl<Pred, Acc> {
-  using type = Acc;
+  using type = Acc;  ///< The kept elements, in original order.
 };
 
+/**
+ * @brief Recursive step: appends \p Head to the accumulator when it passes.
+ *
+ * @tparam Pred Unary predicate class template.
+ * @tparam Acc Elements kept so far.
+ * @tparam Head Element tested against \p Pred.
+ * @tparam Tail Elements tested next.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <template <typename> class Pred, typename... Acc, typename Head, typename... Tail>
 struct tl_filter_impl<Pred, type_list<Acc...>, Head, Tail...>
     : tl_filter_impl<
@@ -260,6 +389,7 @@ struct tl_filter_impl<Pred, type_list<Acc...>, Head, Tail...>
         Tail...> {};
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Keeps only the elements of a \c type_list satisfying a predicate.
@@ -283,16 +413,44 @@ struct tl_filter<type_list<Ts...>, Pred> : detail::tl_filter_impl<Pred, type_lis
 template <typename L, template <typename> class Pred>
 using tl_filter_t = typename tl_filter<L, Pred>::type;
 
+/// @cond INTERNAL
 namespace detail {
 
+/**
+ * @brief Recursive fold behind \c tl_unique, collecting first occurrences in \p Acc.
+ *
+ * @tparam Acc \c type_list of the distinct elements seen so far.
+ * @tparam Ts Remaining elements.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename Acc, typename... Ts>
 struct tl_unique_impl;
 
+/**
+ * @brief Base case: no elements remain, so the accumulator is the result.
+ *
+ * @tparam Acc \c type_list of the distinct elements.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename Acc>
 struct tl_unique_impl<Acc> {
-  using type = Acc;
+  using type = Acc;  ///< The distinct elements, in first-occurrence order.
 };
 
+/**
+ * @brief Recursive step: appends \p Head unless the accumulator already holds it.
+ *
+ * @tparam Acc Distinct elements seen so far.
+ * @tparam Head Element checked against \p Acc.
+ * @tparam Tail Elements checked next.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename... Acc, typename Head, typename... Tail>
 struct tl_unique_impl<type_list<Acc...>, Head, Tail...>
     : tl_unique_impl<
@@ -303,6 +461,7 @@ struct tl_unique_impl<type_list<Acc...>, Head, Tail...>
         Tail...> {};
 
 }  // namespace detail
+/// @endcond
 
 /**
  * @brief Removes duplicate types from a \c type_list, keeping the first.

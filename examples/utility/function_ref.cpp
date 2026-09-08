@@ -1,6 +1,21 @@
 /**
  * @file
  * @brief Pass any callable without templating, via nexenne::utility::function_ref.
+ *
+ * \c count_if takes "any predicate" as a \c function_ref instead of a template
+ * parameter: one instantiation serves every call site, the implementation could
+ * live in a .cpp file, and the view is two pointers, so it is taken by value.
+ * The view does not own its callable, so the example walks the lifetime rule:
+ *
+ *   1. a named local lambda outlives the view \c count_if makes from it;
+ *   2. a temporary lambda passed straight as the argument lives for the whole
+ *      call expression, so the view never outlives it;
+ *   3. a free function binds through the function-pointer constructor, which
+ *      stores the pointer itself and carries no lifetime risk.
+ *
+ * What not to do: binding a temporary lambda to a named \c function_ref
+ * dangles once the statement ends, which is why the type deletes assignment
+ * from arbitrary callables and why the example names its locals.
  */
 
 #include <array>

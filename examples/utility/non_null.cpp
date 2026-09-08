@@ -2,10 +2,20 @@
  * @file
  * @brief Express a non-optional dependency with nexenne::utility::non_null.
  *
- * non_null wraps any dereferenceable, null-comparable pointer (raw OR smart):
- *   - constructing from nullptr is a compile error;
- *   - a runtime null asserts at the construction site in debug builds;
- *   - the body then uses the pointer with no defensive check.
+ * \c non_null wraps any dereferenceable, null-comparable pointer, raw or smart.
+ * Constructing one from the literal nullptr does not compile, and a runtime
+ * null asserts at the construction site in debug builds, so a function taking a
+ * \c non_null uses the pointer with no defensive check. The example:
+ *
+ *   1. passes a raw logger pointer to a job whose signature makes the logger
+ *      mandatory;
+ *   2. wraps a \c std::shared_ptr, which \c operator-> observes without touching
+ *      its reference count;
+ *   3. hands a \c std::unique_ptr to a sink that takes ownership, then shows the
+ *      moved-from hole: the source holds null, its accessors assert in debug,
+ *      comparing with nullptr is the one safe probe, and reassignment restores
+ *      the invariant;
+ *   4. compares a live \c non_null with nullptr and with a plain pointer.
  */
 
 #include <memory>

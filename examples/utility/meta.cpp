@@ -4,7 +4,10 @@
  *
  * Recovers a function's return type, arity, and argument types at compile time,
  * and rejects unsupported argument types with a readable diagnostic via
- * always_false_v.
+ * always_false_v in a compile-time category label. A functor is introspected
+ * through its operator(): a concrete (non-generic) lambda has one signature, so
+ * it works exactly like a free function, while a generic auto-parameter lambda
+ * would not.
  */
 
 #include <print>

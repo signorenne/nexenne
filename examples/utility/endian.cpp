@@ -2,11 +2,17 @@
  * @file
  * @brief Serialize a small packet header in both byte orders and read it back.
  *
- * A fixed-layout header (message type, sequence number, payload length) is
- * encoded big-endian for the wire and little-endian for an on-disk log, then
- * decoded again from each buffer. Every write and read goes through a
- * fixed-extent sub-span, so a wrong byte count or offset is a compile error
- * rather than a runtime over-read.
+ * A fixed 8-byte header (2-byte message type, 2-byte sequence number, 4-byte
+ * payload length) is encoded and decoded again from each buffer. Every write
+ * and read goes through a fixed-extent sub-span, so a wrong byte count or
+ * offset is a compile error rather than a runtime over-read.
+ *
+ *   1. Big-endian for the wire: network protocols conventionally send the most
+ *      significant byte first.
+ *   2. Little-endian for an on-disk log, as a file format might store it.
+ *   3. Decoding names the type explicitly, since there is no value to deduce it
+ *      from, and reuses the same sub-spans, so the offsets live in one place.
+ *   4. The helpers are constexpr, so a layout can be proven at compile time.
  */
 
 #include <array>

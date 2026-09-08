@@ -319,7 +319,7 @@ concept same_tag_as = strong_typedef_like<A> && strong_typedef_like<B>
 /// @cond INTERNAL
 namespace detail {
 
-// The underlying type a same-tag binary operation rebinds to.
+/// @brief The underlying type a same-tag binary operation rebinds to.
 template <typename A, typename B>
 using common_value_t = std::common_type_t<value_t<A>, value_t<B>>;
 
@@ -521,7 +521,10 @@ template <std::signed_integral S>
 template <typename Tag, typename T, ability Ops>
 class strong_typedef {
 public:
+  /// @brief Underlying type the wrapper stores.
   using value_type = T;
+
+  /// @brief Tag type that brands this wrapper.
   using tag_type = Tag;
 
   /// @brief The capability set this wrapper was instantiated with.
@@ -1017,8 +1020,7 @@ using bitfield =
 /// @cond INTERNAL
 namespace detail {
 
-// Result type of a same-tag binary operation: common underlying, unioned
-// abilities sanitised for that underlying.
+/// @brief Same-tag operation result: common underlying, unioned abilities sanitised for it.
 template <typename A, typename B>
 using common_strong_t = strong_typedef<
   tag_t<A>,
@@ -1750,6 +1752,7 @@ template <
 struct std::common_type<
   nexenne::utility::strong_typedef<Tag, T, O1>,
   nexenne::utility::strong_typedef<Tag, U, O2>> {
+  /// @brief The wrapper over the common underlying type with both capability sets.
   using type = nexenne::utility::strong_typedef<
     Tag,
     std::common_type_t<T, U>,

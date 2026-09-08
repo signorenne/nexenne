@@ -1,6 +1,10 @@
 /**
  * @file
  * @brief Format a source location into a buffer, via source_location_format.
+ *
+ *   1. A tiny logger tags each line with the "file:line" of its caller, using
+ *      \c format_short over a defaulted \c std::source_location argument.
+ *   2. \c format_long also appends the enclosing function name.
  */
 
 #include <array>

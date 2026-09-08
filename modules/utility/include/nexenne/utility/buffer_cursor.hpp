@@ -40,8 +40,8 @@ namespace nexenne::utility {
 template <typename Byte>
 class buffer_cursor {
 public:
-  using value_type = Byte;
-  using size_type = std::size_t;
+  using value_type = Byte;        ///< Element type the cursor reads or writes.
+  using size_type = std::size_t;  ///< Type of offsets and byte counts.
 
 private:
   std::span<value_type> m_buf;

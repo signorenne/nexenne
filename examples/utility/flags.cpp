@@ -1,6 +1,20 @@
 /**
  * @file
  * @brief A type-safe permission bitfield with nexenne::utility::flags.
+ *
+ * The scoped enum keeps unrelated bitmasks from mixing, and \c flags gives
+ * readable set, has, and bitwise operators without leaking into raw integer
+ * arithmetic. The example:
+ *
+ *   1. builds the owner's permissions by chaining \c set and by \c operator|,
+ *      with the enum on either side of the operator;
+ *   2. queries the mask: \c has and \c has_all need every bit of the argument,
+ *      \c has_any at least one, and \c count reports how many bits are on;
+ *   3. derives a read-only view with \c clear, then toggles a bit back on;
+ *   4. drops an intersection straight into an if condition through the
+ *      explicit bool conversion (exactly \c any);
+ *   5. prints the raw mask with integer format specs, no hand cast of \c raw;
+ *   6. round-trips the raw value for serialisation and takes the complement.
  */
 
 #include <cstdint>

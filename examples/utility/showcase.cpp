@@ -1,25 +1,36 @@
 /**
  * @file
- * @brief A guided tour of nexenne::utility through one realistic task: a tiny,
- *        console-only device-fleet provisioner.
+ * @brief A guided tour of nexenne::utility: a console-only device-fleet provisioner.
  *
- * No real I/O happens here - we *model* what a provisioning service does and
- * print every decision, so you can see how the module's small primitives snap
- * together in one cohesive program:
+ * No real I/O happens here: the program models what a provisioning service does
+ * and prints every decision, so you can see how the module's small primitives
+ * snap together in one cohesive program. Read it top to bottom:
  *
- *   1. Identify things   -> strong_typedef gives distinct, unmixable ID types.
- *   2. Describe capability -> flags<E> is a type-safe option bitmask.
- *   3. Fail without throwing -> expected_utils threads errors through a pipeline.
- *   4. Hold a scarce handle -> unique_resource closes it exactly once.
- *   5. Undo on early exit -> scope_guard rolls a registry edit back.
- *   6. Take a callback     -> function_ref accepts any reporter, no template.
- *   7. Demand a dependency -> non_null makes "must be present" a compile fact.
- *   8. Narrow on purpose   -> narrow_cast asserts the value really fits.
- *   9. Dispatch a command  -> overloaded visits a std::variant of requests.
- *  10. Name an enum        -> enum_to_string turns a status into diagnostics.
+ *   1. Identify things: \c strong_typedef brands device ids and slots so the
+ *      compiler rejects mixing them; an \c identifier has no arithmetic, a
+ *      \c quantity (the image size in kilobytes) does.
+ *   2. Describe capability: \c flags is a type-safe option bitmask that never
+ *      decays into raw integer arithmetic.
+ *   3. Fail without throwing: \c std::expected threads a status enum through
+ *      the pipeline as a value.
+ *   4. Hold a scarce handle: \c make_unique_resource_checked leases a flash
+ *      programmer, treats -1 as a failed lease, and releases a good lease
+ *      exactly once on every exit path.
+ *   5. Undo on early exit: \c scope_guard rolls a tentative registry append
+ *      back unless dismissed, so the commit is the absence of a rollback.
+ *   6. Take a callback: \c function_ref accepts any reporter without a template
+ *      or an allocation; the viewed lambda lives for the whole of main.
+ *   7. Demand a dependency: \c non_null makes "the registry is present" part of
+ *      the type, so passing nullptr does not compile.
+ *   8. Narrow on purpose: \c narrow_cast converts the flash page count and
+ *      asserts in debug that it fits, where \c static_cast would wrap silently.
+ *   9. Dispatch a command: \c overloaded turns lambdas into one visitor over a
+ *      closed \c std::variant of requests.
+ *  10. Name an enum: \c enum_to_string reflects a status into diagnostics with
+ *      no hand-written switch.
  *
- * Each step notes *why* a given primitive is the right tool and the bug it
- * prevents. Read it top to bottom.
+ * The provisioner rejects a remote-wipe device without secure boot, a busy
+ * slot, and an image whose count of 8 KB flash pages does not fit one byte.
  */
 
 #include <cstdint>

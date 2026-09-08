@@ -49,9 +49,16 @@ concept scoped_enum = std::is_scoped_enum_v<E>;
 template <scoped_enum E>
 class flags {
 public:
+  /// @brief Scoped enum whose bit values the set holds.
   using value_type = E;
+
+  /// @brief The scoped enum, named for its role.
   using enum_type = E;
+
+  /// @brief Integer that stores the bits.
   using underlying_type = std::underlying_type_t<E>;
+
+  /// @brief Unsigned twin of \c underlying_type, used for bit counting.
   using unsigned_type = std::make_unsigned_t<underlying_type>;
 
 private:

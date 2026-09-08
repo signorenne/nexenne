@@ -5,7 +5,8 @@
  * Each payload may contain any byte, zeros included. COBS rewrites it into a
  * zero-free form, so a single 0x00 appended after each frame delimits the
  * stream unambiguously. The reader splits the stream on 0x00 and decodes every
- * frame back to its exact original bytes.
+ * frame back to its exact original bytes, into a buffer the size of the frame,
+ * since a decoded payload is never longer than its frame.
  */
 
 #include <array>

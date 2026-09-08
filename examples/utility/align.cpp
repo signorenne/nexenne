@@ -4,11 +4,17 @@
  *
  * Each allocation rounds the cursor up with the integral align_up, checks the
  * padded request still fits, and confirms the returned pointers sit on their
- * boundaries with the pointer is_aligned. align_down flushes the used region
- * back to whole cache lines. align_up asserts in debug that the padded value
- * does not overflow, so a cursor near the top of size_t aborts instead of
- * wrapping to a small offset; here the arena is tiny and the fit check keeps
- * the cursor far from that boundary.
+ * boundaries with the pointer is_aligned. align_up asserts in debug that the
+ * padded value does not overflow, so a cursor near the top of size_t aborts
+ * instead of wrapping to a small offset; here the arena is tiny and the fit
+ * check keeps the cursor far from that boundary.
+ *
+ *   1. Two slices land at offsets 0 and 16: align_up(10, 16) pads the cursor to
+ *      the next 16-byte boundary before handing out the second.
+ *   2. align_down answers the mirror question: how many whole 64-byte cache
+ *      lines the used region covers, for a partial flush or prefetch.
+ *   3. The integral flavour is constexpr, so layouts can be computed at compile
+ *      time.
  */
 
 #include <array>

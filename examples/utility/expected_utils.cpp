@@ -4,10 +4,15 @@
  *
  * A service reads its configuration and validates it without a single throw,
  * showing each helper in the header:
- *   - into_optional: drop the error channel when only success/value matters.
- *   - try_or:        supply a fallback computed from the error.
- *   - first_error:   fold independent validation results to the first failure.
- *   - flatten:       collapse a nested expected<expected<T, E>, E>.
+ *
+ *   1. \c into_optional keeps a port value and drops why parsing failed.
+ *   2. \c try_or supplies a fallback port computed from the error.
+ *   3. \c first_error folds three independent validations to the first failure.
+ *      Every argument is evaluated before the fold runs (the run count proves
+ *      it), so the inputs must be checks that are safe to run eagerly; chain
+ *      \c and_then for stop-on-first-error sequencing.
+ *   4. \c flatten collapses a fallible lookup returning a fallible value into
+ *      one level, where an error at either level surfaces as the single error.
  */
 
 #include <expected>

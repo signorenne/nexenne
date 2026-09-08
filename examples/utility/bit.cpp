@@ -4,7 +4,9 @@
  *
  * Models a 16-bit control register with a 4-bit channel field, a 6-bit
  * threshold field, and enable/error flag bits, using pack/extract and the
- * single-bit helpers.
+ * single-bit helpers. The threshold update is a read-modify-write: pack_bits
+ * clears then rewrites only the named field, so the channel and flag bits
+ * around it survive untouched.
  */
 
 #include <cstdint>

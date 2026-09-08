@@ -6,6 +6,14 @@
  * big-endian value per reading]. A write cursor fills the buffer with put and
  * take, a read cursor walks it back with peek, next, and take, and every step
  * is guarded by has() or remaining() so neither side can run off the end.
+ *
+ *   1. The encoder stops cleanly when the buffer is full. \c take hands back the
+ *      next two bytes as a dynamic-extent span, and \c first<2>() restores the
+ *      fixed extent the endian helper needs.
+ *   2. The decoder, a cursor over const bytes, peeks at the magic byte so a
+ *      wrong one consumes nothing, then reads the count and each value.
+ *   3. Decoding a truncated view of the same message reports the cut through
+ *      the has() guard instead of reading past the end.
  */
 
 #include <array>

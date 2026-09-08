@@ -1,6 +1,12 @@
 /**
  * @file
  * @brief Roll back a partial transaction with nexenne::utility::scope_guard.
+ *
+ * \c commit_batch appends every item to a log but keeps them only if all are
+ * valid: a guard armed before the first append truncates the log back to its
+ * mark on every exit path, and is dismissed once the whole batch succeeded.
+ * The first batch commits; the second hits a negative value and is rolled back,
+ * leaving four rows.
  */
 
 #include <print>

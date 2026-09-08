@@ -49,9 +49,9 @@ namespace nexenne::utility {
 template <std::size_t N>
   requires(N >= 1)
 struct static_string {
-  using value_type = char;
+  using value_type = char;  ///< Character type of the buffer.
 
-  std::array<value_type, N> data{};
+  std::array<value_type, N> data{};  ///< NUL-terminated characters; public to stay structural.
 
   /**
    * @brief Constructs the empty string (an all-zero buffer).
@@ -83,6 +83,7 @@ struct static_string {
    *
    * \p N is only the capacity bound; a partially filled buffer reports the
    * shorter content length, and a default-constructed instance reports zero.
+   * The class invariant (a NUL inside the buffer) keeps the scan in bounds.
    *
    * @return The index of the first NUL byte in the buffer.
    *

@@ -8,6 +8,15 @@
  * NDEBUG it compiles to exactly the underlying static_cast. Values that might
  * genuinely be out of range are range-checked first, because the debug assert
  * is a development net, not input validation.
+ *
+ *   1. The parsed values are trusted to fit, and narrow_cast turns that trust
+ *      into a debug assert: a port of 70000 or a retry count of -1 would abort
+ *      with a "value changed" or "sign changed" message instead of wrapping.
+ *   2. The timeout converts from floating point, which is range-checked before
+ *      the cast, so even an absurd or NaN value cannot reach an undefined
+ *      float-to-integer conversion.
+ *   3. The checks also run in constant expressions, where a violation is a
+ *      compile error rather than a runtime abort.
  */
 
 #include <cstdint>

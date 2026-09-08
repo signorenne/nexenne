@@ -52,6 +52,11 @@ inline constexpr bool always_false_v{false};
  * elaborated \c struct / \c class keyword, full qualification, or different
  * whitespace), so treat it as a diagnostic label, not a stable identifier.
  *
+ * Clang renders the parameter as \c "[T = X]" and GCC as
+ * \c "[with T = X; ...]". The spelling runs from the shared \c "T = " marker to
+ * the last \c ']', which survives array types such as \c int[5] and nested
+ * brackets before it, or to GCC's \c "; " separator when that comes first.
+ *
  * @tparam T Any type whose name to recover.
  *
  * @return The compiler's spelling of \p T, or an empty view when the compiler
@@ -91,6 +96,7 @@ template <typename T>
 #endif
 }
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -105,12 +111,22 @@ namespace detail {
  */
 template <typename R, bool Noexcept, typename... Args>
 struct function_traits_base {
-  using return_type = R;
-  using arguments = type_list<Args...>;
-  static constexpr std::size_t arity{sizeof...(Args)};
+  using return_type = R;                                ///< Return type of the callable.
+  using arguments = type_list<Args...>;                 ///< Parameter types, in order.
+  static constexpr std::size_t arity{sizeof...(Args)};  ///< Number of parameters.
+
+  /**
+   * @brief The \p I-th parameter type.
+   *
+   * @tparam I Zero-based parameter index.
+   *
+   * @pre \p I is less than \c arity.
+   * @post None.
+   */
   template <std::size_t I>
   using arg_t = tl_at_t<arguments, I>;
-  static constexpr bool is_noexcept{Noexcept};
+
+  static constexpr bool is_noexcept{Noexcept};  ///< Whether the callable is \c noexcept.
 };
 
 }  // namespace detail

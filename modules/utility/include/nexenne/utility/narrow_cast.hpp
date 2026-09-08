@@ -124,8 +124,10 @@ template <typename To, typename From>
  * compares against exact power-of-two bounds so the boundaries classify
  * correctly. The cast back is guarded the same way for an integral source and
  * a floating target, where rounding can carry the value past the source type's
- * range (\c INT32_MAX becomes \c 2^31 as a \c float). With \c NDEBUG defined
- * the asserts vanish and the call compiles to exactly the \c static_cast.
+ * range (\c INT32_MAX becomes \c 2^31 as a \c float). In a constant
+ * evaluation a failed check is a compile error rather than a runtime abort.
+ * With \c NDEBUG defined the asserts vanish and the call compiles to exactly
+ * the \c static_cast.
  *
  * @tparam To Target arithmetic type.
  * @tparam From Source arithmetic type, deduced.

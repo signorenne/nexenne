@@ -57,6 +57,11 @@ namespace detail {
  * placeholders a non-enumerator value produces (a residual parenthesis, or a
  * leading digit or minus). Returns an empty view on an unsupported compiler.
  *
+ * GCC renders the signature as \c "... [with auto V = E::name; ...]" and Clang
+ * as \c "... [V = E::name]". Neither the first comma nor the first \c ']' bounds
+ * the value: an enum nested in a class template specialisation carries that
+ * template's argument list in its qualifier, and the list can hold both.
+ *
  * @tparam V A literal enumerator value of some enum type.
  *
  * @return The enumerator's name, or an empty view when \p V is not a named
@@ -197,7 +202,8 @@ template <typename E, int Min, int... Is>
  * @brief Fills \p out with the named enumerators across the scan window.
  *
  * Expands the index pack into a flat braced-init sequence (evaluated
- * left-to-right, so values pack in ascending order), writing each named
+ * left-to-right, so values pack in ascending order; not a comma fold, which
+ * would exceed Clang's expression-nesting limit), writing each named
  * enumerator, value from \p Min upward, into the next slot of \p out.
  *
  * @tparam E Enum type being reflected.
@@ -290,7 +296,10 @@ inline constexpr auto stored_enum_name_v{[] {
  *
  * Every runtime lookup searches these arrays instead of instantiating one
  * signature parser per scanned value: the window is scanned once, during
- * compilation, and the binary keeps only the values and the bare names.
+ * compilation, and the binary keeps only the values and the bare names. The
+ * index sequences are built over \c int, not the underlying type, so a narrow
+ * underlying type cannot break the sequence length (256 is not representable
+ * in \c std::uint8_t).
  *
  * @tparam E Enum type being reflected.
  * @tparam Min First underlying value of the (already clamped) window.
