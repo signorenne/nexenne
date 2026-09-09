@@ -535,4 +535,27 @@ TEST_CASE("nexenne::container::flat_hash_map spreads keys that differ only in hi
   CHECK(iterated != inserted);
 }
 
+TEST_CASE("nexenne::container::flat_hash_map reserve accounts for tombstones") {
+  // reserve used to look at the slot count only, so a table full of tombstones
+  // still rehashed on a later insert and moved the entries reserve promised to
+  // keep in place.
+  map_t m;
+  for (int i{0}; i < 12; ++i) {
+    CHECK(m.insert(i, i));
+  }
+  for (int i{0}; i < 12; ++i) {
+    CHECK(m.erase(i));
+  }
+  m.reserve(4);
+  // Keys 101-104 probe past no tombstone they could reuse, so without the
+  // reclaim in reserve the third insert crosses the load threshold.
+  CHECK(m.insert(101, 1));
+  auto const* const first{m.find(101)};
+  REQUIRE(first != nullptr);
+  CHECK(m.insert(102, 2));
+  CHECK(m.insert(103, 3));
+  CHECK(m.insert(104, 4));
+  CHECK(m.find(101) == first);
+}
+
 }  // namespace

@@ -615,11 +615,15 @@ auto operator=(flat_hash_map other) noexcept -> flat_hash_map& {
 /**
  * @brief Reserves storage for at least \p n entries.
  *
+ * Tombstones left by erasures count toward the rehash trigger, so a table with
+ * enough slots but too many tombstones is rebuilt at the same capacity; either
+ * way, inserting until the map holds \p n entries then rehashes nothing.
+ *
  * @param n Minimum entry capacity to ensure.
  *
  * @pre None.
- * @post Capacity admits at least \p n entries; a rehash, if triggered,
- *       invalidates iterators, pointers, and references.
+ * @post The map holds up to \p n entries without a rehash; a rehash here, if
+ *       triggered, invalidates iterators, pointers, and references.
  */
 auto reserve(size_type const n) noexcept -> void {
   if (n == 0) {
@@ -628,6 +632,8 @@ auto reserve(size_type const n) noexcept -> void {
   auto const needed{next_pow2(n * 8 / 7 + 1)};
   if (needed > m_slots.size()) {
     rehash(needed);
+  } else if (n + m_tombstones > load_threshold()) {
+    rehash(m_slots.size());
   }
 }
 
