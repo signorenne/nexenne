@@ -173,7 +173,9 @@ private:
     auto const needed{
       desired / ChunkSize + (desired % ChunkSize == 0 ? size_type{0} : size_type{1})
     };
-    m_chunks.reserve(needed);  // size the pointer vector once, not per chunk
+    if (needed > m_chunks.capacity()) {
+      m_chunks.reserve(std::max(needed, m_chunks.capacity() * 2));
+    }
     while (m_chunks.size() < needed) {
       m_chunks.push_back(std::make_unique<chunk>());
     }
