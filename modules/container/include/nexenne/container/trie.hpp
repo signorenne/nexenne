@@ -47,9 +47,19 @@ concept trie_character =
   || std::same_as<C, char16_t> || std::same_as<C, char32_t>;
 
 /**
+ * @brief An integral token that converts to \p Char without narrowing.
+ *
+ * Every trie edge is labelled by a \p Char, so a wider token (an \c int of
+ * 300 into a \c char trie) would be truncated and alias a different key.
+ */
+template <typename T, typename Char>
+concept trie_token = std::integral<T> && requires(T token) { Char{token}; };
+
+/**
  * @brief A key acceptable to a \c trie<Char, Value>.
  *
- * Either a forward range of integral tokens convertible to \p Char, or (when
+ * Either a forward range of integral tokens that convert to \p Char without
+ * narrowing, or (when
  * \p Char is a character type) a raw pointer to \p Char treated as a
  * null-terminated string. Raw character arrays match the range arm; the trie
  * drops their trailing terminator so a literal key agrees with the equivalent
@@ -58,7 +68,7 @@ concept trie_character =
 template <typename R, typename Char>
 concept trie_key =
   (std::ranges::forward_range<R>
-   && std::integral<std::remove_cvref_t<std::ranges::range_value_t<R>>>
+   && trie_token<std::remove_cvref_t<std::ranges::range_value_t<R>>, Char>
    && std::convertible_to<std::ranges::range_reference_t<R>, Char>)
   || (trie_character<Char> && std::is_pointer_v<std::remove_cvref_t<R>> && std::same_as<std::remove_cv_t<std::remove_pointer_t<std::remove_cvref_t<R>>>, Char>);
 

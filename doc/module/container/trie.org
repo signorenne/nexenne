@@ -10,7 +10,9 @@ structure. Lookup, insertion, and erasure cost =O(k)= in the key length (not the
 number of stored keys), and the trie answers *prefix* questions, "does any stored
 key start with this?", that a hash or tree map cannot do directly. Keys are any
 forward range of an integral =Char=, so the same trie serves =std::string=,
-=std::string_view=, and =std::vector<char32_t>= of Unicode code points.
+=std::string_view=, and =std::vector<char32_t>= of Unicode code points. A token
+must convert to =Char= without narrowing: an =int= range does not key a =char=
+trie, since a token of 300 would be truncated onto a different key.
 
 * The idea
 

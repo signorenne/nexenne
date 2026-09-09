@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <random>
@@ -471,5 +472,14 @@ consteval auto consteval_trie_probe() -> bool {
 }
 
 static_assert(consteval_trie_probe());
+
+static_assert(!cn::detail::trie_key<std::array<int, 1>, char>);
+static_assert(!cn::detail::trie_key<std::vector<std::uint16_t>, std::uint8_t>);
+static_assert(cn::detail::trie_key<std::string, char>);
+static_assert(cn::detail::trie_key<std::vector<std::uint8_t>, std::uint8_t>);
+static_assert(cn::detail::trie_key<std::u32string, char32_t>);
+static_assert(cn::detail::trie_key<std::u16string, char32_t>);
+static_assert(!cn::detail::trie_key<std::string, char32_t>);
+static_assert(cn::detail::trie_key<char const*, char>);
 
 }  // namespace
