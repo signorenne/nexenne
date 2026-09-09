@@ -9,6 +9,7 @@
 #include <random>
 #include <string>
 #include <unordered_set>
+#include <utility>
 
 #include <nexenne/container/flat_hash_set.hpp>
 #include <nexenne/utility/ignore.hpp>
@@ -282,6 +283,19 @@ TEST_CASE("nexenne::container::flat_hash_set differential against std::unordered
     ++flat_count;
   }
   CHECK(flat_count == ref.size());
+}
+
+TEST_CASE("nexenne::container::flat_hash_set moved-from source is empty") {
+  set_t src;
+  for (int i{0}; i < 3; ++i) {
+    CHECK(src.insert(i));
+  }
+  set_t const dst{std::move(src)};
+  CHECK(dst.size() == 3);
+  // NOLINTBEGIN(clang-analyzer-cplusplus.Move): the moved-from state is under test
+  CHECK(src.empty());
+  CHECK(src.size() == 0);
+  // NOLINTEND(clang-analyzer-cplusplus.Move)
 }
 
 }  // namespace

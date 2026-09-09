@@ -493,4 +493,30 @@ TEST_CASE("nexenne::container::flat_hash_map heterogeneous lookup with transpare
   CHECK_FALSE(m.contains(std::string_view{"alpha"}));
 }
 
+TEST_CASE("nexenne::container::flat_hash_map moved-from source is empty and reusable") {
+  map_t src;
+  for (int i{0}; i < 5; ++i) {
+    CHECK(src.insert(i, i * 10));
+  }
+  map_t const dst{std::move(src)};
+  CHECK(dst.size() == 5);
+  CHECK(src.empty());
+  CHECK(src.size() == 0);
+  CHECK(src.capacity() == 0);
+  CHECK(src == map_t{});
+  CHECK(src.insert(7, 70));
+  CHECK(src.size() == 1);
+  CHECK(src.capacity() == map_t::initial_capacity);
+
+  map_t assigned;
+  CHECK(assigned.insert(1, 1));
+  assigned = std::move(src);
+  CHECK(assigned.size() == 1);
+  CHECK(src.empty());
+
+  map_t copy;
+  copy = dst;
+  CHECK(copy == dst);
+}
+
 }  // namespace

@@ -39,7 +39,7 @@
 #include <utility>
 #include <vector>
 
-#include <nexenne/utility/ignore.hpp>
+#include <nexenne/utility/discard.hpp>
 
 namespace nexenne::container {
 
@@ -489,6 +489,56 @@ explicit flat_hash_map(size_type const expected_entries) noexcept {
     rehash(next_pow2(expected_entries * 8 / 7 + 1));
   }
 }
+
+/**
+ * @brief Copies \p other's entries, hasher, and predicate.
+ *
+ * @param other Map to copy.
+ *
+ * @pre None.
+ * @post This map equals \p other and has the same capacity.
+ */
+flat_hash_map(flat_hash_map const& other) = default;
+
+/**
+ * @brief Takes \p other's table, leaving \p other empty.
+ *
+ * Written out rather than defaulted: a defaulted move would move the slot
+ * vector but copy the counters, leaving \p other reporting its old size over
+ * an empty table.
+ *
+ * @param other Map to move from.
+ *
+ * @pre None.
+ * @post This map holds \p other's former entries; \p other is empty, with no
+ *       allocated storage and a default-constructed hasher and predicate.
+ */
+flat_hash_map(flat_hash_map&& other) noexcept {
+  swap(other);
+}
+
+/**
+ * @brief Replaces the contents with those of \p other (copy-and-swap).
+ *
+ * @param other Map to take the state of, copied or moved in by the caller.
+ *
+ * @return \c *this.
+ *
+ * @pre None.
+ * @post This map holds what \p other held; a moved-from source is empty.
+ */
+auto operator=(flat_hash_map other) noexcept -> flat_hash_map& {
+  swap(other);
+  return *this;
+}
+
+/**
+ * @brief Destroys every entry and releases the table.
+ *
+ * @pre None.
+ * @post None.
+ */
+~flat_hash_map() = default;
 
 /**
  * @brief Number of entries.
@@ -1046,7 +1096,7 @@ auto operator[](Key key) noexcept -> Value&
     return *existing;
   }
   // Insert a copy so key stays valid for the lookup of the new slot below.
-  nexenne::utility::ignore(insert(key, Value{}));
+  nexenne::utility::discard(insert(key, Value{}));
   return *find(key);
 }
 

@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <string>
+#include <utility>
 
 #include <nexenne/container/bimap.hpp>
 #include <nexenne/utility/ignore.hpp>
@@ -276,6 +277,18 @@ TEST_CASE("nexenne::container::bimap rolling-registry churn keeps both indexes b
   REQUIRE(b.find_by_left(-1) != nullptr);
   CHECK(*b.find_by_left(-1) == -1);
   CHECK(b.capacity() <= 64);  // both indexes stay bounded
+}
+
+TEST_CASE("nexenne::container::bimap moved-from source is empty") {
+  bimap_t src;
+  CHECK(src.insert(1, "one"));
+  bimap_t const dst{std::move(src)};
+  CHECK(dst.size() == 1);
+  // NOLINTBEGIN(clang-analyzer-cplusplus.Move): the moved-from state is under test
+  CHECK(src.empty());
+  CHECK(src.size() == 0);
+  CHECK(src.insert(1, "uno"));
+  // NOLINTEND(clang-analyzer-cplusplus.Move)
 }
 
 }  // namespace
