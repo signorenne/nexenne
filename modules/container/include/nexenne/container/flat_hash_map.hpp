@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <type_traits>
@@ -107,18 +108,29 @@ private:
   /**
    * @brief The bucket index for a hash value.
    *
-   * The slot count is a power of two when allocated, so this is a bit mask, not a
-   * modulo.
+   * Fibonacci hashing: \p h is multiplied by \c 2^bits divided by the golden
+   * ratio and the top \c log2(capacity) bits are kept. Masking the low bits
+   * instead would send every key that differs only in its high bits (an id in
+   * the upper word, an aligned pointer) to one bucket, and the default
+   * \c std::hash of an integer is the identity.
    *
    * @param h Hash value to reduce to a bucket.
    *
-   * @return The starting bucket index for \p h, or \c 0 when unallocated.
+   * @return The starting bucket index for \p h, or \c 0 when the table has
+   *         fewer than two slots.
    *
    * @pre None.
    * @post None.
    */
   [[nodiscard]] constexpr auto bucket_of(std::size_t const h) const noexcept -> size_type {
-    return m_slots.empty() ? 0 : h & (m_slots.size() - 1);
+    if (m_slots.size() < 2) {
+      return 0;
+    }
+    constexpr auto golden{
+      static_cast<std::size_t>(sizeof(std::size_t) >= 8 ? 0x9e3779b97f4a7c15ULL : 0x9e3779b9ULL)
+    };
+    auto const shift{std::numeric_limits<std::size_t>::digits - std::countr_zero(m_slots.size())};
+    return (h * golden) >> shift;
   }
 
   /**

@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <random>
@@ -517,6 +518,21 @@ TEST_CASE("nexenne::container::flat_hash_map moved-from source is empty and reus
   map_t copy;
   copy = dst;
   CHECK(copy == dst);
+}
+
+TEST_CASE("nexenne::container::flat_hash_map spreads keys that differ only in high bits") {
+  cn::flat_hash_map<std::uint64_t, int> m;
+  std::vector<std::uint64_t> inserted;
+  for (std::uint64_t i{1}; i <= 8; ++i) {
+    inserted.push_back(i << 32U);
+    CHECK(m.insert(inserted.back(), 0));
+  }
+  std::vector<std::uint64_t> iterated;
+  for (auto const& [key, value] : m) {
+    iterated.push_back(key);
+  }
+  CHECK(iterated.size() == inserted.size());
+  CHECK(iterated != inserted);
 }
 
 }  // namespace

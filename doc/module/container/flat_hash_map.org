@@ -31,8 +31,12 @@ The table is a =std::vector= of slots. Each slot holds a *state* (empty,
 occupied, or tombstone), the *cached hash* of its key, and an optional key-value
 pair. Caching the hash lets a probe reject a non-matching slot with an integer
 compare before ever calling the (possibly expensive) key equality. The slot count
-is always a power of two, so the home bucket of a hash is a bitmask, =hash &
-(capacity - 1)=, not a modulo.
+is always a power of two, so the home bucket is the top =log2(capacity)= bits of
+=hash * 0x9e3779b97f4a7c15= (Fibonacci hashing), a multiply and a shift rather
+than a modulo. Keeping the top bits of the product, not the low bits of the
+hash, matters because the standard =std::hash= of an integer is the identity:
+masking would send every key that differs only in its high bits (an id packed
+into the upper word, an aligned pointer) to the same bucket.
 
 #+BEGIN_EXAMPLE
 flat_hash_map<string,int>, capacity 8, holding "ant" (home bucket 2):
@@ -42,7 +46,7 @@ flat_hash_map<string,int>, capacity 8, holding "ant" (home bucket 2):
   state  | empty | empty | occ    | empty  | ...  | ...  | ...  | ...  |
          | hash  |       | "ant"  |        |      |      |      |      |
          +-------+-------+--------+--------+------+------+------+------+
-                          ^ bucket(hash("ant")) = hash & 7
+                          ^ bucket(hash("ant")) = top 3 bits of hash * golden
 #+END_EXAMPLE
 
 ** Lookup: probe until the key or an empty slot
