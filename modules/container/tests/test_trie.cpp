@@ -13,6 +13,7 @@
 #include <set>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -481,5 +482,18 @@ static_assert(cn::detail::trie_key<std::u32string, char32_t>);
 static_assert(cn::detail::trie_key<std::u16string, char32_t>);
 static_assert(!cn::detail::trie_key<std::string, char32_t>);
 static_assert(cn::detail::trie_key<char const*, char>);
+
+TEST_CASE("nexenne::container::trie keys a character buffer by its string, not its size") {
+  trie_t t;
+  char buf[16]{"cat"};  // NOLINT(*-avoid-c-arrays): the case under test
+  CHECK(t.insert(buf, 1));
+  CHECK(t.contains("cat"));
+  CHECK(t.contains(std::string_view{"cat"}));
+  CHECK(t.size() == 1);
+
+  char const raw[3]{'d', 'o', 'g'};  // NOLINT(*-avoid-c-arrays): the case under test
+  CHECK(t.insert(raw, 2));
+  CHECK(t.contains(std::string_view{"dog"}));
+}
 
 }  // namespace

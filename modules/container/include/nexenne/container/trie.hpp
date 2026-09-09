@@ -21,6 +21,7 @@
  * terminates.
  */
 
+#include <algorithm>
 #include <concepts>
 #include <cstddef>
 #include <limits>
@@ -62,8 +63,8 @@ concept trie_token = std::integral<T> && requires(T token) { Char{token}; };
  * narrowing, or (when
  * \p Char is a character type) a raw pointer to \p Char treated as a
  * null-terminated string. Raw character arrays match the range arm; the trie
- * drops their trailing terminator so a literal key agrees with the equivalent
- * \c std::string_view.
+ * ends such a key at its first terminator (or the array's end), so a literal
+ * or a fixed buffer agrees with the equivalent \c std::string_view.
  */
 template <typename R, typename Char>
 concept trie_key =
@@ -646,9 +647,10 @@ private:
   /**
    * @brief Normalizes a key argument into an iterable range of key tokens.
    *
-   * A character array or pointer is treated as a null-terminated string (the
-   * trailing terminator is dropped), so a string literal agrees with the
-   * equivalent \c std::string_view; every other range is forwarded unchanged.
+   * A character array or pointer is treated as a null-terminated string (it
+   * ends at the first terminator, or at the array's end when there is none), so
+   * a string literal or a fixed buffer agrees with the equivalent
+   * \c std::string_view; every other range is forwarded unchanged.
    *
    * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
    *         array treated as a null-terminated string.
@@ -664,8 +666,9 @@ private:
     using bare = std::remove_cvref_t<KeyRange>;
     if constexpr (detail::trie_character<Char> && std::is_bounded_array_v<bare>
                   && std::same_as<std::remove_cv_t<std::remove_extent_t<bare>>, Char>) {
-      constexpr auto n{std::extent_v<bare>};
-      return std::span<Char const>{std::ranges::data(key), n == 0 ? std::size_t{0} : n - 1};
+      auto const* const first{std::ranges::data(key)};
+      auto const* const last{std::ranges::find(first, first + std::extent_v<bare>, Char{})};
+      return std::span<Char const>{first, last};
     } else if constexpr (detail::trie_character<Char> && std::is_pointer_v<bare>) {
       return std::basic_string_view<Char>{key};
     } else {
