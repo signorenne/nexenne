@@ -863,7 +863,9 @@ public:
    * @brief Heterogeneous erase of the entry whose key equals \p key.
    *
    * Enabled only when \c Compare is transparent, so the entry is located from a
-   * compatible probe type without constructing a \c Key.
+   * compatible probe type without constructing a \c Key. An iterator is never
+   * taken as a probe: it goes to the positional \c erase instead, as with
+   * \c std::map.
    *
    * @tparam K Lookup type comparable with the keys through \c Compare.
    * @param key Key to remove.
@@ -877,7 +879,8 @@ public:
    * @complexity \c O(N) for the element shift.
    */
   template <typename K>
-    requires detail::transparent_comparator<Compare>
+    requires detail::transparent_comparator<Compare> && (!std::convertible_to<K const&, iterator>)
+             && (!std::convertible_to<K const&, const_iterator>)
   constexpr auto erase(K const& key) noexcept -> size_type {
     auto const pos{find(key)};
     if (pos == m_data.end()) {

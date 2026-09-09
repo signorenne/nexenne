@@ -379,4 +379,16 @@ TEST_CASE("nexenne::container::flat_map rvalue-key overloads move the key in") {
   CHECK(m.size() == 2);
 }
 
+TEST_CASE("nexenne::container::flat_map erase by iterator under a transparent comparator") {
+  cn::flat_map<std::string, int, std::less<>> m;
+  m.insert_or_assign("a", 1);
+  m.insert_or_assign("b", 2);
+  auto const next{m.erase(m.find("a"))};
+  REQUIRE(next != m.end());
+  CHECK(next->first == "b");
+  CHECK(m.size() == 1);
+  CHECK(m.erase(std::string_view{"b"}) == 1);
+  CHECK(m.empty());
+}
+
 }  // namespace
