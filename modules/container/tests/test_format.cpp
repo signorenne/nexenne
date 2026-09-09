@@ -335,4 +335,11 @@ TEST_CASE("nexenne::container::format slot_key prints its index and generation")
   CHECK(os.str() == form);
 }
 
+TEST_CASE("nexenne::container::format streams and formats container_error by name") {
+  std::ostringstream os;
+  os << cn::container_error::full << ' ' << cn::container_error::not_found;
+  CHECK(os.str() == "full not_found");
+  CHECK(std::format("{}", cn::container_error::empty) == "empty");
+}
+
 }  // namespace

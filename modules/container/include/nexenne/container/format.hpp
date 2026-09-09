@@ -1409,6 +1409,21 @@ auto operator<<(std::ostream& os, scratch_pad<Arena> const& s) -> std::ostream& 
   return os << to_string(s);
 }
 
+/**
+ * @brief Streams a \c container_error by its \c to_string name.
+ *
+ * @param os Output stream.
+ * @param err Error to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The error name has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, container_error const err) -> std::ostream& {
+  return os << to_string(err);
+}
+
 }  // namespace nexenne::container
 
 /**

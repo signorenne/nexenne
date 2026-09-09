@@ -20,6 +20,10 @@ For each printable container, the same three entry points, all routed through on
 - =operator<<(os, x)= streams =to_string(x)=.
 - =std::formatter<X>= forwards to =to_string(x)= for =std::format= / =std::print=.
 
+The module's =container_error= gets the same two outer layers over the
+=constexpr to_string= in [[file:error.org][error]]: =os << err= and =std::format("{}", err)=
+both print its name.
+
 The element type must itself be formattable (have a =std::formatter=), since the
 helpers format each element with =std::format("{}", e)=.
 
