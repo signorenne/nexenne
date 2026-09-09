@@ -52,6 +52,12 @@ matters: the recorded position must be the index the key is about to occupy.
 After it, the two arrays again point at each other, =sparse[k]= names a slot and
 that slot holds =k=.
 
+A key that =sparse= cannot index is refused the same way, with =false=: the
+maximum =std::size_t= (it would need one slot more than is representable) and,
+on a target where =std::size_t= is narrower than the key type, every key at or
+above that maximum, which would otherwise be truncated onto a smaller key's
+slot.
+
 #+BEGIN_EXAMPLE
 insert(7) into {10, 3, 42}:
 

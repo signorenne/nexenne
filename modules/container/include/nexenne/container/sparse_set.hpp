@@ -29,6 +29,7 @@
 #include <limits>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace nexenne::container {
@@ -60,6 +61,25 @@ public:
 private:
   std::vector<size_type> m_sparse;
   std::vector<key_type> m_dense;
+
+  /**
+   * @brief Whether \p k has a sparse slot at all.
+   *
+   * A key below the maximum \c size_type value can be indexed. The maximum
+   * itself would need one more slot than is representable, and a key wider
+   * than \c size_type (a 64-bit key on a 32-bit target) would be truncated
+   * onto another key's slot.
+   *
+   * @param k Key to classify.
+   *
+   * @return \c true when \p k can be stored.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] static constexpr auto indexable(key_type const k) noexcept -> bool {
+    return std::cmp_less(k, std::numeric_limits<size_type>::max());
+  }
 
   /**
    * @brief Grows the sparse array so \p k is an indexable slot.
@@ -111,16 +131,17 @@ public:
    * @param k Key to insert.
    *
    * @return \c true on a new insertion, \c false when \p k was already present or
-   *         when \p k is the maximum representable value (rejected as unindexable,
-   *         see below); in the rejected case \p k remains absent.
+   *         is unindexable (see below); in the rejected case \p k remains
+   *         absent.
    *
    * @pre None.
-   * @post \p k is present unless it was rejected as the maximum representable
-   *       value; on a new insertion \c size() grew by one.
+   * @post \p k is present unless it was rejected as unindexable; on a new
+   *       insertion \c size() grew by one.
    *
-   * @note A key equal to \c std::numeric_limits<size_type>::max() cannot be
-   *       indexed (it would need one more sparse slot than is representable) and
-   *       is rejected with \c false while remaining absent. For key types
+   * @note A key at or above \c std::numeric_limits<size_type>::max() cannot be
+   *       indexed (the maximum would need one more sparse slot than is
+   *       representable, and a wider key would alias a smaller one) and is
+   *       rejected with \c false while remaining absent. For key types
    *       narrower than \c size_type this case cannot arise.
    *
    * @complexity Amortised \c O(1).
@@ -129,11 +150,7 @@ public:
     if (contains(k)) {
       return false;
     }
-    // A key at the top of size_type would need size_type + 1 sparse slots, an
-    // unrepresentable capacity; reject it rather than let ensure_sparse_capacity
-    // wrap k + 1 to a smaller size and then index out of bounds. The guard is
-    // dead for key types narrower than size_type (the common case).
-    if (static_cast<size_type>(k) == std::numeric_limits<size_type>::max()) {
+    if (!indexable(k)) {
       return false;
     }
     ensure_sparse_capacity(k);
@@ -186,7 +203,7 @@ public:
    * @complexity \c O(1).
    */
   [[nodiscard]] constexpr auto contains(key_type const k) const noexcept -> bool {
-    if (static_cast<size_type>(k) >= m_sparse.size()) {
+    if (!indexable(k) || static_cast<size_type>(k) >= m_sparse.size()) {
       return false;
     }
     auto const pos{m_sparse[k]};

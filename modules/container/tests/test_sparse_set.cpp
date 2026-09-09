@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <random>
@@ -263,5 +264,16 @@ TEST_CASE("nexenne::container::sparse_set rejects an unrepresentable maximum key
   CHECK(s.contains(std::uint64_t{1000}));
   CHECK(s.size() == 1);
 }
+
+static_assert([] {
+  if constexpr (sizeof(std::size_t) < sizeof(std::uint64_t)) {
+    cn::sparse_set<std::uint64_t> s;
+    auto const wide{std::uint64_t{std::numeric_limits<std::size_t>::max()} + 5};
+    bool ok{s.insert(5)};
+    ok = ok && !s.insert(wide) && !s.contains(wide);
+    return ok && s.contains(5) && s.size() == 1;
+  }
+  return true;
+}());
 
 }  // namespace
