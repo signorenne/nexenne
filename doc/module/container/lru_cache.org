@@ -9,9 +9,10 @@ that evicts the *least recently used* entry when it is full and a new key arrive
 The capacity is fixed at compile time. Every
 =get= and =put= is amortised =O(1)= and also marks the touched entry as most
 recently used, so the cache naturally keeps the hottest entries and drops the
-cold ones. After construction it allocates nothing in steady state, which makes
-it suited to hot paths: asset caches, bounded memoisation, recently-used
-registries.
+cold ones. After construction it never allocates a node, and =get= never
+allocates at all, which makes it suited to hot paths: asset caches, bounded
+memoisation, recently-used registries. The one steady-state allocation is the
+index's periodic rehash under eviction churn, described below.
 
 * The idea
 
@@ -22,8 +23,8 @@ list orders entries by recency (move-to-front on touch, evict from the back), an
 a hash map maps each key to its list node for instant lookup. This cache does
 exactly that, but with two refinements from the nexenne toolbox: the list is an
 [[file:intrusive_list.org][intrusive_list]] (the links live inside the node, no per-node allocation), and the
-nodes come from a *fixed pool* sized once at construction, so a steady-state
-=put= that evicts and reuses a node touches the allocator zero times.
+nodes come from a *fixed pool* sized once at construction, so a =put= that
+evicts reuses a node instead of allocating one.
 
 * How it works
 
@@ -97,9 +98,15 @@ every node to the free list, keeping the pool storage. Neither shrinks capacity.
 
 Memory is the node pool (capacity nodes, each a key, a value, and two list
 links), the free-list vector, and the index hash map, all sized to capacity once.
-Steady-state =get= / =put= allocates nothing: a full cache recycles the evicted
-node in place. The =O(1)= costs are amortised over the index's rare rehash, which
-=reserve= at construction is sized to avoid.
+A full cache recycles the evicted node in place, so nodes are never allocated
+after construction and =get= never allocates. The index is a
+[[file:flat_hash_map.org][flat_hash_map]], whose erase leaves a tombstone: each eviction adds one, and once
+live entries plus tombstones reach the load threshold the index rehashes to
+reclaim them, which allocates a new slot table. That happens every few dozen to
+few hundred evictions, depending on the capacity (for example, 1000 evicting
+=put= calls on a capacity-8 cache allocated 41 times in a measurement), and it is
+what the amortised =O(1)= of =put= is amortised over. A hard real-time loop that
+cannot afford any allocation should not evict on its hot path.
 
 * When to use it
 
