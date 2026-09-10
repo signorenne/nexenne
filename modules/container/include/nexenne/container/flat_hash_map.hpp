@@ -44,6 +44,28 @@
 
 namespace nexenne::container {
 
+namespace detail {
+
+/// @cond INTERNAL
+
+/**
+ * @brief Whether a hash and an equality functor both admit a heterogeneous probe.
+ *
+ * True only when both opt into transparency by exposing \c is_transparent.
+ *
+ * @tparam H Hash functor type.
+ * @tparam E Equality functor type.
+ */
+template <typename H, typename E>
+concept transparent_hash_pair = requires {
+  typename H::is_transparent;
+  typename E::is_transparent;
+};
+
+/// @endcond
+
+}  // namespace detail
+
 /**
  * @brief Open-addressing, linear-probing hash map.
  *
@@ -300,924 +322,903 @@ private:
   }
 
   /**
-   * @brief Whether a heterogeneous probe type is admitted.
+   * @brief Tombstones the slot located by a probe, shared by every erase overload.
    *
-   * True only when both functors opt into transparency by exposing
-   * \c is_transparent.
+   * @param found Slot returned by a probe, or \c nullptr for a miss.
    *
-   * @tparam H Hash functor type.
-   * @tparam E Equality functor type.
+   * @return \c true when a slot was tombstoned, \c false when \p found was
+   *         \c nullptr.
+   *
+   * @pre \p found, when non-null, points into this map's slot array.
+   * @post On \c true \c size() shrank by one and a tombstone replaced the slot.
    */
-  template <typename H, typename E>
-  static constexpr bool transparent_functors{requires {typename H::is_transparent;
-} && requires { typename E::is_transparent; }
-};  // namespace nexenne::container
-
-/**
- * @brief Tombstones the slot located by a probe, shared by every erase overload.
- *
- * @param found Slot returned by a probe, or \c nullptr for a miss.
- *
- * @return \c true when a slot was tombstoned, \c false when \p found was
- *         \c nullptr.
- *
- * @pre \p found, when non-null, points into this map's slot array.
- * @post On \c true \c size() shrank by one and a tombstone replaced the slot.
- */
-auto erase_slot(slot const* const found) noexcept -> bool {
-  if (found == nullptr) {
-    return false;
+  auto erase_slot(slot const* const found) noexcept -> bool {
+    if (found == nullptr) {
+      return false;
+    }
+    auto& target{m_slots[static_cast<size_type>(found - m_slots.data())]};
+    target.state = slot_state::tombstone;
+    target.entry.reset();
+    --m_size;
+    ++m_tombstones;
+    return true;
   }
-  auto& target{m_slots[static_cast<size_type>(found - m_slots.data())]};
-  target.state = slot_state::tombstone;
-  target.entry.reset();
-  --m_size;
-  ++m_tombstones;
-  return true;
-}
 
-template <bool IsConst>
-class basic_iterator {
-private:
-  using slot_ptr = std::conditional_t<IsConst, slot const*, slot*>;
-  slot_ptr m_current{nullptr};
-  slot_ptr m_end{nullptr};
+  template <bool IsConst>
+  class basic_iterator {
+  private:
+    using slot_ptr = std::conditional_t<IsConst, slot const*, slot*>;
+    slot_ptr m_current{nullptr};
+    slot_ptr m_end{nullptr};
+
+    /**
+     * @brief Advances the cursor to the next occupied slot, or to the end.
+     *
+     * @pre \c m_current and \c m_end bound a valid slot range.
+     * @post \c m_current refers to an occupied slot or equals \c m_end.
+     */
+    constexpr auto advance_to_occupied() noexcept -> void {
+      while (m_current != m_end && m_current->state != slot_state::occupied) {
+        ++m_current;
+      }
+    }
+
+  public:
+    using value_type = std::pair<Key, Value>;
+    using reference = std::conditional_t<IsConst, value_type const&, value_type&>;
+    using pointer = std::conditional_t<IsConst, value_type const*, value_type*>;
+    using difference_type = std::ptrdiff_t;
+    using iterator_category = std::forward_iterator_tag;
+    using iterator_concept = std::forward_iterator_tag;
+
+    /**
+     * @brief Constructs a singular iterator not tied to any map.
+     *
+     * @pre None.
+     * @post The iterator is singular and not dereferenceable.
+     */
+    constexpr basic_iterator() noexcept = default;
+
+    /**
+     * @brief Constructs an iterator over the slot range \c [current, end).
+     *
+     * @param current Slot the iterator starts at, advanced to the first occupied
+     *                slot.
+     * @param end One past the last slot to walk.
+     *
+     * @pre \p current and \p end bound a valid slot range.
+     * @post The iterator refers to the first occupied slot at or after \p current,
+     *       or to \p end when none remains.
+     */
+    constexpr basic_iterator(slot_ptr const current, slot_ptr const end) noexcept
+        : m_current{current}, m_end{end} {
+      advance_to_occupied();
+    }
+
+    /**
+     * @brief Converts a mutable iterator into a const iterator.
+     *
+     * @tparam OtherConst Constness of the source iterator; enabled only when it is
+     *                    non-const and this iterator is const.
+     * @param other Mutable iterator to copy the position from.
+     *
+     * @pre None.
+     * @post This iterator refers to the same slot as \p other.
+     */
+    template <bool OtherConst>
+      requires(IsConst && !OtherConst)
+    constexpr basic_iterator(basic_iterator<OtherConst> const& other) noexcept
+        : m_current{other.m_current}, m_end{other.m_end} {}
+
+    /**
+     * @brief The \c (key, value) entry the iterator refers to.
+     *
+     * @return A reference to the entry in the current slot.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post None.
+     */
+    [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
+      return *m_current->entry;
+    }
+
+    /**
+     * @brief Member access to the \c (key, value) entry.
+     *
+     * @return A pointer to the entry in the current slot.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post None.
+     */
+    [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
+      return std::addressof(*m_current->entry);
+    }
+
+    /**
+     * @brief Advances to the next occupied slot.
+     *
+     * @return A reference to this iterator after advancing.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post The iterator refers to the next occupied slot or to \c end().
+     */
+    constexpr auto operator++() noexcept -> basic_iterator& {
+      ++m_current;
+      advance_to_occupied();
+      return *this;
+    }
+
+    /**
+     * @brief Advances to the next occupied slot, returning the prior position.
+     *
+     * @return A copy of the iterator before it advanced.
+     *
+     * @pre The iterator is dereferenceable (not \c end()).
+     * @post The iterator refers to the next occupied slot or to \c end().
+     */
+    constexpr auto operator++(int) noexcept -> basic_iterator {
+      auto const copy{*this};
+      ++*this;
+      return copy;
+    }
+
+    /**
+     * @brief Whether \p a and \p b refer to the same slot.
+     *
+     * @param a First iterator.
+     * @param b Second iterator.
+     *
+     * @return \c true when both point at the same slot.
+     *
+     * @pre None.
+     * @post None.
+     */
+    [[nodiscard]] friend constexpr auto
+    operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
+      return a.m_current == b.m_current;
+    }
+
+    template <bool>
+    friend class basic_iterator;
+  };
+
+public:
+  using iterator = basic_iterator<false>;
+  using const_iterator = basic_iterator<true>;
 
   /**
-   * @brief Advances the cursor to the next occupied slot, or to the end.
+   * @brief Constructs an empty map with no allocated storage.
    *
-   * @pre \c m_current and \c m_end bound a valid slot range.
-   * @post \c m_current refers to an occupied slot or equals \c m_end.
+   * @pre None.
+   * @post \c empty() is \c true and \c capacity() is zero.
    */
-  constexpr auto advance_to_occupied() noexcept -> void {
-    while (m_current != m_end && m_current->state != slot_state::occupied) {
-      ++m_current;
+  flat_hash_map() noexcept = default;
+
+  /**
+   * @brief Constructs an empty map sized for \p expected_entries.
+   *
+   * @param expected_entries Entries to size the table for before the first
+   *                         rehash.
+   *
+   * @pre None.
+   * @post \c empty() is \c true and \c capacity() admits at least
+   *       \p expected_entries entries without rehashing.
+   */
+  explicit flat_hash_map(size_type const expected_entries) noexcept {
+    if (expected_entries > 0) {
+      rehash(next_pow2(expected_entries * 8 / 7 + 1));
     }
   }
 
-public:
-  using value_type = std::pair<Key, Value>;
-  using reference = std::conditional_t<IsConst, value_type const&, value_type&>;
-  using pointer = std::conditional_t<IsConst, value_type const*, value_type*>;
-  using difference_type = std::ptrdiff_t;
-  using iterator_category = std::forward_iterator_tag;
-  using iterator_concept = std::forward_iterator_tag;
-
   /**
-   * @brief Constructs a singular iterator not tied to any map.
+   * @brief Copies \p other's entries, hasher, and predicate.
+   *
+   * @param other Map to copy.
    *
    * @pre None.
-   * @post The iterator is singular and not dereferenceable.
+   * @post This map equals \p other and has the same capacity.
    */
-  constexpr basic_iterator() noexcept = default;
+  flat_hash_map(flat_hash_map const& other) = default;
 
   /**
-   * @brief Constructs an iterator over the slot range \c [current, end).
+   * @brief Takes \p other's table, leaving \p other empty.
    *
-   * @param current Slot the iterator starts at, advanced to the first occupied
-   *                slot.
-   * @param end One past the last slot to walk.
+   * Written out rather than defaulted: a defaulted move would move the slot
+   * vector but copy the counters, leaving \p other reporting its old size over
+   * an empty table.
    *
-   * @pre \p current and \p end bound a valid slot range.
-   * @post The iterator refers to the first occupied slot at or after \p current,
-   *       or to \p end when none remains.
-   */
-  constexpr basic_iterator(slot_ptr const current, slot_ptr const end) noexcept
-      : m_current{current}, m_end{end} {
-    advance_to_occupied();
-  }
-
-  /**
-   * @brief Converts a mutable iterator into a const iterator.
-   *
-   * @tparam OtherConst Constness of the source iterator; enabled only when it is
-   *                    non-const and this iterator is const.
-   * @param other Mutable iterator to copy the position from.
+   * @param other Map to move from.
    *
    * @pre None.
-   * @post This iterator refers to the same slot as \p other.
+   * @post This map holds \p other's former entries; \p other is empty, with no
+   *       allocated storage and a default-constructed hasher and predicate.
    */
-  template <bool OtherConst>
-    requires(IsConst && !OtherConst)
-  constexpr basic_iterator(basic_iterator<OtherConst> const& other) noexcept
-      : m_current{other.m_current}, m_end{other.m_end} {}
-
-  /**
-   * @brief The \c (key, value) entry the iterator refers to.
-   *
-   * @return A reference to the entry in the current slot.
-   *
-   * @pre The iterator is dereferenceable (not \c end()).
-   * @post None.
-   */
-  [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
-    return *m_current->entry;
+  flat_hash_map(flat_hash_map&& other) noexcept {
+    swap(other);
   }
 
   /**
-   * @brief Member access to the \c (key, value) entry.
+   * @brief Replaces the contents with those of \p other (copy-and-swap).
    *
-   * @return A pointer to the entry in the current slot.
+   * @param other Map to take the state of, copied or moved in by the caller.
    *
-   * @pre The iterator is dereferenceable (not \c end()).
-   * @post None.
+   * @return \c *this.
+   *
+   * @pre None.
+   * @post This map holds what \p other held; a moved-from source is empty.
    */
-  [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
-    return std::addressof(*m_current->entry);
-  }
-
-  /**
-   * @brief Advances to the next occupied slot.
-   *
-   * @return A reference to this iterator after advancing.
-   *
-   * @pre The iterator is dereferenceable (not \c end()).
-   * @post The iterator refers to the next occupied slot or to \c end().
-   */
-  constexpr auto operator++() noexcept -> basic_iterator& {
-    ++m_current;
-    advance_to_occupied();
+  auto operator=(flat_hash_map other) noexcept -> flat_hash_map& {
+    swap(other);
     return *this;
   }
 
   /**
-   * @brief Advances to the next occupied slot, returning the prior position.
-   *
-   * @return A copy of the iterator before it advanced.
-   *
-   * @pre The iterator is dereferenceable (not \c end()).
-   * @post The iterator refers to the next occupied slot or to \c end().
-   */
-  constexpr auto operator++(int) noexcept -> basic_iterator {
-    auto const copy{*this};
-    ++*this;
-    return copy;
-  }
-
-  /**
-   * @brief Whether \p a and \p b refer to the same slot.
-   *
-   * @param a First iterator.
-   * @param b Second iterator.
-   *
-   * @return \c true when both point at the same slot.
+   * @brief Destroys every entry and releases the table.
    *
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(basic_iterator const& a, basic_iterator const& b) noexcept -> bool {
-    return a.m_current == b.m_current;
+  ~flat_hash_map() = default;
+
+  /**
+   * @brief Number of entries.
+   *
+   * @return The entry count.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto size() const noexcept -> size_type {
+    return m_size;
   }
 
-  template <bool>
-  friend class basic_iterator;
-};
-
-public:
-using iterator = basic_iterator<false>;
-using const_iterator = basic_iterator<true>;
-
-/**
- * @brief Constructs an empty map with no allocated storage.
- *
- * @pre None.
- * @post \c empty() is \c true and \c capacity() is zero.
- */
-flat_hash_map() noexcept = default;
-
-/**
- * @brief Constructs an empty map sized for \p expected_entries.
- *
- * @param expected_entries Entries to size the table for before the first
- *                         rehash.
- *
- * @pre None.
- * @post \c empty() is \c true and \c capacity() admits at least
- *       \p expected_entries entries without rehashing.
- */
-explicit flat_hash_map(size_type const expected_entries) noexcept {
-  if (expected_entries > 0) {
-    rehash(next_pow2(expected_entries * 8 / 7 + 1));
+  /**
+   * @brief Reports whether the map holds no entries.
+   *
+   * @return \c true when \c size() is zero.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto empty() const noexcept -> bool {
+    return m_size == 0;
   }
-}
 
-/**
- * @brief Copies \p other's entries, hasher, and predicate.
- *
- * @param other Map to copy.
- *
- * @pre None.
- * @post This map equals \p other and has the same capacity.
- */
-flat_hash_map(flat_hash_map const& other) = default;
-
-/**
- * @brief Takes \p other's table, leaving \p other empty.
- *
- * Written out rather than defaulted: a defaulted move would move the slot
- * vector but copy the counters, leaving \p other reporting its old size over
- * an empty table.
- *
- * @param other Map to move from.
- *
- * @pre None.
- * @post This map holds \p other's former entries; \p other is empty, with no
- *       allocated storage and a default-constructed hasher and predicate.
- */
-flat_hash_map(flat_hash_map&& other) noexcept {
-  swap(other);
-}
-
-/**
- * @brief Replaces the contents with those of \p other (copy-and-swap).
- *
- * @param other Map to take the state of, copied or moved in by the caller.
- *
- * @return \c *this.
- *
- * @pre None.
- * @post This map holds what \p other held; a moved-from source is empty.
- */
-auto operator=(flat_hash_map other) noexcept -> flat_hash_map& {
-  swap(other);
-  return *this;
-}
-
-/**
- * @brief Destroys every entry and releases the table.
- *
- * @pre None.
- * @post None.
- */
-~flat_hash_map() = default;
-
-/**
- * @brief Number of entries.
- *
- * @return The entry count.
- *
- * @pre None.
- * @post None.
- */
-[[nodiscard]] constexpr auto size() const noexcept -> size_type {
-  return m_size;
-}
-
-/**
- * @brief Reports whether the map holds no entries.
- *
- * @return \c true when \c size() is zero.
- *
- * @pre None.
- * @post None.
- */
-[[nodiscard]] constexpr auto empty() const noexcept -> bool {
-  return m_size == 0;
-}
-
-/**
- * @brief Number of slots before the next rehash.
- *
- * @return The slot count, a power of two or zero.
- *
- * @pre None.
- * @post None.
- */
-[[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
-  return m_slots.size();
-}
-
-/**
- * @brief The largest number of slots the map can hold.
- *
- * @return The maximum slot count.
- *
- * @pre None.
- * @post None.
- */
-[[nodiscard]] constexpr auto max_size() const noexcept -> size_type {
-  return m_slots.max_size();
-}
-
-/**
- * @brief Ratio of live entries to slots.
- *
- * @return The load factor in \c [0, 1), or zero when unallocated.
- *
- * @pre None.
- * @post None.
- */
-[[nodiscard]] constexpr auto load_factor() const noexcept -> double {
-  return m_slots.empty() ? 0.0 : static_cast<double>(m_size) / static_cast<double>(m_slots.size());
-}
-
-/**
- * @brief Reserves storage for at least \p n entries.
- *
- * Tombstones left by erasures count toward the rehash trigger, so a table with
- * enough slots but too many tombstones is rebuilt at the same capacity; either
- * way, inserting until the map holds \p n entries then rehashes nothing.
- *
- * @param n Minimum entry capacity to ensure.
- *
- * @pre None.
- * @post The map holds up to \p n entries without a rehash; a rehash here, if
- *       triggered, invalidates iterators, pointers, and references.
- */
-auto reserve(size_type const n) noexcept -> void {
-  if (n == 0) {
-    return;
+  /**
+   * @brief Number of slots before the next rehash.
+   *
+   * @return The slot count, a power of two or zero.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
+    return m_slots.size();
   }
-  auto const needed{next_pow2(n * 8 / 7 + 1)};
-  if (needed > m_slots.size()) {
-    rehash(needed);
-  } else if (n + m_tombstones > load_threshold()) {
-    rehash(m_slots.size());
+
+  /**
+   * @brief The largest number of slots the map can hold.
+   *
+   * @return The maximum slot count.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto max_size() const noexcept -> size_type {
+    return m_slots.max_size();
   }
-}
 
-/**
- * @brief Removes every entry; slot capacity is retained.
- *
- * @pre None.
- * @post \c empty() is \c true.
- *
- * @complexity \c O(capacity).
- */
-auto clear() noexcept -> void {
-  for (auto& current : m_slots) {
-    current.state = slot_state::empty;
-    current.entry.reset();
+  /**
+   * @brief Ratio of live entries to slots.
+   *
+   * @return The load factor in \c [0, 1), or zero when unallocated.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto load_factor() const noexcept -> double {
+    return m_slots.empty() ? 0.0
+                           : static_cast<double>(m_size) / static_cast<double>(m_slots.size());
   }
-  m_size = 0;
-  m_tombstones = 0;
-}
 
-/**
- * @brief Releases slot capacity not needed for the current entries.
- *
- * @pre None.
- * @post \c size() is unchanged and tombstones are cleared; iterators,
- *       pointers, and references are invalidated.
- */
-auto shrink_to_fit() noexcept -> void {
-  if (m_size == 0) {
-    m_slots.clear();
-    m_slots.shrink_to_fit();
-    return;
-  }
-  auto const target{next_pow2(m_size * 8 / 7 + 1)};
-  // Rehash to shrink, but also when only tombstones remain at the same target
-  // capacity, so the @post that tombstones are cleared holds on every path.
-  if (target < m_slots.size() || m_tombstones > 0) {
-    rehash(target);
-  }
-}
-
-/**
- * @brief Swaps contents with \p other.
- *
- * @param other Map to exchange state with.
- *
- * @pre None.
- * @post This map and \p other have exchanged entries, hashers, and predicates.
- *
- * @complexity \c O(1).
- */
-auto swap(flat_hash_map& other) noexcept -> void {
-  using std::swap;
-  m_slots.swap(other.m_slots);
-  swap(m_size, other.m_size);
-  swap(m_tombstones, other.m_tombstones);
-  swap(m_hash, other.m_hash);
-  swap(m_eq, other.m_eq);
-}
-
-/**
- * @brief Swaps the contents of \p a and \p b.
- *
- * @param a First map.
- * @param b Second map.
- *
- * @pre None.
- * @post \p a and \p b have exchanged state.
- */
-friend auto swap(flat_hash_map& a, flat_hash_map& b) noexcept -> void {
-  a.swap(b);
-}
-
-/**
- * @brief Inserts \p key mapping to \p value, leaving an existing key
- *        unchanged.
- *
- * @param key Key to insert.
- * @param value Value to store on a fresh insertion.
- *
- * @return \c true on a fresh insertion, \c false when \p key was already
- *         present (its value is left as is).
- *
- * @pre None.
- * @post \p key is present; on a fresh insertion \c size() grew by one and a
- *       rehash may have invalidated iterators and references.
- *
- * @complexity Amortised \c O(1).
- */
-auto insert(Key key, Value value) noexcept -> bool {
-  // Probe before reserving: an insert of an already-present key must not grow
-  // the table, so a false return never invalidates a reference to any element.
-  if (find_slot(key) != nullptr) {
-    return false;
-  }
-  ensure_capacity_for(m_size + 1);
-  auto const h{m_hash(key)};
-  return place(h, std::move(key), std::move(value), false);
-}
-
-/**
- * @brief Inserts \p key mapping to \p value, overwriting an existing value.
- *
- * @param key Key to insert or update.
- * @param value Value to store.
- *
- * @return \c true on a fresh insertion, \c false when an existing value was
- *         overwritten.
- *
- * @pre None.
- * @post \p key maps to \p value; on a fresh insertion \c size() grew by one.
- *
- * @complexity Amortised \c O(1).
- */
-auto insert_or_assign(Key key, Value value) noexcept -> bool {
-  // Overwrite an existing value in place without reserving, so an assignment
-  // never triggers a rehash that would invalidate references to other entries.
-  if (auto* const existing{find(key)}) {
-    *existing = std::move(value);
-    return false;
-  }
-  ensure_capacity_for(m_size + 1);
-  auto const h{m_hash(key)};
-  return place(h, std::move(key), std::move(value), true);
-}
-
-/**
- * @brief Constructs the value in place for \p key, leaving an existing key
- *        unchanged.
- *
- * @tparam Args Constructor argument types for \p Value.
- * @param key Key to insert.
- * @param args Arguments forwarded to \p Value's constructor.
- *
- * @return \c true on a fresh insertion, \c false when \p key was already
- *         present.
- *
- * @pre None.
- * @post \p key is present; on a fresh insertion \c size() grew by one.
- *
- * @complexity Amortised \c O(1).
- */
-template <typename... Args>
-  requires std::constructible_from<Value, Args...>
-auto emplace(Key key, Args&&... args) noexcept -> bool {
-  // Probe first: an existing key must neither construct a discarded value nor
-  // trigger a rehash (see insert). The value is built only on a real insertion.
-  if (find_slot(key) != nullptr) {
-    return false;
-  }
-  ensure_capacity_for(m_size + 1);
-  auto const h{m_hash(key)};
-  return place(h, std::move(key), Value(std::forward<Args>(args)...), false);
-}
-
-/**
- * @brief Inserts an entry for \p key with a value built from \p args, only when
- *        \p key is absent.
- *
- * The value is constructed only on a fresh insertion, so an existing entry is
- * left untouched, its \p args unused, and no rehash is triggered.
- *
- * @tparam Args Constructor argument types for \p Value.
- * @param key Key to insert under.
- * @param args Arguments forwarded to \p Value's constructor on insertion.
- *
- * @return \c true on a fresh insertion, \c false when \p key was already
- *         present.
- *
- * @pre None.
- * @post \p key is present; on a fresh insertion \c size() grew by one and a
- *       rehash may have invalidated iterators and references.
- *
- * @complexity Amortised \c O(1).
- */
-template <typename... Args>
-  requires std::constructible_from<Value, Args...>
-auto try_emplace(Key key, Args&&... args) noexcept -> bool {
-  if (find_slot(key) != nullptr) {
-    return false;
-  }
-  ensure_capacity_for(m_size + 1);
-  auto const h{m_hash(key)};
-  return place(h, std::move(key), Value(std::forward<Args>(args)...), false);
-}
-
-/**
- * @brief Removes the entry for \p key.
- *
- * @param key Key to remove.
- *
- * @return \c true on a removal, \c false when \p key was absent.
- *
- * @pre None.
- * @post \p key is absent; on a removal \c size() shrank by one and a tombstone
- *       is left in place.
- *
- * @complexity Amortised \c O(1).
- */
-auto erase(Key const& key) noexcept -> bool {
-  return erase_slot(find_slot(key));
-}
-
-/**
- * @brief Heterogeneous erase of the entry for a probe \p key.
- *
- * @tparam K Probe type hashable and comparable through the transparent
- *           functors.
- * @param key Key to remove.
- *
- * @return \c true on a removal, \c false when \p key was absent.
- *
- * @pre None.
- * @post \p key is absent; on a removal \c size() shrank by one and a tombstone
- *       is left in place.
- *
- * @complexity Amortised \c O(1).
- */
-template <typename K>
-  requires transparent_functors<Hash, KeyEq>
-auto erase(K const& key) noexcept -> bool {
-  return erase_slot(probe_slot(key));
-}
-
-/**
- * @brief Pointer to the value for \p key, or \c nullptr on a miss.
- *
- * @param key Key to look up.
- *
- * @return A pointer to the mapped value, or \c nullptr; invalidated by a
- *         rehash.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-[[nodiscard]] auto find(Key const& key) noexcept -> Value* {
-  auto const* const found{find_slot(key)};
-  if (found == nullptr) {
-    return nullptr;
-  }
-  // find_slot is const; re-index the mutable slot vector for a mutable value.
-  return std::addressof(m_slots[static_cast<size_type>(found - m_slots.data())].entry->second);
-}
-
-/**
- * @brief Const pointer to the value for \p key, or \c nullptr on a miss.
- *
- * @param key Key to look up.
- *
- * @return A const pointer to the mapped value, or \c nullptr; invalidated by a
- *         rehash.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-[[nodiscard]] auto find(Key const& key) const noexcept -> Value const* {
-  auto const* const found{find_slot(key)};
-  return found == nullptr ? nullptr : std::addressof(found->entry->second);
-}
-
-/**
- * @brief Reports whether \p key is present.
- *
- * @param key Key to test.
- *
- * @return \c true when \p key is present.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-[[nodiscard]] auto contains(Key const& key) const noexcept -> bool {
-  return find_slot(key) != nullptr;
-}
-
-/**
- * @brief Number of entries for \p key, always \c 0 or \c 1.
- *
- * @param key Key to count.
- *
- * @return \c 1 when \p key is present, otherwise \c 0.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-[[nodiscard]] auto count(Key const& key) const noexcept -> size_type {
-  return contains(key) ? size_type{1} : size_type{0};
-}
-
-/**
- * @brief Heterogeneous lookup: pointer to the value for a probe \p key.
- *
- * Enabled only when both \c Hash and \c KeyEq are transparent (each exposes
- * \c is_transparent), so a compatible probe type (for example a
- * \c std::string_view against \c std::string keys) is hashed and compared
- * without constructing a \c Key.
- *
- * @tparam K Probe type hashable and comparable through the transparent
- *           functors.
- * @param key Key to look up.
- *
- * @return A pointer to the mapped value, or \c nullptr; invalidated by a
- *         rehash.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-template <typename K>
-  requires transparent_functors<Hash, KeyEq>
-[[nodiscard]] auto find(K const& key) noexcept -> Value* {
-  auto const* const found{probe_slot(key)};
-  if (found == nullptr) {
-    return nullptr;
-  }
-  return std::addressof(m_slots[static_cast<size_type>(found - m_slots.data())].entry->second);
-}
-
-/**
- * @brief Heterogeneous lookup for a probe \p key, returning a const pointer.
- *
- * @tparam K Probe type hashable and comparable through the transparent
- *           functors.
- * @param key Key to look up.
- *
- * @return Pointer to the mapped value, or \c nullptr when \p key is absent.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-template <typename K>
-  requires transparent_functors<Hash, KeyEq>
-[[nodiscard]] auto find(K const& key) const noexcept -> Value const* {
-  auto const* const found{probe_slot(key)};
-  return found == nullptr ? nullptr : std::addressof(found->entry->second);
-}
-
-/**
- * @brief Heterogeneous membership test for a probe \p key.
- *
- * @tparam K Probe type hashable and comparable through the transparent
- *           functors.
- * @param key Key to test.
- *
- * @return \c true when \p key is present.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-template <typename K>
-  requires transparent_functors<Hash, KeyEq>
-[[nodiscard]] auto contains(K const& key) const noexcept -> bool {
-  return probe_slot(key) != nullptr;
-}
-
-/**
- * @brief Heterogeneous count for a probe \p key, always \c 0 or \c 1.
- *
- * @tparam K Probe type hashable and comparable through the transparent
- *           functors.
- * @param key Key to count.
- *
- * @return \c 1 when \p key is present, otherwise \c 0.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-template <typename K>
-  requires transparent_functors<Hash, KeyEq>
-[[nodiscard]] auto count(K const& key) const noexcept -> size_type {
-  return contains(key) ? size_type{1} : size_type{0};
-}
-
-/**
- * @brief Checked access to the value for \p key (an alias for \c find).
- *
- * @param key Key to look up.
- *
- * @return A pointer to the mapped value, or \c nullptr on a miss.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-[[nodiscard]] auto at(Key const& key) noexcept -> Value* {
-  return find(key);
-}
-
-/**
- * @brief Const checked access to the value for \p key (an alias for \c find).
- *
- * @param key Key to look up.
- *
- * @return A const pointer to the mapped value, or \c nullptr on a miss.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-[[nodiscard]] auto at(Key const& key) const noexcept -> Value const* {
-  return find(key);
-}
-
-/**
- * @brief Heterogeneous checked access for a probe \p key (an alias for
- *        \c find).
- *
- * @tparam K Probe type hashable and comparable through the transparent
- *           functors.
- * @param key Key to look up.
- *
- * @return A pointer to the mapped value, or \c nullptr on a miss.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-template <typename K>
-  requires transparent_functors<Hash, KeyEq>
-[[nodiscard]] auto at(K const& key) noexcept -> Value* {
-  return find(key);
-}
-
-/**
- * @brief Heterogeneous \c at for a probe \p key, returning a const pointer.
- *
- * @tparam K Probe type hashable and comparable through the transparent
- *           functors.
- * @param key Key to look up.
- *
- * @return Pointer to the mapped value, or \c nullptr when \p key is absent.
- *
- * @pre None.
- * @post None.
- *
- * @complexity Amortised \c O(1).
- */
-template <typename K>
-  requires transparent_functors<Hash, KeyEq>
-[[nodiscard]] auto at(K const& key) const noexcept -> Value const* {
-  return find(key);
-}
-
-/**
- * @brief Accesses the value for \p key, inserting a default if absent.
- *
- * Available only for a copyable \c Key: the key is copied into the new entry so
- * it can still locate that entry afterwards.
- *
- * @param key Key whose value to access or create.
- *
- * @return A mutable reference to the value mapped to \p key.
- *
- * @pre None.
- * @post An entry for \p key exists; on insertion \c size() grew by one and a
- *       rehash may have invalidated other iterators and references.
- *
- * @complexity Amortised \c O(1).
- */
-auto operator[](Key key) noexcept -> Value&
-  requires std::default_initializable<Value> && std::copy_constructible<Key>
-{
-  if (auto* const existing{find(key)}) {
-    return *existing;
-  }
-  // Insert a copy so key stays valid for the lookup of the new slot below.
-  nexenne::utility::discard(insert(key, Value{}));
-  return *find(key);
-}
-
-/**
- * @brief Iterator to the first occupied slot.
- *
- * @return An iterator to a live entry, or \c end(); the order is unspecified.
- *
- * @pre None.
- * @post None.
- */
-[[nodiscard]] auto begin() noexcept -> iterator {
-  return iterator{m_slots.data(), m_slots.data() + m_slots.size()};
-}
-
-/**
- * @brief Iterator one past the last occupied slot.
- *
- * @return A past-the-end iterator.
- *
- * @pre None.
- * @post None.
- */
-[[nodiscard]] auto end() noexcept -> iterator {
-  return iterator{m_slots.data() + m_slots.size(), m_slots.data() + m_slots.size()};
-}
-
-/// @copydoc begin()
-[[nodiscard]] auto begin() const noexcept -> const_iterator {
-  return const_iterator{m_slots.data(), m_slots.data() + m_slots.size()};
-}
-
-/// @copydoc end()
-[[nodiscard]] auto end() const noexcept -> const_iterator {
-  return const_iterator{m_slots.data() + m_slots.size(), m_slots.data() + m_slots.size()};
-}
-
-/// @copydoc begin()
-[[nodiscard]] auto cbegin() const noexcept -> const_iterator {
-  return begin();
-}
-
-/// @copydoc end()
-[[nodiscard]] auto cend() const noexcept -> const_iterator {
-  return end();
-}
-
-/**
- * @brief The stored hash functor.
- *
- * @return A const reference to the hasher.
- *
- * @pre None.
- * @post None.
- */
-[[nodiscard]] constexpr auto hash_function() const noexcept -> Hash const& {
-  return m_hash;
-}
-
-/**
- * @brief The stored key-equality predicate.
- *
- * @return A const reference to the predicate.
- *
- * @pre None.
- * @post None.
- */
-[[nodiscard]] constexpr auto key_eq() const noexcept -> KeyEq const& {
-  return m_eq;
-}
-
-/**
- * @brief Order-independent equality over the entry sets.
- *
- * @param a First map.
- * @param b Second map.
- *
- * @return \c true when both hold exactly the same key-value entries.
- *
- * @pre None.
- * @post None.
- *
- * @complexity \c O(n) average.
- */
-[[nodiscard]] friend auto operator==(flat_hash_map const& a, flat_hash_map const& b) noexcept
-  -> bool
-  requires std::equality_comparable<Value>
-{
-  if (a.m_size != b.m_size) {
-    return false;
-  }
-  for (auto const& [key, value] : a) {
-    auto const* const other{b.find(key)};
-    if (other == nullptr || !(*other == value)) {
-      return false;
+  /**
+   * @brief Reserves storage for at least \p n entries.
+   *
+   * Tombstones left by erasures count toward the rehash trigger, so a table with
+   * enough slots but too many tombstones is rebuilt at the same capacity; either
+   * way, inserting until the map holds \p n entries then rehashes nothing.
+   *
+   * @param n Minimum entry capacity to ensure.
+   *
+   * @pre None.
+   * @post The map holds up to \p n entries without a rehash; a rehash here, if
+   *       triggered, invalidates iterators, pointers, and references.
+   */
+  auto reserve(size_type const n) noexcept -> void {
+    if (n == 0) {
+      return;
+    }
+    auto const needed{next_pow2(n * 8 / 7 + 1)};
+    if (needed > m_slots.size()) {
+      rehash(needed);
+    } else if (n + m_tombstones > load_threshold()) {
+      rehash(m_slots.size());
     }
   }
-  return true;
-}
-}
-;
+
+  /**
+   * @brief Removes every entry; slot capacity is retained.
+   *
+   * @pre None.
+   * @post \c empty() is \c true.
+   *
+   * @complexity \c O(capacity).
+   */
+  auto clear() noexcept -> void {
+    for (auto& current : m_slots) {
+      current.state = slot_state::empty;
+      current.entry.reset();
+    }
+    m_size = 0;
+    m_tombstones = 0;
+  }
+
+  /**
+   * @brief Releases slot capacity not needed for the current entries.
+   *
+   * @pre None.
+   * @post \c size() is unchanged and tombstones are cleared; iterators,
+   *       pointers, and references are invalidated.
+   */
+  auto shrink_to_fit() noexcept -> void {
+    if (m_size == 0) {
+      m_slots.clear();
+      m_slots.shrink_to_fit();
+      return;
+    }
+    auto const target{next_pow2(m_size * 8 / 7 + 1)};
+    // Rehash to shrink, but also when only tombstones remain at the same target
+    // capacity, so the @post that tombstones are cleared holds on every path.
+    if (target < m_slots.size() || m_tombstones > 0) {
+      rehash(target);
+    }
+  }
+
+  /**
+   * @brief Swaps contents with \p other.
+   *
+   * @param other Map to exchange state with.
+   *
+   * @pre None.
+   * @post This map and \p other have exchanged entries, hashers, and predicates.
+   *
+   * @complexity \c O(1).
+   */
+  auto swap(flat_hash_map& other) noexcept -> void {
+    using std::swap;
+    m_slots.swap(other.m_slots);
+    swap(m_size, other.m_size);
+    swap(m_tombstones, other.m_tombstones);
+    swap(m_hash, other.m_hash);
+    swap(m_eq, other.m_eq);
+  }
+
+  /**
+   * @brief Swaps the contents of \p a and \p b.
+   *
+   * @param a First map.
+   * @param b Second map.
+   *
+   * @pre None.
+   * @post \p a and \p b have exchanged state.
+   */
+  friend auto swap(flat_hash_map& a, flat_hash_map& b) noexcept -> void {
+    a.swap(b);
+  }
+
+  /**
+   * @brief Inserts \p key mapping to \p value, leaving an existing key
+   *        unchanged.
+   *
+   * @param key Key to insert.
+   * @param value Value to store on a fresh insertion.
+   *
+   * @return \c true on a fresh insertion, \c false when \p key was already
+   *         present (its value is left as is).
+   *
+   * @pre None.
+   * @post \p key is present; on a fresh insertion \c size() grew by one and a
+   *       rehash may have invalidated iterators and references.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  auto insert(Key key, Value value) noexcept -> bool {
+    if (find_slot(key) != nullptr) {
+      return false;
+    }
+    ensure_capacity_for(m_size + 1);
+    auto const h{m_hash(key)};
+    return place(h, std::move(key), std::move(value), false);
+  }
+
+  /**
+   * @brief Inserts \p key mapping to \p value, overwriting an existing value.
+   *
+   * @param key Key to insert or update.
+   * @param value Value to store.
+   *
+   * @return \c true on a fresh insertion, \c false when an existing value was
+   *         overwritten.
+   *
+   * @pre None.
+   * @post \p key maps to \p value; on a fresh insertion \c size() grew by one.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  auto insert_or_assign(Key key, Value value) noexcept -> bool {
+    if (auto* const existing{find(key)}) {
+      *existing = std::move(value);
+      return false;
+    }
+    ensure_capacity_for(m_size + 1);
+    auto const h{m_hash(key)};
+    return place(h, std::move(key), std::move(value), true);
+  }
+
+  /**
+   * @brief Constructs the value in place for \p key, leaving an existing key
+   *        unchanged.
+   *
+   * @tparam Args Constructor argument types for \p Value.
+   * @param key Key to insert.
+   * @param args Arguments forwarded to \p Value's constructor.
+   *
+   * @return \c true on a fresh insertion, \c false when \p key was already
+   *         present.
+   *
+   * @pre None.
+   * @post \p key is present; on a fresh insertion \c size() grew by one.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename... Args>
+    requires std::constructible_from<Value, Args...>
+  auto emplace(Key key, Args&&... args) noexcept -> bool {
+    if (find_slot(key) != nullptr) {
+      return false;
+    }
+    ensure_capacity_for(m_size + 1);
+    auto const h{m_hash(key)};
+    return place(h, std::move(key), Value(std::forward<Args>(args)...), false);
+  }
+
+  /**
+   * @brief Inserts an entry for \p key with a value built from \p args, only when
+   *        \p key is absent.
+   *
+   * The value is constructed only on a fresh insertion, so an existing entry is
+   * left untouched, its \p args unused, and no rehash is triggered.
+   *
+   * @tparam Args Constructor argument types for \p Value.
+   * @param key Key to insert under.
+   * @param args Arguments forwarded to \p Value's constructor on insertion.
+   *
+   * @return \c true on a fresh insertion, \c false when \p key was already
+   *         present.
+   *
+   * @pre None.
+   * @post \p key is present; on a fresh insertion \c size() grew by one and a
+   *       rehash may have invalidated iterators and references.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename... Args>
+    requires std::constructible_from<Value, Args...>
+  auto try_emplace(Key key, Args&&... args) noexcept -> bool {
+    if (find_slot(key) != nullptr) {
+      return false;
+    }
+    ensure_capacity_for(m_size + 1);
+    auto const h{m_hash(key)};
+    return place(h, std::move(key), Value(std::forward<Args>(args)...), false);
+  }
+
+  /**
+   * @brief Removes the entry for \p key.
+   *
+   * @param key Key to remove.
+   *
+   * @return \c true on a removal, \c false when \p key was absent.
+   *
+   * @pre None.
+   * @post \p key is absent; on a removal \c size() shrank by one and a tombstone
+   *       is left in place.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  auto erase(Key const& key) noexcept -> bool {
+    return erase_slot(find_slot(key));
+  }
+
+  /**
+   * @brief Heterogeneous erase of the entry for a probe \p key.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to remove.
+   *
+   * @return \c true on a removal, \c false when \p key was absent.
+   *
+   * @pre None.
+   * @post \p key is absent; on a removal \c size() shrank by one and a tombstone
+   *       is left in place.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires detail::transparent_hash_pair<Hash, KeyEq>
+  auto erase(K const& key) noexcept -> bool {
+    return erase_slot(probe_slot(key));
+  }
+
+  /**
+   * @brief Pointer to the value for \p key, or \c nullptr on a miss.
+   *
+   * @param key Key to look up.
+   *
+   * @return A pointer to the mapped value, or \c nullptr; invalidated by a
+   *         rehash.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  [[nodiscard]] auto find(Key const& key) noexcept -> Value* {
+    auto const* const found{find_slot(key)};
+    if (found == nullptr) {
+      return nullptr;
+    }
+    return std::addressof(m_slots[static_cast<size_type>(found - m_slots.data())].entry->second);
+  }
+
+  /**
+   * @brief Const pointer to the value for \p key, or \c nullptr on a miss.
+   *
+   * @param key Key to look up.
+   *
+   * @return A const pointer to the mapped value, or \c nullptr; invalidated by a
+   *         rehash.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  [[nodiscard]] auto find(Key const& key) const noexcept -> Value const* {
+    auto const* const found{find_slot(key)};
+    return found == nullptr ? nullptr : std::addressof(found->entry->second);
+  }
+
+  /**
+   * @brief Reports whether \p key is present.
+   *
+   * @param key Key to test.
+   *
+   * @return \c true when \p key is present.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  [[nodiscard]] auto contains(Key const& key) const noexcept -> bool {
+    return find_slot(key) != nullptr;
+  }
+
+  /**
+   * @brief Number of entries for \p key, always \c 0 or \c 1.
+   *
+   * @param key Key to count.
+   *
+   * @return \c 1 when \p key is present, otherwise \c 0.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  [[nodiscard]] auto count(Key const& key) const noexcept -> size_type {
+    return contains(key) ? size_type{1} : size_type{0};
+  }
+
+  /**
+   * @brief Heterogeneous lookup: pointer to the value for a probe \p key.
+   *
+   * Enabled only when both \c Hash and \c KeyEq are transparent (each exposes
+   * \c is_transparent), so a compatible probe type (for example a
+   * \c std::string_view against \c std::string keys) is hashed and compared
+   * without constructing a \c Key.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to look up.
+   *
+   * @return A pointer to the mapped value, or \c nullptr; invalidated by a
+   *         rehash.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires detail::transparent_hash_pair<Hash, KeyEq>
+  [[nodiscard]] auto find(K const& key) noexcept -> Value* {
+    auto const* const found{probe_slot(key)};
+    if (found == nullptr) {
+      return nullptr;
+    }
+    return std::addressof(m_slots[static_cast<size_type>(found - m_slots.data())].entry->second);
+  }
+
+  /**
+   * @brief Heterogeneous lookup for a probe \p key, returning a const pointer.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to look up.
+   *
+   * @return Pointer to the mapped value, or \c nullptr when \p key is absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires detail::transparent_hash_pair<Hash, KeyEq>
+  [[nodiscard]] auto find(K const& key) const noexcept -> Value const* {
+    auto const* const found{probe_slot(key)};
+    return found == nullptr ? nullptr : std::addressof(found->entry->second);
+  }
+
+  /**
+   * @brief Heterogeneous membership test for a probe \p key.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to test.
+   *
+   * @return \c true when \p key is present.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires detail::transparent_hash_pair<Hash, KeyEq>
+  [[nodiscard]] auto contains(K const& key) const noexcept -> bool {
+    return probe_slot(key) != nullptr;
+  }
+
+  /**
+   * @brief Heterogeneous count for a probe \p key, always \c 0 or \c 1.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to count.
+   *
+   * @return \c 1 when \p key is present, otherwise \c 0.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires detail::transparent_hash_pair<Hash, KeyEq>
+  [[nodiscard]] auto count(K const& key) const noexcept -> size_type {
+    return contains(key) ? size_type{1} : size_type{0};
+  }
+
+  /**
+   * @brief Checked access to the value for \p key (an alias for \c find).
+   *
+   * @param key Key to look up.
+   *
+   * @return A pointer to the mapped value, or \c nullptr on a miss.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  [[nodiscard]] auto at(Key const& key) noexcept -> Value* {
+    return find(key);
+  }
+
+  /**
+   * @brief Const checked access to the value for \p key (an alias for \c find).
+   *
+   * @param key Key to look up.
+   *
+   * @return A const pointer to the mapped value, or \c nullptr on a miss.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  [[nodiscard]] auto at(Key const& key) const noexcept -> Value const* {
+    return find(key);
+  }
+
+  /**
+   * @brief Heterogeneous checked access for a probe \p key (an alias for
+   *        \c find).
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to look up.
+   *
+   * @return A pointer to the mapped value, or \c nullptr on a miss.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires detail::transparent_hash_pair<Hash, KeyEq>
+  [[nodiscard]] auto at(K const& key) noexcept -> Value* {
+    return find(key);
+  }
+
+  /**
+   * @brief Heterogeneous \c at for a probe \p key, returning a const pointer.
+   *
+   * @tparam K Probe type hashable and comparable through the transparent
+   *           functors.
+   * @param key Key to look up.
+   *
+   * @return Pointer to the mapped value, or \c nullptr when \p key is absent.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  template <typename K>
+    requires detail::transparent_hash_pair<Hash, KeyEq>
+  [[nodiscard]] auto at(K const& key) const noexcept -> Value const* {
+    return find(key);
+  }
+
+  /**
+   * @brief Accesses the value for \p key, inserting a default if absent.
+   *
+   * Available only for a copyable \c Key: the key is copied into the new entry so
+   * it can still locate that entry afterwards.
+   *
+   * @param key Key whose value to access or create.
+   *
+   * @return A mutable reference to the value mapped to \p key.
+   *
+   * @pre None.
+   * @post An entry for \p key exists; on insertion \c size() grew by one and a
+   *       rehash may have invalidated other iterators and references.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  auto operator[](Key key) noexcept -> Value&
+    requires std::default_initializable<Value> && std::copy_constructible<Key>
+  {
+    if (auto* const existing{find(key)}) {
+      return *existing;
+    }
+    // Insert a copy so key stays valid for the lookup of the new slot below.
+    nexenne::utility::discard(insert(key, Value{}));
+    return *find(key);
+  }
+
+  /**
+   * @brief Iterator to the first occupied slot.
+   *
+   * @return An iterator to a live entry, or \c end(); the order is unspecified.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto begin() noexcept -> iterator {
+    return iterator{m_slots.data(), m_slots.data() + m_slots.size()};
+  }
+
+  /**
+   * @brief Iterator one past the last occupied slot.
+   *
+   * @return A past-the-end iterator.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto end() noexcept -> iterator {
+    return iterator{m_slots.data() + m_slots.size(), m_slots.data() + m_slots.size()};
+  }
+
+  /// @copydoc begin()
+  [[nodiscard]] auto begin() const noexcept -> const_iterator {
+    return const_iterator{m_slots.data(), m_slots.data() + m_slots.size()};
+  }
+
+  /// @copydoc end()
+  [[nodiscard]] auto end() const noexcept -> const_iterator {
+    return const_iterator{m_slots.data() + m_slots.size(), m_slots.data() + m_slots.size()};
+  }
+
+  /// @copydoc begin()
+  [[nodiscard]] auto cbegin() const noexcept -> const_iterator {
+    return begin();
+  }
+
+  /// @copydoc end()
+  [[nodiscard]] auto cend() const noexcept -> const_iterator {
+    return end();
+  }
+
+  /**
+   * @brief The stored hash functor.
+   *
+   * @return A const reference to the hasher.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto hash_function() const noexcept -> Hash const& {
+    return m_hash;
+  }
+
+  /**
+   * @brief The stored key-equality predicate.
+   *
+   * @return A const reference to the predicate.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto key_eq() const noexcept -> KeyEq const& {
+    return m_eq;
+  }
+
+  /**
+   * @brief Order-independent equality over the entry sets.
+   *
+   * @param a First map.
+   * @param b Second map.
+   *
+   * @return \c true when both hold exactly the same key-value entries.
+   *
+   * @pre None.
+   * @post None.
+   *
+   * @complexity \c O(n) average.
+   */
+  [[nodiscard]] friend auto operator==(flat_hash_map const& a, flat_hash_map const& b) noexcept
+    -> bool
+    requires std::equality_comparable<Value>
+  {
+    if (a.m_size != b.m_size) {
+      return false;
+    }
+    for (auto const& [key, value] : a) {
+      auto const* const other{b.find(key)};
+      if (other == nullptr || !(*other == value)) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
 
 }  // namespace nexenne::container

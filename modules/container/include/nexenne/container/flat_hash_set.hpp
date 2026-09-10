@@ -320,10 +320,7 @@ public:
    * @complexity Amortised \c O(1).
    */
   template <typename K>
-    requires requires {
-      typename Hash::is_transparent;
-      typename KeyEq::is_transparent;
-    }
+    requires detail::transparent_hash_pair<Hash, KeyEq>
   [[nodiscard]] auto contains(K const& value) const noexcept -> bool {
     return m_map.contains(value);
   }
@@ -343,10 +340,7 @@ public:
    * @complexity Amortised \c O(1).
    */
   template <typename K>
-    requires requires {
-      typename Hash::is_transparent;
-      typename KeyEq::is_transparent;
-    }
+    requires detail::transparent_hash_pair<Hash, KeyEq>
   [[nodiscard]] auto count(K const& value) const noexcept -> size_type {
     return m_map.count(value);
   }
