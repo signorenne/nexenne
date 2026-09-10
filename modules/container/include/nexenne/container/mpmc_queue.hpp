@@ -124,11 +124,17 @@ private:
     std::atomic<std::size_t> sequence{};
     alignas(T) std::array<std::byte, sizeof(T)> storage{};
 
-    // The T is constructed in the byte array with std::construct_at, so access
-    // goes through std::launder: the storage bytes are not
-    // pointer-interconvertible with the T living inside them.
+    // Where the element lives, valid before any T exists there, which is what
+    // std::construct_at needs.
+    [[nodiscard]] auto address() noexcept -> T* {
+      return reinterpret_cast<T*>(storage.data());
+    }
+
+    // The element itself. The storage bytes are not pointer-interconvertible
+    // with the T constructed inside them, so access goes through std::launder,
+    // which is only valid once that T exists.
     [[nodiscard]] auto ptr() noexcept -> T* {
-      return std::launder(reinterpret_cast<T*>(storage.data()));
+      return std::launder(address());
     }
 
     [[nodiscard]] auto ptr() const noexcept -> T const* {
@@ -260,7 +266,7 @@ public:
       auto const diff{detail::mpmc_sequence_distance(seq, pos)};
       if (diff == 0) {
         if (m_enqueue_pos.compare_exchange_weak(pos, pos + 1, std::memory_order_relaxed)) {
-          std::construct_at(s.ptr(), std::forward<Args>(args)...);
+          std::construct_at(s.address(), std::forward<Args>(args)...);
           s.sequence.store(pos + 1, std::memory_order_release);
           return {};
         }

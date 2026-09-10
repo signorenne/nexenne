@@ -70,15 +70,17 @@ private:
   alignas(cache_line_size) std::atomic<size_type> m_head{0};  // consumer advances this
   alignas(cache_line_size) std::atomic<size_type> m_tail{0};  // producer advances this
 
-  // Elements are constructed in the byte array with std::construct_at, so access
-  // goes through std::launder: a std::byte array element is not
-  // pointer-interconvertible with the T living inside it.
-  [[nodiscard]] auto buffer() noexcept -> T* {
-    return std::launder(reinterpret_cast<T*>(m_storage.data()));
+  // Where slot i's element lives: plain address arithmetic over the bytes, valid
+  // before any T exists there, which is what std::construct_at needs.
+  [[nodiscard]] auto slot_address(size_type const i) noexcept -> T* {
+    return reinterpret_cast<T*>(m_storage.data() + (i * sizeof(T)));
   }
 
-  [[nodiscard]] auto buffer() const noexcept -> T const* {
-    return std::launder(reinterpret_cast<T const*>(m_storage.data()));
+  // The element living in slot i. A std::byte array element is not
+  // pointer-interconvertible with the T constructed inside it, so access goes
+  // through std::launder, which is only valid once that T exists.
+  [[nodiscard]] auto element(size_type const i) noexcept -> T* {
+    return std::launder(slot_address(i));
   }
 
   // Power-of-two N wraps with a mask (a single AND); any other N uses a modulo.
@@ -231,7 +233,7 @@ public:
     if (next_t == m_head.load(std::memory_order_acquire)) {
       return std::unexpected{container_error::full};
     }
-    std::construct_at(buffer() + t, std::forward<Args>(args)...);
+    std::construct_at(slot_address(t), std::forward<Args>(args)...);
     m_tail.store(next_t, std::memory_order_release);
     return {};
   }
@@ -253,8 +255,8 @@ public:
     if (h == m_tail.load(std::memory_order_acquire)) {
       return std::unexpected{container_error::empty};
     }
-    auto value{std::move(buffer()[h])};
-    std::destroy_at(buffer() + h);
+    auto value{std::move(*element(h))};
+    std::destroy_at(element(h));
     m_head.store(next(h), std::memory_order_release);
     return value;
   }
@@ -275,8 +277,8 @@ public:
     if (h == m_tail.load(std::memory_order_acquire)) {
       return std::nullopt;
     }
-    auto value{std::move(buffer()[h])};
-    std::destroy_at(buffer() + h);
+    auto value{std::move(*element(h))};
+    std::destroy_at(element(h));
     m_head.store(next(h), std::memory_order_release);
     return value;
   }
