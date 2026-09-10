@@ -30,6 +30,11 @@ static_assert(cn::detail::mpmc_sequence_distance(0, top) == 1);
 static_assert(cn::detail::mpmc_sequence_distance(top, 0) == -1);
 static_assert(cn::detail::mpmc_sequence_distance(7, 7) == 0);
 
+static_assert(cn::detail::mpmc_occupancy(2, top - 1, 8) == 4);
+static_assert(cn::detail::mpmc_occupancy(10, 7, 8) == 3);
+static_assert(cn::detail::mpmc_occupancy(7, 10, 8) == 0);
+static_assert(cn::detail::mpmc_occupancy(100, 0, 8) == 8);
+
 TEST_CASE("nexenne::container::mpmc_queue single-threaded fill, drain, full, empty") {
   cn::mpmc_queue<int, 4> q;
   CHECK(q.capacity() == 4);

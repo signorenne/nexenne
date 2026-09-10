@@ -29,6 +29,7 @@
 #include <concepts>
 #include <cstddef>
 #include <expected>
+#include <limits>
 #include <memory>
 #include <new>
 #include <optional>
@@ -63,6 +64,35 @@ namespace detail {
 [[nodiscard]] constexpr auto
 mpsc_sequence_distance(std::size_t const seq, std::size_t const pos) noexcept -> std::ptrdiff_t {
   return static_cast<std::ptrdiff_t>(seq - pos);
+}
+
+/**
+ * @brief Queue occupancy from the two unbounded counters.
+ *
+ * The counters wrap modulo \c 2^bits, so their difference is taken in
+ * \c std::size_t, which stays exact across the wrap; comparing them first
+ * would report an empty queue whenever the enqueue counter has wrapped and the
+ * dequeue counter has not. The two loads are not a snapshot: a dequeue counter
+ * read after it overtook the enqueue value shows as a huge difference and reads
+ * as empty, and anything above \p capacity is clamped to it.
+ *
+ * @param enqueued Enqueue counter.
+ * @param dequeued Dequeue counter.
+ * @param capacity Ring capacity.
+ *
+ * @return The element count, in \c [0, capacity].
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] constexpr auto mpsc_occupancy(
+  std::size_t const enqueued, std::size_t const dequeued, std::size_t const capacity
+) noexcept -> std::size_t {
+  auto const count{enqueued - dequeued};
+  if (count > std::numeric_limits<std::size_t>::max() / 2) {
+    return 0;
+  }
+  return count < capacity ? count : capacity;
 }
 
 /// @endcond
@@ -169,7 +199,7 @@ public:
   [[nodiscard]] auto size_approx() const noexcept -> size_type {
     auto const h{m_head.load(std::memory_order_acquire)};
     auto const t{m_tail.load(std::memory_order_acquire)};
-    return t >= h ? t - h : 0;
+    return detail::mpsc_occupancy(t, h, N);
   }
 
   /**
