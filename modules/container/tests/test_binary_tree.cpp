@@ -476,4 +476,26 @@ TEST_CASE("nexenne::container::binary_tree constructs values with parentheses") 
   CHECK(by_size.begin()->size() == 3);
 }
 
+TEST_CASE("nexenne::container::binary_tree moved-from source keeps a working comparator") {
+  using fn_cmp = std::function<bool(int, int)>;
+  cn::binary_tree<int, fn_cmp> src{fn_cmp{std::less<>{}}};
+  CHECK(src.insert(1));
+  cn::binary_tree<int, fn_cmp> dst{std::move(src)};
+  CHECK(dst.size() == 1);
+  // NOLINTBEGIN(clang-analyzer-cplusplus.Move): the moved-from state is under test
+  CHECK(src.empty());
+  CHECK(src.insert(2));
+  CHECK(src.insert(1));
+  CHECK(src.size() == 2);
+  // NOLINTEND(clang-analyzer-cplusplus.Move)
+
+  cn::binary_tree<int, fn_cmp> assigned{fn_cmp{std::less<>{}}};
+  assigned = std::move(dst);
+  // NOLINTBEGIN(clang-analyzer-cplusplus.Move): the moved-from state is under test
+  CHECK(dst.insert(3));
+  CHECK(dst.insert(4));
+  // NOLINTEND(clang-analyzer-cplusplus.Move)
+  CHECK(assigned.size() == 1);
+}
+
 }  // namespace

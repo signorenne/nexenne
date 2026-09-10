@@ -340,11 +340,16 @@ public:
    *
    * @param other Source tree, left empty after the move.
    *
+   * The comparator is copied, not moved, so \p other keeps a working one: a
+   * moved-from \c std::function comparator would make its next insert throw
+   * \c std::bad_function_call inside a \c noexcept member.
+   *
    * @pre None.
-   * @post This tree owns \p other's former nodes; \p other is empty.
+   * @post This tree owns \p other's former nodes; \p other is empty and keeps
+   *       its comparator, so it can be reused.
    */
   constexpr binary_tree(binary_tree&& other) noexcept
-      : m_root{std::move(other.m_root)}, m_size{other.m_size}, m_cmp{std::move(other.m_cmp)} {
+      : m_root{std::move(other.m_root)}, m_size{other.m_size}, m_cmp{other.m_cmp} {
     other.m_size = 0;
   }
 
@@ -356,14 +361,15 @@ public:
    * @return Reference to this tree.
    *
    * @pre None.
-   * @post This tree owns \p other's former nodes; \p other is empty.
-   *       Self-assignment leaves the tree unchanged.
+   * @post This tree owns \p other's former nodes; \p other is empty and keeps
+   *       its comparator (copied, as in the move constructor), so it can be
+   *       reused. Self-assignment leaves the tree unchanged.
    */
   constexpr auto operator=(binary_tree&& other) noexcept -> binary_tree& {
     if (this != &other) {
       m_root = std::move(other.m_root);
       m_size = other.m_size;
-      m_cmp = std::move(other.m_cmp);
+      m_cmp = other.m_cmp;
       other.m_size = 0;
     }
     return *this;
