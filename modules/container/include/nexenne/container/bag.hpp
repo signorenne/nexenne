@@ -9,8 +9,8 @@
  * Erasure swaps the last element into the gap and pops, so it is \c O(1) at the
  * cost of not preserving order. Duplicates are allowed.
  *
- * Against \c std::vector it makes the swap-pop erase explicit (=erase_at=,
- * =erase_first=, =erase_all=) and drops the mid-range insert API that only makes
+ * Against \c std::vector it makes the swap-pop erase explicit (\c erase_at,
+ * \c erase_first, \c erase_all) and drops the mid-range insert API that only makes
  * sense when order matters. Against \c std::multiset it is unordered (no element
  * comparison needed) and contiguous, so iteration is cache-friendly and
  * \c data() / \c span() plug straight into \c std::ranges algorithms. Reach for

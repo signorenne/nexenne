@@ -41,27 +41,36 @@ namespace nexenne::container {
 
 namespace detail {
 
-/// One outgoing edge: the target vertex and the per-edge payload.
+/// @cond INTERNAL
+
+/// @brief One outgoing edge: the target vertex and the per-edge payload.
 template <typename E, typename Vertex>
 struct graph_edge {
   Vertex target;
   E data;
 };
 
-/// Payload-free edge specialisation: just the target vertex.
+/// @brief Payload-free edge specialisation: just the target vertex.
 template <typename Vertex>
 struct graph_edge<void, Vertex> {
   Vertex target;
 };
 
-/// Whether comparing two edge payloads of type \p E is \c noexcept (vacuously so
-/// for a void, payload-free edge).
+/**
+ * @brief Whether comparing two edge payloads of type \p E is \c noexcept.
+ *
+ * Vacuously so for a void, payload-free edge.
+ *
+ * @tparam E Edge payload type.
+ */
 template <typename E>
 struct edge_eq_nothrow
     : std::bool_constant<noexcept(std::declval<E const&>() == std::declval<E const&>())> {};
 
 template <>
 struct edge_eq_nothrow<void> : std::true_type {};
+
+/// @endcond
 
 }  // namespace detail
 

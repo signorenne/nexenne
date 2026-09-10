@@ -34,9 +34,10 @@ namespace nexenne::container {
 
 namespace detail {
 
-/// Zero-state mapped marker that turns \c flat_hash_map into a set.
+/// @cond INTERNAL
+
+/// @brief Zero-state mapped marker that turns \c flat_hash_map into a set.
 struct empty_value {
-  /// @cond INTERNAL
   /**
    * @brief Whether two markers are equal, which they always are.
    *
@@ -52,9 +53,9 @@ struct empty_value {
   operator==([[maybe_unused]] empty_value lhs, [[maybe_unused]] empty_value rhs) noexcept -> bool {
     return true;
   }
-
-  /// @endcond
 };
+
+/// @endcond
 
 }  // namespace detail
 
@@ -350,7 +351,7 @@ public:
     return m_map.count(value);
   }
 
-  /// Forward iterator that walks the live elements of the set in unspecified order.
+  /// @brief Forward iterator that walks the live elements of the set in unspecified order.
   class const_iterator {
   public:
     using value_type = T;

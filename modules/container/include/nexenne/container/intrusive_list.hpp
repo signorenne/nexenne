@@ -61,6 +61,7 @@ private:
   intrusive_list_hook* m_next{nullptr};
 
 public:
+  /// @brief Constructs an unlinked hook.
   constexpr intrusive_list_hook() noexcept = default;
 
   /**
@@ -78,7 +79,9 @@ public:
     assert(!is_linked() && "destroying an element still linked into a list");
   }
 
+  /// @brief Deleted copy constructor; a hook's links belong to one list position.
   intrusive_list_hook(intrusive_list_hook const&) = delete;
+  /// @brief Deleted copy assignment; a hook's links belong to one list position.
   auto operator=(intrusive_list_hook const&) -> intrusive_list_hook& = delete;
 
   /**
@@ -238,6 +241,7 @@ private:
     using iterator_category = std::bidirectional_iterator_tag;
     using iterator_concept = std::bidirectional_iterator_tag;
 
+    /// @brief Constructs a singular iterator, not dereferenceable.
     constexpr basic_iterator() noexcept = default;
 
     /**
@@ -380,7 +384,9 @@ public:
     init();
   }
 
+  /// @brief Deleted copy constructor; the list does not own its elements.
   intrusive_list(intrusive_list const&) = delete;
+  /// @brief Deleted copy assignment; the list does not own its elements.
   auto operator=(intrusive_list const&) -> intrusive_list& = delete;
 
   /**

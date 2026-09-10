@@ -68,8 +68,15 @@ public:
 
   static constexpr size_type initial_gap{16};
 
-  /// @brief Copies another buffer, including its gap layout.
-  constexpr gap_buffer(gap_buffer const&)
+  /**
+   * @brief Copies another buffer, including its gap layout.
+   *
+   * @param other Buffer to copy.
+   *
+   * @pre None.
+   * @post This buffer holds a copy of \p other, with the same cursor.
+   */
+  constexpr gap_buffer(gap_buffer const& other)
     requires std::copy_constructible<T>
   = default;
 

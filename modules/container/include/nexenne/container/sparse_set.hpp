@@ -58,7 +58,7 @@ public:
   using iterator = typename std::vector<Key>::const_iterator;
   using const_iterator = iterator;
 
-  /// Sentinel sparse value meaning "key not present"; public for custom storage.
+  /// @brief Sentinel sparse value meaning "key not present"; public for custom storage.
   static constexpr size_type invalid_index{std::numeric_limits<size_type>::max()};
 
 private:

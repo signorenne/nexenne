@@ -127,6 +127,9 @@ template <typename Key, typename Value, std::ranges::input_range Range>
 
 /**
  * @brief Hashes a \c bitset_dynamic over its packed word storage and size.
+ *
+ * @pre None.
+ * @post None.
  */
 template <>
 struct std::hash<nexenne::container::bitset_dynamic> {
@@ -153,6 +156,12 @@ struct std::hash<nexenne::container::bitset_dynamic> {
 
 /**
  * @brief Hashes a \c static_vector as a sequence (size plus each element).
+ *
+ * @tparam T Element type.
+ * @tparam N Capacity.
+ *
+ * @pre None.
+ * @post None.
  */
 template <typename T, std::size_t N>
   requires nexenne::utility::hashable<T>
@@ -176,6 +185,12 @@ struct std::hash<nexenne::container::static_vector<T, N>> {
 
 /**
  * @brief Hashes a \c stable_vector as a sequence (size plus each element).
+ *
+ * @tparam T Element type.
+ * @tparam ChunkSize Elements per chunk.
+ *
+ * @pre None.
+ * @post None.
  */
 template <typename T, std::size_t ChunkSize>
   requires nexenne::utility::hashable<T>
@@ -202,6 +217,12 @@ struct std::hash<nexenne::container::stable_vector<T, ChunkSize>> {
  *
  * In-order is canonical (sorted under \p Compare), so the hash matches
  * \c operator==.
+ *
+ * @tparam T Element type.
+ * @tparam Compare Ordering comparator.
+ *
+ * @pre None.
+ * @post None.
  */
 template <typename T, typename Compare>
   requires nexenne::utility::hashable<T>
@@ -225,6 +246,12 @@ struct std::hash<nexenne::container::binary_tree<T, Compare>> {
 
 /**
  * @brief Hashes a \c small_vector as a sequence (size plus each element).
+ *
+ * @tparam T Element type.
+ * @tparam N Capacity.
+ *
+ * @pre None.
+ * @post None.
  */
 template <typename T, std::size_t N>
   requires nexenne::utility::hashable<T>
@@ -248,6 +275,12 @@ struct std::hash<nexenne::container::small_vector<T, N>> {
 
 /**
  * @brief Hashes a \c ring_buffer in FIFO order (front to back).
+ *
+ * @tparam T Element type.
+ * @tparam N Capacity.
+ *
+ * @pre None.
+ * @post None.
  */
 template <typename T, std::size_t N>
   requires nexenne::utility::hashable<T>
@@ -271,6 +304,11 @@ struct std::hash<nexenne::container::ring_buffer<T, N>> {
 
 /**
  * @brief Hashes a \c gap_buffer as a sequence in logical (gap-collapsed) order.
+ *
+ * @tparam T Element type.
+ *
+ * @pre None.
+ * @post None.
  */
 template <typename T>
   requires nexenne::utility::hashable<T>
@@ -294,6 +332,12 @@ struct std::hash<nexenne::container::gap_buffer<T>> {
 
 /**
  * @brief Hashes a \c flat_set as a sequence in sorted (canonical) order.
+ *
+ * @tparam T Element type.
+ * @tparam Compare Ordering comparator.
+ *
+ * @pre None.
+ * @post None.
  */
 template <typename T, typename Compare>
   requires nexenne::utility::hashable<T>
@@ -317,6 +361,13 @@ struct std::hash<nexenne::container::flat_set<T, Compare>> {
 
 /**
  * @brief Hashes a \c flat_map by key then value in sorted key order.
+ *
+ * @tparam Key Key type.
+ * @tparam Value Mapped value type.
+ * @tparam Compare Ordering comparator.
+ *
+ * @pre None.
+ * @post None.
  */
 template <typename Key, typename Value, typename Compare>
   requires nexenne::utility::hashable<Key> && nexenne::utility::hashable<Value>
@@ -343,6 +394,14 @@ struct std::hash<nexenne::container::flat_map<Key, Value, Compare>> {
 
 /**
  * @brief Hashes a \c static_flat_map by key then value in sorted key order.
+ *
+ * @tparam Key Key type.
+ * @tparam Value Mapped value type.
+ * @tparam Capacity Fixed capacity.
+ * @tparam Compare Ordering comparator.
+ *
+ * @pre None.
+ * @post None.
  */
 template <typename Key, typename Value, std::size_t Capacity, typename Compare>
   requires nexenne::utility::hashable<Key> && nexenne::utility::hashable<Value>
@@ -372,6 +431,12 @@ struct std::hash<nexenne::container::static_flat_map<Key, Value, Capacity, Compa
  *
  * XOR-ing per-entry hashes keeps the result insensitive to child-iteration
  * order, matching the trie's structural \c operator==.
+ *
+ * @tparam Char Key token type.
+ * @tparam Value Mapped value type.
+ *
+ * @pre None.
+ * @post None.
  */
 template <typename Char, typename Value>
   requires nexenne::utility::hashable<Char> && nexenne::utility::hashable<Value>

@@ -41,7 +41,7 @@ namespace nexenne::container {
 
 namespace detail {
 
-/// A standard character type for which a trailing NUL terminator is a convention.
+/// @brief A standard character type for which a trailing NUL terminator is a convention.
 template <typename C>
 concept trie_character =
   std::same_as<C, char> || std::same_as<C, wchar_t> || std::same_as<C, char8_t>
@@ -103,6 +103,7 @@ private:
     flat_map<uchar_type, std::unique_ptr<node>> children;
     std::optional<Value> value;
 
+    /// @brief Constructs a node with no value and no children.
     constexpr node() noexcept = default;
 
     /**
@@ -151,6 +152,7 @@ public:
    */
   constexpr trie() noexcept = default;
 
+  /// @brief Destroys every node, tearing the tree down without recursion.
   ~trie() noexcept = default;
 
   /**

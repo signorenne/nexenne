@@ -103,9 +103,21 @@ public:
     return m_generation;
   }
 
-  /// @brief Total ordering of two handles; the compiler derives \c == \c < \c > \c <= \c >=.
+  /**
+   * @brief Total ordering of two handles, by index and then generation.
+   *
+   * The compiler derives \c ==, \c <, \c >, \c <= and \c >= from it.
+   *
+   * @param lhs First handle.
+   * @param rhs Second handle.
+   *
+   * @return The ordering of \p lhs relative to \p rhs.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
-  operator<=>(slot_key const&, slot_key const&) noexcept = default;
+  operator<=>(slot_key const& lhs, slot_key const& rhs) noexcept = default;
 
 private:
   index_type m_index{};
@@ -184,6 +196,14 @@ private:
     }
   }
 
+  /**
+   * @brief Forward iterator over the occupied slots, skipping vacant ones.
+   *
+   * @tparam IsConst Whether the iterator yields \c const access to the elements.
+   *
+   * @pre None.
+   * @post A default-constructed iterator is singular.
+   */
   template <bool IsConst>
   class basic_iterator {
   private:

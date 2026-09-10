@@ -143,6 +143,7 @@ private:
     using iterator_category = std::forward_iterator_tag;
     using iterator_concept = std::forward_iterator_tag;
 
+    /// @brief Constructs a singular iterator, not dereferenceable.
     constexpr basic_iterator() noexcept = default;
 
     /**
@@ -333,6 +334,7 @@ public:
     }
   }
 
+  /// @brief Destroys every node, tearing the tree down without recursion.
   ~binary_tree() noexcept = default;
 
   /**

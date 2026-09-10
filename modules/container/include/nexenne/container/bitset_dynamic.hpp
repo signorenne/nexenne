@@ -364,8 +364,15 @@ public:
     }
   }
 
-  /// @brief Copy-constructs from another bitset.
-  constexpr bitset_dynamic(bitset_dynamic const&) = default;
+  /**
+   * @brief Copy-constructs from another bitset.
+   *
+   * @param other Bitset to copy.
+   *
+   * @pre None.
+   * @post This bitset holds a copy of \p other's bits.
+   */
+  constexpr bitset_dynamic(bitset_dynamic const& other) = default;
 
   /**
    * @brief Copy-assigns from another bitset.
