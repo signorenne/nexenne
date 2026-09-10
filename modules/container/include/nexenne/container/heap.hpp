@@ -68,7 +68,7 @@ public:
 
 private:
   std::vector<T> m_data;
-  Compare m_cmp{};
+  [[no_unique_address]] Compare m_cmp{};
 
 public:
   /**

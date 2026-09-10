@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <random>
@@ -274,5 +275,7 @@ TEST_CASE("nexenne::container::heap pops in fully sorted order under randomized 
   }
   CHECK(popped == reference);
 }
+
+static_assert(sizeof(cn::heap<int>) == sizeof(std::vector<int>));
 
 }  // namespace

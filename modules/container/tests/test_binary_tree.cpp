@@ -498,4 +498,6 @@ TEST_CASE("nexenne::container::binary_tree moved-from source keeps a working com
   CHECK(assigned.size() == 1);
 }
 
+static_assert(sizeof(cn::binary_tree<int>) == sizeof(void*) + sizeof(std::size_t));
+
 }  // namespace

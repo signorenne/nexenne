@@ -119,7 +119,7 @@ private:
 
   node_ptr m_root;
   size_type m_size{};
-  Compare m_cmp{};
+  [[no_unique_address]] Compare m_cmp{};
 
   /**
    * @brief In-order forward iterator over the tree's elements.

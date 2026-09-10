@@ -345,4 +345,6 @@ TEST_CASE("nexenne::container::indexed_priority_queue emplace constructs with pa
   CHECK(*q.top() == std::vector<int>(3, 7));
 }
 
+static_assert(sizeof(cn::indexed_priority_queue<int>) == 3 * sizeof(std::vector<std::size_t>));
+
 }  // namespace

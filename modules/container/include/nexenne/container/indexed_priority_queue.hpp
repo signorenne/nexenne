@@ -76,7 +76,7 @@ private:
   std::vector<entry> m_heap;
   std::vector<size_type> m_position;     // handle -> index into m_heap
   std::vector<handle_type> m_free_list;  // recycled handles
-  Compare m_cmp{};
+  [[no_unique_address]] Compare m_cmp{};
 
   static constexpr size_type tombstone = size_type{} - 1;
 
