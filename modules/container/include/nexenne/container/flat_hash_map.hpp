@@ -40,8 +40,6 @@
 #include <utility>
 #include <vector>
 
-#include <nexenne/utility/discard.hpp>
-
 namespace nexenne::container {
 
 namespace detail {
@@ -221,63 +219,49 @@ private:
     m_tombstones = 0;
     for (auto& old : old_slots) {
       if (old.state == slot_state::occupied) {
-        place(old.cached_hash, std::move(old.entry->first), std::move(old.entry->second), false);
+        place_absent(old.cached_hash, std::move(old.entry->first), std::move(old.entry->second));
       }
     }
   }
 
   /**
-   * @brief Probes from \c bucket_of(h) and inserts, or updates an equal key.
+   * @brief Inserts an absent \p key at the first free slot of its probe.
    *
-   * Reuses the first tombstone seen along the probe so an insertion reclaims it.
+   * The caller has already probed with the same hash and missed, so the first
+   * empty slot or tombstone from \c bucket_of(h) is where the key belongs; no
+   * equality walk and no second hash are needed, and a tombstone is reclaimed.
    *
    * @param h Precomputed hash of \p key.
-   * @param key Key to insert or match, moved on insertion.
-   * @param value Value to store, moved on insertion or on an overwrite.
-   * @param overwrite Whether to overwrite the value of an existing equal key.
+   * @param key Key to insert, moved into the new entry.
+   * @param value Value to store, moved into the new entry.
    *
-   * @return \c true when a fresh entry was inserted, \c false when an equal key
-   *         already existed.
+   * @return A reference to the new entry's value.
    *
-   * @pre A terminating empty slot exists (the caller ensured capacity).
-   * @post On \c true \c size() grew by one; on an overwrite the matched value was
-   *       replaced.
+   * @pre \p key is absent, \p h is its hash, and a free slot exists (the caller
+   *      ensured capacity).
+   * @post \c size() grew by one and \p key maps to \p value.
    */
-  auto place(std::size_t const h, Key key, Value value, bool const overwrite) noexcept -> bool {
+  auto place_absent(std::size_t const h, Key key, Value value) noexcept -> Value& {
     auto index{bucket_of(h)};
-    auto first_tombstone{m_slots.size()};
-    while (true) {
-      auto& current{m_slots[index]};
-      if (current.state == slot_state::empty) {
-        auto& target{first_tombstone < m_slots.size() ? m_slots[first_tombstone] : current};
-        if (target.state == slot_state::tombstone) {
-          --m_tombstones;
-        }
-        target.state = slot_state::occupied;
-        target.cached_hash = h;
-        target.entry.emplace(std::move(key), std::move(value));
-        ++m_size;
-        return true;
-      }
-      if (current.state == slot_state::tombstone) {
-        if (first_tombstone == m_slots.size()) {
-          first_tombstone = index;
-        }
-      } else if (current.cached_hash == h && m_eq(current.entry->first, key)) {
-        if (overwrite) {
-          current.entry->second = std::move(value);
-        }
-        return false;
-      }
+    while (m_slots[index].state == slot_state::occupied) {
       index = (index + 1) & (m_slots.size() - 1);
     }
+    auto& target{m_slots[index]};
+    if (target.state == slot_state::tombstone) {
+      --m_tombstones;
+    }
+    target.state = slot_state::occupied;
+    target.cached_hash = h;
+    target.entry.emplace(std::move(key), std::move(value));
+    ++m_size;
+    return target.entry->second;
   }
 
   /**
    * @brief Probes for \p key and returns its slot, or \c nullptr on a miss.
    *
    * Accepts the key itself or a heterogeneous probe comparable through \c m_hash
-   * and \c m_eq (when both functors are transparent).
+   * and \c m_eq (when both functors are transparent). Hashes \p key once.
    *
    * @tparam K Probe type hashable and comparable through the functors.
    * @param key Key or probe to search for.
@@ -292,7 +276,26 @@ private:
     if (m_slots.empty()) {
       return nullptr;
     }
-    auto const h{m_hash(key)};
+    return probe_slot(key, m_hash(key));
+  }
+
+  /**
+   * @brief Probes for \p key, whose hash is \p h, without hashing it again.
+   *
+   * @tparam K Probe type comparable through \c m_eq.
+   * @param key Key or probe to search for.
+   * @param h The hash of \p key.
+   *
+   * @return A pointer to the occupied slot holding \p key, or \c nullptr.
+   *
+   * @pre \p h equals \c m_hash(key).
+   * @post None.
+   */
+  template <typename K>
+  [[nodiscard]] auto probe_slot(K const& key, std::size_t const h) const noexcept -> slot const* {
+    if (m_slots.empty()) {
+      return nullptr;
+    }
     auto index{bucket_of(h)};
     while (true) {
       auto const& current{m_slots[index]};
@@ -322,6 +325,20 @@ private:
   }
 
   /**
+   * @brief The mutable slot a probe (which only has const access) located.
+   *
+   * @param found Slot returned by a probe.
+   *
+   * @return A mutable reference to the same slot.
+   *
+   * @pre \p found is non-null and points into this map's slot array.
+   * @post None.
+   */
+  [[nodiscard]] auto mutable_slot(slot const* const found) noexcept -> slot& {
+    return m_slots[static_cast<size_type>(found - m_slots.data())];
+  }
+
+  /**
    * @brief Tombstones the slot located by a probe, shared by every erase overload.
    *
    * @param found Slot returned by a probe, or \c nullptr for a miss.
@@ -336,7 +353,7 @@ private:
     if (found == nullptr) {
       return false;
     }
-    auto& target{m_slots[static_cast<size_type>(found - m_slots.data())]};
+    auto& target{mutable_slot(found)};
     target.state = slot_state::tombstone;
     target.entry.reset();
     --m_size;
@@ -730,15 +747,18 @@ public:
    * @post \p key is present; on a fresh insertion \c size() grew by one and a
    *       rehash may have invalidated iterators and references.
    *
+   * @note Hashes \p key once.
+   *
    * @complexity Amortised \c O(1).
    */
   auto insert(Key key, Value value) noexcept -> bool {
-    if (find_slot(key) != nullptr) {
+    auto const h{m_hash(key)};
+    if (probe_slot(key, h) != nullptr) {
       return false;
     }
     ensure_capacity_for(m_size + 1);
-    auto const h{m_hash(key)};
-    return place(h, std::move(key), std::move(value), false);
+    place_absent(h, std::move(key), std::move(value));
+    return true;
   }
 
   /**
@@ -753,16 +773,19 @@ public:
    * @pre None.
    * @post \p key maps to \p value; on a fresh insertion \c size() grew by one.
    *
+   * @note Hashes \p key once.
+   *
    * @complexity Amortised \c O(1).
    */
   auto insert_or_assign(Key key, Value value) noexcept -> bool {
-    if (auto* const existing{find(key)}) {
-      *existing = std::move(value);
+    auto const h{m_hash(key)};
+    if (auto const* const found{probe_slot(key, h)}) {
+      mutable_slot(found).entry->second = std::move(value);
       return false;
     }
     ensure_capacity_for(m_size + 1);
-    auto const h{m_hash(key)};
-    return place(h, std::move(key), std::move(value), true);
+    place_absent(h, std::move(key), std::move(value));
+    return true;
   }
 
   /**
@@ -779,17 +802,20 @@ public:
    * @pre None.
    * @post \p key is present; on a fresh insertion \c size() grew by one.
    *
+   * @note Hashes \p key once.
+   *
    * @complexity Amortised \c O(1).
    */
   template <typename... Args>
     requires std::constructible_from<Value, Args...>
   auto emplace(Key key, Args&&... args) noexcept -> bool {
-    if (find_slot(key) != nullptr) {
+    auto const h{m_hash(key)};
+    if (probe_slot(key, h) != nullptr) {
       return false;
     }
     ensure_capacity_for(m_size + 1);
-    auto const h{m_hash(key)};
-    return place(h, std::move(key), Value(std::forward<Args>(args)...), false);
+    place_absent(h, std::move(key), Value(std::forward<Args>(args)...));
+    return true;
   }
 
   /**
@@ -810,17 +836,20 @@ public:
    * @post \p key is present; on a fresh insertion \c size() grew by one and a
    *       rehash may have invalidated iterators and references.
    *
+   * @note Hashes \p key once.
+   *
    * @complexity Amortised \c O(1).
    */
   template <typename... Args>
     requires std::constructible_from<Value, Args...>
   auto try_emplace(Key key, Args&&... args) noexcept -> bool {
-    if (find_slot(key) != nullptr) {
+    auto const h{m_hash(key)};
+    if (probe_slot(key, h) != nullptr) {
       return false;
     }
     ensure_capacity_for(m_size + 1);
-    auto const h{m_hash(key)};
-    return place(h, std::move(key), Value(std::forward<Args>(args)...), false);
+    place_absent(h, std::move(key), Value(std::forward<Args>(args)...));
+    return true;
   }
 
   /**
@@ -879,7 +908,7 @@ public:
     if (found == nullptr) {
       return nullptr;
     }
-    return std::addressof(m_slots[static_cast<size_type>(found - m_slots.data())].entry->second);
+    return std::addressof(mutable_slot(found).entry->second);
   }
 
   /**
@@ -959,7 +988,7 @@ public:
     if (found == nullptr) {
       return nullptr;
     }
-    return std::addressof(m_slots[static_cast<size_type>(found - m_slots.data())].entry->second);
+    return std::addressof(mutable_slot(found).entry->second);
   }
 
   /**
@@ -1099,8 +1128,8 @@ public:
   /**
    * @brief Accesses the value for \p key, inserting a default if absent.
    *
-   * Available only for a copyable \c Key: the key is copied into the new entry so
-   * it can still locate that entry afterwards.
+   * \p key is hashed once and, on a miss, moved into the new entry, so a
+   * move-only \c Key works.
    *
    * @param key Key whose value to access or create.
    *
@@ -1113,14 +1142,14 @@ public:
    * @complexity Amortised \c O(1).
    */
   auto operator[](Key key) noexcept -> Value&
-    requires std::default_initializable<Value> && std::copy_constructible<Key>
+    requires std::default_initializable<Value>
   {
-    if (auto* const existing{find(key)}) {
-      return *existing;
+    auto const h{m_hash(key)};
+    if (auto const* const found{probe_slot(key, h)}) {
+      return mutable_slot(found).entry->second;
     }
-    // Insert a copy so key stays valid for the lookup of the new slot below.
-    nexenne::utility::discard(insert(key, Value{}));
-    return *find(key);
+    ensure_capacity_for(m_size + 1);
+    return place_absent(h, std::move(key), Value{});
   }
 
   /**

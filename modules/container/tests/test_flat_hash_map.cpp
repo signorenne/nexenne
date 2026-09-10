@@ -204,8 +204,6 @@ TEST_CASE("nexenne::container::flat_hash_map holds a move-only value") {
 }
 
 TEST_CASE("nexenne::container::flat_hash_map operator[] with a moved-from key does not SEGV") {
-  // Regression guard: operator[] copies the key before inserting, so moving the
-  // caller's key in must still find the freshly inserted slot.
   cn::flat_hash_map<std::string, int> m;
   std::string key{"a key well past the small-string optimisation buffer length"};
   m[std::move(key)] = 42;
@@ -558,12 +556,71 @@ TEST_CASE("nexenne::container::flat_hash_map reserve accounts for tombstones") {
   CHECK(m.find(101) == first);
 }
 
-// operator[] copies the key into a new entry, so it must not be offered for a
-// move-only key: the constraint used to accept one and the body then failed to
-// compile inside the header.
 template <typename Map, typename K>
 concept subscriptable = requires(Map& m, K k) { m[std::move(k)]; };
-static_assert(!subscriptable<cn::flat_hash_map<std::unique_ptr<int>, int>, std::unique_ptr<int>>);
+static_assert(subscriptable<cn::flat_hash_map<std::unique_ptr<int>, int>, std::unique_ptr<int>>);
 static_assert(subscriptable<cn::flat_hash_map<std::string, int>, std::string>);
+
+struct counting_hash {
+  static inline std::uint64_t calls{0};
+
+  [[nodiscard]] auto operator()(int const key) const noexcept -> std::size_t {
+    ++calls;
+    return std::hash<int>{}(key);
+  }
+};
+
+[[nodiscard]] auto hashes_taken() noexcept -> std::uint64_t {
+  return std::exchange(counting_hash::calls, 0);
+}
+
+TEST_CASE("nexenne::container::flat_hash_map hashes a key once per operation") {
+  cn::flat_hash_map<int, int, counting_hash> m;
+  nexenne::utility::ignore(hashes_taken());
+  CHECK(m.insert(1, 10));
+  CHECK(hashes_taken() == 1);
+  CHECK_FALSE(m.insert(1, 11));
+  CHECK(hashes_taken() == 1);
+  CHECK(m.insert_or_assign(2, 20));
+  CHECK(hashes_taken() == 1);
+  CHECK_FALSE(m.insert_or_assign(2, 21));
+  CHECK(hashes_taken() == 1);
+  CHECK(m.emplace(3, 30));
+  CHECK(hashes_taken() == 1);
+  CHECK(m.try_emplace(4, 40));
+  CHECK(hashes_taken() == 1);
+  m[5] = 50;
+  CHECK(hashes_taken() == 1);
+  m[5] = 51;
+  CHECK(hashes_taken() == 1);
+  CHECK(m.find(5) != nullptr);
+  CHECK(hashes_taken() == 1);
+  CHECK(m.contains(4));
+  CHECK(hashes_taken() == 1);
+  CHECK(m.count(3) == 1);
+  CHECK(hashes_taken() == 1);
+  CHECK(m.at(2) != nullptr);
+  CHECK(hashes_taken() == 1);
+  CHECK(m.erase(1));
+  CHECK(hashes_taken() == 1);
+  CHECK_FALSE(m.erase(1));
+  CHECK(hashes_taken() == 1);
+  for (int i{100}; i < 1100; ++i) {
+    CHECK(m.insert(i, i));
+  }
+  CHECK(hashes_taken() == 1000);
+  CHECK(m.size() == 1004);
+  CHECK(*m.find(5) == 51);
+}
+
+TEST_CASE("nexenne::container::flat_hash_map operator[] takes a move-only key") {
+  cn::flat_hash_map<std::unique_ptr<int>, int> m;
+  m[std::make_unique<int>(7)] = 3;
+  REQUIRE(m.size() == 1);
+  auto const& [key, value]{*m.begin()};
+  REQUIRE(key != nullptr);
+  CHECK(*key == 7);
+  CHECK(value == 3);
+}
 
 }  // namespace

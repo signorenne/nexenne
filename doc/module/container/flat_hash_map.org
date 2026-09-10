@@ -68,13 +68,16 @@ find "bee" whose home bucket 2 is taken by "ant":
 
 ** Insert: place at the first empty slot, reusing a tombstone
 
-An insert probes the same way but remembers the first *tombstone* it passes. On
-reaching an empty slot it places the entry in that remembered tombstone if there
-was one (recycling the dead slot), otherwise in the empty slot. If it meets an
-equal key first it stops: =insert= leaves the existing value untouched and returns
-=false=, while =insert_or_assign= overwrites it. =emplace= constructs the value
-then inserts it, and =operator[]= inserts a default and returns a reference so
-=m[k]= works.
+An insert hashes the key *once* and reuses that hash for both halves of the
+job. It first probes for the key: if it is present, =insert= leaves the
+existing value untouched and returns =false=, while =insert_or_assign=
+overwrites it. On a miss it places the entry at the first free slot of the same
+probe, the first tombstone or empty slot it meets (recycling a dead slot), since
+a missing key belongs there. =emplace= constructs the value then inserts it, and
+=operator[]= inserts a default and returns a reference so =m[k]= works; it moves
+the key into the new entry, so a move-only key is fine. Lookups and erase hash
+once too, and a rehash reuses the cached hashes, so the hasher runs once per
+operation.
 
 ** Erase leaves a tombstone
 
