@@ -109,6 +109,7 @@ public:
    *       destroyed.
    */
   [[nodiscard]] auto allocate(size_type const size, size_type const alignment) noexcept
+    -> decltype(std::declval<Arena&>().allocate(size, alignment))
     requires requires(Arena& a, size_type n) { a.allocate(n, n); }
   {
     return m_arena.allocate(size, alignment);
@@ -129,7 +130,8 @@ public:
    */
   template <typename T>
     requires requires(Arena& a, size_type c) { a.template allocate<T>(c); }
-  [[nodiscard]] auto allocate(size_type const count = 1) noexcept {
+  [[nodiscard]] auto allocate(size_type const count = 1) noexcept
+    -> decltype(std::declval<Arena&>().template allocate<T>(count)) {
     return m_arena.template allocate<T>(count);
   }
 
@@ -152,7 +154,8 @@ public:
     requires requires(Arena& a, Args&&... args) {
       a.template emplace<T>(std::forward<Args>(args)...);
     }
-  [[nodiscard]] auto emplace(Args&&... args) noexcept {
+  [[nodiscard]] auto emplace(Args&&... args) noexcept
+    -> decltype(std::declval<Arena&>().template emplace<T>(std::forward<Args>(args)...)) {
     return m_arena.template emplace<T>(std::forward<Args>(args)...);
   }
 
