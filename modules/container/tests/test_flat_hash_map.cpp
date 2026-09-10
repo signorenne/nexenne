@@ -558,4 +558,12 @@ TEST_CASE("nexenne::container::flat_hash_map reserve accounts for tombstones") {
   CHECK(m.find(101) == first);
 }
 
+// operator[] copies the key into a new entry, so it must not be offered for a
+// move-only key: the constraint used to accept one and the body then failed to
+// compile inside the header.
+template <typename Map, typename K>
+concept subscriptable = requires(Map& m, K k) { m[std::move(k)]; };
+static_assert(!subscriptable<cn::flat_hash_map<std::unique_ptr<int>, int>, std::unique_ptr<int>>);
+static_assert(subscriptable<cn::flat_hash_map<std::string, int>, std::string>);
+
 }  // namespace

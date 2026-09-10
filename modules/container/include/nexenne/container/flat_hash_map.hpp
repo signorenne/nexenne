@@ -1097,6 +1097,9 @@ template <typename K>
 /**
  * @brief Accesses the value for \p key, inserting a default if absent.
  *
+ * Available only for a copyable \c Key: the key is copied into the new entry so
+ * it can still locate that entry afterwards.
+ *
  * @param key Key whose value to access or create.
  *
  * @return A mutable reference to the value mapped to \p key.
@@ -1108,7 +1111,7 @@ template <typename K>
  * @complexity Amortised \c O(1).
  */
 auto operator[](Key key) noexcept -> Value&
-  requires std::default_initializable<Value>
+  requires std::default_initializable<Value> && std::copy_constructible<Key>
 {
   if (auto* const existing{find(key)}) {
     return *existing;
