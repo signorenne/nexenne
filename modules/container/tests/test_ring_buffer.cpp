@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -721,5 +722,11 @@ TEST_CASE("nexenne::container::ring_buffer push_overwrite builds the same elemen
   REQUIRE(r.back() != nullptr);
   CHECK(r.back()->size() == 3);
 }
+
+static_assert(!std::is_copy_constructible_v<cn::ring_buffer<std::unique_ptr<int>, 4>>);
+static_assert(!std::is_copy_assignable_v<cn::ring_buffer<std::unique_ptr<int>, 4>>);
+static_assert(std::is_move_constructible_v<cn::ring_buffer<std::unique_ptr<int>, 4>>);
+static_assert(std::is_copy_constructible_v<cn::ring_buffer<int, 4>>);
+static_assert(std::is_copy_assignable_v<cn::ring_buffer<int, 4>>);
 
 }  // namespace

@@ -533,7 +533,9 @@ public:
    * @post This vector holds copies of \p other's elements; \p other is
    *       unchanged.
    */
-  stable_vector(stable_vector const& other) noexcept {
+  stable_vector(stable_vector const& other) noexcept
+    requires std::copy_constructible<T>
+  {
     for (size_type i{0}; i < other.m_size; ++i) {
       push_back(*other.m_chunks[chunk_of(i)]->at(slot_of(i)));
     }

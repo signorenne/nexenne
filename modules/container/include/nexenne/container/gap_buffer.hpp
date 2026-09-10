@@ -68,7 +68,9 @@ public:
   static constexpr size_type initial_gap{16};
 
   /// @brief Copies another buffer, including its gap layout.
-  constexpr gap_buffer(gap_buffer const&) = default;
+  constexpr gap_buffer(gap_buffer const&)
+    requires std::copy_constructible<T>
+  = default;
 
   /**
    * @brief Copy-assigns another buffer, including its gap layout.
@@ -80,7 +82,9 @@ public:
    * @pre None.
    * @post This buffer holds a copy of \p other.
    */
-  constexpr auto operator=(gap_buffer const& other) -> gap_buffer& = default;
+  constexpr auto operator=(gap_buffer const& other) -> gap_buffer&
+    requires std::copy_constructible<T>
+  = default;
 
   /**
    * @brief Moves another buffer, leaving the source a valid empty buffer.

@@ -9,6 +9,7 @@
 #include <array>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -464,5 +465,11 @@ TEST_CASE("nexenne::container::static_vector move-only element supports move-ass
   CHECK(*c[1] == 2);
   CHECK(b.empty());
 }
+
+static_assert(!std::is_copy_constructible_v<cn::static_vector<std::unique_ptr<int>, 4>>);
+static_assert(!std::is_copy_assignable_v<cn::static_vector<std::unique_ptr<int>, 4>>);
+static_assert(std::is_move_constructible_v<cn::static_vector<std::unique_ptr<int>, 4>>);
+static_assert(std::is_copy_constructible_v<cn::static_vector<int, 4>>);
+static_assert(std::is_copy_assignable_v<cn::static_vector<int, 4>>);
 
 }  // namespace

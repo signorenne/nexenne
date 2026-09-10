@@ -164,7 +164,9 @@ public:
    * @post This vector holds copies of \p other's elements; \p other is
    *       unchanged.
    */
-  constexpr static_vector(static_vector const& other) noexcept {
+  constexpr static_vector(static_vector const& other) noexcept
+    requires std::copy_constructible<T>
+  {
     for (size_type i{0}; i < other.m_size; ++i) {
       std::construct_at(slot_at(i), *other.slot_at(i));
     }

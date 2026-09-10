@@ -460,4 +460,10 @@ TEST_CASE("nexenne::container::gap_buffer insert into a full gap copies the elem
   CHECK(g[1].size() == 3);
 }
 
+static_assert(!std::is_copy_constructible_v<cn::gap_buffer<std::unique_ptr<int>>>);
+static_assert(!std::is_copy_assignable_v<cn::gap_buffer<std::unique_ptr<int>>>);
+static_assert(std::is_move_constructible_v<cn::gap_buffer<std::unique_ptr<int>>>);
+static_assert(std::is_copy_constructible_v<cn::gap_buffer<int>>);
+static_assert(std::is_copy_assignable_v<cn::gap_buffer<int>>);
+
 }  // namespace

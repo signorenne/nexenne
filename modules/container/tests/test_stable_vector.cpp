@@ -599,4 +599,10 @@ TEST_CASE("nexenne::container::stable_vector shrink_to_fit on empty and reserve 
   CHECK(v.chunk_count() == 3);
 }
 
+static_assert(!std::is_copy_constructible_v<cn::stable_vector<std::unique_ptr<int>>>);
+static_assert(!std::is_copy_assignable_v<cn::stable_vector<std::unique_ptr<int>>>);
+static_assert(std::is_move_constructible_v<cn::stable_vector<std::unique_ptr<int>>>);
+static_assert(std::is_copy_constructible_v<cn::stable_vector<int>>);
+static_assert(std::is_copy_assignable_v<cn::stable_vector<int>>);
+
 }  // namespace

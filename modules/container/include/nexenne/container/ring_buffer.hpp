@@ -341,7 +341,9 @@ public:
    *
    * @complexity \c O(size).
    */
-  constexpr ring_buffer(ring_buffer const& other) noexcept {
+  constexpr ring_buffer(ring_buffer const& other) noexcept
+    requires std::copy_constructible<T>
+  {
     for (auto const& value : other) {
       nexenne::utility::ignore(push(value));
     }
@@ -374,7 +376,9 @@ public:
    *
    * @complexity \c O(size).
    */
-  constexpr auto operator=(ring_buffer const& other) noexcept -> ring_buffer& {
+  constexpr auto operator=(ring_buffer const& other) noexcept -> ring_buffer&
+    requires std::copy_constructible<T>
+  {
     if (this != &other) {
       clear();
       for (auto const& value : other) {

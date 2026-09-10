@@ -16,6 +16,7 @@
 #include <numeric>
 #include <random>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -746,5 +747,11 @@ TEST_CASE(
   CHECK(std::any_cast<int>(b[0]) == 1);
   CHECK(std::any_cast<int>(b[1]) == 2);
 }
+
+static_assert(!std::is_copy_constructible_v<cn::small_vector<std::unique_ptr<int>, 4>>);
+static_assert(!std::is_copy_assignable_v<cn::small_vector<std::unique_ptr<int>, 4>>);
+static_assert(std::is_move_constructible_v<cn::small_vector<std::unique_ptr<int>, 4>>);
+static_assert(std::is_copy_constructible_v<cn::small_vector<int, 4>>);
+static_assert(std::is_copy_assignable_v<cn::small_vector<int, 4>>);
 
 }  // namespace

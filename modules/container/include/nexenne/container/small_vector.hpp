@@ -226,7 +226,9 @@ public:
    * @post This vector holds copies of \p other's elements; \p other is
    *       unchanged.
    */
-  small_vector(small_vector const& other) noexcept {
+  small_vector(small_vector const& other) noexcept
+    requires std::copy_constructible<T>
+  {
     reserve(other.m_size);
     for (size_type i{0}; i < other.m_size; ++i) {
       std::construct_at(m_data + i, other.m_data[i]);
@@ -260,7 +262,9 @@ public:
    * @post This vector holds copies of \p other's elements; the prior contents
    *       are destroyed; \p other is unchanged.
    */
-  auto operator=(small_vector const& other) noexcept -> small_vector& {
+  auto operator=(small_vector const& other) noexcept -> small_vector&
+    requires std::copy_constructible<T>
+  {
     if (this != &other) {
       clear();
       reserve(other.m_size);
