@@ -152,6 +152,22 @@ Validity and stability rules:
 - thread safety is the standard-library convention: concurrent reads are fine,
   any concurrent mutation is not.
 
+Construction pitfall: as with =std::vector<bool>=, braces are a bit list and
+parentheses a size. The =initializer_list<bool>= constructor wins any braced
+initialization it can accept, so a braced 0 or 1 is one bit, not a size:
+
+#+BEGIN_SRC cpp
+nexenne::container::bitset_dynamic a(1);     // size 1, the bit clear
+nexenne::container::bitset_dynamic b{1};     // size 1, the bit SET (a bit list)
+nexenne::container::bitset_dynamic c(64);    // size 64, all clear
+nexenne::container::bitset_dynamic d{0};     // size 1, not an empty set
+nexenne::container::bitset_dynamic e{true, false, true};  // bits 0 and 2 set
+// bitset_dynamic f{64};  // error: narrowing 64 to bool
+// bitset_dynamic g{n};   // narrowing too; GCC only warns, and builds 1 bit
+#+END_SRC
+
+Write a size with parentheses, always; keep braces for a literal bit list.
+
 * Usage
 
 #+BEGIN_SRC cpp

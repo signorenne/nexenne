@@ -641,4 +641,15 @@ TEST_CASE("nexenne::container::bitset_dynamic max_size is a non-wrapping bound")
   CHECK(words_at_max != 0);
 }
 
+static_assert([] {
+  cn::bitset_dynamic const one_set{1};
+  cn::bitset_dynamic const one_clear{0};
+  cn::bitset_dynamic const sized(64);
+  cn::bitset_dynamic const listed{true, false, true};
+  return one_set.size() == 1 && one_set.count() == 1 && one_clear.size() == 1
+         && one_clear.count() == 0 && sized.size() == 64 && sized.count() == 0 && listed.size() == 3
+         && listed.count() == 2;
+}());
+static_assert(std::vector<bool>{1}.size() == 1 && std::vector<bool>(64).size() == 64);
+
 }  // namespace

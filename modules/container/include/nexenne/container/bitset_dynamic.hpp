@@ -21,6 +21,9 @@
  * sparse-aware forward range over the indices of set bits, for \c std::ranges
  * interop. Thread safety is the standard-library convention: concurrent reads
  * are fine, concurrent mutation is not.
+ *
+ * As with \c std::vector<bool>, parentheses give a size and braces a bit list:
+ * \c bitset_dynamic(8) is eight clear bits, \c bitset_dynamic{1} one set bit.
  */
 
 #include <bit>
@@ -339,6 +342,13 @@ public:
    *
    * @pre None.
    * @post \c size() equals \p n and every bit equals \p value.
+   *
+   * @warning Braces select the bit-list constructor, as for
+   *          \c std::vector<bool>: \c bitset_dynamic{1} is one set bit and
+   *          \c bitset_dynamic{0} one clear bit, not a size. A braced size
+   *          other than 0 or 1 is a narrowing error (GCC only warns for a
+   *          non-constant one and then builds a one-bit set). Write
+   *          \c bitset_dynamic(n) with parentheses for \c n bits.
    */
   explicit constexpr bitset_dynamic(size_type const n, bool const value = false) noexcept
       : m_words(word_count(n), value ? ~word_type{0} : word_type{0}), m_size{n} {
@@ -352,6 +362,13 @@ public:
    *
    * @pre None.
    * @post \c size() equals \c init.size() and each bit matches \p init.
+   *
+   * @warning Braces select the bit-list constructor, as for
+   *          \c std::vector<bool>: \c bitset_dynamic{1} is one set bit and
+   *          \c bitset_dynamic{0} one clear bit, not a size. A braced size
+   *          other than 0 or 1 is a narrowing error (GCC only warns for a
+   *          non-constant one and then builds a one-bit set). Write
+   *          \c bitset_dynamic(n) with parentheses for \c n bits.
    */
   constexpr bitset_dynamic(std::initializer_list<bool> const init) noexcept
       : m_words(word_count(init.size()), 0), m_size{init.size()} {

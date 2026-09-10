@@ -19,6 +19,8 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
+  // Parentheses give a size, as for std::vector<bool>: alive{100} would not
+  // compile (a narrowing bit list), and alive{1} would be one set bit.
   cn::bitset_dynamic alive(100);  // 100 entities, none alive yet
   for (int const id : {3, 17, 42, 63, 64, 99}) {
     nexenne::utility::ignore(alive.set(static_cast<std::size_t>(id)));
