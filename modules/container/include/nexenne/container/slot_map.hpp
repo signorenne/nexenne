@@ -12,14 +12,15 @@
  *
  * The invariants: a key uniquely identifies its element and stays valid across
  * unrelated inserts, erases, and reallocations; erasing one element invalidates
- * only that element's key; a key to an erased (or recycled) slot reads as absent
- * via \c find / \c contains; and iteration walks only the live elements in slot
- * order, skipping vacancies. Reach for it for stable handles that must survive
- * reallocation, slotted registries (entities, resource managers, widget pools),
- * and anywhere a raw pointer would dangle. Storage is a single vector, so live
- * elements are roughly contiguous and iteration is cache-friendly. Insert is
- * amortised \c O(1), erase and lookup are \c O(1). Every operation is
- * \c noexcept; allocation failure terminates.
+ * only that element's key; a key to an erased (or recycled) slot reads as
+ * absent via \c find / \c contains; and iteration walks only the live elements
+ * in slot order, skipping vacancies. Reach for it for stable handles that must
+ * survive reallocation, slotted registries (entities, resource managers, widget
+ * pools), and anywhere a raw pointer would dangle. Storage is a single vector,
+ * so live elements are roughly contiguous and iteration is cache-friendly.
+ * Insert is amortised \c O(1), erase and lookup are \c O(1). Every operation
+ * but a copy is \c noexcept, and allocation failure inside one terminates; a
+ * copy throws \c std::bad_alloc instead.
  */
 
 #include <cassert>

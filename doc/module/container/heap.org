@@ -67,9 +67,10 @@ operations are =O(log n)= because a sift visits one path of height =log n=.
 
 Constructing from a list or range runs one =std::make_heap=, which heapifies
 bottom-up in =O(n)=, strictly cheaper than =n= separate pushes (=O(n)= versus
-=O(n log n)=). =rebuild= re-runs =make_heap= to re-heapify the whole range in
-=O(n)= after you have bulk-modified the storage, instead of popping and pushing
-every element.
+=O(n log n)=). =rebuild= re-runs =make_heap= over the whole range in =O(n)=.
+Since the storage is only exposed read-only and every mutator keeps the
+invariant, there is no way to leave the heap invalid, so =rebuild= never has
+anything to repair.
 
 ** What is exposed, and what is not
 

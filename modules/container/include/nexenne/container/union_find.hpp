@@ -16,8 +16,9 @@
  * form a solver island" pass of a physics engine), Kruskal-style minimum
  * spanning trees, and equivalence-class tracking while building a graph
  * incrementally. It holds two vectors (parent links and per-root sizes) plus a
- * set count, so the rule of zero applies. Every operation is \c noexcept;
- * allocation failure terminates. Note that \c find mutates the parent array via
+ * set count, so the rule of zero applies. Every operation but a copy is
+ * \c noexcept, and allocation failure inside one terminates; a copy throws
+ * \c std::bad_alloc instead. Note that \c find mutates the parent array via
  * path compression, so even a query is a mutating call.
  */
 

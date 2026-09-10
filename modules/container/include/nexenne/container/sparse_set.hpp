@@ -18,9 +18,10 @@
  * the largest key ever inserted, so reuse keys densely from 0 to avoid waste.
  *
  * Reach for it for ECS entity sets and any membership test over dense integer
- * ids where you also want to iterate the members fast. Every operation is
- * \c noexcept; allocation failure terminates. It holds two vectors, so the rule
- * of zero applies.
+ * ids where you also want to iterate the members fast. Every operation but a
+ * copy is \c noexcept, and allocation failure inside one terminates; a copy
+ * throws \c std::bad_alloc instead. It holds two vectors, so the rule of zero
+ * applies.
  */
 
 #include <concepts>
@@ -38,8 +39,10 @@ namespace nexenne::container {
  * @brief Integer-key set backed by a sparse-to-dense index pair.
  *
  * @tparam Key Unsigned integer key type; \c std::uint32_t by default (the
- *             typical ECS choice). \c std::uint16_t trims the sparse-array cost
- *             for a bounded key space; \c std::uint64_t suits huge worlds.
+ *             typical ECS choice). \c std::uint16_t bounds the key space; the
+ *             sparse array still stores \c std::size_t positions, so its cost
+ *             follows the largest key, not the key width. \c std::uint64_t
+ *             suits huge worlds.
  *
  * @pre None.
  * @post A default-constructed set is empty.

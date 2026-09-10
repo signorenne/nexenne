@@ -26,7 +26,8 @@
  * The gap slots are not part of the logical sequence: they start
  * default-constructed when the gap is reserved and later hold moved-from or
  * erased objects, so \p T must be default constructible as well as movable.
- * Every operation is \c noexcept; allocation failure terminates.
+ * Every operation but a copy is \c noexcept, and allocation failure inside one
+ * terminates; a copy throws \c std::bad_alloc instead.
  */
 
 #include <algorithm>

@@ -19,10 +19,11 @@
  * heap-layout order is neither priority nor sorted order, so iterating or
  * comparing in it misleads; pop, or copy from \c span() and sort the copy.
  *
- * Reach for it for event schedulers (min-heap, smallest-time event next),
- * A* / Dijkstra frontiers, and top-K selection. It follows the rule of zero
- * (a vector plus a comparator). Every operation is \c noexcept; allocation
- * failure terminates. Concurrent reads are safe, concurrent mutation is not.
+ * Reach for it for event schedulers (min-heap, smallest-time event next), A* /
+ * Dijkstra frontiers, and top-K selection. It follows the rule of zero (a
+ * vector plus a comparator). Every operation but a copy is \c noexcept, and
+ * allocation failure inside one terminates; a copy throws \c std::bad_alloc
+ * instead. Concurrent reads are safe, concurrent mutation is not.
  */
 
 #include <algorithm>
@@ -340,8 +341,9 @@ public:
   /**
    * @brief Re-establishes the heap invariant over the whole range.
    *
-   * Use after bulk-modifying the storage so order is restored in one \c O(n)
-   * pass rather than by popping and pushing every element.
+   * The storage is only exposed read-only and every mutator keeps the
+   * invariant, so the invariant already holds when this is called; the pass
+   * still costs \c O(n) and may reorder equal elements.
    *
    * @pre None.
    * @post The heap invariant holds.

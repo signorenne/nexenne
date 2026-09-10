@@ -12,12 +12,14 @@
  * removal (mark a vertex logically dead outside the container instead).
  *
  * Over a raw \c vector<vector<pair>> it adds bounds-checked endpoints, an
- * \c edges_of view that hands back a contiguous \c std::span, a \c neighbors view
- * of target IDs, and documented complexities. It deliberately stores only
+ * \c edges_of view that hands back a contiguous \c std::span, a \c neighbors
+ * view of target IDs, and documented complexities. It deliberately stores only
  * topology and payload: traversals and algorithms (BFS, DFS, shortest paths)
- * belong in a separate module. For an undirected edge, call \c add_edge once each
- * way. Every operation is \c noexcept; allocation failure terminates. Storage is
- * \c std::vector throughout, so the special members are the Rule of Zero defaults.
+ * belong in a separate module. For an undirected edge, call \c add_edge once
+ * each way. Every operation but a copy is \c noexcept, and allocation failure
+ * inside one terminates; a copy throws \c std::bad_alloc instead. Storage is
+ * \c std::vector throughout, so the special members are the Rule of Zero
+ * defaults.
  */
 
 #include <algorithm>

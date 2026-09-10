@@ -18,12 +18,12 @@
  *
  * \c bag, \c heap, and \c indexed_priority_queue are deliberately not hashable:
  * their iteration order depends on operation history, so no deterministic hash
- * could match a logical equality they also do not provide. \c bimap,
- * \c dense_map, \c graph, \c union_find, \c slot_map, \c intrusive_list, and
- * \c bloom_filter also define \c operator== but are left unhashed for now: their
- * equality is either order-insensitive (a commutative fold like the trie's would
- * be needed) or keyed on stable handles rather than contents, so a matching hash
- * needs a per-type decision rather than the sequence recipe here.
+ * could match a logical equality they also do not provide. \c bimap, \c graph,
+ * \c intrusive_list, and \c bloom_filter also define \c operator== but are left
+ * unhashed for now: their equality is either order-insensitive (a commutative
+ * fold like the trie's would be needed) or keyed on stable handles rather than
+ * contents, so a matching hash needs a per-type decision rather than the
+ * sequence recipe here.
  *
  * Each specialization is constrained on \c nexenne::utility::hashable so a query
  * against a container of a non-hashable element sees \c std::hash as disabled

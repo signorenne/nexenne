@@ -1141,7 +1141,7 @@ template <typename T, typename Hash>
  *
  * @return \p os, to allow chaining.
  *
- * @pre Every contained element is formattable through \c std::format.
+ * @pre None.
  * @post The diagnostic string of \p f has been written to \p os.
  */
 template <typename T, typename Hash>
@@ -1182,7 +1182,7 @@ template <typename Key, typename Value, std::size_t Capacity, typename Hash, typ
  *
  * @return \p os, to allow chaining.
  *
- * @pre Every contained element is formattable through \c std::format.
+ * @pre None.
  * @post The diagnostic string of \p c has been written to \p os.
  */
 template <typename Key, typename Value, std::size_t Capacity, typename Hash, typename KeyEq>
@@ -1218,7 +1218,7 @@ template <std::move_constructible T, std::size_t N>
  *
  * @return \p os, to allow chaining.
  *
- * @pre Every contained element is formattable through \c std::format.
+ * @pre None.
  * @post The diagnostic string of \p q has been written to \p os.
  */
 template <std::move_constructible T, std::size_t N>
@@ -1253,7 +1253,7 @@ template <std::move_constructible T, std::size_t N>
  *
  * @return \p os, to allow chaining.
  *
- * @pre Every contained element is formattable through \c std::format.
+ * @pre None.
  * @post The diagnostic string of \p q has been written to \p os.
  */
 template <std::move_constructible T, std::size_t N>
@@ -1288,7 +1288,7 @@ template <std::move_constructible T, std::size_t N>
  *
  * @return \p os, to allow chaining.
  *
- * @pre Every contained element is formattable through \c std::format.
+ * @pre None.
  * @post The diagnostic string of \p q has been written to \p os.
  */
 template <std::move_constructible T, std::size_t N>
@@ -1328,7 +1328,7 @@ template <typename T, std::size_t N>
  *
  * @return \p os, to allow chaining.
  *
- * @pre Every contained element is formattable through \c std::format.
+ * @pre None.
  * @post The diagnostic string of \p p has been written to \p os.
  */
 template <typename T, std::size_t N>
@@ -1366,7 +1366,7 @@ template <std::size_t N>
  *
  * @return \p os, to allow chaining.
  *
- * @pre Every contained element is formattable through \c std::format.
+ * @pre None.
  * @post The diagnostic string of \p a has been written to \p os.
  */
 template <std::size_t N>
@@ -1401,7 +1401,7 @@ template <checkpointable_arena Arena>
  *
  * @return \p os, to allow chaining.
  *
- * @pre Every contained element is formattable through \c std::format.
+ * @pre None.
  * @post The diagnostic string of \p s has been written to \p os.
  */
 template <checkpointable_arena Arena>

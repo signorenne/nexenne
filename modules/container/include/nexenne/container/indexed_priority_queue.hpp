@@ -13,12 +13,13 @@
  * kept in sync by every sift, so the position lookup is \c O(1).
  *
  * As with \c heap, \p Compare is a strict weak ordering: the default
- * \c std::less<T> gives a max-heap (largest on top), and \c std::greater<T> gives
- * a min-heap (the usual choice for event schedulers and Dijkstra/A* frontiers).
- * Reach for it when you must update or cancel queued items by identity rather
- * than rescan to find them. Handles are recycled, so a handle is meaningful only
- * while its element is live; see the note on \c push. Every operation is
- * \c noexcept; allocation failure terminates.
+ * \c std::less<T> gives a max-heap (largest on top), and \c std::greater<T>
+ * gives a min-heap (the usual choice for event schedulers and Dijkstra/A*
+ * frontiers). Reach for it when you must update or cancel queued items by
+ * identity rather than rescan to find them. Handles are recycled, so a handle
+ * is meaningful only while its element is live; see the note on \c push. Every
+ * operation but a copy is \c noexcept, and allocation failure inside one
+ * terminates; a copy throws \c std::bad_alloc instead.
  */
 
 #include <cassert>
@@ -441,7 +442,9 @@ public:
    * @param value New value to store, moved in.
    *
    * @return Nothing on success, or \c container_error::not_found when \p h is
-   *         invalid (popped, erased, or never issued).
+   *         not live: never issued, or popped or erased and not yet reissued.
+   *         Handles are recycled, so a stale handle that has been reissued
+   *         names the new element and succeeds.
    *
    * @pre None.
    * @post On success the element behind \p h holds \p value and the heap
@@ -466,7 +469,8 @@ public:
    * @param h Handle of the element to erase.
    *
    * @return Nothing on success, or \c container_error::not_found when \p h is
-   *         invalid.
+   *         not live: never issued, or popped or erased and not yet reissued.
+   *         A stale handle that has been reissued names the new element.
    *
    * @pre None.
    * @post On success \c size() shrank by one, \p h is invalidated, and the heap

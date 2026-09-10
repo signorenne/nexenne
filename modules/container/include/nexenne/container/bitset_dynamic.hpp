@@ -11,15 +11,16 @@
  *
  * Reach for it for archetype/component masks whose width is known only at run
  * time, per-frame active/dirty flags over a dynamic list, visited sets in graph
- * traversals, and any dense "set of integer indices in a known range" that beats
- * a hash set on memory and speed. Every operation is \c noexcept and \c constexpr
- * (so a bitset can be built and queried at compile time); allocation failure
- * terminates. The logical bit count is stored separately, so the tail of the
- * last word may hold garbage and is masked off after every mutation. \c words()
- * exposes the raw storage and \c set_bits() yields a sparse-aware forward range
- * over the indices of set bits, for \c std::ranges interop. Thread safety is the
- * standard-library convention: concurrent reads are fine, concurrent mutation is
- * not.
+ * traversals, and any dense "set of integer indices in a known range" that
+ * beats a hash set on memory and speed. Every operation is \c constexpr (so a
+ * bitset can be built and queried at compile time), and every one but a copy is
+ * \c noexcept; allocation failure inside those terminates, and a copy throws
+ * \c std::bad_alloc instead. The logical bit count is stored separately, so the
+ * tail of the last word may hold garbage and is masked off after every
+ * mutation. \c words() exposes the raw storage and \c set_bits() yields a
+ * sparse-aware forward range over the indices of set bits, for \c std::ranges
+ * interop. Thread safety is the standard-library convention: concurrent reads
+ * are fine, concurrent mutation is not.
  */
 
 #include <bit>
