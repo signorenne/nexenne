@@ -72,7 +72,7 @@ TEST_CASE("nexenne::container::ring_buffer wraps around preserving order") {
   nexenne::utility::ignore(r.push(1));
   nexenne::utility::ignore(r.push(2));
   nexenne::utility::ignore(r.push(3));
-  CHECK(*r.pop() == 1);                 // head advances
+  CHECK(*r.pop() == 1);                  // head advances
   nexenne::utility::ignore(r.push(4));  // tail wraps into the freed slot
   CHECK(r.size() == 3);
   CHECK(r[0] == 2);
@@ -125,8 +125,8 @@ TEST_CASE("nexenne::container::ring_buffer at is bounds-checked") {
   rb r;
   nexenne::utility::ignore(r.push(10));
   nexenne::utility::ignore(r.push(20));
-  CHECK(*r.at(1) == 20);
-  CHECK(r.at(2) == nullptr);
+  CHECK(**r.at(1) == 20);
+  CHECK(r.at(2).error() == cn::container_error::out_of_range);
 
   rb empty;
   CHECK(empty.front() == nullptr);
@@ -573,15 +573,15 @@ TEST_CASE("nexenne::container::ring_buffer const access and const iteration") {
   // const overloads of front/back/at/operator[]
   CHECK(*r.front() == 1);
   CHECK(*r.back() == 3);
-  CHECK(*r.at(1) == 2);
-  CHECK(r.at(3) == nullptr);
+  CHECK(**r.at(1) == 2);
+  CHECK(r.at(3).error() == cn::container_error::out_of_range);
   CHECK(r[0] == 1);
   CHECK(r[2] == 3);
 
   static_assert(std::same_as<decltype(r.front()), int const*>);
   static_assert(std::same_as<decltype(r.back()), int const*>);
   static_assert(std::same_as<decltype(r[0]), int const&>);
-  static_assert(std::same_as<decltype(r.at(0)), int const*>);
+  static_assert(std::same_as<decltype(r.at(0)), cn::result<int const*>>);
 
   // const begin/end and cbegin/cend both yield const_iterator over FIFO order.
   std::vector<int> seen;
@@ -667,7 +667,7 @@ TEST_CASE("nexenne::container::ring_buffer mutable operator[] and front/back are
   r[1] = 20;        // non-const operator[] yields a mutable reference
   *r.front() = 10;  // non-const front
   *r.back() = 30;   // non-const back
-  *r.at(1) = 22;    // non-const at re-assigns the same slot
+  **r.at(1) = 22;   // non-const at re-assigns the same slot
   CHECK(r[0] == 10);
   CHECK(r[1] == 22);
   CHECK(r[2] == 30);
@@ -695,7 +695,7 @@ static_assert([] {
   nexenne::utility::ignore(a.push(3));
   nexenne::utility::ignore(a.pop());    // head off zero
   nexenne::utility::ignore(a.push(4));  // logical [2,3,4], non-zero head
-  cn::ring_buffer<int, 3> const b{a};   // copy canonicalises head
+  cn::ring_buffer<int, 3> const b{a};    // copy canonicalises head
   bool ok{b.size() == 3 && b[0] == 2 && b[1] == 3 && b[2] == 4};
   cn::ring_buffer<int, 3> c;
   c = std::move(a);  // move-assign at compile time
@@ -728,5 +728,32 @@ static_assert(!std::is_copy_assignable_v<cn::ring_buffer<std::unique_ptr<int>, 4
 static_assert(std::is_move_constructible_v<cn::ring_buffer<std::unique_ptr<int>, 4>>);
 static_assert(std::is_copy_constructible_v<cn::ring_buffer<int, 4>>);
 static_assert(std::is_copy_assignable_v<cn::ring_buffer<int, 4>>);
+
+TEST_CASE("nexenne::container::ring_buffer at returns result like deque") {
+  rb v{};
+  for (auto const x : {10, 20, 30}) {
+    nexenne::utility::ignore(v.push(x));
+  }
+  auto const hit{v.at(1)};
+  REQUIRE(hit.has_value());
+  CHECK(**hit == 20);
+  **v.at(1) = 21;
+  CHECK(v[1] == 21);
+  auto const miss{v.at(v.size())};
+  REQUIRE_FALSE(miss.has_value());
+  CHECK(miss.error() == cn::container_error::out_of_range);
+  rb const& cv{v};
+  static_assert(std::is_same_v<decltype(v.at(0)), cn::result<int*>>);
+  static_assert(std::is_same_v<decltype(cv.at(0)), cn::result<int const*>>);
+  CHECK(**cv.at(0) == 10);
+  CHECK(cv.at(99).error() == cn::container_error::out_of_range);
+}
+
+static_assert([] {
+  rb r{};
+  nexenne::utility::ignore(r.push(1));
+  nexenne::utility::ignore(r.push(2));
+  return **r.at(1) == 2 && r.at(2).error() == cn::container_error::out_of_range;
+}());
 
 }  // namespace

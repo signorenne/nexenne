@@ -89,8 +89,8 @@ TEST_CASE("nexenne::container::small_vector emplace_back returns the new element
 
 TEST_CASE("nexenne::container::small_vector at/front/back bounds-checked") {
   sv v{10, 20};
-  CHECK(*v.at(1) == 20);
-  CHECK(v.at(2) == nullptr);
+  CHECK(**v.at(1) == 20);
+  CHECK(v.at(2).error() == cn::container_error::out_of_range);
   CHECK(*v.front() == 10);
   CHECK(*v.back() == 20);
 
@@ -579,8 +579,8 @@ TEST_CASE("nexenne::container::small_vector const overloads and accessors") {
   sv const v{10, 20, 30};
   CHECK(v.size() == 3);
   CHECK(v[1] == 20);
-  CHECK(*v.at(2) == 30);
-  CHECK(v.at(3) == nullptr);
+  CHECK(**v.at(2) == 30);
+  CHECK(v.at(3).error() == cn::container_error::out_of_range);
   CHECK(*v.front() == 10);
   CHECK(*v.back() == 30);
   CHECK(v.data()[0] == 10);
@@ -753,5 +753,22 @@ static_assert(!std::is_copy_assignable_v<cn::small_vector<std::unique_ptr<int>, 
 static_assert(std::is_move_constructible_v<cn::small_vector<std::unique_ptr<int>, 4>>);
 static_assert(std::is_copy_constructible_v<cn::small_vector<int, 4>>);
 static_assert(std::is_copy_assignable_v<cn::small_vector<int, 4>>);
+
+TEST_CASE("nexenne::container::small_vector at returns result like deque") {
+  sv v{10, 20, 30};
+  auto const hit{v.at(1)};
+  REQUIRE(hit.has_value());
+  CHECK(**hit == 20);
+  **v.at(1) = 21;
+  CHECK(v[1] == 21);
+  auto const miss{v.at(v.size())};
+  REQUIRE_FALSE(miss.has_value());
+  CHECK(miss.error() == cn::container_error::out_of_range);
+  sv const& cv{v};
+  static_assert(std::is_same_v<decltype(v.at(0)), cn::result<int*>>);
+  static_assert(std::is_same_v<decltype(cv.at(0)), cn::result<int const*>>);
+  CHECK(**cv.at(0) == 10);
+  CHECK(cv.at(99).error() == cn::container_error::out_of_range);
+}
 
 }  // namespace

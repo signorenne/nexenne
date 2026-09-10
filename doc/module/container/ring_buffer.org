@@ -68,8 +68,10 @@ the window slides forward and the size stays =N=.
 
 Logical indices count from the front, so =operator[](0)= and =front()= are the
 oldest element and =back()= the newest, each mapping through the same =wrap=.
-=operator[]= is unchecked; =at=, =front=, and =back= are checked and return a
-=nullptr= pointer on a miss. The forward iterator walks =size= elements from
+=operator[]= is unchecked; =at= is checked and returns =result<T*>=
+(=result<T const*>= on a const buffer), a pointer to the element or
+=container_error::out_of_range= past =size()=, while =front= and =back= return a
+=nullptr= pointer when empty. The forward iterator walks =size= elements from
 =head= in FIFO order, wrapping as it goes, so a range-based =for= visits oldest
 to newest. Construction, the pushes, pops, and access are all =constexpr=.
 

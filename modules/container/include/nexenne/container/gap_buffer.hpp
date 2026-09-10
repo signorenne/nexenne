@@ -867,18 +867,35 @@ public:
    *
    * @param i Logical index.
    *
-   * @return Pointer to the element, or \c nullptr when \p i is out of range.
+   * @return Pointer to the element, or \c container_error::out_of_range when
+   *         \p i is not less than \c size().
    *
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto at(size_type const i) noexcept -> T* {
-    return i < size() ? std::addressof((*this)[i]) : nullptr;
+  [[nodiscard]] constexpr auto at(size_type const i) noexcept -> result<T*> {
+    if (i >= size()) {
+      return std::unexpected{container_error::out_of_range};
+    }
+    return std::addressof((*this)[i]);
   }
 
-  /// @copydoc at(size_type)
-  [[nodiscard]] constexpr auto at(size_type const i) const noexcept -> T const* {
-    return i < size() ? std::addressof((*this)[i]) : nullptr;
+  /**
+   * @brief Checked access by logical index (const overload).
+   *
+   * @param i Logical index.
+   *
+   * @return Const pointer to the element, or \c container_error::out_of_range
+   *         when \p i is not less than \c size().
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto at(size_type const i) const noexcept -> result<T const*> {
+    if (i >= size()) {
+      return std::unexpected{container_error::out_of_range};
+    }
+    return std::addressof((*this)[i]);
   }
 
   /**

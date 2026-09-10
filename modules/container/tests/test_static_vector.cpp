@@ -60,7 +60,7 @@ static_assert([] {
   vec v{1, 2, 3};
   v.clear();
   return v.empty() && v.size() == 0 && v.front() == nullptr && v.back() == nullptr
-         && v.at(0) == nullptr;
+         && v.at(0).error() == cn::container_error::out_of_range;
 }());
 static_assert([] {
   vec a{1, 2};
@@ -135,13 +135,13 @@ TEST_CASE("nexenne::container::static_vector initializer list truncates to capac
 
 TEST_CASE("nexenne::container::static_vector at/front/back are bounds-checked") {
   vec v{10, 20};
-  CHECK(*v.at(1) == 20);
-  CHECK(v.at(2) == nullptr);
+  CHECK(**v.at(1) == 20);
+  CHECK(v.at(2).error() == cn::container_error::out_of_range);
 
   vec empty;
   CHECK(empty.front() == nullptr);
   CHECK(empty.back() == nullptr);
-  CHECK(empty.at(0) == nullptr);
+  CHECK(empty.at(0).error() == cn::container_error::out_of_range);
 }
 
 TEST_CASE("nexenne::container::static_vector operator[] writes through; iteration and span") {
@@ -348,9 +348,9 @@ TEST_CASE("nexenne::container::static_vector moved-from is valid and reusable") 
 
 TEST_CASE("nexenne::container::static_vector const accessors and iterators") {
   vec const v{1, 2, 3};
-  CHECK(v[0] == 1);      // const operator[]
-  CHECK(*v.at(2) == 3);  // const at
-  CHECK(v.at(3) == nullptr);
+  CHECK(v[0] == 1);
+  CHECK(**v.at(2) == 3);
+  CHECK(v.at(3).error() == cn::container_error::out_of_range);
   CHECK(*v.front() == 1);       // const front
   CHECK(*v.back() == 3);        // const back
   CHECK(v.data()[1] == 2);      // const data
@@ -471,5 +471,27 @@ static_assert(!std::is_copy_assignable_v<cn::static_vector<std::unique_ptr<int>,
 static_assert(std::is_move_constructible_v<cn::static_vector<std::unique_ptr<int>, 4>>);
 static_assert(std::is_copy_constructible_v<cn::static_vector<int, 4>>);
 static_assert(std::is_copy_assignable_v<cn::static_vector<int, 4>>);
+
+TEST_CASE("nexenne::container::static_vector at returns result like deque") {
+  vec v{10, 20, 30};
+  auto const hit{v.at(1)};
+  REQUIRE(hit.has_value());
+  CHECK(**hit == 20);
+  **v.at(1) = 21;
+  CHECK(v[1] == 21);
+  auto const miss{v.at(v.size())};
+  REQUIRE_FALSE(miss.has_value());
+  CHECK(miss.error() == cn::container_error::out_of_range);
+  vec const& cv{v};
+  static_assert(std::is_same_v<decltype(v.at(0)), cn::result<int*>>);
+  static_assert(std::is_same_v<decltype(cv.at(0)), cn::result<int const*>>);
+  CHECK(**cv.at(0) == 10);
+  CHECK(cv.at(99).error() == cn::container_error::out_of_range);
+}
+
+static_assert([] {
+  vec v{1, 2};
+  return **v.at(1) == 2 && v.at(2).error() == cn::container_error::out_of_range;
+}());
 
 }  // namespace

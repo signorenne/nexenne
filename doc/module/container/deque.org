@@ -87,7 +87,9 @@ correctly, and the matching aligned =::operator delete= frees it.
 empty; =operator[]= is unchecked, while =at(i)= is checked and returns
 =result<T*>= (=result<T const*>= on a const deque), yielding a pointer to the
 element or =container_error::out_of_range= past =size()=, matching the
-=result<T*>= idiom of =object_pool= and =linear_arena=. =pop_front()= and
+=result<T*>= idiom of =object_pool= and =linear_arena= and the =at= of every
+other sequence container (=static_vector=, =small_vector=, =stable_vector=,
+=ring_buffer=, =gap_buffer=). =pop_front()= and
 =pop_back()= return the removed element as =result<T>=, or
 =container_error::empty= when there is nothing to remove. =push_*= and
 =emplace_*= are =noexcept= and terminate only on allocation failure (or on a

@@ -122,7 +122,7 @@ public:
    */
   auto insert_or_assign(key_type const key, value_type value) noexcept -> bool {
     if (auto const slot{slot_of(key)}; slot != m_slots.size()) {
-      (**m_slots.at(slot)).value = std::move(value);
+      (*m_slots[slot]).value = std::move(value);
       return false;
     }
     if (key >= m_sparse.size()) {
@@ -131,7 +131,7 @@ public:
     if (!m_free.empty()) {
       auto const slot{m_free.back()};
       m_free.pop_back();
-      m_slots.at(slot)->emplace(entry{key, std::move(value)});
+      m_slots[slot].emplace(entry{key, std::move(value)});
       m_sparse[key] = static_cast<key_type>(slot) + 1;
     } else {
       auto const slot{m_slots.size()};
@@ -166,7 +166,7 @@ public:
     if (slot == m_slots.size()) {
       return false;
     }
-    m_slots.at(slot)->reset();
+    m_slots[slot].reset();
     m_free.push_back(slot);
     m_sparse[key] = absent;
     --m_size;
@@ -188,13 +188,13 @@ public:
    */
   [[nodiscard]] auto try_get(key_type const key) noexcept -> value_type* {
     auto const slot{slot_of(key)};
-    return slot == m_slots.size() ? nullptr : &(**m_slots.at(slot)).value;
+    return slot == m_slots.size() ? nullptr : &(*m_slots[slot]).value;
   }
 
   /// @copydoc try_get
   [[nodiscard]] auto try_get(key_type const key) const noexcept -> value_type const* {
     auto const slot{slot_of(key)};
-    return slot == m_slots.size() ? nullptr : &(**m_slots.at(slot)).value;
+    return slot == m_slots.size() ? nullptr : &(*m_slots[slot]).value;
   }
 
   /**
@@ -282,7 +282,7 @@ public:
    */
   [[nodiscard]] auto is_live(size_type const slot) const noexcept -> bool {
     assert(slot < slot_count() && "is_live slot out of range");
-    return m_slots.at(slot)->has_value();
+    return m_slots[slot].has_value();
   }
 
   /**
@@ -297,7 +297,7 @@ public:
    */
   [[nodiscard]] auto key_at(size_type const slot) const noexcept -> key_type {
     assert(slot < slot_count() && "key_at slot out of range");
-    return (**m_slots.at(slot)).key;
+    return (*m_slots[slot]).key;
   }
 
   /**
@@ -312,13 +312,13 @@ public:
    */
   [[nodiscard]] auto value_at(size_type const slot) noexcept -> value_type& {
     assert(slot < slot_count() && "value_at slot out of range");
-    return (**m_slots.at(slot)).value;
+    return (*m_slots[slot]).value;
   }
 
   /// @copydoc value_at
   [[nodiscard]] auto value_at(size_type const slot) const noexcept -> value_type const& {
     assert(slot < slot_count() && "value_at slot out of range");
-    return (**m_slots.at(slot)).value;
+    return (*m_slots[slot]).value;
   }
 };
 

@@ -90,9 +90,9 @@ TEST_CASE("nexenne::container::gap_buffer cursor moves and bounds") {
 
 TEST_CASE("nexenne::container::gap_buffer at, front, back") {
   gb b{10, 20, 30};
-  REQUIRE(b.at(1) != nullptr);
-  CHECK(*b.at(1) == 20);
-  CHECK(b.at(3) == nullptr);  // out of range
+  REQUIRE(b.at(1).has_value());
+  CHECK(**b.at(1) == 20);
+  CHECK(b.at(3).error() == cn::container_error::out_of_range);
   REQUIRE(b.front() != nullptr);
   CHECK(*b.front() == 10);
   REQUIRE(b.back() != nullptr);
@@ -251,9 +251,9 @@ TEST_CASE("nexenne::container::gap_buffer const access and const iteration") {
   CHECK_FALSE(b.empty());
   CHECK(b[0] == 10);
   CHECK(b[2] == 30);
-  REQUIRE(b.at(1) != nullptr);
-  CHECK(*b.at(1) == 20);
-  CHECK(b.at(9) == nullptr);
+  REQUIRE(b.at(1).has_value());
+  CHECK(**b.at(1) == 20);
+  CHECK(b.at(9).error() == cn::container_error::out_of_range);
   REQUIRE(b.front() != nullptr);
   CHECK(*b.front() == 10);
   REQUIRE(b.back() != nullptr);
@@ -390,7 +390,7 @@ TEST_CASE("nexenne::container::gap_buffer insert accepts an argument aliasing it
   auto const first{*s.front()};  // copy of s[0] for comparison
   s.insert(std::move(*s.front()));
   REQUIRE(s.size() == 17);
-  CHECK(*s.at(16) == first);
+  CHECK(**s.at(16) == first);
 }
 
 // Counts only move-ASSIGNMENTS, which is exactly what grow_gap's post-region
@@ -465,5 +465,22 @@ static_assert(!std::is_copy_assignable_v<cn::gap_buffer<std::unique_ptr<int>>>);
 static_assert(std::is_move_constructible_v<cn::gap_buffer<std::unique_ptr<int>>>);
 static_assert(std::is_copy_constructible_v<cn::gap_buffer<int>>);
 static_assert(std::is_copy_assignable_v<cn::gap_buffer<int>>);
+
+TEST_CASE("nexenne::container::gap_buffer at returns result like deque") {
+  gb v{10, 20, 30};
+  auto const hit{v.at(1)};
+  REQUIRE(hit.has_value());
+  CHECK(**hit == 20);
+  **v.at(1) = 21;
+  CHECK(v[1] == 21);
+  auto const miss{v.at(v.size())};
+  REQUIRE_FALSE(miss.has_value());
+  CHECK(miss.error() == cn::container_error::out_of_range);
+  gb const& cv{v};
+  static_assert(std::is_same_v<decltype(v.at(0)), cn::result<int*>>);
+  static_assert(std::is_same_v<decltype(cv.at(0)), cn::result<int const*>>);
+  CHECK(**cv.at(0) == 10);
+  CHECK(cv.at(99).error() == cn::container_error::out_of_range);
+}
 
 }  // namespace

@@ -72,8 +72,8 @@ TEST_CASE("nexenne::container::stable_vector push/emplace/pop") {
 
 TEST_CASE("nexenne::container::stable_vector at/front/back") {
   sv v{10, 20, 30};
-  CHECK(*v.at(2) == 30);
-  CHECK(v.at(3) == nullptr);
+  CHECK(**v.at(2) == 30);
+  CHECK(v.at(3).error() == cn::container_error::out_of_range);
   CHECK(*v.front() == 10);
   CHECK(*v.back() == 30);
 
@@ -217,7 +217,7 @@ TEST_CASE("nexenne::container::stable_vector default is empty") {
   CHECK(v.begin() == v.end());
   CHECK(v.front() == nullptr);
   CHECK(v.back() == nullptr);
-  CHECK(v.at(0) == nullptr);
+  CHECK(v.at(0).error() == cn::container_error::out_of_range);
   CHECK_FALSE(v.pop_back().has_value());
 }
 
@@ -229,7 +229,7 @@ TEST_CASE("nexenne::container::stable_vector single element") {
   CHECK(p == &v[0]);
   CHECK(p == v.front());
   CHECK(p == v.back());
-  CHECK(p == v.at(0));
+  CHECK(p == *v.at(0));
   CHECK(std::next(v.begin()) == v.end());
 }
 
@@ -412,14 +412,14 @@ TEST_CASE("nexenne::container::stable_vector copy of empty and self-equality") {
 
 TEST_CASE("nexenne::container::stable_vector const access overloads") {
   sv const v{10, 20, 30};
-  CHECK(v[1] == 20);      // const operator[]
-  CHECK(*v.at(2) == 30);  // const at
-  CHECK(v.at(5) == nullptr);
+  CHECK(v[1] == 20);
+  CHECK(**v.at(2) == 30);
+  CHECK(v.at(5).error() == cn::container_error::out_of_range);
   CHECK(*v.front() == 10);  // const front
   CHECK(*v.back() == 30);   // const back
 
   static_assert(std::is_same_v<decltype(v[0]), int const&>);
-  static_assert(std::is_same_v<decltype(v.at(0)), int const*>);
+  static_assert(std::is_same_v<decltype(v.at(0)), cn::result<int const*>>);
   static_assert(std::is_same_v<decltype(v.front()), int const*>);
   static_assert(std::is_same_v<decltype(v.back()), int const*>);
 
@@ -604,5 +604,22 @@ static_assert(!std::is_copy_assignable_v<cn::stable_vector<std::unique_ptr<int>>
 static_assert(std::is_move_constructible_v<cn::stable_vector<std::unique_ptr<int>>>);
 static_assert(std::is_copy_constructible_v<cn::stable_vector<int>>);
 static_assert(std::is_copy_assignable_v<cn::stable_vector<int>>);
+
+TEST_CASE("nexenne::container::stable_vector at returns result like deque") {
+  sv v{10, 20, 30};
+  auto const hit{v.at(1)};
+  REQUIRE(hit.has_value());
+  CHECK(**hit == 20);
+  **v.at(1) = 21;
+  CHECK(v[1] == 21);
+  auto const miss{v.at(v.size())};
+  REQUIRE_FALSE(miss.has_value());
+  CHECK(miss.error() == cn::container_error::out_of_range);
+  sv const& cv{v};
+  static_assert(std::is_same_v<decltype(v.at(0)), cn::result<int*>>);
+  static_assert(std::is_same_v<decltype(cv.at(0)), cn::result<int const*>>);
+  CHECK(**cv.at(0) == 10);
+  CHECK(cv.at(99).error() == cn::container_error::out_of_range);
+}
 
 }  // namespace

@@ -832,13 +832,17 @@ public:
    *
    * @param index Logical index.
    *
-   * @return Pointer to the element, or \c nullptr when \p index is out of range.
+   * @return Pointer to the element, or \c container_error::out_of_range when
+   *         \p index is not less than \c size().
    *
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto at(size_type const index) noexcept -> T* {
-    return index < m_size ? m_chunks[chunk_of(index)]->at(slot_of(index)) : nullptr;
+  [[nodiscard]] auto at(size_type const index) noexcept -> result<T*> {
+    if (index >= m_size) {
+      return std::unexpected{container_error::out_of_range};
+    }
+    return m_chunks[chunk_of(index)]->at(slot_of(index));
   }
 
   /**
@@ -846,13 +850,17 @@ public:
    *
    * @param index Logical index.
    *
-   * @return Const pointer to the element, or \c nullptr when out of range.
+   * @return Const pointer to the element, or \c container_error::out_of_range
+   *         when \p index is not less than \c size().
    *
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto at(size_type const index) const noexcept -> T const* {
-    return index < m_size ? m_chunks[chunk_of(index)]->at(slot_of(index)) : nullptr;
+  [[nodiscard]] auto at(size_type const index) const noexcept -> result<T const*> {
+    if (index >= m_size) {
+      return std::unexpected{container_error::out_of_range};
+    }
+    return m_chunks[chunk_of(index)]->at(slot_of(index));
   }
 
   /**

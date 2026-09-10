@@ -63,8 +63,10 @@ destructor destroys the live elements and frees the chunks.
 
 ** Access and iteration
 
-=operator[]= is unchecked; =at=, =front=, and =back= are checked and return a
-=nullptr= pointer on a miss. The random-access iterator hops chunk boundaries
+=operator[]= is unchecked; =at= is checked and returns =result<T*>=
+(=result<T const*>= when const), a pointer to the element or
+=container_error::out_of_range= past =size()=, while =front= and =back= return a
+=nullptr= pointer when empty. The random-access iterator hops chunk boundaries
 transparently, so a range-based =for= and the =std::ranges= algorithms work, but
 the elements are not one contiguous block, so there is no =data()=. =push_back=
 returns the stable pointer to the new element; =pop_back= returns =result<void>=.

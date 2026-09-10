@@ -111,9 +111,10 @@ compile time, iterate by index with =operator[]= and =size()=.
 
 Per the module policy, mutators that can fail return =result<void>=. Reads come
 in two flavours: =operator[]= is unchecked (an out-of-range index is undefined
-behaviour, stated as a =@pre=), while =at=, =front=, and =back= are checked and
-return a pointer that is =nullptr= on a miss or empty container, never an
-exception.
+behaviour, stated as a =@pre=), while =at= is checked and returns =result<T*>=
+(=result<T const*>= when const), a pointer to the element or
+=container_error::out_of_range= past =size()=, and =front= and =back= return a
+pointer that is =nullptr= on an empty container; never an exception.
 
 * Complexity
 

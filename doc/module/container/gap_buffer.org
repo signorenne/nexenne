@@ -176,8 +176,9 @@ Invalidation and stability gotchas:
   resource-holding types therefore releases those resources lazily, which matters
   for file handles, locks, or large buffers.
 - =operator[]= and =at= with an in-range or out-of-range index differ:
-  =operator[]= is unchecked, while =at= returns =nullptr= past =size()=, as do
-  =front= / =back= on an empty buffer.
+  =operator[]= is unchecked, while =at= returns =result<T*>= (=result<T const*>=
+  on a const buffer) and reports =container_error::out_of_range= past =size()=;
+  =front= / =back= return =nullptr= on an empty buffer.
 
 * Usage
 
