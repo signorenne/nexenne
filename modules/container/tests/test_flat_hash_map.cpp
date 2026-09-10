@@ -623,4 +623,63 @@ TEST_CASE("nexenne::container::flat_hash_map operator[] takes a move-only key") 
   CHECK(value == 3);
 }
 
+struct alive_counter {
+  static inline int alive{0};
+  int value{0};
+
+  explicit alive_counter(int const v) noexcept : value{v} {
+    ++alive;
+  }
+
+  alive_counter(alive_counter const& other) noexcept : value{other.value} {
+    ++alive;
+  }
+
+  alive_counter(alive_counter&& other) noexcept : value{other.value} {
+    ++alive;
+  }
+
+  auto operator=(alive_counter const&) noexcept -> alive_counter& = default;
+  auto operator=(alive_counter&&) noexcept -> alive_counter& = default;
+
+  ~alive_counter() {
+    --alive;
+  }
+};
+
+TEST_CASE("nexenne::container::flat_hash_map slots own their entries' lifetimes (container-31)") {
+  // The entry lives in raw slot storage, alive exactly while the slot is
+  // occupied: every path that builds, moves, or drops one must balance.
+  REQUIRE(alive_counter::alive == 0);
+  {
+    cn::flat_hash_map<int, alive_counter> m;
+    for (int i{0}; i < 200; ++i) {
+      CHECK(m.emplace(i, i));
+    }
+    CHECK(alive_counter::alive == 200);
+    for (int i{0}; i < 200; i += 2) {
+      CHECK(m.erase(i));
+    }
+    CHECK(alive_counter::alive == 100);
+    CHECK(m.insert_or_assign(1, alive_counter{-1}) == false);
+    CHECK(alive_counter::alive == 100);
+    {
+      auto copy{m};
+      CHECK(alive_counter::alive == 200);
+      REQUIRE(copy.find(1) != nullptr);
+      CHECK(copy.find(1)->value == -1);
+      auto moved{std::move(copy)};
+      CHECK(alive_counter::alive == 200);
+    }
+    CHECK(alive_counter::alive == 100);
+    m.shrink_to_fit();
+    CHECK(alive_counter::alive == 100);
+    m.clear();
+    CHECK(alive_counter::alive == 0);
+    CHECK(m.emplace(7, 7));
+    CHECK(alive_counter::alive == 1);
+  }
+  CHECK(alive_counter::alive == 0);
+}
+
 }  // namespace

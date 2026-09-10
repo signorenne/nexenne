@@ -28,9 +28,11 @@ moves every entry (a rehash), so pointers into it do not survive growth.
 ** Slots, states, and the cached hash
 
 The table is a =std::vector= of slots. Each slot holds a *state* (empty,
-occupied, or tombstone), the *cached hash* of its key, and an optional key-value
-pair. Caching the hash lets a probe reject a non-matching slot with an integer
-compare before ever calling the (possibly expensive) key equality. The slot count
+occupied, or tombstone), the *cached hash* of its key, and storage for the
+key-value pair, which is alive exactly while the state is occupied (the state is
+the only engaged flag; the slot constructs and destroys the pair by hand).
+Caching the hash lets a probe reject a non-matching slot with an integer compare
+before ever calling the (possibly expensive) key equality. The slot count
 is always a power of two, so the home bucket is the top =log2(capacity)= bits of
 =hash * 0x9e3779b97f4a7c15= (Fibonacci hashing), a multiply and a shift rather
 than a modulo. Keeping the top bits of the product, not the low bits of the
@@ -119,9 +121,12 @@ so its memory tracks the live size, not the total churn.
 
 The "amortised" hides the rare rehash, and the constants assume a good hash
 (linear probing degrades toward =O(n)= under heavy clustering from a poor one).
-Per-slot memory is the cached hash, the state byte, and the optional pair, so it
-trades some space for the integer-compare fast reject; iteration is over the whole
-slot array, so a sparsely filled table iterates slower than its size suggests.
+Per-slot memory is the cached hash, the state byte, and the pair: 24 bytes for
+an =int= to =int= map on a 64-bit target (it was 32 while the pair sat in a
+=std::optional= with a second engaged flag). The cached hash trades those 8
+bytes for the integer-compare fast reject and for rehashes that never call the
+hasher; iteration is over the whole slot array, so a sparsely filled table
+iterates slower than its size suggests.
 
 * When to use it
 

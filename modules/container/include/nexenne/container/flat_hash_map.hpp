@@ -13,7 +13,10 @@
  *
  * Each slot caches its key's hash and carries an empty / occupied / tombstone
  * state so an erase can leave a tombstone (a probe must skip it without stopping)
- * while a fresh empty slot still terminates a lookup. The table is a power of two
+ * while a fresh empty slot still terminates a lookup. The entry is stored in
+ * place, alive only while its slot is occupied, so a slot costs the hash, the
+ * state byte, and the key-value pair (24 bytes for an \c int to \c int map on
+ * a 64-bit target), with no second engaged flag. The table is a power of two
  * in size (so the bucket index is a mask, not a modulo), starts at 16 slots,
  * doubles on growth, and rehashes when the occupied-plus-tombstone count reaches
  * 7/8 of the slots. Reach for it as a general hashable-key map in hot paths; use
@@ -35,7 +38,6 @@
 #include <iterator>
 #include <limits>
 #include <memory>
-#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -99,10 +101,144 @@ private:
     tombstone
   };
 
+  // One table cell. The entry lives in an anonymous union so it carries no
+  // engaged flag of its own: the state already says whether it is alive (it is
+  // exactly while the state is occupied), which is what the std::optional this
+  // replaced duplicated. The slot runs the entry's constructor and destructor
+  // by hand.
   struct slot {
-    slot_state state{slot_state::empty};
     std::size_t cached_hash{0};
-    std::optional<value_type> entry;
+    slot_state state{slot_state::empty};
+
+    union {
+      value_type entry;
+    };
+
+    /**
+     * @brief Constructs an empty slot that holds no entry.
+     *
+     * @pre None.
+     * @post \c state is \c slot_state::empty and no entry is alive.
+     */
+    slot() noexcept {}
+
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
+
+    /**
+     * @brief Copies \p other, copying its entry when it holds one.
+     *
+     * @param other Slot to copy.
+     *
+     * @pre None.
+     * @post This slot has \p other's state and hash, and a copy of its entry
+     *       when it is occupied.
+     */
+    slot(slot const& other) noexcept(std::is_nothrow_copy_constructible_v<value_type>)
+      requires std::copy_constructible<value_type>
+        : cached_hash{other.cached_hash}, state{other.state} {
+      if (state == slot_state::occupied) {
+        std::construct_at(std::addressof(entry), other.entry);
+      }
+    }
+
+    /**
+     * @brief Moves \p other's entry, when it holds one, into this slot.
+     *
+     * @param other Slot to move from; its entry is left moved-from but alive.
+     *
+     * @pre None.
+     * @post This slot has \p other's state and hash, and its entry when it is
+     *       occupied.
+     */
+    slot(slot&& other) noexcept(std::is_nothrow_move_constructible_v<value_type>)
+        : cached_hash{other.cached_hash}, state{other.state} {
+      if (state == slot_state::occupied) {
+        std::construct_at(std::addressof(entry), std::move(other.entry));
+      }
+    }
+
+    /**
+     * @brief Slots are never assigned; the table only builds and swaps them.
+     *
+     * @return Not applicable: deleted.
+     *
+     * @pre None.
+     * @post None.
+     */
+    auto operator=(slot const&) -> slot& = delete;
+
+    /**
+     * @brief Slots are never assigned; the table only builds and swaps them.
+     *
+     * @return Not applicable: deleted.
+     *
+     * @pre None.
+     * @post None.
+     */
+    auto operator=(slot&&) -> slot& = delete;
+
+    /**
+     * @brief Destroys the entry when the slot holds one.
+     *
+     * @pre None.
+     * @post No entry is alive.
+     */
+    ~slot() {
+      if (state == slot_state::occupied) {
+        std::destroy_at(std::addressof(entry));
+      }
+    }
+
+    /**
+     * @brief The live entry.
+     *
+     * @return A reference to the entry.
+     *
+     * @pre \c state is \c slot_state::occupied.
+     * @post None.
+     */
+    [[nodiscard]] auto value() noexcept -> value_type& {
+      return entry;
+    }
+
+    /**
+     * @brief The live entry, read-only.
+     *
+     * @return A const reference to the entry.
+     *
+     * @pre \c state is \c slot_state::occupied.
+     * @post None.
+     */
+    [[nodiscard]] auto value() const noexcept -> value_type const& {
+      return entry;
+    }
+
+    /**
+     * @brief Builds the entry in this slot from \p args.
+     *
+     * @tparam Args Constructor argument types for the entry.
+     * @param args Arguments forwarded to the entry's constructor.
+     *
+     * @pre No entry is alive in this slot.
+     * @post The entry is alive; \c state is left for the caller to set.
+     */
+    template <typename... Args>
+    auto construct(Args&&... args) noexcept(std::is_nothrow_constructible_v<value_type, Args...>)
+      -> void {
+      std::construct_at(std::addressof(entry), std::forward<Args>(args)...);
+    }
+
+    /**
+     * @brief Destroys the live entry.
+     *
+     * @pre The entry is alive.
+     * @post No entry is alive; \c state is left for the caller to set.
+     */
+    auto destroy() noexcept -> void {
+      std::destroy_at(std::addressof(entry));
+    }
+
+    // NOLINTEND(cppcoreguidelines-pro-type-union-access)
   };
 
   std::vector<slot> m_slots;
@@ -219,7 +355,7 @@ private:
     m_tombstones = 0;
     for (auto& old : old_slots) {
       if (old.state == slot_state::occupied) {
-        place_absent(old.cached_hash, std::move(old.entry->first), std::move(old.entry->second));
+        place_absent(old.cached_hash, std::move(old.value().first), std::move(old.value().second));
       }
     }
   }
@@ -250,11 +386,11 @@ private:
     if (target.state == slot_state::tombstone) {
       --m_tombstones;
     }
+    target.construct(std::move(key), std::move(value));
     target.state = slot_state::occupied;
     target.cached_hash = h;
-    target.entry.emplace(std::move(key), std::move(value));
     ++m_size;
-    return target.entry->second;
+    return target.value().second;
   }
 
   /**
@@ -303,7 +439,7 @@ private:
         return nullptr;
       }
       if (current.state == slot_state::occupied && current.cached_hash == h
-          && m_eq(current.entry->first, key)) {
+          && m_eq(current.value().first, key)) {
         return std::addressof(current);
       }
       index = (index + 1) & (m_slots.size() - 1);
@@ -354,8 +490,8 @@ private:
       return false;
     }
     auto& target{mutable_slot(found)};
+    target.destroy();
     target.state = slot_state::tombstone;
-    target.entry.reset();
     --m_size;
     ++m_tombstones;
     return true;
@@ -436,7 +572,7 @@ private:
      * @post None.
      */
     [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
-      return *m_current->entry;
+      return m_current->value();
     }
 
     /**
@@ -448,7 +584,7 @@ private:
      * @post None.
      */
     [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
-      return std::addressof(*m_current->entry);
+      return std::addressof(m_current->value());
     }
 
     /**
@@ -673,8 +809,10 @@ public:
    */
   auto clear() noexcept -> void {
     for (auto& current : m_slots) {
+      if (current.state == slot_state::occupied) {
+        current.destroy();
+      }
       current.state = slot_state::empty;
-      current.entry.reset();
     }
     m_size = 0;
     m_tombstones = 0;
@@ -780,7 +918,7 @@ public:
   auto insert_or_assign(Key key, Value value) noexcept -> bool {
     auto const h{m_hash(key)};
     if (auto const* const found{probe_slot(key, h)}) {
-      mutable_slot(found).entry->second = std::move(value);
+      mutable_slot(found).value().second = std::move(value);
       return false;
     }
     ensure_capacity_for(m_size + 1);
@@ -908,7 +1046,7 @@ public:
     if (found == nullptr) {
       return nullptr;
     }
-    return std::addressof(mutable_slot(found).entry->second);
+    return std::addressof(mutable_slot(found).value().second);
   }
 
   /**
@@ -926,7 +1064,7 @@ public:
    */
   [[nodiscard]] auto find(Key const& key) const noexcept -> Value const* {
     auto const* const found{find_slot(key)};
-    return found == nullptr ? nullptr : std::addressof(found->entry->second);
+    return found == nullptr ? nullptr : std::addressof(found->value().second);
   }
 
   /**
@@ -988,7 +1126,7 @@ public:
     if (found == nullptr) {
       return nullptr;
     }
-    return std::addressof(mutable_slot(found).entry->second);
+    return std::addressof(mutable_slot(found).value().second);
   }
 
   /**
@@ -1009,7 +1147,7 @@ public:
     requires detail::transparent_hash_pair<Hash, KeyEq>
   [[nodiscard]] auto find(K const& key) const noexcept -> Value const* {
     auto const* const found{probe_slot(key)};
-    return found == nullptr ? nullptr : std::addressof(found->entry->second);
+    return found == nullptr ? nullptr : std::addressof(found->value().second);
   }
 
   /**
@@ -1146,7 +1284,7 @@ public:
   {
     auto const h{m_hash(key)};
     if (auto const* const found{probe_slot(key, h)}) {
-      return mutable_slot(found).entry->second;
+      return mutable_slot(found).value().second;
     }
     ensure_capacity_for(m_size + 1);
     return place_absent(h, std::move(key), Value{});
