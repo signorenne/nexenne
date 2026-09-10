@@ -16,7 +16,9 @@
  *
  * Sizing for \c n items at false-positive rate \c p uses
  * \c m = ceil(-n ln p / (ln 2)^2) bits and \c k = ceil((m/n) ln 2) hashes; the
- * \c with_target_false_positive_rate factory does that arithmetic. Internally one
+ * \c with_target_false_positive_rate factory does that arithmetic, and \c make
+ * takes the two counts directly. Both return a \c result and reject a shape
+ * that cannot work (zero bits or zero hashes) in every build. Internally one
  * \c std::hash evaluation is stretched into \c k positions by double hashing
  * (\c h1 + i*h2, the Kirsch-Mitzenmacher construction), avoiding \c k separate
  * hash functors. It has no \c erase (removing a bit could create a false negative
@@ -25,12 +27,12 @@
  */
 
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <functional>
+#include <limits>
 #include <numbers>
 #include <utility>
 
@@ -42,6 +44,9 @@ namespace nexenne::container {
 
 /**
  * @brief Probabilistic membership filter with no false negatives.
+ *
+ * Built through \c make or \c with_target_false_positive_rate, which check the
+ * shape; there is no public constructor that could receive a zero count.
  *
  * @tparam T Hashable value type.
  * @tparam Hash Hash functor; \c std::hash<T> by default.
@@ -88,55 +93,91 @@ private:
     return (h1 + k * h2) % m_bits.size();
   }
 
-public:
   /**
-   * @brief Constructs a filter with an explicit bit-array size and hash count.
+   * @brief Constructs an empty filter over \p bits bits and \p k hashes.
    *
-   * Prefer \c with_target_false_positive_rate for the common "size for N items at
-   * rate P" case.
+   * Private: only the factories call it, after checking both counts.
    *
    * @param bits Number of bits in the backing array.
    * @param k Number of hash positions set per insertion.
    *
-   * @pre \p bits and \p k are both greater than zero (asserted in debug); a zero
-   *      bit count would divide by zero when mapping a hash to a bit.
+   * @pre \p bits and \p k are both greater than zero; a zero bit count would
+   *      divide by zero when mapping a hash to a bit.
    * @post \c bit_count() equals \p bits, \c hash_count() equals \p k, and
    *       \c empty() is \c true.
    */
-  bloom_filter(size_type const bits, size_type const k) noexcept : m_bits(bits), m_num_hashes{k} {
-    assert(bits > 0 && k > 0 && "bloom_filter requires a positive bit and hash count");
+  bloom_filter(size_type const bits, size_type const k) noexcept : m_bits(bits), m_num_hashes{k} {}
+
+public:
+  /**
+   * @brief Factory: a filter with an explicit bit-array size and hash count.
+   *
+   * Prefer \c with_target_false_positive_rate for the common "size for N items
+   * at rate P" case. Both counts are checked in every build: a zero bit count
+   * would divide by zero when mapping a hash to a bit, and a zero hash count
+   * would report every value as present.
+   *
+   * @param bits Number of bits in the backing array.
+   * @param k Number of hash positions set per insertion.
+   *
+   * @return An empty filter with \c bit_count() equal to \p bits and
+   *         \c hash_count() equal to \p k, or
+   *         \c container_error::invalid_argument when \p bits or \p k is zero.
+   *
+   * @pre None.
+   * @post On success the returned filter is empty.
+   */
+  [[nodiscard]] static auto make(size_type const bits, size_type const k) noexcept
+    -> result<bloom_filter> {
+    if (bits == 0 || k == 0) {
+      return std::unexpected{container_error::invalid_argument};
+    }
+    return bloom_filter{bits, k};
   }
 
   /**
    * @brief Factory: a filter sized for \p expected_items at rate \p target_fpr.
    *
+   * The inputs are checked in every build: zero items or a rate outside (0, 1)
+   * (NaN included) would size the filter to zero bits, and a rate so small that
+   * the bit count overflows \c size_type cannot be honoured.
+   *
    * @param expected_items Number of elements the filter is sized for.
    * @param target_fpr Desired false-positive probability in (0, 1).
    *
-   * @return A filter whose bit and hash counts satisfy the sizing recipe.
+   * @return A filter whose bit and hash counts satisfy the sizing recipe, or
+   *         \c container_error::invalid_argument when \p expected_items is
+   *         zero, \p target_fpr is not in (0, 1), or the bit count does not fit
+   *         \c size_type.
    *
-   * @pre \p expected_items is greater than zero and \p target_fpr is in (0, 1).
-   * @post The returned filter is empty with \c hash_count() at least one.
+   * @pre None.
+   * @post On success the returned filter is empty with \c bit_count() and
+   *       \c hash_count() at least one.
    */
   [[nodiscard]] static auto
   with_target_false_positive_rate(size_type const expected_items, double const target_fpr) noexcept
-    -> bloom_filter {
-    assert(expected_items > 0 && "with_target_false_positive_rate requires expected_items > 0");
-    assert(
-      target_fpr > 0.0 && target_fpr < 1.0
-      && "with_target_false_positive_rate requires target_fpr in (0, 1)"
-    );
+    -> result<bloom_filter> {
+    // A NaN rate fails both comparisons, so it is rejected with the rest.
+    auto const rate_in_range{target_fpr > 0.0 && target_fpr < 1.0};
+    if (expected_items == 0 || !rate_in_range) {
+      return std::unexpected{container_error::invalid_argument};
+    }
     auto const ln2{std::numbers::ln2};
-    auto const m{static_cast<size_type>(
+    auto const bits{
       std::ceil(-static_cast<double>(expected_items) * std::log(target_fpr) / (ln2 * ln2))
-    )};
+    };
+    // Converting a double at or above 2^digits to size_type is undefined.
+    if (!(bits < static_cast<double>(std::numeric_limits<size_type>::max()))) {
+      return std::unexpected{container_error::invalid_argument};
+    }
+    auto const m{static_cast<size_type>(bits)};  // at least 1: n > 0 and p < 1
     auto const k{std::max<size_type>(
       1U,
       static_cast<size_type>(
         std::ceil((static_cast<double>(m) / static_cast<double>(expected_items)) * ln2)
       )
     )};
-    return bloom_filter{m, k};
+    return make(m, k);
   }
 
   /**

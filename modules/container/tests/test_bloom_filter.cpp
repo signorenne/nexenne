@@ -7,8 +7,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <random>
 #include <string>
+#include <type_traits>
 
 #include <nexenne/container/bloom_filter.hpp>
 #include <nexenne/container/error.hpp>
@@ -18,7 +20,7 @@ namespace {
 namespace cn = nexenne::container;
 
 TEST_CASE("nexenne::container::bloom_filter never reports a false negative") {
-  cn::bloom_filter<int> f{1024, 4};
+  auto f{cn::bloom_filter<int>::make(1024, 4).value()};
   for (int i{0}; i < 200; ++i) {
     f.insert(i);
   }
@@ -30,7 +32,7 @@ TEST_CASE("nexenne::container::bloom_filter never reports a false negative") {
 }
 
 TEST_CASE("nexenne::container::bloom_filter reports clear absences") {
-  cn::bloom_filter<std::string> f{4096, 5};
+  auto f{cn::bloom_filter<std::string>::make(4096, 5).value()};
   f.insert("alpha");
   f.insert("beta");
   CHECK(f.contains("alpha"));
@@ -43,7 +45,7 @@ TEST_CASE("nexenne::container::bloom_filter reports clear absences") {
 TEST_CASE("nexenne::container::bloom_filter handles a value whose hash is zero") {
   // std::hash<int>(0) is 0 on libstdc++; the odd-h2 fix must keep the k bit
   // positions distinct so 0 does not collapse onto a single shared bit.
-  cn::bloom_filter<int> f{64, 4};
+  auto f{cn::bloom_filter<int>::make(64, 4).value()};
   f.insert(0);
   CHECK(f.contains(0));
   // 0 must not make every other value look present: most should be absent.
@@ -57,7 +59,7 @@ TEST_CASE("nexenne::container::bloom_filter handles a value whose hash is zero")
 }
 
 TEST_CASE("nexenne::container::bloom_filter sizing factory hits roughly the target rate") {
-  auto f{cn::bloom_filter<int>::with_target_false_positive_rate(1000, 0.01)};
+  auto f{cn::bloom_filter<int>::with_target_false_positive_rate(1000, 0.01).value()};
   CHECK(f.bit_count() > 1000);  // ~9.6 bits/item
   CHECK(f.hash_count() >= 1);
   for (int i{0}; i < 1000; ++i) {
@@ -71,7 +73,7 @@ TEST_CASE("nexenne::container::bloom_filter sizing factory hits roughly the targ
 }
 
 TEST_CASE("nexenne::container::bloom_filter clear resets all bits") {
-  cn::bloom_filter<int> f{256, 3};
+  auto f{cn::bloom_filter<int>::make(256, 3).value()};
   f.insert(42);
   CHECK(f.contains(42));
   f.clear();
@@ -82,8 +84,8 @@ TEST_CASE("nexenne::container::bloom_filter clear resets all bits") {
 }
 
 TEST_CASE("nexenne::container::bloom_filter merge unions two same-shaped filters") {
-  cn::bloom_filter<int> a{512, 4};
-  cn::bloom_filter<int> b{512, 4};
+  auto a{cn::bloom_filter<int>::make(512, 4).value()};
+  auto b{cn::bloom_filter<int>::make(512, 4).value()};
   a.insert(1);
   a.insert(2);
   b.insert(3);
@@ -92,28 +94,28 @@ TEST_CASE("nexenne::container::bloom_filter merge unions two same-shaped filters
   CHECK(a.contains(2));
   CHECK(a.contains(3));  // b's element now present in a
 
-  cn::bloom_filter<int> mismatch{256, 4};
+  auto mismatch{cn::bloom_filter<int>::make(256, 4).value()};
   CHECK(a.merge(mismatch).error() == cn::container_error::out_of_range);
 }
 
 TEST_CASE("nexenne::container::bloom_filter swap and equality") {
-  cn::bloom_filter<int> a{128, 3};
+  auto a{cn::bloom_filter<int>::make(128, 3).value()};
   a.insert(7);
-  cn::bloom_filter<int> b{128, 3};
+  auto b{cn::bloom_filter<int>::make(128, 3).value()};
   b.insert(7);
   CHECK(a == b);  // same bits and hash count
-  cn::bloom_filter<int> c{128, 3};
+  auto c{cn::bloom_filter<int>::make(128, 3).value()};
   c.insert(8);
   CHECK_FALSE(a == c);
 
-  cn::bloom_filter<int> d{128, 3};
+  auto d{cn::bloom_filter<int>::make(128, 3).value()};
   swap(a, d);
   CHECK(d.contains(7));
   CHECK(a.empty());
 }
 
 TEST_CASE("nexenne::container::bloom_filter empty filter has zero false-positive rate") {
-  cn::bloom_filter<int> f{256, 4};
+  auto f{cn::bloom_filter<int>::make(256, 4).value()};
   CHECK(f.empty());
   CHECK(f.insertions() == 0);
   CHECK(f.false_positive_rate() == 0.0);  // nothing inserted -> no positives
@@ -125,7 +127,7 @@ TEST_CASE("nexenne::container::bloom_filter single-bit single-hash degenerate fi
   // after one insert everything tests present, yet no false negatives ever and
   // the modulo-by-size path stays well-defined (the div-by-zero guard requires
   // size >= 1, which this exercises at the boundary).
-  cn::bloom_filter<int> f{1, 1};
+  auto f{cn::bloom_filter<int>::make(1, 1).value()};
   CHECK(f.bit_count() == 1);
   CHECK(f.hash_count() == 1);
   f.insert(42);
@@ -139,7 +141,7 @@ TEST_CASE(
 ) {
   // Sweep values including 0 and small ints whose splitmix64 second hash could be
   // even before the odd-forcing fix; every inserted value must still be present.
-  cn::bloom_filter<int> f{2048, 7};
+  auto f{cn::bloom_filter<int>::make(2048, 7).value()};
   for (int i{-100}; i <= 100; ++i) {
     f.insert(i);
   }
@@ -153,7 +155,7 @@ TEST_CASE(
   "nexenne::container::bloom_filter false-positive rate stays within bound over many items"
 ) {
   // Insert the design load, then probe a disjoint key range and count positives.
-  auto f{cn::bloom_filter<std::uint64_t>::with_target_false_positive_rate(2000, 0.01)};
+  auto f{cn::bloom_filter<std::uint64_t>::with_target_false_positive_rate(2000, 0.01).value()};
   for (std::uint64_t i{0}; i < 2000; ++i) {
     f.insert(i);
   }
@@ -174,7 +176,7 @@ TEST_CASE(
 }
 
 TEST_CASE("nexenne::container::bloom_filter of std::string never reports false negatives") {
-  cn::bloom_filter<std::string> f{8192, 6};
+  auto f{cn::bloom_filter<std::string>::make(8192, 6).value()};
   std::mt19937 rng{99};
   std::uniform_int_distribution<int> ch{'a', 'z'};
   std::vector<std::string> inserted;
@@ -192,8 +194,8 @@ TEST_CASE("nexenne::container::bloom_filter of std::string never reports false n
 }
 
 TEST_CASE("nexenne::container::bloom_filter merge accumulates the insertion counter") {
-  cn::bloom_filter<int> a{512, 4};
-  cn::bloom_filter<int> b{512, 4};
+  auto a{cn::bloom_filter<int>::make(512, 4).value()};
+  auto b{cn::bloom_filter<int>::make(512, 4).value()};
   a.insert(1);
   a.insert(2);
   b.insert(3);
@@ -204,8 +206,8 @@ TEST_CASE("nexenne::container::bloom_filter merge accumulates the insertion coun
 }
 
 TEST_CASE("nexenne::container::bloom_filter merge rejects a differing hash count") {
-  cn::bloom_filter<int> a{512, 4};
-  cn::bloom_filter<int> b{512, 5};  // same bits, different k
+  auto a{cn::bloom_filter<int>::make(512, 4).value()};
+  auto b{cn::bloom_filter<int>::make(512, 5).value()};
   a.insert(1);
   CHECK(a.merge(b).error() == cn::container_error::out_of_range);
   CHECK(a.insertions() == 1);  // unchanged on failure
@@ -213,7 +215,7 @@ TEST_CASE("nexenne::container::bloom_filter merge rejects a differing hash count
 
 TEST_CASE("nexenne::container::bloom_filter factory clamps tiny inputs to at least one hash") {
   // Aggressive (loose) target on a single item: k is floored at 1, m >= 1.
-  auto f{cn::bloom_filter<int>::with_target_false_positive_rate(1, 0.99)};
+  auto f{cn::bloom_filter<int>::with_target_false_positive_rate(1, 0.99).value()};
   CHECK(f.hash_count() >= 1);
   CHECK(f.bit_count() >= 1);
   f.insert(5);
@@ -221,20 +223,48 @@ TEST_CASE("nexenne::container::bloom_filter factory clamps tiny inputs to at lea
 }
 
 TEST_CASE("nexenne::container::bloom_filter factory is well-formed across its domain") {
-  // The factory documents "@pre expected_items > 0 and target_fpr in (0, 1)" and
-  // now asserts it. An out-of-domain rate (for example 1.5 for 0.015) previously
-  // cast a negative double to size_type (undefined behavior) and returned a
-  // silently broken filter that could report a false negative; the assert now
-  // catches that misuse in debug. Every in-domain call must build a usable
-  // filter with a positive bit count and at least one hash.
   for (auto const items : {std::size_t{1}, std::size_t{16}, std::size_t{1000}}) {
     for (auto const rate : {0.5, 0.1, 0.01, 0.001}) {
-      auto const f{cn::bloom_filter<int>::with_target_false_positive_rate(items, rate)};
+      auto const f{cn::bloom_filter<int>::with_target_false_positive_rate(items, rate).value()};
       CHECK(f.bit_count() > 0);
       CHECK(f.hash_count() >= 1);
       CHECK(f.empty());
     }
   }
+}
+
+TEST_CASE("nexenne::container::bloom_filter make rejects zero bits or hashes (container-27)") {
+  // Checked in every build: zero bits would divide by zero mapping a hash to a
+  // bit, and zero hashes would report every value present.
+  CHECK(cn::bloom_filter<int>::make(0, 4).error() == cn::container_error::invalid_argument);
+  CHECK(cn::bloom_filter<int>::make(64, 0).error() == cn::container_error::invalid_argument);
+  CHECK(cn::bloom_filter<int>::make(0, 0).error() == cn::container_error::invalid_argument);
+  auto const ok{cn::bloom_filter<int>::make(64, 3)};
+  REQUIRE(ok.has_value());
+  CHECK(ok->bit_count() == 64);
+  CHECK(ok->hash_count() == 3);
+  CHECK(ok->empty());
+  CHECK_FALSE(ok->contains(1));
+  static_assert(!std::is_constructible_v<cn::bloom_filter<int>, std::size_t, std::size_t>);
+}
+
+TEST_CASE("nexenne::container::bloom_filter sizing factory rejects bad inputs") {
+  using filter = cn::bloom_filter<int>;
+  auto const nan{std::numeric_limits<double>::quiet_NaN()};
+  for (auto const rate : {0.0, 1.0, 1.5, -0.01, nan}) {
+    auto const f{filter::with_target_false_positive_rate(100, rate)};
+    REQUIRE_FALSE(f.has_value());
+    CHECK(f.error() == cn::container_error::invalid_argument);
+  }
+  CHECK(
+    filter::with_target_false_positive_rate(0, 0.01).error()
+    == cn::container_error::invalid_argument
+  );
+  auto const huge{std::numeric_limits<std::size_t>::max()};
+  CHECK(
+    filter::with_target_false_positive_rate(huge, 1e-300).error()
+    == cn::container_error::invalid_argument
+  );
 }
 
 }  // namespace

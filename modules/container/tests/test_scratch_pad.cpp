@@ -234,4 +234,12 @@ TEST_CASE("nexenne::container::scratch_pad nested guards restore offsets in LIFO
   CHECK(a.bytes_used() == base);  // first rewound; base allocation intact
 }
 
+TEST_CASE("nexenne::container::scratch_pad forwards an invalid alignment error") {
+  cn::linear_arena<64> a;
+  cn::scratch_pad pad{a};
+  CHECK(pad.allocate(8, 0).error() == cn::container_error::invalid_argument);
+  CHECK(pad.allocate(8, 6).error() == cn::container_error::invalid_argument);
+  CHECK(a.bytes_used() == 0);
+}
+
 }  // namespace

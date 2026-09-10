@@ -6,12 +6,15 @@
 #include <doctest/doctest.h>
 
 #include <expected>
+#include <set>
 #include <string_view>
 #include <type_traits>
 
 #include <nexenne/container/bitset_dynamic.hpp>
+#include <nexenne/container/bloom_filter.hpp>
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/indexed_priority_queue.hpp>
+#include <nexenne/container/linear_arena.hpp>
 #include <nexenne/container/ring_buffer.hpp>
 
 namespace {
@@ -24,6 +27,7 @@ static_assert(cn::to_string(cn::container_error::full) == "full");
 static_assert(cn::to_string(cn::container_error::empty) == "empty");
 static_assert(cn::to_string(cn::container_error::out_of_range) == "out_of_range");
 static_assert(cn::to_string(cn::container_error::not_found) == "not_found");
+static_assert(cn::to_string(cn::container_error::invalid_argument) == "invalid_argument");
 
 // to_string is constexpr and returns a stable, program-lifetime view.
 static_assert(std::is_same_v<decltype(cn::to_string(cn::container_error::full)), std::string_view>);
@@ -45,12 +49,16 @@ TEST_CASE("nexenne::container::to_string names every enumerator distinctly") {
   CHECK(cn::to_string(cn::container_error::empty) == "empty");
   CHECK(cn::to_string(cn::container_error::out_of_range) == "out_of_range");
   CHECK(cn::to_string(cn::container_error::not_found) == "not_found");
-  // All four names are distinct.
-  CHECK(cn::to_string(cn::container_error::full) != cn::to_string(cn::container_error::empty));
-  CHECK(
-    cn::to_string(cn::container_error::out_of_range)
-    != cn::to_string(cn::container_error::not_found)
-  );
+  CHECK(cn::to_string(cn::container_error::invalid_argument) == "invalid_argument");
+  std::set<std::string_view> const names{
+    cn::to_string(cn::container_error::full),
+    cn::to_string(cn::container_error::empty),
+    cn::to_string(cn::container_error::out_of_range),
+    cn::to_string(cn::container_error::not_found),
+    cn::to_string(cn::container_error::invalid_argument),
+  };
+  CHECK(names.size() == 5);
+  CHECK_FALSE(names.contains("unknown"));
 }
 
 TEST_CASE("nexenne::container real operations surface container_error::full") {
@@ -74,6 +82,16 @@ TEST_CASE("nexenne::container real operations surface container_error::out_of_ra
   auto const past_end{b.test(4)};
   REQUIRE_FALSE(past_end.has_value());
   CHECK(past_end.error() == cn::container_error::out_of_range);
+}
+
+TEST_CASE("nexenne::container real operations surface container_error::invalid_argument") {
+  cn::linear_arena<64> arena;
+  auto const misaligned{arena.allocate(8, 3)};
+  REQUIRE_FALSE(misaligned.has_value());
+  CHECK(misaligned.error() == cn::container_error::invalid_argument);
+  auto const shapeless{cn::bloom_filter<int>::make(0, 3)};
+  REQUIRE_FALSE(shapeless.has_value());
+  CHECK(shapeless.error() == cn::container_error::invalid_argument);
 }
 
 TEST_CASE("nexenne::container real operations surface container_error::not_found") {

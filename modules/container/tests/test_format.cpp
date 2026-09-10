@@ -244,7 +244,7 @@ TEST_CASE("nexenne::container::format trie with multiple entries lists each") {
 }
 
 TEST_CASE("nexenne::container::format bloom_filter prints a stats line") {
-  cn::bloom_filter<int> f{16, 3};
+  auto f{cn::bloom_filter<int>::make(16, 3).value()};
   auto const empty_form{
     "bloom_filter(bit_count=16, hash_count=3, insertions=0, false_positive_rate=0)"s
   };
@@ -337,9 +337,11 @@ TEST_CASE("nexenne::container::format slot_key prints its index and generation")
 
 TEST_CASE("nexenne::container::format streams and formats container_error by name") {
   std::ostringstream os;
-  os << cn::container_error::full << ' ' << cn::container_error::not_found;
-  CHECK(os.str() == "full not_found");
+  os << cn::container_error::full << ' ' << cn::container_error::not_found << ' '
+     << cn::container_error::invalid_argument;
+  CHECK(os.str() == "full not_found invalid_argument");
   CHECK(std::format("{}", cn::container_error::empty) == "empty");
+  CHECK(std::format("{}", cn::container_error::invalid_argument) == "invalid_argument");
 }
 
 }  // namespace

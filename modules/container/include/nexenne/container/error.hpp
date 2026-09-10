@@ -26,10 +26,11 @@ namespace nexenne::container {
  * @brief Recoverable error reported by a fallible container operation.
  */
 enum class container_error {
-  full,          ///< The container is at capacity (push to a full ring buffer).
-  empty,         ///< The container has no elements (pop from an empty queue).
-  out_of_range,  ///< An index was outside the container's logical size.
-  not_found,     ///< A looked-up key or handle is not present.
+  full,              ///< The container is full (push to a full ring buffer).
+  empty,             ///< The container is empty (pop from an empty queue).
+  out_of_range,      ///< An index was outside the container's logical size.
+  not_found,         ///< A looked-up key or handle is not present.
+  invalid_argument,  ///< An argument that no call can accept.
 };
 
 /**
@@ -63,6 +64,8 @@ using result = std::expected<T, container_error>;
       return "out_of_range";
     case container_error::not_found:
       return "not_found";
+    case container_error::invalid_argument:
+      return "invalid_argument";
   }
   return "unknown";
 }

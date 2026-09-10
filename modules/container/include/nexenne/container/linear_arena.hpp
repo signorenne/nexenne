@@ -5,9 +5,11 @@
  * @brief Inline-buffer bump allocator: no heap, no virtual dispatch.
  *
  * \c linear_arena<N> holds an aligned \p N-byte buffer inline and a bump
- * pointer. \c allocate(size, alignment) returns a pointer into the buffer or
- * \c container_error::full when there is not enough room. There is no
- * per-allocation free; \c reset() releases everything in \c O(1).
+ * pointer. \c allocate(size, alignment) returns a pointer into the buffer,
+ * \c container_error::full when there is not enough room, or
+ * \c container_error::invalid_argument for an alignment the buffer cannot
+ * honour. There is no per-allocation free; \c reset() releases everything in
+ * \c O(1).
  *
  * The arena hands out *raw memory*: the lifetime of objects placed in it is the
  * caller's responsibility. If you construct a non-trivially-destructible \p T in
@@ -23,7 +25,7 @@
  */
 
 #include <array>
-#include <cassert>
+#include <bit>
 #include <concepts>
 #include <cstddef>
 #include <expected>
@@ -161,15 +163,19 @@ public:
   /**
    * @brief Allocates \p size bytes aligned to \p alignment.
    *
+   * The alignment is checked in every build: it must be a non-zero power of two
+   * no greater than \c alignof(std::max_align_t), the inline buffer's
+   * alignment, since a larger one cannot be guaranteed.
+   *
    * @param size Bytes to allocate.
    * @param alignment Required alignment, a power of two.
    *
-   * @return A pointer to the block, or \c container_error::full when the arena
-   *         lacks room.
+   * @return A pointer to the block, \c container_error::invalid_argument when
+   *         \p alignment is zero, not a power of two, or above
+   *         \c alignof(std::max_align_t), or \c container_error::full when the
+   *         arena lacks room.
    *
-   * @pre \p alignment is a non-zero power of two no greater than
-   *      \c alignof(std::max_align_t) (the inline buffer's alignment); both are
-   *      asserted in debug. A larger alignment cannot be guaranteed.
+   * @pre None.
    * @post On success \c bytes_used() grew by the padding plus \p size and
    *       \c high_water_mark() is at least the new \c bytes_used(); on failure
    *       the arena is unchanged.
@@ -178,12 +184,9 @@ public:
    */
   [[nodiscard]] auto allocate(size_type const size, size_type const alignment) noexcept
     -> result<void*> {
-    assert(
-      alignment != 0 && (alignment & (alignment - 1)) == 0 && "alignment must be a power of two"
-    );
-    assert(
-      alignment <= alignof(std::max_align_t) && "alignment must not exceed the buffer's alignment"
-    );
+    if (!std::has_single_bit(alignment) || alignment > alignof(std::max_align_t)) {
+      return std::unexpected{container_error::invalid_argument};
+    }
     auto const mask{alignment - 1};
     auto const aligned{(m_offset + mask) & ~mask};
     if (aligned > N || size > N - aligned) {

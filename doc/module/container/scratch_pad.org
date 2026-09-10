@@ -45,7 +45,8 @@ the scratch_pad rewinds over it.
 
 =allocate(size, alignment)=, =allocate<T>(count)=, and =emplace<T>(args...)=
 forward straight to the arena and return its =result=, so callers can allocate
-through the scratch_pad rather than reaching for the arena. Any arena exposing
+through the scratch_pad rather than reaching for the arena; a =linear_arena=
+reports a bad alignment there as =invalid_argument=. Any arena exposing
 =size_type=, =bytes_used()=, and =rewind_to()= satisfies the
 =checkpointable_arena= concept and works here; =arena()= exposes the wrapped
 arena directly.

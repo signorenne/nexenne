@@ -359,4 +359,27 @@ TEST_CASE("nexenne::container::linear_arena exposes const observers") {
   CHECK(ca.max_size() == 256);
 }
 
+TEST_CASE("nexenne::container::linear_arena rejects an invalid alignment (container-27)") {
+  // Checked in every build: zero, a non-power of two, and an alignment above
+  // the buffer's own are invalid_argument, and the arena is left unchanged.
+  arena a;
+  REQUIRE(a.allocate(3, 1).has_value());
+  auto const used{a.bytes_used()};
+  auto const peak{a.high_water_mark()};
+  for (auto const bad :
+       {cn::linear_arena<256>::size_type{0},
+        cn::linear_arena<256>::size_type{3},
+        cn::linear_arena<256>::size_type{12},
+        cn::linear_arena<256>::size_type{2 * alignof(std::max_align_t)}}) {
+    auto const block{a.allocate(8, bad)};
+    REQUIRE_FALSE(block.has_value());
+    CHECK(block.error() == cn::container_error::invalid_argument);
+    CHECK(a.bytes_used() == used);
+    CHECK(a.high_water_mark() == peak);
+  }
+  auto const widest{a.allocate(8, alignof(std::max_align_t))};
+  REQUIRE(widest.has_value());
+  CHECK(address_of(*widest) % alignof(std::max_align_t) == 0);
+}
+
 }  // namespace

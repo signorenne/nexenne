@@ -11,6 +11,7 @@
 #include <string>
 
 #include <nexenne/container/bloom_filter.hpp>
+#include <nexenne/container/error.hpp>
 
 namespace {
 
@@ -19,8 +20,12 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  // Size for 10k expected URLs at a 1% false-positive rate.
-  auto seen{cn::bloom_filter<std::string>::with_target_false_positive_rate(10000, 0.01)};
+  auto made{cn::bloom_filter<std::string>::with_target_false_positive_rate(10000, 0.01)};
+  if (!made.has_value()) {
+    std::println("bad sizing: {}", cn::to_string(made.error()));
+    return 1;
+  }
+  auto& seen{*made};
   seen.insert("https://a.example/");
   seen.insert("https://b.example/");
 

@@ -44,7 +44,10 @@ linear_arena<64> after allocate(8,8), allocate(4,4):
 
 =allocate(size, alignment)= returns raw =void*=; the typed =allocate<T>(count)=
 sizes and aligns for =T=; =emplace<T>(args...)= also constructs the object.
-Allocation fails with =container_error::full= when the block does not fit. The
+Allocation fails with =container_error::full= when the block does not fit, and
+=allocate(size, alignment)= fails with =container_error::invalid_argument= for
+an alignment the buffer cannot honour (zero, not a power of two, or above
+=alignof(std::max_align_t)=), checked in every build rather than asserted. The
 arena hands out *raw memory* and does not track or run destructors, so for a
 non-trivially-destructible =T= the caller must =std::destroy_at= the object
 before the storage is reset. Trivial types can simply be abandoned.

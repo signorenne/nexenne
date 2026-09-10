@@ -99,12 +99,12 @@ public:
    * @param size Bytes to allocate.
    * @param alignment Required alignment, a power of two.
    *
-   * @return The arena's result: a pointer to the block, or
-   *         \c container_error::full when the arena lacks room.
+   * @return The arena's result: for \c linear_arena a pointer to the block,
+   *         \c container_error::invalid_argument for an alignment it cannot
+   *         honour, or \c container_error::full when it lacks room.
    *
-   * @pre \p alignment satisfies whatever the wrapped arena requires of it; for
-   *      \c linear_arena a non-zero power of two no greater than
-   *      \c alignof(std::max_align_t).
+   * @pre \p alignment satisfies whatever the wrapped arena requires of it;
+   *      \c linear_arena checks it and reports a bad one in its result.
    * @post On success the storage is released when this scratch_pad is
    *       destroyed.
    */

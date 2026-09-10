@@ -13,12 +13,12 @@ error vocabulary and one fallible-return type for the whole module.
 A container library needs a single, honest answer to "what happens when an
 operation cannot proceed". The policy here is no-throw: an operation that can
 fail at a boundary (pop from an empty queue, push onto a full fixed buffer, a
-missing key) returns =result<T>=, i.e. =std::expected<T, container_error>=,
-with the failure spelled out as =full=, =empty=, =out_of_range=, or
-=not_found=. Non-allocating operations are =noexcept=; an operation whose only
-failure is allocation stays =noexcept= and terminates on =std::bad_alloc=,
-matching the rest of nexenne. There is deliberately no precondition-based
-"fast path" that trades the check for undefined behaviour.
+missing key) returns =result<T>=, i.e. =std::expected<T, container_error>=, with
+the failure spelled out as =full=, =empty=, =out_of_range=, =not_found=, or
+=invalid_argument=. Non-allocating operations are =noexcept=; an operation whose
+only failure is allocation stays =noexcept= and terminates on =std::bad_alloc=,
+matching the rest of nexenne. There is deliberately no precondition-based "fast
+path" that trades the check for undefined behaviour.
 
 * The error policy
 
@@ -45,26 +45,31 @@ failure. =result<T>= is =std::expected<T, container_error>=, the module's single
 fallible-return type, and =to_string= maps a value to a program-lifetime
 =std::string_view= for logging.
 
-| value        | returned when                                          |
-|--------------+--------------------------------------------------------|
-| full         | a push hit a fixed-capacity container's limit          |
-| empty        | a pop or front read found no elements                  |
-| out_of_range | an index was outside the container's logical size      |
-| not_found    | a looked-up key or handle is not present               |
+| value            | returned when                                           |
+|------------------+---------------------------------------------------------|
+| full             | a push hit a fixed-capacity container's limit           |
+| empty            | a pop or front read found no elements                   |
+| out_of_range     | an index was outside the container's logical size       |
+| not_found        | a looked-up key or handle is not present                |
+| invalid_argument | an argument no call accepts (zero count, bad alignment) |
 
 =to_string= returns the value's name verbatim ("full", "empty", "out_of_range",
-"not_found"), and "unknown" for an out-of-range enum value.
+"not_found", "invalid_argument"), and "unknown" for an out-of-range enum value.
+The stream operator and the =std::formatter= in =format.hpp= print the same
+name.
 
 * When to use it
 
 Use =result<T>= as the return type of any new container operation that can fail
 recoverably at a boundary, and pick the =container_error= value that names the
 boundary (=empty= for underflow, =full= for a fixed-capacity overflow,
-=out_of_range= for a bad index, =not_found= for a missing lookup). Do *not*
-reach for =result= when the only failure is allocation: keep that path
-=noexcept= and let it terminate, per the policy above. Check the result with
-=has_value()= (or the monadic helpers on =std::expected=) before dereferencing,
-and pass =error()= to =to_string= when logging.
+=out_of_range= for a bad index, =not_found= for a missing lookup,
+=invalid_argument= for an argument that no state of the container could accept,
+such as a zero size where a positive one is required). Do *not* reach for
+=result= when the only failure is allocation: keep that path =noexcept= and let
+it terminate, per the policy above. Check the result with =has_value()= (or the
+monadic helpers on =std::expected=) before dereferencing, and pass =error()= to
+=to_string= when logging.
 
 * Usage
 

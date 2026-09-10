@@ -72,10 +72,16 @@ rate is =(1 - e^(-kn/m))^k= for =n= insertions, exposed as
 
 ** Sizing and merging
 
-Picking =m= and =k= by hand is fiddly, so =with_target_false_positive_rate(n, p)=
-applies the standard recipe (=m = -n ln p / (ln 2)^2=, =k = (m/n) ln 2=). Two
-filters of the *same* shape (bit count and hash count) can be =merge=-d: a bitwise
-OR unions their membership, so the result reports present for anything either held.
+Picking =m= and =k= by hand is fiddly, so
+=with_target_false_positive_rate(n, p)= applies the standard recipe
+(=m = -n ln p / (ln 2)^2=, =k = (m/n) ln 2=); =make(m, k)= takes the two counts
+directly. They are the only ways to build a filter, and both return a =result=:
+a shape that cannot work (zero bits, which would divide by zero when mapping a
+hash to a bit, or zero hashes, which would report every value present) is
+=invalid_argument= in every build, as are zero items, a rate outside =(0, 1)=,
+and a bit count that does not fit =size_type=. Two filters of the *same* shape
+(bit count and hash count) can be =merge=-d: a bitwise OR unions their
+membership, so the result reports present for anything either held.
 
 ** No erase, no enumeration
 
@@ -121,14 +127,19 @@ Things to keep in mind:
   authoritative check; trust a negative outright.
 - *Size before you fill.* The false-positive rate climbs as insertions approach
   the design count; use the factory and do not overfill.
+- *Check the factory's result.* =make= and =with_target_false_positive_rate=
+  return =result<bloom_filter>=; a bad shape or sizing input is
+  =invalid_argument=, not a debug-only assert.
 - *merge requires identical shape* (same bit and hash counts) and returns
   =out_of_range= otherwise.
 
 * Usage
 
 #+BEGIN_SRC cpp
-auto seen{nexenne::container::bloom_filter<std::string>
+auto made{nexenne::container::bloom_filter<std::string>
               ::with_target_false_positive_rate(100000, 0.01)};
+if (!made) { return made.error(); }     // invalid_argument on a bad input
+auto& seen{*made};
 
 seen.insert(url);                              // O(k)
 if (!seen.contains(url)) { /* definitely new */ }
