@@ -22,6 +22,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <limits>
@@ -310,7 +311,7 @@ public:
    * @return \c true on a fresh insertion, \c false when an existing value was
    *         replaced.
    *
-   * @pre None.
+   * @pre A pointer \p key is non-null.
    * @post The trie holds \p value at \p key; on a fresh insertion \c size() grew
    *       by one, on a replacement it is unchanged.
    *
@@ -348,7 +349,7 @@ public:
    *
    * @return \c true on a removal, \c false when the key was absent.
    *
-   * @pre None.
+   * @pre A pointer \p key is non-null.
    * @post On \c true the value at \p key is gone, \c size() shrank by one, and
    *       now-empty internal nodes are pruned; otherwise the trie is unchanged.
    *
@@ -398,7 +399,7 @@ public:
    *
    * @return \c true when a value is stored at \p key.
    *
-   * @pre None.
+   * @pre A pointer \p key is non-null.
    * @post None. The trie is not modified.
    *
    * @complexity \c O(k log a).
@@ -419,7 +420,7 @@ public:
    *
    * @return Pointer to the stored value, or \c nullptr when \p key is absent.
    *
-   * @pre None.
+   * @pre A pointer \p key is non-null.
    * @post None. The pointer stays valid until the next insertion or erasure on
    *       \p key's path.
    *
@@ -445,7 +446,7 @@ public:
    * @return Pointer to the stored const value, or \c nullptr when \p key is
    *         absent.
    *
-   * @pre None.
+   * @pre A pointer \p key is non-null.
    * @post None. The pointer stays valid until the next insertion or erasure on
    *       \p key's path.
    *
@@ -471,7 +472,7 @@ public:
    * @return \c true when some stored key starts with \p prefix; always \c false
    *         on an empty trie, including for an empty prefix.
    *
-   * @pre None.
+   * @pre A pointer \p prefix is non-null.
    * @post None. The trie is not modified.
    *
    * @complexity \c O(k log a) in the prefix length.
@@ -660,7 +661,7 @@ private:
    *
    * @return An iterable range yielding the key's tokens.
    *
-   * @pre None.
+   * @pre A pointer \p key is non-null.
    * @post None.
    */
   template <typename KeyRange>
@@ -672,6 +673,7 @@ private:
       auto const* const last{std::ranges::find(first, first + std::extent_v<bare>, Char{})};
       return std::span<Char const>{first, last};
     } else if constexpr (detail::trie_character<Char> && std::is_pointer_v<bare>) {
+      assert(key != nullptr && "trie: null character pointer used as a key");
       return std::basic_string_view<Char>{key};
     } else {
       return static_cast<KeyRange&&>(key);
@@ -687,7 +689,7 @@ private:
    *
    * @return The node reached by \p key, or \c nullptr when the path is absent.
    *
-   * @pre None.
+   * @pre A pointer \p key is non-null.
    * @post None. The trie is not modified.
    */
   template <typename KeyRange>
@@ -714,7 +716,7 @@ private:
    *
    * @return The node reached by \p key, or \c nullptr when the path is absent.
    *
-   * @pre None.
+   * @pre A pointer \p key is non-null.
    * @post None. The trie is not modified.
    */
   template <typename KeyRange>

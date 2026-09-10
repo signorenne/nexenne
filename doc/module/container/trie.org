@@ -15,7 +15,8 @@ must convert to =Char= without narrowing: an =int= range does not key a =char=
 trie, since a token of 300 would be truncated onto a different key.
 A character pointer or array is read as a NUL-terminated string: a literal
 loses its terminator, and a fixed buffer holding a shorter string is keyed by
-that string, just as =std::string_view= would read it.
+that string, just as =std::string_view= would read it. A pointer key must not
+be null (asserted in debug builds).
 
 * The idea
 
