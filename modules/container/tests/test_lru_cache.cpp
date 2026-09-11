@@ -365,4 +365,23 @@ TEST_CASE("nexenne::container::lru_cache erase and clear release the stored valu
   CHECK(resource::alive == 0);  // released on clear
 }
 
+TEST_CASE("nexenne::container::lru_cache eviction churn stays exact (container-31)") {
+  // Every eviction erases from the index, which now shifts entries back rather
+  // than leaving a tombstone; the cache must keep answering exactly.
+  cn::lru_cache<int, int, 8> cache;
+  for (int i{0}; i < 20000; ++i) {
+    cache.put(i, i * 2);
+    REQUIRE(cache.contains(i));
+    if (i >= 8) {
+      CHECK_FALSE(cache.contains(i - 8));
+    }
+    for (int back{0}; back < 8 && back <= i; ++back) {
+      auto const* const value{cache.peek(i - back)};
+      REQUIRE(value != nullptr);
+      CHECK(*value == (i - back) * 2);
+    }
+  }
+  CHECK(cache.size() == 8);
+}
+
 }  // namespace

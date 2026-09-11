@@ -121,9 +121,9 @@ Things to keep in mind:
   =reserve= up front to keep them stable.
 - *Rolling registries stay bounded.* Both sides are =flat_hash_map= instances, so
   they inherit its churn behaviour: binding new pairs and unbinding old ones at a
-  constant live size reclaims tombstones in place instead of growing without
-  bound, so a two-way registry with rotating ids keeps its memory near the live
-  size.
+  constant live size never rehashes (an erase leaves no tombstone), so a two-way
+  registry with rotating ids keeps its memory near the live size. Like the map,
+  do not erase while iterating.
 - *find returns a pointer into one side's map*; treat it as borrowed and do not
   hold it across a mutation.
 

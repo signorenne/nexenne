@@ -97,16 +97,15 @@ every node to the free list, keeping the pool storage. Neither shrinks capacity.
 | clear                              | O(capacity)    |
 
 Memory is the node pool (capacity nodes, each a key, a value, and two list
-links), the free-list vector, and the index hash map, all sized to capacity once.
-A full cache recycles the evicted node in place, so nodes are never allocated
-after construction and =get= never allocates. The index is a
-[[file:flat_hash_map.org][flat_hash_map]], whose erase leaves a tombstone: each eviction adds one, and once
-live entries plus tombstones reach the load threshold the index rehashes to
-reclaim them, which allocates a new slot table. That happens every few dozen to
-few hundred evictions, depending on the capacity (for example, 1000 evicting
-=put= calls on a capacity-8 cache allocated 41 times in a measurement), and it is
-what the amortised =O(1)= of =put= is amortised over. A hard real-time loop that
-cannot afford any allocation should not evict on its hot path.
+links), the free-list vector, and the index hash map, all sized to capacity
+once. A full cache recycles the evicted node in place, so nodes are never
+allocated after construction and =get= never allocates. The index is a
+[[file:flat_hash_map.org][flat_hash_map]] sized for the capacity at
+construction, whose erase shifts entries back and leaves no tombstone, so an
+eviction never makes it rehash: once constructed, the cache allocates nothing of
+its own, even under eviction churn (assigning a key or value of an allocating
+type may still allocate). With the tombstone erase it used before, 1000 evicting
+=put= calls on a capacity-8 cache allocated 41 times.
 
 * When to use it
 

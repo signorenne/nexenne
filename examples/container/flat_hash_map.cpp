@@ -6,8 +6,8 @@
  * roughly one allocation and one cache miss per lookup, several times faster than
  * std::unordered_map's node-per-entry layout. This tour covers the insertion
  * trio (insert keeps an existing value, insert_or_assign overwrites, operator[]
- * default-inserts), checked lookup, erase with its tombstone, capacity growth and
- * load factor across a rehash, and unordered iteration.
+ * default-inserts), checked lookup, erase by backward shift, capacity growth
+ * and load factor across a rehash, and unordered iteration.
  */
 
 #include <print>
@@ -45,8 +45,6 @@ auto main() -> int {
     "has 'missing.png': {} (count {})", assets.contains("missing.png"), assets.count("missing.png")
   );
 
-  // erase removes the entry and leaves a tombstone a later probe skips; the slot
-  // is reclaimed on the next rehash. find on the erased key now misses.
   std::println("erase music.ogg: {}", assets.erase("music.ogg"));
   std::println("erase music.ogg again: {}", assets.erase("music.ogg"));  // already gone
   std::println("music.ogg findable: {}", assets.find("music.ogg") != nullptr);

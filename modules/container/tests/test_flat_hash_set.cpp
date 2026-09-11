@@ -20,7 +20,7 @@ namespace cn = nexenne::container;
 using set_t = cn::flat_hash_set<int>;
 
 // A hash that funnels every element into one bucket, forcing the probe sequence
-// and tombstone handling to do real work.
+// and the backward-shift erase to do real work.
 struct colliding_hash {
   [[nodiscard]] auto operator()(int) const noexcept -> std::size_t {
     return 0;
@@ -44,7 +44,7 @@ TEST_CASE("nexenne::container::flat_hash_set contains and count") {
   CHECK(s.count(99) == 0);
 }
 
-TEST_CASE("nexenne::container::flat_hash_set erase leaves a reusable tombstone") {
+TEST_CASE("nexenne::container::flat_hash_set erase frees a reusable slot") {
   set_t s;
   s.insert(1);
   s.insert(2);
@@ -54,9 +54,9 @@ TEST_CASE("nexenne::container::flat_hash_set erase leaves a reusable tombstone")
   CHECK_FALSE(s.contains(2));
   CHECK_FALSE(s.erase(99));  // absent
 
-  CHECK(s.insert(4));  // reuses the tombstone
+  CHECK(s.insert(4));
   CHECK(s.contains(4));
-  CHECK(s.contains(1));  // a probe still walks past the tombstone
+  CHECK(s.contains(1));
   CHECK(s.contains(3));
 }
 
@@ -164,7 +164,7 @@ TEST_CASE("nexenne::container::flat_hash_set resolves heavy collisions correctly
     CHECK(s.contains(i) == (i % 2 != 0));
   }
   for (int i{0}; i < 50; i += 2) {
-    CHECK(s.insert(i));  // reuses tombstones along the single probe chain
+    CHECK(s.insert(i));
   }
   CHECK(s.size() == 50);
   for (int i{0}; i < 50; ++i) {

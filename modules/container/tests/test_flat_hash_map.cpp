@@ -36,7 +36,7 @@ struct transparent_string_hash {
 };
 
 // A pathological hash that funnels every key into the same bucket, forcing the
-// probe sequence, tombstone handling, and rehash logic to do real work.
+// probe sequence, backward-shift erase, and rehash logic to do real work.
 struct colliding_hash {
   [[nodiscard]] auto operator()(int) const noexcept -> std::size_t {
     return 0;
@@ -87,7 +87,7 @@ TEST_CASE("nexenne::container::flat_hash_map emplace constructs but does not ove
   CHECK(*m.find(1) == "hello");
 }
 
-TEST_CASE("nexenne::container::flat_hash_map erase leaves a reusable tombstone") {
+TEST_CASE("nexenne::container::flat_hash_map erase frees a reusable slot") {
   map_t m;
   m.insert(1, 10);
   m.insert(2, 20);
@@ -97,9 +97,9 @@ TEST_CASE("nexenne::container::flat_hash_map erase leaves a reusable tombstone")
   CHECK_FALSE(m.contains(2));
   CHECK_FALSE(m.erase(99));  // absent
 
-  CHECK(m.insert(4, 40));  // reuses the tombstone
+  CHECK(m.insert(4, 40));
   CHECK(m.contains(4));
-  CHECK(m.contains(1));  // a probe still walks past the tombstone
+  CHECK(m.contains(1));
   CHECK(m.contains(3));
 }
 
@@ -237,7 +237,6 @@ TEST_CASE("nexenne::container::flat_hash_map resolves heavy collisions correctly
     REQUIRE(m.find(i) != nullptr);
     CHECK(*m.find(i) == i * 100);
   }
-  // Erase every even key, leaving a long tombstone run all in one bucket chain.
   for (int i{0}; i < 50; i += 2) {
     CHECK(m.erase(i));
   }
@@ -245,7 +244,6 @@ TEST_CASE("nexenne::container::flat_hash_map resolves heavy collisions correctly
   for (int i{0}; i < 50; ++i) {
     CHECK(m.contains(i) == (i % 2 != 0));
   }
-  // Reinsert the erased keys; tombstones must be reused, not leak the probe chain.
   for (int i{0}; i < 50; i += 2) {
     CHECK(m.insert(i, i * 100));
   }
@@ -261,8 +259,6 @@ TEST_CASE("nexenne::container::flat_hash_map erase-then-reinsert churn keeps loo
   for (int i{0}; i < 30; ++i) {
     m.insert(i, i);
   }
-  // Repeatedly erase and reinsert, accumulating tombstones until a rehash clears
-  // them; the table must keep returning the right answers throughout.
   for (int round{0}; round < 40; ++round) {
     for (int i{0}; i < 30; ++i) {
       CHECK(m.erase(i));
@@ -297,7 +293,7 @@ TEST_CASE("nexenne::container::flat_hash_map load_factor and capacity edges") {
   CHECK(m.load_factor() <= 0.875);
 }
 
-TEST_CASE("nexenne::container::flat_hash_map shrink_to_fit clears tombstones") {
+TEST_CASE("nexenne::container::flat_hash_map shrink_to_fit releases an oversized table") {
   map_t m;
   for (int i{0}; i < 200; ++i) {
     m.insert(i, i);
@@ -429,9 +425,10 @@ TEST_CASE("nexenne::container::flat_hash_map differential against std::unordered
 TEST_CASE("nexenne::container::flat_hash_map churn at constant live size keeps capacity bounded") {
   // [C1] Insert then erase at a constant live size for many iterations. Before
   // the fix the load trigger always doubled, so accumulating tombstones grew the
-  // table without bound; now the trigger rehashes in place at the same capacity
-  // to reclaim tombstones when the live count is small. Sequential int keys are
-  // the worst case: std::hash is the identity, so a tombstone is never reused.
+  // table without bound. Erase now shifts entries back and leaves no tombstone,
+  // so the live count alone drives growth and the table never rehashes here.
+  // Sequential int keys were the worst case: std::hash is the identity, so a
+  // tombstone was never reused.
   map_t m;
   CHECK(m.insert(-1, -1));  // one permanent live entry
   for (int i{0}; i < 100000; ++i) {
@@ -533,10 +530,10 @@ TEST_CASE("nexenne::container::flat_hash_map spreads keys that differ only in hi
   CHECK(iterated != inserted);
 }
 
-TEST_CASE("nexenne::container::flat_hash_map reserve accounts for tombstones") {
+TEST_CASE("nexenne::container::flat_hash_map reserve after erasing everything keeps entries put") {
   // reserve used to look at the slot count only, so a table full of tombstones
   // still rehashed on a later insert and moved the entries reserve promised to
-  // keep in place.
+  // keep in place. Erase leaves no tombstone now, and the promise still holds.
   map_t m;
   for (int i{0}; i < 12; ++i) {
     CHECK(m.insert(i, i));
@@ -545,8 +542,6 @@ TEST_CASE("nexenne::container::flat_hash_map reserve accounts for tombstones") {
     CHECK(m.erase(i));
   }
   m.reserve(4);
-  // Keys 101-104 probe past no tombstone they could reuse, so without the
-  // reclaim in reserve the third insert crosses the load threshold.
   CHECK(m.insert(101, 1));
   auto const* const first{m.find(101)};
   REQUIRE(first != nullptr);
@@ -680,6 +675,141 @@ TEST_CASE("nexenne::container::flat_hash_map slots own their entries' lifetimes 
     CHECK(alive_counter::alive == 1);
   }
   CHECK(alive_counter::alive == 0);
+}
+
+// Places a key by its hundreds: key / 100 is its home bucket in a 16-slot
+// table. The home bucket is the top log2(capacity) bits of
+// hash * 0x9e3779b97f4a7c15 (the documented Fibonacci reduction), so the hash
+// is (home << 60) times that multiplier's inverse modulo 2^64. Only meaningful
+// for a 64-bit size_t.
+struct placed_hash {
+  [[nodiscard]] static constexpr auto inverse_golden() noexcept -> std::uint64_t {
+    constexpr auto golden{std::uint64_t{0x9e3779b97f4a7c15ULL}};
+    auto inverse{golden};  // Newton's iteration doubles the correct low bits
+    for (int i{0}; i < 5; ++i) {
+      inverse *= std::uint64_t{2} - (golden * inverse);
+    }
+    return inverse;
+  }
+
+  [[nodiscard]] auto operator()(int const key) const noexcept -> std::size_t {
+    auto const home{static_cast<std::uint64_t>(key / 100)};
+    std::size_t const hash{(home << 60U) * inverse_golden()};
+    return hash;
+  }
+};
+
+static_assert(placed_hash::inverse_golden() * std::uint64_t{0x9e3779b97f4a7c15ULL} == 1U);
+
+TEST_CASE("nexenne::container::flat_hash_map erase shifts its probe run back") {
+  if constexpr (sizeof(std::size_t) == 8) {
+    cn::flat_hash_map<int, int, placed_hash> m;
+    for (auto const k : {200, 201, 300, 500}) {
+      CHECK(m.insert(k, k));
+    }
+    REQUIRE(m.capacity() == 16);
+    auto const* const at2{m.find(200)};
+    auto const* const at3{m.find(201)};
+    auto const* const at5{m.find(500)};
+    CHECK(m.erase(200));
+    CHECK(m.find(201) == at2);
+    CHECK(m.find(300) == at3);
+    CHECK(m.find(500) == at5);
+    CHECK_FALSE(m.contains(200));
+    CHECK(m.size() == 3);
+    CHECK(m.capacity() == 16);
+  }
+}
+
+TEST_CASE("nexenne::container::flat_hash_map erase shifts across the table's end") {
+  if constexpr (sizeof(std::size_t) == 8) {
+    cn::flat_hash_map<int, int, placed_hash> m;
+    for (auto const k : {1500, 1501, 1502, 100}) {
+      CHECK(m.insert(k, k));
+    }
+    REQUIRE(m.capacity() == 16);
+    auto const* const at15{m.find(1500)};
+    auto const* const at0{m.find(1501)};
+    auto const* const at1{m.find(1502)};
+    CHECK(m.erase(1500));
+    CHECK(m.find(1501) == at15);
+    CHECK(m.find(1502) == at0);
+    CHECK(m.find(100) == at1);
+    for (auto const k : {1501, 1502, 100}) {
+      REQUIRE(m.find(k) != nullptr);
+      CHECK(*m.find(k) == k);
+    }
+    CHECK(m.begin()->first == 1502);
+  }
+}
+
+TEST_CASE("nexenne::container::flat_hash_map erase by collected keys, not while iterating") {
+  // The supported way to erase a subset: collect the keys, then erase them.
+  cn::flat_hash_map<int, int, colliding_hash> m;  // one long run: every erase shifts
+  for (int i{0}; i < 40; ++i) {
+    CHECK(m.insert(i, i));
+  }
+  auto doomed{std::vector<int>{}};
+  for (auto const& [key, value] : m) {
+    if (value % 3 == 0) {
+      doomed.push_back(key);
+    }
+  }
+  for (auto const key : doomed) {
+    CHECK(m.erase(key));
+  }
+  CHECK(m.size() == 26);
+  for (int i{0}; i < 40; ++i) {
+    CHECK(m.contains(i) == (i % 3 != 0));
+  }
+}
+
+TEST_CASE(
+  "nexenne::container::flat_hash_map random erase matches std::unordered_map (container-31)"
+) {
+  // A weak hash (eight distinct values) makes long, wrapping runs, so almost
+  // every erase shifts entries back; the contents must track a reference map.
+  struct weak_hash {
+    [[nodiscard]] auto operator()(int const k) const noexcept -> std::size_t {
+      return static_cast<std::size_t>(k % 8) * std::size_t{0x9e3779b9U};
+    }
+  };
+
+  cn::flat_hash_map<int, int, weak_hash> m;
+  std::unordered_map<int, int> ref;
+  auto state{std::uint32_t{31}};
+  for (int step{0}; step < 20000; ++step) {
+    state = (state * 1664525U) + 1013904223U;
+    auto const k{static_cast<int>(state % 301U)};
+    if (step % 3 == 0) {
+      CHECK(m.erase(k) == (ref.erase(k) == 1));
+    } else {
+      CHECK(m.insert_or_assign(k, step) == ref.insert_or_assign(k, step).second);
+    }
+  }
+  REQUIRE(m.size() == ref.size());
+  for (auto const& [k, v] : ref) {
+    REQUIRE(m.find(k) != nullptr);
+    CHECK(*m.find(k) == v);
+  }
+}
+
+TEST_CASE("nexenne::container::flat_hash_map churn at a reserved live size never rehashes") {
+  map_t m;
+  m.reserve(8);
+  auto const capacity{m.capacity()};
+  CHECK(m.insert(-1, -1));
+  for (int i{0}; i < 7; ++i) {
+    CHECK(m.insert(i, i));
+  }
+  for (int i{7}; i < 100000; ++i) {
+    CHECK(m.erase(i - 7));
+    CHECK(m.insert(i, i));
+  }
+  CHECK(m.capacity() == capacity);
+  CHECK(m.size() == 8);
+  CHECK(m.find(-1) != nullptr);
+  CHECK(*m.find(-1) == -1);
 }
 
 }  // namespace

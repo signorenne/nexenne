@@ -16,10 +16,10 @@
  * steady-state put (a move-only key type is therefore supported). The list nodes
  * live in a fixed pool allocated once at construction and never grown, so no
  * node is allocated after construction, the win over a \c std::unordered_map
- * plus \c std::list. \c get never allocates. A \c put that evicts leaves a
- * tombstone in the index, and every so many evictions the index rehashes to
- * reclaim them, allocating a fresh slot table; that is the only allocation
- * in steady state. Reach for it for
+ * plus \c std::list. \c get never allocates, and the cache's own storage is
+ * never allocated after construction: an eviction erases from the index by
+ * backward shift, leaving no tombstone, so the index sized at construction
+ * never rehashes. Reach for it for
  * asset caches (keep the hottest N textures resident), bounded memoisation
  * tables, and recently-used registries. Every operation is \c noexcept;
  * allocation failure terminates. Concurrent reads are not safe, because \c get
@@ -177,9 +177,9 @@ public:
   /**
    * @brief Constructs an empty cache holding up to \c Capacity entries.
    *
-   * Pre-allocates the node pool and the index. Nodes are never allocated again;
-   * the index still rehashes now and then under eviction churn (see the class
-   * description).
+   * Pre-allocates the node pool and the index. Neither is allocated again: the
+   * index is sized for \c Capacity entries and an eviction leaves no tombstone,
+   * so it never rehashes (see the class description).
    *
    * @pre None. A zero \c Capacity fails to compile.
    * @post \c empty() is \c true and \c capacity() equals \c Capacity.

@@ -11,14 +11,15 @@
  * times faster on real workloads, at the cost of losing reference stability on a
  * rehash. Iteration walks the slot array in an unspecified order.
  *
- * Each slot caches its key's hash and carries an empty / occupied / tombstone
- * state so an erase can leave a tombstone (a probe must skip it without stopping)
- * while a fresh empty slot still terminates a lookup. The entry is stored in
- * place, alive only while its slot is occupied, so a slot costs the hash, the
- * state byte, and the key-value pair (24 bytes for an \c int to \c int map on
- * a 64-bit target), with no second engaged flag. The table is a power of two
- * in size (so the bucket index is a mask, not a modulo), starts at 16 slots,
- * doubles on growth, and rehashes when the occupied-plus-tombstone count reaches
+ * Each slot caches its key's hash and an empty / occupied state; an empty slot
+ * terminates a lookup. Erase uses backward-shift deletion: it empties the slot
+ * and moves back the entries that followed it in the same probe run, so the
+ * table never holds a tombstone and a probe run is always as short as the live
+ * entries make it. The entry is stored in place, alive only while its slot is
+ * occupied, so a slot costs the hash, the state byte, and the key-value pair
+ * (24 bytes for an \c int to \c int map on a 64-bit target). The table is a
+ * power of two in size (so the bucket index is a mask, not a modulo), starts at
+ * 16 slots, doubles on growth, and rehashes when the live entry count reaches
  * 7/8 of the slots. Reach for it as a general hashable-key map in hot paths; use
  * \c dense_map when the keys are dense integers. Every operation is \c noexcept;
  * allocation failure terminates. \p Value must be move-constructible.
@@ -28,6 +29,13 @@
  * key through an iterator leaves it unfindable and breaks later probes and
  * erases. Treat the key reached through an iterator as read-only (the same
  * caller contract as \c flat_map's ordering key).
+ *
+ * Invalidation: a rehash (from a growing insert, \c reserve or
+ * \c shrink_to_fit) invalidates every iterator, pointer and reference. An erase
+ * invalidates those to the erased entry and to every entry after it in the same
+ * probe run (up to the next empty slot), which may each move back; every other
+ * entry keeps its address. Do not erase while iterating: collect the keys, then
+ * erase them.
  */
 
 #include <bit>
@@ -97,8 +105,7 @@ public:
 private:
   enum class slot_state : std::uint8_t {
     empty,
-    occupied,
-    tombstone
+    occupied
   };
 
   // One table cell. The entry lives in an anonymous union so it carries no
@@ -243,7 +250,6 @@ private:
 
   std::vector<slot> m_slots;
   size_type m_size{0};
-  size_type m_tombstones{0};
   [[no_unique_address]] Hash m_hash{};
   [[no_unique_address]] KeyEq m_eq{};
 
@@ -292,7 +298,7 @@ private:
   /**
    * @brief The 7/8 load limit, computed without floating point.
    *
-   * @return The occupied-plus-tombstone count that triggers a rehash.
+   * @return The live entry count that triggers a rehash.
    *
    * @pre None.
    * @post None.
@@ -302,10 +308,11 @@ private:
   }
 
   /**
-   * @brief Rehashes if needed so \p desired_entries fit under the load limit.
+   * @brief Grows the table so \p desired_entries fit under the load limit.
    *
-   * Tombstones count toward the probe window, so a table crowded by churn is
-   * rehashed at the same capacity to reclaim them rather than grown without bound.
+   * With no tombstones only live entries fill the table, so the trigger fires
+   * only when the table genuinely needs to grow; churn at a constant live size
+   * never rehashes.
    *
    * @param desired_entries Live entry count the table must accommodate.
    *
@@ -318,41 +325,28 @@ private:
       rehash(std::max<size_type>(initial_capacity, next_pow2(desired_entries * 8 / 7 + 1)));
       return;
     }
-    // Tombstones count toward the probe window: a table full of tombstones with
-    // no empty slot would probe forever, so keeping occupied + tombstones below
-    // the threshold guarantees a terminating empty slot exists.
-    if (desired_entries + m_tombstones > load_threshold()) {
-      // The trigger fires for two very different reasons: a table full of live
-      // entries (genuinely needs to grow) or a table mostly made of tombstones
-      // under insert/erase churn (needs its tombstones reclaimed, not more
-      // slots). Doubling in the churn case grows without bound at constant live
-      // size, so grow only when the live entries themselves are near the limit;
-      // otherwise rehash at the same capacity, which rebuilds without tombstones.
-      if (desired_entries < load_threshold() / 2) {
-        rehash(m_slots.size());
-      } else {
-        rehash(m_slots.size() * 2);
-      }
+    if (desired_entries > load_threshold()) {
+      rehash(m_slots.size() * 2);
     }
   }
 
   /**
    * @brief Rebuilds the slot array at (the next power of two of) a new size.
    *
-   * Live entries are re-inserted into the fresh array and every tombstone is
-   * dropped, so the count is restored from scratch.
+   * Live entries are re-inserted into the fresh array (reusing their cached
+   * hashes), so the count is restored from scratch.
    *
    * @param new_bucket_count Requested slot count, rounded up to a power of two.
    *
-   * @pre None.
-   * @post The table holds the same live entries with no tombstones; iterators,
-   *       pointers, and references are invalidated.
+   * @pre \p new_bucket_count leaves room for every live entry below the load
+   *      limit.
+   * @post The table holds the same live entries; iterators, pointers, and
+   *       references are invalidated.
    */
   auto rehash(size_type const new_bucket_count) noexcept -> void {
     auto old_slots{std::move(m_slots)};
     m_slots = std::vector<slot>(next_pow2(new_bucket_count));  // value-init, no slot copy
     m_size = 0;
-    m_tombstones = 0;
     for (auto& old : old_slots) {
       if (old.state == slot_state::occupied) {
         place_absent(old.cached_hash, std::move(old.value().first), std::move(old.value().second));
@@ -364,8 +358,8 @@ private:
    * @brief Inserts an absent \p key at the first free slot of its probe.
    *
    * The caller has already probed with the same hash and missed, so the first
-   * empty slot or tombstone from \c bucket_of(h) is where the key belongs; no
-   * equality walk and no second hash are needed, and a tombstone is reclaimed.
+   * empty slot from \c bucket_of(h) is where the key belongs; no equality walk
+   * and no second hash are needed.
    *
    * @param h Precomputed hash of \p key.
    * @param key Key to insert, moved into the new entry.
@@ -383,9 +377,6 @@ private:
       index = (index + 1) & (m_slots.size() - 1);
     }
     auto& target{m_slots[index]};
-    if (target.state == slot_state::tombstone) {
-      --m_tombstones;
-    }
     target.construct(std::move(key), std::move(value));
     target.state = slot_state::occupied;
     target.cached_hash = h;
@@ -438,8 +429,7 @@ private:
       if (current.state == slot_state::empty) {
         return nullptr;
       }
-      if (current.state == slot_state::occupied && current.cached_hash == h
-          && m_eq(current.value().first, key)) {
+      if (current.cached_hash == h && m_eq(current.value().first, key)) {
         return std::addressof(current);
       }
       index = (index + 1) & (m_slots.size() - 1);
@@ -475,25 +465,49 @@ private:
   }
 
   /**
-   * @brief Tombstones the slot located by a probe, shared by every erase overload.
+   * @brief Erases the slot a probe located by backward shift, for every erase.
+   *
+   * Empties the slot, then walks the rest of its probe run (up to the next
+   * empty slot). An entry whose home bucket lies cyclically at or before the
+   * hole may fill it: it moves back into the hole, and its old slot becomes the
+   * new hole. An entry whose home lies after the hole stays, since moving it
+   * before its home would hide it from its own probe. Every probe run so stays
+   * unbroken with no tombstone.
    *
    * @param found Slot returned by a probe, or \c nullptr for a miss.
    *
-   * @return \c true when a slot was tombstoned, \c false when \p found was
+   * @return \c true when an entry was erased, \c false when \p found was
    *         \c nullptr.
    *
    * @pre \p found, when non-null, points into this map's slot array.
-   * @post On \c true \c size() shrank by one and a tombstone replaced the slot.
+   * @post On \c true \c size() shrank by one; entries that followed the erased
+   *       one in its probe run may have moved back.
    */
   auto erase_slot(slot const* const found) noexcept -> bool {
     if (found == nullptr) {
       return false;
     }
-    auto& target{mutable_slot(found)};
-    target.destroy();
-    target.state = slot_state::tombstone;
+    auto const mask{m_slots.size() - 1};
+    auto hole{static_cast<size_type>(found - m_slots.data())};
+    m_slots[hole].destroy();
+    m_slots[hole].state = slot_state::empty;
+    for (auto next{(hole + 1) & mask}; m_slots[next].state == slot_state::occupied;
+         next = (next + 1) & mask) {
+      auto& candidate{m_slots[next]};
+      // The hole lies in [home, next) exactly when the candidate is at least as
+      // far from its home as from the hole (distances taken cyclically).
+      auto const home{bucket_of(candidate.cached_hash)};
+      if (((next - home) & mask) >= ((next - hole) & mask)) {
+        auto& target{m_slots[hole]};
+        target.construct(std::move(candidate.value()));
+        target.cached_hash = candidate.cached_hash;
+        target.state = slot_state::occupied;
+        candidate.destroy();
+        candidate.state = slot_state::empty;
+        hole = next;
+      }
+    }
     --m_size;
-    ++m_tombstones;
     return true;
   }
 
@@ -777,9 +791,7 @@ public:
   /**
    * @brief Reserves storage for at least \p n entries.
    *
-   * Tombstones left by erasures count toward the rehash trigger, so a table with
-   * enough slots but too many tombstones is rebuilt at the same capacity; either
-   * way, inserting until the map holds \p n entries then rehashes nothing.
+   * Inserting until the map holds \p n entries then rehashes nothing.
    *
    * @param n Minimum entry capacity to ensure.
    *
@@ -794,8 +806,6 @@ public:
     auto const needed{next_pow2(n * 8 / 7 + 1)};
     if (needed > m_slots.size()) {
       rehash(needed);
-    } else if (n + m_tombstones > load_threshold()) {
-      rehash(m_slots.size());
     }
   }
 
@@ -815,15 +825,14 @@ public:
       current.state = slot_state::empty;
     }
     m_size = 0;
-    m_tombstones = 0;
   }
 
   /**
    * @brief Releases slot capacity not needed for the current entries.
    *
    * @pre None.
-   * @post \c size() is unchanged and tombstones are cleared; iterators,
-   *       pointers, and references are invalidated.
+   * @post \c size() is unchanged; when the table shrank, iterators, pointers,
+   *       and references are invalidated.
    */
   auto shrink_to_fit() noexcept -> void {
     if (m_size == 0) {
@@ -832,9 +841,7 @@ public:
       return;
     }
     auto const target{next_pow2(m_size * 8 / 7 + 1)};
-    // Rehash to shrink, but also when only tombstones remain at the same target
-    // capacity, so the @post that tombstones are cleared holds on every path.
-    if (target < m_slots.size() || m_tombstones > 0) {
+    if (target < m_slots.size()) {
       rehash(target);
     }
   }
@@ -853,7 +860,6 @@ public:
     using std::swap;
     m_slots.swap(other.m_slots);
     swap(m_size, other.m_size);
-    swap(m_tombstones, other.m_tombstones);
     swap(m_hash, other.m_hash);
     swap(m_eq, other.m_eq);
   }
@@ -998,8 +1004,16 @@ public:
    * @return \c true on a removal, \c false when \p key was absent.
    *
    * @pre None.
-   * @post \p key is absent; on a removal \c size() shrank by one and a tombstone
-   *       is left in place.
+   * @post \p key is absent; on a removal \c size() shrank by one. Entries that
+   *       followed the erased one in its probe run may have moved back one or
+   *       more slots, so iterators, pointers, and references to the erased
+   *       entry and to those entries are invalidated; every other entry keeps
+   *       its address.
+   *
+   * @warning Do not erase while iterating: an entry can move back into a slot
+   *          the iteration already passed (it is then skipped), or from the
+   *          start of the table to its end (it is then visited twice). Collect
+   *          the keys first, then erase them.
    *
    * @complexity Amortised \c O(1).
    */
@@ -1017,8 +1031,16 @@ public:
    * @return \c true on a removal, \c false when \p key was absent.
    *
    * @pre None.
-   * @post \p key is absent; on a removal \c size() shrank by one and a tombstone
-   *       is left in place.
+   * @post \p key is absent; on a removal \c size() shrank by one. Entries that
+   *       followed the erased one in its probe run may have moved back one or
+   *       more slots, so iterators, pointers, and references to the erased
+   *       entry and to those entries are invalidated; every other entry keeps
+   *       its address.
+   *
+   * @warning Do not erase while iterating: an entry can move back into a slot
+   *          the iteration already passed (it is then skipped), or from the
+   *          start of the table to its end (it is then visited twice). Collect
+   *          the keys first, then erase them.
    *
    * @complexity Amortised \c O(1).
    */

@@ -14,12 +14,13 @@ the map's: a rehash invalidates references and iteration order is unspecified.
 * The idea
 
 A set is a map that forgot its values. =std::unordered_set= hangs every element
-off a bucket in its own heap node, so a membership test chases pointers and risks
-a cache miss at each hop. =flat_hash_set= reuses =flat_hash_map='s open-addressing
-table wholesale: it *is* a =flat_hash_map<T, detail::empty_value>= where the
-mapped type carries no information, plus a thin shell of forwarding methods. All
-the delicate machinery (probing, tombstones, the 7/8 load threshold, power-of-two
-sizing) lives in the map, written and tested once, reused here for free.
+off a bucket in its own heap node, so a membership test chases pointers and
+risks a cache miss at each hop. =flat_hash_set= reuses =flat_hash_map='s
+open-addressing table wholesale: it *is* a
+=flat_hash_map<T, detail::empty_value>= where the mapped type carries no
+information, plus a thin shell of forwarding methods. All the delicate machinery
+(probing, backward-shift erase, the 7/8 load threshold, power-of-two sizing)
+lives in the map, written and tested once, reused here for free.
 
 * How it works
 
@@ -71,11 +72,12 @@ cached hash. When the values are dense integers and you only need visited bits,
 ** What it does not expose
 
 The interface is deliberately lean. There is no =find= or =at=: in the map they
-returned a pointer to the value, but here there is no value, and =contains= is all
-that makes sense to ask. There is no =emplace= either: hashing needs an
+returned a pointer to the value, but here there is no value, and =contains= is
+all that makes sense to ask. There is no =emplace= either: hashing needs an
 already-constructed key, so constructing in place would save nothing over
-=insert(T)=. Growth, tombstone reuse, and the rehash threshold are inherited
-verbatim from the map.
+=insert(T)=. Growth, the backward-shift erase (which can move other elements, so
+never erase while iterating), and the rehash threshold are inherited verbatim
+from the map.
 
 * Complexity
 

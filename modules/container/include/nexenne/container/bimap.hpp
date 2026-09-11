@@ -107,8 +107,8 @@ public:
    * @brief Slot count of the left-side index.
    *
    * This is the raw slot count, not a no-rehash budget: a rehash triggers once
-   * occupied plus tombstones exceed 7/8 of the slots, so fewer than \c capacity()
-   * fresh pairs fit before one occurs.
+   * the live entries exceed 7/8 of the slots, so fewer than \c capacity() fresh
+   * pairs fit before one occurs.
    *
    * @return Current slot count of the left-side index.
    *

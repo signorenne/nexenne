@@ -13,11 +13,13 @@
  * unspecified order.
  *
  * The mapped type is a zero-state marker, so a set entry costs what a map entry
- * costs minus a meaningful value: per slot that is the empty / occupied /
- * tombstone state, the cached hash, and the stored key (the marker adds at most a
- * byte of padding). This is not a bit-per-element structure; for dense integer
- * membership prefer \c sparse_set or \c bitset_dynamic. Every operation is
- * \c noexcept; allocation failure terminates.
+ * costs minus a meaningful value: per slot that is the empty / occupied state,
+ * the cached hash, and the stored key (the marker adds at most a byte of
+ * padding). An erase shifts later elements of its probe run back, as in the
+ * map, so it can move other elements: never erase while iterating. This is not
+ * a bit-per-element structure; for dense integer membership prefer
+ * \c sparse_set or \c bitset_dynamic. Every operation is \c noexcept;
+ * allocation failure terminates.
  */
 
 #include <cstddef>
