@@ -5,22 +5,71 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <any>
+#include <bit>
+#include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <random>
 #include <set>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <nexenne/container/binary_tree.hpp>
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
 namespace {
 
 namespace cn = nexenne::container;
 using tree_t = cn::binary_tree<int>;
+
+struct frame_span {
+  std::uintptr_t lowest{std::numeric_limits<std::uintptr_t>::max()};
+  std::uintptr_t highest{0};
+};
+
+frame_span probe_frames{};
+
+auto note_frame() noexcept -> void {
+#if defined(_MSC_VER)
+  auto const at{std::bit_cast<std::uintptr_t>(_AddressOfReturnAddress())};
+#else
+  auto const at{std::bit_cast<std::uintptr_t>(__builtin_frame_address(0))};
+#endif
+  probe_frames.lowest = std::min(probe_frames.lowest, at);
+  probe_frames.highest = std::max(probe_frames.highest, at);
+}
+
+struct probe {
+  std::size_t key{0};
+
+  explicit probe(std::size_t const k) noexcept : key{k} {}
+
+  probe(probe const& other) noexcept : key{other.key} {
+    note_frame();
+  }
+
+  probe(probe&& other) noexcept = default;
+  auto operator=(probe const& other) noexcept -> probe& = default;
+  auto operator=(probe&& other) noexcept -> probe& = default;
+
+  ~probe() {
+    note_frame();
+  }
+
+  friend auto operator<=>(probe const& lhs, probe const& rhs) noexcept = default;
+};
+
+using probe_tree = cn::binary_tree<probe>;
 
 template <typename Tree>
 auto to_vector(Tree const& t) -> std::vector<int> {
@@ -402,25 +451,26 @@ TEST_CASE("nexenne::container::binary_tree differential against std::set under r
   CHECK(to_vector(t) == std::vector<int>(ref.begin(), ref.end()));
 }
 
-TEST_CASE("nexenne::container::binary_tree tears down and clones a deep chain iteratively") {
-  // M1: sorted inserts build an n-deep right chain. A recursive destructor or a
-  // recursive clone_subtree overflows the stack at this depth (a recursive
-  // version SIGSEGVs here); the iterative teardown and clone must not.
-  constexpr int n{100000};
-  auto tree{std::make_unique<tree_t>()};
-  for (int i{0}; i < n; ++i) {
-    tree->insert(i);
+TEST_CASE("nexenne::container::binary_tree clones and tears down a deep chain in flat stack") {
+  constexpr std::size_t depth{4'000};
+  constexpr std::uintptr_t flat{16U * 1024U};
+  probe_tree tree{};
+  for (std::size_t i{0}; i < depth; ++i) {
+    tree.insert(probe{i});
   }
-  CHECK(tree->size() == static_cast<std::size_t>(n));
 
-  tree_t copy{*tree};  // iterative deep clone of an n-deep chain
-  CHECK(copy.size() == static_cast<std::size_t>(n));
-  CHECK(copy == *tree);
+  probe_frames = {};
+  {
+    probe_tree const copy{tree};
+    CHECK(copy.size() == depth);
+    CHECK(copy == tree);
+  }
+  CHECK(probe_frames.highest - probe_frames.lowest < flat);
 
-  tree.reset();  // iterative teardown of the original
-  CHECK(copy.contains(n - 1));
-  copy.clear();  // iterative teardown again
-  CHECK(copy.empty());
+  probe_frames = {};
+  tree.clear();
+  CHECK(tree.empty());
+  CHECK(probe_frames.highest - probe_frames.lowest < flat);
 }
 
 // m8: the advertised constexpr surface must actually be constant-evaluable,
