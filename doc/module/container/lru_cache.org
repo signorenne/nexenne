@@ -53,7 +53,9 @@ recency list, and pushes it to the front (MRU). A =put= on an existing key
 overwrites the value and promotes the same way. A =put= on a new key takes a node
 (see below), fills in key and value, pushes it to the front, and registers it in
 the index. =peek= is the deliberate exception: it looks up the value *without*
-touching recency, for diagnostics that must not perturb eviction.
+touching recency, for diagnostics that must not perturb eviction. Like the other
+lookups it follows the cache's constness: a const pointer from a const cache, a
+mutable one (to edit the value in place, still without promoting) otherwise.
 
 #+BEGIN_EXAMPLE
 get("a"): unlink node0 from the middle, push to front

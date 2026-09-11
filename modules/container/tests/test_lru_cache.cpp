@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include <nexenne/container/lru_cache.hpp>
@@ -382,6 +383,27 @@ TEST_CASE("nexenne::container::lru_cache eviction churn stays exact (container-3
     }
   }
   CHECK(cache.size() == 8);
+}
+
+TEST_CASE("nexenne::container::lru_cache peek follows the cache's constness") {
+  // Accessor rule: the value has no invariant, so a mutable cache edits it in
+  // place through peek, and peek still does not promote.
+  cn::lru_cache<int, int, 2> c;
+  c.put(1, 10);
+  c.put(2, 20);  // recency: 2 (MRU), 1 (LRU)
+  auto* const value{c.peek(1)};
+  REQUIRE(value != nullptr);
+  *value = 11;
+  REQUIRE(c.lru_key() != nullptr);
+  CHECK(*c.lru_key() == 1);  // not promoted
+  CHECK(c.peek(3) == nullptr);
+  auto const& cc{c};
+  static_assert(std::is_same_v<decltype(c.peek(1)), int*>);
+  static_assert(std::is_same_v<decltype(cc.peek(1)), int const*>);
+  REQUIRE(cc.peek(1) != nullptr);
+  CHECK(*cc.peek(1) == 11);
+  c.put(3, 30);  // evicts 1, the LRU entry, since peek did not promote it
+  CHECK_FALSE(c.contains(1));
 }
 
 }  // namespace

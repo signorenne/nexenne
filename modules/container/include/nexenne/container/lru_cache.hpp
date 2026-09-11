@@ -379,6 +379,30 @@ public:
   }
 
   /**
+   * @brief Looks up \p key without promoting it, for an in-place edit.
+   *
+   * The value carries no invariant of the cache (only the key does), so a
+   * non-const cache hands out a mutable pointer, like \c get but leaving the
+   * eviction order alone.
+   *
+   * @param key Key to look up.
+   *
+   * @return Pointer to the entry's value on a hit, or \c nullptr on a miss.
+   *
+   * @pre None.
+   * @post The eviction order is not modified.
+   *
+   * @complexity Amortised \c O(1).
+   */
+  [[nodiscard]] auto peek(Key const& key) noexcept(nothrow_lookup_v) -> Value* {
+    auto* const slot{m_index.find(std::addressof(key))};
+    if (slot == nullptr) {
+      return nullptr;
+    }
+    return std::addressof((*slot)->value);
+  }
+
+  /**
    * @brief Whether \p key has an entry.
    *
    * @param key Key to test for membership.
