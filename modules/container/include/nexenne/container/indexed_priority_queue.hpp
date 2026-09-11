@@ -40,6 +40,22 @@
 namespace nexenne::container {
 
 /**
+ * @brief A heap slot of an \c indexed_priority_queue: the value and the handle that owns it.
+ *
+ * Declared at namespace scope rather than nested in the queue so a
+ * \c std::formatter specialisation can name it.
+ *
+ * @tparam T Value type.
+ */
+template <typename T>
+struct indexed_priority_queue_entry {
+  using value_type = T;  ///< Type of the queued value.
+
+  T value;                 ///< The queued value.
+  std::uint32_t handle{};  ///< Handle that currently owns the slot.
+};
+
+/**
  * @brief Binary-heap priority queue with handle-based update and erase.
  *
  * @tparam T Value type; must be movable (sifting move-assigns elements).
@@ -58,11 +74,7 @@ public:
   using key_compare = Compare;
   using handle_type = std::uint32_t;
 
-  /// @brief A heap slot: the value and the handle that currently owns it.
-  struct entry {
-    T value;
-    handle_type handle{};
-  };
+  using entry = indexed_priority_queue_entry<T>;  ///< A heap slot: the value and its handle.
 
   /**
    * @brief Sentinel a caller can use to mean "no handle".

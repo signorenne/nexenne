@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <format>
+#include <functional>
 #include <sstream>
 #include <string>
 
@@ -150,6 +151,41 @@ TEST_CASE("nexenne::container::format dense_map prints key: value") {
   nexenne::utility::ignore(m.insert(3u, 30));
   CHECK(cn::to_string(m) == "dense_map{3: 30}");
   CHECK(std::format("{}", m) == "dense_map{3: 30}");
+}
+
+TEST_CASE("nexenne::container::format tag-only dense_map prints its keys set-like") {
+  cn::dense_map<unsigned, void> tags;
+  CHECK(std::format("{}", tags) == "dense_map{}");
+  nexenne::utility::ignore(tags.insert(3u));
+  nexenne::utility::ignore(tags.insert(7u));
+  CHECK(std::format("{}", tags) == "dense_map{3, 7}");
+  CHECK(cn::to_string(tags) == "dense_map{3, 7}");
+  std::ostringstream os;
+  os << tags;
+  CHECK(os.str() == "dense_map{3, 7}");
+}
+
+struct hooked : cn::intrusive_list_hook<hooked> {};
+
+template <typename T>
+concept has_to_string = requires(T const& value) { cn::to_string(value); };
+
+TEST_CASE("nexenne::container::format intrusive_list_hook prints whether it is linked") {
+  static_assert(has_to_string<cn::intrusive_list_hook<hooked>>);
+  static_assert(!has_to_string<hooked>);
+
+  hooked a;
+  cn::intrusive_list_hook<hooked> const& hook{a};
+  CHECK(std::format("{}", hook) == "intrusive_list_hook(unlinked)");
+
+  cn::intrusive_list<hooked> list;
+  list.push_back(a);
+  CHECK(std::format("{}", hook) == "intrusive_list_hook(linked)");
+  CHECK(cn::to_string(hook) == "intrusive_list_hook(linked)");
+  std::ostringstream os;
+  os << hook;
+  CHECK(os.str() == "intrusive_list_hook(linked)");
+  list.clear();
 }
 
 TEST_CASE("nexenne::container::format flat_hash_set prints set-like") {
@@ -342,6 +378,28 @@ TEST_CASE("nexenne::container::format streams and formats container_error by nam
   CHECK(os.str() == "full not_found invalid_argument");
   CHECK(std::format("{}", cn::container_error::empty) == "empty");
   CHECK(std::format("{}", cn::container_error::invalid_argument) == "invalid_argument");
+}
+
+TEST_CASE("nexenne::container::format prints indexed_priority_queue entries as handle->value") {
+  cn::indexed_priority_queue<int> q{};
+  auto const h{q.push(42)};
+  REQUIRE(q.entries().size() == 1);
+  auto const& e{q.entries().front()};
+  CHECK(cn::to_string(e) == std::format("{}->42", h));
+  CHECK(std::format("{}", e) == cn::to_string(e));
+  std::ostringstream os{};
+  os << e;
+  CHECK(os.str() == cn::to_string(e));
+  CHECK(std::format("{}", q) == std::format("indexed_priority_queue{{{}->42}}", h));
+}
+
+TEST_CASE("nexenne::container::format prints a bimap with custom key equality") {
+  cn::bimap<int, int, std::hash<int>, std::hash<int>, std::equal_to<>, std::equal_to<>> b{};
+  CHECK(b.insert(1, 2));
+  CHECK(std::format("{}", b) == cn::to_string(b));
+  std::ostringstream os{};
+  os << b;
+  CHECK(os.str() == cn::to_string(b));
 }
 
 }  // namespace

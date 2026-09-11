@@ -16,6 +16,10 @@
  * print a single-line stats form instead, for example
  * \c "spsc_queue(size_approx=2, capacity=15)". For the concurrent queues the
  * counts are approximate, matching \c size_approx.
+ *
+ * The tag-only \c dense_map<Key, void> prints its keys set-like, and an
+ * \c intrusive_list_hook prints whether it is linked, for example
+ * \c "intrusive_list_hook(unlinked)".
  */
 
 #include <concepts>
@@ -91,6 +95,25 @@ template <typename Range>
   }
   return out;
 }
+
+/**
+ * @brief Whether \p H is exactly an \c intrusive_list_hook specialization.
+ *
+ * An element type deriving from the hook is not one, so its formatting is never
+ * routed through the hook's.
+ *
+ * @tparam H Type under test.
+ */
+template <typename H>
+inline constexpr bool is_intrusive_list_hook_v{false};
+
+/**
+ * @brief Matches an \c intrusive_list_hook specialization.
+ *
+ * @tparam T Deriving element type of the hook.
+ */
+template <typename T>
+inline constexpr bool is_intrusive_list_hook_v<intrusive_list_hook<T>>{true};
 
 /// @endcond
 }  // namespace detail
@@ -348,6 +371,41 @@ auto operator<<(std::ostream& os, heap<T, Compare> const& h) -> std::ostream& {
 }
 
 /**
+ * @brief Builds the diagnostic string of an \c indexed_priority_queue_entry.
+ *
+ * Example: \c "3->42" for the value 42 owned by handle 3.
+ *
+ * @tparam T Value type.
+ * @param e The entry to describe.
+ *
+ * @return The handle, an arrow, and the formatted value.
+ *
+ * @pre The value is formattable through \c std::format.
+ * @post None.
+ */
+template <typename T>
+[[nodiscard]] auto to_string(indexed_priority_queue_entry<T> const& e) -> std::string {
+  return std::format("{}->{}", e.handle, e.value);
+}
+
+/**
+ * @brief Streams the diagnostic string of \p e to \p os.
+ *
+ * @tparam T Value type.
+ * @param os Output stream to write to.
+ * @param e The entry to describe.
+ *
+ * @return \p os, to allow chaining.
+ *
+ * @pre The value is formattable through \c std::format.
+ * @post The diagnostic string of \p e has been written to \p os.
+ */
+template <typename T>
+auto operator<<(std::ostream& os, indexed_priority_queue_entry<T> const& e) -> std::ostream& {
+  return os << to_string(e);
+}
+
+/**
  * @brief Builds a diagnostic string listing the elements of a \c indexed_priority_queue.
  *
  * @tparam T Element type stored in the container.
@@ -368,7 +426,7 @@ template <typename T, typename Compare>
       body += ", ";
     }
     first = false;
-    body += std::format("{}->{}", e.handle, e.value);
+    body += to_string(e);
   }
   return std::format("indexed_priority_queue{{{}}}", body);
 }
@@ -541,6 +599,45 @@ template <typename T>
 template <typename T>
 auto operator<<(std::ostream& os, intrusive_list<T> const& l) -> std::ostream& {
   return os << to_string(l);
+}
+
+/**
+ * @brief Builds a diagnostic string for an \c intrusive_list_hook: whether it is linked.
+ *
+ * Prints \c "intrusive_list_hook(linked)" or \c "intrusive_list_hook(unlinked)".
+ * Constrained to the hook type itself, so an element deriving from the hook is
+ * not printed through it; format the hook by a reference to its base.
+ *
+ * @tparam Hook An \c intrusive_list_hook specialization.
+ * @param h The hook to describe.
+ *
+ * @return A readable diagnostic string.
+ *
+ * @pre None.
+ * @post None. \p h is not modified.
+ */
+template <typename Hook>
+  requires detail::is_intrusive_list_hook_v<Hook>
+[[nodiscard]] auto to_string(Hook const& h) -> std::string {
+  return std::format("intrusive_list_hook({})", h.is_linked() ? "linked" : "unlinked");
+}
+
+/**
+ * @brief Streams the diagnostic string of \p h to \p os.
+ *
+ * @tparam Hook An \c intrusive_list_hook specialization.
+ * @param os Output stream to write to.
+ * @param h The hook to describe.
+ *
+ * @return \p os, to allow chaining.
+ *
+ * @pre None.
+ * @post The diagnostic string of \p h has been written to \p os.
+ */
+template <typename Hook>
+  requires detail::is_intrusive_list_hook_v<Hook>
+auto operator<<(std::ostream& os, Hook const& h) -> std::ostream& {
+  return os << to_string(h);
 }
 
 /**
@@ -864,6 +961,8 @@ auto operator<<(std::ostream& os, static_flat_map<Key, Value, Capacity, Compare>
  * @tparam R Right key type.
  * @tparam HL Left-key hash type.
  * @tparam HR Right-key hash type.
+ * @tparam EL Left-key equality type.
+ * @tparam ER Right-key equality type.
  * @param m The container to describe.
  *
  * @return A readable diagnostic string.
@@ -871,8 +970,8 @@ auto operator<<(std::ostream& os, static_flat_map<Key, Value, Capacity, Compare>
  * @pre Every contained element is formattable through \c std::format.
  * @post None. \p m is not modified.
  */
-template <typename L, typename R, typename HL, typename HR>
-[[nodiscard]] auto to_string(bimap<L, R, HL, HR> const& m) -> std::string {
+template <typename L, typename R, typename HL, typename HR, typename EL, typename ER>
+[[nodiscard]] auto to_string(bimap<L, R, HL, HR, EL, ER> const& m) -> std::string {
   std::string body;
   bool first{true};
   for (auto const& [l, r] : m) {
@@ -892,6 +991,8 @@ template <typename L, typename R, typename HL, typename HR>
  * @tparam R Right key type.
  * @tparam HL Left-key hash type.
  * @tparam HR Right-key hash type.
+ * @tparam EL Left-key equality type.
+ * @tparam ER Right-key equality type.
  * @param os Output stream to write to.
  * @param m The container to describe.
  *
@@ -900,8 +1001,8 @@ template <typename L, typename R, typename HL, typename HR>
  * @pre Every contained element is formattable through \c std::format.
  * @post The diagnostic string of \p m has been written to \p os.
  */
-template <typename L, typename R, typename HL, typename HR>
-auto operator<<(std::ostream& os, bimap<L, R, HL, HR> const& m) -> std::ostream& {
+template <typename L, typename R, typename HL, typename HR, typename EL, typename ER>
+auto operator<<(std::ostream& os, bimap<L, R, HL, HR, EL, ER> const& m) -> std::ostream& {
   return os << to_string(m);
 }
 
@@ -981,6 +1082,42 @@ template <std::unsigned_integral Key, std::move_constructible Value>
  */
 template <std::unsigned_integral Key, std::move_constructible Value>
 auto operator<<(std::ostream& os, dense_map<Key, Value> const& m) -> std::ostream& {
+  return os << to_string(m);
+}
+
+/**
+ * @brief Builds a diagnostic string listing the keys of a tag-only \c dense_map.
+ *
+ * The \c dense_map<Key, void> specialization holds keys and no values, so it
+ * prints set-like in dense order, for example \c "dense_map{3, 7}".
+ *
+ * @tparam Key Key type.
+ * @param m The container to describe.
+ *
+ * @return A readable diagnostic string.
+ *
+ * @pre None.
+ * @post None. \p m is not modified.
+ */
+template <std::unsigned_integral Key>
+[[nodiscard]] auto to_string(dense_map<Key, void> const& m) -> std::string {
+  return std::format("dense_map{{{}}}", detail::join_csv(m.keys()));
+}
+
+/**
+ * @brief Streams the diagnostic string of \p m to \p os.
+ *
+ * @tparam Key Key type.
+ * @param os Output stream to write to.
+ * @param m The container to describe.
+ *
+ * @return \p os, to allow chaining.
+ *
+ * @pre None.
+ * @post The diagnostic string of \p m has been written to \p os.
+ */
+template <std::unsigned_integral Key>
+auto operator<<(std::ostream& os, dense_map<Key, void> const& m) -> std::ostream& {
   return os << to_string(m);
 }
 
@@ -1716,6 +1853,47 @@ struct std::formatter<nexenne::container::heap<T, Compare>> {
 };
 
 /**
+ * @brief \c std::formatter that prints an \c indexed_priority_queue_entry via
+ *        \c nexenne::container::to_string.
+ *
+ * @tparam T Value type.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <typename T>
+struct std::formatter<nexenne::container::indexed_priority_queue_entry<T>> {
+  /**
+   * @brief Accepts the empty format spec.
+   *
+   * @param ctx Parse context positioned at the format spec.
+   *
+   * @return Iterator to the end of the parsed spec.
+   *
+   * @pre The spec is empty; only \c "{}" is supported.
+   * @post None.
+   */
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  /**
+   * @brief Writes the \c to_string form of \p e to the output.
+   *
+   * @param e Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The diagnostic string of \p e has been written through \p ctx.
+   */
+  static auto format(nexenne::container::indexed_priority_queue_entry<T> const& e, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(e));
+  }
+};
+
+/**
  * @brief \c std::formatter that prints a \c indexed_priority_queue via
  *        \c nexenne::container::to_string.
  *
@@ -1878,6 +2056,47 @@ struct std::formatter<nexenne::container::intrusive_list<T>> {
    */
   static auto format(nexenne::container::intrusive_list<T> const& l, auto& ctx) {
     return std::format_to(ctx.out(), "{}", nexenne::container::to_string(l));
+  }
+};
+
+/**
+ * @brief \c std::formatter that prints an \c intrusive_list_hook via
+ *        \c nexenne::container::to_string.
+ *
+ * @tparam T Deriving element type of the hook.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <typename T>
+struct std::formatter<nexenne::container::intrusive_list_hook<T>> {
+  /**
+   * @brief Accepts the empty format spec.
+   *
+   * @param ctx Parse context positioned at the format spec.
+   *
+   * @return Iterator to the end of the parsed spec.
+   *
+   * @pre The spec is empty; only \c "{}" is supported.
+   * @post None.
+   */
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  /**
+   * @brief Writes the \c to_string form of \p h to the output.
+   *
+   * @param h Hook to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The diagnostic string of \p h has been written through \p ctx.
+   */
+  static auto format(nexenne::container::intrusive_list_hook<T> const& h, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(h));
   }
 };
 
@@ -2082,6 +2301,47 @@ struct std::formatter<nexenne::container::dense_map<Key, Value>> {
    * @post The diagnostic string of \p m has been written through \p ctx.
    */
   static auto format(nexenne::container::dense_map<Key, Value> const& m, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::container::to_string(m));
+  }
+};
+
+/**
+ * @brief \c std::formatter that prints a tag-only \c dense_map via
+ *        \c nexenne::container::to_string.
+ *
+ * @tparam Key Key type.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::unsigned_integral Key>
+struct std::formatter<nexenne::container::dense_map<Key, void>> {
+  /**
+   * @brief Accepts the empty format spec.
+   *
+   * @param ctx Parse context positioned at the format spec.
+   *
+   * @return Iterator to the end of the parsed spec.
+   *
+   * @pre The spec is empty; only \c "{}" is supported.
+   * @post None.
+   */
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  /**
+   * @brief Writes the \c to_string form of \p m to the output.
+   *
+   * @param m Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The diagnostic string of \p m has been written through \p ctx.
+   */
+  static auto format(nexenne::container::dense_map<Key, void> const& m, auto& ctx) {
     return std::format_to(ctx.out(), "{}", nexenne::container::to_string(m));
   }
 };
@@ -2395,12 +2655,14 @@ struct std::formatter<nexenne::container::static_flat_map<Key, Value, Capacity, 
  * @tparam R Right key type.
  * @tparam HL Left-key hash type.
  * @tparam HR Right-key hash type.
+ * @tparam EL Left-key equality type.
+ * @tparam ER Right-key equality type.
  *
  * @pre None.
  * @post None.
  */
-template <typename L, typename R, typename HL, typename HR>
-struct std::formatter<nexenne::container::bimap<L, R, HL, HR>> {
+template <typename L, typename R, typename HL, typename HR, typename EL, typename ER>
+struct std::formatter<nexenne::container::bimap<L, R, HL, HR, EL, ER>> {
   /**
    * @brief Accepts the empty format spec.
    *
@@ -2426,7 +2688,7 @@ struct std::formatter<nexenne::container::bimap<L, R, HL, HR>> {
    * @pre None.
    * @post The diagnostic string of \p m has been written through \p ctx.
    */
-  static auto format(nexenne::container::bimap<L, R, HL, HR> const& m, auto& ctx) {
+  static auto format(nexenne::container::bimap<L, R, HL, HR, EL, ER> const& m, auto& ctx) {
     return std::format_to(ctx.out(), "{}", nexenne::container::to_string(m));
   }
 };

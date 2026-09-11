@@ -34,10 +34,10 @@ The bracket style signals the container's character:
 | shape                | containers                                                |
 |----------------------+-----------------------------------------------------------|
 | =name[a, b, c]=      | sequences: static_vector, small_vector, stable_vector, ring_buffer, gap_buffer, deque, bag, slot_map, intrusive_list, heap |
-| =name{a, b, c}=      | sets: sparse_set, flat_hash_set, flat_set, binary_tree    |
+| =name{a, b, c}=      | sets: sparse_set, flat_hash_set, flat_set, binary_tree, the tag-only dense_map<K, void> |
 | =name{k: v, ...}=    | maps: flat_hash_map, flat_map, static_flat_map, dense_map |
 | =name(k=v, ...)=     | stats-only (contents not safely enumerable): bloom_filter, lru_cache, spsc_queue, mpsc_queue, mpmc_queue, object_pool, linear_arena, scratch_pad |
-| bespoke              | bitset_dynamic (=0b= bits, MSB-first), bimap (=l <-> r=), graph (=v:[neighbours]=), trie (quoted keys), union_find (grouped sets), indexed_priority_queue (=handle->value=) |
+| bespoke              | bitset_dynamic (=0b= bits, MSB-first), bimap (=l <-> r=), graph (=v:[neighbours]=), trie (quoted keys), union_find (grouped sets), indexed_priority_queue (=handle->value=), intrusive_list_hook (=intrusive_list_hook(linked)= or =(unlinked)=) |
 
 Map and multi-line shapes whose iteration order is unspecified (the hashed
 containers) print in whatever order the container iterates, so two equal maps may
@@ -61,6 +61,9 @@ concurrent queues the counts are approximate, matching =size_approx=.
   unspecified, so the printed order is too.
 - *bitset_dynamic prints MSB-first* (the conventional binary-literal direction),
   so bit 0 is the rightmost character.
+- *An element is not its hook.* =intrusive_list_hook= prints only through a
+  reference to the hook itself; an element type deriving from it is never
+  printed as its hook, and needs its own formatter to sit in a printed list.
 
 * Usage
 
