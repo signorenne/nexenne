@@ -351,8 +351,8 @@ public:
    *
    * @param other Filter to union into this one.
    *
-   * @return Nothing on success, or \c container_error::out_of_range when the
-   *         filters differ in \c bit_count or \c hash_count.
+   * @return Nothing on success, or \c container_error::invalid_argument when
+   *         the filters differ in \c bit_count or \c hash_count.
    *
    * @pre None. The shapes are checked.
    * @post On success this filter is the bitwise union of both; on failure it is
@@ -361,11 +361,8 @@ public:
    * @complexity \c O(bit_count).
    */
   auto merge(bloom_filter const& other) noexcept -> result<void> {
-    // A shape mismatch is not literally an index-out-of-range, but the module's
-    // error enum has no dedicated "mismatched shape" code, so out_of_range is
-    // reused as the closest fit.
     if (m_bits.size() != other.m_bits.size() || m_num_hashes != other.m_num_hashes) {
-      return std::unexpected{container_error::out_of_range};
+      return std::unexpected{container_error::invalid_argument};
     }
     m_bits |= other.m_bits;
     m_insertions += other.m_insertions;

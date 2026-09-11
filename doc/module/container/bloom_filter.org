@@ -131,7 +131,7 @@ Things to keep in mind:
   return =result<bloom_filter>=; a bad shape or sizing input is
   =invalid_argument=, not a debug-only assert.
 - *merge requires identical shape* (same bit and hash counts) and returns
-  =out_of_range= otherwise.
+  =invalid_argument= otherwise.
 
 * Usage
 

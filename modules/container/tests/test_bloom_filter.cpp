@@ -95,7 +95,7 @@ TEST_CASE("nexenne::container::bloom_filter merge unions two same-shaped filters
   CHECK(a.contains(3));  // b's element now present in a
 
   auto mismatch{cn::bloom_filter<int>::make(256, 4).value()};
-  CHECK(a.merge(mismatch).error() == cn::container_error::out_of_range);
+  CHECK(a.merge(mismatch).error() == cn::container_error::invalid_argument);
 }
 
 TEST_CASE("nexenne::container::bloom_filter swap and equality") {
@@ -209,7 +209,7 @@ TEST_CASE("nexenne::container::bloom_filter merge rejects a differing hash count
   auto a{cn::bloom_filter<int>::make(512, 4).value()};
   auto b{cn::bloom_filter<int>::make(512, 5).value()};
   a.insert(1);
-  CHECK(a.merge(b).error() == cn::container_error::out_of_range);
+  CHECK(a.merge(b).error() == cn::container_error::invalid_argument);
   CHECK(a.insertions() == 1);  // unchanged on failure
 }
 
