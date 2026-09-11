@@ -30,7 +30,8 @@ the comparator. Everything below exists to preserve one invariant: the vector is
 *always sorted and holds no duplicates*. The comparator is stored with
 =[[no_unique_address]]=, so a stateless ordering like =std::less<int>= (an empty
 type) contributes zero bytes and the set is exactly the size of its vector, while
-a stateful comparator pays only for its own state.
+a stateful comparator pays only for its own state. =key_comp()= returns a const
+reference to it, never a copy.
 
 #+BEGIN_EXAMPLE
 flat_set<int>{1, 3, 5, 8}:

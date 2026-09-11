@@ -268,6 +268,18 @@ public:
   }
 
   /**
+   * @brief The stored comparator.
+   *
+   * @return A const reference to the comparator.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto key_comp() const noexcept -> Compare const& {
+    return m_cmp;
+  }
+
+  /**
    * @brief Number of elements that fit without reallocating.
    *
    * @return Allocated heap capacity.

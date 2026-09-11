@@ -74,7 +74,8 @@ anything to repair.
 
 ** What is exposed, and what is not
 
-=top()= returns a pointer to the winner, or =nullptr= when empty. =data()= and
+=top()= returns a pointer to the winner, or =nullptr= when empty, and
+=key_comp()= a const reference to the comparator. =data()= and
 =span()= expose the storage read-only, but in *heap order*, not sorted order, so
 they are for feeding range algorithms, not for reading priorities in sequence.
 There is deliberately no =begin= / =end= and no =operator==/<=>=: heap-layout

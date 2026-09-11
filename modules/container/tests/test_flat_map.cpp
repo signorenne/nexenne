@@ -12,6 +12,7 @@
 #include <random>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -392,3 +393,9 @@ TEST_CASE("nexenne::container::flat_map erase by iterator under a transparent co
 }
 
 }  // namespace
+
+TEST_CASE("nexenne::container::flat_map key_comp exposes the stored comparator") {
+  cn::flat_map<int, int, std::greater<int>> const m{};
+  static_assert(std::is_same_v<decltype(m.key_comp()), std::greater<int> const&>);
+  CHECK(m.key_comp()(2, 1));
+}

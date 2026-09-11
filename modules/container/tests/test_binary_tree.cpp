@@ -501,3 +501,9 @@ TEST_CASE("nexenne::container::binary_tree moved-from source keeps a working com
 static_assert(sizeof(cn::binary_tree<int>) == sizeof(void*) + sizeof(std::size_t));
 
 }  // namespace
+
+TEST_CASE("nexenne::container::binary_tree key_comp exposes the stored comparator") {
+  cn::binary_tree<int, std::greater<int>> const t{std::greater<int>{}};
+  static_assert(std::is_same_v<decltype(t.key_comp()), std::greater<int> const&>);
+  CHECK(t.key_comp()(2, 1));
+}

@@ -12,6 +12,7 @@
 #include <random>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -413,3 +414,8 @@ TEST_CASE("nexenne::container::static_flat_map heterogeneous lookup avoids const
 }
 
 }  // namespace
+
+TEST_CASE("nexenne::container::static_flat_map key_comp exposes the stored comparator") {
+  static_assert(std::is_same_v<decltype(const_table.key_comp()), std::less<int> const&>);
+  CHECK(const_table.key_comp()(1, 2));
+}

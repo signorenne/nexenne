@@ -480,6 +480,18 @@ public:
   }
 
   /**
+   * @brief The stored comparator.
+   *
+   * @return A const reference to the comparator.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto key_comp() const noexcept -> Compare const& {
+    return m_cmp;
+  }
+
+  /**
    * @brief Largest number of elements the tree could ever hold.
    *
    * @return The maximum value of \c size_type.

@@ -46,6 +46,9 @@ insert order 5, 2, 8, 1, 3:
 
 ** Insert and lookup: descend by comparison
 
+The comparator is stored with =[[no_unique_address]]=; =key_comp()= returns a
+const reference to it.
+
 =locate= walks from the root: if the key compares less than the current node go
 left, if greater go right, if neither (equivalent) it is a hit. =insert= follows
 the same descent tracking the parent and the owning child slot, and when it falls

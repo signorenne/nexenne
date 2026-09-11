@@ -179,6 +179,18 @@ public:
   }
 
   /**
+   * @brief The stored comparator.
+   *
+   * @return A const reference to the comparator.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto key_comp() const noexcept -> Compare const& {
+    return m_cmp;
+  }
+
+  /**
    * @brief Reports whether the map has reached its fixed capacity.
    *
    * @return \c true when \c size() equals \p Capacity.

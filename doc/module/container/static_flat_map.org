@@ -96,7 +96,8 @@ could not honour its insert-or-access contract, so use =try_emplace= or
 | iterate / operator== / operator<=>     | O(N)                  |
 
 Memory is exactly =Capacity= inline pairs plus a size and the comparator: a fixed
-=sizeof= with no indirection and no allocation, ever.
+=sizeof= with no indirection and no allocation, ever. =key_comp()= returns a const
+reference to the comparator.
 
 * When to use it
 

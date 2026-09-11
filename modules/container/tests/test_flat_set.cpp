@@ -12,6 +12,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -274,3 +275,9 @@ TEST_CASE("nexenne::container::flat_set heterogeneous lookup avoids constructing
 }
 
 }  // namespace
+
+TEST_CASE("nexenne::container::flat_set key_comp returns a reference to the stored comparator") {
+  cn::flat_set<int, std::greater<int>> const s{};
+  static_assert(std::is_same_v<decltype(s.key_comp()), std::greater<int> const&>);
+  CHECK(s.key_comp()(2, 1));
+}

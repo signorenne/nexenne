@@ -26,8 +26,8 @@ worse =O(N)= insert.
 
 The map is one =std::vector<std::pair<Key, Value>>= sorted by the pair's =.first=
 (the key), next to the comparator (stored with =[[no_unique_address]]=, so a
-stateless =std::less= adds nothing). The invariant is: the vector is always sorted
-by key with no duplicate keys.
+stateless =std::less= adds nothing); =key_comp()= returns a const reference to
+it. The invariant is: the vector is always sorted by key with no duplicate keys.
 
 #+BEGIN_EXAMPLE
 flat_map<int, string>{{1,"a"}, {3,"c"}, {5,"e"}}:

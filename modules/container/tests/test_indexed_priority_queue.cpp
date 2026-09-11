@@ -11,6 +11,7 @@
 #include <queue>
 #include <random>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -348,3 +349,9 @@ TEST_CASE("nexenne::container::indexed_priority_queue emplace constructs with pa
 static_assert(sizeof(cn::indexed_priority_queue<int>) == 3 * sizeof(std::vector<std::size_t>));
 
 }  // namespace
+
+TEST_CASE("nexenne::container::indexed_priority_queue key_comp exposes the stored comparator") {
+  min_pq const q{};
+  static_assert(std::is_same_v<decltype(q.key_comp()), std::greater<int> const&>);
+  CHECK(q.key_comp()(2, 1));
+}

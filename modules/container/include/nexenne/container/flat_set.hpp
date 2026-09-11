@@ -376,13 +376,12 @@ public:
   /**
    * @brief The stored comparator.
    *
-   * @return A copy of the comparator ordering the set.
+   * @return A const reference to the comparator ordering the set.
    *
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto
-  key_comp() const noexcept(std::is_nothrow_copy_constructible_v<Compare>) -> key_compare {
+  [[nodiscard]] constexpr auto key_comp() const noexcept -> Compare const& {
     return m_cmp;
   }
 
