@@ -19,8 +19,9 @@ writes must be *published* in the right order or the consumer reads a
 half-written slot. The single-producer/single-consumer case is special: only one
 thread writes the tail and only one writes the head, so no compare-exchange is
 needed, just a release store when you publish and an acquire load when you
-observe. That makes SPSC the cheapest concurrent queue: two atomic loads and one
-atomic store per operation.
+observe. That makes SPSC the cheapest concurrent queue: in steady state one
+atomic load and one atomic store per operation, since each side caches the
+other's index and rereads it only when the ring looks full or empty.
 
 * How it works
 
@@ -45,27 +46,30 @@ N = 8 slots, capacity 7.  head=2 (consumer), tail=5 (producer):
 ** push: write, then release the tail
 
 The producer reads its own tail (relaxed, it owns it), computes the next index,
-and checks against an *acquire* load of head: if advancing would collide with
-head, the queue is full. Otherwise it constructs the element in the tail slot and
-then does a *release* store of the new tail. That release is the publish: it
-guarantees the consumer's matching acquire load of tail will also see the
-constructed element.
+and checks it against its *cached* copy of head, the value of its last acquire
+load of head. Only if advancing would collide with that copy does it reload head
+(an *acquire* load) and check again; if it still collides, the queue is full.
+Otherwise it constructs the element in the tail slot and then does a *release*
+store of the new tail. That release is the publish: it guarantees the consumer's
+matching acquire load of tail will also see the constructed element.
 
 #+BEGIN_EXAMPLE
 push(D) with tail=5, head=2:
 
-  next = 6; 6 != head(2) -> room
+  next = 6; 6 != cached head(2) -> room, head not reloaded
   construct D at slot 5
   tail.store(6, release)   <-- publishes slot 5's write to the consumer
 #+END_EXAMPLE
 
 ** pop: observe the tail, take, then release the head
 
-The consumer reads its own head (relaxed) and does an *acquire* load of tail: if
-they are equal the queue is empty. Otherwise it moves the element out of the head
-slot, destroys it, and *release*-stores the advanced head, which tells the
-producer the slot is free again. The acquire on tail pairs with the producer's
-release on tail, so the element the consumer reads is fully constructed.
+The consumer reads its own head (relaxed) and compares it with its cached copy
+of tail; only when they are equal does it reload tail with an *acquire* load,
+and if they are still equal the queue is empty. Otherwise it moves the element
+out of the head slot, destroys it, and *release*-stores the advanced head, which
+tells the producer the slot is free again. The acquire on tail pairs with the
+producer's release on tail, so the element the consumer reads is fully
+constructed.
 
 ** Why the orderings are exactly these
 
@@ -75,6 +79,14 @@ the head index: release on store, acquire on load. Each thread reads its *own*
 index with relaxed order because no other thread writes it. This is the minimal
 set of fences that keeps the data race away, which is why SPSC needs no CAS.
 
+The cached peer index is safe because each index only moves forward: a stale
+head can only make the producer see *less* free room than there is, and a stale
+tail can only make the consumer see *fewer* queued elements, never more. The
+cached value came from an acquire load that synchronised with the release that
+published it, so everything that value vouches for (a slot freed, an element
+constructed) is already visible. Each cache lives on its owner's cache line and
+only its owner reads or writes it.
+
 * Complexity
 
 | operation                          | cost   |
@@ -82,10 +94,12 @@ set of fences that keeps the data race away, which is why SPSC needs no CAS.
 | push / emplace / pop / try_pop     | O(1)   |
 | size_approx / empty / full approx  | O(1)   |
 
-Each operation is a couple of atomic loads and one atomic store, no contention
-between the two threads except the unavoidable cache-line transfer of the index
-being published. Memory is the inline ring (=N= slots) plus two cache-line-sized
-atomics. When =N= is a power of two the wrap is a mask; otherwise a modulo.
+In steady state each operation is one atomic load (of its own index), one atomic
+store, and a compare against the cached peer index; the peer's cache line is
+pulled only when the ring looks full or empty. Memory is the inline ring (=N=
+slots) plus two cache-line-sized blocks, each holding an atomic index and its
+owner's cached copy of the other. When =N= is a power of two the wrap is a mask;
+otherwise a modulo.
 
 * When to use it
 

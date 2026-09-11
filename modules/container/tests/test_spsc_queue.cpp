@@ -5,7 +5,9 @@
 
 #include <doctest/doctest.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <thread>
@@ -261,6 +263,62 @@ TEST_CASE("nexenne::container::spsc_queue conserves move-only elements across th
     }
   }
   CHECK(each_once);  // every id consumed exactly once
+}
+
+TEST_CASE("nexenne::container::spsc_queue cached indices stay exact at capacity one") {
+  constexpr int items{50000};
+  cn::spsc_queue<std::string, 2> q;
+  std::vector<std::string> received;
+  received.reserve(items);
+  {
+    std::jthread const producer{[&q] {
+      for (int i{0}; i < items; ++i) {
+        auto value{std::to_string(i) + " is a string longer than the SSO buffer"};
+        while (!q.push(std::move(value)).has_value()) {
+          std::this_thread::yield();
+        }
+      }
+    }};
+    std::jthread const consumer{[&q, &received] {
+      while (std::ssize(received) < items) {
+        if (auto value{q.try_pop()}) {
+          received.push_back(std::move(*value));
+        } else {
+          std::this_thread::yield();
+        }
+      }
+    }};
+  }
+  REQUIRE(std::ssize(received) == items);
+  for (int i{0}; i < items; ++i) {
+    CHECK(
+      received[static_cast<std::size_t>(i)]
+      == std::to_string(i) + " is a string longer than the SSO buffer"
+    );
+  }
+  CHECK(q.empty_approx());
+}
+
+TEST_CASE("nexenne::container::spsc_queue cached indices see a full ring then a drained one") {
+  // Single-threaded: the producer's cached head goes stale while the consumer
+  // drains, and a push must reload it rather than report full.
+  cn::spsc_queue<int, 4> q;  // capacity 3
+  for (int i{0}; i < 3; ++i) {
+    CHECK(q.push(i).has_value());
+  }
+  CHECK(q.push(3).error() == cn::container_error::full);
+  for (int i{0}; i < 3; ++i) {
+    REQUIRE(q.pop().has_value());
+  }
+  CHECK(q.pop().error() == cn::container_error::empty);
+  for (int i{10}; i < 13; ++i) {
+    CHECK(q.push(i).has_value());
+  }
+  for (int i{10}; i < 13; ++i) {
+    auto const value{q.pop()};
+    REQUIRE(value.has_value());
+    CHECK(*value == i);
+  }
 }
 
 }  // namespace

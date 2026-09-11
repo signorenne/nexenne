@@ -9,7 +9,11 @@
  * acquire/release ordering to publish writes across cores: no locks, no
  * compare-exchange loops, no allocation. The producer owns the tail and the
  * consumer owns the head, and the two atomics sit on separate cache lines to
- * avoid false sharing.
+ * avoid false sharing. Each side also caches the last value it read of the
+ * other's index, on its own cache line, and reloads the shared atomic only
+ * when that cached value says the ring is full (producer) or empty
+ * (consumer), so a steady stream does not bounce the peer's line on every
+ * operation.
  *
  * The contract is strict: exactly one thread may call \c push / \c emplace (the
  * producer) and exactly one may call \c pop / \c try_pop (the consumer); the
@@ -66,9 +70,15 @@ private:
   alignas(T) std::array<std::byte, sizeof(T) * N> m_storage{};
 
   // Head and tail on separate cache lines: the producer writing tail must not
-  // invalidate the consumer's cache line holding head, and vice versa.
+  // invalidate the consumer's cache line holding head, and vice versa. Each
+  // line also holds its owner's cached copy of the peer index, read and written
+  // by that owner only. The peer index only moves forward, so a stale copy can
+  // only under-report free slots (producer) or queued elements (consumer), and
+  // the acquire load that filled it synchronised with the peer's release.
   alignas(cache_line_size) std::atomic<size_type> m_head{0};  // consumer advances this
+  size_type m_tail_cache{0};  // consumer only: last tail it acquired
   alignas(cache_line_size) std::atomic<size_type> m_tail{0};  // producer advances this
+  size_type m_head_cache{0};  // producer only: last head it acquired
 
   // Where slot i's element lives: plain address arithmetic over the bytes, valid
   // before any T exists there, which is what std::construct_at needs.
@@ -230,8 +240,11 @@ public:
   auto emplace(Args&&... args) noexcept -> std::expected<void, container_error> {
     auto const t{m_tail.load(std::memory_order_relaxed)};
     auto const next_t{next(t)};
-    if (next_t == m_head.load(std::memory_order_acquire)) {
-      return std::unexpected{container_error::full};
+    if (next_t == m_head_cache) {
+      m_head_cache = m_head.load(std::memory_order_acquire);
+      if (next_t == m_head_cache) {
+        return std::unexpected{container_error::full};
+      }
     }
     std::construct_at(slot_address(t), std::forward<Args>(args)...);
     m_tail.store(next_t, std::memory_order_release);
@@ -252,8 +265,11 @@ public:
    */
   [[nodiscard]] auto pop() noexcept -> std::expected<T, container_error> {
     auto const h{m_head.load(std::memory_order_relaxed)};
-    if (h == m_tail.load(std::memory_order_acquire)) {
-      return std::unexpected{container_error::empty};
+    if (h == m_tail_cache) {
+      m_tail_cache = m_tail.load(std::memory_order_acquire);
+      if (h == m_tail_cache) {
+        return std::unexpected{container_error::empty};
+      }
     }
     auto value{std::move(*element(h))};
     std::destroy_at(element(h));
@@ -274,8 +290,11 @@ public:
    */
   [[nodiscard]] auto try_pop() noexcept -> std::optional<T> {
     auto const h{m_head.load(std::memory_order_relaxed)};
-    if (h == m_tail.load(std::memory_order_acquire)) {
-      return std::nullopt;
+    if (h == m_tail_cache) {
+      m_tail_cache = m_tail.load(std::memory_order_acquire);
+      if (h == m_tail_cache) {
+        return std::nullopt;
+      }
     }
     auto value{std::move(*element(h))};
     std::destroy_at(element(h));
