@@ -114,6 +114,11 @@ are invisible to iteration; they cost a little scan time but no correctness.
 | iterate begin .. end                 | O(capacity)    |
 | clear                                | O(capacity)    |
 
+Every operation is =constexpr=: the three arrays are =std::vector= and the
+values =std::optional=, both usable in constant evaluation, so a slot map can be
+built, churned, and queried at compile time (for a table computed once), as long
+as it is destroyed before the evaluation ends, like any =std::vector=.
+
 Memory is three parallel arrays sized to the high-water slot count: the values
 (each an =optional<T>=, so a flag plus =T=), the generations, and the free list.
 Vacant slots keep their storage for reuse, so a map that churned to a high size

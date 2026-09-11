@@ -20,7 +20,10 @@
  * so live elements are roughly contiguous and iteration is cache-friendly.
  * Insert is amortised \c O(1), erase and lookup are \c O(1). Every operation
  * but a copy is \c noexcept, and allocation failure inside one terminates; a
- * copy throws \c std::bad_alloc instead.
+ * copy throws \c std::bad_alloc instead. Every operation is also \c constexpr,
+ * so a map can be built, churned and queried in a constant expression (its
+ * storage, like any \c std::vector, must be released before the evaluation
+ * ends).
  */
 
 #include <cassert>
@@ -368,7 +371,7 @@ public:
    * @post \c empty() is \c true and \c capacity() is at least
    *       \p initial_capacity.
    */
-  explicit slot_map(size_type const initial_capacity) noexcept {
+  explicit constexpr slot_map(size_type const initial_capacity) noexcept {
     m_values.reserve(initial_capacity);
     m_generations.reserve(initial_capacity);
   }
@@ -479,7 +482,7 @@ public:
    *       keys remain valid. A reallocation invalidates outstanding pointers and
    *       iterators; the key is the durable handle.
    */
-  auto reserve(size_type const n) noexcept -> void {
+  constexpr auto reserve(size_type const n) noexcept -> void {
     m_values.reserve(n);
     m_generations.reserve(n);
   }
@@ -493,7 +496,7 @@ public:
    *
    * @complexity \c O(capacity).
    */
-  auto clear() noexcept -> void {
+  constexpr auto clear() noexcept -> void {
     for (size_type i{0}; i < m_values.size(); ++i) {
       if (m_values[i].has_value()) {
         m_values[i].reset();
@@ -523,7 +526,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto insert(T const& value) noexcept -> key {
+  constexpr auto insert(T const& value) noexcept -> key {
     return emplace(value);
   }
 
@@ -542,7 +545,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto insert(T&& value) noexcept -> key {
+  constexpr auto insert(T&& value) noexcept -> key {
     return emplace(std::move(value));
   }
 
@@ -562,7 +565,7 @@ public:
    * @complexity Amortised \c O(1).
    */
   template <typename... Args>
-  auto emplace(Args&&... args) noexcept -> key {
+  constexpr auto emplace(Args&&... args) noexcept -> key {
     if (m_free_list.empty()) {
       // A fresh slot index is the current slot count cast to index_type; it must
       // still be representable, or the cast would truncate and alias slot 0.
@@ -595,7 +598,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto erase(key const k) noexcept -> bool {
+  constexpr auto erase(key const k) noexcept -> bool {
     if (!is_live(k)) {
       return false;
     }
@@ -619,7 +622,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto find(key const k) noexcept -> T* {
+  [[nodiscard]] constexpr auto find(key const k) noexcept -> T* {
     return is_live(k) ? std::addressof(m_values[k.index()].value()) : nullptr;
   }
 
@@ -636,7 +639,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto find(key const k) const noexcept -> T const* {
+  [[nodiscard]] constexpr auto find(key const k) const noexcept -> T const* {
     return is_live(k) ? std::addressof(m_values[k.index()].value()) : nullptr;
   }
 
@@ -652,7 +655,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto contains(key const k) const noexcept -> bool {
+  [[nodiscard]] constexpr auto contains(key const k) const noexcept -> bool {
     return is_live(k);
   }
 
@@ -664,7 +667,7 @@ public:
    * @pre None.
    * @post None. The map is not modified.
    */
-  [[nodiscard]] auto begin() noexcept -> iterator {
+  [[nodiscard]] constexpr auto begin() noexcept -> iterator {
     return iterator{m_values.begin(), m_values.end()};
   }
 
@@ -676,7 +679,7 @@ public:
    * @pre None.
    * @post None. The map is not modified.
    */
-  [[nodiscard]] auto end() noexcept -> iterator {
+  [[nodiscard]] constexpr auto end() noexcept -> iterator {
     return iterator{m_values.end(), m_values.end()};
   }
 
@@ -688,7 +691,7 @@ public:
    * @pre None.
    * @post None. The map is not modified.
    */
-  [[nodiscard]] auto begin() const noexcept -> const_iterator {
+  [[nodiscard]] constexpr auto begin() const noexcept -> const_iterator {
     return const_iterator{m_values.begin(), m_values.end()};
   }
 
@@ -700,7 +703,7 @@ public:
    * @pre None.
    * @post None. The map is not modified.
    */
-  [[nodiscard]] auto end() const noexcept -> const_iterator {
+  [[nodiscard]] constexpr auto end() const noexcept -> const_iterator {
     return const_iterator{m_values.end(), m_values.end()};
   }
 
@@ -712,7 +715,7 @@ public:
    * @pre None.
    * @post None. The map is not modified.
    */
-  [[nodiscard]] auto cbegin() const noexcept -> const_iterator {
+  [[nodiscard]] constexpr auto cbegin() const noexcept -> const_iterator {
     return begin();
   }
 
@@ -724,7 +727,7 @@ public:
    * @pre None.
    * @post None. The map is not modified.
    */
-  [[nodiscard]] auto cend() const noexcept -> const_iterator {
+  [[nodiscard]] constexpr auto cend() const noexcept -> const_iterator {
     return end();
   }
 };

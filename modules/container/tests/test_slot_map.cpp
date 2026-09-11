@@ -322,4 +322,45 @@ TEST_CASE("nexenne::container::slot_map max_size is capped by the index_type ran
   CHECK(m.max_size() == std::numeric_limits<std::uint32_t>::max());
 }
 
+[[nodiscard]] constexpr auto constexpr_slot_map_scenario() -> bool {
+  map_t m{4};
+  if (m.capacity() < 4) {
+    return false;
+  }
+  auto const a{m.insert(10)};
+  auto const b{m.emplace(20)};
+  auto const c{m.insert(30)};
+  if (m.size() != 3 || *m.find(b) != 20 || !m.contains(c)) {
+    return false;
+  }
+  if (!m.erase(b) || m.erase(b) || m.contains(b) || m.find(b) != nullptr) {
+    return false;
+  }
+  auto const d{m.insert(40)};
+  if (d.index() != b.index() || d.generation() == b.generation() || m.contains(b)) {
+    return false;
+  }
+  auto sum{0};
+  for (auto const& value : m) {
+    sum += value;
+  }
+  auto const& cm{m};
+  auto count{0};
+  for (auto it{cm.cbegin()}; it != cm.cend(); ++it) {
+    ++count;
+  }
+  if (sum != 10 + 30 + 40 || count != 3 || *cm.find(a) != 10) {
+    return false;
+  }
+  m.reserve(16);
+  m.clear();
+  return m.empty() && !m.contains(a) && !m.contains(d) && m.capacity() >= 16;
+}
+
+static_assert(constexpr_slot_map_scenario());
+
+TEST_CASE("nexenne::container::slot_map constexpr scenario also holds at run time") {
+  CHECK(constexpr_slot_map_scenario());
+}
+
 }  // namespace
