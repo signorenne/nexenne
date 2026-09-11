@@ -686,6 +686,8 @@ public:
   /**
    * @brief Moves the cursor to logical position \p pos.
    *
+   * Rejects a position past \c size() and otherwise shifts the gap there.
+   *
    * @param pos Target position in \c [0, size()].
    *
    * @return Nothing on success, or \c container_error::out_of_range when \p pos

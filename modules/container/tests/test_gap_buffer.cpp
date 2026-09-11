@@ -483,4 +483,25 @@ TEST_CASE("nexenne::container::gap_buffer at returns result like deque") {
   CHECK(cv.at(99).error() == cn::container_error::out_of_range);
 }
 
+// The cursor is read through cursor() and moved through move_cursor_to(pos),
+// which needs a non-const buffer.
+template <typename B>
+concept moves_cursor = requires(B b) { b.move_cursor_to(std::size_t{0}); };
+static_assert(moves_cursor<cn::gap_buffer<char>&>);
+static_assert(!moves_cursor<cn::gap_buffer<char> const&>);
+static_assert(
+  std::is_same_v<decltype(std::declval<cn::gap_buffer<char> const&>().cursor()), std::size_t>
+);
+
+TEST_CASE("nexenne::container::gap_buffer cursor reader and setter pair (accessor rule)") {
+  cn::gap_buffer<char> b{'a', 'b', 'c'};
+  CHECK(b.cursor() == 3);
+  REQUIRE(b.move_cursor_to(1).has_value());
+  CHECK(b.cursor() == 1);
+  CHECK(b.move_cursor_to(4).error() == cn::container_error::out_of_range);
+  CHECK(b.cursor() == 1);  // a rejected position leaves the cursor alone
+  b.insert('x');
+  CHECK(std::string(b.begin(), b.end()) == "axbc");
+}
+
 }  // namespace
