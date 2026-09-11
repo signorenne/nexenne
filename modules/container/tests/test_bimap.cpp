@@ -5,7 +5,11 @@
 
 #include <doctest/doctest.h>
 
+#include <cctype>
+#include <cstddef>
+#include <functional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include <nexenne/container/bimap.hpp>
@@ -289,6 +293,92 @@ TEST_CASE("nexenne::container::bimap moved-from source is empty") {
   CHECK(src.size() == 0);
   CHECK(src.insert(1, "uno"));
   // NOLINTEND(clang-analyzer-cplusplus.Move)
+}
+
+std::size_t left_hashes{0};
+std::size_t right_hashes{0};
+
+struct left_counting_hash {
+  auto operator()(int const value) const noexcept -> std::size_t {
+    ++left_hashes;
+    return std::hash<int>{}(value);
+  }
+};
+
+struct right_counting_hash {
+  auto operator()(std::string const& value) const noexcept -> std::size_t {
+    ++right_hashes;
+    return std::hash<std::string>{}(value);
+  }
+};
+
+TEST_CASE("nexenne::container::bimap hashes each argument key once per mutation") {
+  cn::bimap<int, std::string, left_counting_hash, right_counting_hash> b{};
+  b.reserve(8);
+
+  left_hashes = 0;
+  right_hashes = 0;
+  CHECK(b.insert(1, "one"));
+  CHECK(left_hashes == 1);
+  CHECK(right_hashes == 1);
+
+  left_hashes = 0;
+  right_hashes = 0;
+  CHECK_FALSE(b.insert(1, "uno"));
+  CHECK(left_hashes == 1);
+  CHECK(right_hashes == 1);
+
+  left_hashes = 0;
+  right_hashes = 0;
+  CHECK(b.replace(1, "uno") == 1);
+  CHECK(left_hashes == 1);
+  CHECK(right_hashes == 2);
+
+  left_hashes = 0;
+  right_hashes = 0;
+  CHECK(b.erase_left(1));
+  CHECK(left_hashes == 1);
+  CHECK(right_hashes == 1);
+  CHECK(b.empty());
+}
+
+auto fold(char const c) noexcept -> char {
+  return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+}
+
+struct caseless_hash {
+  auto operator()(std::string_view const text) const noexcept -> std::size_t {
+    std::string folded(text.size(), '\0');
+    for (std::size_t i{0}; i < text.size(); ++i) {
+      folded[i] = fold(text[i]);
+    }
+    return std::hash<std::string>{}(folded);
+  }
+};
+
+struct caseless_equal {
+  auto operator()(std::string_view const a, std::string_view const b) const noexcept -> bool {
+    if (a.size() != b.size()) {
+      return false;
+    }
+    for (std::size_t i{0}; i < a.size(); ++i) {
+      if (fold(a[i]) != fold(b[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+TEST_CASE("nexenne::container::bimap takes a key equality per side") {
+  cn::bimap<std::string, int, caseless_hash, std::hash<int>, caseless_equal> names{};
+  CHECK(names.insert("Alpha", 1));
+  CHECK(names.contains_left("ALPHA"));
+  CHECK_FALSE(names.insert("alpha", 2));
+  REQUIRE(names.find_by_left("aLpHa") != nullptr);
+  CHECK(*names.find_by_left("aLpHa") == 1);
+  CHECK(names.erase_left("ALPHA"));
+  CHECK(names.empty());
 }
 
 }  // namespace

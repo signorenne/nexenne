@@ -17,12 +17,15 @@
  * break the invariant; \c replace instead evicts any existing entry on either
  * side and then binds the new pair, returning how many entries it displaced.
  * Reach for it for two-way registries: entity/name, asset id/path, enum/string.
- * Every operation is \c noexcept exactly when the key, hasher and key-equality
- * code it runs is; allocation failure terminates.
+ * Every mutation hashes each argument key once and reuses that hash for both
+ * the uniqueness check and the store. Every operation is \c noexcept exactly
+ * when the key, hasher and key-equality code it runs is; allocation failure
+ * terminates.
  */
 
 #include <cstddef>
 #include <functional>
+#include <type_traits>
 #include <utility>
 
 #include <nexenne/container/flat_hash_map.hpp>
@@ -37,6 +40,8 @@ namespace nexenne::container {
  * @tparam Right Hashable right-side key type.
  * @tparam HashLeft Hash for \p Left; \c std::hash<Left> by default.
  * @tparam HashRight Hash for \p Right; \c std::hash<Right> by default.
+ * @tparam EqualLeft Key equality for \p Left; \c std::equal_to<Left> by default.
+ * @tparam EqualRight Key equality for \p Right; \c std::equal_to<Right> by default.
  *
  * @pre None.
  * @post A default-constructed bimap is empty with no allocated storage.
@@ -45,7 +50,9 @@ template <
   typename Left,
   typename Right,
   typename HashLeft = std::hash<Left>,
-  typename HashRight = std::hash<Right>>
+  typename HashRight = std::hash<Right>,
+  typename EqualLeft = std::equal_to<Left>,
+  typename EqualRight = std::equal_to<Right>>
 class bimap {
 public:
   using value_type = std::pair<Left, Right>;
@@ -54,10 +61,53 @@ public:
   using size_type = std::size_t;
 
 private:
-  // Both directions store full copies of the pair: l_to_r maps Left -> Right and
-  // r_to_l maps Right -> Left. Every mutation updates both to keep them in sync.
-  flat_hash_map<Left, Right, HashLeft> m_l_to_r;
-  flat_hash_map<Right, Left, HashRight> m_r_to_l;
+  using left_index = flat_hash_map<Left, Right, HashLeft, EqualLeft>;
+  using right_index = flat_hash_map<Right, Left, HashRight, EqualRight>;
+
+  left_index m_l_to_r;
+  right_index m_r_to_l;
+
+  /**
+   * @brief Whether hashing and comparing a key on either side is nothrow.
+   */
+  static constexpr bool nothrow_probe_v{
+    left_index::template nothrow_probe_v<Left> && right_index::template nothrow_probe_v<Right>
+  };
+
+  /**
+   * @brief Whether copying a pair into both indexes and relocating it is nothrow.
+   */
+  static constexpr bool nothrow_store_v{
+    left_index::nothrow_relocate_v && right_index::nothrow_relocate_v
+    && std::is_nothrow_copy_constructible_v<Left> && std::is_nothrow_copy_constructible_v<Right>
+  };
+
+  /**
+   * @brief Binds \p key to \p value in \p index, overwriting an existing value.
+   *
+   * @tparam Index One of the two indexes.
+   * @tparam K Key type of \p index.
+   * @tparam V Mapped type of \p index.
+   * @param index Index to store into.
+   * @param h The hash of \p key.
+   * @param key Key to bind.
+   * @param value Value to bind it to.
+   *
+   * @pre \p h is the hash of \p key under \p index's hasher.
+   * @post \p key maps to \p value in \p index.
+   */
+  template <typename Index, typename K, typename V>
+  static auto bind(Index& index, std::size_t const h, K key, V value) noexcept(
+    Index::nothrow_relocate_v
+    && std::is_nothrow_move_assignable_v<V> && noexcept(index.probe_slot(key, h))
+  ) -> void {
+    if (auto const* const kept{index.probe_slot(key, h)}) {
+      index.mutable_slot(kept).value().second = std::move(value);
+      return;
+    }
+    index.ensure_capacity_for(index.size() + 1);
+    nexenne::utility::ignore(index.place_absent(h, std::move(key), std::move(value)));
+  }
 
 public:
   /**
@@ -227,16 +277,17 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto insert(Left left, Right right) noexcept(
-    noexcept(m_l_to_r.contains(left)) && noexcept(m_r_to_l.contains(right))
-    && noexcept(m_l_to_r.insert(left, right))
-    && noexcept(m_r_to_l.insert(std::move(right), std::move(left)))
-  ) -> bool {
-    if (m_l_to_r.contains(left) || m_r_to_l.contains(right)) {
+  auto insert(Left left, Right right) noexcept(nothrow_probe_v && nothrow_store_v) -> bool {
+    auto const left_hash{m_l_to_r.m_hash(left)};
+    auto const right_hash{m_r_to_l.m_hash(right)};
+    if (m_l_to_r.probe_slot(left, left_hash) != nullptr
+        || m_r_to_l.probe_slot(right, right_hash) != nullptr) {
       return false;
     }
-    nexenne::utility::ignore(m_l_to_r.insert(left, right));
-    nexenne::utility::ignore(m_r_to_l.insert(std::move(right), std::move(left)));
+    m_l_to_r.ensure_capacity_for(m_l_to_r.size() + 1);
+    m_r_to_l.ensure_capacity_for(m_r_to_l.size() + 1);
+    nexenne::utility::ignore(m_l_to_r.place_absent(left_hash, left, right));
+    nexenne::utility::ignore(m_r_to_l.place_absent(right_hash, std::move(right), std::move(left)));
     return true;
   }
 
@@ -256,26 +307,22 @@ public:
    * @complexity Amortised \c O(1).
    */
   auto replace(Left left, Right right) noexcept(
-    noexcept(m_l_to_r.find(left)) && noexcept(m_r_to_l.find(right))
-    && noexcept(m_r_to_l.erase(right)) && noexcept(m_l_to_r.erase(left))
-    && noexcept(m_l_to_r.insert_or_assign(left, right))
-    && noexcept(m_r_to_l.insert_or_assign(std::move(right), std::move(left)))
+    nothrow_probe_v && nothrow_store_v
+    && std::is_nothrow_move_assignable_v<Left> && std::is_nothrow_move_assignable_v<Right>
   ) -> size_type {
+    auto const left_hash{m_l_to_r.m_hash(left)};
+    auto const right_hash{m_r_to_l.m_hash(right)};
     size_type displaced{0};
-    // Evict the left side's old binding (and its reverse), if any.
-    if (auto const* const old_right{m_l_to_r.find(left)}) {
-      nexenne::utility::ignore(m_r_to_l.erase(*old_right));
+    if (auto const* const old{m_l_to_r.probe_slot(left, left_hash)}) {
+      nexenne::utility::ignore(m_r_to_l.erase(old->value().second));
       ++displaced;
     }
-    // Evict the right side's old binding (and its forward), if any.
-    if (auto const* const old_left{m_r_to_l.find(right)}) {
-      nexenne::utility::ignore(m_l_to_r.erase(*old_left));
+    if (auto const* const old{m_r_to_l.probe_slot(right, right_hash)}) {
+      nexenne::utility::ignore(m_l_to_r.erase(old->value().second));
       ++displaced;
     }
-    // insert_or_assign, not insert: a surviving same-side key must be overwritten
-    // so the two maps stay in sync.
-    nexenne::utility::ignore(m_l_to_r.insert_or_assign(left, right));
-    nexenne::utility::ignore(m_r_to_l.insert_or_assign(std::move(right), std::move(left)));
+    bind(m_l_to_r, left_hash, left, right);
+    bind(m_r_to_l, right_hash, std::move(right), std::move(left));
     return displaced;
   }
 
@@ -292,21 +339,14 @@ public:
    * @complexity Amortised \c O(1).
    */
   auto erase_left(Left const& left) noexcept(
-    std::is_nothrow_copy_constructible_v<Left> && std::is_nothrow_copy_constructible_v<Right>
-    && noexcept(m_l_to_r.find(left)) && noexcept(m_l_to_r.erase(left))
-    && noexcept(m_r_to_l.erase(std::declval<Right const&>()))
+    nothrow_probe_v && left_index::nothrow_relocate_v && right_index::nothrow_relocate_v
   ) -> bool {
-    auto const* const right{m_l_to_r.find(left)};
-    if (right == nullptr) {
+    auto const* const found{m_l_to_r.probe_slot(left)};
+    if (found == nullptr) {
       return false;
     }
-    // Copy both keys before erasing: erasing one side can destroy the storage
-    // the other key (or the caller's own argument) aliases, so read them out
-    // first. e.g. erase_left(*find_by_right(r)) aliases the r_to_l entry.
-    auto const right_key{*right};
-    auto const left_key{left};
-    nexenne::utility::ignore(m_r_to_l.erase(right_key));
-    nexenne::utility::ignore(m_l_to_r.erase(left_key));
+    nexenne::utility::ignore(m_r_to_l.erase(found->value().second));
+    nexenne::utility::ignore(m_l_to_r.erase_slot(found));
     return true;
   }
 
@@ -323,20 +363,14 @@ public:
    * @complexity Amortised \c O(1).
    */
   auto erase_right(Right const& right) noexcept(
-    std::is_nothrow_copy_constructible_v<Left> && std::is_nothrow_copy_constructible_v<Right>
-    && noexcept(m_r_to_l.find(right)) && noexcept(m_r_to_l.erase(right))
-    && noexcept(m_l_to_r.erase(std::declval<Left const&>()))
+    nothrow_probe_v && left_index::nothrow_relocate_v && right_index::nothrow_relocate_v
   ) -> bool {
-    auto const* const left{m_r_to_l.find(right)};
-    if (left == nullptr) {
+    auto const* const found{m_r_to_l.probe_slot(right)};
+    if (found == nullptr) {
       return false;
     }
-    // Copy both keys before erasing (see erase_left): erase_right(*find(l))
-    // aliases the l_to_r entry that the first erase would destroy.
-    auto const left_key{*left};
-    auto const right_key{right};
-    nexenne::utility::ignore(m_l_to_r.erase(left_key));
-    nexenne::utility::ignore(m_r_to_l.erase(right_key));
+    nexenne::utility::ignore(m_l_to_r.erase(found->value().second));
+    nexenne::utility::ignore(m_r_to_l.erase_slot(found));
     return true;
   }
 

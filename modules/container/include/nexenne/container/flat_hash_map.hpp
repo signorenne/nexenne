@@ -256,6 +256,9 @@ private:
   [[no_unique_address]] Hash m_hash{};
   [[no_unique_address]] KeyEq m_eq{};
 
+  template <typename, typename, typename, typename, typename, typename>
+  friend class bimap;
+
   /**
    * @brief Whether hashing a \p K probe and comparing it with a key is nothrow.
    *

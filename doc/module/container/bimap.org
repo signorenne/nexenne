@@ -4,7 +4,8 @@
 
 * Purpose
 
-=nexenne::container::bimap<Left, Right>= is a bidirectional map: a set of
+=nexenne::container::bimap<Left, Right, HashLeft, HashRight, EqualLeft,
+EqualRight>= is a bidirectional map: a set of
 =(left, right)= pairs in which each left value is unique and each right value is
 unique, so you can look up the right from the left or the left from the right,
 both in amortised =O(1)=. It is the structure for a two-way registry, an
@@ -47,6 +48,11 @@ it returns =false= and changes nothing: binding only one side would leave the tw
 maps disagreeing and violate two-sided uniqueness. Only when both sides are free
 does it write into both maps. So a clash is rejected whole, never half-applied.
 
+Each key is hashed once. =insert= computes the left hash and the right hash up
+front and hands the same value to the uniqueness probe and to the store, so a
+costly hash (a long string, a composite key) runs twice per insert in total, not
+four times. =replace= does the same for its two argument keys.
+
 #+BEGIN_EXAMPLE
 insert(1, "uno") when 1 is already bound to "one":
 
@@ -77,9 +83,17 @@ replace(1, "two") with both 1->"one" and 2->"two" present (a merge):
 ** erase from either side clears both
 
 =erase_left(left)= looks up the bound right, erases that right from =m_r_to_l=,
-then erases =left= from =m_l_to_r=, so the pair vanishes from both maps as a
-unit. =erase_right= is the mirror. A miss on the lookup is a no-op returning
-=false=.
+then erases the slot it found in =m_l_to_r=, so the pair vanishes from both maps
+as a unit and =left= is hashed once. =erase_right= is the mirror. A miss on the
+lookup is a no-op returning =false=.
+
+** Custom hashing and equality
+
+Each side takes its own hash and key-equality functor, forwarded to its
+=flat_hash_map=: =HashLeft= with =EqualLeft= index the left keys, =HashRight= with
+=EqualRight= the right keys. They default to =std::hash= and =std::equal_to=. A
+custom pair must agree: two keys equal under =EqualLeft= must hash alike under
+=HashLeft=, as for any hash map.
 
 * Complexity
 
