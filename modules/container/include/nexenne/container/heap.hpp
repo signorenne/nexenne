@@ -21,9 +21,10 @@
  *
  * Reach for it for event schedulers (min-heap, smallest-time event next), A* /
  * Dijkstra frontiers, and top-K selection. It follows the rule of zero (a
- * vector plus a comparator). Every operation but a copy is \c noexcept, and
- * allocation failure inside one terminates; a copy throws \c std::bad_alloc
- * instead. Concurrent reads are safe, concurrent mutation is not.
+ * vector plus a comparator). Every operation but a copy is \c noexcept exactly
+ * when the element and comparator code it runs is, and allocation failure
+ * inside one terminates; a copy throws \c std::bad_alloc instead. Concurrent
+ * reads are safe, concurrent mutation is not.
  */
 
 #include <algorithm>
@@ -70,6 +71,27 @@ private:
   std::vector<T> m_data;
   [[no_unique_address]] Compare m_cmp{};
 
+  /**
+   * @brief Whether walking an \p It range and building each element is nothrow.
+   *
+   * True when building a \c T from each element, dereferencing,
+   * advancing, comparing and measuring the iterators are all \c noexcept.
+   *
+   * @tparam It Iterator type of the range.
+   */
+  template <typename It>
+  static constexpr bool nothrow_range_v{
+    std::is_nothrow_constructible_v<T, std::iter_reference_t<It>> && noexcept(*std::declval<It&>())
+    && noexcept(++std::declval<It&>()) && noexcept(std::declval<It&>() != std::declval<It&>())
+    && noexcept(std::distance(std::declval<It>(), std::declval<It>()))
+  };
+
+  /// @brief Whether a standard heap algorithm over the elements is nothrow.
+  static constexpr bool nothrow_heapify_v{
+    detail::nothrow_invocable_v<Compare&, T&, T&> && std::is_nothrow_copy_constructible_v<Compare>
+    && std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>
+  };
+
 public:
   /**
    * @brief Default-constructs an empty heap.
@@ -77,7 +99,7 @@ public:
    * @pre None.
    * @post \c empty() is \c true.
    */
-  constexpr heap() noexcept = default;
+  constexpr heap() noexcept(std::is_nothrow_default_constructible_v<Compare>) = default;
 
   /**
    * @brief Constructs an empty heap with a user-supplied comparator.
@@ -87,7 +109,8 @@ public:
    * @pre None.
    * @post \c empty() is \c true and the stored comparator is \p cmp.
    */
-  explicit constexpr heap(Compare cmp) noexcept : m_cmp{std::move(cmp)} {}
+  explicit constexpr heap(Compare cmp) noexcept(std::is_nothrow_move_constructible_v<Compare>)
+      : m_cmp{std::move(cmp)} {}
 
   /**
    * @brief Constructs from an initializer list, heapifying in \c O(n).
@@ -102,7 +125,11 @@ public:
    *
    * @complexity \c O(n).
    */
-  constexpr heap(std::initializer_list<T> const init) noexcept : m_data{init} {
+  constexpr heap(std::initializer_list<T> const init) noexcept(
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_default_constructible_v<Compare>
+    && nothrow_heapify_v
+  )
+      : m_data{init} {
     std::make_heap(m_data.begin(), m_data.end(), m_cmp);
   }
 
@@ -119,7 +146,10 @@ public:
    *
    * @complexity \c O(n).
    */
-  constexpr heap(std::initializer_list<T> const init, Compare cmp) noexcept
+  constexpr heap(std::initializer_list<T> const init, Compare cmp) noexcept(
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_move_constructible_v<Compare>
+    && nothrow_heapify_v
+  )
       : m_data{init}, m_cmp{std::move(cmp)} {
     std::make_heap(m_data.begin(), m_data.end(), m_cmp);
   }
@@ -138,7 +168,10 @@ public:
    * @complexity \c O(n).
    */
   template <std::input_iterator It>
-  constexpr heap(It const first, It const last) noexcept : m_data(first, last) {
+  constexpr heap(It const first, It const last) noexcept(
+    nothrow_range_v<It> && std::is_nothrow_default_constructible_v<Compare> && nothrow_heapify_v
+  )
+      : m_data(first, last) {
     std::make_heap(m_data.begin(), m_data.end(), m_cmp);
   }
 
@@ -158,7 +191,9 @@ public:
    * @complexity \c O(n).
    */
   template <std::input_iterator It>
-  constexpr heap(It const first, It const last, Compare cmp) noexcept
+  constexpr heap(It const first, It const last, Compare cmp) noexcept(
+    nothrow_range_v<It> && std::is_nothrow_move_constructible_v<Compare> && nothrow_heapify_v
+  )
       : m_data(first, last), m_cmp{std::move(cmp)} {
     std::make_heap(m_data.begin(), m_data.end(), m_cmp);
   }
@@ -219,7 +254,10 @@ public:
    * @pre None.
    * @post \c capacity() is at least \p n; \c size() is unchanged.
    */
-  constexpr auto reserve(size_type const n) noexcept -> void {
+  constexpr auto reserve(
+    size_type const n
+  ) noexcept((std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>))
+    -> void {
     m_data.reserve(n);
   }
 
@@ -229,7 +267,9 @@ public:
    * @pre None.
    * @post \c size() is unchanged.
    */
-  constexpr auto shrink_to_fit() noexcept -> void {
+  constexpr auto shrink_to_fit() noexcept((
+    std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>
+  )) -> void {
     m_data.shrink_to_fit();
   }
 
@@ -251,7 +291,7 @@ public:
    * @pre None.
    * @post This heap and \p other have exchanged elements and comparators.
    */
-  constexpr auto swap(heap& other) noexcept -> void {
+  constexpr auto swap(heap& other) noexcept(std::is_nothrow_swappable_v<Compare>) -> void {
     using std::swap;
     m_data.swap(other.m_data);
     swap(m_cmp, other.m_cmp);
@@ -266,7 +306,8 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend constexpr auto swap(heap& a, heap& b) noexcept -> void {
+  friend constexpr auto swap(heap& a, heap& b) noexcept(std::is_nothrow_swappable_v<Compare>)
+    -> void {
     a.swap(b);
   }
 
@@ -283,7 +324,11 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  constexpr auto emplace(Args&&... args) noexcept -> void {
+  constexpr auto emplace(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<T, Args...>
+    && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
+    && nothrow_heapify_v
+  ) -> void {
     m_data.emplace_back(std::forward<Args>(args)...);
     std::push_heap(m_data.begin(), m_data.end(), m_cmp);
   }
@@ -298,7 +343,9 @@ public:
    *
    * @complexity \c O(log n).
    */
-  constexpr auto push(T const& value) noexcept -> void {
+  constexpr auto
+  push(T const& value) noexcept(std::is_nothrow_copy_constructible_v<T> && nothrow_heapify_v)
+    -> void {
     emplace(value);
   }
 
@@ -312,7 +359,7 @@ public:
    *
    * @complexity \c O(log n).
    */
-  constexpr auto push(T&& value) noexcept -> void {
+  constexpr auto push(T&& value) noexcept(nothrow_heapify_v) -> void {
     emplace(std::move(value));
   }
 
@@ -328,7 +375,7 @@ public:
    *
    * @complexity \c O(log n).
    */
-  [[nodiscard]] constexpr auto pop() noexcept -> result<T> {
+  [[nodiscard]] constexpr auto pop() noexcept(nothrow_heapify_v) -> result<T> {
     if (m_data.empty()) {
       return std::unexpected{container_error::empty};
     }
@@ -350,7 +397,7 @@ public:
    *
    * @complexity \c O(n).
    */
-  constexpr auto rebuild() noexcept -> void {
+  constexpr auto rebuild() noexcept(nothrow_heapify_v) -> void {
     std::make_heap(m_data.begin(), m_data.end(), m_cmp);
   }
 

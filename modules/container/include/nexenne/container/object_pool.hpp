@@ -20,8 +20,8 @@
  * Compared with \c std::pmr::unsynchronized_pool_resource it is non-virtual (a
  * direct call), typed (the slot is sized for \p T, no allocator-traits
  * ceremony), inline (stack-allocatable), and single-size (exactly \p T). Every
- * operation is \c noexcept; exhaustion is reported via \c result. It is not
- * thread-safe.
+ * operation is \c noexcept, \c emplace exactly when the constructor it runs is;
+ * exhaustion is reported via \c result. It is not thread-safe.
  */
 
 #include <array>
@@ -288,7 +288,8 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  [[nodiscard]] auto emplace(Args&&... args) noexcept -> result<T*> {
+  [[nodiscard]] auto emplace(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+    -> result<T*> {
     auto const acquired{acquire()};
     if (!acquired.has_value()) {
       return std::unexpected{acquired.error()};

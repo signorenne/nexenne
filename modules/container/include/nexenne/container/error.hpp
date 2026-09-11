@@ -5,20 +5,32 @@
  * @brief Error codes and the result alias for fallible container operations.
  *
  * Module-wide error policy:
- * - All non-allocating functions are \c noexcept.
+ * - A function that runs no element or caller code is \c noexcept. One that
+ *   does (an element's copy, move, construction, assignment or comparison; a
+ *   comparator, hasher, key equality, key range or arena) is \c noexcept
+ *   exactly when that code is, so a throw from it propagates instead of
+ *   terminating. Destructors are always \c noexcept.
+ * - The standard function objects count as nothrow when what they apply is:
+ *   \c std::less, \c std::greater and \c std::equal_to (plain or transparent)
+ *   when their operator on the arguments is \c noexcept, and \c std::hash
+ *   when its hash is. A caller's own callable must declare its call operator
+ *   \c noexcept.
  * - An operation that mutates state and can fail at a documented boundary
  *   (popping an empty queue, pushing onto a full fixed-capacity buffer) returns
  *   \c result<T>, i.e. \c std::expected<T, container_error>; there is no
  *   precondition-based "fast path" variant.
  * - An operation whose only failure mode is \c std::bad_alloc from the
  *   underlying allocator (for example \c slot_map::insert or \c small_vector
- *   growth past its inline capacity) is \c noexcept: allocation failure calls
- *   \c std::terminate, matching the rest of nexenne. Callers needing recovery
- *   should pre-allocate with \c reserve.
+ *   growth past its inline capacity) does not report it: allocation failure
+ *   calls \c std::terminate, matching the rest of nexenne. Callers needing
+ *   recovery should pre-allocate with \c reserve.
  */
 
 #include <expected>
+#include <functional>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 
 namespace nexenne::container {
 
@@ -69,5 +81,96 @@ using result = std::expected<T, container_error>;
   }
   return "unknown";
 }
+
+namespace detail {
+
+/// @cond INTERNAL
+
+// Whether an A argument binds to the T const& a standard function object over
+// T takes, without throwing.
+template <typename A, typename T>
+struct nothrow_binds : std::is_nothrow_convertible<A, T const&> {};
+
+// Whether the operator a standard function object applies, taken as bool, is
+// noexcept on A and B.
+template <typename A, typename B>
+struct nothrow_less_op
+    : std::bool_constant<noexcept(static_cast<bool>(std::declval<A>() < std::declval<B>()))> {};
+
+template <typename A, typename B>
+struct nothrow_greater_op
+    : std::bool_constant<noexcept(static_cast<bool>(std::declval<A>() > std::declval<B>()))> {};
+
+template <typename A, typename B>
+struct nothrow_equal_op
+    : std::bool_constant<noexcept(static_cast<bool>(std::declval<A>() == std::declval<B>()))> {};
+
+template <typename T>
+struct nothrow_hash_op : std::bool_constant<noexcept(std::hash<T>{}(std::declval<T const&>()))> {};
+
+// Whether invoking F (a cv-ref qualified Fn) with Args is nothrow. Any callable
+// follows std::is_nothrow_invocable; a standard comparison object or std::hash,
+// whose call operator libstdc++ does not declare noexcept, counts as nothrow
+// when the operator or hash it applies is. std::conjunction stops at the first
+// false trait, so an operator is only probed on arguments F accepts.
+template <typename Fn, typename F, typename... Args>
+struct nothrow_call : std::is_nothrow_invocable<F, Args...> {};
+
+template <typename T, typename F, typename A, typename B>
+  requires(!std::is_void_v<T>)
+struct nothrow_call<std::less<T>, F, A, B>
+    : std::conjunction<
+        std::is_invocable<F, A, B>,
+        nothrow_binds<A, T>,
+        nothrow_binds<B, T>,
+        nothrow_less_op<T const&, T const&>> {};
+
+template <typename F, typename A, typename B>
+struct nothrow_call<std::less<>, F, A, B>
+    : std::conjunction<std::is_invocable<F, A, B>, nothrow_less_op<A, B>> {};
+
+template <typename T, typename F, typename A, typename B>
+  requires(!std::is_void_v<T>)
+struct nothrow_call<std::greater<T>, F, A, B>
+    : std::conjunction<
+        std::is_invocable<F, A, B>,
+        nothrow_binds<A, T>,
+        nothrow_binds<B, T>,
+        nothrow_greater_op<T const&, T const&>> {};
+
+template <typename F, typename A, typename B>
+struct nothrow_call<std::greater<>, F, A, B>
+    : std::conjunction<std::is_invocable<F, A, B>, nothrow_greater_op<A, B>> {};
+
+template <typename T, typename F, typename A, typename B>
+  requires(!std::is_void_v<T>)
+struct nothrow_call<std::equal_to<T>, F, A, B>
+    : std::conjunction<
+        std::is_invocable<F, A, B>,
+        nothrow_binds<A, T>,
+        nothrow_binds<B, T>,
+        nothrow_equal_op<T const&, T const&>> {};
+
+template <typename F, typename A, typename B>
+struct nothrow_call<std::equal_to<>, F, A, B>
+    : std::conjunction<std::is_invocable<F, A, B>, nothrow_equal_op<A, B>> {};
+
+template <typename T, typename F, typename A>
+struct nothrow_call<std::hash<T>, F, A>
+    : std::conjunction<std::is_invocable<F, A>, nothrow_binds<A, T>, nothrow_hash_op<T>> {};
+
+// std::is_nothrow_invocable_v<F, Args...>, trusting the standard function
+// objects as above. Every conditional noexcept on a callable in this module
+// uses it.
+template <typename F, typename... Args>
+// A caller's comparator type (say std::greater<int>) passes through here as a
+// template argument, which modernize-use-transparent-functors misreads as a
+// use.
+// NOLINTNEXTLINE(modernize-use-transparent-functors)
+inline constexpr bool nothrow_invocable_v{nothrow_call<std::remove_cvref_t<F>, F, Args...>::value};
+
+/// @endcond
+
+}  // namespace detail
 
 }  // namespace nexenne::container

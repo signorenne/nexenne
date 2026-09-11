@@ -12,16 +12,17 @@
  * \c O(1).
  *
  * The arena hands out *raw memory*: the lifetime of objects placed in it is the
- * caller's responsibility. If you construct a non-trivially-destructible \p T in
- * an arena slot, \c std::destroy_at it before \c reset (or accept the leak,
+ * caller's responsibility. If you construct a non-trivially-destructible \p T
+ * in an arena slot, \c std::destroy_at it before \c reset (or accept the leak,
  * which is fine for a trivial \p T). Reach for it for per-frame scratch
  * (allocate freely during a frame, reset at the boundary), parser/compiler
  * intermediate state discarded all at once, request-scoped allocations, and
  * freestanding work where the heap is forbidden. Compared with
  * \c std::pmr::monotonic_buffer_resource it is non-virtual (a direct call, no
  * vtable hop) with inline, stack-bufferable storage, but it has no type-erased
- * adapter for allocator-aware containers. Every operation is \c noexcept and
- * \c O(1); the arena is not thread-safe.
+ * adapter for allocator-aware containers. Every operation is \c O(1) and
+ * \c noexcept, \c emplace exactly when the constructor it runs is; the arena is
+ * not thread-safe.
  */
 
 #include <array>
@@ -262,7 +263,8 @@ public:
    */
   template <typename T, typename... Args>
     requires std::constructible_from<T, Args...>
-  [[nodiscard]] auto emplace(Args&&... args) noexcept -> result<T*> {
+  [[nodiscard]] auto emplace(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+    -> result<T*> {
     auto const storage{allocate<T>()};
     if (!storage.has_value()) {
       return std::unexpected{storage.error()};

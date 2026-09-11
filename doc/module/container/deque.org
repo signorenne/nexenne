@@ -89,13 +89,13 @@ empty; =operator[]= is unchecked, while =at(i)= is checked and returns
 element or =container_error::out_of_range= past =size()=, matching the
 =result<T*>= idiom of =object_pool= and =linear_arena= and the =at= of every
 other sequence container (=static_vector=, =small_vector=, =stable_vector=,
-=ring_buffer=, =gap_buffer=). =pop_front()= and
-=pop_back()= return the removed element as =result<T>=, or
-=container_error::empty= when there is nothing to remove. =push_*= and
-=emplace_*= are =noexcept= and terminate only on allocation failure (or on a
-request past =max_size()=, the point where the power-of-two capacity or its byte
-count would overflow). The deque is copyable when =T= is, via a deep copy that
-re-packs from the front, and always movable in =O(1)= by stealing the buffer.
+=ring_buffer=, =gap_buffer=). =pop_front()= and =pop_back()= return the removed
+element as =result<T>=, or =container_error::empty= when there is nothing to
+remove. =push_*= and =emplace_*= are =noexcept= when the element's copy, move or
+construction is, and terminate only on allocation failure (or on a request past
+=max_size()=, the point where the power-of-two capacity or its byte count would
+overflow). The deque is copyable when =T= is, via a deep copy that re-packs from
+the front, and always movable in =O(1)= by stealing the buffer.
 
 ** Iteration and comparison
 

@@ -18,8 +18,9 @@
  * frontiers). Reach for it when you must update or cancel queued items by
  * identity rather than rescan to find them. Handles are recycled, so a handle
  * is meaningful only while its element is live; see the note on \c push. Every
- * operation but a copy is \c noexcept, and allocation failure inside one
- * terminates; a copy throws \c std::bad_alloc instead.
+ * operation but a copy is \c noexcept exactly when the element and comparator
+ * code it runs is, and allocation failure inside one terminates; a copy throws
+ * \c std::bad_alloc instead.
  */
 
 #include <cassert>
@@ -78,6 +79,12 @@ private:
   std::vector<handle_type> m_free_list;  // recycled handles
   [[no_unique_address]] Compare m_cmp{};
 
+  /// @brief Whether sifting an entry (compare and swap) is nothrow.
+  static constexpr bool nothrow_sift_v{
+    detail::nothrow_invocable_v<Compare const&, T const&, T const&>
+    && std::is_nothrow_swappable_v<entry>
+  };
+
   static constexpr size_type tombstone = size_type{} - 1;
 
   /**
@@ -125,8 +132,9 @@ private:
    * @pre \p i and \p j are valid heap indices.
    * @post None.
    */
-  [[nodiscard]] constexpr auto cmp_heap(size_type const i, size_type const j) const noexcept
-    -> bool {
+  [[nodiscard]] constexpr auto cmp_heap(
+    size_type const i, size_type const j
+  ) const noexcept(detail::nothrow_invocable_v<Compare const&, T const&, T const&>) -> bool {
     return m_cmp(m_heap[i].value, m_heap[j].value);
   }
 
@@ -139,7 +147,9 @@ private:
    * @pre \p i and \p j are valid heap indices.
    * @post The two entries are exchanged and their position records updated.
    */
-  constexpr auto swap_nodes(size_type const i, size_type const j) noexcept -> void {
+  constexpr auto
+  swap_nodes(size_type const i, size_type const j) noexcept(std::is_nothrow_swappable_v<entry>)
+    -> void {
     using std::swap;
     swap(m_heap[i], m_heap[j]);
     m_position[m_heap[i].handle] = i;
@@ -155,7 +165,7 @@ private:
    * @post The heap invariant holds along \p i's former root path and positions
    *       stay in sync.
    */
-  constexpr auto sift_up(size_type i) noexcept -> void {
+  constexpr auto sift_up(size_type i) noexcept(nothrow_sift_v) -> void {
     while (i > 0) {
       auto const parent{(i - 1) / 2};
       if (cmp_heap(parent, i)) {
@@ -176,7 +186,7 @@ private:
    * @post The heap invariant holds along \p i's former leaf path and positions
    *       stay in sync.
    */
-  constexpr auto sift_down(size_type i) noexcept -> void {
+  constexpr auto sift_down(size_type i) noexcept(nothrow_sift_v) -> void {
     auto const n{m_heap.size()};
     while (true) {
       auto const left{2 * i + 1};
@@ -217,7 +227,8 @@ public:
    * @pre None.
    * @post \c empty() is \c true.
    */
-  constexpr indexed_priority_queue() noexcept = default;
+  constexpr indexed_priority_queue() noexcept(std::is_nothrow_default_constructible_v<Compare>) =
+    default;
 
   /**
    * @brief Constructs an empty queue using \p cmp for ordering.
@@ -227,7 +238,10 @@ public:
    * @pre None.
    * @post \c empty() is \c true and the stored comparator is \p cmp.
    */
-  explicit constexpr indexed_priority_queue(Compare cmp) noexcept : m_cmp{std::move(cmp)} {}
+  explicit constexpr indexed_priority_queue(
+    Compare cmp
+  ) noexcept(std::is_nothrow_move_constructible_v<Compare>)
+      : m_cmp{std::move(cmp)} {}
 
   /**
    * @brief Number of live elements.
@@ -283,7 +297,9 @@ public:
    * @pre None.
    * @post \c size() is unchanged; capacity may shrink. Handles remain valid.
    */
-  constexpr auto shrink_to_fit() noexcept -> void {
+  constexpr auto shrink_to_fit() noexcept((
+    std::is_nothrow_move_constructible_v<entry> || std::is_nothrow_copy_constructible_v<entry>
+  )) -> void {
     m_heap.shrink_to_fit();
     m_position.shrink_to_fit();
     m_free_list.shrink_to_fit();
@@ -298,7 +314,8 @@ public:
    * @post This queue holds \p other's former elements and vice versa; handles
    *       stay valid against their original queue's new owner.
    */
-  constexpr auto swap(indexed_priority_queue& other) noexcept -> void {
+  constexpr auto swap(indexed_priority_queue& other) noexcept(std::is_nothrow_swappable_v<Compare>)
+    -> void {
     using std::swap;
     m_heap.swap(other.m_heap);
     m_position.swap(other.m_position);
@@ -315,8 +332,9 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend constexpr auto swap(indexed_priority_queue& a, indexed_priority_queue& b) noexcept
-    -> void {
+  friend constexpr auto swap(
+    indexed_priority_queue& a, indexed_priority_queue& b
+  ) noexcept(std::is_nothrow_swappable_v<Compare>) -> void {
     a.swap(b);
   }
 
@@ -328,7 +346,9 @@ public:
    * @pre None.
    * @post Capacity is at least \p n; \c size() is unchanged.
    */
-  constexpr auto reserve(size_type const n) noexcept -> void {
+  constexpr auto reserve(size_type const n) noexcept((
+    std::is_nothrow_move_constructible_v<entry> || std::is_nothrow_copy_constructible_v<entry>
+  )) -> void {
     m_heap.reserve(n);
     m_position.reserve(n);
   }
@@ -368,7 +388,8 @@ public:
    *
    * @complexity \c O(log n).
    */
-  constexpr auto push(T value) noexcept -> handle_type {
+  constexpr auto push(T value) noexcept(std::is_nothrow_move_constructible_v<T> && nothrow_sift_v)
+    -> handle_type {
     auto const h{allocate_handle()};
     auto const pos{m_heap.size()};
     m_heap.push_back(entry{std::move(value), h});
@@ -393,7 +414,10 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  constexpr auto emplace(Args&&... args) noexcept -> handle_type {
+  constexpr auto emplace(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
+    && nothrow_sift_v
+  ) -> handle_type {
     auto const h{allocate_handle()};
     auto const pos{m_heap.size()};
     // Parentheses: braces would prefer an initializer_list constructor.
@@ -416,7 +440,10 @@ public:
    *
    * @complexity \c O(log n).
    */
-  [[nodiscard]] constexpr auto pop() noexcept -> result<T> {
+  [[nodiscard]] constexpr auto pop() noexcept(
+    std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<entry>
+    && nothrow_sift_v
+  ) -> result<T> {
     if (m_heap.empty()) {
       return std::unexpected{container_error::empty};
     }
@@ -452,7 +479,9 @@ public:
    *
    * @complexity \c O(log n).
    */
-  [[nodiscard]] constexpr auto update(handle_type const h, T value) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto update(handle_type const h, T value) noexcept(
+    std::is_nothrow_move_assignable_v<T> && nothrow_sift_v
+  ) -> result<void> {
     if (!valid_handle(h)) {
       return std::unexpected{container_error::not_found};
     }
@@ -478,7 +507,9 @@ public:
    *
    * @complexity \c O(log n).
    */
-  [[nodiscard]] constexpr auto erase(handle_type const h) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto
+  erase(handle_type const h) noexcept(std::is_nothrow_move_assignable_v<entry> && nothrow_sift_v)
+    -> result<void> {
     if (!valid_handle(h)) {
       return std::unexpected{container_error::not_found};
     }

@@ -16,13 +16,14 @@
  * niche is a simple, transparent BST whose explicit node graph is a feature, for
  * teaching, ordered sets of moderate size, and tree-visitor building blocks.
  *
- * The in-order iterator models \c std::forward_iterator and visits every element
- * once, ascending under \p Compare, so the standard algorithms and range-for work
- * directly. Child ownership through \c unique_ptr lets a move steal the whole
- * graph in \c O(1); teardown and copy are the two custom, iterative paths.
- * Every operation is \c noexcept; allocation failure terminates. Do not mutate
- * an element's ordering key in place through an
- * iterator, as that would break the search invariant.
+ * The in-order iterator models \c std::forward_iterator and visits every
+ * element once, ascending under \p Compare, so the standard algorithms and
+ * range-for work directly. Child ownership through \c unique_ptr lets a move
+ * steal the whole graph in \c O(1); teardown and copy are the two custom,
+ * iterative paths. Every operation is \c noexcept exactly when the element and
+ * comparator code it runs is; allocation failure terminates. Do not mutate an
+ * element's ordering key in place through an iterator, as that would break the
+ * search invariant.
  */
 
 #include <algorithm>
@@ -37,6 +38,8 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <nexenne/container/error.hpp>
 
 namespace nexenne::container {
 
@@ -83,7 +86,8 @@ private:
      * @post \c left, \c right, and \c parent are null.
      */
     template <typename... Args>
-    explicit constexpr node(Args&&... args) noexcept : value(std::forward<Args>(args)...) {}
+    explicit constexpr node(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+        : value(std::forward<Args>(args)...) {}
 
     /**
      * @brief Tears the subtree rooted at this node down iteratively.
@@ -120,6 +124,27 @@ private:
   node_ptr m_root;
   size_type m_size{};
   [[no_unique_address]] Compare m_cmp{};
+
+  /**
+   * @brief Whether walking an \p It range and building each element is nothrow.
+   *
+   * True when building a \c T from each element, dereferencing,
+   * advancing, comparing and measuring the iterators are all \c noexcept.
+   *
+   * @tparam It Iterator type of the range.
+   */
+  template <typename It>
+  static constexpr bool nothrow_range_v{
+    std::is_nothrow_constructible_v<T, std::iter_reference_t<It>> && noexcept(*std::declval<It&>())
+    && noexcept(++std::declval<It&>()) && noexcept(std::declval<It&>() != std::declval<It&>())
+    && noexcept(std::distance(std::declval<It>(), std::declval<It>()))
+  };
+
+  /// @brief Whether comparing two values through the comparator is nothrow.
+  static constexpr bool nothrow_compare_v{
+    detail::nothrow_invocable_v<Compare&, T const&, T const&>
+    && detail::nothrow_invocable_v<Compare const&, T const&, T const&>
+  };
 
   /**
    * @brief In-order forward iterator over the tree's elements.
@@ -283,7 +308,7 @@ public:
    * @pre None.
    * @post \c empty() is \c true.
    */
-  constexpr binary_tree() noexcept = default;
+  constexpr binary_tree() noexcept(std::is_nothrow_default_constructible_v<Compare>) = default;
 
   /**
    * @brief Constructs an empty tree using a user-supplied comparator.
@@ -293,7 +318,10 @@ public:
    * @pre None.
    * @post \c empty() is \c true and the stored comparator is \p cmp.
    */
-  explicit constexpr binary_tree(Compare cmp) noexcept : m_cmp{std::move(cmp)} {}
+  explicit constexpr binary_tree(
+    Compare cmp
+  ) noexcept(std::is_nothrow_move_constructible_v<Compare>)
+      : m_cmp{std::move(cmp)} {}
 
   /**
    * @brief Constructs a tree from an initializer list of values.
@@ -306,7 +334,10 @@ public:
    *
    * @complexity \c O(n h), where \c h is the running tree height.
    */
-  constexpr binary_tree(std::initializer_list<T> const init, Compare cmp = Compare{}) noexcept
+  constexpr binary_tree(std::initializer_list<T> const init, Compare cmp = Compare{}) noexcept(
+    std::is_nothrow_move_constructible_v<Compare> && nothrow_compare_v
+    && std::is_nothrow_copy_constructible_v<T>
+  )
       : m_cmp{std::move(cmp)} {
     for (auto const& value : init) {
       insert(value);
@@ -327,7 +358,10 @@ public:
    * @complexity \c O(n h), where \c h is the running tree height.
    */
   template <std::input_iterator It>
-  constexpr binary_tree(It first, It const last, Compare cmp = Compare{}) noexcept
+  constexpr binary_tree(It first, It const last, Compare cmp = Compare{}) noexcept(
+    std::is_nothrow_move_constructible_v<Compare> && nothrow_range_v<It> && nothrow_compare_v
+    && std::is_nothrow_copy_constructible_v<T>
+  )
       : m_cmp{std::move(cmp)} {
     for (; first != last; ++first) {
       insert(*first);
@@ -350,7 +384,7 @@ public:
    * @post This tree owns \p other's former nodes; \p other is empty and keeps
    *       its comparator, so it can be reused.
    */
-  constexpr binary_tree(binary_tree&& other) noexcept
+  constexpr binary_tree(binary_tree&& other) noexcept(std::is_nothrow_copy_constructible_v<Compare>)
       : m_root{std::move(other.m_root)}, m_size{other.m_size}, m_cmp{other.m_cmp} {
     other.m_size = 0;
   }
@@ -367,7 +401,8 @@ public:
    *       its comparator (copied, as in the move constructor), so it can be
    *       reused. Self-assignment leaves the tree unchanged.
    */
-  constexpr auto operator=(binary_tree&& other) noexcept -> binary_tree& {
+  constexpr auto operator=(binary_tree&& other) noexcept(std::is_nothrow_copy_assignable_v<Compare>)
+    -> binary_tree& {
     if (this != &other) {
       m_root = std::move(other.m_root);
       m_size = other.m_size;
@@ -388,7 +423,10 @@ public:
    *
    * @complexity \c O(n) in the source size.
    */
-  constexpr binary_tree(binary_tree const& other) noexcept : m_cmp{other.m_cmp} {
+  constexpr binary_tree(binary_tree const& other) noexcept(
+    std::is_nothrow_copy_constructible_v<Compare> && std::is_nothrow_copy_constructible_v<T>
+  )
+      : m_cmp{other.m_cmp} {
     m_root = clone_subtree(other.m_root.get(), nullptr);
     m_size = other.m_size;
   }
@@ -406,7 +444,9 @@ public:
    *
    * @complexity \c O(n) in the source size.
    */
-  constexpr auto operator=(binary_tree const& other) noexcept -> binary_tree& {
+  constexpr auto operator=(binary_tree const& other) noexcept(
+    std::is_nothrow_copy_assignable_v<Compare> && std::is_nothrow_copy_constructible_v<T>
+  ) -> binary_tree& {
     if (this != &other) {
       m_cmp = other.m_cmp;
       m_root = clone_subtree(other.m_root.get(), nullptr);
@@ -459,7 +499,7 @@ public:
    * @pre None.
    * @post This tree holds \p other's former elements and vice versa.
    */
-  constexpr auto swap(binary_tree& other) noexcept -> void {
+  constexpr auto swap(binary_tree& other) noexcept(std::is_nothrow_swappable_v<Compare>) -> void {
     using std::swap;
     m_root.swap(other.m_root);
     swap(m_size, other.m_size);
@@ -475,7 +515,8 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend constexpr auto swap(binary_tree& a, binary_tree& b) noexcept -> void {
+  friend constexpr auto
+  swap(binary_tree& a, binary_tree& b) noexcept(std::is_nothrow_swappable_v<Compare>) -> void {
     a.swap(b);
   }
 
@@ -509,7 +550,9 @@ public:
    *
    * @complexity \c O(h), where \c h is the tree height.
    */
-  constexpr auto insert(T const& value) noexcept -> bool {
+  constexpr auto
+  insert(T const& value) noexcept(nothrow_compare_v && std::is_nothrow_copy_constructible_v<T>)
+    -> bool {
     return emplace_impl(value);
   }
 
@@ -528,7 +571,8 @@ public:
    *
    * @complexity \c O(h), where \c h is the tree height.
    */
-  constexpr auto insert(T&& value) noexcept -> bool {
+  constexpr auto
+  insert(T&& value) noexcept(nothrow_compare_v && std::is_nothrow_move_constructible_v<T>) -> bool {
     return emplace_impl(std::move(value));
   }
 
@@ -549,7 +593,10 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  constexpr auto emplace(Args&&... args) noexcept -> bool {
+  constexpr auto emplace(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
+    && nothrow_compare_v
+  ) -> bool {
     // Parentheses: braces would prefer an initializer_list constructor.
     T value(std::forward<Args>(args)...);
     return emplace_impl(std::move(value));
@@ -569,7 +616,7 @@ public:
    *
    * @complexity \c O(h), where \c h is the tree height.
    */
-  constexpr auto erase(T const& value) noexcept -> bool {
+  constexpr auto erase(T const& value) noexcept(nothrow_compare_v) -> bool {
     auto* const target{locate(value)};
     if (target == nullptr) {
       return false;
@@ -591,7 +638,7 @@ public:
    *
    * @complexity \c O(h), where \c h is the tree height.
    */
-  [[nodiscard]] constexpr auto find(T const& value) noexcept -> T* {
+  [[nodiscard]] constexpr auto find(T const& value) noexcept(nothrow_compare_v) -> T* {
     auto* const n{locate(value)};
     return n == nullptr ? nullptr : std::addressof(n->value);
   }
@@ -609,7 +656,7 @@ public:
    *
    * @complexity \c O(h), where \c h is the tree height.
    */
-  [[nodiscard]] constexpr auto find(T const& value) const noexcept -> T const* {
+  [[nodiscard]] constexpr auto find(T const& value) const noexcept(nothrow_compare_v) -> T const* {
     auto const* const n{locate(value)};
     return n == nullptr ? nullptr : std::addressof(n->value);
   }
@@ -626,7 +673,7 @@ public:
    *
    * @complexity \c O(h), where \c h is the tree height.
    */
-  [[nodiscard]] constexpr auto contains(T const& value) const noexcept -> bool {
+  [[nodiscard]] constexpr auto contains(T const& value) const noexcept(nothrow_compare_v) -> bool {
     return locate(value) != nullptr;
   }
 
@@ -715,8 +762,9 @@ public:
    *
    * @complexity \c O(n).
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(binary_tree const& a, binary_tree const& b) noexcept -> bool
+  [[nodiscard]] friend constexpr auto operator==(
+    binary_tree const& a, binary_tree const& b
+  ) noexcept(noexcept(std::declval<T const&>() == std::declval<T const&>())) -> bool
     requires std::equality_comparable<T>
   {
     return a.m_size == b.m_size && std::equal(a.begin(), a.end(), b.begin(), b.end());
@@ -736,8 +784,9 @@ public:
    *
    * @complexity \c O(n).
    */
-  [[nodiscard]] friend constexpr auto
-  operator<=>(binary_tree const& a, binary_tree const& b) noexcept
+  [[nodiscard]] friend constexpr auto operator<=>(
+    binary_tree const& a, binary_tree const& b
+  ) noexcept(noexcept(std::declval<T const&>() <=> std::declval<T const&>()))
     requires std::three_way_comparable<T>
   {
     return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
@@ -788,7 +837,7 @@ private:
    * @pre None.
    * @post None. The tree is not modified.
    */
-  [[nodiscard]] constexpr auto locate(T const& value) noexcept -> node* {
+  [[nodiscard]] constexpr auto locate(T const& value) noexcept(nothrow_compare_v) -> node* {
     auto* cur{m_root.get()};
     while (cur != nullptr) {
       if (m_cmp(value, cur->value)) {
@@ -812,7 +861,8 @@ private:
    * @pre None.
    * @post None. The tree is not modified.
    */
-  [[nodiscard]] constexpr auto locate(T const& value) const noexcept -> node const* {
+  [[nodiscard]] constexpr auto locate(T const& value) const noexcept(nothrow_compare_v)
+    -> node const* {
     auto const* cur{m_root.get()};
     while (cur != nullptr) {
       if (m_cmp(value, cur->value)) {
@@ -840,7 +890,9 @@ private:
    *       one; otherwise the tree is unchanged.
    */
   template <typename V>
-  constexpr auto emplace_impl(V&& value) noexcept -> bool {
+  constexpr auto
+  emplace_impl(V&& value) noexcept(nothrow_compare_v && std::is_nothrow_constructible_v<T, V>)
+    -> bool {
     node* parent{nullptr};
     node_ptr* link{&m_root};
     while (*link != nullptr) {
@@ -970,8 +1022,9 @@ private:
    * @pre None.
    * @post The returned subtree is an independent copy of \p src.
    */
-  static constexpr auto clone_subtree(node const* const src, node* const parent) noexcept
-    -> node_ptr {
+  static constexpr auto clone_subtree(
+    node const* const src, node* const parent
+  ) noexcept(std::is_nothrow_copy_constructible_v<T>) -> node_ptr {
     if (src == nullptr) {
       return nullptr;
     }

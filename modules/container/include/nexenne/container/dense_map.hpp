@@ -12,15 +12,16 @@
  * so lookup is a sparse-set indirection, not a hash.
  *
  * Lookup comes two ways: \c find(k) returns a \c std::map -style iterator over
- * \c (key, value&) entries, while \c at(k) returns a \c Value* (or \c nullptr on
- * a miss) for the common "use the value, ignore the key" case. Like
+ * \c (key, value&) entries, while \c at(k) returns a \c Value* (or \c nullptr
+ * on a miss) for the common "use the value, ignore the key" case. Like
  * \c sparse_set, \c erase is swap-pop, so dense order shifts on an interior
- * removal (the last entry fills the gap); hold the key, not the index, across an
- * erase. The \c dense_map<Key, void> specialisation degrades to a thin wrapper
- * over \c sparse_set for tag components with no payload. \p Value must be movable
- * (move-constructible and move-assignable), since \c erase and
+ * removal (the last entry fills the gap); hold the key, not the index, across
+ * an erase. The \c dense_map<Key, void> specialisation degrades to a thin
+ * wrapper over \c sparse_set for tag components with no payload. \p Value must
+ * be movable (move-constructible and move-assignable), since \c erase and
  * \c insert_or_assign move values between dense slots. Every operation is
- * \c noexcept; allocation failure terminates.
+ * \c noexcept exactly when the value code it runs (a move, construction or
+ * assignment) is; allocation failure terminates.
  */
 
 #include <concepts>
@@ -84,7 +85,10 @@ public:
    * @pre None.
    * @post Capacity is at least the requested sizes; existing entries are kept.
    */
-  constexpr auto reserve(size_type const key_count, size_type const dense_count) noexcept -> void {
+  constexpr auto reserve(size_type const key_count, size_type const dense_count) noexcept((
+    std::is_nothrow_move_constructible_v<value_type>
+    || std::is_nothrow_copy_constructible_v<value_type>
+  )) -> void {
     m_set.reserve(key_count, dense_count);
     m_values.reserve(dense_count);
   }
@@ -105,7 +109,9 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  constexpr auto insert(key_type const k, value_type value) noexcept -> bool {
+  constexpr auto insert(
+    key_type const k, value_type value
+  ) noexcept(std::is_nothrow_move_constructible_v<value_type>) -> bool {
     if (!m_set.insert(k)) {
       return false;
     }
@@ -129,7 +135,10 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  constexpr auto insert_or_assign(key_type const k, value_type value) noexcept -> bool {
+  constexpr auto insert_or_assign(key_type const k, value_type value) noexcept(
+    std::is_nothrow_move_assignable_v<value_type>
+    && std::is_nothrow_move_constructible_v<value_type>
+  ) -> bool {
     if (auto const pos{m_set.index_of(k)}) {
       m_values[*pos] = std::move(value);
       return false;
@@ -161,7 +170,10 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<value_type, Args...>
-  constexpr auto emplace(key_type const k, Args&&... args) noexcept -> bool {
+  constexpr auto emplace(key_type const k, Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<value_type, Args...>
+    && (std::is_nothrow_move_constructible_v<value_type> || std::is_nothrow_copy_constructible_v<value_type>)
+  ) -> bool {
     if (!m_set.insert(k)) {
       return false;
     }
@@ -185,7 +197,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto erase(key_type const k) noexcept -> bool {
+  constexpr auto erase(key_type const k) noexcept(std::is_nothrow_move_assignable_v<value_type>)
+    -> bool {
     auto const pos{m_set.index_of(k)};
     if (!pos) {
       return false;
@@ -346,7 +359,10 @@ public:
    * @pre None.
    * @post \c size() is unchanged; capacity may shrink toward \c size().
    */
-  constexpr auto shrink_to_fit() noexcept -> void {
+  constexpr auto shrink_to_fit() noexcept((
+    std::is_nothrow_move_constructible_v<value_type>
+    || std::is_nothrow_copy_constructible_v<value_type>
+  )) -> void {
     m_set.shrink_to_fit();
     m_values.shrink_to_fit();
   }

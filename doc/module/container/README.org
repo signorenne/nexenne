@@ -11,14 +11,17 @@ guide and a runnable example under
 [[file:../../../examples/container/][examples/container/]]; everything lives in
 =nexenne::container=.
 
-*Error policy.* Failure is uniform and exception-free. Non-allocating operations
-are =noexcept=. An operation that can fail at a documented boundary (pop from
-empty, push when full, missing key) returns =result<T>=
-(=std::expected<T, container_error>=) rather than throwing, so the caller decides
-what to do. An operation whose only failure mode is allocation is =noexcept= and
-terminates on =std::bad_alloc=; when you need to recover from that, pre-allocate
-with =reserve= and check the boundary up front. The shared =container_error= enum
-and the =result<T>= alias live in the [[file:error.org][error]] guide below.
+*Error policy.* Failure is uniform and exception-free. An operation that runs no
+element or caller code is =noexcept=; one that does (an element's copy, move,
+construction or comparison, a comparator or hasher) is =noexcept= exactly when
+that code is, so a throwing element propagates its exception. An operation that
+can fail at a documented boundary (pop from empty, push when full, missing key)
+returns =result<T>= (=std::expected<T, container_error>=) rather than throwing,
+so the caller decides what to do. An operation whose only failure mode is
+allocation does not report it: it terminates on =std::bad_alloc=; when you need
+to recover from that, pre-allocate with =reserve= and check the boundary up
+front. The shared =container_error= enum and the =result<T>= alias live in the
+[[file:error.org][error]] guide below.
 
 *Choosing a category.* Pick by lifetime and access pattern. Reach for a /value
 container/ when you want elements stored by value with a flat layout, choosing

@@ -13,13 +13,15 @@
  * the same way when the slot's sequence equals \c pos+1, takes the value, and
  * publishes \c sequence = pos+N (release), reopening the slot one lap later.
  *
- * It is lock-free and effectively wait-free per slot (one CAS unless a competing
- * thread wins the race), bounded at exactly \p N (a full push and an empty pop
- * fail fast; spin or yield in caller code for blocking), and cache friendly (the
- * two counters live on separate lines, each slot's sequence shares a line with
- * its data). Prefer \c spsc_queue for one-to-one and \c mpsc_queue for
- * many-to-one, which avoid CASes the general case needs. \p N must be a power of
- * two. Every operation is \c noexcept; there is no allocation after construction.
+ * It is lock-free and effectively wait-free per slot (one CAS unless a
+ * competing thread wins the race), bounded at exactly \p N (a full push and an
+ * empty pop fail fast; spin or yield in caller code for blocking), and cache
+ * friendly (the two counters live on separate lines, each slot's sequence
+ * shares a line with its data). Prefer \c spsc_queue for one-to-one and
+ * \c mpsc_queue for many-to-one, which avoid CASes the general case needs. \p N
+ * must be a power of two. Every operation is \c noexcept exactly when the
+ * element code it runs (a copy, move or construction) is; there is no
+ * allocation after construction.
  *
  * @tparam T Element type; must be move-constructible.
  * @tparam N Slot count; a power of two and at least two.
@@ -221,7 +223,8 @@ public:
    *
    * @complexity \c O(1) plus CAS retries under contention.
    */
-  auto push(T const& value) noexcept -> std::expected<void, container_error> {
+  auto push(T const& value) noexcept(std::is_nothrow_copy_constructible_v<T>)
+    -> std::expected<void, container_error> {
     return emplace(value);
   }
 
@@ -238,7 +241,8 @@ public:
    *
    * @complexity \c O(1) plus CAS retries under contention.
    */
-  auto push(T&& value) noexcept -> std::expected<void, container_error> {
+  auto push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> std::expected<void, container_error> {
     return emplace(std::move(value));
   }
 
@@ -258,7 +262,8 @@ public:
    * @complexity \c O(1) plus CAS retries under contention.
    */
   template <typename... Args>
-  auto emplace(Args&&... args) noexcept -> std::expected<void, container_error> {
+  auto emplace(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+    -> std::expected<void, container_error> {
     auto pos{m_enqueue_pos.load(std::memory_order_relaxed)};
     while (true) {
       auto& s{m_slots[pos & (N - 1)]};
@@ -292,7 +297,8 @@ public:
    *
    * @complexity \c O(1) plus CAS retries under contention.
    */
-  [[nodiscard]] auto pop() noexcept -> std::expected<T, container_error> {
+  [[nodiscard]] auto pop() noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> std::expected<T, container_error> {
     auto pos{m_dequeue_pos.load(std::memory_order_relaxed)};
     while (true) {
       auto& s{m_slots[pos & (N - 1)]};
@@ -326,7 +332,8 @@ public:
    *
    * @complexity \c O(1) plus CAS retries under contention.
    */
-  [[nodiscard]] auto try_pop() noexcept -> std::optional<T> {
+  [[nodiscard]] auto try_pop() noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> std::optional<T> {
     auto r{pop()};
     if (r.has_value()) {
       return std::optional<T>{std::move(*r)};

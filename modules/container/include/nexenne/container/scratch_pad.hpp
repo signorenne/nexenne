@@ -25,10 +25,10 @@
  * facade forwards to the arena and is additionally constrained to arenas that
  * provide the matching allocating member, so calling it on a checkpoint-only
  * arena fails the constraint at the call site rather than deep in a body. It is
- * non-copyable
- * and non-movable: the checkpoint is tied to one arena state, and copying it
- * would double-rewind. Every operation is \c noexcept, and thread safety is that
- * of the underlying arena (none).
+ * non-copyable and non-movable: the checkpoint is tied to one arena state, and
+ * copying it would double-rewind. Every operation is \c noexcept exactly when
+ * the arena code it forwards to is, and thread safety is that of the underlying
+ * arena (none).
  */
 
 #include <concepts>
@@ -75,7 +75,7 @@ public:
    * @pre None.
    * @post \c saved_offset() equals \p arena's \c bytes_used() at construction.
    */
-  explicit scratch_pad(Arena& arena) noexcept
+  explicit scratch_pad(Arena& arena) noexcept(noexcept(std::declval<Arena&>().bytes_used()))
       : m_arena{arena}, m_saved_offset{arena.bytes_used()} {}
 
   /**
@@ -108,8 +108,9 @@ public:
    * @post On success the storage is released when this scratch_pad is
    *       destroyed.
    */
-  [[nodiscard]] auto allocate(size_type const size, size_type const alignment) noexcept
-    -> decltype(std::declval<Arena&>().allocate(size, alignment))
+  [[nodiscard]] auto allocate(size_type const size, size_type const alignment) noexcept(
+    noexcept(std::declval<Arena&>().allocate(size, alignment))
+  ) -> decltype(std::declval<Arena&>().allocate(size, alignment))
     requires requires(Arena& a, size_type n) { a.allocate(n, n); }
   {
     return m_arena.allocate(size, alignment);
@@ -130,8 +131,9 @@ public:
    */
   template <typename T>
     requires requires(Arena& a, size_type c) { a.template allocate<T>(c); }
-  [[nodiscard]] auto allocate(size_type const count = 1) noexcept
-    -> decltype(std::declval<Arena&>().template allocate<T>(count)) {
+  [[nodiscard]] auto allocate(size_type const count = 1) noexcept(
+    noexcept(std::declval<Arena&>().template allocate<T>(count))
+  ) -> decltype(std::declval<Arena&>().template allocate<T>(count)) {
     return m_arena.template allocate<T>(count);
   }
 
@@ -154,8 +156,9 @@ public:
     requires requires(Arena& a, Args&&... args) {
       a.template emplace<T>(std::forward<Args>(args)...);
     }
-  [[nodiscard]] auto emplace(Args&&... args) noexcept
-    -> decltype(std::declval<Arena&>().template emplace<T>(std::forward<Args>(args)...)) {
+  [[nodiscard]] auto emplace(Args&&... args) noexcept(
+    noexcept(std::declval<Arena&>().template emplace<T>(std::forward<Args>(args)...))
+  ) -> decltype(std::declval<Arena&>().template emplace<T>(std::forward<Args>(args)...)) {
     return m_arena.template emplace<T>(std::forward<Args>(args)...);
   }
 

@@ -157,9 +157,9 @@ Gotchas:
   copy and move operations are deleted. A handle from =acquire= or =emplace=
   stays valid until you release it, and the pool itself must outlive every
   handle.
-- *Exhaustion is a value, not an exception.* Every operation is =noexcept=;
-  =acquire= and =emplace= return =container_error::full= when no slot is free.
-  Check =has_value()=.
+- *Exhaustion is a value, not an exception.* Every operation is =noexcept=
+  (=emplace= exactly when the constructor it runs is); =acquire= and =emplace=
+  return =container_error::full= when no slot is free. Check =has_value()=.
 
 * Usage
 

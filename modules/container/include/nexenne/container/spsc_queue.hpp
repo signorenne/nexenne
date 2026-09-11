@@ -20,9 +20,10 @@
  * approximate observers (\c size_approx, \c empty_approx, \c full_approx) are
  * best-effort from either side. Calling \c push or \c pop from more than one
  * thread breaks the contract; use \c mpsc_queue or \c mpmc_queue for that. One
- * slot is reserved as a sentinel so \c head == \c tail unambiguously means empty,
- * making the effective capacity \p N - 1. Every operation is \c noexcept; there
- * is no allocation.
+ * slot is reserved as a sentinel so \c head == \c tail unambiguously means
+ * empty, making the effective capacity \p N - 1. Every operation is \c noexcept
+ * exactly when the element code it runs (a copy, move or construction) is;
+ * there is no allocation.
  *
  * @tparam T Element type; must be move-constructible.
  * @tparam N Slot count; the effective capacity is \p N - 1.
@@ -201,7 +202,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto push(T const& value) noexcept -> std::expected<void, container_error> {
+  auto push(T const& value) noexcept(std::is_nothrow_copy_constructible_v<T>)
+    -> std::expected<void, container_error> {
     return emplace(value);
   }
 
@@ -218,7 +220,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto push(T&& value) noexcept -> std::expected<void, container_error> {
+  auto push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> std::expected<void, container_error> {
     return emplace(std::move(value));
   }
 
@@ -237,7 +240,8 @@ public:
    * @complexity \c O(1).
    */
   template <typename... Args>
-  auto emplace(Args&&... args) noexcept -> std::expected<void, container_error> {
+  auto emplace(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+    -> std::expected<void, container_error> {
     auto const t{m_tail.load(std::memory_order_relaxed)};
     auto const next_t{next(t)};
     if (next_t == m_head_cache) {
@@ -263,7 +267,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto pop() noexcept -> std::expected<T, container_error> {
+  [[nodiscard]] auto pop() noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> std::expected<T, container_error> {
     auto const h{m_head.load(std::memory_order_relaxed)};
     if (h == m_tail_cache) {
       m_tail_cache = m_tail.load(std::memory_order_acquire);
@@ -288,7 +293,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto try_pop() noexcept -> std::optional<T> {
+  [[nodiscard]] auto try_pop() noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> std::optional<T> {
     auto const h{m_head.load(std::memory_order_relaxed)};
     if (h == m_tail_cache) {
       m_tail_cache = m_tail.load(std::memory_order_acquire);

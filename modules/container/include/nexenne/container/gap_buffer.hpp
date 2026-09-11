@@ -26,8 +26,9 @@
  * The gap slots are not part of the logical sequence: they start
  * default-constructed when the gap is reserved and later hold moved-from or
  * erased objects, so \p T must be default constructible as well as movable.
- * Every operation but a copy is \c noexcept, and allocation failure inside one
- * terminates; a copy throws \c std::bad_alloc instead.
+ * Every operation but a copy is \c noexcept exactly when the element code it
+ * runs is, and allocation failure inside one terminates; a copy throws
+ * \c std::bad_alloc instead.
  */
 
 #include <algorithm>
@@ -189,7 +190,11 @@ private:
    * @pre None.
    * @post \c gap_size() is at least \p min_gap.
    */
-  constexpr auto grow_gap(size_type const min_gap) noexcept -> void {
+  constexpr auto grow_gap(size_type const min_gap) noexcept(
+    std::is_nothrow_default_constructible_v<T>
+    && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
+    && std::is_nothrow_move_assignable_v<T>
+  ) -> void {
     if (gap_size() >= min_gap) {
       return;
     }
@@ -518,7 +523,10 @@ public:
    * @pre None.
    * @post \c size() equals \c init.size() and \c cursor() equals \c size().
    */
-  constexpr gap_buffer(std::initializer_list<T> const init) noexcept {
+  constexpr gap_buffer(std::initializer_list<T> const init) noexcept(
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_default_constructible_v<T>
+    && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
+  ) {
     m_buffer.reserve(init.size() + initial_gap);
     for (auto const& value : init) {
       m_buffer.push_back(value);
@@ -585,7 +593,11 @@ public:
    * @post Capacity is at least \p n; element values and \c cursor() are
    *       unchanged.
    */
-  constexpr auto reserve(size_type const n) noexcept -> void {
+  constexpr auto reserve(size_type const n) noexcept(
+    std::is_nothrow_default_constructible_v<T>
+    && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
+    && std::is_nothrow_move_assignable_v<T>
+  ) -> void {
     if (n > m_buffer.capacity()) {
       grow_gap(n - size());
     }
@@ -609,7 +621,10 @@ public:
    * @pre None.
    * @post \c size() is unchanged and \c cursor() equals \c size().
    */
-  constexpr auto shrink_to_fit() noexcept -> void {
+  constexpr auto shrink_to_fit() noexcept(
+    std::is_nothrow_move_assignable_v<T>
+    && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
+  ) -> void {
     auto const post_count{m_buffer.size() - m_gap_end};
     // Skip when the gap is already closed (m_gap_begin == m_gap_end): the post
     // elements are already packed and the move would self-assign, corrupting a
@@ -682,7 +697,9 @@ public:
    *
    * @complexity \c O(|pos - cursor()|).
    */
-  [[nodiscard]] constexpr auto move_cursor_to(size_type const pos) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto
+  move_cursor_to(size_type const pos) noexcept(std::is_nothrow_move_assignable_v<T>)
+    -> result<void> {
     if (pos > size()) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -721,7 +738,8 @@ public:
    *
    * @complexity \c O(|delta|).
    */
-  [[nodiscard]] constexpr auto move_cursor_by(difference_type const delta) noexcept
+  [[nodiscard]] constexpr auto
+  move_cursor_by(difference_type const delta) noexcept(std::is_nothrow_move_assignable_v<T>)
     -> result<void> {
     auto const target{static_cast<difference_type>(cursor()) + delta};
     if (target < 0 || static_cast<size_type>(target) > size()) {
@@ -741,7 +759,12 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  constexpr auto insert(T const& value) noexcept -> void {
+  constexpr auto insert(T const& value) noexcept(
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
+    && std::is_nothrow_default_constructible_v<T>
+    && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
+    && std::is_nothrow_move_assignable_v<T>
+  ) -> void {
     if (gap_size() == 0) {
       // grow_gap reallocates m_buffer, so materialize the value first in case it
       // aliases an element of this same buffer (e.g. insert(b[k])).
@@ -764,7 +787,11 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  constexpr auto insert(T&& value) noexcept -> void {
+  constexpr auto insert(T&& value) noexcept(
+    std::is_nothrow_move_constructible_v<T> && std::is_nothrow_default_constructible_v<T>
+    && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
+    && std::is_nothrow_move_assignable_v<T>
+  ) -> void {
     if (gap_size() == 0) {
       // Move into a local before grow_gap reallocates, in case value aliases an
       // element of this same buffer (e.g. insert(std::move(b[k]))).
@@ -790,7 +817,12 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  constexpr auto emplace(Args&&... args) noexcept -> void {
+  constexpr auto emplace(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
+    && std::is_nothrow_default_constructible_v<T>
+    && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
+    && std::is_nothrow_move_assignable_v<T>
+  ) -> void {
     insert(T(std::forward<Args>(args)...));
   }
 
@@ -1031,8 +1063,9 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto operator==(gap_buffer const& a, gap_buffer const& b) noexcept
-    -> bool
+  [[nodiscard]] friend constexpr auto operator==(gap_buffer const& a, gap_buffer const& b) noexcept(
+    noexcept(std::declval<T const&>() == std::declval<T const&>())
+  ) -> bool
     requires std::equality_comparable<T>
   {
     return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), b.end());
@@ -1049,7 +1082,9 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto operator<=>(gap_buffer const& a, gap_buffer const& b) noexcept
+  [[nodiscard]] friend constexpr auto operator<=>(
+    gap_buffer const& a, gap_buffer const& b
+  ) noexcept(noexcept(std::declval<T const&>() <=> std::declval<T const&>()))
     requires std::three_way_comparable<T>
   {
     return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());

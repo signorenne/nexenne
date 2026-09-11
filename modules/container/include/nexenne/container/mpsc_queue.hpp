@@ -11,13 +11,14 @@
  * on the slot's sequence, and the lone consumer reads the sequence at the head
  * (acquire), takes the value, and frees the slot.
  *
- * Contract: any number of threads may call \c push / \c emplace concurrently (the
- * producers); exactly one thread may call \c pop / \c try_pop (the consumer).
- * Calling \c pop from more than one thread breaks the contract; use \c mpmc_queue
- * for many consumers. Producers never block each other (a CAS reservation) nor
- * the consumer, though heavy contention can spin the producer CAS. \p N must be a
- * power of two (the index wraps with a mask) and capacity is exactly \p N. Every
- * operation is \c noexcept; there is no allocation.
+ * Contract: any number of threads may call \c push / \c emplace concurrently
+ * (the producers); exactly one thread may call \c pop / \c try_pop (the
+ * consumer). Calling \c pop from more than one thread breaks the contract; use
+ * \c mpmc_queue for many consumers. Producers never block each other (a CAS
+ * reservation) nor the consumer, though heavy contention can spin the producer
+ * CAS. \p N must be a power of two (the index wraps with a mask) and capacity
+ * is exactly \p N. Every operation is \c noexcept exactly when the element code
+ * it runs (a copy, move or construction) is; there is no allocation.
  *
  * @tparam T Element type; must be move-constructible.
  * @tparam N Slot count; must be a power of two.
@@ -245,7 +246,8 @@ public:
    *
    * @complexity \c O(1) plus CAS retries under contention.
    */
-  auto push(T const& value) noexcept -> std::expected<void, container_error> {
+  auto push(T const& value) noexcept(std::is_nothrow_copy_constructible_v<T>)
+    -> std::expected<void, container_error> {
     return emplace(value);
   }
 
@@ -262,7 +264,8 @@ public:
    *
    * @complexity \c O(1) plus CAS retries under contention.
    */
-  auto push(T&& value) noexcept -> std::expected<void, container_error> {
+  auto push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> std::expected<void, container_error> {
     return emplace(std::move(value));
   }
 
@@ -282,7 +285,8 @@ public:
    * @complexity \c O(1) plus CAS retries under contention.
    */
   template <typename... Args>
-  auto emplace(Args&&... args) noexcept -> std::expected<void, container_error> {
+  auto emplace(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+    -> std::expected<void, container_error> {
     auto pos{m_tail.load(std::memory_order_relaxed)};
     while (true) {
       auto& s{m_slots[pos & mask]};
@@ -318,7 +322,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto pop() noexcept -> std::expected<T, container_error> {
+  [[nodiscard]] auto pop() noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> std::expected<T, container_error> {
     auto const pos{m_head.load(std::memory_order_relaxed)};
     auto& s{m_slots[pos & mask]};
     auto const seq{s.sequence.load(std::memory_order_acquire)};
@@ -344,7 +349,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto try_pop() noexcept -> std::optional<T> {
+  [[nodiscard]] auto try_pop() noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> std::optional<T> {
     auto const pos{m_head.load(std::memory_order_relaxed)};
     auto& s{m_slots[pos & mask]};
     auto const seq{s.sequence.load(std::memory_order_acquire)};

@@ -518,7 +518,9 @@ public:
    * @pre None.
    * @post \c size() equals \c init.size() with a copy of each element.
    */
-  stable_vector(std::initializer_list<T> const init) noexcept {
+  stable_vector(
+    std::initializer_list<T> const init
+  ) noexcept(std::is_nothrow_copy_constructible_v<T>) {
     for (auto const& value : init) {
       push_back(value);
     }
@@ -533,7 +535,7 @@ public:
    * @post This vector holds copies of \p other's elements; \p other is
    *       unchanged.
    */
-  stable_vector(stable_vector const& other) noexcept
+  stable_vector(stable_vector const& other) noexcept(std::is_nothrow_copy_constructible_v<T>)
     requires std::copy_constructible<T>
   {
     for (size_type i{0}; i < other.m_size; ++i) {
@@ -733,7 +735,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto push_back(T const& value) noexcept -> T* {
+  auto push_back(T const& value) noexcept(std::is_nothrow_copy_constructible_v<T>) -> T* {
     return std::addressof(emplace_back(value));
   }
 
@@ -749,7 +751,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto push_back(T&& value) noexcept -> T* {
+  auto push_back(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) -> T* {
     return std::addressof(emplace_back(std::move(value)));
   }
 
@@ -769,7 +771,7 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  auto emplace_back(Args&&... args) noexcept -> T& {
+  auto emplace_back(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>) -> T& {
     ensure_capacity(m_size + 1);
     auto* const slot{m_chunks[chunk_of(m_size)]->at(slot_of(m_size))};
     std::construct_at(slot, std::forward<Args>(args)...);
@@ -998,8 +1000,9 @@ public:
    *
    * @complexity \c O(size).
    */
-  [[nodiscard]] friend auto operator==(stable_vector const& a, stable_vector const& b) noexcept
-    -> bool
+  [[nodiscard]] friend auto operator==(stable_vector const& a, stable_vector const& b) noexcept(
+    noexcept(std::declval<T const&>() == std::declval<T const&>())
+  ) -> bool
     requires std::equality_comparable<T>
   {
     return a.m_size == b.m_size && std::equal(a.begin(), a.end(), b.begin(), b.end());
@@ -1021,8 +1024,9 @@ public:
    * @complexity \c O(size).
    */
   template <std::three_way_comparable U = T>
-  [[nodiscard]] friend auto operator<=>(stable_vector const& a, stable_vector const& b) noexcept
-    -> std::compare_three_way_result_t<U> {
+  [[nodiscard]] friend auto operator<=>(stable_vector const& a, stable_vector const& b) noexcept(
+    noexcept(std::declval<T const&>() <=> std::declval<T const&>())
+  ) -> std::compare_three_way_result_t<U> {
     return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
   }
 };

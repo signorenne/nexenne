@@ -16,8 +16,9 @@
  * \c std::string, \c std::string_view, and \c std::vector<std::uint32_t>. Reach
  * for it for command parsers and autocomplete (prefix queries), shared-prefix
  * name lookup, routing tables, and dictionaries. Child ownership through
- * \c unique_ptr lets the destructor and move be cheap (a move steals the graph);
- * copy is a custom deep clone. Every operation is \c noexcept; allocation failure
+ * \c unique_ptr lets the destructor and move be cheap (a move steals the
+ * graph); copy is a custom deep clone. Every operation is \c noexcept exactly
+ * when the value code and the key walk it runs are; allocation failure
  * terminates.
  */
 
@@ -166,7 +167,7 @@ public:
    *
    * @complexity \c O(total nodes) in the source.
    */
-  constexpr trie(trie const& other) noexcept
+  constexpr trie(trie const& other) noexcept(std::is_nothrow_copy_constructible_v<Value>)
       : m_root{clone_subtree(other.m_root.get())}, m_size{other.m_size} {}
 
   /**
@@ -182,7 +183,8 @@ public:
    *
    * @complexity \c O(total nodes) in the source.
    */
-  constexpr auto operator=(trie const& other) noexcept -> trie& {
+  constexpr auto operator=(trie const& other) noexcept(std::is_nothrow_copy_constructible_v<Value>)
+    -> trie& {
     if (this != &other) {
       m_root = clone_subtree(other.m_root.get());
       m_size = other.m_size;
@@ -319,7 +321,9 @@ public:
    */
   template <typename KeyRange>
     requires detail::trie_key<KeyRange, Char>
-  constexpr auto insert(KeyRange&& key, Value value) noexcept -> bool {
+  constexpr auto insert(
+    KeyRange&& key, Value value
+  ) noexcept(std::is_nothrow_move_constructible_v<Value> && nothrow_key_walk_v<KeyRange>) -> bool {
     auto* cur{m_root.get()};
     for (auto const& c : key_span(std::forward<KeyRange>(key))) {
       auto const uc{static_cast<uchar_type>(c)};
@@ -358,7 +362,7 @@ public:
    */
   template <typename KeyRange>
     requires detail::trie_key<KeyRange, Char>
-  constexpr auto erase(KeyRange&& key) noexcept -> bool {
+  constexpr auto erase(KeyRange&& key) noexcept(nothrow_key_walk_v<KeyRange>) -> bool {
     // Record the (parent, edge) pairs along the descent so a removal can prune
     // back up its own path in O(k) instead of rescanning the whole trie.
     std::vector<std::pair<node*, uchar_type>> path;
@@ -406,7 +410,8 @@ public:
    */
   template <typename KeyRange>
     requires detail::trie_key<KeyRange, Char>
-  [[nodiscard]] constexpr auto contains(KeyRange&& key) const noexcept -> bool {
+  [[nodiscard]] constexpr auto contains(KeyRange&& key) const noexcept(nothrow_key_walk_v<KeyRange>)
+    -> bool {
     auto const* const n{descend(key)};
     return n != nullptr && n->value.has_value();
   }
@@ -428,7 +433,8 @@ public:
    */
   template <typename KeyRange>
     requires detail::trie_key<KeyRange, Char>
-  [[nodiscard]] constexpr auto find(KeyRange&& key) noexcept -> Value* {
+  [[nodiscard]] constexpr auto find(KeyRange&& key) noexcept(nothrow_key_walk_v<KeyRange>)
+    -> Value* {
     auto* const n{descend(key)};
     if (n == nullptr || !n->value.has_value()) {
       return nullptr;
@@ -454,7 +460,8 @@ public:
    */
   template <typename KeyRange>
     requires detail::trie_key<KeyRange, Char>
-  [[nodiscard]] constexpr auto find(KeyRange&& key) const noexcept -> Value const* {
+  [[nodiscard]] constexpr auto find(KeyRange&& key) const noexcept(nothrow_key_walk_v<KeyRange>)
+    -> Value const* {
     auto const* const n{descend(key)};
     if (n == nullptr || !n->value.has_value()) {
       return nullptr;
@@ -479,7 +486,8 @@ public:
    */
   template <typename KeyRange>
     requires detail::trie_key<KeyRange, Char>
-  [[nodiscard]] constexpr auto starts_with(KeyRange&& prefix) const noexcept -> bool {
+  [[nodiscard]] constexpr auto
+  starts_with(KeyRange&& prefix) const noexcept(nothrow_key_walk_v<KeyRange>) -> bool {
     return m_size != 0 && descend(std::forward<KeyRange>(prefix)) != nullptr;
   }
 
@@ -534,7 +542,9 @@ public:
    *
    * @complexity \c O(total nodes).
    */
-  [[nodiscard]] friend constexpr auto operator==(trie const& a, trie const& b) noexcept -> bool
+  [[nodiscard]] friend constexpr auto operator==(trie const& a, trie const& b) noexcept(
+    noexcept(std::declval<Value const&>() == std::declval<Value const&>())
+  ) -> bool
     requires std::equality_comparable<Value>
   {
     return a.m_size == b.m_size && nodes_equal(a.m_root.get(), b.m_root.get());
@@ -614,8 +624,9 @@ private:
    * @pre None.
    * @post None. Neither subtree is modified.
    */
-  static constexpr auto nodes_equal(node const* const root_a, node const* const root_b) noexcept
-    -> bool {
+  static constexpr auto nodes_equal(node const* const root_a, node const* const root_b) noexcept(
+    noexcept(std::declval<Value const&>() == std::declval<Value const&>())
+  ) -> bool {
     std::vector<std::pair<node const*, node const*>> work;
     work.emplace_back(root_a, root_b);
     while (!work.empty()) {
@@ -681,97 +692,126 @@ private:
   }
 
   /**
-   * @brief Follows \p key from the root and returns the node it reaches.
+   * @brief The range \c key_span yields for a key of type \p KeyRange.
    *
-   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
-   *         array treated as a null-terminated string.
-   * @param key Sequence of characters to follow.
-   *
-   * @return The node reached by \p key, or \c nullptr when the path is absent.
-   *
-   * @pre A pointer \p key is non-null.
-   * @post None. The trie is not modified.
+   * @tparam KeyRange Key type accepted by the lookups.
    */
   template <typename KeyRange>
-    requires detail::trie_key<KeyRange, Char>
-  [[nodiscard]] constexpr auto descend(KeyRange&& key) noexcept -> node* {
-    auto* cur{m_root.get()};
-    for (auto const& c : key_span(std::forward<KeyRange>(key))) {
-      auto const uc{static_cast<uchar_type>(c)};
-      auto* const slot{cur->children.at(uc)};
-      if (slot == nullptr) {
-        return nullptr;
-      }
-      cur = slot->get();
-    }
-    return cur;
-  }
+  using key_view_t = std::remove_reference_t<decltype(key_span(std::declval<KeyRange>()))>;
 
   /**
-   * @brief Follows \p key from the root and returns the const node it reaches.
+   * @brief Whether walking a \p KeyRange key token by token is nothrow.
    *
-   * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
-   *         array treated as a null-terminated string.
-   * @param key Sequence of characters to follow.
-   *
-   * @return The node reached by \p key, or \c nullptr when the path is absent.
-   *
-   * @pre A pointer \p key is non-null.
-   * @post None. The trie is not modified.
+   * @tparam KeyRange Key type accepted by the lookups.
    */
   template <typename KeyRange>
-    requires detail::trie_key<KeyRange, Char>
-  [[nodiscard]] constexpr auto descend(KeyRange&& key) const noexcept -> node const* {
-    auto const* cur{m_root.get()};
-    for (auto const& c : key_span(std::forward<KeyRange>(key))) {
-      auto const uc{static_cast<uchar_type>(c)};
-      auto const* const slot{cur->children.at(uc)};
-      if (slot == nullptr) {
-        return nullptr;
-      }
-      cur = slot->get();
-    }
-    return cur;
-  }
+  static constexpr bool nothrow_key_walk_v{requires(
+    key_view_t<KeyRange> & view, std::ranges::iterator_t<key_view_t<KeyRange>&> it
+  ){{std::ranges::begin(view)} noexcept;
+  { std::ranges::end(view) } noexcept;
+  { *it } noexcept;
+  { ++it } noexcept;
+  { it != std::ranges::end(view) } noexcept;
+}
+};  // namespace nexenne::container
 
-  /**
-   * @brief Deep-clones the subtree rooted at \p src iteratively.
-   *
-   * Runs an iterative pre-order copy over a stack of (source, freshly-made
-   * destination) pairs, so a deep source cannot overflow the call stack.
-   *
-   * @param src Source subtree root to clone, or \c nullptr.
-   *
-   * @return Owning pointer to the cloned subtree, or \c nullptr when \p src is
-   *         null.
-   *
-   * @pre None.
-   * @post The returned subtree is an independent copy of \p src.
-   */
-  static constexpr auto clone_subtree(node const* const src) noexcept -> std::unique_ptr<node> {
-    if (src == nullptr) {
+/**
+ * @brief Follows \p key from the root and returns the node it reaches.
+ *
+ * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+ *         array treated as a null-terminated string.
+ * @param key Sequence of characters to follow.
+ *
+ * @return The node reached by \p key, or \c nullptr when the path is absent.
+ *
+ * @pre A pointer \p key is non-null.
+ * @post None. The trie is not modified.
+ */
+template <typename KeyRange>
+  requires detail::trie_key<KeyRange, Char>
+[[nodiscard]] constexpr auto descend(KeyRange&& key) noexcept(nothrow_key_walk_v<KeyRange>)
+  -> node* {
+  auto* cur{m_root.get()};
+  for (auto const& c : key_span(std::forward<KeyRange>(key))) {
+    auto const uc{static_cast<uchar_type>(c)};
+    auto* const slot{cur->children.at(uc)};
+    if (slot == nullptr) {
       return nullptr;
     }
-    auto root{std::make_unique<node>()};
-    std::vector<std::pair<node const*, node*>> work;
-    work.emplace_back(src, root.get());
-    while (!work.empty()) {
-      auto const [s, d]{work.back()};
-      work.pop_back();
-      if (s->value.has_value()) {
-        d->value.emplace(*s->value);
-      }
-      for (auto const& [uc, child] : s->children) {
-        if (child != nullptr) {
-          auto fresh{std::make_unique<node>()};
-          auto* const raw{fresh.get()};
-          nexenne::utility::ignore(d->children.try_emplace(uc, std::move(fresh)));
-          work.emplace_back(child.get(), raw);
-        }
+    cur = slot->get();
+  }
+  return cur;
+}
+
+/**
+ * @brief Follows \p key from the root and returns the const node it reaches.
+ *
+ * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
+ *         array treated as a null-terminated string.
+ * @param key Sequence of characters to follow.
+ *
+ * @return The node reached by \p key, or \c nullptr when the path is absent.
+ *
+ * @pre A pointer \p key is non-null.
+ * @post None. The trie is not modified.
+ */
+template <typename KeyRange>
+  requires detail::trie_key<KeyRange, Char>
+[[nodiscard]] constexpr auto descend(KeyRange&& key) const noexcept(nothrow_key_walk_v<KeyRange>)
+  -> node const* {
+  auto const* cur{m_root.get()};
+  for (auto const& c : key_span(std::forward<KeyRange>(key))) {
+    auto const uc{static_cast<uchar_type>(c)};
+    auto const* const slot{cur->children.at(uc)};
+    if (slot == nullptr) {
+      return nullptr;
+    }
+    cur = slot->get();
+  }
+  return cur;
+}
+
+/**
+ * @brief Deep-clones the subtree rooted at \p src iteratively.
+ *
+ * Runs an iterative pre-order copy over a stack of (source, freshly-made
+ * destination) pairs, so a deep source cannot overflow the call stack.
+ *
+ * @param src Source subtree root to clone, or \c nullptr.
+ *
+ * @return Owning pointer to the cloned subtree, or \c nullptr when \p src is
+ *         null.
+ *
+ * @pre None.
+ * @post The returned subtree is an independent copy of \p src.
+ */
+static constexpr auto
+clone_subtree(node const* const src) noexcept(std::is_nothrow_copy_constructible_v<Value>)
+  -> std::unique_ptr<node> {
+  if (src == nullptr) {
+    return nullptr;
+  }
+  auto root{std::make_unique<node>()};
+  std::vector<std::pair<node const*, node*>> work;
+  work.emplace_back(src, root.get());
+  while (!work.empty()) {
+    auto const [s, d]{work.back()};
+    work.pop_back();
+    if (s->value.has_value()) {
+      d->value.emplace(*s->value);
+    }
+    for (auto const& [uc, child] : s->children) {
+      if (child != nullptr) {
+        auto fresh{std::make_unique<node>()};
+        auto* const raw{fresh.get()};
+        nexenne::utility::ignore(d->children.try_emplace(uc, std::move(fresh)));
+        work.emplace_back(child.get(), raw);
       }
     }
-    return root;
   }
-};
+  return root;
+}
+}
+;
 
 }  // namespace nexenne::container

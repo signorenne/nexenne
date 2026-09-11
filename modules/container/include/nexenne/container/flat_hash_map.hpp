@@ -20,9 +20,10 @@
  * (24 bytes for an \c int to \c int map on a 64-bit target). The table is a
  * power of two in size (so the bucket index is a mask, not a modulo), starts at
  * 16 slots, doubles on growth, and rehashes when the live entry count reaches
- * 7/8 of the slots. Reach for it as a general hashable-key map in hot paths; use
- * \c dense_map when the keys are dense integers. Every operation is \c noexcept;
- * allocation failure terminates. \p Value must be move-constructible.
+ * 7/8 of the slots. Reach for it as a general hashable-key map in hot paths;
+ * use \c dense_map when the keys are dense integers. Every operation is
+ * \c noexcept exactly when the element, hasher and key-equality code it runs
+ * is; allocation failure terminates. \p Value must be move-constructible.
  *
  * The value of an entry may be changed in place through an iterator, but the key
  * must not be: a slot caches its key's hash and probe position, so rewriting a
@@ -49,6 +50,8 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <nexenne/container/error.hpp>
 
 namespace nexenne::container {
 
@@ -254,6 +257,28 @@ private:
   [[no_unique_address]] KeyEq m_eq{};
 
   /**
+   * @brief Whether hashing a \p K probe and comparing it with a key is nothrow.
+   *
+   * @tparam K Probe type: the key type itself, or a transparent probe.
+   */
+  template <typename K>
+  static constexpr bool nothrow_probe_v{
+    detail::nothrow_invocable_v<Hash&, K const&>
+    && detail::nothrow_invocable_v<Hash const&, K const&>
+    && detail::nothrow_invocable_v<KeyEq const&, Key const&, K const&>
+  };
+
+  /// @brief Whether moving an entry into another slot is nothrow.
+  static constexpr bool nothrow_relocate_v{
+    std::is_nothrow_move_constructible_v<Key> && std::is_nothrow_move_constructible_v<Value>
+  };
+
+  /// @brief Whether exchanging the stored hasher and key equality is nothrow.
+  static constexpr bool nothrow_swap_functors_v{
+    std::is_nothrow_swappable_v<Hash> && std::is_nothrow_swappable_v<KeyEq>
+  };
+
+  /**
    * @brief The smallest power of two at least \p n, clamped to \c 1.
    *
    * @param n Lower bound the result must reach.
@@ -320,7 +345,7 @@ private:
    * @post A terminating empty slot is guaranteed for \p desired_entries entries; a
    *       rehash, if triggered, invalidates iterators, pointers, and references.
    */
-  auto ensure_capacity_for(size_type const desired_entries) noexcept -> void {
+  auto ensure_capacity_for(size_type const desired_entries) noexcept(nothrow_relocate_v) -> void {
     if (m_slots.empty()) {
       rehash(std::max<size_type>(initial_capacity, next_pow2(desired_entries * 8 / 7 + 1)));
       return;
@@ -343,7 +368,7 @@ private:
    * @post The table holds the same live entries; iterators, pointers, and
    *       references are invalidated.
    */
-  auto rehash(size_type const new_bucket_count) noexcept -> void {
+  auto rehash(size_type const new_bucket_count) noexcept(nothrow_relocate_v) -> void {
     auto old_slots{std::move(m_slots)};
     m_slots = std::vector<slot>(next_pow2(new_bucket_count));  // value-init, no slot copy
     m_size = 0;
@@ -371,7 +396,8 @@ private:
    *      ensured capacity).
    * @post \c size() grew by one and \p key maps to \p value.
    */
-  auto place_absent(std::size_t const h, Key key, Value value) noexcept -> Value& {
+  auto place_absent(std::size_t const h, Key key, Value value) noexcept(nothrow_relocate_v)
+    -> Value& {
     auto index{bucket_of(h)};
     while (m_slots[index].state == slot_state::occupied) {
       index = (index + 1) & (m_slots.size() - 1);
@@ -399,7 +425,7 @@ private:
    * @post None.
    */
   template <typename K>
-  [[nodiscard]] auto probe_slot(K const& key) const noexcept -> slot const* {
+  [[nodiscard]] auto probe_slot(K const& key) const noexcept(nothrow_probe_v<K>) -> slot const* {
     if (m_slots.empty()) {
       return nullptr;
     }
@@ -419,7 +445,9 @@ private:
    * @post None.
    */
   template <typename K>
-  [[nodiscard]] auto probe_slot(K const& key, std::size_t const h) const noexcept -> slot const* {
+  [[nodiscard]] auto probe_slot(
+    K const& key, std::size_t const h
+  ) const noexcept(detail::nothrow_invocable_v<KeyEq const&, Key const&, K const&>) -> slot const* {
     if (m_slots.empty()) {
       return nullptr;
     }
@@ -446,7 +474,7 @@ private:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] auto find_slot(Key const& key) const noexcept -> slot const* {
+  [[nodiscard]] auto find_slot(Key const& key) const noexcept(nothrow_probe_v<Key>) -> slot const* {
     return probe_slot(key);
   }
 
@@ -483,7 +511,7 @@ private:
    * @post On \c true \c size() shrank by one; entries that followed the erased
    *       one in its probe run may have moved back.
    */
-  auto erase_slot(slot const* const found) noexcept -> bool {
+  auto erase_slot(slot const* const found) noexcept(nothrow_relocate_v) -> bool {
     if (found == nullptr) {
       return false;
     }
@@ -659,7 +687,9 @@ public:
    * @pre None.
    * @post \c empty() is \c true and \c capacity() is zero.
    */
-  flat_hash_map() noexcept = default;
+  flat_hash_map() noexcept(
+    std::is_nothrow_default_constructible_v<Hash> && std::is_nothrow_default_constructible_v<KeyEq>
+  ) = default;
 
   /**
    * @brief Constructs an empty map sized for \p expected_entries.
@@ -671,7 +701,9 @@ public:
    * @post \c empty() is \c true and \c capacity() admits at least
    *       \p expected_entries entries without rehashing.
    */
-  explicit flat_hash_map(size_type const expected_entries) noexcept {
+  explicit flat_hash_map(size_type const expected_entries) noexcept(
+    std::is_nothrow_default_constructible_v<Hash> && std::is_nothrow_default_constructible_v<KeyEq>
+  ) {
     if (expected_entries > 0) {
       rehash(next_pow2(expected_entries * 8 / 7 + 1));
     }
@@ -700,7 +732,10 @@ public:
    * @post This map holds \p other's former entries; \p other is empty, with no
    *       allocated storage and a default-constructed hasher and predicate.
    */
-  flat_hash_map(flat_hash_map&& other) noexcept {
+  flat_hash_map(flat_hash_map&& other) noexcept(
+    std::is_nothrow_default_constructible_v<Hash> && std::is_nothrow_default_constructible_v<KeyEq>
+    && nothrow_swap_functors_v
+  ) {
     swap(other);
   }
 
@@ -714,7 +749,7 @@ public:
    * @pre None.
    * @post This map holds what \p other held; a moved-from source is empty.
    */
-  auto operator=(flat_hash_map other) noexcept -> flat_hash_map& {
+  auto operator=(flat_hash_map other) noexcept(nothrow_swap_functors_v) -> flat_hash_map& {
     swap(other);
     return *this;
   }
@@ -799,7 +834,7 @@ public:
    * @post The map holds up to \p n entries without a rehash; a rehash here, if
    *       triggered, invalidates iterators, pointers, and references.
    */
-  auto reserve(size_type const n) noexcept -> void {
+  auto reserve(size_type const n) noexcept(nothrow_relocate_v) -> void {
     if (n == 0) {
       return;
     }
@@ -834,7 +869,7 @@ public:
    * @post \c size() is unchanged; when the table shrank, iterators, pointers,
    *       and references are invalidated.
    */
-  auto shrink_to_fit() noexcept -> void {
+  auto shrink_to_fit() noexcept(nothrow_relocate_v) -> void {
     if (m_size == 0) {
       m_slots.clear();
       m_slots.shrink_to_fit();
@@ -856,7 +891,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  auto swap(flat_hash_map& other) noexcept -> void {
+  auto swap(flat_hash_map& other) noexcept(nothrow_swap_functors_v) -> void {
     using std::swap;
     m_slots.swap(other.m_slots);
     swap(m_size, other.m_size);
@@ -873,7 +908,7 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend auto swap(flat_hash_map& a, flat_hash_map& b) noexcept -> void {
+  friend auto swap(flat_hash_map& a, flat_hash_map& b) noexcept(nothrow_swap_functors_v) -> void {
     a.swap(b);
   }
 
@@ -895,7 +930,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto insert(Key key, Value value) noexcept -> bool {
+  auto insert(Key key, Value value) noexcept(nothrow_probe_v<Key> && nothrow_relocate_v) -> bool {
     auto const h{m_hash(key)};
     if (probe_slot(key, h) != nullptr) {
       return false;
@@ -921,7 +956,9 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto insert_or_assign(Key key, Value value) noexcept -> bool {
+  auto insert_or_assign(Key key, Value value) noexcept(
+    nothrow_probe_v<Key> && nothrow_relocate_v && std::is_nothrow_move_assignable_v<Value>
+  ) -> bool {
     auto const h{m_hash(key)};
     if (auto const* const found{probe_slot(key, h)}) {
       mutable_slot(found).value().second = std::move(value);
@@ -952,7 +989,9 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<Value, Args...>
-  auto emplace(Key key, Args&&... args) noexcept -> bool {
+  auto emplace(Key key, Args&&... args) noexcept(
+    nothrow_probe_v<Key> && nothrow_relocate_v && std::is_nothrow_constructible_v<Value, Args...>
+  ) -> bool {
     auto const h{m_hash(key)};
     if (probe_slot(key, h) != nullptr) {
       return false;
@@ -986,7 +1025,9 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<Value, Args...>
-  auto try_emplace(Key key, Args&&... args) noexcept -> bool {
+  auto try_emplace(Key key, Args&&... args) noexcept(
+    nothrow_probe_v<Key> && nothrow_relocate_v && std::is_nothrow_constructible_v<Value, Args...>
+  ) -> bool {
     auto const h{m_hash(key)};
     if (probe_slot(key, h) != nullptr) {
       return false;
@@ -1017,7 +1058,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto erase(Key const& key) noexcept -> bool {
+  auto erase(Key const& key) noexcept(nothrow_probe_v<Key> && nothrow_relocate_v) -> bool {
     return erase_slot(find_slot(key));
   }
 
@@ -1046,7 +1087,7 @@ public:
    */
   template <typename K>
     requires detail::transparent_hash_pair<Hash, KeyEq>
-  auto erase(K const& key) noexcept -> bool {
+  auto erase(K const& key) noexcept(nothrow_probe_v<K> && nothrow_relocate_v) -> bool {
     return erase_slot(probe_slot(key));
   }
 
@@ -1063,7 +1104,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto find(Key const& key) noexcept -> Value* {
+  [[nodiscard]] auto find(Key const& key) noexcept(nothrow_probe_v<Key>) -> Value* {
     auto const* const found{find_slot(key)};
     if (found == nullptr) {
       return nullptr;
@@ -1084,7 +1125,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto find(Key const& key) const noexcept -> Value const* {
+  [[nodiscard]] auto find(Key const& key) const noexcept(nothrow_probe_v<Key>) -> Value const* {
     auto const* const found{find_slot(key)};
     return found == nullptr ? nullptr : std::addressof(found->value().second);
   }
@@ -1101,7 +1142,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto contains(Key const& key) const noexcept -> bool {
+  [[nodiscard]] auto contains(Key const& key) const noexcept(nothrow_probe_v<Key>) -> bool {
     return find_slot(key) != nullptr;
   }
 
@@ -1117,7 +1158,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto count(Key const& key) const noexcept -> size_type {
+  [[nodiscard]] auto count(Key const& key) const noexcept(nothrow_probe_v<Key>) -> size_type {
     return contains(key) ? size_type{1} : size_type{0};
   }
 
@@ -1143,7 +1184,7 @@ public:
    */
   template <typename K>
     requires detail::transparent_hash_pair<Hash, KeyEq>
-  [[nodiscard]] auto find(K const& key) noexcept -> Value* {
+  [[nodiscard]] auto find(K const& key) noexcept(nothrow_probe_v<K>) -> Value* {
     auto const* const found{probe_slot(key)};
     if (found == nullptr) {
       return nullptr;
@@ -1167,7 +1208,7 @@ public:
    */
   template <typename K>
     requires detail::transparent_hash_pair<Hash, KeyEq>
-  [[nodiscard]] auto find(K const& key) const noexcept -> Value const* {
+  [[nodiscard]] auto find(K const& key) const noexcept(nothrow_probe_v<K>) -> Value const* {
     auto const* const found{probe_slot(key)};
     return found == nullptr ? nullptr : std::addressof(found->value().second);
   }
@@ -1188,7 +1229,7 @@ public:
    */
   template <typename K>
     requires detail::transparent_hash_pair<Hash, KeyEq>
-  [[nodiscard]] auto contains(K const& key) const noexcept -> bool {
+  [[nodiscard]] auto contains(K const& key) const noexcept(nothrow_probe_v<K>) -> bool {
     return probe_slot(key) != nullptr;
   }
 
@@ -1208,7 +1249,7 @@ public:
    */
   template <typename K>
     requires detail::transparent_hash_pair<Hash, KeyEq>
-  [[nodiscard]] auto count(K const& key) const noexcept -> size_type {
+  [[nodiscard]] auto count(K const& key) const noexcept(nothrow_probe_v<K>) -> size_type {
     return contains(key) ? size_type{1} : size_type{0};
   }
 
@@ -1224,7 +1265,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto at(Key const& key) noexcept -> Value* {
+  [[nodiscard]] auto at(Key const& key) noexcept(nothrow_probe_v<Key>) -> Value* {
     return find(key);
   }
 
@@ -1240,7 +1281,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto at(Key const& key) const noexcept -> Value const* {
+  [[nodiscard]] auto at(Key const& key) const noexcept(nothrow_probe_v<Key>) -> Value const* {
     return find(key);
   }
 
@@ -1261,7 +1302,7 @@ public:
    */
   template <typename K>
     requires detail::transparent_hash_pair<Hash, KeyEq>
-  [[nodiscard]] auto at(K const& key) noexcept -> Value* {
+  [[nodiscard]] auto at(K const& key) noexcept(nothrow_probe_v<K>) -> Value* {
     return find(key);
   }
 
@@ -1281,7 +1322,7 @@ public:
    */
   template <typename K>
     requires detail::transparent_hash_pair<Hash, KeyEq>
-  [[nodiscard]] auto at(K const& key) const noexcept -> Value const* {
+  [[nodiscard]] auto at(K const& key) const noexcept(nothrow_probe_v<K>) -> Value const* {
     return find(key);
   }
 
@@ -1301,7 +1342,9 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto operator[](Key key) noexcept -> Value&
+  auto operator[](Key key) noexcept(
+    nothrow_probe_v<Key> && nothrow_relocate_v && std::is_nothrow_default_constructible_v<Value>
+  ) -> Value&
     requires std::default_initializable<Value>
   {
     auto const h{m_hash(key)};
@@ -1393,8 +1436,9 @@ public:
    *
    * @complexity \c O(n) average.
    */
-  [[nodiscard]] friend auto operator==(flat_hash_map const& a, flat_hash_map const& b) noexcept
-    -> bool
+  [[nodiscard]] friend auto operator==(flat_hash_map const& a, flat_hash_map const& b) noexcept(
+    nothrow_probe_v<Key> && noexcept(std::declval<Value const&>() == std::declval<Value const&>())
+  ) -> bool
     requires std::equality_comparable<Value>
   {
     if (a.m_size != b.m_size) {

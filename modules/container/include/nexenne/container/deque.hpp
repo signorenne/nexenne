@@ -15,9 +15,11 @@
  * Reach for it as a work queue or sliding window where you add and remove at
  * both ends and want contiguous random access. It is copyable when \p T is (a
  * deep copy that re-packs from the front) and always movable. Allocation uses
- * the over-aligned global allocation function, so an over-aligned \p T is handled
- * correctly. Every operation is \c noexcept: a boundary failure (pop from empty)
- * returns \c result, and allocation failure terminates. It is not thread-safe.
+ * the over-aligned global allocation function, so an over-aligned \p T is
+ * handled correctly. Every operation is \c noexcept exactly when the element
+ * code it runs (a copy, move or construction) is: a boundary failure (pop from
+ * empty) returns \c result, and allocation failure terminates. It is not
+ * thread-safe.
  */
 
 #include <algorithm>
@@ -94,7 +96,7 @@ private:
    * @post \c capacity() is at least \p want rounded up to a power of two, or the
    *       process terminated.
    */
-  auto grow(size_type const want) noexcept -> void {
+  auto grow(size_type const want) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     if (want <= m_cap) {
       return;
     }
@@ -476,7 +478,7 @@ public:
    * @pre None.
    * @post \c size() equals \c init.size() and ordering matches \p init.
    */
-  deque(std::initializer_list<T> const init) noexcept {
+  deque(std::initializer_list<T> const init) noexcept(std::is_nothrow_copy_constructible_v<T>) {
     if (init.size() > 0) {
       grow(init.size());
       for (auto const& value : init) {
@@ -493,7 +495,7 @@ public:
    * @pre None.
    * @post This deque holds copies of \p other's elements in the same order.
    */
-  deque(deque const& other) noexcept
+  deque(deque const& other) noexcept(std::is_nothrow_copy_constructible_v<T>)
     requires std::copy_constructible<T>
   {
     if (other.m_size > 0) {
@@ -653,7 +655,7 @@ public:
    * @post \c capacity() is at least \p n; references are invalidated if a
    *       reallocation occurred.
    */
-  auto reserve(size_type const n) noexcept -> void {
+  auto reserve(size_type const n) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     grow(n);
   }
 
@@ -773,7 +775,9 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  auto emplace_back(Args&&... args) noexcept -> reference {
+  auto emplace_back(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
+  ) -> reference {
     if (m_size >= m_cap) {
       // Cold grow path. Stage the element in raw storage with the same
       // direct-initialization semantics as the in-capacity path's
@@ -816,7 +820,9 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  auto emplace_front(Args&&... args) noexcept -> reference {
+  auto emplace_front(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
+  ) -> reference {
     if (m_size >= m_cap) {
       // Cold grow path. Stage with std::construct_at semantics (see emplace_back)
       // so both paths build an identical element, and so an argument aliasing an
@@ -850,7 +856,9 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto push_back(T const& value) noexcept -> void {
+  auto push_back(T const& value) noexcept(
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_move_constructible_v<T>
+  ) -> void {
     emplace_back(value);
   }
 
@@ -864,7 +872,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto push_back(T&& value) noexcept -> void {
+  auto push_back(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     emplace_back(std::move(value));
   }
 
@@ -878,7 +886,9 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto push_front(T const& value) noexcept -> void {
+  auto push_front(T const& value) noexcept(
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_move_constructible_v<T>
+  ) -> void {
     emplace_front(value);
   }
 
@@ -892,7 +902,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto push_front(T&& value) noexcept -> void {
+  auto push_front(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     emplace_front(std::move(value));
   }
 
@@ -908,7 +918,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto pop_back() noexcept -> result<T> {
+  [[nodiscard]] auto pop_back() noexcept(std::is_nothrow_move_constructible_v<T>) -> result<T> {
     if (m_size == 0) {
       return std::unexpected{container_error::empty};
     }
@@ -931,7 +941,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] auto pop_front() noexcept -> result<T> {
+  [[nodiscard]] auto pop_front() noexcept(std::is_nothrow_move_constructible_v<T>) -> result<T> {
     if (m_size == 0) {
       return std::unexpected{container_error::empty};
     }
@@ -1058,7 +1068,9 @@ public:
    *
    * @complexity \c O(size).
    */
-  [[nodiscard]] friend auto operator==(deque const& a, deque const& b) noexcept -> bool
+  [[nodiscard]] friend auto operator==(deque const& a, deque const& b) noexcept(
+    noexcept(std::declval<T const&>() == std::declval<T const&>())
+  ) -> bool
     requires std::equality_comparable<T>
   {
     return a.m_size == b.m_size && std::equal(a.begin(), a.end(), b.begin(), b.end());
@@ -1080,8 +1092,9 @@ public:
    * @complexity \c O(size).
    */
   template <std::three_way_comparable U = T>
-  [[nodiscard]] friend auto operator<=>(deque const& a, deque const& b) noexcept
-    -> std::compare_three_way_result_t<U> {
+  [[nodiscard]] friend auto operator<=>(deque const& a, deque const& b) noexcept(
+    noexcept(std::declval<T const&>() <=> std::declval<T const&>())
+  ) -> std::compare_three_way_result_t<U> {
     return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
   }
 };

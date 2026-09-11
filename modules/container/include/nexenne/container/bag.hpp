@@ -10,15 +10,16 @@
  * cost of not preserving order. Duplicates are allowed.
  *
  * Against \c std::vector it makes the swap-pop erase explicit (\c erase_at,
- * \c erase_first, \c erase_all) and drops the mid-range insert API that only makes
- * sense when order matters. Against \c std::multiset it is unordered (no element
- * comparison needed) and contiguous, so iteration is cache-friendly and
+ * \c erase_first, \c erase_all) and drops the mid-range insert API that only
+ * makes sense when order matters. Against \c std::multiset it is unordered (no
+ * element comparison needed) and contiguous, so iteration is cache-friendly and
  * \c data() / \c span() plug straight into \c std::ranges algorithms. Reach for
  * it for active or dirty entity lists in an update loop, pending work where
  * order is not part of the contract, and membership bookkeeping that tolerates
- * duplicates. Every operation is \c noexcept and \c constexpr; allocation
- * failure terminates. It holds only a \c std::vector, so the rule of zero
- * applies.
+ * duplicates. Every operation is \c constexpr, and \c noexcept exactly when the
+ * element code it runs (a copy, move, construction, assignment or comparison)
+ * is; allocation failure terminates. It holds only a \c std::vector, so the
+ * rule of zero applies.
  */
 
 #include <algorithm>
@@ -63,6 +64,21 @@ private:
   std::vector<T> m_data;
 
   /**
+   * @brief Whether walking an \p It range and building each element is nothrow.
+   *
+   * True when building a \c T from each element, dereferencing,
+   * advancing, comparing and measuring the iterators are all \c noexcept.
+   *
+   * @tparam It Iterator type of the range.
+   */
+  template <typename It>
+  static constexpr bool nothrow_range_v{
+    std::is_nothrow_constructible_v<T, std::iter_reference_t<It>> && noexcept(*std::declval<It&>())
+    && noexcept(++std::declval<It&>()) && noexcept(std::declval<It&>() != std::declval<It&>())
+    && noexcept(std::distance(std::declval<It>(), std::declval<It>()))
+  };
+
+  /**
    * @brief Removes the element at \p index by moving the last element in.
    *
    * Moves the last element into \p index's slot and pops the back, so the
@@ -75,7 +91,8 @@ private:
    *
    * @complexity \c O(1).
    */
-  constexpr auto swap_pop(size_type const index) noexcept -> void {
+  constexpr auto swap_pop(size_type const index) noexcept(std::is_nothrow_move_assignable_v<T>)
+    -> void {
     auto const last{m_data.size() - 1};
     if (index != last) {
       m_data[index] = std::move(m_data[last]);
@@ -100,7 +117,10 @@ public:
    * @pre None.
    * @post \c size() equals \c init.size().
    */
-  constexpr bag(std::initializer_list<T> const init) noexcept : m_data{init} {}
+  constexpr bag(
+    std::initializer_list<T> const init
+  ) noexcept(std::is_nothrow_copy_constructible_v<T>)
+      : m_data{init} {}
 
   /**
    * @brief Constructs from the range \c [first, last).
@@ -113,7 +133,7 @@ public:
    * @post \c size() equals \c std::distance(first, last).
    */
   template <std::input_iterator It>
-  constexpr bag(It first, It last) noexcept : m_data(first, last) {}
+  constexpr bag(It first, It last) noexcept(nothrow_range_v<It>) : m_data(first, last) {}
 
   // Rule of zero: copy, move, and destructor are defaulted.
 
@@ -173,7 +193,10 @@ public:
    * @pre None.
    * @post \c capacity() is at least \p n.
    */
-  constexpr auto reserve(size_type const n) noexcept -> void {
+  constexpr auto reserve(
+    size_type const n
+  ) noexcept((std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>))
+    -> void {
     m_data.reserve(n);
   }
 
@@ -193,7 +216,9 @@ public:
    * @pre None.
    * @post Element values are unchanged.
    */
-  constexpr auto shrink_to_fit() noexcept -> void {
+  constexpr auto shrink_to_fit() noexcept((
+    std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>
+  )) -> void {
     m_data.shrink_to_fit();
   }
 
@@ -232,7 +257,9 @@ public:
    * @pre None.
    * @post \c size() equals \c init.size(); prior contents are discarded.
    */
-  constexpr auto assign(std::initializer_list<T> const init) noexcept -> void {
+  constexpr auto assign(std::initializer_list<T> const init) noexcept(
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
+  ) -> void {
     m_data.assign(init);
   }
 
@@ -245,7 +272,9 @@ public:
    * @pre None.
    * @post \c size() equals \p count and every element equals \p value.
    */
-  constexpr auto assign(size_type const count, T const& value) noexcept -> void {
+  constexpr auto assign(size_type const count, T const& value) noexcept(
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
+  ) -> void {
     m_data.assign(count, value);
   }
 
@@ -261,7 +290,9 @@ public:
    *       discarded.
    */
   template <std::input_iterator It>
-  constexpr auto assign(It const first, It const last) noexcept -> void {
+  constexpr auto assign(It const first, It const last) noexcept(
+    nothrow_range_v<It> && std::is_nothrow_assignable_v<T&, std::iter_reference_t<It>>
+  ) -> void {
     m_data.assign(first, last);
   }
 
@@ -275,7 +306,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  constexpr auto insert(T const& value) noexcept -> void {
+  constexpr auto insert(T const& value) noexcept(std::is_nothrow_copy_constructible_v<T>) -> void {
     m_data.push_back(value);
   }
 
@@ -289,7 +320,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  constexpr auto insert(T&& value) noexcept -> void {
+  constexpr auto insert(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     m_data.push_back(std::move(value));
   }
 
@@ -308,7 +339,10 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  constexpr auto emplace(Args&&... args) noexcept -> T& {
+  constexpr auto emplace(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<T, Args...>
+    && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
+  ) -> T& {
     return m_data.emplace_back(std::forward<Args>(args)...);
   }
 
@@ -326,7 +360,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto erase_at(size_type const index) noexcept -> result<void>
+  [[nodiscard]] constexpr auto
+  erase_at(size_type const index) noexcept(std::is_nothrow_move_assignable_v<T>) -> result<void>
     requires std::assignable_from<T&, T>
   {
     if (index >= m_data.size()) {
@@ -348,7 +383,10 @@ public:
    *
    * @complexity \c O(size).
    */
-  constexpr auto erase_first(T const& value) noexcept -> bool
+  constexpr auto erase_first(T const& value) noexcept(
+    noexcept(std::declval<T const&>() == std::declval<T const&>())
+    && std::is_nothrow_move_assignable_v<T>
+  ) -> bool
     requires(std::equality_comparable<T> && std::assignable_from<T&, T>)
   {
     auto const found{std::find(m_data.begin(), m_data.end(), value)};
@@ -377,7 +415,10 @@ public:
    *
    * @complexity \c O(size).
    */
-  constexpr auto erase_all(T const& value) noexcept -> size_type
+  constexpr auto erase_all(T const& value) noexcept(
+    noexcept(std::declval<T const&>() == std::declval<T const&>())
+    && std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>
+  ) -> size_type
     requires(
       std::equality_comparable<T> && std::move_constructible<T> && std::assignable_from<T&, T>
     )

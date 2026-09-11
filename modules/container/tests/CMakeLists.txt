@@ -23,6 +23,7 @@ nexenne_add_module_tests(container
         test_lru_cache.cpp
         test_mpmc_queue.cpp
         test_mpsc_queue.cpp
+        test_nothrow.cpp
         test_object_pool.cpp
         test_ring_buffer.cpp
         test_scratch_pad.cpp

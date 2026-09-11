@@ -13,7 +13,8 @@
  * Reach for it on hot paths that can prove an upper bound on element count and
  * want zero allocation traffic (contact manifolds, scratch queues, command
  * builders), and in freestanding contexts where \c new is unavailable. Every
- * operation is \c noexcept; capacity exhaustion surfaces as
+ * operation is \c noexcept exactly when the element code it runs (a copy, move
+ * or construction) is; capacity exhaustion surfaces as
  * \c container_error::full. Construction, element access, and comparison are
  * \c constexpr, so a \c static_vector can be built and queried at compile time;
  * \c data() / \c span() / the iterators expose the contiguous live range for
@@ -146,7 +147,9 @@ public:
    * @post \c size() is the smaller of \c init.size() and \p N, holding the
    *       first that many elements of \p init.
    */
-  constexpr static_vector(std::initializer_list<T> const init) noexcept {
+  constexpr static_vector(
+    std::initializer_list<T> const init
+  ) noexcept(std::is_nothrow_copy_constructible_v<T>) {
     auto const count{init.size() < N ? init.size() : N};
     auto it{init.begin()};
     for (size_type i{0}; i < count; ++i, ++it) {
@@ -164,7 +167,9 @@ public:
    * @post This vector holds copies of \p other's elements; \p other is
    *       unchanged.
    */
-  constexpr static_vector(static_vector const& other) noexcept
+  constexpr static_vector(
+    static_vector const& other
+  ) noexcept(std::is_nothrow_copy_constructible_v<T>)
     requires std::copy_constructible<T>
   {
     for (size_type i{0}; i < other.m_size; ++i) {
@@ -181,7 +186,7 @@ public:
    * @pre None.
    * @post This vector holds \p other's former elements; \p other is empty.
    */
-  constexpr static_vector(static_vector&& other) noexcept {
+  constexpr static_vector(static_vector&& other) noexcept(std::is_nothrow_move_constructible_v<T>) {
     for (size_type i{0}; i < other.m_size; ++i) {
       std::construct_at(slot_at(i), std::move(*other.slot_at(i)));
       std::destroy_at(other.slot_at(i));
@@ -202,7 +207,9 @@ public:
    * @pre None.
    * @post This vector holds \p other's elements.
    */
-  constexpr auto operator=(static_vector other) noexcept -> static_vector& {
+  constexpr auto operator=(static_vector other) noexcept(
+    std::is_nothrow_swappable_v<T> && std::is_nothrow_move_constructible_v<T>
+  ) -> static_vector& {
     swap(other);
     return *this;
   }
@@ -287,7 +294,9 @@ public:
    *
    * @complexity \c O(size).
    */
-  constexpr auto swap(static_vector& other) noexcept -> void {
+  constexpr auto swap(
+    static_vector& other
+  ) noexcept(std::is_nothrow_swappable_v<T> && std::is_nothrow_move_constructible_v<T>) -> void {
     if (this == &other) {
       return;
     }
@@ -320,7 +329,9 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend constexpr auto swap(static_vector& a, static_vector& b) noexcept -> void {
+  friend constexpr auto swap(
+    static_vector& a, static_vector& b
+  ) noexcept(std::is_nothrow_swappable_v<T> && std::is_nothrow_move_constructible_v<T>) -> void {
     a.swap(b);
   }
 
@@ -350,7 +361,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto push_back(T const& value) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto
+  push_back(T const& value) noexcept(std::is_nothrow_copy_constructible_v<T>) -> result<void> {
     return emplace_back(value);
   }
 
@@ -367,7 +379,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto push_back(T&& value) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto
+  push_back(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) -> result<void> {
     return emplace_back(std::move(value));
   }
 
@@ -386,7 +399,9 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  [[nodiscard]] constexpr auto emplace_back(Args&&... args) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto
+  emplace_back(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
+    -> result<void> {
     if (m_size == N) {
       return std::unexpected{container_error::full};
     }
@@ -683,8 +698,9 @@ public:
    *
    * @complexity \c O(size).
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(static_vector const& a, static_vector const& b) noexcept -> bool
+  [[nodiscard]] friend constexpr auto operator==(
+    static_vector const& a, static_vector const& b
+  ) noexcept(noexcept(std::declval<T const&>() == std::declval<T const&>())) -> bool
     requires std::equality_comparable<T>
   {
     if (a.m_size != b.m_size) {
@@ -712,8 +728,9 @@ public:
    * @complexity \c O(size).
    */
   template <std::three_way_comparable U = T>
-  [[nodiscard]] friend constexpr auto
-  operator<=>(static_vector const& a, static_vector const& b) noexcept
+  [[nodiscard]] friend constexpr auto operator<=>(
+    static_vector const& a, static_vector const& b
+  ) noexcept(noexcept(std::declval<T const&>() <=> std::declval<T const&>()))
     -> std::compare_three_way_result_t<U> {
     auto const shared{a.m_size < b.m_size ? a.m_size : b.m_size};
     for (size_type i{0}; i < shared; ++i) {

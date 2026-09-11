@@ -70,14 +70,15 @@ plain pointer swap cannot work while either side is inline.
 
 ** Access and failure
 
-All non-allocating operations are =noexcept=. A growth calls =::operator new=
-and, per the module policy, treats allocation failure as fatal rather than
-throwing, so =push_back= returns =void=. =pop_back= returns =result<void>= and
-reports =container_error::empty=. =operator[]= is unchecked; =at= is checked
-and returns =result<T*>= (=result<T const*>= when const), a pointer to the
-element or =container_error::out_of_range= past =size()=, while =front= and
-=back= return a =nullptr= pointer when empty. =data()=, =span()=,
-and the iterators expose the contiguous live range.
+Every operation is =noexcept= exactly when the element code it runs (a copy,
+move or construction) is. A growth calls =::operator new= and, per the module
+policy, treats allocation failure as fatal rather than throwing, so =push_back=
+returns =void=. =pop_back= returns =result<void>= and reports
+=container_error::empty=. =operator[]= is unchecked; =at= is checked and returns
+=result<T*>= (=result<T const*>= when const), a pointer to the element or
+=container_error::out_of_range= past =size()=, while =front= and =back= return a
+=nullptr= pointer when empty. =data()=, =span()=, and the iterators expose the
+contiguous live range.
 
 * Complexity
 

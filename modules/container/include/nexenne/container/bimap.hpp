@@ -13,11 +13,12 @@
  * pair is stored on both sides.
  *
  * Insertion keeps the two-sided uniqueness invariant: \c insert fails (changing
- * nothing) if either side is already bound, because a partial insert would break
- * the invariant; \c replace instead evicts any existing entry on either side and
- * then binds the new pair, returning how many entries it displaced. Reach for it
- * for two-way registries: entity/name, asset id/path, enum/string. Every
- * operation is \c noexcept; allocation failure terminates.
+ * nothing) if either side is already bound, because a partial insert would
+ * break the invariant; \c replace instead evicts any existing entry on either
+ * side and then binds the new pair, returning how many entries it displaced.
+ * Reach for it for two-way registries: entity/name, asset id/path, enum/string.
+ * Every operation is \c noexcept exactly when the key, hasher and key-equality
+ * code it runs is; allocation failure terminates.
  */
 
 #include <cstddef>
@@ -65,7 +66,10 @@ public:
    * @pre None.
    * @post \c empty() is \c true.
    */
-  constexpr bimap() noexcept = default;
+  constexpr bimap() noexcept(
+    std::is_nothrow_default_constructible_v<decltype(m_l_to_r)>
+    && std::is_nothrow_default_constructible_v<decltype(m_r_to_l)>
+  ) = default;
 
   /**
    * @brief Constructs an empty bimap with storage for \p expected_entries.
@@ -76,7 +80,10 @@ public:
    * @post \c empty() is \c true and \c capacity() is at least
    *       \p expected_entries.
    */
-  explicit bimap(size_type const expected_entries) noexcept
+  explicit bimap(size_type const expected_entries) noexcept(
+    std::is_nothrow_constructible_v<decltype(m_l_to_r), size_type>
+    && std::is_nothrow_constructible_v<decltype(m_r_to_l), size_type>
+  )
       : m_l_to_r{expected_entries}, m_r_to_l{expected_entries} {}
 
   /**
@@ -139,7 +146,9 @@ public:
    * @pre None.
    * @post Capacity is at least \p n; existing bindings are preserved.
    */
-  auto reserve(size_type const n) noexcept -> void {
+  auto reserve(size_type const n) noexcept(
+    noexcept(m_l_to_r.reserve(n)) && noexcept(m_r_to_l.reserve(n))
+  ) -> void {
     m_l_to_r.reserve(n);
     m_r_to_l.reserve(n);
   }
@@ -161,7 +170,9 @@ public:
    * @pre None.
    * @post \c size() is unchanged; capacity may shrink toward \c size().
    */
-  auto shrink_to_fit() noexcept -> void {
+  auto
+  shrink_to_fit() noexcept(noexcept(m_l_to_r.shrink_to_fit()) && noexcept(m_r_to_l.shrink_to_fit()))
+    -> void {
     m_l_to_r.shrink_to_fit();
     m_r_to_l.shrink_to_fit();
   }
@@ -174,7 +185,9 @@ public:
    * @pre None.
    * @post This bimap holds \p other's former pairs and vice versa.
    */
-  auto swap(bimap& other) noexcept -> void {
+  auto swap(bimap& other) noexcept(
+    noexcept(m_l_to_r.swap(other.m_l_to_r)) && noexcept(m_r_to_l.swap(other.m_r_to_l))
+  ) -> void {
     m_l_to_r.swap(other.m_l_to_r);
     m_r_to_l.swap(other.m_r_to_l);
   }
@@ -188,7 +201,7 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend auto swap(bimap& a, bimap& b) noexcept -> void {
+  friend auto swap(bimap& a, bimap& b) noexcept(noexcept(a.swap(b))) -> void {
     a.swap(b);
   }
 
@@ -214,7 +227,11 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto insert(Left left, Right right) noexcept -> bool {
+  auto insert(Left left, Right right) noexcept(
+    noexcept(m_l_to_r.contains(left)) && noexcept(m_r_to_l.contains(right))
+    && noexcept(m_l_to_r.insert(left, right))
+    && noexcept(m_r_to_l.insert(std::move(right), std::move(left)))
+  ) -> bool {
     if (m_l_to_r.contains(left) || m_r_to_l.contains(right)) {
       return false;
     }
@@ -238,7 +255,12 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto replace(Left left, Right right) noexcept -> size_type {
+  auto replace(Left left, Right right) noexcept(
+    noexcept(m_l_to_r.find(left)) && noexcept(m_r_to_l.find(right))
+    && noexcept(m_r_to_l.erase(right)) && noexcept(m_l_to_r.erase(left))
+    && noexcept(m_l_to_r.insert_or_assign(left, right))
+    && noexcept(m_r_to_l.insert_or_assign(std::move(right), std::move(left)))
+  ) -> size_type {
     size_type displaced{0};
     // Evict the left side's old binding (and its reverse), if any.
     if (auto const* const old_right{m_l_to_r.find(left)}) {
@@ -269,7 +291,11 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto erase_left(Left const& left) noexcept -> bool {
+  auto erase_left(Left const& left) noexcept(
+    std::is_nothrow_copy_constructible_v<Left> && std::is_nothrow_copy_constructible_v<Right>
+    && noexcept(m_l_to_r.find(left)) && noexcept(m_l_to_r.erase(left))
+    && noexcept(m_r_to_l.erase(std::declval<Right const&>()))
+  ) -> bool {
     auto const* const right{m_l_to_r.find(left)};
     if (right == nullptr) {
       return false;
@@ -296,7 +322,11 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto erase_right(Right const& right) noexcept -> bool {
+  auto erase_right(Right const& right) noexcept(
+    std::is_nothrow_copy_constructible_v<Left> && std::is_nothrow_copy_constructible_v<Right>
+    && noexcept(m_r_to_l.find(right)) && noexcept(m_r_to_l.erase(right))
+    && noexcept(m_l_to_r.erase(std::declval<Left const&>()))
+  ) -> bool {
     auto const* const left{m_r_to_l.find(right)};
     if (left == nullptr) {
       return false;
@@ -323,7 +353,8 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto find_by_left(Left const& left) const noexcept -> Right const* {
+  [[nodiscard]] auto find_by_left(Left const& left) const noexcept(noexcept(m_l_to_r.find(left)))
+    -> Right const* {
     return m_l_to_r.find(left);
   }
 
@@ -340,7 +371,8 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto find_by_right(Right const& right) const noexcept -> Left const* {
+  [[nodiscard]] auto
+  find_by_right(Right const& right) const noexcept(noexcept(m_r_to_l.find(right))) -> Left const* {
     return m_r_to_l.find(right);
   }
 
@@ -356,7 +388,8 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto contains_left(Left const& left) const noexcept -> bool {
+  [[nodiscard]] auto
+  contains_left(Left const& left) const noexcept(noexcept(m_l_to_r.contains(left))) -> bool {
     return m_l_to_r.contains(left);
   }
 
@@ -372,7 +405,8 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto contains_right(Right const& right) const noexcept -> bool {
+  [[nodiscard]] auto
+  contains_right(Right const& right) const noexcept(noexcept(m_r_to_l.contains(right))) -> bool {
     return m_r_to_l.contains(right);
   }
 
@@ -437,7 +471,8 @@ public:
    *
    * @complexity \c O(n) average.
    */
-  [[nodiscard]] friend auto operator==(bimap const& a, bimap const& b) noexcept -> bool {
+  [[nodiscard]] friend auto
+  operator==(bimap const& a, bimap const& b) noexcept(noexcept(a.m_l_to_r == b.m_l_to_r)) -> bool {
     return a.m_l_to_r == b.m_l_to_r;
   }
 };

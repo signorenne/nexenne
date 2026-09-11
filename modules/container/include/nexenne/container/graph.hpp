@@ -16,10 +16,10 @@
  * view of target IDs, and documented complexities. It deliberately stores only
  * topology and payload: traversals and algorithms (BFS, DFS, shortest paths)
  * belong in a separate module. For an undirected edge, call \c add_edge once
- * each way. Every operation but a copy is \c noexcept, and allocation failure
- * inside one terminates; a copy throws \c std::bad_alloc instead. Storage is
- * \c std::vector throughout, so the special members are the Rule of Zero
- * defaults.
+ * each way. Every operation but a copy is \c noexcept exactly when the payload
+ * code it runs is, and allocation failure inside one terminates; a copy throws
+ * \c std::bad_alloc instead. Storage is \c std::vector throughout, so the
+ * special members are the Rule of Zero defaults.
  */
 
 #include <algorithm>
@@ -190,7 +190,10 @@ public:
    * @post \c vertex_count() and \c edge_count() are unchanged; capacity may
    *       shrink.
    */
-  constexpr auto shrink_to_fit() noexcept -> void {
+  constexpr auto shrink_to_fit() noexcept((
+    std::is_nothrow_move_constructible_v<edge_record>
+    || std::is_nothrow_copy_constructible_v<edge_record>
+  )) -> void {
     m_adjacency.shrink_to_fit();
     for (auto& list : m_adjacency) {
       list.shrink_to_fit();
@@ -290,8 +293,9 @@ public:
    */
   template <typename Edge = E>
     requires(!std::is_void_v<Edge>)
-  [[nodiscard]] constexpr auto
-  add_edge(vertex_type const from, vertex_type const to, Edge data) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto add_edge(
+    vertex_type const from, vertex_type const to, Edge data
+  ) noexcept(std::is_nothrow_move_constructible_v<edge_record>) -> result<void> {
     if (!contains(from) || !contains(to)) {
       return std::unexpected{container_error::out_of_range};
     }
@@ -346,8 +350,9 @@ public:
    *
    * @complexity \c O(out_degree(from)).
    */
-  [[nodiscard]] constexpr auto remove_edge(vertex_type const from, vertex_type const to) noexcept
-    -> result<bool> {
+  [[nodiscard]] constexpr auto remove_edge(
+    vertex_type const from, vertex_type const to
+  ) noexcept(std::is_nothrow_move_assignable_v<edge_record>) -> result<bool> {
     if (!contains(from)) {
       return std::unexpected{container_error::out_of_range};
     }

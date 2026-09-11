@@ -14,16 +14,17 @@
  * an expensive exact check (a disk seek, a network round-trip, a breach-list
  * lookup).
  *
- * Sizing for \c n items at false-positive rate \c p uses
- * \c m = ceil(-n ln p / (ln 2)^2) bits and \c k = ceil((m/n) ln 2) hashes; the
+ * Sizing for \c n items at false-positive rate \c p uses \c m = ceil(-n ln p /
+ * (ln 2)^2) bits and \c k = ceil((m/n) ln 2) hashes; the
  * \c with_target_false_positive_rate factory does that arithmetic, and \c make
  * takes the two counts directly. Both return a \c result and reject a shape
  * that cannot work (zero bits or zero hashes) in every build. Internally one
  * \c std::hash evaluation is stretched into \c k positions by double hashing
  * (\c h1 + i*h2, the Kirsch-Mitzenmacher construction), avoiding \c k separate
- * hash functors. It has no \c erase (removing a bit could create a false negative
- * for another element) and cannot enumerate its contents. Every operation is
- * \c noexcept; allocation failure terminates.
+ * hash functors. It has no \c erase (removing a bit could create a false
+ * negative for another element) and cannot enumerate its contents. Every
+ * operation is \c noexcept exactly when the hasher code it runs is; allocation
+ * failure terminates.
  */
 
 #include <algorithm>
@@ -80,7 +81,8 @@ private:
   // The two base hashes for a value. h2 is forced odd so it is never zero:
   // a value whose hash is 0 would otherwise drive every one of the k positions
   // to bit 0 (splitmix64(0) == 0), collapsing the filter for that value.
-  [[nodiscard]] auto hash_pair(T const& value) const noexcept
+  [[nodiscard]] auto
+  hash_pair(T const& value) const noexcept(detail::nothrow_invocable_v<Hash const&, T const&>)
     -> std::pair<std::size_t, std::size_t> {
     auto const h1{m_hash(value)};
     auto const h2{static_cast<std::size_t>(splitmix64(h1)) | std::size_t{1}};
@@ -106,7 +108,10 @@ private:
    * @post \c bit_count() equals \p bits, \c hash_count() equals \p k, and
    *       \c empty() is \c true.
    */
-  bloom_filter(size_type const bits, size_type const k) noexcept : m_bits(bits), m_num_hashes{k} {}
+  bloom_filter(
+    size_type const bits, size_type const k
+  ) noexcept(std::is_nothrow_default_constructible_v<Hash>)
+      : m_bits(bits), m_num_hashes{k} {}
 
 public:
   /**
@@ -127,8 +132,9 @@ public:
    * @pre None.
    * @post On success the returned filter is empty.
    */
-  [[nodiscard]] static auto make(size_type const bits, size_type const k) noexcept
-    -> result<bloom_filter> {
+  [[nodiscard]] static auto make(size_type const bits, size_type const k) noexcept(
+    std::is_nothrow_default_constructible_v<Hash> && std::is_nothrow_move_constructible_v<Hash>
+  ) -> result<bloom_filter> {
     if (bits == 0 || k == 0) {
       return std::unexpected{container_error::invalid_argument};
     }
@@ -155,8 +161,9 @@ public:
    *       \c hash_count() at least one.
    */
   [[nodiscard]] static auto
-  with_target_false_positive_rate(size_type const expected_items, double const target_fpr) noexcept
-    -> result<bloom_filter> {
+  with_target_false_positive_rate(size_type const expected_items, double const target_fpr) noexcept(
+    std::is_nothrow_default_constructible_v<Hash> && std::is_nothrow_move_constructible_v<Hash>
+  ) -> result<bloom_filter> {
     // A NaN rate fails both comparisons, so it is rejected with the rest.
     auto const rate_in_range{target_fpr > 0.0 && target_fpr < 1.0};
     if (expected_items == 0 || !rate_in_range) {
@@ -268,7 +275,7 @@ public:
    * @pre None.
    * @post This filter holds \p other's former state and vice versa.
    */
-  auto swap(bloom_filter& other) noexcept -> void {
+  auto swap(bloom_filter& other) noexcept(std::is_nothrow_swappable_v<Hash>) -> void {
     using std::swap;
     m_bits.swap(other.m_bits);
     swap(m_num_hashes, other.m_num_hashes);
@@ -285,7 +292,8 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend auto swap(bloom_filter& a, bloom_filter& b) noexcept -> void {
+  friend auto swap(bloom_filter& a, bloom_filter& b) noexcept(std::is_nothrow_swappable_v<Hash>)
+    -> void {
     a.swap(b);
   }
 
@@ -302,7 +310,7 @@ public:
    *
    * @complexity \c O(k) hash positions.
    */
-  auto insert(T const& value) noexcept -> void {
+  auto insert(T const& value) noexcept(detail::nothrow_invocable_v<Hash const&, T const&>) -> void {
     auto const [h1, h2]{hash_pair(value)};
     for (size_type k{0}; k < m_num_hashes; ++k) {
       nexenne::utility::ignore(m_bits.set(bit_for(k, h1, h2)));
@@ -323,7 +331,9 @@ public:
    *
    * @complexity \c O(k) hash positions.
    */
-  [[nodiscard]] auto contains(T const& value) const noexcept -> bool {
+  [[nodiscard]] auto
+  contains(T const& value) const noexcept(detail::nothrow_invocable_v<Hash const&, T const&>)
+    -> bool {
     auto const [h1, h2]{hash_pair(value)};
     for (size_type k{0}; k < m_num_hashes; ++k) {
       if (!m_bits[bit_for(k, h1, h2)]) {

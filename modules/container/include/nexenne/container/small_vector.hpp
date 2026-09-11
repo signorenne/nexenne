@@ -14,11 +14,12 @@
  * Reach for it for per-call temporaries that are usually short (search results,
  * parser child lists, command queues) and for members that are usually small
  * but occasionally unbounded, anywhere \c std::vector would do but the
- * allocation traffic on small inputs is measurable. All non-allocating
- * operations are \c noexcept; an operation that grows past the inline buffer
- * calls the global allocation function and, per the module policy, treats allocation failure
- * as fatal (\c std::terminate) rather than throwing. \c data() / \c size() /
- * \c span() expose the contiguous live range for \c std::span and
+ * allocation traffic on small inputs is measurable. Every operation is
+ * \c noexcept exactly when the element code it runs (a copy, move or
+ * construction) is; an operation that grows past the inline buffer calls the
+ * global allocation function and, per the module policy, treats allocation
+ * failure as fatal (\c std::terminate) rather than throwing. \c data() /
+ * \c size() / \c span() expose the contiguous live range for \c std::span and
  * \c std::ranges interop.
  */
 
@@ -72,6 +73,21 @@ private:
   size_type m_capacity{N};
 
   /**
+   * @brief Whether walking an \p It range and building each element is nothrow.
+   *
+   * True when building a \c T from each element, dereferencing,
+   * advancing, comparing and measuring the iterators are all \c noexcept.
+   *
+   * @tparam It Iterator type of the range.
+   */
+  template <typename It>
+  static constexpr bool nothrow_range_v{
+    std::is_nothrow_constructible_v<T, std::iter_reference_t<It>> && noexcept(*std::declval<It&>())
+    && noexcept(++std::declval<It&>()) && noexcept(std::declval<It&>() != std::declval<It&>())
+    && noexcept(std::distance(std::declval<It>(), std::declval<It>()))
+  };
+
+  /**
    * @brief Pointer to the inline buffer reinterpreted as \c T storage.
    *
    * @return Pointer to the first inline slot.
@@ -120,7 +136,8 @@ private:
    * @pre None.
    * @post \c capacity() is at least \p new_capacity, or the process terminated.
    */
-  auto grow_to(size_type const new_capacity) noexcept -> void {
+  auto grow_to(size_type const new_capacity) noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> void {
     if (new_capacity <= m_capacity) {
       return;
     }
@@ -173,7 +190,7 @@ private:
    * @pre \c *this is empty with \c m_data pointing at inline storage.
    * @post \c *this holds \p other's former elements; \p other is empty.
    */
-  auto adopt(small_vector&& other) noexcept -> void {
+  auto adopt(small_vector&& other) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     if (other.inlined()) {
       for (size_type i{0}; i < other.m_size; ++i) {
         std::construct_at(m_data + i, std::move(other.m_data[i]));
@@ -209,7 +226,9 @@ public:
    * @pre None.
    * @post \c size() equals \c init.size() with a copy of each element.
    */
-  small_vector(std::initializer_list<T> const init) noexcept {
+  small_vector(
+    std::initializer_list<T> const init
+  ) noexcept(std::is_nothrow_copy_constructible_v<T>) {
     reserve(init.size());
     for (auto const& value : init) {
       std::construct_at(m_data + m_size, value);
@@ -226,7 +245,7 @@ public:
    * @post This vector holds copies of \p other's elements; \p other is
    *       unchanged.
    */
-  small_vector(small_vector const& other) noexcept
+  small_vector(small_vector const& other) noexcept(std::is_nothrow_copy_constructible_v<T>)
     requires std::copy_constructible<T>
   {
     reserve(other.m_size);
@@ -247,7 +266,7 @@ public:
    * @pre None.
    * @post This vector holds \p other's former elements; \p other is empty.
    */
-  small_vector(small_vector&& other) noexcept {
+  small_vector(small_vector&& other) noexcept(std::is_nothrow_move_constructible_v<T>) {
     adopt(std::move(other));
   }
 
@@ -262,7 +281,8 @@ public:
    * @post This vector holds copies of \p other's elements; the prior contents
    *       are destroyed; \p other is unchanged.
    */
-  auto operator=(small_vector const& other) noexcept -> small_vector&
+  auto operator=(small_vector const& other) noexcept(std::is_nothrow_copy_constructible_v<T>)
+    -> small_vector&
     requires std::copy_constructible<T>
   {
     if (this != &other) {
@@ -287,7 +307,8 @@ public:
    * @post This vector holds \p other's former elements; the prior contents are
    *       destroyed; \p other is empty.
    */
-  auto operator=(small_vector&& other) noexcept -> small_vector& {
+  auto operator=(small_vector&& other) noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> small_vector& {
     if (this != &other) {
       clear();
       deallocate_if_heap();
@@ -392,7 +413,7 @@ public:
    * @pre None.
    * @post This vector holds \p other's former contents and vice versa.
    */
-  auto swap(small_vector& other) noexcept -> void {
+  auto swap(small_vector& other) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     if (this == &other) {
       return;
     }
@@ -419,7 +440,8 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged contents.
    */
-  friend auto swap(small_vector& a, small_vector& b) noexcept -> void {
+  friend auto
+  swap(small_vector& a, small_vector& b) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     a.swap(b);
   }
 
@@ -432,7 +454,7 @@ public:
    * @post \c capacity() is at least \p n; size and element values are
    *       unchanged.
    */
-  auto reserve(size_type const n) noexcept -> void {
+  auto reserve(size_type const n) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     grow_to(n);
   }
 
@@ -443,7 +465,7 @@ public:
    * @post \c capacity() equals \c max(N, size()); element values and order are
    *       unchanged.
    */
-  auto shrink_to_fit() noexcept -> void {
+  auto shrink_to_fit() noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     if (inlined() || m_size == m_capacity) {
       return;
     }
@@ -491,7 +513,8 @@ public:
    * @pre None.
    * @post \c size() equals \c init.size(); the prior contents are destroyed.
    */
-  auto assign(std::initializer_list<T> const init) noexcept -> void {
+  auto assign(std::initializer_list<T> const init) noexcept(std::is_nothrow_copy_constructible_v<T>)
+    -> void {
     clear();
     reserve(init.size());
     for (auto const& value : init) {
@@ -511,7 +534,9 @@ public:
    * @post \c size() equals \p count and every element equals \p value; the
    *       prior contents are destroyed.
    */
-  auto assign(size_type const count, T const& value) noexcept -> void {
+  auto
+  assign(size_type const count, T const& value) noexcept(std::is_nothrow_copy_constructible_v<T>)
+    -> void {
     clear();
     reserve(count);
     for (size_type i{0}; i < count; ++i) {
@@ -532,7 +557,9 @@ public:
    *       are destroyed.
    */
   template <std::input_iterator It>
-  auto assign(It first, It const last) noexcept -> void {
+  auto assign(
+    It first, It const last
+  ) noexcept(nothrow_range_v<It> && std::is_nothrow_move_constructible_v<T>) -> void {
     clear();
     if constexpr (std::forward_iterator<It>) {
       reserve(static_cast<size_type>(std::distance(first, last)));  // one allocation
@@ -552,7 +579,9 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto push_back(T const& value) noexcept -> void {
+  auto push_back(T const& value) noexcept(
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_move_constructible_v<T>
+  ) -> void {
     emplace_back(value);
   }
 
@@ -567,7 +596,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto push_back(T&& value) noexcept -> void {
+  auto push_back(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     emplace_back(std::move(value));
   }
 
@@ -587,7 +616,9 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  auto emplace_back(Args&&... args) noexcept -> T& {
+  auto emplace_back(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
+  ) -> T& {
     if (m_size == m_capacity) {
       // Cold grow path. Stage the element in raw storage with the exact same
       // direct-initialization semantics as the hot path's std::construct_at
@@ -867,8 +898,9 @@ public:
    *
    * @complexity \c O(size).
    */
-  [[nodiscard]] friend auto operator==(small_vector const& a, small_vector const& b) noexcept
-    -> bool
+  [[nodiscard]] friend auto operator==(small_vector const& a, small_vector const& b) noexcept(
+    noexcept(std::declval<T const&>() == std::declval<T const&>())
+  ) -> bool
     requires std::equality_comparable<T>
   {
     return a.m_size == b.m_size && std::equal(a.begin(), a.end(), b.begin(), b.end());
@@ -890,8 +922,9 @@ public:
    * @complexity \c O(size).
    */
   template <std::three_way_comparable U = T>
-  [[nodiscard]] friend auto operator<=>(small_vector const& a, small_vector const& b) noexcept
-    -> std::compare_three_way_result_t<U> {
+  [[nodiscard]] friend auto operator<=>(small_vector const& a, small_vector const& b) noexcept(
+    noexcept(std::declval<T const&>() <=> std::declval<T const&>())
+  ) -> std::compare_three_way_result_t<U> {
     return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
   }
 };

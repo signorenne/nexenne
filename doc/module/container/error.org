@@ -15,25 +15,44 @@ operation cannot proceed". The policy here is no-throw: an operation that can
 fail at a boundary (pop from an empty queue, push onto a full fixed buffer, a
 missing key) returns =result<T>=, i.e. =std::expected<T, container_error>=, with
 the failure spelled out as =full=, =empty=, =out_of_range=, =not_found=, or
-=invalid_argument=. Non-allocating operations are =noexcept=; an operation whose
-only failure is allocation stays =noexcept= and terminates on =std::bad_alloc=,
-matching the rest of nexenne. There is deliberately no precondition-based "fast
-path" that trades the check for undefined behaviour.
+=invalid_argument=. An operation that runs no element or caller code is
+=noexcept=; one that does is =noexcept= exactly when that code is; an operation
+whose only failure is allocation terminates on =std::bad_alloc=, matching the
+rest of nexenne. There is deliberately no precondition-based "fast path" that
+trades the check for undefined behaviour.
 
 * The error policy
 
 Three rules cover the whole module:
 
-- Every non-allocating function is =noexcept=.
+- A function that runs no element or caller code is =noexcept=. One that does
+  (an element's copy, move, construction, assignment or comparison; a
+  comparator, hasher, key equality, key range or arena) is =noexcept= exactly
+  when that code is: =std::is_nothrow_copy_constructible_v<T>= for a copy,
+  =std::is_nothrow_invocable_v<Compare const&, T const&, T const&>= for a
+  comparator, and so on. A throw from such code then propagates to the caller
+  instead of terminating. Destructors are always =noexcept=.
+- The standard function objects are trusted for what they apply. libstdc++ does
+  not declare the call operators of =std::less=, =std::greater= and
+  =std::equal_to= =noexcept=, so the literal rule would make every lookup
+  through a default comparator potentially throwing. The module instead counts
+  =std::less<T>=, =std::greater<T>= and =std::equal_to<T>= as nothrow when
+  =a < b=, =a > b= or =a == b= on two =T const&= is (and the arguments bind to
+  =T const&= without throwing), their transparent forms when the operator on the
+  actual arguments is, and =std::hash<T>= when hashing a =T const&= is. So
+  =flat_map<int, V>::find= and =flat_hash_map<std::string_view, V>::find= are
+  =noexcept=. A comparator, hasher or equality of your own follows the literal
+  rule, =std::is_nothrow_invocable_v=: declare its call operator =noexcept= to
+  get a =noexcept= lookup.
 - An operation that mutates state and can fail at a documented boundary (popping
   an empty queue, pushing onto a full fixed-capacity buffer, an out-of-range
   index, a missing key) returns =result<T>=. There is no precondition-based
   variant that skips the check and risks undefined behaviour.
 - An operation whose *only* failure mode is =std::bad_alloc= from the underlying
-  allocator (for example a growing vector-backed container) stays =noexcept= and
-  terminates via =std::terminate= on allocation failure, matching the rest of
-  nexenne. Callers needing to recover from exhaustion should pre-allocate with
-  =reserve= or use a fixed-capacity container that reports =full=.
+  allocator (for example a growing vector-backed container) does not report it
+  and terminates via =std::terminate= on allocation failure, matching the rest
+  of nexenne. Callers needing to recover from exhaustion should pre-allocate
+  with =reserve= or use a fixed-capacity container that reports =full=.
 
 So =result<T>= is for *recoverable, expected* boundary failures; allocation
 failure is treated as fatal and is never reported through =result=.
@@ -66,7 +85,7 @@ boundary (=empty= for underflow, =full= for a fixed-capacity overflow,
 =out_of_range= for a bad index, =not_found= for a missing lookup,
 =invalid_argument= for an argument that no state of the container could accept,
 such as a zero size where a positive one is required). Do *not* reach for
-=result= when the only failure is allocation: keep that path =noexcept= and let
+=result= when the only failure is allocation: keep that path unreported and let
 it terminate, per the policy above. Check the result with =has_value()= (or the
 monadic helpers on =std::expected=) before dereferencing, and pass =error()= to
 =to_string= when logging.

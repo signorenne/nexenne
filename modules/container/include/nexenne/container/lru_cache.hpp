@@ -9,21 +9,21 @@
  * of an internal recency order; when the cache is full and a \c put introduces a
  * new key, the least-recently-used entry is evicted and its storage recycled.
  *
- * It layers two ported containers: an \c intrusive_list orders entries by recency
- * (front is MRU, back is LRU) and a \c flat_hash_map indexes them for \c O(1)
- * lookup. The index keys on a pointer into each node's own key storage rather
- * than a copy, so a key is stored exactly once and no key is allocated on a
- * steady-state put (a move-only key type is therefore supported). The list nodes
- * live in a fixed pool allocated once at construction and never grown, so no
- * node is allocated after construction, the win over a \c std::unordered_map
+ * It layers two ported containers: an \c intrusive_list orders entries by
+ * recency (front is MRU, back is LRU) and a \c flat_hash_map indexes them for
+ * \c O(1) lookup. The index keys on a pointer into each node's own key storage
+ * rather than a copy, so a key is stored exactly once and no key is allocated
+ * on a steady-state put (a move-only key type is therefore supported). The list
+ * nodes live in a fixed pool allocated once at construction and never grown, so
+ * no node is allocated after construction, the win over a \c std::unordered_map
  * plus \c std::list. \c get never allocates, and the cache's own storage is
  * never allocated after construction: an eviction erases from the index by
  * backward shift, leaving no tombstone, so the index sized at construction
- * never rehashes. Reach for it for
- * asset caches (keep the hottest N textures resident), bounded memoisation
- * tables, and recently-used registries. Every operation is \c noexcept;
- * allocation failure terminates. Concurrent reads are not safe, because \c get
- * mutates the recency order.
+ * never rehashes. Reach for it for asset caches (keep the hottest N textures
+ * resident), bounded memoisation tables, and recently-used registries. Every
+ * operation is \c noexcept exactly when the key, value, hasher and key-equality
+ * code it runs is; allocation failure terminates. Concurrent reads are not
+ * safe, because \c get mutates the recency order.
  */
 
 #include <concepts>
@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include <nexenne/container/error.hpp>
 #include <nexenne/container/flat_hash_map.hpp>
 #include <nexenne/container/intrusive_list.hpp>
 #include <nexenne/utility/ignore.hpp>
@@ -107,7 +108,9 @@ private:
      * @pre \p key is non-null.
      * @post None.
      */
-    auto operator()(Key const* const key) const noexcept -> std::size_t {
+    auto operator()(
+      Key const* const key
+    ) const noexcept(detail::nothrow_invocable_v<Hash const&, Key const&>) -> std::size_t {
       return hash(*key);
     }
   };
@@ -133,7 +136,9 @@ private:
      * @pre \p a and \p b are non-null.
      * @post None.
      */
-    auto operator()(Key const* const a, Key const* const b) const noexcept -> bool {
+    auto operator()(
+      Key const* const a, Key const* const b
+    ) const noexcept(detail::nothrow_invocable_v<KeyEq const&, Key const&, Key const&>) -> bool {
       return eq(*a, *b);
     }
   };
@@ -144,6 +149,18 @@ private:
   std::vector<node*> m_free;
   intrusive_list<node> m_lru;
   flat_hash_map<Key const*, node*, key_ptr_hash, key_ptr_eq> m_index;
+
+  /// @brief Whether hashing and comparing keys through the index is nothrow.
+  static constexpr bool nothrow_lookup_v{
+    detail::nothrow_invocable_v<Hash const&, Key const&>
+    && detail::nothrow_invocable_v<KeyEq const&, Key const&, Key const&>
+  };
+
+  /// @brief Whether resetting a node's key and value is nothrow.
+  static constexpr bool nothrow_reset_v{
+    std::is_nothrow_default_constructible_v<Key> && std::is_nothrow_move_assignable_v<Key>
+    && std::is_nothrow_default_constructible_v<Value> && std::is_nothrow_move_assignable_v<Value>
+  };
 
   /**
    * @brief Obtains a node slot, evicting the LRU entry when the pool is full.
@@ -158,7 +175,7 @@ private:
    * @pre None.
    * @post The returned node is detached from the recency list and index.
    */
-  auto acquire_node() noexcept -> node* {
+  auto acquire_node() noexcept(nothrow_lookup_v) -> node* {
     if (!m_free.empty()) {
       auto* const n{m_free.back()};
       m_free.pop_back();
@@ -184,7 +201,12 @@ public:
    * @pre None. A zero \c Capacity fails to compile.
    * @post \c empty() is \c true and \c capacity() equals \c Capacity.
    */
-  lru_cache() noexcept : m_pool(Capacity) {
+  lru_cache() noexcept(
+    std::is_nothrow_default_constructible_v<Key> && std::is_nothrow_default_constructible_v<Value>
+    && std::is_nothrow_default_constructible_v<Hash>
+    && std::is_nothrow_default_constructible_v<KeyEq>
+  )
+      : m_pool(Capacity) {
     m_free.reserve(Capacity);
     m_index.reserve(Capacity);
     for (auto& n : m_pool) {
@@ -267,7 +289,7 @@ public:
    * @post \c empty() is \c true and \c capacity() is unchanged; every entry's key
    *       and value are released (reset to a value-initialised state).
    */
-  auto clear() noexcept -> void {
+  auto clear() noexcept(nothrow_reset_v) -> void {
     m_lru.clear();
     m_index.clear();
     m_free.clear();
@@ -294,7 +316,10 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto put(Key key, Value value) noexcept -> void {
+  auto put(Key key, Value value) noexcept(
+    nothrow_lookup_v
+    && std::is_nothrow_move_assignable_v<Key> && std::is_nothrow_move_assignable_v<Value>
+  ) -> void {
     if (auto* const existing{m_index.find(std::addressof(key))}) {
       auto* const entry{*existing};
       entry->value = std::move(value);
@@ -322,7 +347,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto get(Key const& key) noexcept -> Value* {
+  [[nodiscard]] auto get(Key const& key) noexcept(nothrow_lookup_v) -> Value* {
     auto* const slot{m_index.find(std::addressof(key))};
     if (slot == nullptr) {
       return nullptr;
@@ -345,7 +370,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto peek(Key const& key) const noexcept -> Value const* {
+  [[nodiscard]] auto peek(Key const& key) const noexcept(nothrow_lookup_v) -> Value const* {
     auto const* const slot{m_index.find(std::addressof(key))};
     if (slot == nullptr) {
       return nullptr;
@@ -365,7 +390,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto contains(Key const& key) const noexcept -> bool {
+  [[nodiscard]] auto contains(Key const& key) const noexcept(nothrow_lookup_v) -> bool {
     return m_index.contains(std::addressof(key));
   }
 
@@ -383,7 +408,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto erase(Key const& key) noexcept -> bool {
+  auto erase(Key const& key) noexcept(nothrow_lookup_v && nothrow_reset_v) -> bool {
     auto* const slot{m_index.find(std::addressof(key))};
     if (slot == nullptr) {
       return false;

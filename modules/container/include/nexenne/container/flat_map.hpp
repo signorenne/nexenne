@@ -12,11 +12,13 @@
  * cache, the locality usually beats a node-based \c std::map.
  *
  * The value of an entry may be changed in place (it does not affect ordering),
- * so the iterator is mutable, but the key must not be: rewriting a key through an
- * iterator breaks the sort. Use \c flat_hash_map or \c dense_map when ordering
- * does not matter and you want \c O(1) average lookup, and \c static_flat_map when
- * capacity is fixed at compile time. Every operation is \c noexcept; allocation
- * failure terminates. The map is a vector plus a comparator (rule of zero).
+ * so the iterator is mutable, but the key must not be: rewriting a key through
+ * an iterator breaks the sort. Use \c flat_hash_map or \c dense_map when
+ * ordering does not matter and you want \c O(1) average lookup, and
+ * \c static_flat_map when capacity is fixed at compile time. Every operation is
+ * \c noexcept exactly when the element and comparator code it runs is;
+ * allocation failure terminates. The map is a vector plus a comparator (rule of
+ * zero).
  */
 
 #include <algorithm>
@@ -28,6 +30,8 @@
 #include <memory>
 #include <utility>
 #include <vector>
+
+#include <nexenne/container/error.hpp>
 
 namespace nexenne::container {
 
@@ -81,6 +85,31 @@ private:
   std::vector<value_type> m_data{};
   [[no_unique_address]] Compare m_cmp{};
 
+  /// @brief Whether ordering two keys through the stored comparator is nothrow.
+  static constexpr bool nothrow_compare_v{
+    detail::nothrow_invocable_v<Compare&, Key const&, Key const&>
+    && detail::nothrow_invocable_v<Compare const&, Key const&, Key const&>
+  };
+
+  /**
+   * @brief Whether ordering a key against a probe of type \p K is nothrow.
+   *
+   * @tparam K Heterogeneous probe type.
+   */
+  template <typename K>
+  static constexpr bool nothrow_compare_with_v{
+    detail::nothrow_invocable_v<Compare&, Key const&, K const&>
+    && detail::nothrow_invocable_v<Compare&, K const&, Key const&>
+    && detail::nothrow_invocable_v<Compare const&, Key const&, K const&>
+    && detail::nothrow_invocable_v<Compare const&, K const&, Key const&>
+  };
+
+  /// @brief Whether shifting entries to open or close a gap is nothrow.
+  static constexpr bool nothrow_shift_v{
+    std::is_nothrow_move_constructible_v<value_type>
+    && std::is_nothrow_move_assignable_v<value_type>
+  };
+
 public:
   /**
    * @brief Constructs an empty map with a default-constructed comparator.
@@ -88,7 +117,7 @@ public:
    * @pre None.
    * @post \c empty() is \c true.
    */
-  constexpr flat_map() noexcept = default;
+  constexpr flat_map() noexcept(std::is_nothrow_default_constructible_v<Compare>) = default;
 
   /**
    * @brief Constructs an empty map ordered by \p cmp.
@@ -98,7 +127,8 @@ public:
    * @pre None.
    * @post \c empty() is \c true and the stored comparator is \p cmp.
    */
-  explicit constexpr flat_map(Compare cmp) noexcept : m_cmp{std::move(cmp)} {}
+  explicit constexpr flat_map(Compare cmp) noexcept(std::is_nothrow_move_constructible_v<Compare>)
+      : m_cmp{std::move(cmp)} {}
 
   /**
    * @brief Constructs from an initializer list, keeping the first of equal keys.
@@ -111,7 +141,10 @@ public:
    * @complexity \c O(N^2) worst case: each entry is inserted with an \c O(N) tail
    *             shift, so prefer building once from a mostly key-sorted list.
    */
-  constexpr flat_map(std::initializer_list<value_type> const init) noexcept {
+  constexpr flat_map(std::initializer_list<value_type> const init) noexcept(
+    std::is_nothrow_default_constructible_v<Compare> && nothrow_compare_v
+    && std::is_nothrow_copy_constructible_v<value_type> && nothrow_shift_v
+  ) {
     m_data.reserve(init.size());
     for (auto const& entry : init) {
       insert(entry);
@@ -162,7 +195,10 @@ public:
    * @pre None.
    * @post Capacity is at least \p n; iterators may be invalidated.
    */
-  constexpr auto reserve(size_type const n) noexcept -> void {
+  constexpr auto reserve(size_type const n) noexcept((
+    std::is_nothrow_move_constructible_v<value_type>
+    || std::is_nothrow_copy_constructible_v<value_type>
+  )) -> void {
     m_data.reserve(n);
   }
 
@@ -172,7 +208,10 @@ public:
    * @pre None.
    * @post \c size() is unchanged.
    */
-  constexpr auto shrink_to_fit() noexcept -> void {
+  constexpr auto shrink_to_fit() noexcept((
+    std::is_nothrow_move_constructible_v<value_type>
+    || std::is_nothrow_copy_constructible_v<value_type>
+  )) -> void {
     m_data.shrink_to_fit();
   }
 
@@ -196,7 +235,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto swap(flat_map& other) noexcept -> void {
+  constexpr auto swap(flat_map& other) noexcept(std::is_nothrow_swappable_v<Compare>) -> void {
     using std::swap;
     m_data.swap(other.m_data);
     swap(m_cmp, other.m_cmp);
@@ -211,7 +250,8 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend constexpr auto swap(flat_map& a, flat_map& b) noexcept -> void {
+  friend constexpr auto
+  swap(flat_map& a, flat_map& b) noexcept(std::is_nothrow_swappable_v<Compare>) -> void {
     a.swap(b);
   }
 
@@ -271,7 +311,7 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto lower_bound(Key const& key) noexcept -> iterator {
+  [[nodiscard]] constexpr auto lower_bound(Key const& key) noexcept(nothrow_compare_v) -> iterator {
     return std::lower_bound(
       m_data.begin(), m_data.end(), key, [this](value_type const& slot, Key const& probe) {
         return m_cmp(slot.first, probe);
@@ -291,7 +331,8 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto lower_bound(Key const& key) const noexcept -> const_iterator {
+  [[nodiscard]] constexpr auto lower_bound(Key const& key) const noexcept(nothrow_compare_v)
+    -> const_iterator {
     return std::lower_bound(
       m_data.begin(), m_data.end(), key, [this](value_type const& slot, Key const& probe) {
         return m_cmp(slot.first, probe);
@@ -319,7 +360,8 @@ public:
    */
   template <typename K>
     requires detail::transparent_comparator<Compare>
-  [[nodiscard]] constexpr auto lower_bound(K const& key) noexcept -> iterator {
+  [[nodiscard]] constexpr auto lower_bound(K const& key) noexcept(nothrow_compare_with_v<K>)
+    -> iterator {
     return std::lower_bound(
       m_data.begin(), m_data.end(), key, [this](value_type const& slot, K const& probe) {
         return m_cmp(slot.first, probe);
@@ -330,7 +372,8 @@ public:
   /// @copydoc lower_bound(K const&)
   template <typename K>
     requires detail::transparent_comparator<Compare>
-  [[nodiscard]] constexpr auto lower_bound(K const& key) const noexcept -> const_iterator {
+  [[nodiscard]] constexpr auto lower_bound(K const& key) const noexcept(nothrow_compare_with_v<K>)
+    -> const_iterator {
     return std::lower_bound(
       m_data.begin(), m_data.end(), key, [this](value_type const& slot, K const& probe) {
         return m_cmp(slot.first, probe);
@@ -350,7 +393,7 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto upper_bound(Key const& key) noexcept -> iterator {
+  [[nodiscard]] constexpr auto upper_bound(Key const& key) noexcept(nothrow_compare_v) -> iterator {
     return std::upper_bound(
       m_data.begin(), m_data.end(), key, [this](Key const& probe, value_type const& slot) {
         return m_cmp(probe, slot.first);
@@ -370,7 +413,8 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto upper_bound(Key const& key) const noexcept -> const_iterator {
+  [[nodiscard]] constexpr auto upper_bound(Key const& key) const noexcept(nothrow_compare_v)
+    -> const_iterator {
     return std::upper_bound(
       m_data.begin(), m_data.end(), key, [this](Key const& probe, value_type const& slot) {
         return m_cmp(probe, slot.first);
@@ -397,7 +441,8 @@ public:
    */
   template <typename K>
     requires detail::transparent_comparator<Compare>
-  [[nodiscard]] constexpr auto upper_bound(K const& key) noexcept -> iterator {
+  [[nodiscard]] constexpr auto upper_bound(K const& key) noexcept(nothrow_compare_with_v<K>)
+    -> iterator {
     return std::upper_bound(
       m_data.begin(), m_data.end(), key, [this](K const& probe, value_type const& slot) {
         return m_cmp(probe, slot.first);
@@ -408,7 +453,8 @@ public:
   /// @copydoc upper_bound(K const&)
   template <typename K>
     requires detail::transparent_comparator<Compare>
-  [[nodiscard]] constexpr auto upper_bound(K const& key) const noexcept -> const_iterator {
+  [[nodiscard]] constexpr auto upper_bound(K const& key) const noexcept(nothrow_compare_with_v<K>)
+    -> const_iterator {
     return std::upper_bound(
       m_data.begin(), m_data.end(), key, [this](K const& probe, value_type const& slot) {
         return m_cmp(probe, slot.first);
@@ -428,7 +474,7 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto find(Key const& key) noexcept -> iterator {
+  [[nodiscard]] constexpr auto find(Key const& key) noexcept(nothrow_compare_v) -> iterator {
     auto const pos{lower_bound(key)};
     if (pos != m_data.end() && !m_cmp(key, pos->first)) {
       return pos;
@@ -448,7 +494,8 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto find(Key const& key) const noexcept -> const_iterator {
+  [[nodiscard]] constexpr auto find(Key const& key) const noexcept(nothrow_compare_v)
+    -> const_iterator {
     auto const pos{lower_bound(key)};
     if (pos != m_data.end() && !m_cmp(key, pos->first)) {
       return pos;
@@ -475,7 +522,7 @@ public:
    */
   template <typename K>
     requires detail::transparent_comparator<Compare>
-  [[nodiscard]] constexpr auto find(K const& key) noexcept -> iterator {
+  [[nodiscard]] constexpr auto find(K const& key) noexcept(nothrow_compare_with_v<K>) -> iterator {
     auto const pos{lower_bound(key)};
     if (pos != m_data.end() && !m_cmp(key, pos->first)) {
       return pos;
@@ -486,7 +533,8 @@ public:
   /// @copydoc find(K const&)
   template <typename K>
     requires detail::transparent_comparator<Compare>
-  [[nodiscard]] constexpr auto find(K const& key) const noexcept -> const_iterator {
+  [[nodiscard]] constexpr auto find(K const& key) const noexcept(nothrow_compare_with_v<K>)
+    -> const_iterator {
     auto const pos{lower_bound(key)};
     if (pos != m_data.end() && !m_cmp(key, pos->first)) {
       return pos;
@@ -506,7 +554,7 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto contains(Key const& key) const noexcept -> bool {
+  [[nodiscard]] constexpr auto contains(Key const& key) const noexcept(nothrow_compare_v) -> bool {
     return find(key) != m_data.end();
   }
 
@@ -526,7 +574,8 @@ public:
    */
   template <typename K>
     requires detail::transparent_comparator<Compare>
-  [[nodiscard]] constexpr auto contains(K const& key) const noexcept -> bool {
+  [[nodiscard]] constexpr auto contains(K const& key) const noexcept(nothrow_compare_with_v<K>)
+    -> bool {
     return find(key) != m_data.end();
   }
 
@@ -542,7 +591,8 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto count(Key const& key) const noexcept -> size_type {
+  [[nodiscard]] constexpr auto count(Key const& key) const noexcept(nothrow_compare_v)
+    -> size_type {
     return contains(key) ? size_type{1} : size_type{0};
   }
 
@@ -562,7 +612,8 @@ public:
    */
   template <typename K>
     requires detail::transparent_comparator<Compare>
-  [[nodiscard]] constexpr auto count(K const& key) const noexcept -> size_type {
+  [[nodiscard]] constexpr auto count(K const& key) const noexcept(nothrow_compare_with_v<K>)
+    -> size_type {
     return contains(key) ? size_type{1} : size_type{0};
   }
 
@@ -581,7 +632,7 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto at(Key const& key) noexcept -> Value* {
+  [[nodiscard]] constexpr auto at(Key const& key) noexcept(nothrow_compare_v) -> Value* {
     auto const pos{find(key)};
     return pos == m_data.end() ? nullptr : std::addressof(pos->second);
   }
@@ -601,7 +652,8 @@ public:
    *
    * @complexity \c O(log N).
    */
-  [[nodiscard]] constexpr auto at(Key const& key) const noexcept -> Value const* {
+  [[nodiscard]] constexpr auto at(Key const& key) const noexcept(nothrow_compare_v)
+    -> Value const* {
     auto const pos{find(key)};
     return pos == m_data.end() ? nullptr : std::addressof(pos->second);
   }
@@ -622,7 +674,7 @@ public:
    */
   template <typename K>
     requires detail::transparent_comparator<Compare>
-  [[nodiscard]] constexpr auto at(K const& key) noexcept -> Value* {
+  [[nodiscard]] constexpr auto at(K const& key) noexcept(nothrow_compare_with_v<K>) -> Value* {
     auto const pos{find(key)};
     return pos == m_data.end() ? nullptr : std::addressof(pos->second);
   }
@@ -630,7 +682,8 @@ public:
   /// @copydoc at(K const&)
   template <typename K>
     requires detail::transparent_comparator<Compare>
-  [[nodiscard]] constexpr auto at(K const& key) const noexcept -> Value const* {
+  [[nodiscard]] constexpr auto at(K const& key) const noexcept(nothrow_compare_with_v<K>)
+    -> Value const* {
     auto const pos{find(key)};
     return pos == m_data.end() ? nullptr : std::addressof(pos->second);
   }
@@ -649,7 +702,11 @@ public:
    *
    * @complexity \c O(N) on insertion, \c O(log N) otherwise.
    */
-  constexpr auto operator[](Key const& key) noexcept -> Value&
+  constexpr auto operator[](Key const& key) noexcept(
+    nothrow_compare_v
+    && std::is_nothrow_default_constructible_v<Value> && std::is_nothrow_copy_constructible_v<Key>
+    && std::is_nothrow_move_constructible_v<Value> && nothrow_shift_v
+  ) -> Value&
     requires std::default_initializable<Value>
   {
     auto const pos{lower_bound(key)};
@@ -673,7 +730,9 @@ public:
    *
    * @complexity \c O(N) for the element shift.
    */
-  constexpr auto insert(value_type const& entry) noexcept -> std::pair<iterator, bool> {
+  constexpr auto insert(value_type const& entry) noexcept(
+    nothrow_compare_v && std::is_nothrow_copy_constructible_v<value_type> && nothrow_shift_v
+  ) -> std::pair<iterator, bool> {
     auto const pos{lower_bound(entry.first)};
     if (pos != m_data.end() && !m_cmp(entry.first, pos->first)) {
       return {pos, false};
@@ -695,7 +754,8 @@ public:
    *
    * @complexity \c O(N) for the element shift.
    */
-  constexpr auto insert(value_type&& entry) noexcept -> std::pair<iterator, bool> {
+  constexpr auto insert(value_type&& entry) noexcept(nothrow_compare_v && nothrow_shift_v)
+    -> std::pair<iterator, bool> {
     auto const pos{lower_bound(entry.first)};
     if (pos != m_data.end() && !m_cmp(entry.first, pos->first)) {
       return {pos, false};
@@ -718,8 +778,11 @@ public:
    *
    * @complexity \c O(N) on insertion, \c O(log N) on assignment.
    */
-  constexpr auto insert_or_assign(Key const& key, Value value) noexcept
-    -> std::pair<iterator, bool> {
+  constexpr auto insert_or_assign(Key const& key, Value value) noexcept(
+    nothrow_compare_v
+    && std::is_nothrow_move_assignable_v<Value> && std::is_nothrow_copy_constructible_v<Key>
+    && std::is_nothrow_move_constructible_v<Value> && nothrow_shift_v
+  ) -> std::pair<iterator, bool> {
     auto const pos{lower_bound(key)};
     if (pos != m_data.end() && !m_cmp(key, pos->first)) {
       pos->second = std::move(value);
@@ -746,7 +809,9 @@ public:
    *
    * @complexity \c O(N) on insertion, \c O(log N) on assignment.
    */
-  constexpr auto insert_or_assign(Key&& key, Value value) noexcept -> std::pair<iterator, bool> {
+  constexpr auto insert_or_assign(Key&& key, Value value) noexcept(
+    nothrow_compare_v && std::is_nothrow_move_assignable_v<Value> && nothrow_shift_v
+  ) -> std::pair<iterator, bool> {
     auto const pos{lower_bound(key)};
     if (pos != m_data.end() && !m_cmp(key, pos->first)) {
       pos->second = std::move(value);
@@ -772,7 +837,9 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<value_type, Args...>
-  constexpr auto emplace(Args&&... args) noexcept -> std::pair<iterator, bool> {
+  constexpr auto emplace(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<value_type, Args...> && nothrow_compare_v && nothrow_shift_v
+  ) -> std::pair<iterator, bool> {
     return insert(value_type(std::forward<Args>(args)...));
   }
 
@@ -797,7 +864,11 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<Value, Args...>
-  constexpr auto try_emplace(Key const& key, Args&&... args) noexcept -> std::pair<iterator, bool> {
+  constexpr auto try_emplace(Key const& key, Args&&... args) noexcept(
+    nothrow_compare_v
+    && std::is_nothrow_copy_constructible_v<Key> && std::is_nothrow_constructible_v<Value, Args...>
+    && std::is_nothrow_move_constructible_v<Value> && nothrow_shift_v
+  ) -> std::pair<iterator, bool> {
     auto const pos{lower_bound(key)};
     if (pos != m_data.end() && !m_cmp(key, pos->first)) {
       return {pos, false};
@@ -827,7 +898,9 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<Value, Args...>
-  constexpr auto try_emplace(Key&& key, Args&&... args) noexcept -> std::pair<iterator, bool> {
+  constexpr auto try_emplace(Key&& key, Args&&... args) noexcept(
+    nothrow_compare_v && std::is_nothrow_constructible_v<Value, Args...> && nothrow_shift_v
+  ) -> std::pair<iterator, bool> {
     auto const pos{lower_bound(key)};
     if (pos != m_data.end() && !m_cmp(key, pos->first)) {
       return {pos, false};
@@ -850,7 +923,7 @@ public:
    *
    * @complexity \c O(N) for the element shift.
    */
-  constexpr auto erase(Key const& key) noexcept -> size_type {
+  constexpr auto erase(Key const& key) noexcept(nothrow_compare_v && nothrow_shift_v) -> size_type {
     auto const pos{find(key)};
     if (pos == m_data.end()) {
       return 0;
@@ -881,7 +954,8 @@ public:
   template <typename K>
     requires detail::transparent_comparator<Compare> && (!std::convertible_to<K const&, iterator>)
              && (!std::convertible_to<K const&, const_iterator>)
-  constexpr auto erase(K const& key) noexcept -> size_type {
+  constexpr auto erase(K const& key) noexcept(nothrow_compare_with_v<K> && nothrow_shift_v)
+    -> size_type {
     auto const pos{find(key)};
     if (pos == m_data.end()) {
       return 0;
@@ -902,7 +976,7 @@ public:
    *
    * @complexity \c O(N) for the element shift.
    */
-  constexpr auto erase(const_iterator const pos) noexcept -> iterator {
+  constexpr auto erase(const_iterator const pos) noexcept(nothrow_shift_v) -> iterator {
     return m_data.erase(pos);
   }
 
@@ -919,8 +993,9 @@ public:
    *
    * @complexity \c O(N).
    */
-  [[nodiscard]] friend constexpr auto operator==(flat_map const& a, flat_map const& b) noexcept
-    -> bool
+  [[nodiscard]] friend constexpr auto operator==(flat_map const& a, flat_map const& b) noexcept(
+    noexcept(std::declval<value_type const&>() == std::declval<value_type const&>())
+  ) -> bool
     requires std::equality_comparable<value_type>
   {
     return a.m_data == b.m_data;
@@ -939,7 +1014,11 @@ public:
    *
    * @complexity \c O(N).
    */
-  [[nodiscard]] friend constexpr auto operator<=>(flat_map const& a, flat_map const& b) noexcept
+  [[nodiscard]] friend constexpr auto
+  operator<=>(flat_map const& a, flat_map const& b) noexcept(noexcept(
+    std::declval<std::vector<value_type> const&>()
+    <=> std::declval<std::vector<value_type> const&>()
+  ))
     requires std::three_way_comparable<value_type>
   {
     return a.m_data <=> b.m_data;

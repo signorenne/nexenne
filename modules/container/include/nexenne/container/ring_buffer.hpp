@@ -13,9 +13,11 @@
  * Reach for it for bounded event queues (\c push fails when full so the
  * producer can sleep or drop), rolling windows of the most recent \p N samples
  * (\c push_overwrite), command history, and rolling statistics. Every operation
- * is \c noexcept and there is no allocation. Construction, the pushes, pops, and
- * element access are \c constexpr, so a \c ring_buffer can also be driven at
- * compile time. Iteration walks the live elements in FIFO order from the front.
+ * is \c noexcept exactly when the element code it runs (a copy, move or
+ * construction) is, and there is no allocation. Construction, the pushes, pops,
+ * and element access are \c constexpr, so a \c ring_buffer can also be driven
+ * at compile time. Iteration walks the live elements in FIFO order from the
+ * front.
  */
 
 #include <array>
@@ -166,7 +168,9 @@ private:
    * @complexity \c O(1).
    */
   template <typename... Args>
-  constexpr auto emplace_overwrite(Args&&... args) noexcept -> void {
+  constexpr auto emplace_overwrite(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
+  ) -> void {
     if (m_size == N) {
       // Full: m_tail == m_head, so this slot holds the oldest element.
       // Materialize the value before destroying that slot, so an argument
@@ -341,7 +345,7 @@ public:
    *
    * @complexity \c O(size).
    */
-  constexpr ring_buffer(ring_buffer const& other) noexcept
+  constexpr ring_buffer(ring_buffer const& other) noexcept(std::is_nothrow_copy_constructible_v<T>)
     requires std::copy_constructible<T>
   {
     for (auto const& value : other) {
@@ -360,7 +364,7 @@ public:
    *
    * @complexity \c O(size).
    */
-  constexpr ring_buffer(ring_buffer&& other) noexcept {
+  constexpr ring_buffer(ring_buffer&& other) noexcept(std::is_nothrow_move_constructible_v<T>) {
     move_from(other);
   }
 
@@ -376,7 +380,9 @@ public:
    *
    * @complexity \c O(size).
    */
-  constexpr auto operator=(ring_buffer const& other) noexcept -> ring_buffer&
+  constexpr auto
+  operator=(ring_buffer const& other) noexcept(std::is_nothrow_copy_constructible_v<T>)
+    -> ring_buffer&
     requires std::copy_constructible<T>
   {
     if (this != &other) {
@@ -400,7 +406,8 @@ public:
    *
    * @complexity \c O(size).
    */
-  constexpr auto operator=(ring_buffer&& other) noexcept -> ring_buffer& {
+  constexpr auto operator=(ring_buffer&& other) noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> ring_buffer& {
     if (this != &other) {
       clear();
       move_from(other);
@@ -431,7 +438,8 @@ private:
    * @post \c *this holds \p other's former elements in FIFO order with the head
    *       at zero; \p other is empty.
    */
-  constexpr auto move_from(ring_buffer& other) noexcept -> void {
+  constexpr auto move_from(ring_buffer& other) noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> void {
     auto src{other.m_head};
     for (size_type i{0}; i < other.m_size; ++i) {
       std::construct_at(value_ptr(i), std::move(*other.value_ptr(src)));
@@ -517,7 +525,8 @@ public:
    *
    * @complexity \c O(N).
    */
-  constexpr auto swap(ring_buffer& other) noexcept -> void {
+  constexpr auto swap(ring_buffer& other) noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> void {
     if (this == &other) {
       return;
     }
@@ -535,7 +544,8 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend constexpr auto swap(ring_buffer& a, ring_buffer& b) noexcept -> void {
+  friend constexpr auto
+  swap(ring_buffer& a, ring_buffer& b) noexcept(std::is_nothrow_move_constructible_v<T>) -> void {
     a.swap(b);
   }
 
@@ -569,7 +579,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto push(T const& value) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto
+  push(T const& value) noexcept(std::is_nothrow_copy_constructible_v<T>) -> result<void> {
     return emplace(value);
   }
 
@@ -586,7 +597,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto push(T&& value) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto push(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> result<void> {
     return emplace(std::move(value));
   }
 
@@ -605,7 +617,8 @@ public:
    */
   template <typename... Args>
     requires std::constructible_from<T, Args...>
-  [[nodiscard]] constexpr auto emplace(Args&&... args) noexcept -> result<void> {
+  [[nodiscard]] constexpr auto
+  emplace(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>) -> result<void> {
     if (m_size == N) {
       return std::unexpected{container_error::full};
     }
@@ -627,7 +640,9 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto push_overwrite(T const& value) noexcept -> void {
+  constexpr auto push_overwrite(T const& value) noexcept(
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_move_constructible_v<T>
+  ) -> void {
     emplace_overwrite(value);
   }
 
@@ -643,7 +658,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  constexpr auto push_overwrite(T&& value) noexcept -> void {
+  constexpr auto push_overwrite(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> void {
     emplace_overwrite(std::move(value));
   }
 
@@ -658,7 +674,8 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto pop() noexcept -> result<T> {
+  [[nodiscard]] constexpr auto pop() noexcept(std::is_nothrow_move_constructible_v<T>)
+    -> result<T> {
     if (m_size == 0) {
       return std::unexpected{container_error::empty};
     }

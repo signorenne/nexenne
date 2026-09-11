@@ -19,11 +19,11 @@
  * pools), and anywhere a raw pointer would dangle. Storage is a single vector,
  * so live elements are roughly contiguous and iteration is cache-friendly.
  * Insert is amortised \c O(1), erase and lookup are \c O(1). Every operation
- * but a copy is \c noexcept, and allocation failure inside one terminates; a
- * copy throws \c std::bad_alloc instead. Every operation is also \c constexpr,
- * so a map can be built, churned and queried in a constant expression (its
- * storage, like any \c std::vector, must be released before the evaluation
- * ends).
+ * but a copy is \c noexcept exactly when the element code it runs is, and
+ * allocation failure inside one terminates; a copy throws \c std::bad_alloc
+ * instead. Every operation is also \c constexpr, so a map can be built, churned
+ * and queried in a constant expression (its storage, like any \c std::vector,
+ * must be released before the evaluation ends).
  */
 
 #include <cassert>
@@ -436,7 +436,9 @@ public:
    *       valid, but the reallocation invalidates outstanding pointers and
    *       iterators; the key is the durable handle.
    */
-  constexpr auto shrink_to_fit() noexcept -> void {
+  constexpr auto shrink_to_fit() noexcept((
+    std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>
+  )) -> void {
     m_values.shrink_to_fit();
     m_generations.shrink_to_fit();
     m_free_list.shrink_to_fit();
@@ -482,7 +484,10 @@ public:
    *       keys remain valid. A reallocation invalidates outstanding pointers and
    *       iterators; the key is the durable handle.
    */
-  constexpr auto reserve(size_type const n) noexcept -> void {
+  constexpr auto reserve(
+    size_type const n
+  ) noexcept((std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>))
+    -> void {
     m_values.reserve(n);
     m_generations.reserve(n);
   }
@@ -526,7 +531,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  constexpr auto insert(T const& value) noexcept -> key {
+  constexpr auto insert(T const& value) noexcept(std::is_nothrow_copy_constructible_v<T>) -> key {
     return emplace(value);
   }
 
@@ -545,7 +550,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  constexpr auto insert(T&& value) noexcept -> key {
+  constexpr auto insert(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>) -> key {
     return emplace(std::move(value));
   }
 
@@ -565,7 +570,10 @@ public:
    * @complexity Amortised \c O(1).
    */
   template <typename... Args>
-  constexpr auto emplace(Args&&... args) noexcept -> key {
+  constexpr auto emplace(Args&&... args) noexcept(
+    std::is_nothrow_constructible_v<T, Args...>
+    && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
+  ) -> key {
     if (m_free_list.empty()) {
       // A fresh slot index is the current slot count cast to index_type; it must
       // still be representable, or the cast would truncate and alias slot 0.

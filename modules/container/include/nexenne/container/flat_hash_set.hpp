@@ -18,8 +18,9 @@
  * padding). An erase shifts later elements of its probe run back, as in the
  * map, so it can move other elements: never erase while iterating. This is not
  * a bit-per-element structure; for dense integer membership prefer
- * \c sparse_set or \c bitset_dynamic. Every operation is \c noexcept;
- * allocation failure terminates.
+ * \c sparse_set or \c bitset_dynamic. Every operation is \c noexcept exactly
+ * when the element, hasher and key-equality code it runs is; allocation failure
+ * terminates.
  */
 
 #include <cstddef>
@@ -93,7 +94,7 @@ public:
    * @pre None.
    * @post \c empty() is \c true.
    */
-  flat_hash_set() noexcept = default;
+  flat_hash_set() noexcept(std::is_nothrow_default_constructible_v<backing>) = default;
 
   /**
    * @brief Constructs an empty set with storage reserved for \p expected_entries.
@@ -103,7 +104,10 @@ public:
    * @pre None.
    * @post \c empty() is \c true and \c capacity() admits \p expected_entries.
    */
-  explicit flat_hash_set(size_type const expected_entries) noexcept : m_map{expected_entries} {}
+  explicit flat_hash_set(
+    size_type const expected_entries
+  ) noexcept(std::is_nothrow_constructible_v<backing, size_type>)
+      : m_map{expected_entries} {}
 
   /**
    * @brief Constructs from an initializer list, ignoring duplicate values.
@@ -113,7 +117,11 @@ public:
    * @pre None.
    * @post Every distinct value of \p init is present.
    */
-  flat_hash_set(std::initializer_list<T> const init) noexcept : m_map{init.size()} {
+  flat_hash_set(std::initializer_list<T> const init) noexcept(
+    std::is_nothrow_constructible_v<backing, size_type>
+    && noexcept(std::declval<backing&>().insert(std::declval<T const&>(), detail::empty_value{}))
+  )
+      : m_map{init.size()} {
     for (auto const& value : init) {
       nexenne::utility::ignore(m_map.insert(value, detail::empty_value{}));
     }
@@ -188,7 +196,7 @@ public:
    * @post Capacity admits at least \p n elements; a rehash may have invalidated
    *       iterators and references.
    */
-  auto reserve(size_type const n) noexcept -> void {
+  auto reserve(size_type const n) noexcept(noexcept(m_map.reserve(n))) -> void {
     m_map.reserve(n);
   }
 
@@ -208,7 +216,7 @@ public:
    * @pre None.
    * @post \c size() is unchanged; iterators and references are invalidated.
    */
-  auto shrink_to_fit() noexcept -> void {
+  auto shrink_to_fit() noexcept(noexcept(m_map.shrink_to_fit())) -> void {
     m_map.shrink_to_fit();
   }
 
@@ -220,7 +228,7 @@ public:
    * @pre None.
    * @post This set holds \p other's former elements and vice versa.
    */
-  auto swap(flat_hash_set& other) noexcept -> void {
+  auto swap(flat_hash_set& other) noexcept(noexcept(m_map.swap(other.m_map))) -> void {
     m_map.swap(other.m_map);
   }
 
@@ -233,7 +241,7 @@ public:
    * @pre None.
    * @post \p a and \p b have exchanged state.
    */
-  friend auto swap(flat_hash_set& a, flat_hash_set& b) noexcept -> void {
+  friend auto swap(flat_hash_set& a, flat_hash_set& b) noexcept(noexcept(a.swap(b))) -> void {
     a.swap(b);
   }
 
@@ -251,7 +259,8 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto insert(T value) noexcept -> bool {
+  auto insert(T value) noexcept(noexcept(m_map.insert(std::move(value), detail::empty_value{})))
+    -> bool {
     return m_map.insert(std::move(value), detail::empty_value{});
   }
 
@@ -267,7 +276,7 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  auto erase(T const& value) noexcept -> bool {
+  auto erase(T const& value) noexcept(noexcept(m_map.erase(value))) -> bool {
     return m_map.erase(value);
   }
 
@@ -283,7 +292,8 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto contains(T const& value) const noexcept -> bool {
+  [[nodiscard]] auto contains(T const& value) const noexcept(noexcept(m_map.contains(value)))
+    -> bool {
     return m_map.contains(value);
   }
 
@@ -299,7 +309,8 @@ public:
    *
    * @complexity Amortised \c O(1).
    */
-  [[nodiscard]] auto count(T const& value) const noexcept -> size_type {
+  [[nodiscard]] auto count(T const& value) const noexcept(noexcept(m_map.count(value)))
+    -> size_type {
     return m_map.count(value);
   }
 
@@ -323,7 +334,8 @@ public:
    */
   template <typename K>
     requires detail::transparent_hash_pair<Hash, KeyEq>
-  [[nodiscard]] auto contains(K const& value) const noexcept -> bool {
+  [[nodiscard]] auto contains(K const& value) const noexcept(noexcept(m_map.contains(value)))
+    -> bool {
     return m_map.contains(value);
   }
 
@@ -343,7 +355,8 @@ public:
    */
   template <typename K>
     requires detail::transparent_hash_pair<Hash, KeyEq>
-  [[nodiscard]] auto count(K const& value) const noexcept -> size_type {
+  [[nodiscard]] auto count(K const& value) const noexcept(noexcept(m_map.count(value)))
+    -> size_type {
     return m_map.count(value);
   }
 
@@ -496,7 +509,8 @@ public:
    *
    * @complexity \c O(n) average.
    */
-  [[nodiscard]] friend auto operator==(flat_hash_set const& a, flat_hash_set const& b) noexcept
+  [[nodiscard]] friend auto
+  operator==(flat_hash_set const& a, flat_hash_set const& b) noexcept(noexcept(a.m_map == b.m_map))
     -> bool {
     return a.m_map == b.m_map;
   }
