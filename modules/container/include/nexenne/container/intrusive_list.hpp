@@ -155,18 +155,30 @@ private:
 
   // A circular sentinel so begin()/end() never need a null check and a
   // boundary insert is the same code path as a middle insert.
-  mutable hook_type m_sentinel{};
+  hook_type m_sentinel{};
   size_type m_size{0};
 
   /**
    * @brief Address of the circular sentinel node.
+   *
+   * @return A non-owning pointer to the read-only sentinel hook.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto sentinel() const noexcept -> hook_type const* {
+    return std::addressof(m_sentinel);
+  }
+
+  /**
+   * @brief Address of the circular sentinel node, for relinking.
    *
    * @return A non-owning pointer to the sentinel hook.
    *
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto sentinel() const noexcept -> hook_type* {
+  [[nodiscard]] constexpr auto sentinel() noexcept -> hook_type* {
     return std::addressof(m_sentinel);
   }
 
