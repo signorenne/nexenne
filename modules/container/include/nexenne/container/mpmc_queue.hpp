@@ -116,9 +116,10 @@ template <std::move_constructible T, std::size_t N>
   requires(N >= 2 && std::has_single_bit(N))
 class mpmc_queue {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
+  using value_type = T;           ///< Type of the queued elements.
+  using size_type = std::size_t;  ///< Unsigned type for sizes and counts.
 
+  /// @brief Maximum number of queued elements, the slot count N.
   static constexpr size_type capacity_value{N};
 
 private:
@@ -126,28 +127,49 @@ private:
     std::atomic<std::size_t> sequence{};
     alignas(T) std::array<std::byte, sizeof(T)> storage{};
 
-    // Where the element lives, valid before any T exists there, which is what
-    // std::construct_at needs.
+    /**
+     * @brief Address of the element storage, valid before any \c T exists there.
+     *
+     * This is the pointer \c std::construct_at needs to start an element.
+     *
+     * @return Pointer to the raw storage, not laundered.
+     *
+     * @pre None.
+     * @post None.
+     */
     [[nodiscard]] auto address() noexcept -> T* {
       return reinterpret_cast<T*>(storage.data());
     }
 
-    // The element itself. The storage bytes are not pointer-interconvertible
-    // with the T constructed inside them, so access goes through std::launder,
-    // which is only valid once that T exists.
+    /**
+     * @brief Pointer to the element living in this slot.
+     *
+     * The storage bytes are not pointer-interconvertible with the \c T
+     * constructed inside them, so access goes through \c std::launder.
+     *
+     * @return Laundered pointer to the element.
+     *
+     * @pre A \c T is alive in this slot.
+     * @post None.
+     */
     [[nodiscard]] auto ptr() noexcept -> T* {
       return std::launder(address());
     }
 
+    /// @copydoc ptr()
     [[nodiscard]] auto ptr() const noexcept -> T const* {
       return std::launder(reinterpret_cast<T const*>(storage.data()));
     }
   };
 
-  // Cache-line size on x86-64 and common ARM cores. Hardcoded rather than using
-  // std::hardware_destructive_interference_size, whose value is an ABI-unstable
-  // constant that GCC warns against baking into a class layout. Each counter on
-  // its own cache line so producers and consumers do not ping-pong state.
+  /**
+   * @brief Cache-line size on x86-64 and common ARM cores.
+   *
+   * Hardcoded rather than \c std::hardware_destructive_interference_size, whose
+   * value is an ABI-unstable constant that GCC warns against baking into a class
+   * layout. Each counter sits on its own line so producers and consumers do not
+   * ping-pong it.
+   */
   static constexpr std::size_t cache_line_size{64};
 
   alignas(cache_line_size) std::atomic<std::size_t> m_enqueue_pos{0};
@@ -170,8 +192,12 @@ public:
     }
   }
 
-  // Destroys any elements still queued. The contract requires single-threaded
-  // teardown, so no producer or consumer can be running here.
+  /**
+   * @brief Destroys every element still queued.
+   *
+   * @pre No producer or consumer is running: teardown is single-threaded.
+   * @post Every queued element has been destroyed.
+   */
   ~mpmc_queue() noexcept {
     auto pos{m_dequeue_pos.load(std::memory_order_relaxed)};
     auto const end{m_enqueue_pos.load(std::memory_order_relaxed)};

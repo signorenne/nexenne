@@ -55,9 +55,13 @@ template <
   typename EqualRight = std::equal_to<Right>>
 class bimap {
 public:
+  /// @brief A left-right association, the element type of the bimap.
   using value_type = std::pair<Left, Right>;
+  /// @brief Key type of the left side.
   using left_type = Left;
+  /// @brief Key type of the right side.
   using right_type = Right;
+  /// @brief Unsigned type for sizes and counts.
   using size_type = std::size_t;
 
 private:

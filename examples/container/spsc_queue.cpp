@@ -5,6 +5,14 @@
  * One producer thread enqueues a run of numbers; the main thread (the single
  * consumer) drains them. The summed total is deterministic regardless of how the
  * two threads interleave, since the lock-free ring loses and duplicates nothing.
+ * When the ring is full the producer spins until the consumer frees a slot.
+ *
+ * Expected output:
+ *
+ * \code
+ * consumed 100 items
+ * sum of 1..100: 5050
+ * \endcode
  */
 
 #include <cstdint>

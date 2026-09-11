@@ -41,6 +41,10 @@ namespace nexenne::container {
 /**
  * @brief Fixed-capacity, allocation-free pool of reusable T slots.
  *
+ * The pool is neither copyable nor movable: it hands out pointers into its own
+ * storage, so a copy would share that storage and a move would dangle every
+ * outstanding pointer.
+ *
  * @tparam T Slot element type. The pool constructs and destroys it in place and
  *           never moves or copies it, so an immovable \p T (a mutex, an atomic)
  *           is fine.
@@ -59,10 +63,10 @@ template <typename T, std::size_t N>
   requires(N > 0)
 class object_pool {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
+  using value_type = T;           ///< Type of the pooled objects.
+  using size_type = std::size_t;  ///< Unsigned type for sizes and counts.
 
-  static constexpr size_type capacity_value{N};
+  static constexpr size_type capacity_value{N};  ///< Number of slots, the template argument N.
 
 private:
   struct slot {
@@ -82,10 +86,21 @@ private:
   std::array<bool, N> m_acquired{};
   size_type m_high_water{0};
 
-  // Maps a pointer handed out by acquire/emplace back to its slot index, or
-  // returns N when ptr is not a currently-acquired slot of this pool: a foreign
-  // pointer, an interior/misaligned pointer, or one already released. Byte
-  // arithmetic avoids forming an out-of-bounds slot* for a stray pointer.
+  /**
+   * @brief Maps a pointer handed out by \c acquire / \c emplace to its slot index.
+   *
+   * Byte arithmetic on integer addresses avoids forming an out-of-bounds slot
+   * pointer for a stray \p ptr.
+   *
+   * @param ptr Pointer to classify.
+   *
+   * @return The slot index, or \p N when \p ptr is not a currently acquired slot
+   *         of this pool: a foreign pointer, an interior or misaligned pointer, or
+   *         one already released.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto acquired_index(T const* const ptr) const noexcept -> size_type {
     // Compare and offset as integer addresses. Relational comparison and
     // subtraction of pointers into different objects (a foreign \p ptr versus the

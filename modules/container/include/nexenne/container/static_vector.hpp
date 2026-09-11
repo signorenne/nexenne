@@ -48,27 +48,37 @@ namespace nexenne::container {
 template <std::move_constructible T, std::size_t N>
 class static_vector {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using reference = T&;
-  using const_reference = T const&;
-  using pointer = T*;
-  using const_pointer = T const*;
-  using iterator = T*;
-  using const_iterator = T const*;
+  using value_type = T;                    ///< Type of the stored elements.
+  using size_type = std::size_t;           ///< Unsigned type for sizes and indices.
+  using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+  using reference = T&;                    ///< Mutable reference to an element.
+  using const_reference = T const&;        ///< Read-only reference to an element.
+  using pointer = T*;                      ///< Mutable pointer to an element.
+  using const_pointer = T const*;          ///< Read-only pointer to an element.
+  using iterator = T*;                     ///< Mutable contiguous iterator.
+  using const_iterator = T const*;         ///< Read-only contiguous iterator.
+  /// @brief Mutable iterator walking back to front.
   using reverse_iterator = std::reverse_iterator<iterator>;
+  /// @brief Read-only iterator walking back to front.
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
 private:
-  // A slot holds at most one live T. Its default member is a trivial byte so
-  // that constructing the storage array does not construct any T; element
-  // lifetimes are then managed by hand. Using a union (rather than a byte
-  // buffer plus reinterpret_cast) keeps every element operation usable in a
-  // constant expression.
+  /**
+   * @brief Storage for at most one live \c T whose lifetime is managed by hand.
+   *
+   * The trivial default member means constructing the storage array constructs
+   * no \c T. A union rather than a byte buffer plus \c reinterpret_cast keeps
+   * every element operation usable in a constant expression. A slot has exactly
+   * the size and alignment of \c T (asserted below), which is what lets the
+   * runtime \c data() and iterator accessors reinterpret the slot array as a
+   * contiguous \c T array.
+   *
+   * @pre None.
+   * @post A default-constructed slot holds no live element.
+   */
   union slot {
-    unsigned char none;
-    T value;
+    unsigned char none;  ///< Inactive member, so constructing a slot constructs no element.
+    T value;             ///< The element, alive only while the slot is in use.
 
     /**
      * @brief Constructs an inactive slot that holds no \c T.
@@ -286,6 +296,9 @@ public:
 
   /**
    * @brief Swaps contents with \p other, element by element.
+   *
+   * Elements up to the shorter size are swapped; the rest of the longer side
+   * migrates element by element to the shorter one.
    *
    * @param other Vector to exchange state with.
    *

@@ -59,15 +59,15 @@ template <typename T>
   requires(std::default_initializable<T> && std::movable<T>)
 class gap_buffer {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using reference = T&;
-  using const_reference = T const&;
-  using pointer = T*;
-  using const_pointer = T const*;
+  using value_type = T;                    ///< Type of the stored elements.
+  using size_type = std::size_t;           ///< Unsigned type for sizes and indices.
+  using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+  using reference = T&;                    ///< Mutable reference to an element.
+  using const_reference = T const&;        ///< Read-only reference to an element.
+  using pointer = T*;                      ///< Mutable pointer to an element.
+  using const_pointer = T const*;          ///< Read-only pointer to an element.
 
-  static constexpr size_type initial_gap{16};
+  static constexpr size_type initial_gap{16};  ///< Minimum gap width opened when the buffer grows.
 
   /**
    * @brief Copies another buffer, including its gap layout.
@@ -146,8 +146,8 @@ public:
 
 private:
   std::vector<T> m_buffer;
-  size_type m_gap_begin{0};  // index of the first gap slot
-  size_type m_gap_end{0};    // index one past the last gap slot
+  size_type m_gap_begin{0};  ///< Index of the first gap slot.
+  size_type m_gap_end{0};    ///< Index one past the last gap slot.
 
   /**
    * @brief Number of unused slots in the gap.
@@ -183,7 +183,10 @@ private:
    *
    * Shifts the post region right in place to reopen the gap; the destination is
    * strictly above the source, so the elements move back to front. The reopened
-   * gap scales with the buffer to keep cursor-local inserts amortised \c O(1).
+   * gap scales with the buffer to keep cursor-local inserts amortised \c O(1):
+   * an insert always arrives with an empty gap, so a constant reopen would slide
+   * the whole post region every \c initial_gap inserts and make editing
+   * quadratic, while a gap proportional to the size makes reopens geometric.
    *
    * @param min_gap Minimum number of gap slots required.
    *
@@ -502,9 +505,13 @@ private:
   };
 
 public:
+  /// @brief Mutable random-access iterator over the logical sequence.
   using iterator = basic_iterator<false>;
+  /// @brief Read-only random-access iterator over the logical sequence.
   using const_iterator = basic_iterator<true>;
+  /// @brief Mutable iterator walking back to front.
   using reverse_iterator = std::reverse_iterator<iterator>;
+  /// @brief Read-only iterator walking back to front.
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   /**
@@ -754,6 +761,9 @@ public:
    * @brief Inserts a copy of \p value at the cursor; the cursor advances past
    *        it.
    *
+   * \p value may alias an element of this buffer (\c insert(b[k])): when the gap
+   * must grow, the value is copied out before the reallocation.
+   *
    * @param value Value to copy in.
    *
    * @pre None.
@@ -781,6 +791,9 @@ public:
 
   /**
    * @brief Inserts \p value at the cursor by moving it; the cursor advances.
+   *
+   * \p value may alias an element of this buffer (\c insert(std::move(b[k]))):
+   * when the gap must grow, the value is moved out before the reallocation.
    *
    * @param value Value to move in.
    *

@@ -4,7 +4,18 @@
  *
  * Sized for a target false-positive rate, the filter answers "have I probably
  * seen this?" in a few bit probes. A negative is certain; a positive is checked
- * against the real store. No per-item storage, no enumeration.
+ * against the real store. No per-item storage, no enumeration. The factory sizes
+ * the filter for 10k URLs at a 1% rate and returns a result: a zero item count
+ * or a rate outside (0, 1) is rejected.
+ *
+ * Expected output:
+ *
+ * \code
+ * filter bits: 95851, hashes: 7
+ * seen a.example: true
+ * seen c.example (never inserted): false
+ * estimated false-positive rate: 0.0000
+ * \endcode
  */
 
 #include <print>

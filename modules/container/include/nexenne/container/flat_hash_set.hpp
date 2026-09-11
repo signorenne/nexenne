@@ -75,12 +75,12 @@ struct empty_value {
 template <typename T, typename Hash = std::hash<T>, typename KeyEq = std::equal_to<T>>
 class flat_hash_set {
 public:
-  using key_type = T;
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using hasher = Hash;
-  using key_equal = KeyEq;
+  using key_type = T;                      ///< Type of the stored elements, also the lookup key.
+  using value_type = T;                    ///< Type of the stored elements.
+  using size_type = std::size_t;           ///< Unsigned type for sizes and counts.
+  using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+  using hasher = Hash;                     ///< Hash functor over the elements.
+  using key_equal = KeyEq;                 ///< Equality predicate over the elements.
 
 private:
   using backing = flat_hash_map<T, detail::empty_value, Hash, KeyEq>;
@@ -363,12 +363,12 @@ public:
   /// @brief Forward iterator that walks the live elements of the set in unspecified order.
   class const_iterator {
   public:
-    using value_type = T;
-    using reference = T const&;
-    using pointer = T const*;
-    using difference_type = std::ptrdiff_t;
-    using iterator_category = std::forward_iterator_tag;
-    using iterator_concept = std::forward_iterator_tag;
+    using value_type = T;                    ///< Type of the stored elements.
+    using reference = T const&;              ///< Read-only reference to an element.
+    using pointer = T const*;                ///< Read-only pointer to an element.
+    using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+    using iterator_category = std::forward_iterator_tag;  ///< Legacy forward iterator category.
+    using iterator_concept = std::forward_iterator_tag;   ///< C++20 forward iterator concept.
 
     /**
      * @brief Constructs a singular iterator not tied to any set.
@@ -460,7 +460,7 @@ public:
     typename backing::const_iterator m_inner{};
   };
 
-  using iterator = const_iterator;
+  using iterator = const_iterator;  ///< Elements are immutable, so iteration is always read-only.
 
   /**
    * @brief Iterator to the first live element; iteration order is unspecified.

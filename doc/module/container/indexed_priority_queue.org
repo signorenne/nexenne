@@ -26,13 +26,13 @@ position.
 
 ** Two arrays plus a handle free list
 
-The queue holds the heap (a vector of =indexed_priority_queue_entry= values, each a
-=(value, handle)= pair that prints as =handle->value= through =format.hpp=), a =position=
-vector mapping handle to heap slot, and a free list of recycled handles. A handle
-is just an index into the position array; =allocate_handle= reuses a freed one or
-appends a new slot, and =release_handle= marks the slot with a tombstone and
-recycles the handle. =entries()= exposes the heap read-only, and =key_comp()=
-returns a const reference to the comparator.
+The queue holds the heap (a vector of =indexed_priority_queue_entry= values,
+each a =(value, handle)= pair that prints as =handle->value= through
+=format.hpp=), a =position= vector mapping handle to heap slot, and a free list
+of recycled handles. A handle is just an index into the position array;
+=allocate_handle= reuses a freed one or appends a new slot, and =release_handle=
+marks the slot with a tombstone and recycles the handle. =entries()= exposes the
+heap read-only, and =key_comp()= returns a const reference to the comparator.
 
 #+BEGIN_EXAMPLE
 max-heap holding 5, 3, 8 (pushed in that order, handles 0, 1, 2):

@@ -5,9 +5,34 @@
  * Each insert hands back an opaque key (slot index plus generation). The key
  * stays valid across other inserts and erases, and a key to an erased-then-
  * recycled slot reads as absent rather than silently aliasing the new occupant.
- * This tour covers the full handle lifecycle: insert, find-and-mutate through the
- * returned pointer, erase, the generation guard that makes recycling safe, live-
- * only iteration, and clear's wholesale invalidation.
+ * The tour walks the full handle lifecycle:
+ *
+ * 1. find returns a pointer to the live element, or null: a checked lookup that
+ *    doubles as a mutation handle, here renaming stone in place.
+ * 2. erase frees grass's slot. The next insert recycles it, but the slot's
+ *    generation was bumped on erase, so the stale grass key no longer matches:
+ *    the ABA guard that makes handle recycling safe.
+ * 3. A second erase of the same key reports false: double-freeing a handle is a
+ *    harmless no-op, not undefined.
+ * 4. Iteration walks only the live elements in slot (storage) order, skipping
+ *    the vacancy grass left; it is not insertion order.
+ * 5. clear empties the map and bumps every generation, so every outstanding key,
+ *    stone and water included, goes stale. Capacity is retained for reuse.
+ *
+ * Expected output:
+ *
+ * \code
+ * stone now: stone_hires.png
+ * live textures: 2
+ * stone still valid: true
+ * grass handle after erase: false
+ * recycled slot reused grass index: true
+ * grass and water share an index but not a generation: true
+ * find on the stale grass handle: true
+ * re-erasing grass removed something: false
+ * all live textures: water.png stone_hires.png
+ * after clear: size 0, stone valid false, water valid false
+ * \endcode
  */
 
 #include <print>

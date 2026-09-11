@@ -142,20 +142,18 @@ template <typename T>
   requires(std::derived_from<T, intrusive_list_hook<T>>)
 class intrusive_list {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using reference = T&;
-  using const_reference = T const&;
-  using pointer = T*;
-  using const_pointer = T const*;
+  using value_type = T;                    ///< Type of the linked elements.
+  using size_type = std::size_t;           ///< Unsigned type for sizes and counts.
+  using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+  using reference = T&;                    ///< Mutable reference to an element.
+  using const_reference = T const&;        ///< Read-only reference to an element.
+  using pointer = T*;                      ///< Mutable pointer to an element.
+  using const_pointer = T const*;          ///< Read-only pointer to an element.
 
 private:
   using hook_type = intrusive_list_hook<T>;
 
-  // A circular sentinel so begin()/end() never need a null check and a
-  // boundary insert is the same code path as a middle insert.
-  hook_type m_sentinel{};
+  hook_type m_sentinel{};  ///< Circular sentinel: no null checks, one insert path.
   size_type m_size{0};
 
   /**
@@ -381,9 +379,13 @@ private:
   };
 
 public:
+  /// @brief Mutable bidirectional iterator over the linked elements.
   using iterator = basic_iterator<false>;
+  /// @brief Read-only bidirectional iterator over the linked elements.
   using const_iterator = basic_iterator<true>;
+  /// @brief Mutable iterator walking back to front.
   using reverse_iterator = std::reverse_iterator<iterator>;
+  /// @brief Read-only iterator walking back to front.
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   /**
@@ -435,6 +437,10 @@ public:
 
   /**
    * @brief Detaches every element; elements are not destroyed.
+   *
+   * The sentinel is self-linked while the list is alive, so its links are nulled
+   * before it is destroyed; otherwise the hook's own still-linked debug guard
+   * (meant for genuine elements) would trip on it.
    *
    * @pre None.
    * @post Every former element is unlinked; the caller still owns them.

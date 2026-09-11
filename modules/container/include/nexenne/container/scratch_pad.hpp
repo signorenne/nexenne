@@ -59,8 +59,8 @@ concept checkpointable_arena = requires(A& arena, typename A::size_type offset) 
 template <checkpointable_arena Arena>
 class [[nodiscard]] scratch_pad final {
 public:
-  using arena_type = Arena;
-  using size_type = typename Arena::size_type;
+  using arena_type = Arena;                     ///< Type of the arena the checkpoint rewinds.
+  using size_type = typename Arena::size_type;  ///< Unsigned type of an arena offset.
 
 private:
   Arena& m_arena;

@@ -53,12 +53,12 @@ namespace nexenne::container {
 template <std::unsigned_integral Index = std::uint32_t>
 class union_find {
 public:
-  using index_type = Index;
-  using size_type = std::size_t;
+  using index_type = Index;       ///< Unsigned integer node index.
+  using size_type = std::size_t;  ///< Unsigned type for sizes and counts.
 
 private:
   std::vector<index_type> m_parent;
-  std::vector<size_type> m_set_size;
+  std::vector<size_type> m_set_size;  ///< Set size at each root; zero at every non-root.
   size_type m_set_count{0};
 
 public:
@@ -488,8 +488,8 @@ public:
   }
 };
 
-using union_find_u32 = union_find<std::uint32_t>;
-using union_find_u16 = union_find<std::uint16_t>;
-using union_find_u64 = union_find<std::uint64_t>;
+using union_find_u32 = union_find<std::uint32_t>;  ///< Disjoint sets over 32-bit indices.
+using union_find_u16 = union_find<std::uint16_t>;  ///< Disjoint sets over 16-bit indices.
+using union_find_u64 = union_find<std::uint64_t>;  ///< Disjoint sets over 64-bit indices.
 
 }  // namespace nexenne::container

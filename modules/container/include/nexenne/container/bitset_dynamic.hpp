@@ -51,11 +51,11 @@ namespace nexenne::container {
  */
 class bitset_dynamic {
 public:
-  using value_type = bool;
-  using size_type = std::size_t;
-  using word_type = std::uint64_t;
+  using value_type = bool;          ///< A single bit, read as a boolean.
+  using size_type = std::size_t;    ///< Unsigned type for bit counts and positions.
+  using word_type = std::uint64_t;  ///< Backing word that packs 64 bits.
 
-  static constexpr size_type bits_per_word{64};
+  static constexpr size_type bits_per_word{64};  ///< Number of bits packed in one backing word.
 
 private:
   std::vector<word_type> m_words;
@@ -172,11 +172,17 @@ public:
     }
 
   public:
+    /// @brief Index of a set bit.
     using value_type = size_type;
+    /// @brief Index of a set bit, returned by value.
     using reference = size_type;
+    /// @brief No pointer: the iterator yields computed indices.
     using pointer = void;
+    /// @brief Signed distance between two iterators.
     using difference_type = std::ptrdiff_t;
+    /// @brief Legacy forward iterator category.
     using iterator_category = std::forward_iterator_tag;
+    /// @brief C++20 forward iterator concept.
     using iterator_concept = std::forward_iterator_tag;
 
     /**
@@ -531,6 +537,10 @@ public:
 
   /**
    * @brief Resizes to \p n bits; bits added on a grow are set to \p value.
+   *
+   * Whole new words take \p value from the word-vector resize; the bits between
+   * the old size and the end of the previously partial last word are filled one
+   * by one, since that word kept its tail cleared.
    *
    * @param n New bit count.
    * @param value Value of bits added when growing.

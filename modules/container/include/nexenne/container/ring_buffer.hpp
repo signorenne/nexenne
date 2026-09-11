@@ -47,22 +47,28 @@ template <std::move_constructible T, std::size_t N>
   requires(N >= 1)
 class ring_buffer {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using reference = T&;
-  using const_reference = T const&;
-  using pointer = T*;
-  using const_pointer = T const*;
+  using value_type = T;                    ///< Type of the stored elements.
+  using size_type = std::size_t;           ///< Unsigned type for sizes and indices.
+  using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+  using reference = T&;                    ///< Mutable reference to an element.
+  using const_reference = T const&;        ///< Read-only reference to an element.
+  using pointer = T*;                      ///< Mutable pointer to an element.
+  using const_pointer = T const*;          ///< Read-only pointer to an element.
 
 private:
-  // A slot holds at most one live T. The trivial default member means
-  // constructing the storage array constructs no T; lifetimes are managed by
-  // hand. A union (rather than reinterpret_cast over bytes) keeps every element
-  // operation usable in a constant expression.
+  /**
+   * @brief Storage for at most one live \c T whose lifetime is managed by hand.
+   *
+   * The trivial default member means constructing the storage array constructs
+   * no \c T. A union rather than \c reinterpret_cast over bytes keeps every
+   * element operation usable in a constant expression.
+   *
+   * @pre None.
+   * @post A default-constructed slot holds no live element.
+   */
   union slot {
-    unsigned char none;
-    T value;
+    unsigned char none;  ///< Inactive member, so constructing a slot constructs no element.
+    T value;             ///< The element, alive only while the slot is in use.
 
     /**
      * @brief Constructs an inactive slot that holds no \c T.
@@ -82,8 +88,8 @@ private:
   };
 
   std::array<slot, N> m_slots{};
-  size_type m_head{};  // index of the oldest live element
-  size_type m_tail{};  // index the next push fills
+  size_type m_head{};  ///< Index of the oldest live element.
+  size_type m_tail{};  ///< Index the next push fills.
   size_type m_size{};
 
   /**
@@ -153,9 +159,9 @@ private:
   /**
    * @brief Constructs an element at the back, evicting the oldest when full.
    *
-   * When the buffer is full the value is materialised before the oldest slot is
-   * destroyed, so an argument that aliases the evicted element stays valid
-   * across the overwrite.
+   * When the buffer is full the tail slot is the head slot, holding the oldest
+   * element; the value is materialised before that slot is destroyed, so an
+   * argument that aliases the evicted element stays valid across the overwrite.
    *
    * @tparam Args Constructor argument types.
    * @param args Arguments forwarded to \p T's constructor.
@@ -323,7 +329,9 @@ private:
   };
 
 public:
+  /// @brief Forward iterator over mutable elements, oldest first.
   using iterator = basic_iterator<false>;
+  /// @brief Forward iterator over read-only elements, oldest first.
   using const_iterator = basic_iterator<true>;
 
   /**

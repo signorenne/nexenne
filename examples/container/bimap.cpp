@@ -4,7 +4,17 @@
  *
  * Each side stays unique, so a lookup works in either direction in amortised
  * constant time without scanning, and replace rebinds while evicting any
- * conflicting entry.
+ * conflicting entry: here it rebinds id 2 from "enemy" to "boss".
+ *
+ * Expected output:
+ *
+ * \code
+ * 3 ids registered
+ * id 1 -> player
+ * name 'boss' -> 2
+ * old name 'enemy' still bound: false
+ * replace displaced 1 entries
+ * \endcode
  */
 
 #include <print>

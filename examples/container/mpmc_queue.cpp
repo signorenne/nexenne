@@ -4,7 +4,17 @@
  *
  * Producer threads enqueue work items; consumer threads dequeue and tally them.
  * No locks are taken; the conserved total proves nothing was lost or duplicated
- * across the concurrent enqueue and dequeue.
+ * across the concurrent enqueue and dequeue. A producer that finds the queue
+ * full spins until a consumer frees a slot, and clearing the thread vector joins
+ * every jthread before the totals print.
+ *
+ * Expected output:
+ *
+ * \code
+ * 4 producers, 4 consumers
+ * items handled: 4000
+ * summed total (each item = 1): 4000
+ * \endcode
  */
 
 #include <atomic>

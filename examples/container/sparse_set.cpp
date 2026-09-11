@@ -2,6 +2,17 @@
  * @file
  * @brief sparse_set as an ECS tag: O(1) membership over entity ids plus dense
  *        iteration of the tagged entities.
+ *
+ * The set holds the ids of the entities carrying a "stunned" tag. Entity 3
+ * recovering is an O(1) erase, and iteration walks the dense keys of the
+ * entities still tagged.
+ *
+ * Expected output:
+ *
+ * \code
+ * stunned: 4 entities, contains 42: true
+ * still stunned: 10 7 42
+ * \endcode
  */
 
 #include <cstdint>

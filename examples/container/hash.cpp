@@ -4,7 +4,16 @@
  *
  * Including hash.hpp registers std::hash specializations, so value containers
  * with a canonical order (here a static_vector) drop straight into the standard
- * hashed containers as keys.
+ * hashed containers as keys. Here a result is memoised, keyed by a small input
+ * vector.
+ *
+ * Expected output:
+ *
+ * \code
+ * entries: 1
+ * probe hit: true
+ * value: computed
+ * \endcode
  */
 
 #include <print>

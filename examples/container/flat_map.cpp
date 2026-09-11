@@ -5,6 +5,13 @@
  * operator[] inserts a zero on first sight of a word and returns a mutable
  * reference, so the classic counting idiom works, and iteration yields the
  * entries already sorted by key.
+ *
+ * Expected output:
+ *
+ * \code
+ * counts (sorted by word): cat=1 mat=1 on=1 sat=1 the=3
+ * 'the' appears 3 times
+ * \endcode
  */
 
 #include <print>

@@ -4,6 +4,14 @@
  *
  * Collect sensor readings into inline storage with no heap; an overflow is an
  * explicit error rather than a silent reallocation.
+ *
+ * Expected output:
+ *
+ * \code
+ * dropped sample 25: buffer is full
+ * stored 4 of 4 samples
+ * average of stored: 10
+ * \endcode
  */
 
 #include <print>

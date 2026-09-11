@@ -5,6 +5,14 @@
  * The arena keeps a long-lived allocation; a scratch_pad block allocates
  * temporaries on top and releases exactly them when it goes out of scope, so the
  * long-lived data survives.
+ *
+ * Expected output:
+ *
+ * \code
+ * after persistent: 32 bytes used
+ * inside scratch:  544 bytes used
+ * after scratch:   32 bytes used
+ * \endcode
  */
 
 #include <print>

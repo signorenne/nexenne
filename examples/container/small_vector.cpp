@@ -5,10 +5,34 @@
  *
  * small_vector<T, N> keeps its first N elements in an inline buffer - zero heap
  * traffic while the size stays at or below N - and migrates to heap storage,
- * std::vector-style, only when it grows past N. This tour collects character
- * positions to show the inline/heap boundary, then walks the rest of the
- * vector-like surface: capacity growth, span/ranges interop, checked pop_back,
- * and shrink_to_fit migrating back inline.
+ * std::vector-style, only when it grows past N. The tour walks four steps:
+ *
+ * 1. Collecting character positions shows the boundary: two hits fit inline,
+ *    twelve spill to the heap. Indexing and iteration match std::vector, and
+ *    span() hands the live range to any std::span-taking algorithm with no copy.
+ * 2. Pushing slot by slot, capacity holds at the inline N until the push that
+ *    overflows it, then grows geometrically on the heap.
+ * 3. pop_back is checked: popping an empty vector reports an error rather than
+ *    being undefined, so draining is a loop that runs until it fails.
+ * 4. The drained vector still owns its heap block; shrink_to_fit releases it and
+ *    migrates back into the inline buffer.
+ *
+ * Expected output:
+ *
+ * \code
+ * 'o' appears 2 times, inline storage: true
+ * 'a' appears 12 times, inline storage: false
+ * 'o' positions: 4 7
+ * sum of 'a' positions (via std::span): 66
+ *   push 0: size 1, capacity 4, inline true
+ *   push 1: size 2, capacity 4, inline true
+ *   push 2: size 3, capacity 4, inline true
+ *   push 3: size 4, capacity 4, inline true
+ *   push 4: size 5, capacity 8, inline false
+ *   push 5: size 6, capacity 8, inline false
+ * after draining: empty true, capacity retained 8
+ * after shrink_to_fit: inline true, capacity 4
+ * \endcode
  */
 
 #include <cstddef>

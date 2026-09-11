@@ -4,7 +4,17 @@
  *
  * Vertices are dense integer ids; each directed edge carries a payload (here a
  * weight). edges_of and neighbors hand back contiguous views for an algorithm to
- * sweep without copying.
+ * sweep without copying. add_vertex is checked: it fails only once the Vertex
+ * type counts no more ids.
+ *
+ * Expected output:
+ *
+ * \code
+ * cities: 4, roads: 4
+ * total distance leaving city 0: 8
+ * city 0 out-degree: 2
+ * road 1 -> 3 exists: true
+ * \endcode
  */
 
 #include <print>

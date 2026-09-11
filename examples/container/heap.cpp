@@ -4,6 +4,12 @@
  *
  * A min-heap (via std::greater) keeps the smallest event time on top, so popping
  * yields the events in chronological order regardless of insertion order.
+ *
+ * Expected output:
+ *
+ * \code
+ * processing order: 10 20 30 40 50
+ * \endcode
  */
 
 #include <functional>

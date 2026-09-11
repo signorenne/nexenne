@@ -51,24 +51,37 @@ template <std::move_constructible T, std::size_t ChunkSize = 64>
   requires(ChunkSize > 0 && (ChunkSize & (ChunkSize - 1)) == 0)
 class stable_vector {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using reference = T&;
-  using const_reference = T const&;
-  using pointer = T*;
-  using const_pointer = T const*;
+  using value_type = T;                    ///< Type of the stored elements.
+  using size_type = std::size_t;           ///< Unsigned type for sizes and indices.
+  using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+  using reference = T&;                    ///< Mutable reference to an element.
+  using const_reference = T const&;        ///< Read-only reference to an element.
+  using pointer = T*;                      ///< Mutable pointer to an element.
+  using const_pointer = T const*;          ///< Read-only pointer to an element.
 
+  /// @brief Number of elements per chunk, the template argument ChunkSize.
   static constexpr size_type chunk_size{ChunkSize};
 
 private:
-  // A chunk is ChunkSize manually-managed slots. A union slot (rather than a
-  // byte buffer plus reinterpret_cast) keeps element access free of the
-  // launder/aliasing grey area.
+  /**
+   * @brief One heap block of \c ChunkSize manually managed element slots.
+   *
+   * @pre None.
+   * @post A new chunk holds no live element.
+   */
   struct chunk {
+    /**
+     * @brief Storage for at most one element whose lifetime is managed by hand.
+     *
+     * A union rather than a byte buffer plus \c reinterpret_cast keeps element
+     * access free of the launder and aliasing grey area.
+     *
+     * @pre None.
+     * @post A default-constructed slot holds no live element.
+     */
     union slot {
-      unsigned char none;
-      T value;
+      unsigned char none;  ///< Inactive member, so constructing a slot constructs no element.
+      T value;             ///< The element, alive only while the slot is in use.
 
       /**
        * @brief Constructs an inactive slot that holds no \c T.
@@ -158,7 +171,9 @@ private:
    *
    * Allocates fresh chunks until the chunk vector covers \p desired slots; an
    * already-sufficient request adds nothing. An unsatisfiable chunk count fails
-   * loudly rather than wrapping to a silent no-op.
+   * loudly rather than wrapping to a silent no-op. The chunk-pointer vector
+   * grows geometrically, since reserving exactly the chunks needed would
+   * reallocate it on every new chunk (quadratic copying).
    *
    * @param desired Minimum element count to back with allocated chunks.
    *
@@ -497,9 +512,13 @@ private:
   };
 
 public:
+  /// @brief Mutable random-access iterator, front to back.
   using iterator = basic_iterator<false>;
+  /// @brief Read-only random-access iterator, front to back.
   using const_iterator = basic_iterator<true>;
+  /// @brief Mutable iterator walking back to front.
   using reverse_iterator = std::reverse_iterator<iterator>;
+  /// @brief Read-only iterator walking back to front.
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   /**

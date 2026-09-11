@@ -57,44 +57,76 @@ template <std::move_constructible T, std::size_t N>
   requires(N >= 2)
 class spsc_queue {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
+  using value_type = T;           ///< Type of the queued elements.
+  using size_type = std::size_t;  ///< Unsigned type for sizes and counts.
 
+  /// @brief Maximum number of queued elements, N - 1 (one slot stays free).
   static constexpr size_type capacity_value{N - 1};
 
 private:
-  // Cache-line size on x86-64 and common ARM cores. Hardcoded rather than using
-  // std::hardware_destructive_interference_size, whose value is an ABI-unstable
-  // constant that GCC warns against baking into a class layout.
+  /**
+   * @brief Cache-line size on x86-64 and common ARM cores.
+   *
+   * Hardcoded rather than \c std::hardware_destructive_interference_size, whose
+   * value is an ABI-unstable constant that GCC warns against baking into a class
+   * layout.
+   */
   static constexpr std::size_t cache_line_size{64};
 
   alignas(T) std::array<std::byte, sizeof(T) * N> m_storage{};
 
-  // Head and tail on separate cache lines: the producer writing tail must not
-  // invalidate the consumer's cache line holding head, and vice versa. Each
-  // line also holds its owner's cached copy of the peer index, read and written
-  // by that owner only. The peer index only moves forward, so a stale copy can
-  // only under-report free slots (producer) or queued elements (consumer), and
-  // the acquire load that filled it synchronised with the peer's release.
-  alignas(cache_line_size) std::atomic<size_type> m_head{0};  // consumer advances this
-  size_type m_tail_cache{0};  // consumer only: last tail it acquired
-  alignas(cache_line_size) std::atomic<size_type> m_tail{0};  // producer advances this
-  size_type m_head_cache{0};  // producer only: last head it acquired
+  alignas(cache_line_size) std::atomic<size_type> m_head{0};  ///< Advanced by the consumer.
+  size_type m_tail_cache{0};  ///< Consumer only: the last tail it acquired.
+  alignas(cache_line_size) std::atomic<size_type> m_tail{0};  ///< Advanced by the producer.
+  size_type m_head_cache{0};  ///< Producer only: the last head it acquired.
 
-  // Where slot i's element lives: plain address arithmetic over the bytes, valid
-  // before any T exists there, which is what std::construct_at needs.
+  /**
+   * @brief Address of slot \p i, valid before any \c T exists there.
+   *
+   * Plain address arithmetic over the bytes; this is the pointer
+   * \c std::construct_at needs to start an element.
+   *
+   * @param i Slot index.
+   *
+   * @return Pointer to the raw storage of slot \p i, not laundered.
+   *
+   * @pre \p i is less than \p N.
+   * @post None.
+   */
   [[nodiscard]] auto slot_address(size_type const i) noexcept -> T* {
     return reinterpret_cast<T*>(m_storage.data() + (i * sizeof(T)));
   }
 
-  // The element living in slot i. A std::byte array element is not
-  // pointer-interconvertible with the T constructed inside it, so access goes
-  // through std::launder, which is only valid once that T exists.
+  /**
+   * @brief Pointer to the element living in slot \p i.
+   *
+   * A \c std::byte array element is not pointer-interconvertible with the \c T
+   * constructed inside it, so access goes through \c std::launder.
+   *
+   * @param i Slot index.
+   *
+   * @return Laundered pointer to the element.
+   *
+   * @pre A \c T is alive in slot \p i.
+   * @post None.
+   */
   [[nodiscard]] auto element(size_type const i) noexcept -> T* {
     return std::launder(slot_address(i));
   }
 
-  // Power-of-two N wraps with a mask (a single AND); any other N uses a modulo.
+  /**
+   * @brief Slot index after \p i, wrapping at \p N.
+   *
+   * A power-of-two \p N wraps with a mask (a single AND); any other \p N uses a
+   * modulo.
+   *
+   * @param i Current slot index.
+   *
+   * @return The following slot index.
+   *
+   * @pre \p i is less than \p N.
+   * @post The result is less than \p N.
+   */
   [[nodiscard]] static constexpr auto next(size_type const i) noexcept -> size_type {
     if constexpr (std::has_single_bit(N)) {
       return (i + 1) & (N - 1);
@@ -117,6 +149,13 @@ public:
   spsc_queue(spsc_queue&&) = delete;
   auto operator=(spsc_queue&&) -> spsc_queue& = delete;
 
+  /**
+   * @brief Drains the queue so every remaining element is destroyed.
+   *
+   * @pre Neither the producer nor the consumer is running: teardown is
+   *      single-threaded.
+   * @post Every queued element has been destroyed.
+   */
   ~spsc_queue() noexcept {
     // Single-threaded at destruction: drain so element destructors run.
     while (pop().has_value()) {}

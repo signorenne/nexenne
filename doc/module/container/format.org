@@ -43,6 +43,10 @@ Map and multi-line shapes whose iteration order is unspecified (the hashed
 containers) print in whatever order the container iterates, so two equal maps may
 print their entries in different orders.
 
+The ordered flat containers (=flat_map=, =flat_set=, =static_flat_map=) use the
+same brace style as their hashed cousins, not the C++23 default range rendering
+of a sorted-pair sequence (=[(k, v), ...]=), so the whole module stays uniform.
+
 The stats-only types have no safe (or any) element enumeration: the lock-free
 queues are mutated concurrently, the memory tier hands out raw storage, the bloom
 filter cannot list its members, and the LRU cache exposes no iteration. Each

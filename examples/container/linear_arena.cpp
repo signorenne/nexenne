@@ -5,6 +5,15 @@
  *
  * Each frame bump-allocates some scratch storage in O(1) and releases all of it
  * at once with reset(), with no heap allocation anywhere.
+ *
+ * Expected output:
+ *
+ * \code
+ * frame 0: used 48 bytes (scratch[9]=9, tag=0)
+ * frame 1: used 48 bytes (scratch[9]=9, tag=0.5)
+ * frame 2: used 48 bytes (scratch[9]=9, tag=1)
+ * peak across frames: 48 bytes
+ * \endcode
  */
 
 #include <print>

@@ -6,8 +6,29 @@
  * wrapping [head, tail) window; it never allocates. The choice that defines its
  * use is what happens at capacity: push refuses (returns an error) so a producer
  * can apply back-pressure, while push_overwrite drops the oldest element so the
- * buffer is always the most recent N. This tour shows both, plus pop, front/back
- * peeks, and the full/empty boundaries.
+ * buffer is always the most recent N. The tour shows both:
+ *
+ * 1. A bounded queue: push refuses when full, so the fourth push fails with the
+ *    reason instead of overwriting, and the producer can wait and retry rather
+ *    than lose data. front and back peek without removing, pop removes the
+ *    oldest, and a pop on an empty buffer is a checked error.
+ * 2. A rolling window: push_overwrite never fails and evicts the oldest once
+ *    full, so the buffer keeps the last three readings, iterated oldest first.
+ *
+ * Expected output:
+ *
+ * \code
+ * empty true, full false, cap 3
+ * after 3 pushes: size 3, full true
+ * push(4) rejected: full
+ * front 1, back 3
+ * pop 1
+ * now there is room, push(4): true
+ * draining FIFO: 2 3 4
+ * pop when empty: empty
+ * last 3 readings (oldest first): 23 22 25
+ * rolling average: 23
+ * \endcode
  */
 
 #include <print>

@@ -43,6 +43,9 @@ namespace nexenne::container {
 /**
  * @brief Fixed-capacity cache with least-recently-used eviction.
  *
+ * The cache is neither copyable nor movable: a move would have to rewrite every
+ * node pointer in the recency list and the index, so construct it in place.
+ *
  * @tparam Key Key type; must be default-constructible and movable. The node
  *             pool is pre-sized at construction (so keys are value-initialised)
  *             and \c put places a key by move-assignment.
@@ -67,9 +70,9 @@ template <
           && std::default_initializable<Value> && std::movable<Value>
 class lru_cache {
 public:
-  using key_type = Key;
-  using mapped_type = Value;
-  using size_type = std::size_t;
+  using key_type = Key;           ///< Type of the keys.
+  using mapped_type = Value;      ///< Type of the cached values.
+  using size_type = std::size_t;  ///< Unsigned type for sizes and counts.
 
 private:
   /**
@@ -143,9 +146,7 @@ private:
     }
   };
 
-  // Stable storage so the list and index pointers stay valid: the pool is sized
-  // to capacity at construction and never grows, so node addresses never move.
-  std::vector<node> m_pool;
+  std::vector<node> m_pool;  ///< Sized once to the capacity, so node addresses never move.
   std::vector<node*> m_free;
   intrusive_list<node> m_lru;
   flat_hash_map<Key const*, node*, key_ptr_hash, key_ptr_eq> m_index;

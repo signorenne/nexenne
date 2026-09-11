@@ -5,6 +5,13 @@
  * A pointer taken from a std::vector dangles the moment the vector reallocates.
  * stable_vector never moves an existing element, so a pointer stays good for the
  * element's whole lifetime, no matter how much the container grows afterwards.
+ *
+ * Expected output:
+ *
+ * \code
+ * first element via the saved pointer: 100
+ * size 1001, chunks 251, pointer still valid: true
+ * \endcode
  */
 
 #include <print>

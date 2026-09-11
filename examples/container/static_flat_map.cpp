@@ -5,6 +5,14 @@
  * A four-entry map stored entirely inline; entries stay sorted by key, and once
  * it is full an insert of a new key returns container_error::full instead of
  * allocating or overflowing.
+ *
+ * Expected output:
+ *
+ * \code
+ * config (sorted by key): depth=32 height=600 width=800
+ * width = 800
+ * adding a fifth key: full
+ * \endcode
  */
 
 #include <print>

@@ -54,8 +54,8 @@ not at the erase call. =shrink_to_fit= closes the gap and reclaims the storage.
 
 ** Moving the cursor
 
-=move_cursor_to(pos)= / =move_cursor_by= reposition the gap by shifting elements across
-it, =O(distance)=, returning =container_error::out_of_range= for a target
+=move_cursor_to= / =move_cursor_by= reposition the gap by shifting elements
+across it, =O(distance)=, returning =container_error::out_of_range= for a target
 outside =[0, size()]= (=move_cursor_by= checks the signed target before
 delegating, so a negative overshoot is caught too). Moving *left* peels elements
 off the pre region and drops them onto the gap's right edge; moving *right* does
@@ -121,7 +121,7 @@ positions compare equal.
 |---------------------------------+----------------|
 | insert / emplace at the cursor  | O(1) amortised |
 | erase_forward / erase_backward  | O(1)           |
-| move_cursor_to(pos) / move_cursor_by    | O(distance)    |
+| move_cursor_to / move_cursor_by | O(distance)    |
 | operator[], at, front, back     | O(1)           |
 | iterate begin .. end            | O(n)           |
 | operator== / operator<=>        | O(n)           |
@@ -157,7 +157,7 @@ Choosing between the obvious candidates:
 
 Invalidation and stability gotchas:
 
-- A cursor move (=move_cursor_to(pos)= / =move_cursor_by=) physically shifts elements
+- A cursor move (=move_cursor_to= / =move_cursor_by=) physically shifts elements
   across the gap, so it invalidates references, pointers, and iterators to the
   elements it crossed; treat the whole logical sequence as relocated.
 - A growth reallocates the backing vector, invalidating *all* references,
@@ -187,7 +187,7 @@ Invalidation and stability gotchas:
 nexenne::container::gap_buffer<char> line;
 
 for (char const ch : "hello") { line.insert(ch); }   // O(1) each at the cursor
-if (line.move_cursor_to(2).has_value()) {                    // reposition once
+if (line.move_cursor_to(2).has_value()) {            // reposition once
   line.insert('!');                                  // O(1) burst of edits here
 }
 nexenne::utility::ignore(line.erase_backward());    // backspace, O(1)

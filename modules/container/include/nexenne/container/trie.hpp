@@ -142,8 +142,11 @@ private:
   std::size_t m_size{};
 
 public:
+  /// @brief Character type of the key strings.
   using char_type = Char;
+  /// @brief Type of the value stored per key.
   using value_type = Value;
+  /// @brief Unsigned type for sizes and counts.
   using size_type = std::size_t;
 
   /**
@@ -346,6 +349,10 @@ public:
 
   /**
    * @brief Erases the value at \p key, pruning now-empty internal nodes.
+   *
+   * The descent records each (parent, edge) pair, so pruning walks back up only
+   * the key's own path: it drops each node that is now a valueless leaf and stops
+   * at the first node still in use (one holding a value or children).
    *
    * @tparam KeyRange A forward range of \p Char tokens, or a \p Char pointer or
    *         array treated as a null-terminated string.

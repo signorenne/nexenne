@@ -89,9 +89,13 @@ struct edge_eq_nothrow<void> : std::true_type {};
 template <typename E = void, std::unsigned_integral Vertex = std::uint32_t>
 class graph {
 public:
+  /// @brief Unsigned integer type of a vertex ID.
   using vertex_type = Vertex;
+  /// @brief Edge payload type, or void when edges carry none.
   using edge_type = E;
+  /// @brief Unsigned type for sizes and counts.
   using size_type = std::size_t;
+  /// @brief One stored edge: its target and payload.
   using edge_record = detail::graph_edge<E, Vertex>;
 
 private:

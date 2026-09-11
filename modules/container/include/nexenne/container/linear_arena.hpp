@@ -40,6 +40,10 @@ namespace nexenne::container {
 /**
  * @brief Inline-buffer bump allocator.
  *
+ * The arena is neither copyable nor movable: it hands out pointers into itself,
+ * so a copy would share the buffer and a move would dangle every outstanding
+ * pointer.
+ *
  * @tparam N Inline buffer size in bytes; must be greater than zero.
  *
  * @pre None.
@@ -49,9 +53,10 @@ template <std::size_t N>
   requires(N > 0)
 class linear_arena {
 public:
-  using value_type = std::byte;
-  using size_type = std::size_t;
+  using value_type = std::byte;   ///< Unit of the arena storage, one byte.
+  using size_type = std::size_t;  ///< Unsigned type for byte counts and offsets.
 
+  /// @brief Inline buffer size in bytes, the template argument N.
   static constexpr size_type capacity_value{N};
 
 private:

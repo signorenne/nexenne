@@ -5,6 +5,14 @@
  * A set is a map that forgot its values: the same contiguous, linear-probing
  * storage as flat_hash_map, holding only keys. Here it deduplicates a stream of
  * tokens and answers membership in amortised constant time.
+ *
+ * Expected output:
+ *
+ * \code
+ * 5 tokens, 3 unique
+ * seen 'alpha': true
+ * seen 'delta': false
+ * \endcode
  */
 
 #include <print>

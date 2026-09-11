@@ -95,15 +95,15 @@ template <
   typename KeyEq = std::equal_to<Key>>
 class flat_hash_map {
 public:
-  using key_type = Key;
-  using mapped_type = Value;
-  using value_type = std::pair<Key, Value>;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using hasher = Hash;
-  using key_equal = KeyEq;
+  using key_type = Key;                      ///< Type of the keys.
+  using mapped_type = Value;                 ///< Type of the mapped values.
+  using value_type = std::pair<Key, Value>;  ///< A stored key-value entry.
+  using size_type = std::size_t;             ///< Unsigned type for sizes and counts.
+  using difference_type = std::ptrdiff_t;    ///< Signed distance between two iterators.
+  using hasher = Hash;                       ///< Hash functor over the keys.
+  using key_equal = KeyEq;                   ///< Equality predicate over the keys.
 
-  static constexpr size_type initial_capacity{16};
+  static constexpr size_type initial_capacity{16};  ///< Slot count of the first allocation.
 
 private:
   enum class slot_state : std::uint8_t {
@@ -111,17 +111,24 @@ private:
     occupied
   };
 
-  // One table cell. The entry lives in an anonymous union so it carries no
-  // engaged flag of its own: the state already says whether it is alive (it is
-  // exactly while the state is occupied), which is what the std::optional this
-  // replaced duplicated. The slot runs the entry's constructor and destructor
-  // by hand.
+  /**
+   * @brief One table cell: a cached hash, an occupancy state and the entry.
+   *
+   * The entry lives in an anonymous union so it carries no engaged flag of its
+   * own: the state already says whether it is alive (exactly while the state is
+   * occupied). The slot runs the entry's constructor and destructor by hand and
+   * is the only code that names the union member; the table goes through
+   * \c value(), \c construct() and \c destroy().
+   *
+   * @pre None.
+   * @post A default-constructed slot is empty.
+   */
   struct slot {
     std::size_t cached_hash{0};
     slot_state state{slot_state::empty};
 
     union {
-      value_type entry;
+      value_type entry;  ///< The live key-value entry while the slot is occupied.
     };
 
     /**
@@ -340,7 +347,8 @@ private:
    *
    * With no tombstones only live entries fill the table, so the trigger fires
    * only when the table genuinely needs to grow; churn at a constant live size
-   * never rehashes.
+   * never rehashes. Keeping the live count at or below 7/8 of the slots
+   * guarantees the empty slot that terminates every probe.
    *
    * @param desired_entries Live entry count the table must accommodate.
    *
@@ -681,8 +689,8 @@ private:
   };
 
 public:
-  using iterator = basic_iterator<false>;
-  using const_iterator = basic_iterator<true>;
+  using iterator = basic_iterator<false>;       ///< Forward iterator over mutable entries.
+  using const_iterator = basic_iterator<true>;  ///< Forward iterator over read-only entries.
 
   /**
    * @brief Constructs an empty map with no allocated storage.
@@ -919,6 +927,9 @@ public:
    * @brief Inserts \p key mapping to \p value, leaving an existing key
    *        unchanged.
    *
+   * The key is probed before the table grows, so a \c false return never
+   * rehashes or invalidates a reference to any element.
+   *
    * @param key Key to insert.
    * @param value Value to store on a fresh insertion.
    *
@@ -945,6 +956,9 @@ public:
 
   /**
    * @brief Inserts \p key mapping to \p value, overwriting an existing value.
+   *
+   * An existing value is overwritten in place without growing the table, so an
+   * assignment never rehashes or invalidates a reference to another entry.
    *
    * @param key Key to insert or update.
    * @param value Value to store.
@@ -975,6 +989,9 @@ public:
   /**
    * @brief Constructs the value in place for \p key, leaving an existing key
    *        unchanged.
+   *
+   * The key is probed first, so an existing key neither constructs a discarded
+   * value nor rehashes; the value is built only on a real insertion.
    *
    * @tparam Args Constructor argument types for \p Value.
    * @param key Key to insert.

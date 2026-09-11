@@ -48,16 +48,20 @@ namespace nexenne::container {
 template <std::move_constructible T>
 class bag {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using reference = T&;
-  using const_reference = T const&;
-  using pointer = T*;
-  using const_pointer = T const*;
+  using value_type = T;                    ///< Type of the stored elements.
+  using size_type = std::size_t;           ///< Unsigned type for sizes and indices.
+  using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+  using reference = T&;                    ///< Mutable reference to an element.
+  using const_reference = T const&;        ///< Read-only reference to an element.
+  using pointer = T*;                      ///< Mutable pointer to an element.
+  using const_pointer = T const*;          ///< Read-only pointer to an element.
+  /// @brief Mutable contiguous iterator over the elements.
   using iterator = typename std::vector<T>::iterator;
+  /// @brief Read-only contiguous iterator over the elements.
   using const_iterator = typename std::vector<T>::const_iterator;
+  /// @brief Mutable iterator walking the elements back to front.
   using reverse_iterator = typename std::vector<T>::reverse_iterator;
+  /// @brief Read-only iterator walking the elements back to front.
   using const_reverse_iterator = typename std::vector<T>::const_reverse_iterator;
 
 private:
@@ -403,7 +407,7 @@ public:
    * Walks from the back so each swap-pop is \c O(1). \p value may refer to an
    * element of this bag: that element is moved out first and serves as the
    * needle, so no swap-pop can overwrite or destroy what is being compared
-   * against.
+   * against; equality being reflexive, the needle itself counts as one removal.
    *
    * @param value Value to remove every occurrence of.
    *

@@ -5,6 +5,15 @@
  * Including format.hpp gives every printable container a to_string, an ostream
  * inserter, and a std::formatter, so containers drop into diagnostics the same
  * way the standard ones do. The output is for humans, not serialisation.
+ *
+ * Expected output:
+ *
+ * \code
+ * static_vector[1, 2, 3]
+ * static_vector[1, 2, 3]
+ * static_vector[1, 2, 3]
+ * flat_hash_map{a: 1}
+ * \endcode
  */
 
 #include <format>

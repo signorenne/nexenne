@@ -50,12 +50,12 @@ namespace nexenne::container {
 template <std::unsigned_integral Key = std::uint32_t>
 class sparse_set {
 public:
-  using value_type = Key;
-  using key_type = Key;
-  using size_type = std::size_t;
-  // The dense values are the keys, and mutating a key would break the sparse
-  // mapping, so iteration is read-only and iterator == const_iterator.
+  using value_type = Key;         ///< Type of the stored keys.
+  using key_type = Key;           ///< Unsigned integer key indexing the sparse array.
+  using size_type = std::size_t;  ///< Unsigned type for sizes and counts.
+  /// @brief Read-only random-access iterator over the dense keys, in dense order.
   using iterator = typename std::vector<Key>::const_iterator;
+  /// @brief Same as iterator: mutating a key would break the sparse mapping.
   using const_iterator = iterator;
 
   /// @brief Sentinel sparse value meaning "key not present"; public for custom storage.
@@ -413,8 +413,8 @@ public:
   }
 };
 
-using sparse_set_u32 = sparse_set<std::uint32_t>;
-using sparse_set_u16 = sparse_set<std::uint16_t>;
-using sparse_set_u64 = sparse_set<std::uint64_t>;
+using sparse_set_u32 = sparse_set<std::uint32_t>;  ///< Sparse set of 32-bit keys.
+using sparse_set_u16 = sparse_set<std::uint16_t>;  ///< Sparse set of 16-bit keys.
+using sparse_set_u64 = sparse_set<std::uint64_t>;  ///< Sparse set of 64-bit keys.
 
 }  // namespace nexenne::container

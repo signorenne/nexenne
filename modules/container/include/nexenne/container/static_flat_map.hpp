@@ -52,13 +52,15 @@ template <typename Key, typename Value, std::size_t Capacity, typename Compare =
   requires(Capacity > 0 && std::strict_weak_order<Compare const&, Key const&, Key const&>)
 class static_flat_map {
 public:
-  using key_type = Key;
-  using mapped_type = Value;
-  using value_type = std::pair<Key, Value>;
-  using key_compare = Compare;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
+  using key_type = Key;                      ///< Type of the keys.
+  using mapped_type = Value;                 ///< Type of the mapped values.
+  using value_type = std::pair<Key, Value>;  ///< A stored key-value entry.
+  using key_compare = Compare;               ///< Strict weak ordering that keys the map.
+  using size_type = std::size_t;             ///< Unsigned type for sizes and counts.
+  using difference_type = std::ptrdiff_t;    ///< Signed distance between two iterators.
+  /// @brief Random-access iterator over mutable entries, in key order.
   using iterator = typename std::array<value_type, Capacity>::iterator;
+  /// @brief Random-access iterator over read-only entries, in key order.
   using const_iterator = typename std::array<value_type, Capacity>::const_iterator;
 
 private:
@@ -651,6 +653,10 @@ public:
   /**
    * @brief Assigns \p value to \p key, inserting a new entry if absent.
    *
+   * A new entry is materialised before the tail shifts, so a \p key that aliases
+   * a mapped value at or past the insertion point is never read after being
+   * moved from.
+   *
    * @param key Key to assign or insert.
    * @param value Mapped value to store, moved in.
    *
@@ -713,7 +719,9 @@ public:
    * @brief Inserts an entry for \p key with a value built from \p args, only if
    *        \p key is absent, failing if full.
    *
-   * The value is constructed only on insertion.
+   * The value is constructed only on insertion, and the entry is materialised
+   * before the tail shifts, so an argument that refers to a mapped value at or
+   * past the insertion point is never read after that slot is moved from.
    *
    * @tparam Args Constructor argument types for \p Value.
    * @param key Key to insert under.

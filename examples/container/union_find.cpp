@@ -5,9 +5,35 @@
  * union_find partitions [0, n) into disjoint sets. unite() merges the sets of two
  * nodes; find() returns a set's representative root; connected() and size_of()
  * query membership and set size - all in near-constant amortised time, far
- * cheaper than re-running a flood fill per query. This tour builds a small graph
- * edge by edge, watches the component count fall, distinguishes a real merge from
- * a redundant edge, peeks at the roots, and shows the out_of_range error path.
+ * cheaper than re-running a flood fill per query. The tour walks five steps:
+ *
+ * 1. make_set grows the structure one checked node at a time; it fails only once
+ *    the Index type counts no more nodes.
+ * 2. Edges are united one by one while the component count falls. unite reports
+ *    whether it merged two distinct sets: (3, 4) joins, the reversed (4, 3) is
+ *    redundant.
+ * 3. find returns a set's representative: two nodes share a set exactly when
+ *    their roots match, and node 5, never united, is its own root.
+ * 4. Indices are guarded: a query on node 99 reports out_of_range instead of
+ *    reading out of bounds.
+ * 5. clear empties the partition and keeps the storage; make_set grows it again.
+ *
+ * Expected output:
+ *
+ * \code
+ * start: nodes 6, components 6
+ *   unite(0, 1): merged true, components now 5
+ *   unite(1, 2): merged true, components now 4
+ *   unite(3, 4): merged true, components now 3
+ *   unite(4, 3): merged false, components now 3
+ * 0 and 2 connected: true
+ * 0 and 3 connected: false
+ * size of 0's component: 3
+ * root(2) == root(0): true
+ * node 5 is its own root: true
+ * connected(0, 99): out_of_range
+ * after clear and 3 make_set: nodes 3, components 3
+ * \endcode
  */
 
 #include <print>

@@ -4,7 +4,17 @@
  *
  * Words sharing a prefix share trie nodes, so membership and prefix tests cost
  * O(key length) and the structure answers "does any word start with this?"
- * directly.
+ * directly. Each word maps to its frequency.
+ *
+ * Expected output:
+ *
+ * \code
+ * words: 4
+ * has 'care': true
+ * any word starts with 'car': true
+ * any word starts with 'cat': false
+ * words under prefix walk: car(3) card(1) care(5) dog(2)
+ * \endcode
  */
 
 #include <print>

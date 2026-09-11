@@ -4,7 +4,15 @@
  *
  * Order does not matter for a "what is active this frame" set, so removal is a
  * swap-pop rather than an order-preserving shift: erase_first is O(n) to find
- * the element, then O(1) to swap it with the last and pop.
+ * the element, then O(1) to swap it with the last and pop, and erase_all drops
+ * every copy of a value.
+ *
+ * Expected output:
+ *
+ * \code
+ * active: 5
+ * remaining: 10 20 40
+ * \endcode
  */
 
 #include <print>

@@ -4,6 +4,14 @@
  *
  * A runtime-sized bit per entity tracks which are alive, with word-level
  * popcount, a sparse scan over the live indices, and a forward scan-for-set.
+ *
+ * Expected output:
+ *
+ * \code
+ * alive: 6 of 100
+ * ids: 3 17 42 63 64 99
+ * first alive at or after 50: 63
+ * \endcode
  */
 
 #include <cstddef>

@@ -4,7 +4,17 @@
  *
  * Each get and put marks the entry most-recently-used; once the cache is full a
  * new key evicts the least-recently-used one. The node pool is fixed, so the
- * steady state allocates nothing.
+ * steady state allocates nothing. Touching grass.png makes it the most recently
+ * used, so the third put evicts stone.png.
+ *
+ * Expected output:
+ *
+ * \code
+ * resident: 2
+ * grass cached: true
+ * stone cached: false
+ * least recently used now: grass.png
+ * \endcode
  */
 
 #include <print>

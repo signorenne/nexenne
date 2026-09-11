@@ -86,33 +86,86 @@ namespace detail {
 
 /// @cond INTERNAL
 
-// Whether an A argument binds to the T const& a standard function object over
-// T takes, without throwing.
+/**
+ * @brief Whether an \p A argument binds to a \c T \c const& without throwing.
+ *
+ * That reference is the parameter a standard function object over \p T takes.
+ *
+ * @tparam A Argument type.
+ * @tparam T Parameter type of the function object.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename A, typename T>
 struct nothrow_binds : std::is_nothrow_convertible<A, T const&> {};
 
-// Whether the operator a standard function object applies, taken as bool, is
-// noexcept on A and B.
+/**
+ * @brief Whether \c a < \c b, taken as \c bool, is \c noexcept on \p A and \p B.
+ *
+ * @tparam A Left operand type.
+ * @tparam B Right operand type.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename A, typename B>
 struct nothrow_less_op
     : std::bool_constant<noexcept(static_cast<bool>(std::declval<A>() < std::declval<B>()))> {};
 
+/**
+ * @brief Whether \c a > \c b, taken as \c bool, is \c noexcept on \p A and \p B.
+ *
+ * @tparam A Left operand type.
+ * @tparam B Right operand type.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename A, typename B>
 struct nothrow_greater_op
     : std::bool_constant<noexcept(static_cast<bool>(std::declval<A>() > std::declval<B>()))> {};
 
+/**
+ * @brief Whether \c a == \c b, taken as \c bool, is \c noexcept on \p A and \p B.
+ *
+ * @tparam A Left operand type.
+ * @tparam B Right operand type.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename A, typename B>
 struct nothrow_equal_op
     : std::bool_constant<noexcept(static_cast<bool>(std::declval<A>() == std::declval<B>()))> {};
 
+/**
+ * @brief Whether \c std::hash over \p T hashes a \c T \c const& without throwing.
+ *
+ * @tparam T Hashed type.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename T>
 struct nothrow_hash_op : std::bool_constant<noexcept(std::hash<T>{}(std::declval<T const&>()))> {};
 
-// Whether invoking F (a cv-ref qualified Fn) with Args is nothrow. Any callable
-// follows std::is_nothrow_invocable; a standard comparison object or std::hash,
-// whose call operator libstdc++ does not declare noexcept, counts as nothrow
-// when the operator or hash it applies is. std::conjunction stops at the first
-// false trait, so an operator is only probed on arguments F accepts.
+/**
+ * @brief Whether invoking \p F (a cv-ref qualified \p Fn) with \p Args is nothrow.
+ *
+ * Any callable follows \c std::is_nothrow_invocable; a standard comparison
+ * object or \c std::hash, whose call operator libstdc++ does not declare
+ * \c noexcept, counts as nothrow when the operator or hash it applies is.
+ * \c std::conjunction stops at the first false trait, so an operator is only
+ * probed on arguments \p F accepts.
+ *
+ * @tparam Fn Unqualified callable type, the specialisation key.
+ * @tparam F Callable type as invoked, with its cv-ref qualifiers.
+ * @tparam Args Argument types.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename Fn, typename F, typename... Args>
 struct nothrow_call : std::is_nothrow_invocable<F, Args...> {};
 
@@ -159,9 +212,15 @@ template <typename T, typename F, typename A>
 struct nothrow_call<std::hash<T>, F, A>
     : std::conjunction<std::is_invocable<F, A>, nothrow_binds<A, T>, nothrow_hash_op<T>> {};
 
-// std::is_nothrow_invocable_v<F, Args...>, trusting the standard function
-// objects as above. Every conditional noexcept on a callable in this module
-// uses it.
+/**
+ * @brief \c std::is_nothrow_invocable_v, trusting the standard function objects.
+ *
+ * See \c nothrow_call. Every conditional \c noexcept on a callable in this
+ * module uses it.
+ *
+ * @tparam F Callable type as invoked.
+ * @tparam Args Argument types.
+ */
 template <typename F, typename... Args>
 // A caller's comparator type (say std::greater<int>) passes through here as a
 // template argument, which modernize-use-transparent-functors misreads as a

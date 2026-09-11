@@ -4,6 +4,13 @@
  *
  * Built once from a word list, then queried; the sorted contiguous storage makes
  * membership a cache-friendly binary search and iteration a flat, in-order walk.
+ *
+ * Expected output:
+ *
+ * \code
+ * 4 stopwords, contains 'the': true
+ * sorted: a and of the
+ * \endcode
  */
 
 #include <print>

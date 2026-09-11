@@ -4,7 +4,16 @@
  *
  * Three producer threads each enqueue a run of numbers; the main thread (the
  * single consumer) drains them all. The total is deterministic: the lock-free
- * sequence protocol serialises the producers' reservations without a mutex.
+ * sequence protocol serialises the producers' reservations without a mutex: the
+ * sum is 3 * 5050. A producer that finds the queue full spins until the consumer
+ * drains a slot.
+ *
+ * Expected output:
+ *
+ * \code
+ * consumed 300 items from 3 producers
+ * total sum: 15150
+ * \endcode
  */
 
 #include <cstdint>

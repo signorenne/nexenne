@@ -5,6 +5,14 @@
  *
  * The window keeps the most recent N values; each new reading goes on the back
  * and, once the window is full, the oldest is popped from the front, both O(1).
+ *
+ * Expected output:
+ *
+ * \code
+ * dropped 10
+ * dropped 20
+ * window: 30 40 50 60
+ * \endcode
  */
 
 #include <cstddef>

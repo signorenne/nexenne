@@ -58,9 +58,9 @@ namespace nexenne::container {
 template <typename T, typename Hash = std::hash<T>>
 class bloom_filter {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using hasher = Hash;
+  using value_type = T;           ///< Type of the values added and queried.
+  using size_type = std::size_t;  ///< Unsigned type for bit and hash counts.
+  using hasher = Hash;            ///< Hash functor feeding the double-hashing scheme.
 
 private:
   bitset_dynamic m_bits;
@@ -68,9 +68,20 @@ private:
   size_type m_insertions{};
   Hash m_hash{};
 
-  // Second hash, derived from the first: "Less Hashing, Same Performance"
-  // (Kirsch and Mitzenmacher) shows h_i(x) = h1 + i*h2 matches k independent
-  // hashes for the error rate.
+  /**
+   * @brief The splitmix64 finalizer, which derives the second hash from the first.
+   *
+   * "Less Hashing, Same Performance" (Kirsch and Mitzenmacher) shows that the
+   * double-hashing family h_i(x) = h1 + i*h2 matches k independent hashes for
+   * the error rate, so two base hashes are all the filter needs.
+   *
+   * @param z Value to mix.
+   *
+   * @return The mixed value; \c splitmix64(0) is 0.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto splitmix64(std::uint64_t z) noexcept -> std::uint64_t {
     z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
     z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
@@ -78,9 +89,20 @@ private:
     return z;
   }
 
-  // The two base hashes for a value. h2 is forced odd so it is never zero:
-  // a value whose hash is 0 would otherwise drive every one of the k positions
-  // to bit 0 (splitmix64(0) == 0), collapsing the filter for that value.
+  /**
+   * @brief The two base hashes h1 and h2 of \p value.
+   *
+   * h2 is forced odd so it is never zero: a value whose hash is 0 would
+   * otherwise drive every one of the k positions to bit 0 (\c splitmix64(0) is
+   * 0), collapsing the filter for that value.
+   *
+   * @param value Value to hash.
+   *
+   * @return The pair (h1, h2).
+   *
+   * @pre None.
+   * @post The second hash is odd.
+   */
   [[nodiscard]] auto
   hash_pair(T const& value) const noexcept(detail::nothrow_invocable_v<Hash const&, T const&>)
     -> std::pair<std::size_t, std::size_t> {
@@ -89,6 +111,18 @@ private:
     return {h1, h2};
   }
 
+  /**
+   * @brief Bit probed by the \p k-th hash: (h1 + k * h2) modulo the bit count.
+   *
+   * @param k Hash index, below \c hash_count().
+   * @param h1 First base hash.
+   * @param h2 Second base hash.
+   *
+   * @return A bit index below \c bit_count().
+   *
+   * @pre The filter has at least one bit.
+   * @post None.
+   */
   [[nodiscard]] auto
   bit_for(size_type const k, std::size_t const h1, std::size_t const h2) const noexcept
     -> size_type {

@@ -4,7 +4,15 @@
  *        allocation.
  *
  * The enemies own their own storage; the list only threads them together through
- * the hook embedded in each, so linking and unlinking allocate nothing.
+ * the hook embedded in each, so linking and unlinking allocate nothing. Erasing
+ * the dead enemy is an O(1) unlink: no search and no free.
+ *
+ * Expected output:
+ *
+ * \code
+ * active: 3
+ * remaining: 1(hp 100) 3(hp 50)
+ * \endcode
  */
 
 #include <print>

@@ -59,8 +59,8 @@ namespace nexenne::container {
  */
 class slot_key {
 public:
-  using generation_type = std::uint32_t;
-  using index_type = std::uint32_t;
+  using generation_type = std::uint32_t;  ///< Counter that ages a slot on every erase.
+  using index_type = std::uint32_t;       ///< Unsigned integer slot index.
 
   /**
    * @brief Constructs a null handle that never matches a live element.
@@ -141,10 +141,10 @@ private:
 template <typename T>
 class slot_map {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using generation_type = std::uint32_t;
-  using index_type = std::uint32_t;
+  using value_type = T;                   ///< Type of the stored elements.
+  using size_type = std::size_t;          ///< Unsigned type for sizes and counts.
+  using generation_type = std::uint32_t;  ///< Counter that ages a slot on every erase.
+  using index_type = std::uint32_t;       ///< Unsigned integer slot index.
 
   /**
    * @brief Opaque handle returned by \c insert / \c emplace.
@@ -351,7 +351,9 @@ private:
   };
 
 public:
+  /// @brief Forward iterator over mutable occupied elements.
   using iterator = basic_iterator<false>;
+  /// @brief Forward iterator over read-only occupied elements.
   using const_iterator = basic_iterator<true>;
 
   /**

@@ -3,7 +3,17 @@
  * @brief gap_buffer as a tiny line editor: type, move the cursor, backspace.
  *
  * Editing clusters around the cursor, so inserting and deleting there is O(1);
- * the cursor move that repositions the gap is the only shift.
+ * the cursor move that repositions the gap is the only shift. The program types
+ * "helo", moves the cursor between 'e' and 'l' to insert the missing 'l', then
+ * backspaces the last character.
+ *
+ * Expected output:
+ *
+ * \code
+ * typed:     helo
+ * fixed:     hello
+ * backspace: hell
+ * \endcode
  */
 
 #include <print>

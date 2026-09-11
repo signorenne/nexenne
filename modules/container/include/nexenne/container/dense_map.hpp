@@ -52,9 +52,9 @@ template <std::unsigned_integral Key, typename Value>
   requires std::is_void_v<Value> || std::movable<Value>
 class dense_map {
 public:
-  using key_type = Key;
-  using value_type = Value;
-  using size_type = std::size_t;
+  using key_type = Key;           ///< Unsigned integer key indexing the sparse array.
+  using value_type = Value;       ///< Type of the mapped values.
+  using size_type = std::size_t;  ///< Unsigned type for sizes and counts.
 
 private:
   sparse_set<key_type> m_set;
@@ -64,7 +64,9 @@ private:
   class basic_iterator;
 
 public:
+  /// @brief Input iterator yielding key and mutable value pairs.
   using iterator = basic_iterator<false>;
+  /// @brief Input iterator yielding key and read-only value pairs.
   using const_iterator = basic_iterator<true>;
 
   /**
@@ -526,8 +528,17 @@ public:
   }
 
 private:
-  // Proxy forward-of-sorts iterator: dereferencing yields a fresh
-  // std::pair<Key, Value&> by value, so it models only input_iterator.
+  /**
+   * @brief Proxy iterator over the \c (key, value&) entries in dense order.
+   *
+   * Dereferencing yields a fresh pair of the key and a value reference by value,
+   * so the iterator models only \c std::input_iterator.
+   *
+   * @tparam IsConst \c true for the read-only iterator.
+   *
+   * @pre None.
+   * @post A default-constructed iterator is singular.
+   */
   template <bool IsConst>
   class basic_iterator {
   public:
@@ -593,6 +604,8 @@ private:
      * The dereferenced entry is a fresh proxy pair, so \c operator-> hands back a
      * small wrapper that owns that pair and forwards \c -> to its address, the
      * standard technique for a proxy iterator (letting \c it->second compile).
+     * Owning the pair by value keeps the returned pointer valid for the whole
+     * enclosing expression.
      *
      * @return A proxy whose \c operator-> yields a pointer to the entry.
      *
@@ -686,10 +699,15 @@ private:
 template <std::unsigned_integral Key>
 class dense_map<Key, void> {
 public:
+  /// @brief Unsigned integer key indexing the sparse array.
   using key_type = Key;
+  /// @brief No mapped values: the specialisation stores keys only.
   using value_type = void;
+  /// @brief Unsigned type for sizes and counts.
   using size_type = std::size_t;
+  /// @brief Read-only iterator over the stored keys.
   using iterator = typename sparse_set<key_type>::iterator;
+  /// @brief Read-only iterator over the stored keys.
   using const_iterator = typename sparse_set<key_type>::const_iterator;
 
   /**

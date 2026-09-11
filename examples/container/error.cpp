@@ -3,7 +3,16 @@
  * @brief The container error policy and result alias in action.
  *
  * A fallible operation returns result<T> (std::expected<T, container_error>)
- * rather than throwing; the caller inspects the value or names the error.
+ * rather than throwing; the caller inspects the value or names the error. Here a
+ * bounds-checked nth returns the value on a hit and out_of_range on a miss,
+ * instead of throwing or asserting.
+ *
+ * Expected output:
+ *
+ * \code
+ * data[1] = 20
+ * data[5] -> error: out_of_range
+ * \endcode
  */
 
 #include <array>

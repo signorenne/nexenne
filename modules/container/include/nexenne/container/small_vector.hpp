@@ -54,16 +54,18 @@ namespace nexenne::container {
 template <std::move_constructible T, std::size_t N>
 class small_vector {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using reference = T&;
-  using const_reference = T const&;
-  using pointer = T*;
-  using const_pointer = T const*;
-  using iterator = T*;
-  using const_iterator = T const*;
+  using value_type = T;                    ///< Type of the stored elements.
+  using size_type = std::size_t;           ///< Unsigned type for sizes and indices.
+  using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+  using reference = T&;                    ///< Mutable reference to an element.
+  using const_reference = T const&;        ///< Read-only reference to an element.
+  using pointer = T*;                      ///< Mutable pointer to an element.
+  using const_pointer = T const*;          ///< Read-only pointer to an element.
+  using iterator = T*;                     ///< Mutable contiguous iterator.
+  using const_iterator = T const*;         ///< Read-only contiguous iterator.
+  /// @brief Mutable iterator walking back to front.
   using reverse_iterator = std::reverse_iterator<iterator>;
+  /// @brief Read-only iterator walking back to front.
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
 private:
@@ -406,7 +408,8 @@ public:
    * @brief Swaps contents with \p other.
    *
    * Implemented through moves because a pointer swap is impossible while either
-   * side uses inline storage.
+   * side uses inline storage; when both sides are on the heap the pointers are
+   * swapped in \c O(1) with no element moves.
    *
    * @param other Vector to exchange contents with.
    *
@@ -602,6 +605,13 @@ public:
 
   /**
    * @brief Constructs an element in place at the end.
+   *
+   * \p args may refer to an element of this vector (\c push_back(v[i])): the
+   * grow path first builds the element in local staging storage, then
+   * reallocates. Staging uses the same parenthesized direct-initialization as
+   * the in-capacity path, so an initializer_list-greedy or
+   * narrowing-convertible argument yields an identical element on both paths,
+   * matching \c std::vector::emplace_back.
    *
    * @tparam Args Constructor argument types.
    * @param args Arguments forwarded to \p T's constructor.

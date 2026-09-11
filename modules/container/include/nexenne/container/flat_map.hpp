@@ -70,15 +70,17 @@ template <typename Key, typename Value, typename Compare = std::less<Key>>
   requires std::strict_weak_order<Compare const&, Key const&, Key const&>
 class flat_map {
 public:
-  using key_type = Key;
-  using mapped_type = Value;
-  using value_type = std::pair<Key, Value>;
-  using key_compare = Compare;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using reference = value_type&;
-  using const_reference = value_type const&;
+  using key_type = Key;                       ///< Type of the keys.
+  using mapped_type = Value;                  ///< Type of the mapped values.
+  using value_type = std::pair<Key, Value>;   ///< A stored key-value entry.
+  using key_compare = Compare;                ///< Strict weak ordering that keys the map.
+  using size_type = std::size_t;              ///< Unsigned type for sizes and counts.
+  using difference_type = std::ptrdiff_t;     ///< Signed distance between two iterators.
+  using reference = value_type&;              ///< Mutable reference to an entry.
+  using const_reference = value_type const&;  ///< Read-only reference to an entry.
+  /// @brief Random-access iterator over mutable entries, in key order.
   using iterator = typename std::vector<value_type>::iterator;
+  /// @brief Random-access iterator over read-only entries, in key order.
   using const_iterator = typename std::vector<value_type>::const_iterator;
 
 private:

@@ -4,6 +4,14 @@
  *
  * N particles are reserved up front; spawning is an O(1) acquire-and-construct
  * and a death is an O(1) destroy-and-recycle, with no per-particle allocation.
+ *
+ * Expected output:
+ *
+ * \code
+ * spawned: 3 live, full: true
+ * one died: 2 live
+ * respawned: 3 live, peak: 3
+ * \endcode
  */
 
 #include <print>

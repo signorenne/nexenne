@@ -46,14 +46,14 @@ template <typename T, typename Compare = std::less<T>>
   requires std::strict_weak_order<Compare const&, T const&, T const&>
 class flat_set {
 public:
-  using value_type = T;
-  using key_type = T;
-  using key_compare = Compare;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  // Elements must stay sorted, so they are never mutable in place: the iterator
-  // is a const iterator.
+  using value_type = T;                    ///< Type of the stored elements.
+  using key_type = T;                      ///< Type of the stored elements, also the lookup key.
+  using key_compare = Compare;             ///< Strict weak ordering that keys the set.
+  using size_type = std::size_t;           ///< Unsigned type for sizes and counts.
+  using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+  /// @brief Read-only random-access iterator in sorted order; elements stay sorted.
   using iterator = typename std::vector<T>::const_iterator;
+  /// @brief Same as iterator: elements are never mutable in place.
   using const_iterator = iterator;
 
 private:

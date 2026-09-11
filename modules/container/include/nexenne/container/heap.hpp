@@ -58,13 +58,21 @@ template <std::movable T, typename Compare = std::less<T>>
   requires std::strict_weak_order<Compare const&, T const&, T const&>
 class heap {
 public:
+  /// @brief Type of the stored elements.
   using value_type = T;
+  /// @brief Unsigned type for sizes and counts.
   using size_type = std::size_t;
+  /// @brief Signed distance between two positions.
   using difference_type = std::ptrdiff_t;
+  /// @brief Read-only reference: elements are not mutable in place.
   using reference = T const&;
+  /// @brief Read-only reference to an element.
   using const_reference = T const&;
+  /// @brief Read-only pointer: elements are not mutable in place.
   using pointer = T const*;
+  /// @brief Read-only pointer to an element.
   using const_pointer = T const*;
+  /// @brief Strict weak ordering; the greatest element is on top.
   using key_compare = Compare;
 
 private:

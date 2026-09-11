@@ -3,21 +3,41 @@
  * @brief A guided tour of nexenne::container through one realistic task: the
  *        core data model and a few ticks of a tiny, console-only game world.
  *
- * This program does not render or simulate physics - it *manages state* the way
- * a real entity system does, and prints what happens, so you can see how the
- * containers of the module fit together in context. The job each one is doing is
- * the point: every container here is the data-structure answer to one concrete
- * access pattern, and the comments say which pattern, and what it beats.
+ * This program does not render or simulate physics; it manages state the way a
+ * real entity system does, and prints what happens, so you can see how the
+ * containers of the module fit together in context. Every container here is the
+ * data-structure answer to one concrete access pattern, and each printed section
+ * matches one step below, which says why its container is the right tool and
+ * which simpler choice it improves on.
  *
- *   1. The entity store     -> slot_map: stable handles that survive recycling.
- *   2. The name index       -> flat_hash_map: name -> handle, one cache miss.
- *   3. Per-entity components -> small_vector: usually tiny, no heap traffic.
- *   4. The tick scheduler    -> indexed_priority_queue: pop-soonest + reschedule.
- *   5. The event log         -> ring_buffer: a fixed rolling window, never grows.
- *   6. Squad connectivity    -> union_find: who is linked to whom, near-O(1).
- *
- * Read it top to bottom; each section notes *why* its container is the right
- * tool and which simpler choice it improves on.
+ * 1. The entity store, slot_map: entities come and go, and everything else needs
+ *    to refer to one that may already be gone. A raw pointer or a vector index
+ *    would dangle or silently alias a recycled slot; a slot_map key (slot plus
+ *    generation) to a dead entity reads as absent, never as the new occupant.
+ *    Each entity's component list is a small_vector of four: almost every entity
+ *    fits inline at zero extra allocations, and only the five-component boss
+ *    spills to the heap, with no change to the calling code.
+ * 2. The name index, flat_hash_map: name to handle in about one cache miss, the
+ *    slots living in one contiguous linear-probing array (one allocation, not a
+ *    node per entry), several times faster than std::unordered_map. The handle is
+ *    a tiny trivially copyable value, so the index stays valid as the store
+ *    reallocates.
+ * 3. The tick scheduler, indexed_priority_queue: always the soonest thinker,
+ *    but entities also reschedule and cancel, which std::priority_queue cannot do
+ *    without a full rescan. The stable handle from push makes update and erase
+ *    O(log n) by identity; std::greater makes it a min-heap on time.
+ * 4. The event log, ring_buffer: exactly the last few events, never growing and
+ *    never allocating mid-frame. push_overwrite drops the oldest once full and
+ *    cannot fail, a single write into a circular array.
+ * 5. Squad connectivity, union_find: unite merges two squads and connected
+ *    answers "same side?" in near-constant amortised time (inverse Ackermann),
+ *    far cheaper than a flood fill per query. An entity's slot index doubles as
+ *    its squad node.
+ * 6. The simulation: each tick peeks the soonest thinker, resolves it through the
+ *    name index to its live entity, mutates the world, logs, and reschedules in
+ *    place with update, since pop would free the handle. A dead entity's think is
+ *    erased by handle and its key quietly stops resolving: no dangling reference
+ *    anywhere.
  */
 
 #include <cstdint>

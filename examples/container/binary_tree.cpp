@@ -4,7 +4,16 @@
  *
  * A binary search tree keeps its elements ordered by the comparator, so an
  * in-order walk yields them ascending regardless of insertion order, and
- * membership is O(h).
+ * membership is O(h). Keys are unique, so the second 17 is not stored.
+ *
+ * Expected output:
+ *
+ * \code
+ * sorted unique scores: 5 17 42 63 88
+ * count: 5
+ * has 63: true
+ * after erasing 42: 5 17 63 88
+ * \endcode
  */
 
 #include <print>

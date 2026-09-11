@@ -4,10 +4,38 @@
  *
  * A general hashable-key map over one contiguous, linear-probed slot array:
  * roughly one allocation and one cache miss per lookup, several times faster than
- * std::unordered_map's node-per-entry layout. This tour covers the insertion
- * trio (insert keeps an existing value, insert_or_assign overwrites, operator[]
- * default-inserts), checked lookup, erase by backward shift, capacity growth
- * and load factor across a rehash, and unordered iteration.
+ * std::unordered_map's node-per-entry layout. The tour walks five steps:
+ *
+ * 1. The insertion trio differs on a key collision: insert leaves an existing
+ *    value untouched and returns false, insert_or_assign overwrites it, and
+ *    operator[] default-inserts, then hands back a mutable reference.
+ * 2. find and contains are checked lookups: a miss is a null pointer or false.
+ * 3. erase removes the entry and shifts later entries of its probe run back, so
+ *    no tombstone is left. An erase can move other entries: never erase while
+ *    iterating.
+ * 4. Capacity is a power of two and the table rehashes at 7/8 load: filling
+ *    past the threshold doubles the slot count while the load factor stays
+ *    bounded. A rehash invalidates pointers from earlier find() calls.
+ * 5. Iteration visits every live entry once, in an unspecified slot order, so
+ *    the program totals the ids instead of depending on order.
+ *
+ * Expected output:
+ *
+ * \code
+ * insert player.png is fresh: true
+ * insert player.png again is fresh: false
+ * 4 assets registered
+ * enemy.png -> 2
+ * player.png -> 10
+ * sfx.wav -> 5
+ * has 'missing.png': false (count 0)
+ * erase music.ogg: true
+ * erase music.ogg again: false
+ * music.ogg findable: false
+ * before fill: size 3, capacity 16, load 0.19
+ * after fill: size 43, capacity 64, load 0.67
+ * iterated 43 entries, id sum 40797
+ * \endcode
  */
 
 #include <print>

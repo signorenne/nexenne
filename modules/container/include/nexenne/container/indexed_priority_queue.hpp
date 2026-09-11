@@ -69,10 +69,10 @@ template <std::movable T, typename Compare = std::less<T>>
   requires std::strict_weak_order<Compare const&, T const&, T const&>
 class indexed_priority_queue {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using key_compare = Compare;
-  using handle_type = std::uint32_t;
+  using value_type = T;               ///< Type of the queued values.
+  using size_type = std::size_t;      ///< Unsigned type for sizes and counts.
+  using key_compare = Compare;        ///< Strict weak ordering; the greatest value is on top.
+  using handle_type = std::uint32_t;  ///< Stable handle naming one queued value.
 
   using entry = indexed_priority_queue_entry<T>;  ///< A heap slot: the value and its handle.
 
@@ -87,8 +87,8 @@ public:
 
 private:
   std::vector<entry> m_heap;
-  std::vector<size_type> m_position;     // handle -> index into m_heap
-  std::vector<handle_type> m_free_list;  // recycled handles
+  std::vector<size_type> m_position;     ///< Index into the heap, per handle.
+  std::vector<handle_type> m_free_list;  ///< Handles ready for reuse.
   [[no_unique_address]] Compare m_cmp{};
 
   /// @brief Whether sifting an entry (compare and swap) is nothrow.

@@ -4,7 +4,17 @@
  *
  * Integer entity ids key a sparse_set, while the components live packed in a
  * parallel vector, so a system iterates them as one contiguous, cache-friendly
- * sweep regardless of how sparse the ids are.
+ * sweep regardless of how sparse the ids are. Erasing entity 2 is a swap-pop
+ * that moves entity 7 into the freed slot; the "system" is then one dense pass
+ * over the live components.
+ *
+ * Expected output:
+ *
+ * \code
+ * 2 entities have a velocity
+ * has entity 2: false
+ * total speed component sum: 7
+ * \endcode
  */
 
 #include <cstdint>

@@ -56,9 +56,9 @@ template <std::move_constructible T, typename Compare = std::less<T>>
   requires std::strict_weak_order<Compare const&, T const&, T const&>
 class binary_tree {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using key_compare = Compare;
+  using value_type = T;           ///< Type of the stored elements.
+  using size_type = std::size_t;  ///< Unsigned type for sizes and counts.
+  using key_compare = Compare;    ///< Strict weak ordering that keys the tree.
 
 private:
   /**
@@ -299,8 +299,8 @@ private:
   };
 
 public:
-  using iterator = basic_iterator<false>;
-  using const_iterator = basic_iterator<true>;
+  using iterator = basic_iterator<false>;       ///< In-order iterator over mutable elements.
+  using const_iterator = basic_iterator<true>;  ///< In-order iterator over read-only elements.
 
   /**
    * @brief Constructs an empty tree with a default-constructed comparator.
@@ -969,8 +969,12 @@ private:
    * @brief Unlinks and destroys node \p z, preserving the search invariant.
    *
    * With zero or one child, the single child (or null) is transplanted into
-   * \p z's slot; with two children the in-order successor is spliced into
-   * \p z's place.
+   * \p z's slot; with two children the in-order successor \c y (leftmost of
+   * \p z's right subtree, so it has no left child) is spliced into \p z's place.
+   * When \c y lies deeper than \p z's right child, \c y's right subtree first
+   * takes \c y's old slot and \c y inherits \p z's right subtree; otherwise
+   * \c y is that child and keeps its right subtree. This is TREE-DELETE with
+   * TRANSPLANT from CLRS, Introduction to Algorithms, section 12.3.
    *
    * @param z Live node to remove.
    *

@@ -52,13 +52,13 @@ namespace nexenne::container {
 template <std::move_constructible T>
 class deque {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
-  using difference_type = std::ptrdiff_t;
-  using reference = T&;
-  using const_reference = T const&;
-  using pointer = T*;
-  using const_pointer = T const*;
+  using value_type = T;                    ///< Type of the stored elements.
+  using size_type = std::size_t;           ///< Unsigned type for sizes and indices.
+  using difference_type = std::ptrdiff_t;  ///< Signed distance between two iterators.
+  using reference = T&;                    ///< Mutable reference to an element.
+  using const_reference = T const&;        ///< Read-only reference to an element.
+  using pointer = T*;                      ///< Mutable pointer to an element.
+  using const_pointer = T const*;          ///< Read-only pointer to an element.
 
 private:
   T* m_data{nullptr};
@@ -88,7 +88,9 @@ private:
    *
    * Rounds \p want up to a power of two and re-packs the elements with the front
    * at index \c 0. A request at or below the current capacity is a no-op, and an
-   * unsatisfiable request terminates.
+   * unsatisfiable request terminates: \c std::bit_ceil is undefined when the
+   * rounded-up power of two is not representable, and \c new_cap * sizeof(T)
+   * must not wrap into an undersized allocation.
    *
    * @param want Minimum number of elements the buffer must hold.
    *
@@ -145,11 +147,20 @@ private:
     return cap == 0 ? 8 : cap * 2;
   }
 
-  // Random-access iterator over the logical sequence. It holds the owning deque
-  // plus a logical position (0 is the front) and maps to a physical slot through
-  // slot_of, so it walks the masked ring in front-to-back order. Like the sibling
-  // owner+index iterators it follows the container object: a container move
-  // invalidates outstanding iterators and a swap retargets them.
+  /**
+   * @brief Random-access iterator over the logical sequence, front to back.
+   *
+   * It holds the owning deque plus a logical position (0 is the front) and maps
+   * to a physical slot through \c slot_of, so it walks the masked ring in order.
+   * Like the sibling owner and index iterators it follows the container object:
+   * a container move invalidates outstanding iterators and a swap retargets
+   * them.
+   *
+   * @tparam IsConst \c true for the read-only iterator.
+   *
+   * @pre None.
+   * @post A default-constructed iterator is singular.
+   */
   template <bool IsConst>
   class basic_iterator {
   public:
@@ -441,9 +452,13 @@ private:
   };
 
 public:
+  /// @brief Mutable random-access iterator, front to back.
   using iterator = basic_iterator<false>;
+  /// @brief Read-only random-access iterator, front to back.
   using const_iterator = basic_iterator<true>;
+  /// @brief Mutable iterator walking back to front.
   using reverse_iterator = std::reverse_iterator<iterator>;
+  /// @brief Read-only iterator walking back to front.
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   /**
@@ -762,6 +777,12 @@ public:
   /**
    * @brief Constructs an element in place at the back, growing if needed.
    *
+   * \p args may refer to an element of this deque (\c push_back(d[0])): the grow
+   * path first builds the element in local staging storage, then reallocates.
+   * Staging uses the same parenthesized direct-initialization as the
+   * in-capacity path, so an initializer_list-greedy or narrowing-convertible
+   * argument yields an identical element on both paths.
+   *
    * @tparam Args Constructor argument types.
    * @param args Arguments forwarded to \p T's constructor.
    *
@@ -806,6 +827,9 @@ public:
 
   /**
    * @brief Constructs an element in place at the front, growing if needed.
+   *
+   * \p args may refer to an element of this deque (\c push_front(d[0])): as in
+   * \c emplace_back, the grow path stages the element before reallocating.
    *
    * @tparam Args Constructor argument types.
    * @param args Arguments forwarded to \p T's constructor.
