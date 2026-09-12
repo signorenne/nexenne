@@ -22,6 +22,11 @@ TEST_CASE("engine to_string names the engine and prints its hex state") {
   CHECK(text.starts_with("pcg32(state=0x"));
   CHECK(text.ends_with(")"));
 
+  auto const a{rnd::pcg32::from_state(0x1234, 1)};
+  auto const b{rnd::pcg32::from_state(0x1234, 0xdeadbeefcafebabf)};
+  CHECK(rnd::to_string(a) != rnd::to_string(b));
+  CHECK(rnd::to_string(a) == "pcg32(state=0x0000000000001234, stream=0x0000000000000001)");
+
   rnd::xoshiro256ss const x{123};
   auto const xtext{rnd::to_string(x)};
   CHECK(xtext.starts_with("xoshiro256ss(state=[0x"));

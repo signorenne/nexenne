@@ -37,20 +37,21 @@
 namespace nexenne::random {
 
 /**
- * @brief Debug string of the form "pcg32(state=0x...)".
+ * @brief Debug string of the form "pcg32(state=0x..., stream=0x...)".
  *
- * The 64-bit state is printed in zero-padded hexadecimal; together with the
- * fixed stream it locates the engine's position for a replay log.
+ * The 64-bit state and stream increment are printed in zero-padded
+ * hexadecimal; the pair is the engine's full position, so
+ * \c pcg32::from_state(state, stream) rebuilds it for a replay.
  *
  * @param engine Engine to print.
  *
  * @return The debug string.
  *
  * @pre None.
- * @post Names the engine and its state word.
+ * @post Names the engine, its state word and its stream increment.
  */
 [[nodiscard]] inline auto to_string(pcg32 const& engine) -> std::string {
-  return std::format("pcg32(state={:#018x})", engine.state());
+  return std::format("pcg32(state={:#018x}, stream={:#018x})", engine.state(), engine.stream());
 }
 
 /**
