@@ -121,13 +121,17 @@ public:
     // Box-Muller (trigonometric form). \c u1 must be > 0
     // since we take its log; the engine virtually never
     // returns exactly zero, but guard anyway.
-    auto u1{uniform_real(g)};
-    if (u1 == 0.0) {
-      u1 = std::numeric_limits<double>::min();
+    // Computed in T, so a float distribution runs single-precision maths (a
+    // single-precision FPU would otherwise emulate the double log); for double
+    // the expressions are unchanged. The zero guard follows the conversion,
+    // which can underflow a tiny draw to zero.
+    auto u1{static_cast<T>(uniform_real(g))};
+    if (u1 == T{0}) {
+      u1 = std::numeric_limits<T>::min();
     }
-    auto const u2{uniform_real(g)};
-    auto const r{std::sqrt(static_cast<T>(-2.0 * std::log(u1)))};
-    auto const theta{static_cast<T>(2.0 * std::numbers::pi_v<double> * u2)};
+    auto const u2{static_cast<T>(uniform_real(g))};
+    auto const r{std::sqrt(T{-2} * std::log(u1))};
+    auto const theta{T{2} * std::numbers::pi_v<T> * u2};
     auto const z0{r * std::cos(theta)};
     auto const z1{r * std::sin(theta)};
     m_cached = z1;
@@ -199,15 +203,13 @@ public:
 template <std::floating_point T = double, rng_engine G>
 [[nodiscard]] auto normal(G& g, T const mean = T{0}, T const stddev = T{1}) noexcept -> T {
   assert(stddev >= T{0} && "normal stddev must be non-negative");
-  auto u1{uniform_real(g)};
-  if (u1 == 0.0) {
-    u1 = std::numeric_limits<double>::min();
+  // Guard zero after the cast to T: the narrowing can underflow u1.
+  auto u1{static_cast<T>(uniform_real(g))};
+  if (u1 == T{0}) {
+    u1 = std::numeric_limits<T>::min();
   }
-  auto const u2{uniform_real(g)};
-  auto const z{
-    std::sqrt(static_cast<T>(-2.0 * std::log(u1)))
-    * std::cos(static_cast<T>(2.0 * std::numbers::pi_v<double> * u2))
-  };
+  auto const u2{static_cast<T>(uniform_real(g))};
+  auto const z{std::sqrt(T{-2} * std::log(u1)) * std::cos(T{2} * std::numbers::pi_v<T> * u2)};
   return mean + stddev * z;
 }
 

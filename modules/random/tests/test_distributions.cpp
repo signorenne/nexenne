@@ -640,4 +640,20 @@ static_assert(!std::is_constructible_v<
                        }))>);
 static_assert(std::is_constructible_v<rnd::discrete_distribution<double>, std::vector<double>>);
 
+TEST_CASE("nexenne::random::normal_distribution<float> is standard normal") {
+  rnd::pcg32 g{21, 4};
+  rnd::normal_distribution<float> dist{0.0F, 1.0F};
+  double sum{0.0};
+  double sum_sq{0.0};
+  constexpr int n{100000};
+  for (int i{0}; i < n; ++i) {
+    auto const x{static_cast<double>(dist.sample(g))};
+    REQUIRE(std::isfinite(x));
+    sum += x;
+    sum_sq += x * x;
+  }
+  CHECK(sum / n == doctest::Approx(0.0).epsilon(0.02).scale(1.0));
+  CHECK(sum_sq / n == doctest::Approx(1.0).epsilon(0.02));
+}
+
 }  // namespace
