@@ -54,7 +54,7 @@ remaining weights must sum to a finite total.
 |-------------------+-----------------------------------------|
 | shuffle           | O(n) time, in place                     |
 | reservoir_sample  | O(n) time, O(min(k, n)) space, one pass |
-| weighted_choice   | O(k) per call (linear scan)             |
+| weighted_choice   | O(n) per call (linear scan)             |
 
 * When to use which
 

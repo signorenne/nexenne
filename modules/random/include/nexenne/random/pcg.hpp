@@ -201,7 +201,8 @@ public:
    * @post The state equals what \c |delta| forward (or backward) calls
    *       to \c next would have produced.
    *
-   * @complexity \c O(log |delta|).
+   * @complexity \c O(log d), where \c d is \p delta taken modulo \c 2^64: at
+   *             most 64 steps, and exactly 64 for any negative \p delta.
    */
   constexpr auto advance(std::int64_t const delta) noexcept -> void {
     auto cur_mult{std::uint64_t{6364136223846793005ULL}};

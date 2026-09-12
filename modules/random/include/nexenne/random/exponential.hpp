@@ -87,7 +87,6 @@ public:
    */
   template <rng_engine Engine>
   [[nodiscard]] auto sample(Engine& engine) const noexcept -> T {
-    // Draw U in (0, 1] to avoid log(0).
     T u{};
     do {
       u = static_cast<T>(uniform_real(engine));

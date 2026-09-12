@@ -7,9 +7,12 @@ modern engines, a set of unbiased uniform draws, the common continuous and
 discrete distributions, and sampling utilities, all deterministic across
 platforms and toolchains. That last point is the reason the module exists:
 =std::random='s distributions are implementation-defined, so the same seed gives
-different numbers under libstdc++, libc++, and MSVC; these are specified to the
-bit, so a seed reproduces the same stream everywhere, which is what simulations,
-procedural generation, and tests need.
+different numbers under libstdc++, libc++, and MSVC. Here the engines and the
+uniform draws are specified to the bit, so a seed reproduces the same stream
+everywhere, which is what simulations, procedural generation, and tests need.
+The transcendental samplers (normal, exponential, gamma, Poisson) pin the
+algorithm too, but =std::log= and friends can differ in the last bit between C
+libraries, so their output is exact only per platform.
 
 * Engines and seeding
 

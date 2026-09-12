@@ -112,9 +112,11 @@ namespace detail {
 /**
  * @brief Derives \c N independent seeds from a single master seed.
  *
- * Iterates SplitMix64 from \p master to fill the array, so a fixed
- * master deterministically produces the same set of seeds. Useful for
- * seeding one engine per thread or task without correlation.
+ * Chains the SplitMix64 step: each seed is the SplitMix64 output of the
+ * previous seed, the first of \p master, so a fixed master deterministically
+ * produces the same set of seeds. Only the first seed matches the reference
+ * SplitMix64 stream, which advances a counter instead of feeding its output
+ * back. Useful for seeding one engine per thread or task without correlation.
  *
  * @tparam N Number of seeds to generate.
  * @param master Master seed driving the sequence.

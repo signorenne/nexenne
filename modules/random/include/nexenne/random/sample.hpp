@@ -44,7 +44,8 @@ namespace nexenne::random {
  *
  * @pre None. Ranges of fewer than two elements are left unchanged.
  * @post \p range holds a uniformly random permutation of its original
- *       elements; \p g has advanced once per swap.
+ *       elements; \p g has advanced by one index draw per swap, each at least
+ *       one step (a rejected draw inside \c uniform_int takes more).
  *
  * @note The \c noexcept guarantee is conditional on the element swap being
  *       nothrow: a range of a type whose swap can throw propagates that
@@ -85,8 +86,9 @@ shuffle(R&& range, G& g) noexcept(std::is_nothrow_swappable_v<std::ranges::range
  *         range size the entire range is returned.
  *
  * @pre None.
- * @post The result holds \c min(k, range_size) elements; \p g has
- *       advanced once per element beyond the first \p k.
+ * @post The result holds \c min(k, range_size) elements; \p g has advanced
+ *       by one index draw per element beyond the first \p k, each at least
+ *       one step.
  *
  * @complexity \c O(n) time and \c O(min(k, n)) space for a range of \c n
  *             elements.
