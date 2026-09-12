@@ -108,7 +108,8 @@ public:
       std::sqrt(-2.0 * std::log(u1 == 0.0 ? 1e-300 : u1)) * std::cos(6.283185307179586 * u2)
     };
     auto const x{m_lambda + std::sqrt(m_lambda) * z};
-    if (x <= 0.0) {
+    // Negated so a NaN (NaN lambda, or inf - inf) also returns here, before the cast.
+    if (!(x > 0.0)) {
       return T{0};
     }
     // Saturate before the cast: converting a double beyond T's range is
