@@ -12,8 +12,6 @@
  * log call per sample. We use \c -log(U) (which is mathematically
  * equivalent) and skip the subtraction, but only when \c U > 0,
  * since \c log(0) is undefined.
- *
- * @tparam T Floating-point sample type. Default \c double.
  */
 
 #include <cassert>
@@ -24,6 +22,14 @@
 
 namespace nexenne::random {
 
+/**
+ * @brief Exponential distribution \c Exp(rate) sampled by inverse CDF.
+ *
+ * @tparam T Floating-point sample type. Default \c double.
+ *
+ * @pre None.
+ * @post A default-constructed distribution has rate one.
+ */
 template <std::floating_point T = double>
 class exponential_distribution {
 public:

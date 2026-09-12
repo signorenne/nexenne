@@ -11,8 +11,6 @@
  * to a normal-approximation-with-correction (good enough for most
  * embedded uses, for high-quality sampling at large lambda, use a
  * rejection-based algorithm like \c PA from Hormann).
- *
- * @tparam T Result integer type. Default \c std::uint32_t.
  */
 
 #include <cassert>
@@ -25,6 +23,17 @@
 
 namespace nexenne::random {
 
+/**
+ * @brief Poisson distribution with mean \c lambda.
+ *
+ * Knuth's product of uniforms below \c lambda 30, a rounded normal
+ * approximation from there up.
+ *
+ * @tparam T Result integer type. Default \c std::uint32_t.
+ *
+ * @pre None.
+ * @post A default-constructed distribution has mean one.
+ */
 template <std::integral T = std::uint32_t>
 class poisson_distribution {
 public:

@@ -39,6 +39,16 @@
 
 namespace nexenne::random {
 
+/**
+ * @brief PCG32 engine: 64-bit LCG state with a 32-bit permuted output.
+ *
+ * Models \c std::uniform_random_bit_generator and \c rng_engine. The pair
+ * (state, stream) is the engine's full position.
+ *
+ * @pre None.
+ * @post A default-constructed engine is seeded with \c default_state and
+ *       \c default_sequence.
+ */
 class pcg32 {
 public:
   using result_type = std::uint32_t;

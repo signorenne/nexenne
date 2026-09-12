@@ -33,6 +33,15 @@
 
 namespace nexenne::random {
 
+/**
+ * @brief xoshiro256** engine: 256-bit state, 64-bit output.
+ *
+ * Models \c std::uniform_random_bit_generator and \c rng_engine; \c jump and
+ * \c long_jump split one seed into non-overlapping streams.
+ *
+ * @pre None.
+ * @post A default-constructed engine is seeded from a fixed non-zero constant.
+ */
 class xoshiro256ss {
 public:
   using result_type = std::uint64_t;

@@ -14,8 +14,6 @@
  * Gamma Variables" - fast, no special functions in the hot loop, valid
  * for alpha >= 1. For alpha < 1 we use Marsaglia's boost: sample with alpha + 1
  * and apply the power transform.
- *
- * @tparam T Floating-point sample type. Default \c double.
  */
 
 #include <cassert>
@@ -27,6 +25,14 @@
 
 namespace nexenne::random {
 
+/**
+ * @brief Gamma distribution \c Gamma(shape, scale) sampled by Marsaglia-Tsang.
+ *
+ * @tparam T Floating-point sample type. Default \c double.
+ *
+ * @pre None.
+ * @post A default-constructed distribution has shape and scale one.
+ */
 template <std::floating_point T = double>
 class gamma_distribution {
 public:

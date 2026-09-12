@@ -38,8 +38,6 @@
  * \warning Not cryptographically secure (the underlying
  *          engine isn't, and the trigonometric path doesn't
  *          change that).
- *
- * @tparam T Floating-point sample type. Default \c double.
  */
 
 #include <cassert>
@@ -52,6 +50,16 @@
 
 namespace nexenne::random {
 
+/**
+ * @brief Normal distribution \c N(mean, stddev^2) sampled by Box-Muller.
+ *
+ * Each transform yields two samples; the second is cached for the next call.
+ *
+ * @tparam T Floating-point sample type. Default \c double.
+ *
+ * @pre None.
+ * @post A default-constructed distribution is \c N(0, 1) with no cached sample.
+ */
 template <std::floating_point T = double>
 class normal_distribution {
 public:

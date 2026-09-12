@@ -36,8 +36,6 @@
  * \c normal_distribution: its output is implementation-defined
  * across \c libstdc++ / \c libc++ / \c MSVC, breaking
  * reproducibility across toolchains.
- *
- * @tparam T Floating-point weight type. Default \c double.
  */
 
 #include <algorithm>
@@ -55,6 +53,16 @@
 
 namespace nexenne::random {
 
+/**
+ * @brief Distribution over outcome indices with arbitrary per-outcome weights.
+ *
+ * Holds a cumulative-weight table built once, so each draw is a binary search.
+ *
+ * @tparam T Floating-point weight type. Default \c double.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <std::floating_point T = double>
 class discrete_distribution {
 public:
