@@ -364,4 +364,14 @@ TEST_CASE("nexenne::random::weighted_choice treats non-finite weights as zero") 
   CHECK(hits[3] > 1600);
 }
 
+TEST_CASE("nexenne::random::reservoir_sample with k far above the range size") {
+  rnd::pcg32 g{3, 3};
+  std::vector<int> const three{1, 2, 3};
+  auto const all{rnd::reservoir_sample(three, std::numeric_limits<std::size_t>::max(), g)};
+  CHECK(all == three);
+  auto const big{rnd::reservoir_sample(three, std::size_t{1'000'000}, g)};
+  CHECK(big.size() == 3);
+  CHECK(big.capacity() < 1'000'000);
+}
+
 }  // namespace

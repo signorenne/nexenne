@@ -37,7 +37,7 @@ elements, you get all of them.
 
 #+BEGIN_EXAMPLE
 reservoir_sample(stream, 10, g)  ->  10 distinct items, each equally likely,
-                                     one pass, O(k) memory
+                                     one pass, O(min(k, n)) memory
 #+END_EXAMPLE
 
 * weighted_choice
@@ -50,11 +50,11 @@ remaining weights must sum to a finite total.
 
 * Complexity
 
-| operation         | cost                              |
-|-------------------+-----------------------------------|
-| shuffle           | O(n) time, in place               |
-| reservoir_sample  | O(n) time, O(k) space, one pass   |
-| weighted_choice   | O(k) per call (linear scan)       |
+| operation         | cost                                    |
+|-------------------+-----------------------------------------|
+| shuffle           | O(n) time, in place                     |
+| reservoir_sample  | O(n) time, O(min(k, n)) space, one pass |
+| weighted_choice   | O(k) per call (linear scan)             |
 
 * When to use which
 
@@ -68,8 +68,8 @@ remaining weights must sum to a finite total.
 
 Things to keep in mind:
 
-- =reservoir_sample= allocates the output vector (O(k)); everything else is
-  allocation-free.
+- =reservoir_sample= allocates the output vector (O(min(k, n))); everything
+  else is allocation-free.
 - =weighted_choice= scans the weights each call, so for hot repeated use the
   precomputed =discrete_distribution= is cheaper.
 

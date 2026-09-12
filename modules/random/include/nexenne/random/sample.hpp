@@ -16,6 +16,7 @@
  * All callable on any \c rng_engine.
  */
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -87,7 +88,7 @@ shuffle(R&& range, G& g) noexcept(std::is_nothrow_swappable_v<std::ranges::range
  * @post The result holds \c min(k, range_size) elements; \p g has
  *       advanced once per element beyond the first \p k.
  *
- * @complexity \c O(n) time and \c O(k) space for a range of \c n
+ * @complexity \c O(n) time and \c O(min(k, n)) space for a range of \c n
  *             elements.
  */
 template <std::ranges::input_range R, rng_engine G>
@@ -96,7 +97,10 @@ template <std::ranges::input_range R, rng_engine G>
   using value_type = std::ranges::range_value_t<R>;
 
   auto out{std::vector<value_type>{}};
-  out.reserve(k);
+  // Never reserve k itself: a caller may pass a huge k to mean "everything".
+  if constexpr (std::ranges::sized_range<R>) {
+    out.reserve(std::min(k, static_cast<std::size_t>(std::ranges::size(range))));
+  }
 
   auto i{std::size_t{0}};
   for (auto&& item : range) {
