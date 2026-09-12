@@ -24,9 +24,6 @@ namespace {
 namespace cn = nexenne::container;
 using map_t = cn::flat_hash_map<int, int>;
 
-// A transparent hasher: it advertises is_transparent and hashes any type
-// convertible to string_view, so heterogeneous lookup can probe without building
-// a std::string. std::hash is used so a std::string key and its view agree.
 struct transparent_string_hash {
   using is_transparent = void;
 
@@ -35,8 +32,6 @@ struct transparent_string_hash {
   }
 };
 
-// A pathological hash that funnels every key into the same bucket, forcing the
-// probe sequence, backward-shift erase, and rehash logic to do real work.
 struct colliding_hash {
   [[nodiscard]] auto operator()(int) const noexcept -> std::size_t {
     return 0;
@@ -45,12 +40,12 @@ struct colliding_hash {
 
 TEST_CASE("nexenne::container::flat_hash_map insert keeps, insert_or_assign overwrites") {
   map_t m;
-  CHECK(m.insert(1, 10));                  // new
-  CHECK_FALSE(m.insert(1, 99));            // present: not overwritten
-  CHECK(*m.find(1) == 10);                 // original kept
-  CHECK_FALSE(m.insert_or_assign(1, 99));  // overwritten (false = not new)
+  CHECK(m.insert(1, 10));
+  CHECK_FALSE(m.insert(1, 99));
+  CHECK(*m.find(1) == 10);
+  CHECK_FALSE(m.insert_or_assign(1, 99));
   CHECK(*m.find(1) == 99);
-  CHECK(m.insert_or_assign(2, 20));  // new (true)
+  CHECK(m.insert_or_assign(2, 20));
   CHECK(m.size() == 2);
 }
 
@@ -75,7 +70,7 @@ TEST_CASE("nexenne::container::flat_hash_map operator[] accesses and default-ins
   CHECK(m[1] == 10);
   m[1] = 11;
   CHECK(m[1] == 11);
-  CHECK(m[99] == 0);  // default-inserts a zero
+  CHECK(m[99] == 0);
   CHECK(m.size() == 2);
 }
 
@@ -83,7 +78,7 @@ TEST_CASE("nexenne::container::flat_hash_map emplace constructs but does not ove
   cn::flat_hash_map<int, std::string> m;
   CHECK(m.emplace(1, "hello"));
   CHECK(*m.find(1) == "hello");
-  CHECK_FALSE(m.emplace(1, "world"));  // present: not overwritten
+  CHECK_FALSE(m.emplace(1, "world"));
   CHECK(*m.find(1) == "hello");
 }
 
@@ -95,7 +90,7 @@ TEST_CASE("nexenne::container::flat_hash_map erase frees a reusable slot") {
   CHECK(m.erase(2));
   CHECK(m.size() == 2);
   CHECK_FALSE(m.contains(2));
-  CHECK_FALSE(m.erase(99));  // absent
+  CHECK_FALSE(m.erase(99));
 
   CHECK(m.insert(4, 40));
   CHECK(m.contains(4));
@@ -142,7 +137,7 @@ TEST_CASE("nexenne::container::flat_hash_map reserve avoids a rehash") {
   for (int i{0}; i < 50; ++i) {
     m.insert(i, i);
   }
-  CHECK(m.capacity() == reserved);  // stayed within the reserved capacity
+  CHECK(m.capacity() == reserved);
 }
 
 TEST_CASE("nexenne::container::flat_hash_map clear and shrink_to_fit") {
@@ -175,7 +170,7 @@ TEST_CASE("nexenne::container::flat_hash_map equality is order-independent") {
   a.insert(1, 10);
   a.insert(2, 20);
   map_t b;
-  b.insert(2, 20);  // inserted in a different order
+  b.insert(2, 20);
   b.insert(1, 10);
   map_t c;
   c.insert(1, 10);
@@ -210,7 +205,6 @@ TEST_CASE("nexenne::container::flat_hash_map operator[] with a moved-from key do
   CHECK(m.size() == 1);
   REQUIRE(m.find("a key well past the small-string optimisation buffer length") != nullptr);
   CHECK(*m.find("a key well past the small-string optimisation buffer length") == 42);
-  // Indexing again with an existing entry's own stored key (self-aliasing read).
   auto const stored{m.begin()->first};
   CHECK(m[stored] == 42);
   CHECK(m.size() == 1);
@@ -219,8 +213,6 @@ TEST_CASE("nexenne::container::flat_hash_map operator[] with a moved-from key do
 TEST_CASE("nexenne::container::flat_hash_map insert_or_assign self-aliasing is safe") {
   cn::flat_hash_map<int, std::string> m;
   m.insert_or_assign(1, "a stored value comfortably longer than the SSO buffer");
-  // Feed the slot's own value straight back: insert_or_assign takes Value by
-  // value, so the copy is made before the slot is overwritten.
   m.insert_or_assign(1, *m.at(1));
   REQUIRE(m.find(1) != nullptr);
   CHECK(*m.find(1) == "a stored value comfortably longer than the SSO buffer");
@@ -282,10 +274,9 @@ TEST_CASE("nexenne::container::flat_hash_map load_factor and capacity edges") {
 
   map_t m;
   m.insert(1, 1);
-  CHECK(m.capacity() == map_t::initial_capacity);  // first allocation is the floor
+  CHECK(m.capacity() == map_t::initial_capacity);
   CHECK(m.load_factor() > 0.0);
   CHECK(m.load_factor() < 1.0);
-  // Drive past the 7/8 threshold of the initial 16 slots to force exactly one grow.
   for (int i{0}; i < 14; ++i) {
     m.insert(100 + i, i);
   }
@@ -304,12 +295,11 @@ TEST_CASE("nexenne::container::flat_hash_map shrink_to_fit releases an oversized
   }
   CHECK(m.size() == 10);
   m.shrink_to_fit();
-  CHECK(m.capacity() < grown);  // released the now-oversized table
+  CHECK(m.capacity() < grown);
   for (int i{190}; i < 200; ++i) {
     REQUIRE(m.find(i) != nullptr);
     CHECK(*m.find(i) == i);
   }
-  // Reinsert below the freed capacity to confirm the shrunk table still works.
   m.insert(0, 0);
   CHECK(m.contains(0));
 }
@@ -344,7 +334,6 @@ TEST_CASE("nexenne::container::flat_hash_map const iteration and accessors") {
   CHECK(count == 2);
   CHECK(key_sum == 3);
   CHECK(cm.cbegin() != cm.cend());
-  // The hasher and predicate accessors are reachable and usable.
   CHECK(cm.hash_function()(7) == std::hash<int>{}(7));
   CHECK(cm.key_eq()(3, 3));
   CHECK_FALSE(cm.key_eq()(3, 4));
@@ -375,27 +364,27 @@ TEST_CASE("nexenne::container::flat_hash_map differential against std::unordered
     auto const key{"k" + std::to_string(key_dist(rng))};
     auto const val{val_dist(rng)};
     switch (op_dist(rng)) {
-      case 0: {  // insert (no overwrite)
+      case 0: {
         auto const flat_new{flat.insert(key, val)};
         auto const ref_new{ref.insert({key, val}).second};
         CHECK(flat_new == ref_new);
         break;
       }
-      case 1: {  // insert_or_assign (overwrite)
+      case 1: {
         flat.insert_or_assign(key, val);
         ref[key] = val;
         break;
       }
-      case 2: {  // operator[]
+      case 2: {
         flat[key] = val;
         ref[key] = val;
         break;
       }
-      case 3: {  // erase
+      case 3: {
         CHECK(flat.erase(key) == (ref.erase(key) != 0));
         break;
       }
-      default: {  // lookup
+      default: {
         auto const* const p{flat.find(key)};
         auto const it{ref.find(key)};
         if (it == ref.end()) {
@@ -409,7 +398,6 @@ TEST_CASE("nexenne::container::flat_hash_map differential against std::unordered
     }
     CHECK(flat.size() == ref.size());
   }
-  // Same multiset of entries (iteration order is unspecified, so compare contents).
   for (auto const& [k, v] : ref) {
     auto const* const p{flat.find(k)};
     REQUIRE(p != nullptr);
@@ -423,29 +411,20 @@ TEST_CASE("nexenne::container::flat_hash_map differential against std::unordered
 }
 
 TEST_CASE("nexenne::container::flat_hash_map churn at constant live size keeps capacity bounded") {
-  // [C1] Insert then erase at a constant live size for many iterations. Before
-  // the fix the load trigger always doubled, so accumulating tombstones grew the
-  // table without bound. Erase now shifts entries back and leaves no tombstone,
-  // so the live count alone drives growth and the table never rehashes here.
-  // Sequential int keys were the worst case: std::hash is the identity, so a
-  // tombstone was never reused.
   map_t m;
-  CHECK(m.insert(-1, -1));  // one permanent live entry
+  CHECK(m.insert(-1, -1));
   for (int i{0}; i < 100000; ++i) {
     CHECK(m.insert(i, i));
     CHECK(m.erase(i));
   }
   CHECK(m.size() == 1);
   CHECK(m.contains(-1));
-  CHECK(m.capacity() <= 64);  // bounded, not the millions the doubling produced
+  CHECK(m.capacity() <= 64);
 }
 
 TEST_CASE(
   "nexenne::container::flat_hash_map inserting an existing key does not rehash or invalidate"
 ) {
-  // [M3] Fill the initial 16-slot table to its 7/8 threshold, then insert an
-  // already-present key: it must return false, leave the table the same size,
-  // and keep a reference to another element valid and unchanged.
   map_t m;
   for (int i{0}; i < 14; ++i) {
     CHECK(m.insert(i, i * 10));
@@ -456,8 +435,8 @@ TEST_CASE(
 
   CHECK_FALSE(m.insert(3, 999));
   CHECK(m.capacity() == cap_before);
-  CHECK(m.find(3) == pinned);  // same address: no rehash occurred
-  CHECK(*pinned == 30);        // the failed insert left the value untouched
+  CHECK(m.find(3) == pinned);
+  CHECK(*pinned == 30);
 
   CHECK_FALSE(m.insert_or_assign(3, 31));
   CHECK(m.capacity() == cap_before);
@@ -474,8 +453,6 @@ TEST_CASE(
 }
 
 TEST_CASE("nexenne::container::flat_hash_map heterogeneous lookup with transparent functors") {
-  // [m13] A transparent hash and equality admit a probe type (string_view) that
-  // is hashed and compared without constructing a std::string key.
   cn::flat_hash_map<std::string, int, transparent_string_hash, std::equal_to<>> m;
   CHECK(m.insert("alpha", 1));
   CHECK(m.insert("beta", 2));
@@ -531,9 +508,6 @@ TEST_CASE("nexenne::container::flat_hash_map spreads keys that differ only in hi
 }
 
 TEST_CASE("nexenne::container::flat_hash_map reserve after erasing everything keeps entries put") {
-  // reserve used to look at the slot count only, so a table full of tombstones
-  // still rehashed on a later insert and moved the entries reserve promised to
-  // keep in place. Erase leaves no tombstone now, and the promise still holds.
   map_t m;
   for (int i{0}; i < 12; ++i) {
     CHECK(m.insert(i, i));
@@ -642,9 +616,7 @@ struct alive_counter {
   }
 };
 
-TEST_CASE("nexenne::container::flat_hash_map slots own their entries' lifetimes (container-31)") {
-  // The entry lives in raw slot storage, alive exactly while the slot is
-  // occupied: every path that builds, moves, or drops one must balance.
+TEST_CASE("nexenne::container::flat_hash_map slots own their entries' lifetimes") {
   REQUIRE(alive_counter::alive == 0);
   {
     cn::flat_hash_map<int, alive_counter> m;
@@ -744,8 +716,7 @@ TEST_CASE("nexenne::container::flat_hash_map erase shifts across the table's end
 }
 
 TEST_CASE("nexenne::container::flat_hash_map erase by collected keys, not while iterating") {
-  // The supported way to erase a subset: collect the keys, then erase them.
-  cn::flat_hash_map<int, int, colliding_hash> m;  // one long run: every erase shifts
+  cn::flat_hash_map<int, int, colliding_hash> m;
   for (int i{0}; i < 40; ++i) {
     CHECK(m.insert(i, i));
   }
@@ -764,11 +735,7 @@ TEST_CASE("nexenne::container::flat_hash_map erase by collected keys, not while 
   }
 }
 
-TEST_CASE(
-  "nexenne::container::flat_hash_map random erase matches std::unordered_map (container-31)"
-) {
-  // A weak hash (eight distinct values) makes long, wrapping runs, so almost
-  // every erase shifts entries back; the contents must track a reference map.
+TEST_CASE("nexenne::container::flat_hash_map random erase matches std::unordered_map") {
   struct weak_hash {
     [[nodiscard]] auto operator()(int const k) const noexcept -> std::size_t {
       return static_cast<std::size_t>(k % 8) * std::size_t{0x9e3779b9U};

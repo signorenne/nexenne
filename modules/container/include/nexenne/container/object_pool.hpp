@@ -102,22 +102,19 @@ private:
    * @post None.
    */
   [[nodiscard]] auto acquired_index(T const* const ptr) const noexcept -> size_type {
-    // Compare and offset as integer addresses. Relational comparison and
-    // subtraction of pointers into different objects (a foreign \p ptr versus the
-    // pool storage) are not well-defined, but the same operations on their
-    // \c uintptr_t addresses are.
+    // Integer addresses: comparing pointers into different objects is not well-defined.
     auto const base{reinterpret_cast<std::uintptr_t>(m_slots.data())};
     auto const p{reinterpret_cast<std::uintptr_t>(ptr)};
     if (p < base || p >= base + N * sizeof(slot)) {
-      return N;  // outside this pool's storage
+      return N;
     }
     auto const offset{p - base};
     if (offset % sizeof(slot) != 0) {
-      return N;  // interior or misaligned pointer, not a slot base
+      return N;
     }
     auto const index{offset / sizeof(slot)};
     if (!m_acquired[index]) {
-      return N;  // never acquired, or already released
+      return N;
     }
     return index;
   }
@@ -137,8 +134,6 @@ public:
     }
   }
 
-  // A pool hands out interior pointers; copying or moving would either share the
-  // storage (aliasing) or dangle outstanding handles.
   object_pool(object_pool const&) = delete;
   auto operator=(object_pool const&) -> object_pool& = delete;
   object_pool(object_pool&&) = delete;

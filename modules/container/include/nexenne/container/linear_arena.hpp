@@ -73,8 +73,6 @@ public:
    */
   constexpr linear_arena() noexcept = default;
 
-  // An arena hands out pointers into itself; copying or moving would either
-  // share the buffer (an aliasing bug) or dangle outstanding pointers.
   linear_arena(linear_arena const&) = delete;
   auto operator=(linear_arena const&) -> linear_arena& = delete;
   linear_arena(linear_arena&&) = delete;
@@ -234,9 +232,6 @@ public:
       alignof(T) <= alignof(std::max_align_t),
       "T's alignment exceeds the arena buffer's guaranteed alignment"
     );
-    // Reject before multiplying: a count above N / sizeof(T) can never fit and,
-    // for a huge count, sizeof(T) * count would wrap size_type into a small
-    // value that the arena would wrongly accept.
     if (count > N / sizeof(T)) {
       return std::unexpected{container_error::full};
     }

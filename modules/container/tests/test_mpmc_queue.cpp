@@ -47,7 +47,7 @@ TEST_CASE("nexenne::container::mpmc_queue single-threaded fill, drain, full, emp
   for (int i{0}; i < 4; ++i) {
     auto v{q.pop()};
     REQUIRE(v.has_value());
-    CHECK(*v == i);  // FIFO under single-threaded use
+    CHECK(*v == i);
   }
   CHECK(q.pop().error() == cn::container_error::empty);
 }
@@ -87,7 +87,7 @@ TEST_CASE("nexenne::container::mpmc_queue wraps around the ring across many laps
     for (int i{0}; i < 4; ++i) {
       auto v{q.pop()};
       REQUIRE(v.has_value());
-      CHECK(*v == round * 4 + i);  // FIFO within each lap
+      CHECK(*v == round * 4 + i);
     }
     CHECK(q.empty_approx());
   }
@@ -138,7 +138,6 @@ TEST_CASE("nexenne::container::mpmc_queue try_pop on empty returns nullopt") {
 }
 
 TEST_CASE("nexenne::container::mpmc_queue destructor drains remaining move-only elements") {
-  // Fill and leave queued; destructor must free each unique_ptr exactly once.
   cn::mpmc_queue<std::unique_ptr<int>, 8> q;
   for (int i{0}; i < 8; ++i) {
     CHECK(q.push(std::make_unique<int>(i)).has_value());
@@ -163,9 +162,7 @@ TEST_CASE("nexenne::container::mpmc_queue many producers and consumers conserve 
     for (int p{0}; p < producers; ++p) {
       threads.emplace_back([&q, &produced] {
         for (int i{0}; i < per_producer; ++i) {
-          while (!q.push(1).has_value()) {
-            // full: spin until a consumer frees a slot
-          }
+          while (!q.push(1).has_value()) {}
           produced.fetch_add(1, std::memory_order_relaxed);
         }
       });
@@ -180,17 +177,14 @@ TEST_CASE("nexenne::container::mpmc_queue many producers and consumers conserve 
         }
       });
     }
-  }  // join all
+  }
 
   CHECK(produced.load() == total);
   CHECK(consumed.load() == total);
-  CHECK(consumed_sum.load() == total);  // every item carried value 1, none lost or duplicated
+  CHECK(consumed_sum.load() == total);
 }
 
 TEST_CASE("nexenne::container::mpmc_queue conserves distinct payloads across producers/consumers") {
-  // Producer p pushes ids [p*per_producer, ...); every consumer marks ids it
-  // pops. Each id must be marked exactly once across all consumers, catching any
-  // loss or duplication a CAS race on either counter could introduce.
   constexpr int producers{4};
   constexpr int consumers{4};
   constexpr int per_producer{40000};
@@ -205,9 +199,7 @@ TEST_CASE("nexenne::container::mpmc_queue conserves distinct payloads across pro
       threads.emplace_back([&q, p] {
         int const base{p * per_producer};
         for (int i{0}; i < per_producer; ++i) {
-          while (!q.push(base + i).has_value()) {
-            // spin
-          }
+          while (!q.push(base + i).has_value()) {}
         }
       });
     }
@@ -223,7 +215,7 @@ TEST_CASE("nexenne::container::mpmc_queue conserves distinct payloads across pro
         }
       });
     }
-  }  // join
+  }
 
   CHECK(consumed.load() == total);
   bool each_once{true};
@@ -253,9 +245,7 @@ TEST_CASE(
       threads.emplace_back([&q, p] {
         int const base{p * per_producer};
         for (int i{0}; i < per_producer; ++i) {
-          while (!q.push(std::make_unique<int>(base + i)).has_value()) {
-            // spin
-          }
+          while (!q.push(std::make_unique<int>(base + i)).has_value()) {}
         }
       });
     }
@@ -270,7 +260,7 @@ TEST_CASE(
         }
       });
     }
-  }  // join
+  }
 
   CHECK(consumed.load() == total);
   bool each_once{true};
@@ -280,7 +270,7 @@ TEST_CASE(
       break;
     }
   }
-  CHECK(each_once);  // no leak/double-free under LSan; exact conservation
+  CHECK(each_once);
 }
 
 }  // namespace

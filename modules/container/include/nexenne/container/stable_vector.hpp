@@ -181,10 +181,7 @@ private:
    * @post \c capacity() is at least \p desired, or the process terminated.
    */
   auto ensure_capacity(size_type const desired) noexcept -> void {
-    // Compute ceil(desired / ChunkSize) without the additive round-up, which
-    // would wrap for desired near SIZE_MAX and make reserve(huge) a silent
-    // no-op; an unsatisfiable chunk count instead fails loudly when the pointer
-    // vector cannot be reserved.
+    // ceil(desired / ChunkSize) without the additive round-up, which wraps near SIZE_MAX.
     auto const needed{
       desired / ChunkSize + (desired % ChunkSize == 0 ? size_type{0} : size_type{1})
     };

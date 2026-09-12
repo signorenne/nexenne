@@ -28,12 +28,12 @@ namespace cn = nexenne::container;
 
 auto main() -> int {
   cn::binary_tree<int> scores;
-  for (int s : {42, 17, 88, 17, 5, 63}) {  // 17 appears twice
+  for (int s : {42, 17, 88, 17, 5, 63}) {
     scores.insert(s);
   }
 
   std::print("sorted unique scores:");
-  for (int const s : scores) {  // in-order: ascending
+  for (int const s : scores) {
     std::print(" {}", s);
   }
   std::println("");
@@ -46,9 +46,5 @@ auto main() -> int {
     std::print(" {}", s);
   }
   std::println("");
-  // sorted unique scores: 5 17 42 63 88
-  // count: 5
-  // has 63: true
-  // after erasing 42: 5 17 63 88
   return 0;
 }

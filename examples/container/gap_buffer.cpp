@@ -35,21 +35,18 @@ auto to_string(cn::gap_buffer<char> const& line) -> std::string {
 auto main() -> int {
   cn::gap_buffer<char> line;
   for (char const ch : {'h', 'e', 'l', 'o'}) {
-    line.insert(ch);  // append at the cursor
+    line.insert(ch);
   }
   std::println("typed:     {}", to_string(line));
 
-  if (line.move_cursor_to(2).has_value()) {  // between 'e' and 'l'
-    line.insert('l');                        // fix the typo
+  if (line.move_cursor_to(2).has_value()) {
+    line.insert('l');
   }
   std::println("fixed:     {}", to_string(line));
 
   if (line.move_cursor_to(line.size()).has_value()) {
-    nexenne::utility::ignore(line.erase_backward());  // backspace the last char
+    nexenne::utility::ignore(line.erase_backward());
   }
   std::println("backspace: {}", to_string(line));
-  // typed:     helo
-  // fixed:     hello
-  // backspace: hell
   return 0;
 }

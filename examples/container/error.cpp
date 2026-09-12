@@ -26,8 +26,6 @@ namespace {
 
 namespace cn = nexenne::container;
 
-// Bounds-checked element access: a hit returns the value, a miss returns an
-// out_of_range error instead of throwing or asserting.
 auto nth(std::span<int const> data, std::size_t const index) -> cn::result<int> {
   if (index >= data.size()) {
     return std::unexpected{cn::container_error::out_of_range};
@@ -47,7 +45,5 @@ auto main() -> int {
       std::println("data[{}] -> error: {}", index, cn::to_string(value.error()));
     }
   }
-  // data[1] = 20
-  // data[5] -> error: out_of_range
   return 0;
 }

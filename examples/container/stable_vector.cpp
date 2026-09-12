@@ -26,10 +26,10 @@ namespace cn = nexenne::container;
 
 auto main() -> int {
   cn::stable_vector<int, 4> pool;
-  int* const first{pool.push_back(100)};  // keep a raw pointer to the first element
+  int* const first{pool.push_back(100)};
 
   for (int i{0}; i < 1000; ++i) {
-    pool.push_back(i);  // grows across many chunks; nothing is relocated
+    pool.push_back(i);
   }
 
   std::println("first element via the saved pointer: {}", *first);
@@ -39,7 +39,5 @@ auto main() -> int {
     pool.chunk_count(),
     first == &pool[0]
   );
-  // first element via the saved pointer: 100
-  // size 1001, chunks 251, pointer still valid: true
   return 0;
 }

@@ -21,7 +21,6 @@ using pool4 = cn::object_pool<int, 4>;
 
 static_assert(pool4::capacity() == 4);
 static_assert(pool4::capacity_value == 4);
-// A pool hands out interior pointers, so it is neither copyable nor movable.
 static_assert(!std::is_copy_constructible_v<pool4>);
 static_assert(!std::is_move_constructible_v<pool4>);
 
@@ -33,7 +32,7 @@ TEST_CASE("nexenne::container::object_pool raw acquire and release tier") {
 
   auto const acquired{pool.acquire()};
   REQUIRE(acquired.has_value());
-  std::construct_at(*acquired, 42);  // caller owns the lifetime
+  std::construct_at(*acquired, 42);
   CHECK(**acquired == 42);
   CHECK(pool.size() == 1);
 
@@ -66,9 +65,9 @@ TEST_CASE("nexenne::container::object_pool exhaustion and recovery") {
   CHECK(pool.acquire().error() == cn::container_error::full);
   CHECK(pool.emplace(99).error() == cn::container_error::full);
 
-  REQUIRE(pool.destroy(first).has_value());  // free one slot
+  REQUIRE(pool.destroy(first).has_value());
   CHECK_FALSE(pool.full());
-  CHECK(pool.emplace(100).has_value());  // a slot is available again
+  CHECK(pool.emplace(100).has_value());
 }
 
 TEST_CASE("nexenne::container::object_pool release and destroy validate the pointer") {
@@ -88,14 +87,10 @@ TEST_CASE("nexenne::container::object_pool rejects a double release without corr
   REQUIRE(b.has_value());
   REQUIRE(pool.destroy(*a).has_value());
   CHECK(pool.size() == 1);
-  // Releasing the same slot again must error, not push it onto the free list a
-  // second time (which would later hand the same slot to two acquisitions).
   CHECK(pool.destroy(*a).error() == cn::container_error::out_of_range);
   CHECK(pool.release(*a).error() == cn::container_error::out_of_range);
-  CHECK(pool.size() == 1);  // unchanged by the rejected releases
+  CHECK(pool.size() == 1);
 
-  // The pool stays sound: distinct acquisitions yield distinct slots, and b's
-  // slot was never lost.
   auto const c{pool.emplace(3)};
   auto const d{pool.emplace(4)};
   REQUIRE(c.has_value());
@@ -103,14 +98,13 @@ TEST_CASE("nexenne::container::object_pool rejects a double release without corr
   CHECK(*c != *d);
   CHECK(*c != *b);
   CHECK(*d != *b);
-  CHECK(pool.size() == 3);  // b, c, d live; the rejected releases lost nothing
+  CHECK(pool.size() == 3);
 }
 
 TEST_CASE("nexenne::container::object_pool rejects an interior pointer") {
   cn::object_pool<long long, 4> pool;
   auto const a{pool.emplace(7)};
   REQUIRE(a.has_value());
-  // A pointer inside the slot storage but not at a slot base must be rejected.
   auto* const interior{reinterpret_cast<long long*>(reinterpret_cast<std::byte*>(*a) + 1)};
   CHECK(pool.release(interior).error() == cn::container_error::out_of_range);
   CHECK(pool.size() == 1);
@@ -126,7 +120,7 @@ TEST_CASE("nexenne::container::object_pool recycles the last freed slot (LIFO)")
   REQUIRE(pool.destroy(*b).has_value());
   auto const c{pool.emplace(3)};
   REQUIRE(c.has_value());
-  CHECK(*c == freed);  // the next acquisition reuses the just-freed slot
+  CHECK(*c == freed);
 }
 
 TEST_CASE("nexenne::container::object_pool tracks the high-water mark") {
@@ -141,7 +135,7 @@ TEST_CASE("nexenne::container::object_pool tracks the high-water mark") {
 
   nexenne::utility::ignore(pool.destroy(*a));
   nexenne::utility::ignore(pool.destroy(*b));
-  CHECK(pool.high_water_mark() == 3);  // peak survives releases
+  CHECK(pool.high_water_mark() == 3);
   CHECK(pool.size() == 1);
   pool.clear_high_water_mark();
   CHECK(pool.high_water_mark() == 0);
@@ -179,15 +173,15 @@ TEST_CASE("nexenne::container::object_pool destroy runs the destructor") {
     cn::object_pool<tracked, 4> pool;
     auto const object{pool.emplace(&live, 10)};
     REQUIRE(object.has_value());
-    CHECK(live == 1);  // emplace constructed in place
+    CHECK(live == 1);
     REQUIRE(pool.destroy(*object).has_value());
-    CHECK(live == 0);  // destroy ran the destructor
+    CHECK(live == 0);
   }
   CHECK(live == 0);
 }
 
 TEST_CASE("nexenne::container::object_pool holds an immovable type") {
-  cn::object_pool<immovable, 2> pool;  // never moved or copied by the pool
+  cn::object_pool<immovable, 2> pool;
   auto const object{pool.emplace(5)};
   REQUIRE(object.has_value());
   CHECK((*object)->value == 5);
@@ -201,13 +195,13 @@ TEST_CASE("nexenne::container::object_pool acquiring every slot yields distinct 
     auto const got{pool.acquire()};
     REQUIRE(got.has_value());
     for (auto* const prior : handles) {
-      CHECK(prior != *got);  // every slot is a distinct address
+      CHECK(prior != *got);
     }
     handles.push_back(*got);
   }
   CHECK(pool.full());
   CHECK(pool.size() == 4);
-  for (auto* const h : handles) {  // raw tier: no T was constructed, just release
+  for (auto* const h : handles) {
     REQUIRE(pool.release(h).has_value());
   }
   CHECK(pool.empty());
@@ -229,10 +223,6 @@ TEST_CASE("nexenne::container::object_pool rejects an address above the slot sto
   pool4 pool;
   auto const a{pool.emplace(0)};
   REQUIRE(a.has_value());
-  // An address well above the pool's storage is foreign; the byte bounds check in
-  // acquired_index must reject it rather than form an out-of-range slot index. Two
-  // separate stack ints bracket the pool's storage, so one of them is guaranteed
-  // outside [base, base + N*sizeof(slot)); both must be rejected regardless.
   int high_foreign{1};
   int low_foreign{2};
   CHECK(pool.release(&high_foreign).error() == cn::container_error::out_of_range);
@@ -250,7 +240,7 @@ TEST_CASE("nexenne::container::object_pool single-slot pool boundary") {
   CHECK(pool.emplace(6).error() == cn::container_error::full);
   REQUIRE(pool.destroy(*a).has_value());
   CHECK(pool.empty());
-  auto const b{pool.emplace(7)};  // the one slot recycles
+  auto const b{pool.emplace(7)};
   REQUIRE(b.has_value());
   CHECK(**b == 7);
 }
@@ -262,16 +252,16 @@ TEST_CASE("nexenne::container::object_pool high-water mark tracks the running pe
   REQUIRE(a.has_value());
   REQUIRE(b.has_value());
   CHECK(pool.high_water_mark() == 2);
-  REQUIRE(pool.destroy(*a).has_value());  // dip to 1
-  CHECK(pool.high_water_mark() == 2);     // peak unchanged by the release
+  REQUIRE(pool.destroy(*a).has_value());
+  CHECK(pool.high_water_mark() == 2);
   auto const c{pool.emplace(3)};
-  auto const d{pool.emplace(4)};  // climb to 3
+  auto const d{pool.emplace(4)};
   REQUIRE(c.has_value());
   REQUIRE(d.has_value());
-  CHECK(pool.high_water_mark() == 3);  // new peak recorded
+  CHECK(pool.high_water_mark() == 3);
   pool.clear_high_water_mark();
   CHECK(pool.high_water_mark() == 0);
-  CHECK(pool.size() == 3);  // live slots untouched by the reset
+  CHECK(pool.size() == 3);
 }
 
 TEST_CASE("nexenne::container::object_pool holds a non-trivial std::string element") {
@@ -279,20 +269,17 @@ TEST_CASE("nexenne::container::object_pool holds a non-trivial std::string eleme
   cn::object_pool<std::string, count> pool;
   std::vector<std::string*> objects;
   for (int i{0}; i < count; ++i) {
-    auto const got{pool.emplace(40, static_cast<char>('a' + i))};  // heap-backed string
+    auto const got{pool.emplace(40, static_cast<char>('a' + i))};
     REQUIRE(got.has_value());
     CHECK((*got)->size() == 40);
     objects.push_back(*got);
   }
   CHECK(pool.full());
-  // destroy must run ~std::string on each, freeing the heap buffer (LSan check).
   for (auto* const obj : objects) {
     REQUIRE(pool.destroy(obj).has_value());
   }
   CHECK(pool.empty());
 
-  // Recycle and leave one live: its destructor must NOT run at pool destruction,
-  // so destroy it explicitly to avoid the documented leak.
   auto const live{pool.emplace(64, 'z')};
   REQUIRE(live.has_value());
   CHECK((*live)->size() == 64);

@@ -184,9 +184,6 @@ public:
    * @post \c empty_approx() is \c true.
    */
   mpmc_queue() noexcept {
-    // Seed: sequence == index is "ready for a producer". After a push it becomes
-    // pos+1 ("ready for a consumer"); after a pop, pos+N ("ready for the next
-    // producer that wraps into this slot").
     for (std::size_t i{0}; i < N; ++i) {
       m_slots[i].sequence.store(i, std::memory_order_relaxed);
     }
@@ -301,11 +298,10 @@ public:
           s.sequence.store(pos + 1, std::memory_order_release);
           return {};
         }
-        // CAS lost the race; compare_exchange refreshed pos, loop again.
+        // A failed compare_exchange_weak has already reloaded pos.
       } else if (diff < 0) {
         return std::unexpected{container_error::full};
       } else {
-        // Another producer advanced the counter; refresh and retry.
         pos = m_enqueue_pos.load(std::memory_order_relaxed);
       }
     }
@@ -337,11 +333,10 @@ public:
           s.sequence.store(pos + N, std::memory_order_release);
           return value;
         }
-        // CAS lost the race; compare_exchange refreshed pos, loop again.
+        // A failed compare_exchange_weak has already reloaded pos.
       } else if (diff < 0) {
         return std::unexpected{container_error::empty};
       } else {
-        // Another consumer advanced the counter; refresh and retry.
         pos = m_dequeue_pos.load(std::memory_order_relaxed);
       }
     }

@@ -33,12 +33,11 @@ TEST_CASE("nexenne::container::ring_buffer push_overwrite of the evicted element
   nexenne::utility::ignore(
     r.push("newer string, also heap allocated to avoid the small-string buffer")
   );
-  std::string const expected{*r.front()};  // the element about to be evicted
-  r.push_overwrite(*r.front());            // aliases the evicted slot
+  std::string const expected{*r.front()};
+  r.push_overwrite(*r.front());
   CHECK(*r.back() == expected);
 }
 
-// Drive a ring_buffer entirely at compile time: push to full, pop, wrap.
 static_assert([] {
   rb r;
   nexenne::utility::ignore(r.push(1));
@@ -47,7 +46,7 @@ static_assert([] {
   bool ok{r.full() && r[0] == 1 && r[2] == 3};
   auto const first{r.pop()};
   ok = ok && first.has_value() && *first == 1 && r.size() == 2;
-  nexenne::utility::ignore(r.push(4));  // tail wraps into the freed slot
+  nexenne::utility::ignore(r.push(4));
   return ok && r[0] == 2 && r[1] == 3 && r[2] == 4;
 }());
 
@@ -61,7 +60,7 @@ TEST_CASE("nexenne::container::ring_buffer push, full, pop FIFO, empty") {
   CHECK(r.push(4).error() == cn::container_error::full);
   CHECK(*r.front() == 1);
   CHECK(*r.back() == 3);
-  CHECK(*r.pop() == 1);  // FIFO
+  CHECK(*r.pop() == 1);
   CHECK(*r.pop() == 2);
   CHECK(*r.pop() == 3);
   CHECK(r.pop().error() == cn::container_error::empty);
@@ -72,8 +71,8 @@ TEST_CASE("nexenne::container::ring_buffer wraps around preserving order") {
   nexenne::utility::ignore(r.push(1));
   nexenne::utility::ignore(r.push(2));
   nexenne::utility::ignore(r.push(3));
-  CHECK(*r.pop() == 1);                  // head advances
-  nexenne::utility::ignore(r.push(4));  // tail wraps into the freed slot
+  CHECK(*r.pop() == 1);
+  nexenne::utility::ignore(r.push(4));
   CHECK(r.size() == 3);
   CHECK(r[0] == 2);
   CHECK(r[1] == 3);
@@ -83,18 +82,18 @@ TEST_CASE("nexenne::container::ring_buffer wraps around preserving order") {
   for (int const x : r) {
     seen.push_back(x);
   }
-  CHECK(seen == std::vector{2, 3, 4});  // iteration is FIFO
+  CHECK(seen == std::vector{2, 3, 4});
 }
 
 TEST_CASE("nexenne::container::ring_buffer power-of-two capacity wraps (mask path)") {
-  cn::ring_buffer<int, 4> r;  // power of two uses the mask wrap
+  cn::ring_buffer<int, 4> r;
   for (int i{0}; i < 4; ++i) {
-    nexenne::utility::ignore(r.push(i));  // [0, 1, 2, 3]
+    nexenne::utility::ignore(r.push(i));
   }
-  CHECK(r.pop().has_value());  // drop 0
-  CHECK(r.pop().has_value());  // drop 1
+  CHECK(r.pop().has_value());
+  CHECK(r.pop().has_value());
   nexenne::utility::ignore(r.push(4));
-  nexenne::utility::ignore(r.push(5));  // tail wraps via the mask
+  nexenne::utility::ignore(r.push(5));
   CHECK(r.size() == 4);
   CHECK(r[0] == 2);
   CHECK(r[1] == 3);
@@ -105,7 +104,7 @@ TEST_CASE("nexenne::container::ring_buffer power-of-two capacity wraps (mask pat
 TEST_CASE("nexenne::container::ring_buffer push_overwrite keeps the most recent N") {
   rb r;
   for (int i{0}; i < 5; ++i) {
-    r.push_overwrite(i);  // 0,1,2,3,4 -> keeps 2,3,4
+    r.push_overwrite(i);
   }
   CHECK(r.size() == 3);
   CHECK(r[0] == 2);
@@ -137,11 +136,11 @@ TEST_CASE("nexenne::container::ring_buffer copy and move preserve FIFO order acr
   rb a;
   nexenne::utility::ignore(a.push(1));
   nexenne::utility::ignore(a.push(2));
-  CHECK(a.pop().has_value());  // head now at index 1
+  CHECK(a.pop().has_value());
   nexenne::utility::ignore(a.push(3));
-  nexenne::utility::ignore(a.push(4));  // logical order [2, 3, 4] with head != 0
+  nexenne::utility::ignore(a.push(4));
 
-  rb const b{a};  // copy canonicalises head to 0
+  rb const b{a};
   CHECK(b.size() == 3);
   CHECK(b[0] == 2);
   CHECK(b[1] == 3);
@@ -183,12 +182,12 @@ TEST_CASE("nexenne::container::ring_buffer destroys its elements") {
     cn::ring_buffer<std::shared_ptr<int>, 3> r;
     nexenne::utility::ignore(r.push(tracker));
     nexenne::utility::ignore(r.push(tracker));
-    CHECK(tracker.use_count() == 3);  // tracker + two stored
+    CHECK(tracker.use_count() == 3);
     r.push_overwrite(tracker);
-    r.push_overwrite(tracker);  // evicts oldest, net still tracker + three
+    r.push_overwrite(tracker);
     CHECK(tracker.use_count() == 4);
   }
-  CHECK(tracker.use_count() == 1);  // destructor destroyed all stored
+  CHECK(tracker.use_count() == 1);
 }
 
 namespace {
@@ -214,11 +213,11 @@ TEST_CASE("nexenne::container::ring_buffer push picks copy vs move (no extra mov
   cn::ring_buffer<move_counter, 4> r;
   move_counter c{&copies, &moves};
 
-  CHECK(r.push(c).has_value());  // lvalue: one copy, no move
+  CHECK(r.push(c).has_value());
   CHECK(copies == 1);
   CHECK(moves == 0);
 
-  CHECK(r.push(std::move(c)).has_value());  // rvalue: one move
+  CHECK(r.push(std::move(c)).has_value());
   CHECK(copies == 1);
   CHECK(moves == 1);
 }
@@ -228,33 +227,31 @@ TEST_CASE("nexenne::container::ring_buffer back after wrap, assignment, move-onl
   CHECK(r.push(1).has_value());
   CHECK(r.push(2).has_value());
   CHECK(r.push(3).has_value());
-  CHECK(r.pop().has_value());    // head advances
-  CHECK(r.push(4).has_value());  // tail wrapped to 0; newest is 4
-  CHECK(*r.back() == 4);         // back() via wrap(m_tail + N - 1)
+  CHECK(r.pop().has_value());
+  CHECK(r.push(4).has_value());
+  CHECK(*r.back() == 4);
 
   rb a;
   CHECK(a.push(10).has_value());
   CHECK(a.push(20).has_value());
   rb b;
   CHECK(b.push(99).has_value());
-  b = a;  // copy-assign replaces b's contents
+  b = a;
   CHECK(b.size() == 2);
   CHECK(b[0] == 10);
   rb c;
-  c = std::move(a);  // move-assign
+  c = std::move(a);
   CHECK(c.size() == 2);
   CHECK(c[1] == 20);
 
   cn::ring_buffer<std::unique_ptr<int>, 2> m;
   m.push_overwrite(std::make_unique<int>(1));
   m.push_overwrite(std::make_unique<int>(2));
-  m.push_overwrite(std::make_unique<int>(3));  // evicts the oldest by move
+  m.push_overwrite(std::make_unique<int>(3));
   CHECK(m.size() == 2);
   CHECK(*m[1] == 3);
 }
 
-// A type that counts live instances and flags any double-destruction, used to
-// assert eviction destroys the oldest slot exactly once.
 namespace {
 struct life_counter {
   static inline int alive{0};
@@ -322,13 +319,12 @@ TEST_CASE("nexenne::container::ring_buffer N == 1 boundary: full after one push,
   CHECK(r.push(7).has_value());
   CHECK(r.full());
   CHECK(*r.front() == 7);
-  CHECK(*r.back() == 7);  // sole element is both front and back
+  CHECK(*r.back() == 7);
   CHECK(r.push(8).error() == cn::container_error::full);
   CHECK(*r.pop() == 7);
   CHECK(r.empty());
   CHECK(r.pop().error() == cn::container_error::empty);
 
-  // push_overwrite on N == 1 simply replaces the single element each time.
   r.push_overwrite(1);
   r.push_overwrite(2);
   r.push_overwrite(3);
@@ -337,28 +333,25 @@ TEST_CASE("nexenne::container::ring_buffer N == 1 boundary: full after one push,
 }
 
 TEST_CASE("nexenne::container::ring_buffer multi-wrap keeps FIFO order across many laps") {
-  cn::ring_buffer<int, 3> r;  // non-power-of-two: exercises compare-subtract wrap
+  cn::ring_buffer<int, 3> r;
   int next{0};
   nexenne::utility::ignore(r.push(next++));
   nexenne::utility::ignore(r.push(next++));
   nexenne::utility::ignore(r.push(next++));
-  // Steady state: pop the oldest, push the next, many times so head and tail
-  // each lap the slot array several times over.
   for (int lap{0}; lap < 20; ++lap) {
     auto const popped{r.pop()};
     CHECK(popped.has_value());
-    CHECK(*popped == lap);  // FIFO: we get them out in push order
+    CHECK(*popped == lap);
     CHECK(r.push(next++).has_value());
     CHECK(r.size() == 3);
   }
-  // Remaining three are the last three pushed, still in order.
   CHECK(*r.pop() == 20);
   CHECK(*r.pop() == 21);
   CHECK(*r.pop() == 22);
 }
 
 TEST_CASE("nexenne::container::ring_buffer power-of-two multi-wrap via mask path") {
-  cn::ring_buffer<int, 4> r;  // power-of-two: mask wrap
+  cn::ring_buffer<int, 4> r;
   int next{0};
   for (int i{0}; i < 4; ++i) {
     nexenne::utility::ignore(r.push(next++));
@@ -378,8 +371,6 @@ TEST_CASE("nexenne::container::ring_buffer push_overwrite eviction destroys olde
   cn::ring_buffer<std::string, 2> r;
   r.push_overwrite("first string long enough to live on the heap not the SSO buffer");
   r.push_overwrite("second string also long enough to escape the small-string buffer");
-  // Buffer is full; this evicts "first..." which must be destroyed exactly once
-  // (sanitizers catch a leak or double-free of the heap allocation).
   r.push_overwrite("third string likewise heap allocated to provoke any double-free");
   CHECK(r.size() == 2);
   CHECK(r[0] == "second string also long enough to escape the small-string buffer");
@@ -391,16 +382,16 @@ TEST_CASE("nexenne::container::ring_buffer eviction balances construction and de
   {
     cn::ring_buffer<life_counter, 3> r;
     for (int i{0}; i < 10; ++i) {
-      r.push_overwrite(life_counter{i});  // overflows repeatedly, evicting oldest
+      r.push_overwrite(life_counter{i});
       CHECK_FALSE(life_counter::double_free);
     }
     CHECK(r.size() == 3);
-    CHECK(life_counter::alive == 3);  // only the live slots remain
+    CHECK(life_counter::alive == 3);
     CHECK(r[0].value == 7);
     CHECK(r[1].value == 8);
     CHECK(r[2].value == 9);
   }
-  CHECK(life_counter::alive == 0);  // destructor cleaned every slot
+  CHECK(life_counter::alive == 0);
   CHECK_FALSE(life_counter::double_free);
   CHECK(life_counter::constructed == life_counter::destroyed);
 }
@@ -413,8 +404,6 @@ TEST_CASE("nexenne::container::ring_buffer self-aliasing push of an existing ele
   nexenne::utility::ignore(
     r.push(std::string{"beta string also long enough to avoid the small-string buffer"})
   );
-  // push a copy of an element already in the buffer; the source must survive the
-  // construction of the new back even if storage were touched.
   CHECK(r.push(r[0]).has_value());
   CHECK(r.emplace(r[1]).has_value());
   CHECK(r.size() == 4);
@@ -434,17 +423,14 @@ TEST_CASE("nexenne::container::ring_buffer self-aliasing push_overwrite across a
   nexenne::utility::ignore(
     r.push("three string likewise heap allocated for the same reason as the rest")
   );
-  nexenne::utility::ignore(r.pop());  // head advances off zero so subsequent pushes wrap
+  nexenne::utility::ignore(r.pop());
   nexenne::utility::ignore(
     r.push("four string heap allocated to keep the buffer at capacity once more")
   );
-  // Now full with a non-zero head. push_overwrite a copy of the back, which
-  // aliases a live slot while the oldest slot is evicted.
   std::string const expected_back{*r.back()};
   r.push_overwrite(*r.back());
   CHECK(r.size() == 3);
   CHECK(*r.back() == expected_back);
-  // And aliasing the element about to be evicted (the front) across the wrap.
   std::string const front_copy{*r.front()};
   r.push_overwrite(*r.front());
   CHECK(*r.back() == front_copy);
@@ -457,13 +443,13 @@ TEST_CASE("nexenne::container::ring_buffer self copy-assign and self move-assign
   nexenne::utility::ignore(r.push(3));
 
   rb& alias{r};
-  r = alias;  // self copy-assign: guard must prevent clearing then reading freed
+  r = alias;
   CHECK(r.size() == 3);
   CHECK(r[0] == 1);
   CHECK(r[1] == 2);
   CHECK(r[2] == 3);
 
-  r = std::move(alias);  // self move-assign: must not empty the buffer
+  r = std::move(alias);
   CHECK(r.size() == 3);
   CHECK(r[0] == 1);
   CHECK(r[2] == 3);
@@ -473,7 +459,7 @@ TEST_CASE("nexenne::container::ring_buffer self-swap leaves contents intact") {
   rb r;
   nexenne::utility::ignore(r.push(5));
   nexenne::utility::ignore(r.push(6));
-  r.swap(r);  // member self-swap short-circuits
+  r.swap(r);
   CHECK(r.size() == 2);
   CHECK(r[0] == 5);
   CHECK(r[1] == 6);
@@ -488,7 +474,6 @@ TEST_CASE("nexenne::container::ring_buffer moved-from buffer is empty and reusab
   CHECK(a.size() == 0);
   CHECK(a.front() == nullptr);
   CHECK(a.back() == nullptr);
-  // Reuse the moved-from buffer: it behaves like a fresh one.
   CHECK(a.push(10).has_value());
   CHECK(a.push(11).has_value());
   CHECK(a.push(12).has_value());
@@ -499,7 +484,7 @@ TEST_CASE("nexenne::container::ring_buffer moved-from buffer is empty and reusab
   rb c;
   nexenne::utility::ignore(c.push(7));
   rb d;
-  d = std::move(c);  // move-assign source also reusable
+  d = std::move(c);
   CHECK(c.empty());
   CHECK(c.push(99).has_value());
   CHECK(*c.front() == 99);
@@ -516,27 +501,26 @@ TEST_CASE("nexenne::container::ring_buffer copies and moves a wrapped std::strin
   nexenne::utility::ignore(
     a.push("third string also heap allocated to keep the element count honest")
   );
-  nexenne::utility::ignore(a.pop());  // head moves off zero
+  nexenne::utility::ignore(a.pop());
   nexenne::utility::ignore(
     a.push("fourth string heap allocated to refill the slot the pop just freed")
   );
-  // Logical order now [second, third, fourth] with a non-zero head.
 
-  cn::ring_buffer<std::string, 3> const copy{a};  // copy a wrapped buffer
+  cn::ring_buffer<std::string, 3> const copy{a};
   CHECK(copy.size() == 3);
   CHECK(copy[0] == "second string equally long to escape the small-string optimization");
   CHECK(copy[2] == "fourth string heap allocated to refill the slot the pop just freed");
-  CHECK(a.size() == 3);  // source unchanged by copy
+  CHECK(a.size() == 3);
 
   cn::ring_buffer<std::string, 3> assigned;
   nexenne::utility::ignore(
     assigned.push("scratch string long enough to be a heap allocation before replace")
   );
-  assigned = copy;  // copy-assign over existing contents
+  assigned = copy;
   CHECK(assigned.size() == 3);
   CHECK(assigned[1] == "third string also heap allocated to keep the element count honest");
 
-  cn::ring_buffer<std::string, 3> moved{std::move(a)};  // move a wrapped buffer
+  cn::ring_buffer<std::string, 3> moved{std::move(a)};
   CHECK(moved.size() == 3);
   CHECK(moved[0] == "second string equally long to escape the small-string optimization");
   CHECK(moved[2] == "fourth string heap allocated to refill the slot the pop just freed");
@@ -555,7 +539,6 @@ TEST_CASE("nexenne::container::ring_buffer clear empties and leaves the buffer r
   CHECK(r.empty());
   CHECK(r.size() == 0);
   CHECK(r.front() == nullptr);
-  // After clear, head/tail reset to zero and the buffer accepts a full new round.
   CHECK(r.push("x string long enough to live on the heap once more after clear").has_value());
   CHECK(r.push("y string also heap allocated to fill the cleared buffer back up").has_value());
   CHECK(r.push("z string heap allocated to reach capacity in the reused buffer").has_value());
@@ -570,7 +553,6 @@ TEST_CASE("nexenne::container::ring_buffer const access and const iteration") {
   nexenne::utility::ignore(m.push(3));
   rb const& r{m};
 
-  // const overloads of front/back/at/operator[]
   CHECK(*r.front() == 1);
   CHECK(*r.back() == 3);
   CHECK(**r.at(1) == 2);
@@ -583,7 +565,6 @@ TEST_CASE("nexenne::container::ring_buffer const access and const iteration") {
   static_assert(std::same_as<decltype(r[0]), int const&>);
   static_assert(std::same_as<decltype(r.at(0)), cn::result<int const*>>);
 
-  // const begin/end and cbegin/cend both yield const_iterator over FIFO order.
   std::vector<int> seen;
   for (auto it{r.begin()}; it != r.end(); ++it) {
     seen.push_back(*it);
@@ -606,15 +587,15 @@ TEST_CASE("nexenne::container::ring_buffer iterator arrow, post-increment, and e
   nexenne::utility::ignore(r.emplace(2, 20));
 
   auto it{r.begin()};
-  CHECK(it->first == 1);      // operator->
-  auto const previous{it++};  // post-increment returns the old position
+  CHECK(it->first == 1);
+  auto const previous{it++};
   CHECK(previous->first == 1);
   CHECK(it->first == 2);
   ++it;
   CHECK(it == r.end());
 
   cn::ring_buffer<int, 3> empty;
-  CHECK(empty.begin() == empty.end());  // empty range
+  CHECK(empty.begin() == empty.end());
   CHECK(empty.cbegin() == empty.cend());
   int visited{0};
   for ([[maybe_unused]] int const x : empty) {
@@ -628,7 +609,7 @@ TEST_CASE("nexenne::container::ring_buffer non-const iterator converts to const_
   nexenne::utility::ignore(r.push(1));
   nexenne::utility::ignore(r.push(2));
   rb::iterator const mutable_it{r.begin()};
-  rb::const_iterator const const_it{mutable_it};  // implicit non-const -> const
+  rb::const_iterator const const_it{mutable_it};
   CHECK(*const_it == 1);
   CHECK(const_it == r.cbegin());
 }
@@ -651,7 +632,7 @@ TEST_CASE("nexenne::container::ring_buffer swap of two wrapped buffers preserves
     b.push("b1 string long enough to live on the heap for the swap to be visible")
   );
 
-  a.swap(b);  // member swap of two wrapped/partial buffers
+  a.swap(b);
   CHECK(a.size() == 1);
   CHECK(*a.front() == "b1 string long enough to live on the heap for the swap to be visible");
   CHECK(b.size() == 2);
@@ -664,26 +645,23 @@ TEST_CASE("nexenne::container::ring_buffer mutable operator[] and front/back are
   nexenne::utility::ignore(r.push(1));
   nexenne::utility::ignore(r.push(2));
   nexenne::utility::ignore(r.push(3));
-  r[1] = 20;        // non-const operator[] yields a mutable reference
-  *r.front() = 10;  // non-const front
-  *r.back() = 30;   // non-const back
-  **r.at(1) = 22;   // non-const at re-assigns the same slot
+  r[1] = 20;
+  *r.front() = 10;
+  *r.back() = 30;
+  **r.at(1) = 22;
   CHECK(r[0] == 10);
   CHECK(r[1] == 22);
   CHECK(r[2] == 30);
 }
 
-// constexpr coverage of push_overwrite eviction, self-aliasing, and copy across
-// a wrapped (non-zero head) buffer, all driven at compile time.
 static_assert([] {
   cn::ring_buffer<int, 3> r;
   r.push_overwrite(1);
   r.push_overwrite(2);
   r.push_overwrite(3);
-  r.push_overwrite(4);  // evicts 1, keeps 2,3,4
+  r.push_overwrite(4);
   bool ok{r.size() == 3 && r[0] == 2 && r[2] == 4};
-  // self-aliasing push_overwrite of the front (the slot about to be evicted)
-  r.push_overwrite(r[0]);  // evicts 2, appends a copy of 2 -> 3,4,2
+  r.push_overwrite(r[0]);
   ok = ok && r[0] == 3 && r[1] == 4 && r[2] == 2;
   return ok;
 }());
@@ -693,22 +671,19 @@ static_assert([] {
   nexenne::utility::ignore(a.push(1));
   nexenne::utility::ignore(a.push(2));
   nexenne::utility::ignore(a.push(3));
-  nexenne::utility::ignore(a.pop());    // head off zero
-  nexenne::utility::ignore(a.push(4));  // logical [2,3,4], non-zero head
-  cn::ring_buffer<int, 3> const b{a};    // copy canonicalises head
+  nexenne::utility::ignore(a.pop());
+  nexenne::utility::ignore(a.push(4));
+  cn::ring_buffer<int, 3> const b{a};
   bool ok{b.size() == 3 && b[0] == 2 && b[1] == 3 && b[2] == 4};
   cn::ring_buffer<int, 3> c;
-  c = std::move(a);  // move-assign at compile time
+  c = std::move(a);
   ok = ok && c.size() == 3 && c[2] == 4 && a.empty();
   cn::ring_buffer<int, 3> d;
-  d.swap(c);  // swap at compile time
+  d.swap(c);
   ok = ok && d.size() == 3 && c.empty() && d[0] == 2;
   return ok;
 }());
 
-// [m7] ring_buffer now defines the class-level difference_type typedef that every
-// sibling container exposes, so generic code using Container::difference_type
-// compiles against it too.
 static_assert(std::same_as<cn::ring_buffer<int, 4>::difference_type, std::ptrdiff_t>);
 
 TEST_CASE("nexenne::container::ring_buffer push_overwrite builds the same element full or not") {

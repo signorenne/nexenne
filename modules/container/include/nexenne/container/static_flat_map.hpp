@@ -683,9 +683,6 @@ public:
     if (m_size == Capacity) {
       return std::unexpected{container_error::full};
     }
-    // Materialise the entry before shift_right moves the slots: a key that
-    // aliases a mapped value at or past pos would otherwise be read after being
-    // moved from (the try_emplace hazard, guarded here too).
     auto entry{value_type{key, std::move(value)}};
     shift_right(pos);
     *pos = std::move(entry);
@@ -750,11 +747,6 @@ public:
     if (m_size == Capacity) {
       return std::unexpected{container_error::full};
     }
-    // Materialise the entry (key and value) before shift_right moves the active
-    // tail: an argument that references a mapped value stored at or past pos
-    // would otherwise be read after that slot has been moved from. Constructed
-    // only here, on the insertion path, so the construct-only-on-insert contract
-    // holds.
     auto entry{value_type{key, Value(std::forward<Args>(args)...)}};
     shift_right(pos);
     *pos = std::move(entry);

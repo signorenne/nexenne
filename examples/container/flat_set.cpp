@@ -27,7 +27,7 @@ namespace cn = nexenne::container;
 auto main() -> int {
   cn::flat_set<std::string> stopwords;
   for (auto const& word : {"the", "a", "of", "and", "a"}) {
-    stopwords.insert(word);  // the second "a" is dropped as a duplicate
+    stopwords.insert(word);
   }
   std::println("{} stopwords, contains 'the': {}", stopwords.size(), stopwords.contains("the"));
 
@@ -36,7 +36,5 @@ auto main() -> int {
     std::print(" {}", word);
   }
   std::println("");
-  // 4 stopwords, contains 'the': true
-  // sorted: a and of the
   return 0;
 }

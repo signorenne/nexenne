@@ -356,8 +356,7 @@ static_assert(
 static_assert(std::is_nothrow_destructible_v<cn::static_vector<tc, 4>>);
 static_assert(std::is_nothrow_destructible_v<cn::spsc_queue<tc, 4>>);
 
-TEST_CASE("nexenne::container noexcept follows the element and caller code (container-28)") {
-  // A copy that throws now propagates to the caller instead of terminating.
+TEST_CASE("nexenne::container noexcept follows the element and caller code") {
   struct copy_fails {
     copy_fails() noexcept = default;
 
@@ -382,15 +381,11 @@ TEST_CASE("nexenne::container noexcept follows the element and caller code (cont
   CHECK(std::is_lt(order));
 }
 
-TEST_CASE("nexenne::container a throw through a standard comparator propagates (container-28)") {
-  // std::less and std::equal_to over a key whose operators may throw are not
-  // trusted, so the lookup is not noexcept and the throw reaches the caller.
+TEST_CASE("nexenne::container a throw through a standard comparator propagates") {
   cn::flat_set<throwing_ops> ordered;
   REQUIRE(ordered.insert(throwing_ops{1}).second);
   CHECK(ordered.contains(throwing_ops{1}));
-  CHECK_THROWS_AS(
-    nexenne::utility::ignore(ordered.contains(throwing_ops{-1})), std::runtime_error
-  );
+  CHECK_THROWS_AS(nexenne::utility::ignore(ordered.contains(throwing_ops{-1})), std::runtime_error);
 
   cn::flat_hash_set<throwing_ops, throwing_ops_hash> hashed;
   REQUIRE(hashed.insert(throwing_ops{-1}));

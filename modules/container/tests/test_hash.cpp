@@ -28,12 +28,12 @@ TEST_CASE("nexenne::container::hash static_vector equal vectors hash equal") {
   nexenne::utility::ignore(c.push_back(2));
 
   std::hash<cn::static_vector<int, 8>> const h;
-  CHECK(h(a) == h(b));  // equal contents hash equal
-  CHECK(h(a) != h(c));  // different length, almost certainly different hash
+  CHECK(h(a) == h(b));
+  CHECK(h(a) != h(c));
 
   std::unordered_set<cn::static_vector<int, 8>> seen;
   seen.insert(a);
-  CHECK(seen.contains(b));  // b == a, so it is found
+  CHECK(seen.contains(b));
   CHECK_FALSE(seen.contains(c));
 }
 
@@ -42,7 +42,7 @@ TEST_CASE("nexenne::container::hash small_vector works as a map key") {
   cn::small_vector<int, 2> key;
   key.push_back(7);
   key.push_back(8);
-  key.push_back(9);  // spills to heap
+  key.push_back(9);
   m[key] = "found";
   cn::small_vector<int, 2> probe;
   probe.push_back(7);
@@ -57,13 +57,12 @@ TEST_CASE("nexenne::container::hash static_vector is deterministic and handles e
   nexenne::utility::ignore(v.push_back(10));
   nexenne::utility::ignore(v.push_back(20));
   std::hash<cn::static_vector<int, 8>> const h;
-  CHECK(h(v) == h(v));  // same object hashes identically every call
+  CHECK(h(v) == h(v));
 
   cn::static_vector<int, 8> const e1;
   cn::static_vector<int, 8> const e2;
-  CHECK(h(e1) == h(e2));  // two empty vectors agree
+  CHECK(h(e1) == h(e2));
 
-  // Order matters for a sequence hash: [1,2] should not collide with [2,1].
   cn::static_vector<int, 8> ab;
   nexenne::utility::ignore(ab.push_back(1));
   nexenne::utility::ignore(ab.push_back(2));
@@ -91,7 +90,7 @@ TEST_CASE("nexenne::container::hash stable_vector equal vectors hash equal") {
   shorter.push_back(4);
   shorter.push_back(5);
   CHECK(a != shorter);
-  CHECK(h(a) != h(shorter));  // different length, almost certainly differs
+  CHECK(h(a) != h(shorter));
 
   std::unordered_set<cn::stable_vector<int>> seen;
   seen.insert(a);
@@ -104,22 +103,21 @@ TEST_CASE("nexenne::container::hash bitset_dynamic equal bitsets hash equal") {
   nexenne::utility::ignore(a.set(7));
   cn::bitset_dynamic b(10);
   nexenne::utility::ignore(b.set(7));
-  nexenne::utility::ignore(b.set(2));  // set in a different order, same bits
+  nexenne::utility::ignore(b.set(2));
   std::hash<cn::bitset_dynamic> const h;
   CHECK(a == b);
   CHECK(h(a) == h(b));
 
   cn::bitset_dynamic different(10);
   nexenne::utility::ignore(different.set(2));
-  nexenne::utility::ignore(different.set(8));  // 8 instead of 7
+  nexenne::utility::ignore(different.set(8));
   CHECK(a != different);
-  CHECK(h(a) != h(different));  // different bits, almost certainly differs
+  CHECK(h(a) != h(different));
 
   cn::bitset_dynamic const empty1(0);
   cn::bitset_dynamic const empty2(0);
-  CHECK(h(empty1) == h(empty2));  // empty bitsets agree
+  CHECK(h(empty1) == h(empty2));
 
-  // Same bits but different declared size must not collide (size is folded in).
   cn::bitset_dynamic small(4);
   nexenne::utility::ignore(small.set(1));
   cn::bitset_dynamic large(64);
@@ -134,23 +132,23 @@ TEST_CASE("nexenne::container::hash binary_tree equal trees hash equal") {
   a.insert(2);
   a.insert(8);
   cn::binary_tree<int> b;
-  b.insert(8);  // different insert order, same set
+  b.insert(8);
   b.insert(5);
   b.insert(2);
   std::hash<cn::binary_tree<int>> const h;
   CHECK(a == b);
-  CHECK(h(a) == h(b));  // in-order traversal is canonical
+  CHECK(h(a) == h(b));
 
   cn::binary_tree<int> different;
   different.insert(5);
   different.insert(2);
-  different.insert(9);  // 9 instead of 8
+  different.insert(9);
   CHECK(a != different);
   CHECK(h(a) != h(different));
 
   cn::binary_tree<int> const e1;
   cn::binary_tree<int> const e2;
-  CHECK(h(e1) == h(e2));  // empty trees agree
+  CHECK(h(e1) == h(e2));
 }
 
 TEST_CASE("nexenne::container::hash ring_buffer hashes in FIFO order") {
@@ -162,16 +160,16 @@ TEST_CASE("nexenne::container::hash ring_buffer hashes in FIFO order") {
   nexenne::utility::ignore(b.push(2));
   std::hash<cn::ring_buffer<int, 4>> const h;
   CHECK(h(a) == h(b));
-  CHECK(h(a) == h(a));  // deterministic
+  CHECK(h(a) == h(a));
 
   cn::ring_buffer<int, 4> reversed;
   nexenne::utility::ignore(reversed.push(2));
-  nexenne::utility::ignore(reversed.push(1));  // same elements, different FIFO order
+  nexenne::utility::ignore(reversed.push(1));
   CHECK(h(a) != h(reversed));
 
   cn::ring_buffer<int, 4> const empty1;
   cn::ring_buffer<int, 4> const empty2;
-  CHECK(h(empty1) == h(empty2));  // empty buffers agree
+  CHECK(h(empty1) == h(empty2));
 }
 
 TEST_CASE("nexenne::container::hash trie equal tries hash equal regardless of insert order") {
@@ -179,7 +177,7 @@ TEST_CASE("nexenne::container::hash trie equal tries hash equal regardless of in
   a.insert("cat"s, 1);
   a.insert("car"s, 2);
   cn::trie<char, int> b;
-  b.insert("car"s, 2);  // inserted in a different order
+  b.insert("car"s, 2);
   b.insert("cat"s, 1);
   std::hash<cn::trie<char, int>> const h;
   CHECK(a == b);
@@ -187,27 +185,27 @@ TEST_CASE("nexenne::container::hash trie equal tries hash equal regardless of in
 
   cn::trie<char, int> different;
   different.insert("cat"s, 1);
-  different.insert("car"s, 3);  // same keys, one value differs
+  different.insert("car"s, 3);
   CHECK(a != different);
   CHECK(h(a) != h(different));
 
   cn::trie<char, int> const e1;
   cn::trie<char, int> const e2;
-  CHECK(h(e1) == h(e2));  // empty tries agree
+  CHECK(h(e1) == h(e2));
 
   std::unordered_set<cn::trie<char, int>> seen;
   seen.insert(a);
-  CHECK(seen.contains(b));  // b == a is found by hash + equality
+  CHECK(seen.contains(b));
   CHECK_FALSE(seen.contains(different));
 }
 
 TEST_CASE("nexenne::container::hash flat_set hashes as a sorted sequence") {
   cn::flat_set<int> const a{3, 1, 2};
-  cn::flat_set<int> const b{2, 3, 1};  // same contents, inserted differently
+  cn::flat_set<int> const b{2, 3, 1};
   cn::flat_set<int> const c{1, 2};
   std::hash<cn::flat_set<int>> const h;
   CHECK(a == b);
-  CHECK(h(a) == h(b));  // canonical sorted order, so equal sets hash equal
+  CHECK(h(a) == h(b));
   CHECK(h(a) != h(c));
 
   std::unordered_set<cn::flat_set<int>> seen;

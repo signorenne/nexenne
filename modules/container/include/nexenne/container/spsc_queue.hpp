@@ -157,7 +157,6 @@ public:
    * @post Every queued element has been destroyed.
    */
   ~spsc_queue() noexcept {
-    // Single-threaded at destruction: drain so element destructors run.
     while (pop().has_value()) {}
   }
 
@@ -220,10 +219,7 @@ public:
    * @post None. The queue is not modified.
    */
   [[nodiscard]] auto full_approx() const noexcept -> bool {
-    // Tail is loaded relaxed: the producer that most cares about fullness already
-    // owns the freshest tail, and either side only needs the best-effort answer
-    // the approximate contract promises. Head is acquire to pair with the
-    // consumer's release.
+    // Approximate answer: relaxed tail is enough; acquire head pairs with the consumer's release.
     auto const t{m_tail.load(std::memory_order_relaxed)};
     return next(t) == m_head.load(std::memory_order_acquire);
   }

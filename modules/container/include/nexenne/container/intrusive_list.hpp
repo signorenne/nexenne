@@ -447,9 +447,6 @@ public:
    */
   constexpr ~intrusive_list() noexcept {
     clear();
-    // The sentinel is deliberately self-linked while the list is alive; null its
-    // links before it is destroyed so the hook's own "still linked" debug guard
-    // (which fires for genuine elements) does not trip on the sentinel.
     m_sentinel.m_prev = nullptr;
     m_sentinel.m_next = nullptr;
   }

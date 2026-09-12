@@ -19,7 +19,7 @@ namespace {
 namespace cn = nexenne::container;
 
 TEST_CASE("nexenne::container::graph add_vertex hands out dense stable ids") {
-  cn::graph<> g;  // void payload
+  cn::graph<> g;
   auto const a{g.add_vertex()};
   auto const b{g.add_vertex()};
   auto const c{g.add_vertex()};
@@ -39,7 +39,7 @@ TEST_CASE("nexenne::container::graph add_edge bounds-checks endpoints, tracks co
   CHECK(g.edge_count() == 3);
   CHECK(g.add_edge(0, 9).error() == cn::container_error::out_of_range);
   CHECK(g.add_edge(9, 0).error() == cn::container_error::out_of_range);
-  CHECK(g.edge_count() == 3);  // failed adds change nothing
+  CHECK(g.edge_count() == 3);
 }
 
 TEST_CASE("nexenne::container::graph has_edge and out_degree") {
@@ -49,7 +49,7 @@ TEST_CASE("nexenne::container::graph has_edge and out_degree") {
   CHECK(g.has_edge(0, 1));
   CHECK(g.has_edge(0, 2));
   CHECK_FALSE(g.has_edge(0, 0));
-  CHECK_FALSE(g.has_edge(9, 0));  // invalid from
+  CHECK_FALSE(g.has_edge(9, 0));
   REQUIRE(g.out_degree(0).has_value());
   CHECK(*g.out_degree(0) == 2);
   CHECK(*g.out_degree(1) == 0);
@@ -61,7 +61,7 @@ TEST_CASE("nexenne::container::graph remove_edge") {
   nexenne::utility::ignore(g.add_edge(0, 1));
   nexenne::utility::ignore(g.add_edge(0, 2));
   REQUIRE(g.remove_edge(0, 1).has_value());
-  CHECK(*g.remove_edge(0, 1) == false);  // already removed, second call is false
+  CHECK(*g.remove_edge(0, 1) == false);
   CHECK_FALSE(g.has_edge(0, 1));
   CHECK(g.has_edge(0, 2));
   CHECK(g.edge_count() == 1);
@@ -71,13 +71,13 @@ TEST_CASE("nexenne::container::graph remove_edge") {
 TEST_CASE("nexenne::container::graph edges_of yields a payload span") {
   cn::graph<int> g{2};  // int edge payload (e.g. weight)
   CHECK(g.add_edge(0, 1, 42).has_value());
-  CHECK(g.add_edge(0, 1, 7).has_value());  // parallel edge with a different weight
+  CHECK(g.add_edge(0, 1, 7).has_value());
   auto const out{g.edges_of(0)};
   REQUIRE(out.size() == 2);
   CHECK(out[0].target == 1);
   CHECK(out[0].data == 42);
   CHECK(out[1].data == 7);
-  CHECK(g.edges_of(9).empty());  // invalid vertex -> empty span
+  CHECK(g.edges_of(9).empty());
 }
 
 TEST_CASE("nexenne::container::graph neighbors view yields target ids") {
@@ -89,8 +89,8 @@ TEST_CASE("nexenne::container::graph neighbors view yields target ids") {
   for (auto const n : g.neighbors(0)) {
     seen.push_back(n);
   }
-  CHECK(seen == std::vector<std::uint32_t>{1, 3, 2});  // insertion order
-  CHECK(std::ranges::distance(g.neighbors(9)) == 0);   // invalid vertex -> empty
+  CHECK(seen == std::vector<std::uint32_t>{1, 3, 2});
+  CHECK(std::ranges::distance(g.neighbors(9)) == 0);
 }
 
 TEST_CASE("nexenne::container::graph vertices is a lazy ascending id range") {
@@ -191,12 +191,11 @@ TEST_CASE("nexenne::container::graph remove_edge drops only the first of paralle
   nexenne::utility::ignore(g.add_edge(0, 1, 20));
   nexenne::utility::ignore(g.add_edge(0, 1, 30));
   CHECK(g.edge_count() == 3);
-  auto const removed{g.remove_edge(0, 1)};  // one call removes exactly one edge
+  auto const removed{g.remove_edge(0, 1)};
   REQUIRE(removed.has_value());
   CHECK(*removed == true);
   CHECK(g.edge_count() == 2);
-  CHECK(g.has_edge(0, 1));  // parallels remain
-  // the first inserted (weight 10) went; 20 then 30 survive in order
+  CHECK(g.has_edge(0, 1));
   auto const out{g.edges_of(0)};
   REQUIRE(out.size() == 2);
   CHECK(out[0].data == 20);
@@ -207,11 +206,11 @@ TEST_CASE("nexenne::container::graph remove a self-loop") {
   cn::graph<> g{1};
   nexenne::utility::ignore(g.add_edge(0, 0));
   nexenne::utility::ignore(g.add_edge(0, 0));
-  auto const removed{g.remove_edge(0, 0)};  // one call removes exactly one self-loop
+  auto const removed{g.remove_edge(0, 0)};
   REQUIRE(removed.has_value());
   CHECK(*removed == true);
   CHECK(g.edge_count() == 1);
-  CHECK(g.has_edge(0, 0));  // one parallel self-loop remains
+  CHECK(g.has_edge(0, 0));
 }
 
 TEST_CASE("nexenne::container::graph payload-free edges_of and neighbors") {
@@ -237,7 +236,7 @@ TEST_CASE("nexenne::container::graph carries a non-trivial std::string payload")
   REQUIRE(out.size() == 2);
   CHECK(out[0].data == "highway");
   CHECK(out[1].data == "backroad");
-  cn::graph<std::string> clone{g};  // exercise copy under LSan
+  cn::graph<std::string> clone{g};
   CHECK(clone == g);
   REQUIRE(clone.remove_edge(0, 1).has_value());
   CHECK(clone != g);
@@ -250,7 +249,7 @@ TEST_CASE("nexenne::container::graph equality is positional on per-vertex insert
   cn::graph<int> b{2};
   nexenne::utility::ignore(b.add_edge(0, 1, 2));  // reversed insertion order
   nexenne::utility::ignore(b.add_edge(0, 1, 1));
-  CHECK(a != b);  // same multiset of edges, different order
+  CHECK(a != b);
 
   cn::graph<int> c{3};  // different vertex count
   CHECK(a != c);
@@ -271,7 +270,7 @@ TEST_CASE("nexenne::container::graph over a small Vertex type keeps ids in range
   // the representable range a small Vertex type must hand out dense, distinct
   // ids and enumerate them correctly. Overflowing the id space is a debug assert.
   cn::graph<void, std::uint8_t> g;
-  constexpr int count{200};  // well inside uint8_t, no wrap
+  constexpr int count{200};
   for (int i{0}; i < count; ++i) {
     auto const id{g.add_vertex()};
     CHECK(static_cast<int>(id) == i);
@@ -290,8 +289,6 @@ TEST_CASE("nexenne::container::graph over a small Vertex type keeps ids in range
   CHECK(enumerated == count);
 }
 
-// m23: every member is constexpr, so a constant-evaluated build/query/compare,
-// including operator==, must succeed.
 consteval auto consteval_graph_probe() -> bool {
   cn::graph<int> g{3};
   if (!g.add_edge(0, 1, 7).has_value()) {
@@ -312,7 +309,7 @@ consteval auto consteval_graph_probe() -> bool {
   if (!h.add_edge(0, 1, 7).has_value()) {
     return false;
   }
-  return edge && g == h;  // operator== in a constant-evaluated context
+  return edge && g == h;
 }
 
 static_assert(consteval_graph_probe());

@@ -31,9 +31,9 @@ auto main() -> int {
   cn::deque<int> recent;
 
   for (int const reading : {10, 20, 30, 40, 50, 60}) {
-    recent.push_back(reading);  // newest at the back
+    recent.push_back(reading);
     if (recent.size() > window) {
-      auto const dropped{recent.pop_front()};  // oldest falls out of the window
+      auto const dropped{recent.pop_front()};
       std::println("dropped {}", *dropped);
     }
   }
@@ -43,8 +43,5 @@ auto main() -> int {
     std::print(" {}", recent[i]);
   }
   std::println("");
-  // dropped 10
-  // dropped 20
-  // window: 30 40 50 60
   return 0;
 }

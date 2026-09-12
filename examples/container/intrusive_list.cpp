@@ -34,7 +34,7 @@ struct enemy : cn::intrusive_list_hook<enemy> {
 
 auto main() -> int {
   enemy a{1, 100};
-  enemy b{2, 0};  // already dead
+  enemy b{2, 0};
   enemy c{3, 50};
 
   cn::intrusive_list<enemy> active;
@@ -43,14 +43,12 @@ auto main() -> int {
   active.push_back(c);
   std::println("active: {}", active.size());
 
-  active.erase(b);  // b died: O(1) unlink, no search, no free
+  active.erase(b);
 
   std::print("remaining:");
   for (auto const& e : active) {
     std::print(" {}(hp {})", e.id, e.hp);
   }
   std::println("");
-  // active: 3
-  // remaining: 1(hp 100) 3(hp 50)
   return 0;
 }

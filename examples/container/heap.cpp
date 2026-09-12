@@ -24,17 +24,16 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  cn::heap<int, std::greater<int>> schedule;  // min-heap on event time
+  cn::heap<int, std::greater<int>> schedule;
   for (int const time : {50, 10, 30, 20, 40}) {
     schedule.push(time);
   }
 
   std::print("processing order:");
   while (!schedule.empty()) {
-    auto const next{schedule.pop()};  // earliest event each time
+    auto const next{schedule.pop()};
     std::print(" {}", *next);
   }
   std::println("");
-  // processing order: 10 20 30 40 50
   return 0;
 }

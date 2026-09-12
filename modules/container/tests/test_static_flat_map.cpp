@@ -25,7 +25,6 @@ using map_t = cn::static_flat_map<int, int, 4>;
 
 static_assert(map_t::capacity() == 4);
 
-// static_flat_map is usable in a constant expression.
 static_assert([] {
   map_t m;
   bool ok{m.insert({3, 30}).has_value() && m.insert({1, 10}).has_value()};
@@ -34,11 +33,9 @@ static_assert([] {
   return ok;
 }());
 
-// Built from an initializer list, a constexpr instance is a compile-time
-// constant lookup table.
 constexpr cn::static_flat_map<int, int, 3> const_table{{3, 30}, {1, 10}, {2, 20}};
 static_assert(const_table.size() == 3);
-static_assert(const_table.begin()->first == 1);  // stored sorted by key
+static_assert(const_table.begin()->first == 1);
 static_assert(*const_table.at(2) == 20);
 static_assert(const_table.at(99) == nullptr);
 
@@ -52,16 +49,16 @@ TEST_CASE("nexenne::container::static_flat_map insert orders, dedups, reports fu
 
   CHECK(m.insert({1, 10}).has_value());
   CHECK(m.insert({3, 30}).has_value());
-  auto const r2{m.insert({3, 99})};  // duplicate key
+  auto const r2{m.insert({3, 99})};
   REQUIRE(r2.has_value());
   auto const [it2, ins2]{*r2};
   CHECK_FALSE(ins2);
-  CHECK(it2->second == 30);  // original kept
+  CHECK(it2->second == 30);
 
-  CHECK(m.insert({7, 70}).has_value());  // size is now 4
+  CHECK(m.insert({7, 70}).has_value());
   CHECK(m.full());
-  CHECK(m.insert({9, 90}).error() == cn::container_error::full);  // full and new
-  CHECK(m.insert({5, 55}).has_value());  // a duplicate into a full map is fine
+  CHECK(m.insert({9, 90}).error() == cn::container_error::full);
+  CHECK(m.insert({5, 55}).has_value());
   CHECK(m.size() == 4);
 
   std::vector<int> keys;
@@ -85,18 +82,18 @@ TEST_CASE("nexenne::container::static_flat_map insert_or_assign overwrites or in
   map_t m;
   auto const a{m.insert_or_assign(5, 50)};
   REQUIRE(a.has_value());
-  CHECK((*a).second);  // inserted
+  CHECK((*a).second);
   auto const b{m.insert_or_assign(5, 55)};
   REQUIRE(b.has_value());
-  CHECK_FALSE((*b).second);  // overwritten
+  CHECK_FALSE((*b).second);
   CHECK(*m.at(5) == 55);
 
   m.insert_or_assign(1, 1);
   m.insert_or_assign(2, 2);
   m.insert_or_assign(3, 3);
   CHECK(m.full());
-  CHECK(m.insert_or_assign(9, 9).error() == cn::container_error::full);  // full and new
-  CHECK(m.insert_or_assign(5, 99).has_value());                          // overwrite is fine
+  CHECK(m.insert_or_assign(9, 9).error() == cn::container_error::full);
+  CHECK(m.insert_or_assign(5, 99).has_value());
 }
 
 TEST_CASE("nexenne::container::static_flat_map try_emplace constructs only on insert") {
@@ -105,7 +102,7 @@ TEST_CASE("nexenne::container::static_flat_map try_emplace constructs only on in
   REQUIRE(a.has_value());
   CHECK((*a).second);
   CHECK((*a).first->second == "hello");
-  auto const b{m.try_emplace(1, "world")};  // key present, value untouched
+  auto const b{m.try_emplace(1, "world")};
   REQUIRE(b.has_value());
   CHECK_FALSE((*b).second);
   CHECK((*b).first->second == "hello");
@@ -167,9 +164,9 @@ TEST_CASE("nexenne::container::static_flat_map swap and comparison") {
 }
 
 TEST_CASE("nexenne::container::static_flat_map builds from an initializer list") {
-  map_t m{{3, 30}, {1, 10}, {2, 20}, {1, 99}};  // sorted, the later 1 dropped
+  map_t m{{3, 30}, {1, 10}, {2, 20}, {1, 99}};
   CHECK(m.size() == 3);
-  CHECK(*m.at(1) == 10);  // the first 1 is kept
+  CHECK(*m.at(1) == 10);
   std::vector<int> keys;
   for (auto const& [k, v] : m) {
     keys.push_back(k);
@@ -178,7 +175,6 @@ TEST_CASE("nexenne::container::static_flat_map builds from an initializer list")
 }
 
 TEST_CASE("nexenne::container::static_flat_map initializer list drops entries past capacity") {
-  // Five distinct keys into a capacity-4 map: the fifth (sorted) entry is dropped.
   cn::static_flat_map<int, int, 4> m{{5, 50}, {1, 10}, {4, 40}, {2, 20}, {3, 30}};
   CHECK(m.size() == 4);
   CHECK(m.full());
@@ -186,7 +182,6 @@ TEST_CASE("nexenne::container::static_flat_map initializer list drops entries pa
   for (auto const& [k, v] : m) {
     keys.push_back(k);
   }
-  // Insertion order is 5,1,4,2 (each fits); 3 arrives when full and new, so dropped.
   CHECK(keys == std::vector{1, 2, 4, 5});
   CHECK(m.at(3) == nullptr);
 }
@@ -196,12 +191,10 @@ TEST_CASE("nexenne::container::static_flat_map emplace reports full on a new key
   CHECK(m.emplace(std::pair<int, int>{1, 10}).has_value());
   CHECK(m.emplace(std::pair<int, int>{2, 20}).has_value());
   CHECK(m.full());
-  // A duplicate key while full still succeeds (no growth needed).
   auto const dup{m.emplace(std::pair<int, int>{1, 99})};
   REQUIRE(dup.has_value());
   CHECK_FALSE((*dup).second);
-  CHECK(*m.at(1) == 10);  // not overwritten
-  // A new key while full fails with container_error::full.
+  CHECK(*m.at(1) == 10);
   CHECK(m.emplace(std::pair<int, int>{3, 30}).error() == cn::container_error::full);
 }
 
@@ -210,8 +203,8 @@ TEST_CASE("nexenne::container::static_flat_map try_emplace reports full on a new
   CHECK(m.try_emplace(1, "one").has_value());
   CHECK(m.try_emplace(2, "two").has_value());
   CHECK(m.full());
-  CHECK(m.try_emplace(3, "three").error() == cn::container_error::full);  // new + full
-  CHECK(m.try_emplace(1, "ignored").has_value());                         // duplicate is fine
+  CHECK(m.try_emplace(3, "three").error() == cn::container_error::full);
+  CHECK(m.try_emplace(1, "ignored").has_value());
   CHECK(*m.at(1) == "one");
 }
 
@@ -222,7 +215,6 @@ TEST_CASE("nexenne::container::static_flat_map move insert consumes only on a re
   REQUIRE(r1.has_value());
   CHECK((*r1).second);
   CHECK((*r1).first->second == "a value comfortably past the SSO buffer length");
-  // A duplicate key leaves the argument's visible value intact (only moved on insert).
   auto again{std::pair<int, std::string>{1, "this duplicate value should not be consumed"}};
   auto const r2{m.insert(std::move(again))};
   REQUIRE(r2.has_value());
@@ -233,15 +225,13 @@ TEST_CASE("nexenne::container::static_flat_map move insert consumes only on a re
 TEST_CASE("nexenne::container::static_flat_map insert_or_assign self-aliasing is safe") {
   cn::static_flat_map<int, std::string, 2> m;
   m.insert_or_assign(1, "a stored value that is definitely longer than the SSO buffer");
-  auto const r{m.insert_or_assign(1, *m.at(1))};  // feed the slot's own value back
+  auto const r{m.insert_or_assign(1, *m.at(1))};
   REQUIRE(r.has_value());
   CHECK_FALSE((*r).second);
   CHECK(*m.at(1) == "a stored value that is definitely longer than the SSO buffer");
 }
 
 TEST_CASE("nexenne::container::static_flat_map holds a move-only mapped type") {
-  // unique_ptr is move-constructible and default-constructible, so it satisfies
-  // the static_flat_map requirements.
   cn::static_flat_map<int, std::unique_ptr<int>, 3> m;
   CHECK(m.try_emplace(2, std::make_unique<int>(20)).has_value());
   CHECK(m.try_emplace(1, std::make_unique<int>(10)).has_value());
@@ -249,7 +239,6 @@ TEST_CASE("nexenne::container::static_flat_map holds a move-only mapped type") {
   REQUIRE(m.at(1) != nullptr);
   CHECK(**m.at(1) == 10);
   CHECK(**m.at(3) == 30);
-  // Erasing the middle shifts the move-only tail down without leaking.
   CHECK(m.erase(2) == 1);
   CHECK(m.at(2) == nullptr);
   CHECK(**m.at(3) == 30);
@@ -279,7 +268,6 @@ TEST_CASE("nexenne::container::static_flat_map stays key-sorted across fill, era
   CHECK(std::is_sorted(m.begin(), m.end(), [](auto const& a, auto const& b) {
     return a.first < b.first;
   }));
-  // Erase a scattered subset, then refill different keys.
   for (int const k : {30, 80, 10}) {
     CHECK(m.erase(k) == 1);
   }
@@ -306,7 +294,7 @@ TEST_CASE("nexenne::container::static_flat_map with string keys and values survi
   CHECK(m.full() == false);
   CHECK(m.insert_or_assign("bravo", "value-bravo-beyond-the-small-string-buffer").has_value());
   CHECK(m.full());
-  CHECK(m.insert_or_assign("echo", "x").error() == cn::container_error::full);  // new + full
+  CHECK(m.insert_or_assign("echo", "x").error() == cn::container_error::full);
   CHECK(m.insert_or_assign("alpha", "alpha-overwritten-and-still-quite-long").has_value());
   CHECK(*m.at("alpha") == "alpha-overwritten-and-still-quite-long");
   CHECK(m.erase("charlie") == 1);
@@ -329,7 +317,7 @@ TEST_CASE("nexenne::container::static_flat_map differential against std::map wit
     auto const key{key_dist(rng)};
     auto const val{val_dist(rng)};
     switch (op_dist(rng)) {
-      case 0: {  // insert_or_assign, mirrored only when it can succeed
+      case 0: {
         auto const present{ref.find(key) != ref.end()};
         if (present || ref.size() < cap) {
           CHECK(flat.insert_or_assign(key, val).has_value());
@@ -339,7 +327,7 @@ TEST_CASE("nexenne::container::static_flat_map differential against std::map wit
         }
         break;
       }
-      case 1: {  // insert (no overwrite); mirror only when it can succeed
+      case 1: {
         auto const present{ref.find(key) != ref.end()};
         if (present || ref.size() < cap) {
           auto const r{flat.insert({key, val})};
@@ -351,11 +339,11 @@ TEST_CASE("nexenne::container::static_flat_map differential against std::map wit
         }
         break;
       }
-      case 2: {  // erase
+      case 2: {
         CHECK(flat.erase(key) == ref.erase(key));
         break;
       }
-      default: {  // lookup
+      default: {
         auto const* const p{flat.at(key)};
         auto const it{ref.find(key)};
         if (it == ref.end()) {
@@ -378,10 +366,6 @@ TEST_CASE("nexenne::container::static_flat_map differential against std::map wit
 TEST_CASE(
   "nexenne::container::static_flat_map try_emplace does not read a moved-from aliased arg"
 ) {
-  // [M2] Insert under a smaller key using an existing entry's value as the
-  // argument. Key 1 sorts before key 5, so the slot shift moves key 5's value;
-  // before the fix the argument was read after that slot had been moved from and
-  // the new entry came out empty.
   cn::static_flat_map<int, std::string, 8> m;
   std::string const payload{"a long string that will not fit in any SSO buffer"};
   REQUIRE(m.try_emplace(5, payload).has_value());
@@ -389,7 +373,6 @@ TEST_CASE(
   CHECK(*m.at(1) == payload);
   CHECK(*m.at(5) == payload);
 
-  // insert_or_assign shares the materialise-before-shift guard.
   cn::static_flat_map<int, std::string, 8> n;
   REQUIRE(n.insert_or_assign(5, payload).has_value());
   REQUIRE(n.insert_or_assign(1, *n.at(5)).has_value());
@@ -398,7 +381,6 @@ TEST_CASE(
 }
 
 TEST_CASE("nexenne::container::static_flat_map heterogeneous lookup avoids constructing a key") {
-  // [M1] A transparent comparator admits a string_view probe against string keys.
   cn::static_flat_map<std::string, int, 8, std::less<>> m;
   REQUIRE(m.insert({"alpha", 1}).has_value());
   REQUIRE(m.insert({"gamma", 3}).has_value());

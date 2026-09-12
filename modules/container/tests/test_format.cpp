@@ -24,7 +24,7 @@ TEST_CASE("nexenne::container::format sequence containers print as [a, b, c]") {
   nexenne::utility::ignore(v.push_back(2));
   nexenne::utility::ignore(v.push_back(3));
   CHECK(cn::to_string(v) == "static_vector[1, 2, 3]");
-  CHECK(std::format("{}", v) == "static_vector[1, 2, 3]");  // std::formatter path
+  CHECK(std::format("{}", v) == "static_vector[1, 2, 3]");
 
   cn::static_vector<int, 8> const empty;
   CHECK(cn::to_string(empty) == "static_vector[]");
@@ -40,9 +40,8 @@ TEST_CASE("nexenne::container::format operator<< streams the same text") {
 
 TEST_CASE("nexenne::container::format bitset prints MSB-first binary") {
   cn::bitset_dynamic b(4);
-  nexenne::utility::ignore(b.set(0));  // least significant
-  nexenne::utility::ignore(b.set(3));  // most significant
-  // bits printed MSB..LSB: bit3=1, bit2=0, bit1=0, bit0=1 -> 1001
+  nexenne::utility::ignore(b.set(0));
+  nexenne::utility::ignore(b.set(3));
   CHECK(cn::to_string(b) == "bitset_dynamic(size=4, bits=0b1001)");
 }
 
@@ -56,7 +55,6 @@ TEST_CASE("nexenne::container::format set-like containers print as {a, b, c}") {
 TEST_CASE("nexenne::container::format map-like containers print key: value") {
   cn::flat_hash_map<int, int> m;
   m.insert(1, 10);
-  // single entry keeps the output deterministic regardless of slot order
   CHECK(cn::to_string(m) == "flat_hash_map{1: 10}");
   CHECK(std::format("{}", m) == "flat_hash_map{1: 10}");
 }
@@ -77,7 +75,6 @@ TEST_CASE("nexenne::container::format heap prints its backing layout") {
   cn::heap<int> h;
   h.push(5);
   h.push(1);
-  // max-heap: 5 sits at the front of the layout
   auto const str{cn::to_string(h)};
   CHECK(str.starts_with("heap["));
   CHECK(str.find('5') != std::string::npos);
@@ -95,7 +92,7 @@ TEST_CASE("nexenne::container::format stable_vector and small_vector print as se
   cn::small_vector<int, 2> smv;
   smv.push_back(1);
   smv.push_back(2);
-  smv.push_back(3);  // spills to heap
+  smv.push_back(3);
   CHECK(cn::to_string(smv) == "small_vector[1, 2, 3]");
   CHECK(std::format("{}", smv) == "small_vector[1, 2, 3]");
 }
@@ -115,7 +112,6 @@ TEST_CASE("nexenne::container::format ring_buffer prints in FIFO order") {
 TEST_CASE("nexenne::container::format bag prints as a sequence") {
   cn::bag<int> b;
   b.insert(7);
-  // single element keeps output deterministic regardless of swap-removal layout
   CHECK(cn::to_string(b) == "bag[7]");
   CHECK(std::format("{}", b) == "bag[7]");
 
@@ -128,7 +124,7 @@ TEST_CASE("nexenne::container::format binary_tree prints in sorted order") {
   t.insert(3);
   t.insert(1);
   t.insert(2);
-  CHECK(cn::to_string(t) == "binary_tree{1, 2, 3}");  // in-order is sorted
+  CHECK(cn::to_string(t) == "binary_tree{1, 2, 3}");
   CHECK(std::format("{}", t) == "binary_tree{1, 2, 3}");
 
   cn::binary_tree<int> const empty;
@@ -140,7 +136,7 @@ TEST_CASE("nexenne::container::format union_find groups members by root") {
   nexenne::utility::ignore(uf.unite(0, 1));
   auto const str{cn::to_string(uf)};
   CHECK(str.starts_with("union_find["));
-  CHECK(str.find("{0, 1}") != std::string::npos);  // 0 and 1 share a set
+  CHECK(str.find("{0, 1}") != std::string::npos);
 
   cn::union_find<unsigned> const empty;
   CHECK(cn::to_string(empty) == "union_find{}");
@@ -214,7 +210,6 @@ TEST_CASE("nexenne::container::format ordered flat containers match the hashed b
   cn::flat_map<int, int> m;
   m.insert({2, 20});
   m.insert({1, 10});
-  // flat_map is sorted, so the output order is deterministic.
   CHECK(cn::to_string(m) == "flat_map{1: 10, 2: 20}");
   CHECK(std::format("{}", m) == "flat_map{1: 10, 2: 20}");
 
@@ -255,7 +250,6 @@ TEST_CASE("nexenne::container::format operator<< matches to_string across types"
 }
 
 TEST_CASE("nexenne::container::format nested containers format recursively") {
-  // A static_vector of static_vectors: the inner formatter must run per element.
   cn::static_vector<cn::static_vector<int, 4>, 4> outer;
   cn::static_vector<int, 4> a;
   nexenne::utility::ignore(a.push_back(1));
@@ -293,11 +287,6 @@ TEST_CASE("nexenne::container::format bloom_filter prints a stats line") {
 }
 
 TEST_CASE("nexenne::container::format lru_cache prints size and capacity") {
-  // Pins the lru_cache stats formatter. NOTE: lru_cache currently trips a
-  // pre-existing intrusive_list teardown assert (owned by another component)
-  // when it is destroyed, so this case aborts at scope exit until that sibling
-  // fix lands. The formatter output itself (the two checks below) is correct and
-  // reads only size() and capacity().
   cn::lru_cache<int, int, 4> c;
   c.put(1, 10);
   c.put(2, 20);
@@ -333,7 +322,6 @@ TEST_CASE("nexenne::container::format object_pool prints size, capacity and high
   REQUIRE(b.has_value());
   CHECK(cn::to_string(pool) == "object_pool(size=2, capacity=4, high_water_mark=2)");
   CHECK(std::format("{}", pool) == "object_pool(size=2, capacity=4, high_water_mark=2)");
-  // Leave the pool clean for its leak-free destruction contract.
   REQUIRE(pool.destroy(*a).has_value());
   REQUIRE(pool.destroy(*b).has_value());
 }

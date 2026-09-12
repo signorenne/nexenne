@@ -39,13 +39,9 @@ auto main() -> int {
   cn::flat_hash_map<std::string, int> m;
   m.insert("a", 1);
 
-  std::println("{}", cn::to_string(v));  // to_string
-  std::cout << v << '\n';                // operator<<
-  std::println("{}", v);                 // std::formatter
+  std::println("{}", cn::to_string(v));
+  std::cout << v << '\n';
+  std::println("{}", v);
   std::println("{}", m);
-  // static_vector[1, 2, 3]
-  // static_vector[1, 2, 3]
-  // static_vector[1, 2, 3]
-  // flat_hash_map{a: 1}
   return 0;
 }

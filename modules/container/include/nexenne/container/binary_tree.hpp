@@ -114,7 +114,7 @@ private:
       while (!pending.empty()) {
         auto victim{std::move(pending.back())};
         pending.pop_back();
-        detach(*victim);  // victim then destructs with no children, so O(1)
+        detach(*victim);
       }
     }
   };
@@ -994,15 +994,11 @@ private:
       return;
     }
 
-    // Two children: splice in the in-order successor (leftmost of z's right
-    // subtree), which has no left child by construction.
     auto* const y{leftmost(z->right.get())};
     auto* const y_parent{y->parent};
 
     node_ptr y_owned;
     if (y_parent != z) {
-      // y is buried in z's right subtree: y's right subtree takes y's old slot,
-      // then y inherits z's right subtree.
       auto& y_slot{*owning_slot(y)};
       auto y_right{std::move(y->right)};
       y_owned = std::move(y_slot);
@@ -1012,8 +1008,6 @@ private:
         y_owned->right->parent = y_owned.get();
       }
     } else {
-      // y is z's immediate right child; take it directly, its right subtree
-      // carries over unchanged.
       y_owned = std::move(z->right);
     }
 

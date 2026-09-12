@@ -27,14 +27,14 @@ using namespace std::string_literals;
 
 TEST_CASE("nexenne::container::trie insert fresh vs replace, find, contains") {
   trie_t t;
-  CHECK(t.insert("cat"s, 1));         // fresh
-  CHECK(t.insert("car"s, 2));         // shares prefix "ca"
-  CHECK_FALSE(t.insert("cat"s, 99));  // replace, returns false
+  CHECK(t.insert("cat"s, 1));
+  CHECK(t.insert("car"s, 2));
+  CHECK_FALSE(t.insert("cat"s, 99));
   CHECK(t.size() == 2);
   REQUIRE(t.find("cat"s) != nullptr);
-  CHECK(*t.find("cat"s) == 99);  // replaced value
+  CHECK(*t.find("cat"s) == 99);
   CHECK(*t.find("car"s) == 2);
-  CHECK(t.find("ca"s) == nullptr);  // prefix, but no value stored there
+  CHECK(t.find("ca"s) == nullptr);
   CHECK(t.contains("car"s));
   CHECK_FALSE(t.contains("dog"s));
 }
@@ -46,9 +46,9 @@ TEST_CASE("nexenne::container::trie starts_with matches stored prefixes") {
   CHECK(t.starts_with("ca"s));
   CHECK(t.starts_with("car"s));
   CHECK(t.starts_with("cat"s));
-  CHECK(t.starts_with(""s));  // empty prefix always matches a non-empty trie root
+  CHECK(t.starts_with(""s));
   CHECK_FALSE(t.starts_with("dog"s));
-  CHECK_FALSE(t.starts_with("cats"s));  // longer than any stored key
+  CHECK_FALSE(t.starts_with("cats"s));
 }
 
 TEST_CASE("nexenne::container::trie erase removes value and prunes dead nodes") {
@@ -58,12 +58,12 @@ TEST_CASE("nexenne::container::trie erase removes value and prunes dead nodes") 
   CHECK(t.erase("cat"s));
   CHECK(t.size() == 1);
   CHECK_FALSE(t.contains("cat"s));
-  CHECK(t.contains("car"s));     // sibling survives
-  CHECK(t.starts_with("ca"s));   // shared prefix kept (car still there)
-  CHECK_FALSE(t.erase("cat"s));  // already gone
+  CHECK(t.contains("car"s));
+  CHECK(t.starts_with("ca"s));
+  CHECK_FALSE(t.erase("cat"s));
   CHECK(t.erase("car"s));
   CHECK(t.empty());
-  CHECK_FALSE(t.starts_with("c"s));  // whole branch pruned once empty
+  CHECK_FALSE(t.starts_with("c"s));
 }
 
 TEST_CASE("nexenne::container::trie for_each visits every entry once") {
@@ -100,7 +100,7 @@ TEST_CASE("nexenne::container::trie deep copy is independent") {
   CHECK(a == b);
   b.insert("cart"s, 3);
   b.erase("cat"s);
-  CHECK(a.contains("cat"s));  // a unchanged
+  CHECK(a.contains("cat"s));
   CHECK(a.size() == 2);
   CHECK_FALSE(b.contains("cat"s));
   CHECK(b.contains("cart"s));
@@ -111,8 +111,8 @@ TEST_CASE("nexenne::container::trie move steals the graph") {
   a.insert("hi"s, 1);
   trie_t b{std::move(a)};
   CHECK(b.contains("hi"s));
-  CHECK(a.empty());    // NOLINT: moved-from is reset to a usable empty trie
-  a.insert("ok"s, 2);  // still usable
+  CHECK(a.empty());  // NOLINT: moved-from is reset to a usable empty trie
+  a.insert("ok"s, 2);
   CHECK(a.contains("ok"s));
 }
 
@@ -121,18 +121,18 @@ TEST_CASE("nexenne::container::trie equality compares keys and values") {
   a.insert("a"s, 1);
   a.insert("b"s, 2);
   trie_t b;
-  b.insert("b"s, 2);  // different insert order
+  b.insert("b"s, 2);
   b.insert("a"s, 1);
   trie_t c;
   c.insert("a"s, 1);
-  c.insert("b"s, 99);  // different value
+  c.insert("b"s, 99);
   CHECK(a == b);
   CHECK(a != c);
 }
 
 TEST_CASE("nexenne::container::trie handles wide character keys without a sparse blowup") {
   cn::trie<char32_t, int> t;
-  std::u32string const emoji{U"\U0001F600"};  // a single high code point
+  std::u32string const emoji{U"\U0001F600"};
   std::u32string const word{U"\U0001F600\U0001F4A9"};
   CHECK(t.insert(emoji, 1));
   CHECK(t.insert(word, 2));
@@ -150,7 +150,7 @@ TEST_CASE("nexenne::container::trie holds a move-only value") {
   CHECK(**t.find("a"s) == 1);
   CHECK(**t.find("ab"s) == 2);
   CHECK(t.erase("a"s));
-  CHECK(t.contains("ab"s));  // erasing "a" keeps "ab" reachable
+  CHECK(t.contains("ab"s));
 }
 
 TEST_CASE("nexenne::container::trie the empty trie") {
@@ -160,9 +160,9 @@ TEST_CASE("nexenne::container::trie the empty trie") {
   CHECK(t.find("x"s) == nullptr);
   CHECK_FALSE(t.contains("x"s));
   CHECK_FALSE(t.erase("x"s));
-  CHECK_FALSE(t.starts_with(""s));  // an empty trie has no key with any prefix
+  CHECK_FALSE(t.starts_with(""s));
   CHECK_FALSE(t.starts_with("a"s));
-  CHECK_FALSE(t.contains(""s));  // no value stored at the empty key
+  CHECK_FALSE(t.contains(""s));
   CHECK(trie_t::max_size() > 0);
   int visited{0};
   t.for_each([&](std::span<char const>, int) { ++visited; });
@@ -171,33 +171,31 @@ TEST_CASE("nexenne::container::trie the empty trie") {
 
 TEST_CASE("nexenne::container::trie the empty-string key holds its own value") {
   trie_t t;
-  CHECK(t.insert(""s, 7));  // empty key is a real, distinct entry
+  CHECK(t.insert(""s, 7));
   CHECK(t.size() == 1);
   CHECK(t.contains(""s));
   REQUIRE(t.find(""s) != nullptr);
   CHECK(*t.find(""s) == 7);
-  CHECK(t.insert("a"s, 1));  // coexists with non-empty keys
+  CHECK(t.insert("a"s, 1));
   CHECK(t.size() == 2);
-  CHECK_FALSE(t.insert(""s, 8));  // replace
+  CHECK_FALSE(t.insert(""s, 8));
   CHECK(*t.find(""s) == 8);
   CHECK(t.erase(""s));
   CHECK_FALSE(t.contains(""s));
-  CHECK(t.contains("a"s));  // erasing the empty key keeps others
+  CHECK(t.contains("a"s));
   CHECK(t.size() == 1);
 }
 
 TEST_CASE("nexenne::container::trie a key that is a strict prefix of another") {
   trie_t t;
   t.insert("car"s, 1);
-  t.insert("card"s, 2);  // "car" is a prefix of "card"
+  t.insert("card"s, 2);
   CHECK(t.contains("car"s));
   CHECK(t.contains("card"s));
-  // erasing the shorter key must not break the longer one that lives past it
   CHECK(t.erase("car"s));
   CHECK_FALSE(t.contains("car"s));
   CHECK(t.contains("card"s));
   CHECK(*t.find("card"s) == 2);
-  // and erasing the longer key after that prunes cleanly
   CHECK(t.erase("card"s));
   CHECK(t.empty());
   CHECK_FALSE(t.starts_with("c"s));
@@ -212,11 +210,11 @@ TEST_CASE("nexenne::container::trie erasing a deep key keeps unrelated siblings 
   }
   CHECK(t.erase("apple"s));
   CHECK_FALSE(t.contains("apple"s));
-  CHECK(t.contains("apply"s));   // shares "appl"
-  CHECK(t.contains("apt"s));     // shares "ap"
-  CHECK(t.contains("banana"s));  // unrelated branch
+  CHECK(t.contains("apply"s));
+  CHECK(t.contains("apt"s));
+  CHECK(t.contains("banana"s));
   CHECK(t.size() == 3);
-  CHECK(t.starts_with("appl"s));  // "apply" still keeps the shared prefix alive
+  CHECK(t.starts_with("appl"s));
 }
 
 TEST_CASE("nexenne::container::trie const find overload") {
@@ -245,14 +243,14 @@ TEST_CASE("nexenne::container::trie clear and swap") {
   a.clear();
   CHECK(a.empty());
   CHECK_FALSE(a.contains("a"s));
-  a.insert("z"s, 9);  // usable after clear
+  a.insert("z"s, 9);
 
   trie_t b;
   b.insert("x"s, 7);
-  swap(a, b);  // friend swap
+  swap(a, b);
   CHECK(a.contains("x"s));
   CHECK(b.contains("z"s));
-  a.swap(b);  // member swap
+  a.swap(b);
   CHECK(a.contains("z"s));
   CHECK(b.contains("x"s));
 }
@@ -263,10 +261,10 @@ TEST_CASE("nexenne::container::trie copy assignment and self-assignment") {
   a.insert("car"s, 2);
   trie_t b;
   b.insert("dog"s, 9);
-  b = a;  // replaces b's content with a deep clone
+  b = a;
   CHECK(a == b);
   b.insert("cart"s, 3);
-  CHECK_FALSE(a.contains("cart"s));  // independent
+  CHECK_FALSE(a.contains("cart"s));
   CHECK_FALSE(a.contains("dog"s));
 
   auto const& alias{a};
@@ -283,15 +281,15 @@ TEST_CASE("nexenne::container::trie move assignment") {
   b = std::move(a);
   CHECK(b.contains("hi"s));
   CHECK_FALSE(b.contains("bye"s));
-  CHECK(a.empty());    // NOLINT: moved-from reset to usable empty trie
-  a.insert("ok"s, 3);  // still usable
+  CHECK(a.empty());  // NOLINT: moved-from reset to usable empty trie
+  a.insert("ok"s, 3);
   CHECK(a.contains("ok"s));
 }
 
 TEST_CASE("nexenne::container::trie keyed by raw bytes (uint8_t tokens)") {
   cn::trie<std::uint8_t, int> t;
-  std::vector<std::uint8_t> const a{0x00, 0xFF, 0x80};  // includes the zero byte
-  std::vector<std::uint8_t> const b{0x00, 0xFF};        // a prefix of a
+  std::vector<std::uint8_t> const a{0x00, 0xFF, 0x80};
+  std::vector<std::uint8_t> const b{0x00, 0xFF};
   CHECK(t.insert(a, 1));
   CHECK(t.insert(b, 2));
   CHECK(*t.find(a) == 1);
@@ -299,26 +297,26 @@ TEST_CASE("nexenne::container::trie keyed by raw bytes (uint8_t tokens)") {
   CHECK(t.starts_with(std::vector<std::uint8_t>{0x00}));
   CHECK(t.size() == 2);
   CHECK(t.erase(b));
-  CHECK(t.contains(a));  // erasing the prefix keeps the longer byte key
+  CHECK(t.contains(a));
 }
 
 TEST_CASE("nexenne::container::trie of non-trivial std::string values") {
   cn::trie<char, std::string> t;
   CHECK(t.insert("greet"s, std::string("hello")));
-  CHECK(t.insert("greeting"s, std::string("howdy")));  // shares prefix "greet"
+  CHECK(t.insert("greeting"s, std::string("howdy")));
   CHECK(*t.find("greet"s) == "hello");
   CHECK(*t.find("greeting"s) == "howdy");
-  cn::trie<char, std::string> clone{t};  // copy exercised under LSan
+  cn::trie<char, std::string> clone{t};
   CHECK(clone == t);
   CHECK(t.erase("greet"s));
   CHECK(t.contains("greeting"s));
-  CHECK(clone.contains("greet"s));  // clone independent
+  CHECK(clone.contains("greet"s));
 }
 
 TEST_CASE("nexenne::container::trie differential against std::set<std::string> under random ops") {
   std::mt19937 rng{777};
   std::uniform_int_distribution<int> len{0, 4};
-  std::uniform_int_distribution<int> ch{'a', 'd'};  // small alphabet -> shared prefixes
+  std::uniform_int_distribution<int> ch{'a', 'd'};
   std::uniform_int_distribution<int> op{0, 2};
   auto const make_key{[&]() -> std::string {
     std::string s;
@@ -351,7 +349,6 @@ TEST_CASE("nexenne::container::trie differential against std::set<std::string> u
     }
     CHECK(t.size() == ref.size());
   }
-  // the set of stored keys must match the reference exactly
   std::set<std::string> harvested;
   t.for_each([&](std::span<char const> k, int) { harvested.emplace(k.begin(), k.end()); });
   CHECK(harvested == ref);
@@ -359,13 +356,11 @@ TEST_CASE("nexenne::container::trie differential against std::set<std::string> u
 
 TEST_CASE("nexenne::container::trie erase prunes only the dead path") {
   trie_t t;
-  t.insert("ab"s, 1);  // holds a value
+  t.insert("ab"s, 1);
   t.insert("abc"s, 2);
   t.insert("abd"s, 3);
-  t.insert("xyz"s, 4);  // unrelated branch
+  t.insert("xyz"s, 4);
 
-  // Drop only node 'c': 'b' survives (it holds a value and still has child 'd'),
-  // and the unrelated "xyz" must be untouched.
   CHECK(t.erase("abc"s));
   CHECK_FALSE(t.contains("abc"s));
   CHECK(t.contains("ab"s));
@@ -373,68 +368,57 @@ TEST_CASE("nexenne::container::trie erase prunes only the dead path") {
   CHECK(t.contains("xyz"s));
   CHECK(t.size() == 3);
 
-  // Clearing "ab"'s value keeps the node alive because of the 'd' child.
   CHECK(t.erase("ab"s));
   CHECK_FALSE(t.contains("ab"s));
   CHECK(t.contains("abd"s));
   CHECK(t.size() == 2);
 
-  // Removing the last key under the "ab" prefix collapses the whole chain.
   CHECK(t.erase("abd"s));
   CHECK_FALSE(t.contains("abd"s));
   CHECK(t.contains("xyz"s));
   CHECK(t.size() == 1);
 
-  // A long, sibling-free key is fully reclaimed and can be re-inserted fresh.
   t.insert("abcdefgh"s, 9);
   CHECK(t.erase("abcdefgh"s));
-  CHECK(t.insert("abcdefgh"s, 10));  // fresh insertion => the chain was clean
+  CHECK(t.insert("abcdefgh"s, 10));
   CHECK(t.size() == 2);
 }
 
 TEST_CASE("nexenne::container::trie deep keys do not overflow the stack") {
-  // A single very long key makes the trie 100k nodes deep. Copy, traversal,
-  // equality, erase, and teardown must all be iterative; recursion to this depth
-  // would overflow the stack.
   auto const deep{std::string(100000, 'a')};
   {
     trie_t t;
     CHECK(t.insert(deep, 1));
-    CHECK(t.insert(deep + "b", 2));  // branches one level deeper
+    CHECK(t.insert(deep + "b", 2));
     CHECK(t.size() == 2);
 
-    trie_t copy{t};  // clone_subtree
+    trie_t copy{t};
     CHECK(copy.size() == 2);
-    CHECK(copy == t);  // nodes_equal
+    CHECK(copy == t);
 
     auto count{0};
-    copy.for_each([&](std::span<char const>, int) { count += 1; });  // for_each_impl
+    copy.for_each([&](std::span<char const>, int) { count += 1; });
     CHECK(count == 2);
 
     CHECK(copy.contains(deep));
-    CHECK(copy.erase(deep));  // path-local erase down the long chain
+    CHECK(copy.erase(deep));
     CHECK(copy.size() == 1);
     CHECK(copy != t);
-  }  // iterative destructors run here
+  }
 }
 
 TEST_CASE("nexenne::container::trie string-literal and pointer keys drop the trailing NUL") {
-  // M2: a char[N] literal or char const* key is treated as a null-terminated
-  // string, so it agrees with the equivalent std::string_view rather than
-  // silently including the terminator and splitting the key space.
   trie_t t;
-  CHECK(t.insert("hello", 1));  // char[6] literal, not "hello"s
+  CHECK(t.insert("hello", 1));
   CHECK(t.size() == 1);
   CHECK(t.contains(std::string_view{"hello"}));
   CHECK(t.contains("hello"));
   CHECK(*t.find("hello") == 1);
   char const* const p{"hello"};
-  CHECK(t.contains(p));  // char const* key
+  CHECK(t.contains(p));
   CHECK_FALSE(t.contains(std::string_view{"hell"}));
 }
 
-// M3: the const for_each overload must hand the visitor a Value const&, so a
-// mutating visitor is not callable through a const trie (constness propagates).
 template <typename Trie, typename Visitor>
 concept for_each_callable = requires(Trie t, Visitor v) { t.for_each(v); };
 using mutating_visitor = decltype([](std::span<char const>, int& v) { v += 1; });
@@ -443,8 +427,6 @@ static_assert(for_each_callable<trie_t&, mutating_visitor>);
 static_assert(!for_each_callable<trie_t const&, mutating_visitor>);
 static_assert(for_each_callable<trie_t const&, reading_visitor>);
 
-// m15: a key range whose elements are not integral (a range of double) is
-// rejected rather than silently truncated into the trie.
 template <typename Trie, typename Key>
 concept trie_insertable = requires(Trie t, Key k) { t.insert(k, 0); };
 static_assert(trie_insertable<trie_t&, std::string>);
@@ -460,12 +442,11 @@ TEST_CASE("nexenne::container::trie const for_each reads values without mutating
   CHECK(sum == 7);
 }
 
-// m14: the advertised constexpr copy and traversal must be constant-evaluable.
 consteval auto consteval_trie_probe() -> bool {
   trie_t t;
   t.insert(std::string_view{"ab"}, 1);
   t.insert(std::string_view{"abc"}, 2);
-  trie_t copy{t};  // constexpr deep clone
+  trie_t copy{t};
   int sum{0};
   copy.for_each([&sum](std::span<char const>, int const& v) { sum += v; });
   bool const eq{t == copy};

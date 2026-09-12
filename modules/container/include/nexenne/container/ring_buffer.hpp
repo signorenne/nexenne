@@ -178,11 +178,7 @@ private:
     std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
   ) -> void {
     if (m_size == N) {
-      // Full: m_tail == m_head, so this slot holds the oldest element.
-      // Materialize the value before destroying that slot, so an argument
-      // aliasing the evicted element (push_overwrite(r[0])) stays valid.
-      // Parentheses, like the construct_at below: braces would prefer an
-      // initializer_list constructor and build a different element.
+      // Parentheses: braces would prefer an initializer_list constructor.
       T value(std::forward<Args>(args)...);
       std::destroy_at(value_ptr(m_tail));
       std::construct_at(value_ptr(m_tail), std::move(value));

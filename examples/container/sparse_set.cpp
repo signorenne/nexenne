@@ -27,20 +27,18 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  cn::sparse_set_u32 stunned;  // entities currently carrying the "stunned" tag
+  cn::sparse_set_u32 stunned;
   for (std::uint32_t const id : {10u, 3u, 42u, 7u}) {
     stunned.insert(id);
   }
   std::println("stunned: {} entities, contains 42: {}", stunned.size(), stunned.contains(42u));
 
-  stunned.erase(3u);  // entity 3 recovered: O(1)
+  stunned.erase(3u);
 
   std::print("still stunned:");
   for (auto const id : stunned.keys()) {
     std::print(" {}", id);
   }
   std::println("");
-  // stunned: 4 entities, contains 42: true
-  // still stunned: 10 7 42
   return 0;
 }

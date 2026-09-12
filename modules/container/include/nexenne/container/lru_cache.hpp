@@ -182,9 +182,6 @@ private:
       m_free.pop_back();
       return n;
     }
-    // No free slot: evict the LRU entry and reuse its node. Safe because a full
-    // cache (the only way the free list is empty) has a non-empty recency list,
-    // which the Capacity >= 1 constraint guarantees.
     auto* const evicted{m_lru.back()};
     m_lru.erase(*evicted);
     nexenne::utility::ignore(m_index.erase(std::addressof(evicted->key)));
@@ -218,8 +215,6 @@ public:
   lru_cache(lru_cache const&) = delete;
   auto operator=(lru_cache const&) -> lru_cache& = delete;
 
-  // Moving would have to rewrite every node pointer in the list and index; the
-  // cache is intentionally non-movable. Construct it in place.
   lru_cache(lru_cache&&) = delete;
   auto operator=(lru_cache&&) -> lru_cache& = delete;
 
@@ -295,7 +290,6 @@ public:
     m_index.clear();
     m_free.clear();
     for (auto& n : m_pool) {
-      // Release each slot's payload so a logically empty cache pins no resources.
       n.key = Key{};
       n.value = Value{};
       m_free.push_back(std::addressof(n));
@@ -441,9 +435,6 @@ public:
     auto* const entry{*slot};
     m_lru.erase(*entry);
     nexenne::utility::ignore(m_index.erase(std::addressof(key)));
-    // Release the payload so an erased entry does not pin its resources in the
-    // pool until the slot is next reused (the default-initializable constraint
-    // makes this reset well-formed).
     entry->key = Key{};
     entry->value = Value{};
     m_free.push_back(entry);

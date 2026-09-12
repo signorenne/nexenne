@@ -22,8 +22,6 @@ struct node : cn::intrusive_list_hook<node> {
 
   constexpr explicit node(int v) noexcept : value{v} {}
 
-  // Compare by value only; the hook base is not comparable, so a defaulted
-  // comparison would not work.
   friend constexpr auto operator==(node const& a, node const& b) noexcept -> bool {
     return a.value == b.value;
   }
@@ -50,7 +48,6 @@ static_assert(std::bidirectional_iterator<list_t::const_iterator>);
 static_assert(!std::is_copy_constructible_v<list_t>);
 static_assert(std::is_move_constructible_v<list_t>);
 
-// intrusive_list is usable in a constant expression.
 static_assert([] {
   node a{1};
   node b{2};
@@ -58,7 +55,7 @@ static_assert([] {
   list_t list;
   list.push_back(a);
   list.push_back(b);
-  list.push_front(c);  // [3, 1, 2]
+  list.push_front(c);
   int sum{0};
   for (auto const& n : list) {
     sum += n.value;
@@ -73,7 +70,7 @@ TEST_CASE("nexenne::container::intrusive_list push order and is_linked") {
   list_t list;
   list.push_back(a);
   list.push_back(b);
-  list.push_front(c);  // [3, 1, 2]
+  list.push_front(c);
   CHECK(list.size() == 3);
   CHECK(list.front()->value == 3);
   CHECK(list.back()->value == 2);
@@ -94,7 +91,7 @@ TEST_CASE("nexenne::container::intrusive_list erase by reference is O(1)") {
   list.push_back(a);
   list.push_back(b);
   list.push_back(c);
-  list.erase(b);  // remove the middle without a search
+  list.erase(b);
   CHECK(list.size() == 2);
   CHECK_FALSE(b.is_linked());
 
@@ -113,7 +110,7 @@ TEST_CASE("nexenne::container::intrusive_list erase by iterator returns the next
   list.push_back(a);
   list.push_back(b);
   list.push_back(c);
-  auto const it{list.erase(list.begin())};  // remove 1
+  auto const it{list.erase(list.begin())};
   CHECK(it->value == 2);
   CHECK(list.size() == 2);
 }
@@ -149,7 +146,7 @@ TEST_CASE("nexenne::container::intrusive_list iterates forward and reverse") {
   }
   CHECK(reverse == std::vector{3, 2, 1});
 
-  list.begin()->value = 99;  // mutate through the iterator
+  list.begin()->value = 99;
   CHECK(a.value == 99);
 }
 
@@ -186,8 +183,8 @@ TEST_CASE("nexenne::container::intrusive_list an element moves between lists") {
   list_t x;
   list_t y;
   x.push_back(a);
-  x.erase(a);      // detach from x
-  y.push_back(a);  // attach to y
+  x.erase(a);
+  y.push_back(a);
   CHECK(x.empty());
   CHECK(y.size() == 1);
   CHECK(y.front()->value == 1);
@@ -209,7 +206,7 @@ TEST_CASE("nexenne::container::intrusive_list equality and ordering compare valu
   list_t c;
   c.push_back(c1);
   c.push_back(c2);
-  CHECK(a == b);  // equal values, different element addresses
+  CHECK(a == b);
   CHECK(a != c);
   CHECK(a < c);
 }
@@ -222,9 +219,9 @@ TEST_CASE("nexenne::container::intrusive_list never destroys its elements") {
     list.push_back(n);
     list.clear();
     CHECK_FALSE(n.is_linked());
-    CHECK(dtors == 0);  // clear detached but did not destroy
+    CHECK(dtors == 0);
   }
-  CHECK(dtors == 1);  // n's own destructor ran at scope exit
+  CHECK(dtors == 1);
 }
 
 TEST_CASE("nexenne::container::intrusive_list insert before a middle position") {
@@ -233,10 +230,10 @@ TEST_CASE("nexenne::container::intrusive_list insert before a middle position") 
   node c{2};
   list_t list;
   list.push_back(a);
-  list.push_back(b);  // [1, 3]
+  list.push_back(b);
   auto it{list.begin()};
-  ++it;                                     // points at b (value 3)
-  auto const inserted{list.insert(it, c)};  // [1, 2, 3]
+  ++it;
+  auto const inserted{list.insert(it, c)};
   CHECK(inserted->value == 2);
   CHECK(list.size() == 3);
   std::vector<int> seq;
@@ -273,8 +270,8 @@ TEST_CASE("nexenne::container::intrusive_list erase by iterator at the last posi
   list.push_back(a);
   list.push_back(b);
   auto it{list.begin()};
-  ++it;                             // points at b, the last element
-  auto const next{list.erase(it)};  // erase the tail
+  ++it;
+  auto const next{list.erase(it)};
   CHECK(next == list.end());
   CHECK(list.size() == 1);
   CHECK(list.front()->value == 1);
@@ -314,7 +311,7 @@ TEST_CASE("nexenne::container::intrusive_list non-const to const iterator conver
   list_t list;
   list.push_back(a);
   list_t::iterator const mut{list.begin()};
-  list_t::const_iterator const ci{mut};  // converting constructor
+  list_t::const_iterator const ci{mut};
   CHECK(ci->value == 1);
   CHECK(ci == list.cbegin());
 }
@@ -328,13 +325,13 @@ TEST_CASE("nexenne::container::intrusive_list move-assign detaches old elements 
   dst.push_back(a2);
   list_t src;
   src.push_back(b1);
-  dst = std::move(src);  // dst's old elements are detached, b1 stolen
+  dst = std::move(src);
   CHECK(dst.size() == 1);
   CHECK(dst.front()->value == 3);
   CHECK(src.empty());
-  CHECK_FALSE(a1.is_linked());  // detached, not destroyed
+  CHECK_FALSE(a1.is_linked());
   CHECK_FALSE(a2.is_linked());
-  a1.value = 7;  // still a valid, usable object
+  a1.value = 7;
   CHECK(a1.value == 7);
 }
 
@@ -345,41 +342,36 @@ TEST_CASE("nexenne::container::intrusive_list self move-assign and self swap are
   list.push_back(a);
   list.push_back(b);
   list_t& alias{list};
-  list = std::move(alias);  // guarded self move-assign
+  list = std::move(alias);
   CHECK(list.size() == 2);
   CHECK(list.front()->value == 1);
-  list.swap(alias);  // guarded self swap
+  list.swap(alias);
   CHECK(list.size() == 2);
   CHECK(list.back()->value == 2);
 }
 
 TEST_CASE("nexenne::container::intrusive_list a moved element leaves its hook detached") {
-  // The hook's move ctor leaves the moved-TO hook unlinked: the list still refers
-  // to the source address. Move construct a fresh node from an unlinked one.
   node src{5};
   node dst{std::move(src)};
   CHECK_FALSE(dst.is_linked());
   CHECK(dst.value == 5);
   list_t list;
-  list.push_back(dst);  // the moved-to node links cleanly
+  list.push_back(dst);
   CHECK(list.size() == 1);
   CHECK(list.front()->value == 5);
 
-  // The hook's move-assignment operator resets the target's links to null.
   node other{9};
-  other = std::move(src);  // operator= clears links
+  other = std::move(src);
   CHECK_FALSE(other.is_linked());
 }
 
 TEST_CASE("nexenne::container::intrusive_list allocates nothing and reuses node storage") {
-  // Cycle one node through the list many times; with no allocation the same
-  // address recurs and size accounting stays exact.
   node a{1};
   list_t list;
   for (int i{0}; i < 1000; ++i) {
     list.push_back(a);
     CHECK(list.size() == 1);
-    CHECK(list.front() == &a);  // same storage every cycle
+    CHECK(list.front() == &a);
     list.erase(a);
     CHECK(list.empty());
     CHECK_FALSE(a.is_linked());
@@ -404,17 +396,11 @@ TEST_CASE("nexenne::container::intrusive_list reverse iterator over a populated 
   CHECK(reverse == std::vector{4, 3, 2, 1});
 }
 
-// A hook-carrying element whose comparison is NOT noexcept, to pin m20: the
-// list's operator== / operator<=> must be conditionally noexcept on T's own
-// comparison rather than unconditionally noexcept.
 struct throwing_node : cn::intrusive_list_hook<throwing_node> {
   int value;
 
   explicit throwing_node(int v) noexcept : value{v} {}
 
-  // Only ever named inside the unevaluated noexcept(...) operands below, so
-  // they are never emitted; [[maybe_unused]] keeps -Wunneeded-internal-declaration
-  // and -Wunused-function quiet without an artificial call site.
   [[maybe_unused]] friend auto operator==(throwing_node const& a, throwing_node const& b) -> bool {
     return a.value == b.value;
   }
@@ -434,23 +420,19 @@ static_assert(!noexcept(
 ));
 
 TEST_CASE("nexenne::container::intrusive_list move-assign after detaching preserves the ring") {
-  // M4: the fix is a debug assert against move-assigning onto a still-linked
-  // element (an aborting precondition, not catchable here). The documented
-  // correct usage, detaching first, must keep the ring and size consistent.
   cn::intrusive_list<node> lst;
   node a{1};
   node b{2};
   node c{3};
   lst.push_back(a);
   lst.push_back(c);
-  lst.erase(a);      // detach a before moving onto it
-  a = std::move(b);  // safe: a is unlinked, so the hook precondition holds
+  lst.erase(a);
+  a = std::move(b);
   CHECK(a.value == 2);
   CHECK_FALSE(a.is_linked());
   CHECK(lst.size() == 1);
   REQUIRE(lst.front() != nullptr);
   CHECK(lst.front()->value == 3);
-  // The ring is still walkable end to end (no null-node corruption).
   int seen{0};
   for (auto it{lst.begin()}; it != lst.end(); ++it) {
     ++seen;

@@ -22,7 +22,7 @@ namespace {
 namespace cn = nexenne::container;
 
 TEST_CASE("nexenne::container::spsc_queue fills to capacity then reports full") {
-  cn::spsc_queue<int, 4> q;  // capacity 3
+  cn::spsc_queue<int, 4> q;
   CHECK(q.capacity() == 3);
   CHECK(q.empty_approx());
   CHECK(q.push(1).has_value());
@@ -48,12 +48,12 @@ TEST_CASE("nexenne::container::spsc_queue pops in FIFO order") {
 }
 
 TEST_CASE("nexenne::container::spsc_queue wraps around the ring") {
-  cn::spsc_queue<int, 4> q;  // capacity 3
+  cn::spsc_queue<int, 4> q;
   for (int round{0}; round < 10; ++round) {
     CHECK(q.push(round).has_value());
     auto v{q.try_pop()};
     REQUIRE(v.has_value());
-    CHECK(*v == round);  // push/pop one at a time wraps cleanly
+    CHECK(*v == round);
   }
 }
 
@@ -68,12 +68,12 @@ TEST_CASE("nexenne::container::spsc_queue emplace and try_pop") {
 }
 
 TEST_CASE("nexenne::container::spsc_queue non-power-of-two N wraps via modulo") {
-  cn::spsc_queue<int, 3> q;  // capacity 2, exercises the modulo branch of next()
+  cn::spsc_queue<int, 3> q;
   CHECK(q.capacity() == 2);
   for (int round{0}; round < 12; ++round) {
     CHECK(q.push(round).has_value());
     CHECK(q.push(round + 100).has_value());
-    CHECK(q.push(round + 200).error() == cn::container_error::full);  // capacity is 2
+    CHECK(q.push(round + 200).error() == cn::container_error::full);
     auto a{q.pop()};
     auto b{q.pop()};
     REQUIRE(a.has_value());
@@ -85,7 +85,7 @@ TEST_CASE("nexenne::container::spsc_queue non-power-of-two N wraps via modulo") 
 }
 
 TEST_CASE("nexenne::container::spsc_queue size_approx tracks fill and drain") {
-  cn::spsc_queue<int, 8> q;  // capacity 7
+  cn::spsc_queue<int, 8> q;
   CHECK(q.size_approx() == 0);
   for (int i{0}; i < 5; ++i) {
     CHECK(q.push(i).has_value());
@@ -113,11 +113,11 @@ TEST_CASE("nexenne::container::spsc_queue try_pop on empty returns nullopt") {
 }
 
 TEST_CASE("nexenne::container::spsc_queue holds non-trivial std::string elements") {
-  cn::spsc_queue<std::string, 4> q;                  // capacity 3
-  CHECK(q.push(std::string(100, 'x')).has_value());  // heap-allocated string
+  cn::spsc_queue<std::string, 4> q;
+  CHECK(q.push(std::string(100, 'x')).has_value());
   CHECK(q.emplace(50, 'y').has_value());
   std::string const moved_in{"moved"};
-  CHECK(q.push(moved_in).has_value());  // copy push, original untouched
+  CHECK(q.push(moved_in).has_value());
   CHECK(moved_in == "moved");
   CHECK(q.push("overflow").error() == cn::container_error::full);
 
@@ -144,7 +144,7 @@ TEST_CASE("nexenne::container::spsc_queue moves from the source unique_ptr") {
   cn::spsc_queue<std::unique_ptr<int>, 4> q;
   auto p{std::make_unique<int>(42)};
   CHECK(q.push(std::move(p)).has_value());
-  CHECK(p == nullptr);  // ownership transferred into the queue
+  CHECK(p == nullptr);
   auto v{q.pop()};
   REQUIRE(v.has_value());
   REQUIRE(*v != nullptr);
@@ -152,14 +152,11 @@ TEST_CASE("nexenne::container::spsc_queue moves from the source unique_ptr") {
 }
 
 TEST_CASE("nexenne::container::spsc_queue destructor drains remaining move-only elements") {
-  // Fill with unique_ptr and never pop; the destructor must free every slot
-  // (verified under ASan/LSan: no leak, no double free).
   cn::spsc_queue<std::unique_ptr<int>, 8> q;
   for (int i{0}; i < 7; ++i) {
     CHECK(q.push(std::make_unique<int>(i)).has_value());
   }
   CHECK(q.full_approx());
-  // queue goes out of scope here with 7 live elements
 }
 
 TEST_CASE("nexenne::container::spsc_queue one producer and one consumer move every item") {
@@ -171,9 +168,7 @@ TEST_CASE("nexenne::container::spsc_queue one producer and one consumer move eve
   {
     std::jthread producer{[&q] {
       for (int i{0}; i < total; ++i) {
-        while (!q.push(i).has_value()) {
-          // queue full: spin until the consumer drains a slot
-        }
+        while (!q.push(i).has_value()) {}
       }
     }};
     std::jthread consumer{[&q, &consumed_sum, &consumed_count] {
@@ -184,17 +179,14 @@ TEST_CASE("nexenne::container::spsc_queue one producer and one consumer move eve
         }
       }
     }};
-  }  // jthreads join here
+  }
 
   CHECK(consumed_count == total);
-  // sum of 0..total-1 must be conserved exactly (no lost or duplicated items)
   auto const expected{static_cast<std::int64_t>(total) * (total - 1) / 2};
   CHECK(consumed_sum == expected);
 }
 
 TEST_CASE("nexenne::container::spsc_queue preserves strict FIFO order under threading") {
-  // The consumer records the exact dequeue sequence; for one producer/one
-  // consumer the queue must hand back items in the exact order pushed.
   constexpr int total{100000};
   cn::spsc_queue<int, 256> q;
   std::vector<int> received;
@@ -203,9 +195,7 @@ TEST_CASE("nexenne::container::spsc_queue preserves strict FIFO order under thre
   {
     std::jthread producer{[&q] {
       for (int i{0}; i < total; ++i) {
-        while (!q.push(i).has_value()) {
-          // spin until a slot frees
-        }
+        while (!q.push(i).has_value()) {}
       }
     }};
     std::jthread consumer{[&q, &received] {
@@ -215,7 +205,7 @@ TEST_CASE("nexenne::container::spsc_queue preserves strict FIFO order under thre
         }
       }
     }};
-  }  // join
+  }
 
   REQUIRE(static_cast<int>(received.size()) == total);
   bool ordered{true};
@@ -225,12 +215,10 @@ TEST_CASE("nexenne::container::spsc_queue preserves strict FIFO order under thre
       break;
     }
   }
-  CHECK(ordered);  // strict FIFO: item i dequeued at position i
+  CHECK(ordered);
 }
 
 TEST_CASE("nexenne::container::spsc_queue conserves move-only elements across threads") {
-  // Each unique_ptr carries a distinct id; the consumer marks it seen exactly
-  // once. A lost, duplicated, or leaked element shows up in the tally or LSan.
   constexpr int total{50000};
   cn::spsc_queue<std::unique_ptr<int>, 512> q;
   std::vector<int> seen(static_cast<std::size_t>(total), 0);
@@ -238,9 +226,7 @@ TEST_CASE("nexenne::container::spsc_queue conserves move-only elements across th
   {
     std::jthread producer{[&q] {
       for (int i{0}; i < total; ++i) {
-        while (!q.push(std::make_unique<int>(i)).has_value()) {
-          // spin
-        }
+        while (!q.push(std::make_unique<int>(i)).has_value()) {}
       }
     }};
     std::jthread consumer{[&q, &seen] {
@@ -253,7 +239,7 @@ TEST_CASE("nexenne::container::spsc_queue conserves move-only elements across th
         }
       }
     }};
-  }  // join
+  }
 
   bool each_once{true};
   for (auto const c : seen) {
@@ -262,7 +248,7 @@ TEST_CASE("nexenne::container::spsc_queue conserves move-only elements across th
       break;
     }
   }
-  CHECK(each_once);  // every id consumed exactly once
+  CHECK(each_once);
 }
 
 TEST_CASE("nexenne::container::spsc_queue cached indices stay exact at capacity one") {
@@ -300,9 +286,7 @@ TEST_CASE("nexenne::container::spsc_queue cached indices stay exact at capacity 
 }
 
 TEST_CASE("nexenne::container::spsc_queue cached indices see a full ring then a drained one") {
-  // Single-threaded: the producer's cached head goes stale while the consumer
-  // drains, and a push must reload it rather than report full.
-  cn::spsc_queue<int, 4> q;  // capacity 3
+  cn::spsc_queue<int, 4> q;
   for (int i{0}; i < 3; ++i) {
     CHECK(q.push(i).has_value());
   }

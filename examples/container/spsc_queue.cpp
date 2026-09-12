@@ -33,9 +33,7 @@ auto main() -> int {
 
   std::jthread producer{[&q] {
     for (int i{1}; i <= count; ++i) {
-      while (!q.push(i).has_value()) {
-        // ring full: wait for the consumer to free a slot
-      }
+      while (!q.push(i).has_value()) {}
     }
   }};
 
@@ -50,7 +48,5 @@ auto main() -> int {
 
   std::println("consumed {} items", got);
   std::println("sum of 1..{}: {}", count, sum);
-  // consumed 100 items
-  // sum of 1..100: 5050
   return 0;
 }

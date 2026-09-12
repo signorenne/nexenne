@@ -41,11 +41,11 @@ auto main() -> int {
   std::println("spawned: {} live, full: {}", pool.size(), pool.full());
 
   if (b.has_value()) {
-    nexenne::utility::ignore(pool.destroy(*b));  // one dies, its slot recycles
+    nexenne::utility::ignore(pool.destroy(*b));
   }
   std::println("one died: {} live", pool.size());
 
-  auto const d{pool.emplace(2, 40)};  // reuses the recycled slot
+  auto const d{pool.emplace(2, 40)};
   std::println("respawned: {} live, peak: {}", pool.size(), pool.high_water_mark());
 
   if (a.has_value()) {
@@ -57,8 +57,5 @@ auto main() -> int {
   if (d.has_value()) {
     nexenne::utility::ignore(pool.destroy(*d));
   }
-  // spawned: 3 live, full: true
-  // one died: 2 live
-  // respawned: 3 live, peak: 3
   return 0;
 }

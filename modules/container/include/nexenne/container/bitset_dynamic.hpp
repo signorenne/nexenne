@@ -108,10 +108,6 @@ private:
    * @post The returned count never wraps, or the process terminated.
    */
   [[nodiscard]] static constexpr auto word_count(size_type const n) noexcept -> size_type {
-    // The round-up (n + bits_per_word - 1) wraps for n past
-    // SIZE_MAX - (bits_per_word - 1), yielding zero backing words for a huge
-    // logical size; a later checked write would then index an empty word vector
-    // (heap corruption). Such a size is unallocatable anyway, so fail loudly.
     if (n > max_size()) {
       std::terminate();
     }
@@ -236,7 +232,7 @@ public:
      * @post The iterator refers to the next set bit, or to the end.
      */
     constexpr auto operator++() noexcept -> set_bit_iterator& {
-      m_remaining &= m_remaining - 1;  // drop the lowest set bit, then scan on
+      m_remaining &= m_remaining - 1;  // Clears the lowest set bit (Hacker's Delight, 2-1).
       advance();
       return *this;
     }
@@ -556,7 +552,6 @@ public:
     m_words.resize(word_count(n), value ? ~word_type{0} : word_type{0});
     m_size = n;
 
-    // Fill the gap inside the previously-partial last word when growing past it.
     if (value && n > old_size && old_words > 0) {
       auto const boundary{old_words * bits_per_word};
       auto const fill_to{n < boundary ? n : boundary};
@@ -769,7 +764,7 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto any() const noexcept -> bool {
-    for (auto const word : m_words) {  // early-exit on the first non-zero word
+    for (auto const word : m_words) {
       if (word != 0) {
         return true;
       }

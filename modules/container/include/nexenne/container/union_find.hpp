@@ -387,7 +387,7 @@ public:
     }
     m_parent[small_root] = big_root;
     m_set_size[big_root] += m_set_size[small_root];
-    m_set_size[small_root] = 0;  // a non-root no longer carries a size
+    m_set_size[small_root] = 0;
     --m_set_count;
     return true;
   }
@@ -471,8 +471,7 @@ public:
     for (size_type i{0}; i < m_parent.size(); ++i) {
       auto const root_a{root_of(static_cast<index_type>(i))};
       auto const root_b{other.root_of(static_cast<index_type>(i))};
-      // The root mapping must be a bijection; checking both directions is what
-      // catches "this set has too few or too many elements" differences.
+      // The root mapping must be a bijection: one direction alone misses a set size mismatch.
       if (map_a_to_b[root_a] == sentinel) {
         map_a_to_b[root_a] = root_b;
       } else if (map_a_to_b[root_a] != root_b) {

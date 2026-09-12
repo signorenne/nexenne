@@ -23,7 +23,6 @@ using set_t = cn::sparse_set_u32;
 
 static_assert(std::is_same_v<cn::sparse_set_u32, cn::sparse_set<std::uint32_t>>);
 
-// sparse_set is usable in a constant expression.
 static_assert([] {
   set_t s;
   s.insert(5);
@@ -39,7 +38,7 @@ TEST_CASE("nexenne::container::sparse_set insert and contains") {
   CHECK(s.empty());
   CHECK(s.insert(10));
   CHECK(s.insert(20));
-  CHECK_FALSE(s.insert(10));  // already present
+  CHECK_FALSE(s.insert(10));
   CHECK(s.size() == 2);
   CHECK(s.contains(10));
   CHECK(s.contains(20));
@@ -50,13 +49,13 @@ TEST_CASE("nexenne::container::sparse_set erase via swap-pop") {
   set_t s;
   s.insert(1);
   s.insert(2);
-  s.insert(3);  // dense [1, 2, 3]
+  s.insert(3);
   CHECK(s.erase(1));
   CHECK(s.size() == 2);
   CHECK_FALSE(s.contains(1));
   CHECK(s.contains(2));
   CHECK(s.contains(3));
-  CHECK_FALSE(s.erase(99));  // absent
+  CHECK_FALSE(s.erase(99));
 }
 
 TEST_CASE("nexenne::container::sparse_set index_of, find, count") {
@@ -78,7 +77,7 @@ TEST_CASE("nexenne::container::sparse_set iterates the dense keys") {
   set_t s;
   s.insert(3);
   s.insert(1);
-  s.insert(2);  // dense [3, 1, 2]
+  s.insert(2);
   std::vector<std::uint32_t> const ks(s.begin(), s.end());
   CHECK(ks == std::vector<std::uint32_t>{3, 1, 2});
   CHECK(s.keys().size() == 3);
@@ -99,7 +98,7 @@ TEST_CASE("nexenne::container::sparse_set clear, reserve, key_capacity") {
   CHECK(s.size() == 2);
   s.clear();
   CHECK(s.empty());
-  CHECK(s.key_capacity() >= 100);  // sparse capacity retained
+  CHECK(s.key_capacity() >= 100);
   CHECK_FALSE(s.contains(5));
 }
 
@@ -113,12 +112,12 @@ TEST_CASE("nexenne::container::sparse_set grows the sparse array for large keys"
 
 TEST_CASE("nexenne::container::sparse_set is ABA-safe after erase and reinsert") {
   set_t s;
-  s.insert(5);  // sparse[5] = 0, dense[0] = 5
-  s.erase(5);   // sparse[5] = invalid
+  s.insert(5);
+  s.erase(5);
   CHECK_FALSE(s.contains(5));
-  s.insert(7);  // reuses dense slot 0: dense[0] = 7, sparse[7] = 0
+  s.insert(7);
   CHECK(s.contains(7));
-  CHECK_FALSE(s.contains(5));  // a stale sparse entry does not read as present
+  CHECK_FALSE(s.contains(5));
 }
 
 TEST_CASE("nexenne::container::sparse_set swap") {
@@ -145,11 +144,11 @@ TEST_CASE("nexenne::container::sparse_set erasing the dense tail takes the no-sw
   set_t s;
   s.insert(10);
   s.insert(20);
-  s.insert(30);        // dense [10, 20, 30]
-  CHECK(s.erase(30));  // last element: pop, no swap needed
+  s.insert(30);
+  CHECK(s.erase(30));
   CHECK(s.size() == 2);
   std::vector<std::uint32_t> const ks(s.begin(), s.end());
-  CHECK(ks == std::vector<std::uint32_t>{10, 20});  // order of survivors preserved
+  CHECK(ks == std::vector<std::uint32_t>{10, 20});
   CHECK(s.contains(10));
   CHECK(s.contains(20));
   CHECK_FALSE(s.contains(30));
@@ -159,16 +158,15 @@ TEST_CASE("nexenne::container::sparse_set interior erase fixes the moved key's s
   set_t s;
   s.insert(10);
   s.insert(20);
-  s.insert(30);        // dense [10, 20, 30], sparse[30] = 2
-  CHECK(s.erase(10));  // swap-pop: 30 moves into slot 0
+  s.insert(30);
+  CHECK(s.erase(10));
   CHECK(s.size() == 2);
-  // index_of must now report 30 at its NEW dense position, not its stale one.
   REQUIRE(s.index_of(30).has_value());
   CHECK(*s.index_of(30) == 0);
   REQUIRE(s.index_of(20).has_value());
   CHECK(*s.index_of(20) == 1);
   REQUIRE(s.find(30) != s.end());
-  CHECK(*s.find(30) == 30);  // find points at the relocated key
+  CHECK(*s.find(30) == 30);
   CHECK(s.contains(30));
   CHECK(s.contains(20));
 }
@@ -204,8 +202,8 @@ TEST_CASE("nexenne::container::sparse_set reinsert after clear and shrink_to_fit
   CHECK(s.empty());
   CHECK_FALSE(s.contains(0));
   CHECK_FALSE(s.contains(49));
-  s.shrink_to_fit();   // releasing capacity must not corrupt the state
-  CHECK(s.insert(7));  // usable after clear + shrink
+  s.shrink_to_fit();
+  CHECK(s.insert(7));
   CHECK(s.contains(7));
   CHECK(s.size() == 1);
   CHECK(s.max_size() > 0);
@@ -213,7 +211,7 @@ TEST_CASE("nexenne::container::sparse_set reinsert after clear and shrink_to_fit
 
 TEST_CASE("nexenne::container::sparse_set handles a very large 64-bit key") {
   cn::sparse_set_u64 s;
-  std::uint64_t const big{1u << 20};  // 1,048,576: forces a large sparse array
+  std::uint64_t const big{1u << 20};
   CHECK(s.insert(big));
   CHECK(s.contains(big));
   CHECK(s.key_capacity() >= big + 1);
@@ -238,11 +236,9 @@ TEST_CASE("nexenne::container::sparse_set differential against std::set under ra
     REQUIRE(subject.size() == model.size());
     CHECK(subject.contains(k) == (model.count(k) != 0));
   }
-  // Membership must agree across the whole key space.
   for (std::uint32_t k{0}; k < 200; ++k) {
     REQUIRE(subject.contains(k) == (model.count(k) != 0));
   }
-  // The dense view, sorted, must equal the model exactly (no duplicates, no loss).
   std::vector<std::uint32_t> dense(subject.begin(), subject.end());
   std::sort(dense.begin(), dense.end());
   std::vector<std::uint32_t> const expected(model.begin(), model.end());
@@ -250,16 +246,11 @@ TEST_CASE("nexenne::container::sparse_set differential against std::set under ra
 }
 
 TEST_CASE("nexenne::container::sparse_set rejects an unrepresentable maximum key") {
-  // A key equal to size_type's maximum would need size_type + 1 sparse slots, an
-  // unrepresentable capacity; it must be rejected cleanly rather than wrap the
-  // capacity to zero and write out of bounds. Only reachable for the 64-bit key
-  // alias (a 32-bit key can never equal a 64-bit size_type's maximum).
   auto s{cn::sparse_set_u64{}};
   auto const max_key{std::numeric_limits<std::uint64_t>::max()};
-  CHECK_FALSE(s.insert(max_key));  // rejected, no out-of-bounds write
+  CHECK_FALSE(s.insert(max_key));
   CHECK_FALSE(s.contains(max_key));
   CHECK(s.size() == 0);
-  // A large but representable key still works.
   CHECK(s.insert(std::uint64_t{1000}));
   CHECK(s.contains(std::uint64_t{1000}));
   CHECK(s.size() == 1);

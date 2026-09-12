@@ -456,11 +456,6 @@ public:
   [[nodiscard]] constexpr auto key_comp() const noexcept -> Compare const& {
     return m_cmp;
   }
-
-  // No begin/end and no operator== / operator<=>: heap-layout order is neither
-  // priority nor sorted order and depends on insertion history, so iterating or
-  // comparing in it misleads. Pop the elements, or copy from span() and sort
-  // the copy, and compare whatever projection you actually mean.
 };
 
 /// @cond INTERNAL

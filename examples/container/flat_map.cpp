@@ -28,7 +28,7 @@ namespace cn = nexenne::container;
 auto main() -> int {
   cn::flat_map<std::string, int> counts;
   for (auto const& word : {"the", "cat", "sat", "on", "the", "mat", "the"}) {
-    counts[word] += 1;  // default-insert 0, then increment
+    counts[word] += 1;
   }
 
   std::print("counts (sorted by word):");
@@ -40,7 +40,5 @@ auto main() -> int {
   if (auto const* const the{counts.at("the")}) {
     std::println("'the' appears {} times", *the);
   }
-  // counts (sorted by word): cat=1 mat=1 on=1 sat=1 the=3
-  // 'the' appears 3 times
   return 0;
 }

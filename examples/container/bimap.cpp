@@ -34,7 +34,6 @@ auto main() -> int {
   names.insert(2, "enemy");
   names.insert(3, "npc");
 
-  // Rebind id 2 to a new name, evicting its old "enemy" binding.
   auto const displaced{names.replace(2, "boss")};
 
   std::println("{} ids registered", names.size());
@@ -42,10 +41,5 @@ auto main() -> int {
   std::println("name 'boss' -> {}", *names.find_by_right("boss"));
   std::println("old name 'enemy' still bound: {}", names.contains_right("enemy"));
   std::println("replace displaced {} entries", displaced);
-  // 3 ids registered
-  // id 1 -> player
-  // name 'boss' -> 2
-  // old name 'enemy' still bound: false
-  // replace displaced 1 entries
   return 0;
 }

@@ -31,7 +31,7 @@ namespace cn = nexenne::container;
 
 auto main() -> int {
   using namespace std::string_literals;
-  cn::trie<char, int> dict;  // word -> frequency
+  cn::trie<char, int> dict;
   dict.insert("car"s, 3);
   dict.insert("card"s, 1);
   dict.insert("care"s, 5);
@@ -47,10 +47,5 @@ auto main() -> int {
     std::print(" {}({})", std::string{key.begin(), key.end()}, freq);
   });
   std::println("");
-  // words: 4
-  // has 'care': true
-  // any word starts with 'car': true
-  // any word starts with 'cat': false
-  // words under prefix walk: car(3) card(1) care(5) dog(2)
   return 0;
 }

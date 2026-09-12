@@ -37,7 +37,7 @@ TEST_CASE("nexenne::container::deque default and capacity constructors") {
   dq reserved(10);
   CHECK(reserved.empty());
   CHECK(reserved.capacity() >= 10);
-  CHECK((reserved.capacity() & (reserved.capacity() - 1)) == 0);  // power of two
+  CHECK((reserved.capacity() & (reserved.capacity() - 1)) == 0);
 }
 
 TEST_CASE("nexenne::container::deque initializer list preserves order") {
@@ -54,7 +54,7 @@ TEST_CASE("nexenne::container::deque pushes and pops at both ends") {
   d.push_back(2);
   d.push_back(3);
   d.push_front(1);
-  d.push_front(0);  // [0, 1, 2, 3]
+  d.push_front(0);
   CHECK(d.size() == 4);
   CHECK(d[0] == 0);
   CHECK(d[1] == 1);
@@ -67,7 +67,7 @@ TEST_CASE("nexenne::container::deque pushes and pops at both ends") {
   auto const back{d.pop_back()};
   REQUIRE(back.has_value());
   CHECK(*back == 3);
-  CHECK(d.size() == 2);  // [1, 2]
+  CHECK(d.size() == 2);
   CHECK(d[0] == 1);
   CHECK(d[1] == 2);
 }
@@ -82,7 +82,7 @@ TEST_CASE("nexenne::container::deque emplace returns a reference") {
   dq d;
   auto& back{d.emplace_back(7)};
   CHECK(back == 7);
-  back = 8;  // the returned reference aliases the stored element
+  back = 8;
   REQUIRE(d.back() != nullptr);
   CHECK(*d.back() == 8);
 
@@ -94,7 +94,7 @@ TEST_CASE("nexenne::container::deque emplace returns a reference") {
 TEST_CASE("nexenne::container::deque growth preserves order") {
   dq d;
   for (int i{0}; i < 16; ++i) {
-    d.push_back(i);  // grows 8 -> 16, re-packing the ring
+    d.push_back(i);
   }
   CHECK(d.size() == 16);
   for (int i{0}; i < 16; ++i) {
@@ -103,13 +103,13 @@ TEST_CASE("nexenne::container::deque growth preserves order") {
 }
 
 TEST_CASE("nexenne::container::deque front pushes wrap the ring") {
-  dq d(8);  // fixed cap, no growth
+  dq d(8);
   for (int i{0}; i < 8; ++i) {
-    d.push_front(i);  // head wraps backward across the buffer
+    d.push_front(i);
   }
   CHECK(d.size() == 8);
   for (int i{0}; i < 8; ++i) {
-    CHECK(d[static_cast<std::size_t>(i)] == 7 - i);  // last pushed is the front
+    CHECK(d[static_cast<std::size_t>(i)] == 7 - i);
   }
 }
 
@@ -117,12 +117,12 @@ TEST_CASE("nexenne::container::deque reserve and clear") {
   dq d{1, 2, 3};
   d.reserve(100);
   CHECK(d.capacity() >= 100);
-  CHECK(d.size() == 3);  // reserve preserves elements
+  CHECK(d.size() == 3);
   CHECK(d[0] == 1);
 
   d.clear();
   CHECK(d.empty());
-  CHECK(d.capacity() >= 100);  // capacity retained
+  CHECK(d.capacity() >= 100);
 }
 
 TEST_CASE("nexenne::container::deque copy is deep and independent") {
@@ -131,7 +131,7 @@ TEST_CASE("nexenne::container::deque copy is deep and independent") {
   CHECK(b.size() == 3);
   CHECK(b[0] == 1);
   a[0] = 99;
-  CHECK(b[0] == 1);  // independent
+  CHECK(b[0] == 1);
 }
 
 TEST_CASE("nexenne::container::deque move steals the storage") {
@@ -146,14 +146,14 @@ TEST_CASE("nexenne::container::deque move steals the storage") {
 TEST_CASE("nexenne::container::deque copy-and-swap assignment (copy and move)") {
   dq a{1, 2, 3};
   dq b;
-  b = a;  // copy-assign
+  b = a;
   CHECK(b.size() == 3);
   CHECK(b[2] == 3);
   a[0] = 99;
-  CHECK(b[0] == 1);  // independent
+  CHECK(b[0] == 1);
 
   dq c;
-  c = std::move(b);  // move-assign
+  c = std::move(b);
   CHECK(c.size() == 3);
   CHECK(b.empty());
 }
@@ -205,36 +205,33 @@ TEST_CASE("nexenne::container::deque push_back picks copy vs move (no extra move
   int copies{0};
   int moves{0};
   cn::deque<move_counter> d;
-  d.reserve(4);  // avoid a growth move confounding the counts
+  d.reserve(4);
   move_counter c{&copies, &moves};
 
-  d.push_back(c);  // lvalue: one copy
+  d.push_back(c);
   CHECK(copies == 1);
   CHECK(moves == 0);
 
-  d.push_back(std::move(c));  // rvalue: one move
+  d.push_back(std::move(c));
   CHECK(copies == 1);
   CHECK(moves == 1);
 }
 
 TEST_CASE("nexenne::container::deque self-referential push at capacity stays valid") {
-  // A push that grows must materialize its argument before freeing the old
-  // buffer; otherwise an argument aliasing an existing element dangles (asan
-  // would trap, and the value would be garbage).
   cn::deque<int> back_d;
   for (int i = 0; i < 8; ++i) {
     back_d.push_back(i);
   }
-  REQUIRE(back_d.size() == back_d.capacity());  // full: next push_back reallocates
-  back_d.push_back(back_d[0]);                  // argument aliases element 0
+  REQUIRE(back_d.size() == back_d.capacity());
+  back_d.push_back(back_d[0]);
   CHECK(*back_d.back() == 0);
 
   cn::deque<int> front_d;
   for (int i = 0; i < 8; ++i) {
     front_d.push_back(i);
   }
-  REQUIRE(front_d.size() == front_d.capacity());    // full: next push_front reallocates
-  front_d.push_front(front_d[front_d.size() - 1]);  // argument aliases the last element
+  REQUIRE(front_d.size() == front_d.capacity());
+  front_d.push_front(front_d[front_d.size() - 1]);
   CHECK(*front_d.front() == 7);
 }
 
@@ -244,7 +241,7 @@ TEST_CASE("nexenne::container::deque single-element life cycle at both ends") {
   CHECK(d.size() == 1);
   REQUIRE(d.front() != nullptr);
   REQUIRE(d.back() != nullptr);
-  CHECK(d.front() == d.back());  // the lone element is both ends
+  CHECK(d.front() == d.back());
   auto const back{d.pop_back()};
   REQUIRE(back.has_value());
   CHECK(*back == 1);
@@ -265,38 +262,35 @@ TEST_CASE("nexenne::container::deque interleaved both-ends drain to empty and re
     d.push_back(i);
     d.push_front(-i);
   }
-  // [-5, -4, -3, -2, -1, 0, 0, 1, 2, 3, 4, 5]
   CHECK(d.size() == 12);
   CHECK(d[0] == -5);
   CHECK(d[11] == 5);
-  while (!d.empty()) {  // alternately drain both ends to empty
+  while (!d.empty()) {
     REQUIRE(d.pop_front().has_value());
     if (!d.empty()) {
       REQUIRE(d.pop_back().has_value());
     }
   }
   CHECK(d.empty());
-  CHECK(d.capacity() > 0);  // capacity retained across full drain
-  d.push_back(42);          // head/size reset, still usable
+  CHECK(d.capacity() > 0);
+  d.push_back(42);
   CHECK(d.size() == 1);
   CHECK(*d.front() == 42);
 }
 
 TEST_CASE("nexenne::container::deque grows correctly when the ring wraps before reallocation") {
-  // Fill to capacity with the live window straddling the physical wrap, then push
-  // to force a grow that must re-pack from the (wrapped) front.
   dq d(8);
   for (int i{0}; i < 4; ++i) {
-    d.push_back(i);  // [0, 1, 2, 3] at slots 0..3
+    d.push_back(i);
   }
   for (int i{0}; i < 4; ++i) {
-    REQUIRE(d.pop_front().has_value());  // head advances to slot 4
+    REQUIRE(d.pop_front().has_value());
   }
   for (int i{0}; i < 8; ++i) {
-    d.push_back(i + 10);  // wraps past the physical end, fills the ring
+    d.push_back(i + 10);
   }
   REQUIRE(d.size() == d.capacity());
-  d.push_back(99);  // grow: re-pack a wrapped ring from logical front
+  d.push_back(99);
   CHECK(d.size() == 9);
   for (int i{0}; i < 8; ++i) {
     CHECK(d[static_cast<std::size_t>(i)] == i + 10);
@@ -322,53 +316,51 @@ TEST_CASE("nexenne::container::deque const access is read-only and correct") {
 TEST_CASE("nexenne::container::deque self copy- and move-assignment are safe") {
   dq d{1, 2, 3};
   dq& alias{d};
-  d = alias;  // self copy-assign (by-value param copies first, then swaps)
+  d = alias;
   CHECK(d.size() == 3);
   CHECK(d[0] == 1);
   CHECK(d[2] == 3);
 
-  d = std::move(alias);  // self move-assign
+  d = std::move(alias);
   CHECK(d.size() == 3);
   CHECK(d[1] == 2);
 }
 
 TEST_CASE("nexenne::container::deque holds a non-trivial std::string element") {
   cn::deque<std::string> d;
-  d.push_back(std::string(64, 'x'));  // heap-backed, leak-detectable
+  d.push_back(std::string(64, 'x'));
   std::string lvalue(48, 'y');
-  d.push_front(lvalue);  // copy an lvalue
+  d.push_front(lvalue);
   CHECK(lvalue.size() == 48);
-  d.emplace_back(std::string(32, 'z'));  // emplace via a single string argument
+  d.emplace_back(std::string(32, 'z'));
   CHECK(d.size() == 3);
   CHECK(d[0].size() == 48);
   CHECK(d[1].size() == 64);
   CHECK(d[2].size() == 32);
 
   for (int i{0}; i < 32; ++i) {
-    d.push_back(std::string(8, static_cast<char>('a' + (i % 26))));  // force a grow
+    d.push_back(std::string(8, static_cast<char>('a' + (i % 26))));
   }
   auto const popped{d.pop_front()};
   REQUIRE(popped.has_value());
   CHECK(popped->size() == 48);
 
-  cn::deque<std::string> copy{d};  // deep copy of heap strings
+  cn::deque<std::string> copy{d};
   CHECK(copy.size() == d.size());
   copy.clear();
   CHECK(copy.empty());
 }
 
 TEST_CASE("nexenne::container::deque self-aliasing push of a std::string at capacity") {
-  // Same UAF guard as the int case, but with a heap element so a stale pointer
-  // would surface as a use-after-free under the sanitizer, not just a garbage int.
   cn::deque<std::string> d;
   for (int i{0}; i < 8; ++i) {
     d.push_back(std::string(20, static_cast<char>('a' + i)));
   }
   REQUIRE(d.size() == d.capacity());
-  d.push_back(d[0]);  // copy aliases element 0 across the reallocation
+  d.push_back(d[0]);
   REQUIRE(d.back() != nullptr);
   CHECK(*d.back() == std::string(20, 'a'));
-  CHECK(d[0] == std::string(20, 'a'));  // the source survived intact
+  CHECK(d[0] == std::string(20, 'a'));
 }
 
 TEST_CASE("nexenne::container::deque differential against std::deque under randomized ops") {
@@ -417,29 +409,23 @@ TEST_CASE("nexenne::container::deque differential against std::deque under rando
   }
 }
 
-// [M2] emplace_back / emplace_front once list-initialized the element on the
-// at-capacity path while the in-capacity path used std::construct_at. A fresh
-// deque has capacity 0, so the very FIRST emplace runs the cold path: it must
-// build the same element as a reserved deque. vector(3, 5) = {5,5,5} (parens),
-// vector{3,5} = {3,5} (braces).
 TEST_CASE("nexenne::container::deque emplace cold path matches construct_at") {
-  cn::deque<std::vector<int>> cold;  // capacity 0: first emplace is cold
+  cn::deque<std::vector<int>> cold;
   auto& a{cold.emplace_back(3, 5)};
   CHECK(a.size() == 3);
   CHECK(a[0] == 5);
 
-  cn::deque<std::vector<int>> hot(8);  // reserved: emplace is the hot path
+  cn::deque<std::vector<int>> hot(8);
   auto& b{hot.emplace_back(3, 5)};
   CHECK(b.size() == 3);
-  CHECK(a == b);  // both paths agree
+  CHECK(a == b);
 
-  cn::deque<std::vector<int>> cold_front;  // emplace_front cold path too
+  cn::deque<std::vector<int>> cold_front;
   auto& c{cold_front.emplace_front(3, 5)};
   CHECK(c.size() == 3);
   CHECK(c[0] == 5);
 }
 
-// [M3] deque previously had no iteration, equality, or checked at().
 TEST_CASE("nexenne::container::deque iteration, equality, and checked at") {
   static_assert(std::random_access_iterator<cn::deque<int>::iterator>);
   static_assert(std::random_access_iterator<cn::deque<int>::const_iterator>);
@@ -447,10 +433,10 @@ TEST_CASE("nexenne::container::deque iteration, equality, and checked at") {
   cn::deque<int> d;
   d.push_back(1);
   d.push_back(2);
-  d.push_front(0);  // logical order 0, 1, 2 (straddling the ring is fine)
+  d.push_front(0);
 
   std::vector<int> seen;
-  for (auto const x : d) {  // range-for walks front to back
+  for (auto const x : d) {
     seen.push_back(x);
   }
   CHECK(seen == std::vector<int>{0, 1, 2});
@@ -478,9 +464,6 @@ TEST_CASE("nexenne::container::deque iteration, equality, and checked at") {
   CHECK(**cin == 0);
 }
 
-// [m8] max_size() bounds the request so grow() cannot wrap the power-of-two
-// capacity (past 2^63) or the byte count (past SIZE_MAX / sizeof(T)); a request
-// past it terminates rather than under-allocating. Verify the truthful bound.
 TEST_CASE("nexenne::container::deque max_size is a non-wrapping bound") {
   constexpr auto max_index{std::numeric_limits<std::size_t>::max()};
   constexpr auto power_of_two_cap{std::size_t{1} << 63};

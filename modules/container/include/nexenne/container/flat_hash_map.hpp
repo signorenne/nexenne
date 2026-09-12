@@ -381,7 +381,7 @@ private:
    */
   auto rehash(size_type const new_bucket_count) noexcept(nothrow_relocate_v) -> void {
     auto old_slots{std::move(m_slots)};
-    m_slots = std::vector<slot>(next_pow2(new_bucket_count));  // value-init, no slot copy
+    m_slots = std::vector<slot>(next_pow2(new_bucket_count));
     m_size = 0;
     for (auto& old : old_slots) {
       if (old.state == slot_state::occupied) {

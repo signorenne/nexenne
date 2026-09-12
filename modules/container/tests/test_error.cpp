@@ -29,7 +29,6 @@ static_assert(cn::to_string(cn::container_error::out_of_range) == "out_of_range"
 static_assert(cn::to_string(cn::container_error::not_found) == "not_found");
 static_assert(cn::to_string(cn::container_error::invalid_argument) == "invalid_argument");
 
-// to_string is constexpr and returns a stable, program-lifetime view.
 static_assert(std::is_same_v<decltype(cn::to_string(cn::container_error::full)), std::string_view>);
 static_assert(noexcept(cn::to_string(cn::container_error::full)));
 
@@ -62,7 +61,7 @@ TEST_CASE("nexenne::container::to_string names every enumerator distinctly") {
 }
 
 TEST_CASE("nexenne::container real operations surface container_error::full") {
-  cn::ring_buffer<int, 2> r;  // capacity 2
+  cn::ring_buffer<int, 2> r;
   REQUIRE(r.push(1).has_value());
   REQUIRE(r.push(2).has_value());
   auto const overflow{r.push(3)};
@@ -98,7 +97,6 @@ TEST_CASE("nexenne::container real operations surface container_error::not_found
   cn::indexed_priority_queue<int> q;
   auto const h{q.push(10)};
   REQUIRE(q.erase(h).has_value());
-  // The handle is now stale, so a second erase reports not_found.
   auto const again{q.erase(h)};
   REQUIRE_FALSE(again.has_value());
   CHECK(again.error() == cn::container_error::not_found);

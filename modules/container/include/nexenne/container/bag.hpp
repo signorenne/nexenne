@@ -139,8 +139,6 @@ public:
   template <std::input_iterator It>
   constexpr bag(It first, It last) noexcept(nothrow_range_v<It>) : m_data(first, last) {}
 
-  // Rule of zero: copy, move, and destructor are defaulted.
-
   /**
    * @brief Number of elements.
    *
@@ -509,9 +507,6 @@ public:
     return std::span<T const>{m_data.data(), m_data.size()};
   }
 
-  // No contains(value): it would just wrap std::ranges::contains, which works
-  // on the bag directly through the iterators below.
-
   /**
    * @brief Iterator to the first element.
    *
@@ -599,11 +594,6 @@ public:
   [[nodiscard]] constexpr auto crend() const noexcept -> const_reverse_iterator {
     return m_data.crend();
   }
-
-  // No operator== or operator<=>: the bag promises nothing about element order
-  // (erase_at uses swap-pop), so a sequence comparison would reflect operation
-  // history rather than logical contents. Callers that need multiset equality
-  // should compare sorted or hashed copies themselves.
 };
 
 /// @cond INTERNAL

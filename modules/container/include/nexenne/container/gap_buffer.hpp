@@ -202,11 +202,6 @@ private:
       return;
     }
     auto const post_count{m_buffer.size() - m_gap_end};
-    // Scale the reopened gap with the buffer so a run of cursor-local inserts is
-    // amortised O(1): the insert-time caller always arrives with an empty gap
-    // (gap_size() == 0), so a constant reopen would slide the whole post region
-    // every initial_gap inserts, i.e. O(post_count) per insert and quadratic
-    // editing. A gap proportional to the current size makes reopens geometric.
     auto const geometric_gap{m_buffer.size() / 2 + initial_gap};
     auto const want_gap{std::max(min_gap, geometric_gap)};
     auto const new_size{m_gap_begin + want_gap + post_count};
@@ -633,9 +628,7 @@ public:
     && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
   ) -> void {
     auto const post_count{m_buffer.size() - m_gap_end};
-    // Skip when the gap is already closed (m_gap_begin == m_gap_end): the post
-    // elements are already packed and the move would self-assign, corrupting a
-    // non-trivial T.
+    // A closed gap would self-move each element, corrupting a non-trivial T.
     if (m_gap_begin != m_gap_end) {
       for (size_type i{0}; i < post_count; ++i) {
         m_buffer[m_gap_begin + i] = std::move(m_buffer[m_gap_end + i]);
@@ -712,19 +705,16 @@ public:
     if (pos > size()) {
       return std::unexpected{container_error::out_of_range};
     }
-    while (m_gap_begin > pos) {  // shift the gap left
+    while (m_gap_begin > pos) {
       --m_gap_begin;
       --m_gap_end;
-      // With an empty gap m_gap_begin == m_gap_end, so this would self-move
-      // (a = std::move(a)), which empties a std::string and the like. Moving the
-      // cursor across a zero-width gap only reclassifies the boundary element,
-      // no relocation needed.
+      // An empty gap would self-move (a = std::move(a)), emptying a std::string.
       if (m_gap_end != m_gap_begin) {
         m_buffer[m_gap_end] = std::move(m_buffer[m_gap_begin]);
       }
     }
-    while (m_gap_begin < pos) {        // shift the gap right
-      if (m_gap_begin != m_gap_end) {  // skip a self-move when the gap is empty
+    while (m_gap_begin < pos) {
+      if (m_gap_begin != m_gap_end) {
         m_buffer[m_gap_begin] = std::move(m_buffer[m_gap_end]);
       }
       ++m_gap_begin;
@@ -778,9 +768,7 @@ public:
     && std::is_nothrow_move_assignable_v<T>
   ) -> void {
     if (gap_size() == 0) {
-      // grow_gap reallocates m_buffer, so materialize the value first in case it
-      // aliases an element of this same buffer (e.g. insert(b[k])).
-      T materialized(value);  // parentheses: never an initializer_list
+      T materialized(value);  // Parentheses: never an initializer_list.
       grow_gap(initial_gap);
       m_buffer[m_gap_begin] = std::move(materialized);
     } else {
@@ -808,9 +796,7 @@ public:
     && std::is_nothrow_move_assignable_v<T>
   ) -> void {
     if (gap_size() == 0) {
-      // Move into a local before grow_gap reallocates, in case value aliases an
-      // element of this same buffer (e.g. insert(std::move(b[k]))).
-      T materialized(std::move(value));  // parentheses: never an initializer_list
+      T materialized(std::move(value));  // Parentheses: never an initializer_list.
       grow_gap(initial_gap);
       m_buffer[m_gap_begin] = std::move(materialized);
     } else {

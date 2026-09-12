@@ -144,9 +144,6 @@ private:
       return;
     }
     if (new_capacity > max_size()) {
-      // new_capacity * sizeof(T) would overflow the byte count and yield an
-      // undersized allocation; the request is unsatisfiable, so fail loudly
-      // rather than silently corrupt the heap. Allocation failure is fatal.
       std::terminate();
     }
     auto* const fresh{
@@ -421,7 +418,6 @@ public:
       return;
     }
     if (!inlined() && !other.inlined()) {
-      // Both on the heap: an O(1) swap of the pointers, no element moves.
       using std::swap;
       swap(m_data, other.m_data);
       swap(m_size, other.m_size);
@@ -565,7 +561,7 @@ public:
   ) noexcept(nothrow_range_v<It> && std::is_nothrow_move_constructible_v<T>) -> void {
     clear();
     if constexpr (std::forward_iterator<It>) {
-      reserve(static_cast<size_type>(std::distance(first, last)));  // one allocation
+      reserve(static_cast<size_type>(std::distance(first, last)));
     }
     for (; first != last; ++first) {
       push_back(*first);
@@ -630,13 +626,6 @@ public:
     std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
   ) -> T& {
     if (m_size == m_capacity) {
-      // Cold grow path. Stage the element in raw storage with the exact same
-      // direct-initialization semantics as the hot path's std::construct_at
-      // (parenthesized, not braced): an initializer_list-greedy or a
-      // narrowing-convertible argument then yields an identical element on both
-      // paths, matching std::vector::emplace_back. Staging before grow_to frees
-      // the old block also keeps an argument that aliases an existing element
-      // (push_back(v[i])) valid across the reallocation.
       alignas(T) std::array<std::byte, sizeof(T)> staging{};
       auto* const staged{
         std::construct_at(reinterpret_cast<T*>(staging.data()), std::forward<Args>(args)...)

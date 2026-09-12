@@ -29,24 +29,21 @@ namespace cn = nexenne::container;
 auto main() -> int {
   cn::linear_arena<1024> arena;
 
-  auto const persistent{arena.allocate<int>(8)};  // long-lived: 32 bytes
+  auto const persistent{arena.allocate<int>(8)};
   if (persistent.has_value()) {
     (*persistent)[0] = 1;
   }
   std::println("after persistent: {} bytes used", arena.bytes_used());
 
   {
-    cn::scratch_pad scratch{arena};                 // checkpoint here
-    auto const temp{scratch.allocate<double>(64)};  // 512 bytes, temporary
+    cn::scratch_pad scratch{arena};
+    auto const temp{scratch.allocate<double>(64)};
     if (temp.has_value()) {
       (*temp)[0] = 3.14;
     }
     std::println("inside scratch:  {} bytes used", arena.bytes_used());
-  }  // scratch rewinds the arena to the checkpoint
+  }
 
   std::println("after scratch:   {} bytes used", arena.bytes_used());
-  // after persistent: 32 bytes used
-  // inside scratch:  544 bytes used
-  // after scratch:   32 bytes used
   return 0;
 }

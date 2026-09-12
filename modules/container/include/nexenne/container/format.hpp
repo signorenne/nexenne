@@ -131,7 +131,6 @@ inline constexpr bool is_intrusive_list_hook_v<intrusive_list_hook<T>>{true};
 [[nodiscard]] inline auto to_string(bitset_dynamic const& b) -> std::string {
   std::string bits;
   bits.reserve(b.size());
-  // MSB-first, matching the conventional binary-literal direction.
   for (auto i{b.size()}; i > 0; --i) {
     bits.push_back(b[i - 1] ? '1' : '0');
   }
@@ -256,8 +255,6 @@ auto operator<<(std::ostream& os, bag<T> const& b) -> std::ostream& {
   return os << to_string(b);
 }
 
-// deque is indexed, not iterable (no begin/end), so we walk it by subscript
-// rather than reusing detail::join_csv.
 /**
  * @brief Builds a diagnostic string listing the elements of a \c deque.
  *
@@ -465,7 +462,6 @@ template <std::unsigned_integral Index>
   if (uf.empty()) {
     return std::string{"union_find{}"};
   }
-  // Group members by their root.
   std::vector<std::vector<Index>> members(uf.size());
   for (auto const i : uf.nodes()) {
     members[uf.root_of(i)].push_back(i);
@@ -820,9 +816,6 @@ auto operator<<(std::ostream& os, flat_hash_set<T, H, E> const& s) -> std::ostre
   return os << to_string(s);
 }
 
-// The ordered flat containers print in the same brace style as their hashed
-// cousins ("{k: v}" / "{elems}"), not the C++23 default range rendering of a
-// sorted-pair sequence ("[(k, v), ...]"), so the whole module stays uniform.
 /**
  * @brief Builds a diagnostic string listing the elements of a \c flat_map.
  *
@@ -1239,11 +1232,6 @@ template <typename Char, typename Value>
 auto operator<<(std::ostream& os, trie<Char, Value> const& t) -> std::ostream& {
   return os << to_string(t);
 }
-
-// The types below expose no safe element enumeration (the lock-free queues are
-// mutated concurrently, the memory tier hands out raw storage, the bloom filter
-// cannot list its members, the LRU cache offers no iteration), so each prints a
-// single-line stats form rather than its elements.
 
 /**
  * @brief Builds a one-line diagnostic string for a \c bloom_filter.

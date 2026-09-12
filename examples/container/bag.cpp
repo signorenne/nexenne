@@ -26,21 +26,19 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  cn::bag<int> active;  // ids of active entities; order is irrelevant
+  cn::bag<int> active;
   for (int const id : {10, 20, 30, 40, 50}) {
     active.insert(id);
   }
   std::println("active: {}", active.size());
 
-  active.erase_first(30);  // entity 30 died: O(n) find, then O(1) swap-pop
-  active.erase_all(50);    // remove every 50
+  active.erase_first(30);
+  active.erase_all(50);
 
   std::print("remaining:");
   for (int const id : active) {
     std::print(" {}", id);
   }
   std::println("");
-  // active: 5
-  // remaining: 10 20 40
   return 0;
 }

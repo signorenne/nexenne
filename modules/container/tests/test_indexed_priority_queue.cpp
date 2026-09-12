@@ -25,8 +25,6 @@ namespace cn = nexenne::container;
 using max_pq = cn::indexed_priority_queue<int>;
 using min_pq = cn::indexed_priority_queue<int, std::greater<int>>;
 
-// Verify the max-heap invariant directly over the diagnostic entries() span:
-// every parent must be >= its children under std::less.
 template <typename Queue>
 auto is_max_heap(Queue const& q) -> bool {
   auto const e{q.entries()};
@@ -77,7 +75,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue value_at and top_handle") 
   CHECK(*q.value_at(h3).value() == 3);
   CHECK(*q.value_at(h7).value() == 7);
   REQUIRE(q.top_handle().has_value());
-  CHECK(q.top_handle().value() == h7);  // 7 is on top of a max-heap
+  CHECK(q.top_handle().value() == h7);
   CHECK(q.value_at(max_pq::invalid_handle).error() == cn::container_error::not_found);
 }
 
@@ -87,7 +85,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue update raises a priority")
   q.push(2);
   q.push(3);
   CHECK(*q.top() == 3);
-  REQUIRE(q.update(ha, 10).has_value());  // raise 1 -> 10
+  REQUIRE(q.update(ha, 10).has_value());
   CHECK(*q.top() == 10);
   CHECK(q.top_handle().value() == ha);
 }
@@ -98,8 +96,8 @@ TEST_CASE("nexenne::container::indexed_priority_queue update lowers a priority")
   q.push(2);
   q.push(3);
   CHECK(*q.top() == 10);
-  REQUIRE(q.update(ha, 1).has_value());  // lower 10 -> 1
-  CHECK(*q.top() == 3);                  // 3 now on top
+  REQUIRE(q.update(ha, 1).has_value());
+  CHECK(*q.top() == 3);
   CHECK(*q.value_at(ha).value() == 1);
   CHECK(q.update(max_pq::invalid_handle, 0).error() == cn::container_error::not_found);
 }
@@ -114,12 +112,12 @@ TEST_CASE("nexenne::container::indexed_priority_queue erase by handle keeps the 
   REQUIRE(q.erase(h3).has_value());
   CHECK_FALSE(q.contains(h3));
   CHECK(q.size() == 4);
-  CHECK(q.erase(h3).error() == cn::container_error::not_found);  // already gone
+  CHECK(q.erase(h3).error() == cn::container_error::not_found);
   std::vector<int> drained;
   while (!q.empty()) {
     drained.push_back(*q.pop());
   }
-  CHECK(drained == std::vector{8, 7, 5, 1});  // 3 absent, rest sorted descending
+  CHECK(drained == std::vector{8, 7, 5, 1});
 }
 
 TEST_CASE("nexenne::container::indexed_priority_queue handles stay valid across mutations") {
@@ -127,8 +125,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue handles stay valid across 
   auto const h1{q.push(1)};
   auto const h2{q.push(2)};
   q.push(3);
-  nexenne::utility::ignore(q.pop());  // removes 3
-  // h1 and h2 still address their values after the pop reorganised the heap
+  nexenne::utility::ignore(q.pop());
   CHECK(*q.value_at(h1).value() == 1);
   CHECK(*q.value_at(h2).value() == 2);
   CHECK(q.contains(h1));
@@ -151,13 +148,13 @@ TEST_CASE("nexenne::container::indexed_priority_queue emplace, clear, swap") {
 }
 
 TEST_CASE("nexenne::container::indexed_priority_queue holds a move-only value") {
-  cn::indexed_priority_queue<std::unique_ptr<int>> q;  // ordered by pointer (max)
+  cn::indexed_priority_queue<std::unique_ptr<int>> q;
   auto const h{q.push(std::make_unique<int>(1))};
   q.emplace(std::make_unique<int>(2));
   REQUIRE(q.value_at(h).has_value());
   CHECK(**q.value_at(h).value() == 1);
   auto const popped{q.pop()};
-  REQUIRE(popped.has_value());  // pops the larger pointer; both are live ptrs
+  REQUIRE(popped.has_value());
   CHECK(q.size() == 1);
 }
 
@@ -189,7 +186,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue single element") {
   REQUIRE(popped.has_value());
   CHECK(*popped == 5);
   CHECK(q.empty());
-  CHECK_FALSE(q.contains(h));  // handle invalidated by the pop
+  CHECK_FALSE(q.contains(h));
 }
 
 TEST_CASE("nexenne::container::indexed_priority_queue reserve and capacity") {
@@ -200,7 +197,7 @@ TEST_CASE("nexenne::container::indexed_priority_queue reserve and capacity") {
   q.push(2);
   CHECK(q.size() == 2);
   q.shrink_to_fit();
-  CHECK(q.size() == 2);  // contents preserved through shrink
+  CHECK(q.size() == 2);
   CHECK(*q.top() == 2);
 }
 
@@ -213,12 +210,10 @@ TEST_CASE(
     handles.push_back(q.push(v));
   }
   REQUIRE(is_max_heap(q));
-  // raise a deep small node above the root
-  REQUIRE(q.update(handles.back(), 100).has_value());  // 5 -> 100
+  REQUIRE(q.update(handles.back(), 100).has_value());
   CHECK(*q.top() == 100);
   CHECK(is_max_heap(q));
-  // lower the former root well below others
-  REQUIRE(q.update(handles.front(), -1).has_value());  // 50 -> -1
+  REQUIRE(q.update(handles.front(), -1).has_value());
   CHECK(*q.value_at(handles.front()).value() == -1);
   CHECK(is_max_heap(q));
 }
@@ -230,14 +225,11 @@ TEST_CASE("nexenne::container::indexed_priority_queue erase the top, a leaf, and
     h.push_back(q.push(v));
   }
   REQUIRE(is_max_heap(q));
-  // erase the current top (handle of 9)
   REQUIRE(q.erase(h[0]).has_value());
   CHECK(*q.top() == 8);
   CHECK(is_max_heap(q));
-  // erase a leaf-ish small value (3)
   REQUIRE(q.erase(h[6]).has_value());
   CHECK(is_max_heap(q));
-  // erase a middle value (6)
   REQUIRE(q.erase(h[3]).has_value());
   CHECK(is_max_heap(q));
   CHECK(q.size() == 4);
@@ -247,25 +239,24 @@ TEST_CASE("nexenne::container::indexed_priority_queue recycles handles after rem
   max_pq q;
   auto const h0{q.push(1)};
   auto const h1{q.push(2)};
-  nexenne::utility::ignore(q.pop());  // removes 2 (top), frees h1
+  nexenne::utility::ignore(q.pop());
   CHECK_FALSE(q.contains(h1));
   CHECK(q.contains(h0));
-  auto const h2{q.push(3)};  // should reuse the freed handle slot
+  auto const h2{q.push(3)};
   CHECK(q.contains(h2));
   CHECK(*q.value_at(h2).value() == 3);
-  // the freed handle, once reissued, must address the new element, not the old
   CHECK(q.value_at(h2).has_value());
 }
 
 TEST_CASE("nexenne::container::indexed_priority_queue of std::string values") {
-  cn::indexed_priority_queue<std::string> q;  // max-heap, lexicographic
+  cn::indexed_priority_queue<std::string> q;
   auto const h{q.push(std::string("apple"))};
   q.push(std::string("zebra"));
   q.push(std::string("mango"));
   REQUIRE(q.top() != nullptr);
   CHECK(*q.top() == "zebra");
   CHECK(*q.value_at(h).value() == "apple");
-  REQUIRE(q.update(h, std::string("zzz")).has_value());  // raise apple above zebra
+  REQUIRE(q.update(h, std::string("zzz")).has_value());
   CHECK(*q.top() == "zzz");
   auto const popped{q.pop()};
   REQUIRE(popped.has_value());
@@ -309,7 +300,6 @@ TEST_CASE("nexenne::container::indexed_priority_queue heap invariant holds after
     REQUIRE(is_max_heap(q));
     CHECK(q.size() == live.size());
   }
-  // every surviving handle still resolves
   for (auto const h : live) {
     CHECK(q.contains(h));
   }
@@ -321,14 +311,13 @@ TEST_CASE(
   std::mt19937 rng{55};
   std::uniform_int_distribution<int> values{-500, 500};
   max_pq q;
-  std::priority_queue<int> ref;  // std::less, max on top, the same discipline
+  std::priority_queue<int> ref;
   for (int i{0}; i < 3000; ++i) {
     int const v{values(rng)};
     q.push(v);
     ref.push(v);
   }
   CHECK(q.size() == ref.size());
-  // draining both must yield identical descending sequences
   while (!ref.empty()) {
     REQUIRE_FALSE(q.empty());
     auto const got{q.pop()};

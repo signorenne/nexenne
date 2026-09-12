@@ -44,9 +44,5 @@ auto main() -> int {
   std::println("seen a.example: {}", seen.contains("https://a.example/"));
   std::println("seen c.example (never inserted): {}", seen.contains("https://c.example/"));
   std::println("estimated false-positive rate: {:.4f}", seen.false_positive_rate());
-  // filter bits: 95851, hashes: 7
-  // seen a.example: true
-  // seen c.example (never inserted): false
-  // estimated false-positive rate: 0.0000
   return 0;
 }

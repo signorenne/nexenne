@@ -22,7 +22,6 @@ namespace {
 
 namespace cn = nexenne::container;
 
-// flat_map is usable in a constant expression.
 static_assert([] {
   cn::flat_map<int, int> m;
   m.insert({3, 30});
@@ -40,9 +39,9 @@ TEST_CASE("nexenne::container::flat_map insert keeps key order and dedups") {
   CHECK(it1->first == 5);
   m.insert({1, 10});
   m.insert({3, 30});
-  auto const [it2, ok2]{m.insert({3, 99})};  // duplicate key
+  auto const [it2, ok2]{m.insert({3, 99})};
   CHECK_FALSE(ok2);
-  CHECK(it2->second == 30);  // the original value is kept
+  CHECK(it2->second == 30);
   CHECK(m.size() == 3);
 
   std::vector<int> keys;
@@ -54,13 +53,13 @@ TEST_CASE("nexenne::container::flat_map insert keeps key order and dedups") {
 
 TEST_CASE("nexenne::container::flat_map operator[] inserts and accesses") {
   cn::flat_map<int, int> m;
-  m[10] = 100;  // inserts
+  m[10] = 100;
   m[20] = 200;
   CHECK(m.size() == 2);
   CHECK(m[10] == 100);
-  m[10] = 111;  // overwrites
+  m[10] = 111;
   CHECK(m[10] == 111);
-  CHECK(m[99] == 0);  // default-inserts a zero
+  CHECK(m[99] == 0);
   CHECK(m.size() == 3);
 }
 
@@ -69,8 +68,8 @@ TEST_CASE("nexenne::container::flat_map at returns a pointer or nullptr") {
   m[1] = 10;
   REQUIRE(m.at(1) != nullptr);
   CHECK(*m.at(1) == 10);
-  CHECK(m.at(99) == nullptr);  // no throw, just nullptr
-  *m.at(1) = 11;               // mutate through the pointer
+  CHECK(m.at(99) == nullptr);
+  *m.at(1) = 11;
   CHECK(m[1] == 11);
 }
 
@@ -80,7 +79,7 @@ TEST_CASE("nexenne::container::flat_map insert_or_assign") {
   CHECK(inserted1);
   CHECK(it1->second == 50);
   auto const [it2, inserted2]{m.insert_or_assign(5, 55)};
-  CHECK_FALSE(inserted2);  // overwritten
+  CHECK_FALSE(inserted2);
   CHECK(it2->second == 55);
 }
 
@@ -89,7 +88,7 @@ TEST_CASE("nexenne::container::flat_map try_emplace constructs only on insert") 
   auto const [it1, ok1]{m.try_emplace(1, "hello")};
   CHECK(ok1);
   CHECK(it1->second == "hello");
-  auto const [it2, ok2]{m.try_emplace(1, "world")};  // key present, value untouched
+  auto const [it2, ok2]{m.try_emplace(1, "world")};
   CHECK_FALSE(ok2);
   CHECK(it2->second == "hello");
 }
@@ -116,13 +115,13 @@ TEST_CASE("nexenne::container::flat_map erase by key and by iterator") {
 
 TEST_CASE("nexenne::container::flat_map mutates a value in place") {
   cn::flat_map<int, int> m{{1, 10}};
-  m.find(1)->second = 999;  // value changes, key untouched
+  m.find(1)->second = 999;
   CHECK(m[1] == 999);
 }
 
 TEST_CASE("nexenne::container::flat_map swap and comparison") {
   cn::flat_map<int, int> a{{1, 1}, {2, 2}};
-  cn::flat_map<int, int> b{{2, 2}, {1, 1}};  // same entries
+  cn::flat_map<int, int> b{{2, 2}, {1, 1}};
   cn::flat_map<int, int> c{{1, 1}, {2, 9}};
   CHECK(a == b);
   CHECK(a != c);
@@ -140,12 +139,11 @@ TEST_CASE("nexenne::container::flat_map honours a custom comparator") {
   for (auto const& [k, v] : m) {
     keys.push_back(k);
   }
-  CHECK(keys == std::vector{3, 2, 1});  // descending keys
+  CHECK(keys == std::vector{3, 2, 1});
 }
 
 TEST_CASE("nexenne::container::flat_map heterogeneous lookup with a transparent comparator") {
   cn::flat_map<std::string, int, std::less<>> m{{"alpha", 1}, {"beta", 2}, {"gamma", 3}};
-  // string_view lookups resolve without constructing a temporary std::string.
   REQUIRE(m.find(std::string_view{"beta"}) != m.end());
   CHECK(m.find(std::string_view{"beta"})->second == 2);
   CHECK(m.find(std::string_view{"missing"}) == m.end());
@@ -160,9 +158,6 @@ TEST_CASE("nexenne::container::flat_map heterogeneous lookup with a transparent 
   CHECK(cm.find(std::string_view{"beta"})->second == 2);
 }
 
-// A transparent comparator enables the heterogeneous overload; the default
-// (non-transparent) std::less<Key> does not. Detect via named concepts so the
-// negative case is a clean substitution failure, not a hard error.
 template <typename M>
 concept sv_findable = requires(M& m) { m.find(std::string_view{"x"}); };
 static_assert(sv_findable<cn::flat_map<std::string, int, std::less<>>>);
@@ -172,7 +167,6 @@ TEST_CASE("nexenne::container::flat_map heterogeneous lower_bound and upper_boun
   cn::flat_map<std::string, int, std::less<>> m{{"alpha", 1}, {"charlie", 3}, {"echo", 5}};
   CHECK(m.lower_bound(std::string_view{"bravo"})->first == "charlie");
   CHECK(m.lower_bound(std::string_view{"charlie"})->first == "charlie");
-  // upper_bound has no heterogeneous overload (only lower_bound does); use a key.
   CHECK(m.upper_bound(std::string{"charlie"})->first == "echo");
   CHECK(m.lower_bound(std::string_view{"zulu"}) == m.end());
   auto const& cm{m};
@@ -184,7 +178,7 @@ TEST_CASE("nexenne::container::flat_map emplace splits like insert on a duplicat
   auto const [it1, ok1]{m.emplace(1, "hello")};
   CHECK(ok1);
   CHECK(it1->second == "hello");
-  auto const [it2, ok2]{m.emplace(1, "world")};  // duplicate key, no overwrite
+  auto const [it2, ok2]{m.emplace(1, "world")};
   CHECK_FALSE(ok2);
   CHECK(it2->second == "hello");
   CHECK(m.size() == 1);
@@ -192,27 +186,21 @@ TEST_CASE("nexenne::container::flat_map emplace splits like insert on a duplicat
 
 TEST_CASE("nexenne::container::flat_map move insert and insert vs insert_or_assign split") {
   cn::flat_map<int, std::string> m;
-  // Moving an entry in: on a real insertion the source is consumed.
   auto entry{std::pair<int, std::string>{1, "this value is intentionally long enough"}};
   auto const [it1, ok1]{m.insert(std::move(entry))};
   CHECK(ok1);
   CHECK(it1->second == "this value is intentionally long enough");
-  // insert of a duplicate key keeps the existing value (no overwrite).
   auto const [it2, ok2]{m.insert({1, "ignored"})};
   CHECK_FALSE(ok2);
   CHECK(it2->second == "this value is intentionally long enough");
-  // insert_or_assign of the same key DOES overwrite.
   auto const [it3, ok3]{m.insert_or_assign(1, "fresh")};
-  CHECK_FALSE(ok3);  // existing key, so not newly inserted
+  CHECK_FALSE(ok3);
   CHECK(it3->second == "fresh");
 }
 
 TEST_CASE("nexenne::container::flat_map insert_or_assign self-aliasing is safe") {
   cn::flat_map<int, std::string> m;
   m.insert_or_assign(1, "a string deliberately past the small-string optimisation buffer");
-  // Pass the map's own stored value back through insert_or_assign. The header
-  // takes Value by value, so the argument is copied before the slot is touched;
-  // this must not corrupt or self-destruct.
   m.insert_or_assign(1, *m.at(1));
   CHECK(*m.at(1) == "a string deliberately past the small-string optimisation buffer");
   CHECK(m.size() == 1);
@@ -221,10 +209,9 @@ TEST_CASE("nexenne::container::flat_map insert_or_assign self-aliasing is safe")
 TEST_CASE("nexenne::container::flat_map operator[] with a moved-from key argument") {
   cn::flat_map<std::string, int> m;
   std::string key{"a key past the small-string optimisation threshold for sure"};
-  m[key] = 7;                     // copy-inserts, key untouched
-  CHECK(m[std::move(key)] == 7);  // operator[] takes the key by const ref, no move hazard
+  m[key] = 7;
+  CHECK(m[std::move(key)] == 7);
   CHECK(m.size() == 1);
-  // Self-aliasing operator[]: index with an existing entry's own key.
   auto const stored{m.begin()->first};
   CHECK(m[stored] == 7);
   CHECK(m.size() == 1);
@@ -235,11 +222,9 @@ TEST_CASE("nexenne::container::flat_map holds a move-only mapped type via try_em
   auto const [it1, ok1]{m.try_emplace(2, std::make_unique<std::string>("two"))};
   CHECK(ok1);
   CHECK(*it1->second == "two");
-  // A second try_emplace on the present key does not construct or consume.
   auto const [it2, ok2]{m.try_emplace(2, std::make_unique<std::string>("ignored"))};
   CHECK_FALSE(ok2);
   CHECK(*it2->second == "two");
-  // emplace with a moved unique_ptr pair also works.
   m.emplace(std::pair<int, std::unique_ptr<std::string>>{1, std::make_unique<std::string>("one")});
   REQUIRE(m.at(1) != nullptr);
   CHECK(**m.at(1) == "one");
@@ -313,27 +298,27 @@ TEST_CASE("nexenne::container::flat_map differential against std::map with strin
     auto const key{"k" + std::to_string(key_dist(rng))};
     auto const val{val_dist(rng)};
     switch (op_dist(rng)) {
-      case 0: {  // insert (no overwrite on a duplicate key)
+      case 0: {
         auto const flat_ok{flat.insert({key, val}).second};
         auto const ref_ok{ref.insert({key, val}).second};
         CHECK(flat_ok == ref_ok);
         break;
       }
-      case 1: {  // insert_or_assign (overwrite)
+      case 1: {
         flat.insert_or_assign(key, val);
         ref[key] = val;
         break;
       }
-      case 2: {  // operator[]
+      case 2: {
         flat[key] = val;
         ref[key] = val;
         break;
       }
-      case 3: {  // erase
+      case 3: {
         CHECK(flat.erase(key) == ref.erase(key));
         break;
       }
-      default: {  // lookup
+      default: {
         auto const* const p{flat.at(key)};
         auto const it{ref.find(key)};
         if (it == ref.end()) {
@@ -347,15 +332,12 @@ TEST_CASE("nexenne::container::flat_map differential against std::map with strin
     }
     CHECK(flat.size() == ref.size());
   }
-  // Identical contents, in the same sorted key order.
   std::vector<std::pair<std::string, int>> flat_entries{flat.begin(), flat.end()};
   std::vector<std::pair<std::string, int>> ref_entries{ref.begin(), ref.end()};
   CHECK(flat_entries == ref_entries);
 }
 
 TEST_CASE("nexenne::container::flat_map heterogeneous upper_bound and erase") {
-  // [m3] The heterogeneous overloads were missing for upper_bound and erase; a
-  // string_view probe now works for both without building a std::string.
   cn::flat_map<std::string, int, std::less<>> m;
   m.insert({"a", 1});
   m.insert({"b", 2});
@@ -367,16 +349,14 @@ TEST_CASE("nexenne::container::flat_map heterogeneous upper_bound and erase") {
 }
 
 TEST_CASE("nexenne::container::flat_map rvalue-key overloads move the key in") {
-  // [m6] insert_or_assign and try_emplace gained Key&& overloads so a movable key
-  // is moved rather than copied on insertion.
   cn::flat_map<std::string, int> m;
   std::string k1{"a movable key long enough to dodge SSO"};
   CHECK(m.insert_or_assign(std::move(k1), 1).second);
-  CHECK(k1.empty());  // moved from
+  CHECK(k1.empty());
 
   std::string k2{"another movable key long enough to dodge SSO"};
   CHECK(m.try_emplace(std::move(k2), 2).second);
-  CHECK(k2.empty());  // moved from
+  CHECK(k2.empty());
   CHECK(m.size() == 2);
 }
 

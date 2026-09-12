@@ -613,8 +613,6 @@ private:
      * @post None.
      */
     [[nodiscard]] constexpr auto operator->() const noexcept {
-      // Own the proxy pair by value so the returned pointer stays valid for the
-      // whole enclosing expression (the standard proxy-iterator arrow).
       struct arrow_proxy {
         value_type entry;
 

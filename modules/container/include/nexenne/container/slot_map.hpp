@@ -577,12 +577,10 @@ public:
     && (std::is_nothrow_move_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>)
   ) -> key {
     if (m_free_list.empty()) {
-      // A fresh slot index is the current slot count cast to index_type; it must
-      // still be representable, or the cast would truncate and alias slot 0.
       assert(m_values.size() < max_size() && "slot_map slot count exceeds index_type range");
       auto const index{static_cast<index_type>(m_values.size())};
       m_values.emplace_back(std::in_place, std::forward<Args>(args)...);
-      // Fresh slots start at generation 1; generation 0 is the null sentinel.
+      // Generation 0 belongs to the null handle, so a fresh slot starts at 1.
       m_generations.push_back(generation_type{1});
       ++m_size;
       return key{index, generation_type{1}};

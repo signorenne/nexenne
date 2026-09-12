@@ -30,20 +30,16 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  cn::lru_cache<std::string, int, 2> textures{};  // room for two resident textures
+  cn::lru_cache<std::string, int, 2> textures{};
   textures.put("grass.png", 1);
   textures.put("stone.png", 2);
 
-  nexenne::utility::ignore(textures.get("grass.png"));  // touch grass: it becomes MRU
-  textures.put("water.png", 3);                         // full: evicts LRU (stone)
+  nexenne::utility::ignore(textures.get("grass.png"));
+  textures.put("water.png", 3);
 
   std::println("resident: {}", textures.size());
   std::println("grass cached: {}", textures.contains("grass.png"));
   std::println("stone cached: {}", textures.contains("stone.png"));
   std::println("least recently used now: {}", *textures.lru_key());
-  // resident: 2
-  // grass cached: true
-  // stone cached: false
-  // least recently used now: grass.png
   return 0;
 }

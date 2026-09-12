@@ -39,9 +39,7 @@ auto main() -> int {
   for (int p{0}; p < producers; ++p) {
     workers.emplace_back([&q] {
       for (int i{1}; i <= per_producer; ++i) {
-        while (!q.push(i).has_value()) {
-          // full: wait for the consumer to drain a slot
-        }
+        while (!q.push(i).has_value()) {}
       }
     });
   }
@@ -56,8 +54,6 @@ auto main() -> int {
   }
 
   std::println("consumed {} items from {} producers", got, producers);
-  std::println("total sum: {}", sum);  // 3 * (1..100) = 3 * 5050
-  // consumed 300 items from 3 producers
-  // total sum: 15150
+  std::println("total sum: {}", sum);
   return 0;
 }

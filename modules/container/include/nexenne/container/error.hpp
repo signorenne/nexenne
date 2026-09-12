@@ -222,10 +222,7 @@ struct nothrow_call<std::hash<T>, F, A>
  * @tparam Args Argument types.
  */
 template <typename F, typename... Args>
-// A caller's comparator type (say std::greater<int>) passes through here as a
-// template argument, which modernize-use-transparent-functors misreads as a
-// use.
-// NOLINTNEXTLINE(modernize-use-transparent-functors)
+// NOLINTNEXTLINE(modernize-use-transparent-functors): F is a caller's comparator, not a use
 inline constexpr bool nothrow_invocable_v{nothrow_call<std::remove_cvref_t<F>, F, Args...>::value};
 
 /// @endcond

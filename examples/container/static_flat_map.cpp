@@ -28,7 +28,7 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  cn::static_flat_map<std::string_view, int, 4> config;  // inline, no allocation
+  cn::static_flat_map<std::string_view, int, 4> config;
   nexenne::utility::ignore(config.insert_or_assign("width", 800));
   nexenne::utility::ignore(config.insert_or_assign("height", 600));
   nexenne::utility::ignore(config.insert_or_assign("depth", 32));
@@ -43,11 +43,8 @@ auto main() -> int {
     std::println("width = {}", *w);
   }
 
-  nexenne::utility::ignore(config.insert_or_assign("fps", 60));  // the fourth entry: full
-  auto const fifth{config.insert_or_assign("vsync", 1)};         // a fifth new key
+  nexenne::utility::ignore(config.insert_or_assign("fps", 60));
+  auto const fifth{config.insert_or_assign("vsync", 1)};
   std::println("adding a fifth key: {}", fifth.has_value() ? "ok" : "full");
-  // config (sorted by key): depth=32 height=600 width=800
-  // width = 800
-  // adding a fifth key: full
   return 0;
 }

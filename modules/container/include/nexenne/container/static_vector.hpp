@@ -97,11 +97,6 @@ private:
     constexpr ~slot() noexcept {}
   };
 
-  // The runtime data()/iterator accessors expose a contiguous T* over m_slots by
-  // reinterpreting the slot array. That is only sound if a slot has exactly T's
-  // size and alignment (so the T* stride matches the slot stride); the union of
-  // T with a single byte guarantees this, and asserting it here turns the layout
-  // assumption into a compile-time invariant instead of a silent dependency.
   static_assert(sizeof(slot) == sizeof(T) && alignof(slot) == alignof(T));
 
   std::array<slot, N> m_slots{};
@@ -318,7 +313,6 @@ public:
     for (size_type i{0}; i < shared; ++i) {
       swap(*slot_at(i), *other.slot_at(i));
     }
-    // The longer half migrates element by element to the shorter side.
     if (m_size < other.m_size) {
       for (size_type i{shared}; i < other.m_size; ++i) {
         std::construct_at(slot_at(i), std::move(*other.slot_at(i)));

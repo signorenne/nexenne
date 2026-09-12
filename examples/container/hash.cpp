@@ -30,7 +30,6 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  // Memoise a result keyed by a small fixed-capacity vector of inputs.
   std::unordered_map<cn::static_vector<int, 4>, std::string> memo;
 
   cn::static_vector<int, 4> key;
@@ -47,8 +46,5 @@ auto main() -> int {
   std::println("entries: {}", memo.size());
   std::println("probe hit: {}", memo.contains(probe));
   std::println("value: {}", memo[probe]);
-  // entries: 1
-  // probe hit: true
-  // value: computed
   return 0;
 }

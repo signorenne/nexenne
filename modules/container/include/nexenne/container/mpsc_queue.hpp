@@ -194,7 +194,6 @@ public:
    * @post Every queued element has been destroyed.
    */
   ~mpsc_queue() noexcept {
-    // Single-threaded at destruction: drain so element destructors run.
     while (try_pop().has_value()) {}
   }
 
@@ -327,11 +326,10 @@ public:
           s.sequence.store(pos + 1, std::memory_order_release);
           return {};
         }
-        // CAS lost the race; retry with the refreshed pos.
+        // A failed compare_exchange_weak has already reloaded pos.
       } else if (diff < 0) {
         return std::unexpected{container_error::full};
       } else {
-        // Slot's sequence is ahead: another producer is mid-write here; refresh.
         pos = m_tail.load(std::memory_order_relaxed);
       }
     }

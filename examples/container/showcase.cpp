@@ -58,8 +58,6 @@ namespace cn = nexenne::container;
 
 namespace {
 
-// A component tag attached to an entity. Most entities carry only a handful, so
-// the per-entity list lives inline (see entity::components below).
 enum class component : std::uint8_t {
   transform,
   health,
@@ -84,10 +82,6 @@ constexpr auto name_of(component const c) noexcept -> std::string_view {
   return "?";
 }
 
-// One game object. The component list is a small_vector<_, 4>: a real entity
-// almost always has four or fewer components, so the list sits in the inline
-// buffer and an entity costs zero extra allocations. It only spills to the heap
-// for the rare heavily-decorated boss, and transparently so.
 struct entity {
   std::string name;
   int health{};
@@ -97,14 +91,6 @@ struct entity {
 }  // namespace
 
 auto main() -> int {
-  // 1. The entity store: slot_map.
-  //
-  // Entities are created and destroyed constantly, and everything else (the AI,
-  // the scheduler, the spatial index) needs to *refer* to an entity that may
-  // already be gone. A raw pointer or a vector index would dangle or silently
-  // alias a recycled slot. slot_map hands out an opaque key (slot + generation);
-  // a key to a dead entity reads as absent, never as the new occupant of its
-  // recycled slot. That ABA-safety is exactly what an entity handle needs.
   std::println("== 1. Entity store (slot_map) ==");
   cn::slot_map<entity> world;
   using handle = cn::slot_map<entity>::key;
@@ -122,8 +108,6 @@ auto main() -> int {
     spawn("goblin", 20, component::transform, component::health, component::ai, component::collider)
   };
   auto const crate{spawn("crate", 1, component::transform, component::collider)};
-  // A boss with five components: its list outgrows the inline-4 buffer and spills
-  // to the heap, with no change to the calling code.
   auto const boss{spawn(
     "boss",
     500,
@@ -143,15 +127,6 @@ auto main() -> int {
     );
   }
 
-  // 2. The name index: flat_hash_map.
-  //
-  // The console and scripts look entities up by name, but the store is keyed by
-  // handle. We keep a side index name -> handle. flat_hash_map stores its slots
-  // in one contiguous array with linear probing, so a lookup is ~one cache miss
-  // (and the whole map is one allocation, not a node per entry), several times
-  // faster than std::unordered_map's node-per-entry layout. The handle is a tiny
-  // trivially-copyable value, so the map owns copies and stays valid even as the
-  // entity store reallocates.
   std::println("== 2. Name index (flat_hash_map) ==");
   cn::flat_hash_map<std::string, handle> by_name;
   for (auto const& h : {hero, goblin, crate, boss}) {
@@ -176,17 +151,9 @@ auto main() -> int {
     "  name index holds {} entries (load factor {:.2f})", by_name.size(), by_name.load_factor()
   );
 
-  // 3. The tick scheduler: indexed_priority_queue.
-  //
-  // Each entity wants to "think" at some future tick; we always want the soonest
-  // one. A min-heap gives pop-soonest in O(log n). But entities also reschedule
-  // (an AI that just acted sleeps longer) and cancel (a dead entity stops
-  // thinking) - operations std::priority_queue cannot do without a full rescan.
-  // indexed_priority_queue returns a stable handle from push, so update() and
-  // erase() are O(log n) by identity. std::greater makes it a min-heap on time.
   std::println("== 3. Tick scheduler (indexed_priority_queue) ==");
-  cn::indexed_priority_queue<int, std::greater<int>> scheduler;  // min-heap on next-think tick
-  cn::flat_hash_map<std::string, std::uint32_t> think_handle;    // entity name -> scheduler handle
+  cn::indexed_priority_queue<int, std::greater<int>> scheduler;
+  cn::flat_hash_map<std::string, std::uint32_t> think_handle;
   for (auto const& [who, first_tick] :
        {std::pair{std::string_view{"hero"}, 2},
         {std::string_view{"goblin"}, 1},
@@ -194,32 +161,15 @@ auto main() -> int {
     think_handle.insert_or_assign(std::string{who}, scheduler.push(first_tick));
   }
 
-  // The goblin acts early, then reschedules itself far out: update() re-heapifies
-  // in place, no scan to find its old entry.
   if (auto const* const h{think_handle.find("goblin")}) {
     nexenne::utility::ignore(scheduler.update(*h, 9));
   }
-  std::println("  soonest think now at tick {}", *scheduler.top());  // hero at 2
+  std::println("  soonest think now at tick {}", *scheduler.top());
 
-  // 4. The event log: ring_buffer.
-  //
-  // A debug overlay shows the last few things that happened. We never want this
-  // to grow without bound, and we never want it to allocate mid-frame. A
-  // fixed-capacity ring_buffer keeps exactly the last N events: push_overwrite
-  // drops the oldest once full and cannot fail, so logging is a single branchless
-  // write into a circular array - the right shape for a hot per-frame logger.
   std::println("== 4. Event log (ring_buffer) ==");
-  cn::ring_buffer<std::string, 4> events;  // only the last 4 events survive
+  cn::ring_buffer<std::string, 4> events;
   auto log = [&events](std::string msg) { events.push_overwrite(std::move(msg)); };
 
-  // 5. Squad connectivity: union_find.
-  //
-  // The AI groups entities into squads: linking two entities should put their
-  // whole squads in one set, and "are these two on the same side?" must be cheap.
-  // union_find is the disjoint-set answer: unite() merges two sets and connected()
-  // answers membership, both in near-constant amortised time (inverse Ackermann),
-  // far cheaper than re-running a flood fill over an adjacency list every query.
-  // We index it by slot, so an entity's slot index doubles as its squad node.
   std::println("== 5. Squad connectivity (union_find) ==");
   cn::union_find_u32 squads{static_cast<std::uint32_t>(world.capacity())};
   // The hero and the boss ally; the goblin and the crate are incidental.
@@ -227,42 +177,28 @@ auto main() -> int {
   std::println("  hero & boss same squad: {}", *squads.connected(hero.index(), boss.index()));
   std::println("  hero & goblin same squad: {}", *squads.connected(hero.index(), goblin.index()));
 
-  // 6. Run a few ticks: the containers working together.
-  //
-  // Each tick pops the soonest thinker, resolves it through the name index back
-  // to its live entity in the store, mutates the world, logs to the ring buffer,
-  // and reschedules. A dead entity's scheduler entry is erased by handle, and its
-  // slot_map key quietly stops resolving - no dangling references anywhere.
   std::println("== 6. Simulation ==");
-  // Reverse the scheduler handle -> name so a popped tick can name its owner.
   cn::flat_hash_map<std::uint32_t, std::string> owner_of;
   for (auto const& [who, h] : think_handle) {
     owner_of.insert_or_assign(h, who);
   }
 
   for (int step{0}; step < 5 && !scheduler.empty(); ++step) {
-    // Peek the soonest thinker - we reschedule it in place with update() rather
-    // than pop(), so its handle stays valid. (pop() would free the handle, and a
-    // later update() on it would be a no-op.) erase() removes one when it should
-    // stop thinking.
     auto const top_h{*scheduler.top_handle()};
     auto const tick{*scheduler.top()};
     auto const* const who{owner_of.find(top_h)};
     if (who == nullptr) {
-      nexenne::utility::ignore(scheduler.erase(top_h));  // unknown handle (cannot happen here)
+      nexenne::utility::ignore(scheduler.erase(top_h));
       continue;
     }
     auto* const actor{resolve(*who)};
     if (actor == nullptr) {
-      nexenne::utility::ignore(
-        scheduler.erase(top_h)
-      );  // entity died earlier; cancel its stale think
+      nexenne::utility::ignore(scheduler.erase(top_h));
       continue;
     }
 
     if (*who == "hero") {
       if (auto* const target{resolve("goblin")}) {
-        // The hero strikes the goblin.
         target->health -= 25;
         log(
           std::format(
@@ -270,8 +206,6 @@ auto main() -> int {
           )
         );
         if (target->health <= 0) {
-          // The goblin dies: erase it from the store and cancel its scheduled
-          // think by handle. Its name lookup will now miss; its slot may recycle.
           if (auto const* const gh{by_name.find("goblin")}) {
             nexenne::utility::ignore(world.erase(*gh));
           }
@@ -284,11 +218,10 @@ auto main() -> int {
       } else {
         log(std::format("t{}: hero patrols (no target)", tick));
       }
-      // The hero thinks again two ticks later: update() re-heapifies by handle.
       nexenne::utility::ignore(scheduler.update(top_h, tick + 2));
     } else {
       log(std::format("t{}: {} thinks (hp {})", tick, *who, actor->health));
-      nexenne::utility::ignore(scheduler.update(top_h, tick + 3));  // reschedule, three ticks out
+      nexenne::utility::ignore(scheduler.update(top_h, tick + 3));
     }
   }
 

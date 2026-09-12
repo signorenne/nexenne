@@ -27,9 +27,8 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  // Parentheses give a size, as for std::vector<bool>: alive{100} would not
-  // compile (a narrowing bit list), and alive{1} would be one set bit.
-  cn::bitset_dynamic alive(100);  // 100 entities, none alive yet
+  // Parentheses give a size, as for std::vector<bool>: alive{1} would be one set bit.
+  cn::bitset_dynamic alive(100);
   for (int const id : {3, 17, 42, 63, 64, 99}) {
     nexenne::utility::ignore(alive.set(static_cast<std::size_t>(id)));
   }
@@ -37,14 +36,11 @@ auto main() -> int {
   std::println("alive: {} of {}", alive.count(), alive.size());
 
   std::print("ids:");
-  for (std::size_t const id : alive.set_bits()) {  // sparse: visits only live ids
+  for (std::size_t const id : alive.set_bits()) {
     std::print(" {}", id);
   }
   std::println("");
 
   std::println("first alive at or after 50: {}", alive.find_first_set(50));
-  // alive: 6 of 100
-  // ids: 3 17 42 63 64 99
-  // first alive at or after 50: 63
   return 0;
 }

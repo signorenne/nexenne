@@ -44,9 +44,5 @@ auto main() -> int {
   std::println("total distance leaving city 0: {}", total_from_0);
   std::println("city 0 out-degree: {}", *roads.out_degree(0));
   std::println("road 1 -> 3 exists: {}", roads.has_edge(1, 3));
-  // cities: 4, roads: 4
-  // total distance leaving city 0: 8
-  // city 0 out-degree: 2
-  // road 1 -> 3 exists: true
   return 0;
 }

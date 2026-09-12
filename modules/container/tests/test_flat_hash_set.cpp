@@ -19,8 +19,6 @@ namespace {
 namespace cn = nexenne::container;
 using set_t = cn::flat_hash_set<int>;
 
-// A hash that funnels every element into one bucket, forcing the probe sequence
-// and the backward-shift erase to do real work.
 struct colliding_hash {
   [[nodiscard]] auto operator()(int) const noexcept -> std::size_t {
     return 0;
@@ -29,8 +27,8 @@ struct colliding_hash {
 
 TEST_CASE("nexenne::container::flat_hash_set insert deduplicates") {
   set_t s;
-  CHECK(s.insert(1));        // fresh
-  CHECK_FALSE(s.insert(1));  // already present
+  CHECK(s.insert(1));
+  CHECK_FALSE(s.insert(1));
   CHECK(s.insert(2));
   CHECK(s.size() == 2);
 }
@@ -52,7 +50,7 @@ TEST_CASE("nexenne::container::flat_hash_set erase frees a reusable slot") {
   CHECK(s.erase(2));
   CHECK(s.size() == 2);
   CHECK_FALSE(s.contains(2));
-  CHECK_FALSE(s.erase(99));  // absent
+  CHECK_FALSE(s.erase(99));
 
   CHECK(s.insert(4));
   CHECK(s.contains(4));
@@ -128,7 +126,7 @@ TEST_CASE("nexenne::container::flat_hash_set equality is order-independent") {
   a.insert(1);
   a.insert(2);
   set_t b;
-  b.insert(2);  // inserted in a different order
+  b.insert(2);
   b.insert(1);
   set_t c;
   c.insert(1);
@@ -141,7 +139,7 @@ TEST_CASE("nexenne::container::flat_hash_set works with string elements") {
   cn::flat_hash_set<std::string> s;
   s.insert("alpha");
   s.insert("beta");
-  CHECK(s.insert("alpha") == false);  // deduplicated
+  CHECK(s.insert("alpha") == false);
   CHECK(s.contains("alpha"));
   CHECK_FALSE(s.contains("gamma"));
   CHECK(s.size() == 2);
@@ -198,13 +196,13 @@ TEST_CASE("nexenne::container::flat_hash_set load_factor and the expected-entrie
   CHECK(empty.load_factor() == doctest::Approx(0.0));
   CHECK(empty.max_size() > 0);
 
-  set_t sized(100);  // reserve up front (parens: brace-init would build a one-element set)
+  set_t sized(100);  // Parentheses: braces would build a one-element set.
   CHECK(sized.capacity() >= 100);
   auto const reserved{sized.capacity()};
   for (int i{0}; i < 50; ++i) {
     sized.insert(i);
   }
-  CHECK(sized.capacity() == reserved);  // no rehash within the reservation
+  CHECK(sized.capacity() == reserved);
   CHECK(sized.load_factor() > 0.0);
   CHECK(sized.load_factor() < 1.0);
 }

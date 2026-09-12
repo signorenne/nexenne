@@ -32,7 +32,7 @@ auto main() -> int {
 
   int unique{0};
   for (auto const& token : stream) {
-    if (seen.insert(token)) {  // true only the first time a token appears
+    if (seen.insert(token)) {
       ++unique;
     }
   }
@@ -40,8 +40,5 @@ auto main() -> int {
   std::println("{} tokens, {} unique", std::size(stream), unique);
   std::println("seen 'alpha': {}", seen.contains("alpha"));
   std::println("seen 'delta': {}", seen.contains("delta"));
-  // 5 tokens, 3 unique
-  // seen 'alpha': true
-  // seen 'delta': false
   return 0;
 }

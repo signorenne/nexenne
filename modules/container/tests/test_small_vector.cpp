@@ -29,9 +29,6 @@ using sv = cn::small_vector<int, 4>;
 
 static_assert(sv::inline_capacity() == 4);
 
-// constexpr-evaluable static members are usable in constant expressions even
-// though the container itself is not constexpr-constructible (the inline buffer
-// uses reinterpret_cast).
 static_assert(cn::small_vector<int, 8>::inline_capacity() == 8);
 static_assert(cn::small_vector<int, 0>::inline_capacity() == 0);
 static_assert(
@@ -47,7 +44,7 @@ TEST_CASE("nexenne::container::small_vector push_back of an existing element sur
   std::string const seed{"a string long enough to force a heap allocation, well past SSO"};
   v.push_back(seed);
   for (int i{0}; i < 8; ++i) {
-    v.push_back(v[0]);  // aliases element 0; later iterations trigger heap->heap regrow
+    v.push_back(v[0]);
   }
   CHECK(v.size() == 9);
   for (auto const& s : v) {
@@ -62,10 +59,10 @@ TEST_CASE("nexenne::container::small_vector stays inline up to N, then heap") {
   for (int i{0}; i < 4; ++i) {
     v.push_back(i);
   }
-  CHECK(v.is_inline());  // still inline at exactly N
+  CHECK(v.is_inline());
   CHECK(v.size() == 4);
 
-  v.push_back(4);  // grows past N
+  v.push_back(4);
   CHECK_FALSE(v.is_inline());
   CHECK(v.capacity() >= 5);
   CHECK(v.size() == 5);
@@ -111,26 +108,26 @@ TEST_CASE("nexenne::container::small_vector iteration and span") {
 }
 
 TEST_CASE("nexenne::container::small_vector copy is independent (heap)") {
-  sv a{1, 2, 3, 4, 5};  // 5 > 4 so on the heap
+  sv a{1, 2, 3, 4, 5};
   CHECK_FALSE(a.is_inline());
   sv b{a};
   CHECK(b == a);
   a[0] = 99;
-  CHECK(b[0] == 1);  // deep copy
+  CHECK(b[0] == 1);
 }
 
 TEST_CASE("nexenne::container::small_vector move steals the heap allocation") {
-  sv a{1, 2, 3, 4, 5};  // heap
+  sv a{1, 2, 3, 4, 5};
   auto const* const data_before{a.data()};
   sv b{std::move(a)};
   CHECK(b.size() == 5);
-  CHECK(b.data() == data_before);  // stole the block, no reallocation
+  CHECK(b.data() == data_before);
   CHECK(a.empty());
-  CHECK(a.is_inline());  // source reset to inline
+  CHECK(a.is_inline());
 }
 
 TEST_CASE("nexenne::container::small_vector move of inline contents") {
-  sv a{1, 2};  // inline
+  sv a{1, 2};
   sv b{std::move(a)};
   CHECK(b.size() == 2);
   CHECK(b[1] == 2);
@@ -151,8 +148,8 @@ TEST_CASE("nexenne::container::small_vector copy and move assignment") {
 }
 
 TEST_CASE("nexenne::container::small_vector swap mixes inline and heap") {
-  sv a{1, 2};              // inline
-  sv b{1, 2, 3, 4, 5, 6};  // heap
+  sv a{1, 2};
+  sv b{1, 2, 3, 4, 5, 6};
   swap(a, b);
   CHECK(a.size() == 6);
   CHECK_FALSE(a.is_inline());
@@ -166,7 +163,7 @@ TEST_CASE("nexenne::container::small_vector reserve then shrink_to_fit back to i
   CHECK(v.capacity() >= 100);
   CHECK_FALSE(v.is_inline());
 
-  v.shrink_to_fit();  // 3 <= N, migrates back inline
+  v.shrink_to_fit();
   CHECK(v.is_inline());
   CHECK(v.capacity() == 4);
   CHECK(std::ranges::equal(v, std::array{1, 2, 3}));
@@ -180,7 +177,7 @@ TEST_CASE("nexenne::container::small_vector shrink_to_fit to exact heap size") {
   v.reserve(64);
   CHECK(v.capacity() >= 64);
   v.shrink_to_fit();
-  CHECK(v.capacity() == 10);  // exact, still heap (> N)
+  CHECK(v.capacity() == 10);
   CHECK_FALSE(v.is_inline());
 }
 
@@ -205,7 +202,7 @@ TEST_CASE("nexenne::container::small_vector comparison") {
 TEST_CASE("nexenne::container::small_vector holds a move-only type across growth") {
   cn::small_vector<std::unique_ptr<int>, 2> v;
   for (int i{0}; i < 5; ++i) {
-    v.push_back(std::make_unique<int>(i));  // grows to heap, moving elements
+    v.push_back(std::make_unique<int>(i));
   }
   CHECK(v.size() == 5);
   CHECK(*v[4] == 4);
@@ -217,14 +214,13 @@ TEST_CASE("nexenne::container::small_vector destroys elements and frees heap") {
     cn::small_vector<std::shared_ptr<int>, 2> v;
     v.push_back(tracker);
     v.push_back(tracker);
-    v.push_back(tracker);             // grows to heap, moving the first two
-    CHECK(tracker.use_count() == 4);  // tracker + three stored
+    v.push_back(tracker);
+    CHECK(tracker.use_count() == 4);
   }
-  CHECK(tracker.use_count() == 1);  // destructor freed heap and destroyed all
+  CHECK(tracker.use_count() == 1);
 }
 
 namespace {
-// Counts construction to prove push_back picks the cheapest overload.
 struct move_counter {
   int* copies;
   int* moves;
@@ -247,11 +243,11 @@ TEST_CASE("nexenne::container::small_vector push_back picks copy vs move (no ext
   cn::small_vector<move_counter, 4> v;
   move_counter c{&copies, &moves};
 
-  v.push_back(c);  // lvalue: one copy, no move
+  v.push_back(c);
   CHECK(copies == 1);
   CHECK(moves == 0);
 
-  v.push_back(std::move(c));  // rvalue: one move
+  v.push_back(std::move(c));
   CHECK(copies == 1);
   CHECK(moves == 1);
 }
@@ -265,8 +261,6 @@ TEST_CASE("nexenne::container::small_vector with zero inline capacity uses heap 
   CHECK(v.size() == 1);
 }
 
-// Default state and empty/size lifecycle
-
 TEST_CASE("nexenne::container::small_vector default-constructed state") {
   sv v;
   CHECK(v.empty());
@@ -276,7 +270,6 @@ TEST_CASE("nexenne::container::small_vector default-constructed state") {
   CHECK(v.begin() == v.end());
   CHECK(v.cbegin() == v.cend());
   CHECK(v.span().empty());
-  // data() points at inline storage even when empty (never null).
   CHECK(v.data() != nullptr);
 }
 
@@ -291,10 +284,8 @@ TEST_CASE("nexenne::container::small_vector empty transitions across push/pop/cl
   v.clear();
   CHECK(v.empty());
   CHECK(v.size() == 0);
-  CHECK(v.capacity() == 4);  // clear preserves capacity
+  CHECK(v.capacity() == 4);
 }
-
-// Boundary: single, at-inline, one-past, exact-heap
 
 TEST_CASE("nexenne::container::small_vector single element boundary") {
   sv v;
@@ -303,13 +294,13 @@ TEST_CASE("nexenne::container::small_vector single element boundary") {
   CHECK(v.is_inline());
   CHECK(*v.front() == 42);
   CHECK(*v.back() == 42);
-  CHECK(v.front() == v.back());  // same element
+  CHECK(v.front() == v.back());
   CHECK(v.pop_back().has_value());
   CHECK(v.empty());
 }
 
 TEST_CASE("nexenne::container::small_vector exactly at inline capacity stays inline") {
-  sv v{1, 2, 3, 4};  // == N
+  sv v{1, 2, 3, 4};
   CHECK(v.size() == 4);
   CHECK(v.capacity() == 4);
   CHECK(v.is_inline());
@@ -318,7 +309,7 @@ TEST_CASE("nexenne::container::small_vector exactly at inline capacity stays inl
 TEST_CASE("nexenne::container::small_vector one past inline capacity spills to heap") {
   sv v{1, 2, 3, 4};
   CHECK(v.is_inline());
-  v.push_back(5);  // N+1
+  v.push_back(5);
   CHECK_FALSE(v.is_inline());
   CHECK(v.capacity() >= 5);
   CHECK(std::ranges::equal(v, std::array{1, 2, 3, 4, 5}));
@@ -326,10 +317,10 @@ TEST_CASE("nexenne::container::small_vector one past inline capacity spills to h
 
 TEST_CASE("nexenne::container::small_vector reserve exactly N keeps inline") {
   sv v{1, 2};
-  v.reserve(4);  // == N, no growth needed
+  v.reserve(4);
   CHECK(v.is_inline());
   CHECK(v.capacity() == 4);
-  v.reserve(2);  // below capacity is a no-op
+  v.reserve(2);
   CHECK(v.capacity() == 4);
 }
 
@@ -338,28 +329,26 @@ TEST_CASE("nexenne::container::small_vector growth doubles capacity") {
   for (int i{0}; i < 4; ++i) {
     v.push_back(i);
   }
-  v.push_back(4);  // first grow: N(4) -> 8
+  v.push_back(4);
   CHECK(v.capacity() == 8);
   for (int i{5}; i < 8; ++i) {
     v.push_back(i);
   }
   CHECK(v.capacity() == 8);
-  v.push_back(8);  // second grow: 8 -> 16
+  v.push_back(8);
   CHECK(v.capacity() == 16);
 }
 
-// Self-aliasing (the historical bug class)
-
 TEST_CASE("nexenne::container::small_vector push_back of own element while inline (no grow)") {
-  sv v{10, 20, 30};   // size 3, capacity 4, inline; appending stays inline
-  v.push_back(v[0]);  // warm path: no reallocation, aliases live element
+  sv v{10, 20, 30};
+  v.push_back(v[0]);
   CHECK(v.size() == 4);
   CHECK(std::ranges::equal(v, std::array{10, 20, 30, 10}));
 }
 
 TEST_CASE("nexenne::container::small_vector push_back of own element triggers inline->heap grow") {
-  sv v{1, 2, 3, 4};   // full inline; next push_back grows and migrates
-  v.push_back(v[3]);  // cold path: v[3] aliases element about to be relocated
+  sv v{1, 2, 3, 4};
+  v.push_back(v[3]);
   CHECK(v.size() == 5);
   CHECK_FALSE(v.is_inline());
   CHECK(std::ranges::equal(v, std::array{1, 2, 3, 4, 4}));
@@ -369,8 +358,8 @@ TEST_CASE("nexenne::container::small_vector emplace_back of own element survives
   cn::small_vector<std::string, 2> v;
   std::string const seed{"a deliberately long string well past the SSO threshold for libstdc++"};
   v.push_back(seed);
-  v.push_back(seed);           // size 2 == N
-  v.emplace_back(*v.front());  // grows; *front aliases element 0
+  v.push_back(seed);
+  v.emplace_back(*v.front());
   CHECK(v.size() == 3);
   CHECK_FALSE(v.is_inline());
   for (auto const& s : v) {
@@ -379,29 +368,29 @@ TEST_CASE("nexenne::container::small_vector emplace_back of own element survives
 }
 
 TEST_CASE("nexenne::container::small_vector push_back own element across heap->heap regrow") {
-  cn::small_vector<int, 2> v{1, 2, 3};  // already on heap (3 > N), capacity 4
+  cn::small_vector<int, 2> v{1, 2, 3};
   while (v.capacity() != v.size()) {
-    v.push_back(0);  // pad to exactly full so the next push reallocates
+    v.push_back(0);
   }
   auto const fill_count{v.size()};
-  v.push_back(v[0]);  // heap->heap regrow with aliasing source
+  v.push_back(v[0]);
   CHECK(v.size() == fill_count + 1);
   CHECK(v.back() != nullptr);
   CHECK(*v.back() == 1);
 }
 
 TEST_CASE("nexenne::container::small_vector self copy-assignment is a no-op") {
-  sv v{1, 2, 3, 4, 5};  // heap
+  sv v{1, 2, 3, 4, 5};
   sv& alias{v};
-  v = alias;  // self copy-assign; guarded by this != &other
+  v = alias;
   CHECK(v.size() == 5);
   CHECK(std::ranges::equal(v, std::array{1, 2, 3, 4, 5}));
 }
 
 TEST_CASE("nexenne::container::small_vector self move-assignment is a no-op") {
-  sv v{1, 2, 3, 4, 5};  // heap
+  sv v{1, 2, 3, 4, 5};
   auto* const self{&v};
-  v = std::move(*self);  // self move-assign (guarded by this != &other), past -Wself-move
+  v = std::move(*self);
   CHECK(v.size() == 5);
   CHECK(std::ranges::equal(v, std::array{1, 2, 3, 4, 5}));
 }
@@ -412,38 +401,34 @@ TEST_CASE("nexenne::container::small_vector self swap is a no-op") {
   CHECK(std::ranges::equal(v, std::array{1, 2, 3, 4, 5}));
 }
 
-// Iterator / address stability
-
 TEST_CASE("nexenne::container::small_vector addresses stable while inline") {
   sv v;
   v.push_back(1);
   int const* const p0{&v[0]};
   v.push_back(2);
-  v.push_back(3);  // still inline (<= N): addresses must not move
+  v.push_back(3);
   CHECK(&v[0] == p0);
   CHECK(v.is_inline());
 }
 
 TEST_CASE("nexenne::container::small_vector grow past inline invalidates addresses") {
-  sv v{1, 2, 3, 4};  // full inline
+  sv v{1, 2, 3, 4};
   int const* const inline_addr{&v[0]};
   CHECK(v.is_inline());
-  v.push_back(5);  // spills to heap: element storage relocates
+  v.push_back(5);
   CHECK_FALSE(v.is_inline());
-  CHECK(&v[0] != inline_addr);  // documented invalidation
+  CHECK(&v[0] != inline_addr);
 }
 
 TEST_CASE("nexenne::container::small_vector heap addresses stable until next grow") {
-  sv v{1, 2, 3, 4};  // full inline
-  v.reserve(8);      // single heap allocation, capacity exactly 8
+  sv v{1, 2, 3, 4};
+  v.reserve(8);
   CHECK(v.capacity() == 8);
   int const* const p0{&v[0]};
-  v.push_back(5);  // 5 <= capacity 8, no reallocation
+  v.push_back(5);
   v.push_back(6);
-  CHECK(&v[0] == p0);  // stable while capacity suffices
+  CHECK(&v[0] == p0);
 }
-
-// Moved-from reusability
 
 TEST_CASE("nexenne::container::small_vector moved-from is empty and reusable (heap source)") {
   sv a{1, 2, 3, 4, 5};
@@ -451,7 +436,6 @@ TEST_CASE("nexenne::container::small_vector moved-from is empty and reusable (he
   CHECK(a.empty());
   CHECK(a.is_inline());
   CHECK(a.capacity() == 4);
-  // reuse the moved-from vector
   a.push_back(99);
   a.push_back(100);
   CHECK(a.size() == 2);
@@ -459,28 +443,25 @@ TEST_CASE("nexenne::container::small_vector moved-from is empty and reusable (he
 }
 
 TEST_CASE("nexenne::container::small_vector moved-from is reusable (move-assign source)") {
-  sv a{1, 2};  // inline
+  sv a{1, 2};
   sv b;
   b = std::move(a);
   CHECK(a.empty());
-  a.assign({7, 8, 9, 10, 11});  // refill past inline
+  a.assign({7, 8, 9, 10, 11});
   CHECK(a.size() == 5);
   CHECK(std::ranges::equal(a, std::array{7, 8, 9, 10, 11}));
 }
 
-// Copy/move construct + assign across inline/heap/mixed
-
 TEST_CASE("nexenne::container::small_vector copy-construct inline source stays inline") {
-  sv a{1, 2, 3};  // inline
+  sv a{1, 2, 3};
   sv b{a};
   CHECK(b.is_inline());
   CHECK(b == a);
   b[0] = 99;
-  CHECK(a[0] == 1);  // independent
+  CHECK(a[0] == 1);
 }
 
 TEST_CASE("nexenne::container::small_vector copy-assign heap-over-inline and inline-over-heap") {
-  // heap source over inline target
   sv big{1, 2, 3, 4, 5, 6};
   sv small{0};
   small = big;
@@ -488,8 +469,7 @@ TEST_CASE("nexenne::container::small_vector copy-assign heap-over-inline and inl
   CHECK_FALSE(small.is_inline());
   CHECK(small == big);
 
-  // inline source over heap target: target keeps its heap capacity but content matches
-  sv heap_target{9, 9, 9, 9, 9, 9, 9};  // heap
+  sv heap_target{9, 9, 9, 9, 9, 9, 9};
   sv tiny{1, 2};
   heap_target = tiny;
   CHECK(heap_target.size() == 2);
@@ -497,11 +477,11 @@ TEST_CASE("nexenne::container::small_vector copy-assign heap-over-inline and inl
 }
 
 TEST_CASE("nexenne::container::small_vector move-assign inline-over-heap and heap-over-inline") {
-  sv heap_target{1, 2, 3, 4, 5, 6};  // heap
+  sv heap_target{1, 2, 3, 4, 5, 6};
   sv inline_src{7, 8};
   heap_target = std::move(inline_src);
   CHECK(heap_target.size() == 2);
-  CHECK(heap_target.is_inline());  // adopts inline source's storage mode
+  CHECK(heap_target.is_inline());
   CHECK(std::ranges::equal(heap_target, std::array{7, 8}));
   CHECK(inline_src.empty());
 
@@ -510,7 +490,7 @@ TEST_CASE("nexenne::container::small_vector move-assign inline-over-heap and hea
   auto const* const stolen{heap_src.data()};
   inline_target = std::move(heap_src);
   CHECK(inline_target.size() == 5);
-  CHECK(inline_target.data() == stolen);  // stole the heap block
+  CHECK(inline_target.data() == stolen);
   CHECK(heap_src.empty());
 }
 
@@ -520,20 +500,18 @@ TEST_CASE("nexenne::container::small_vector self-assign-like via swap of two hea
   auto const* const ad{a.data()};
   auto const* const bd{b.data()};
   a.swap(b);
-  CHECK(a.data() == bd);  // O(1) pointer swap, both heap
+  CHECK(a.data() == bd);
   CHECK(b.data() == ad);
   CHECK(a.size() == 6);
   CHECK(b.size() == 5);
 }
-
-// Non-trivial std::string
 
 TEST_CASE("nexenne::container::small_vector of std::string copy/move/grow") {
   cn::small_vector<std::string, 2> v;
   v.push_back("alpha");
   v.push_back(std::string{"beta"});
   std::string movable{"gamma is long enough to live on the heap, beyond SSO storage"};
-  v.push_back(std::move(movable));  // grows to heap, moving strings across
+  v.push_back(std::move(movable));
   CHECK(v.size() == 3);
   CHECK(v[0] == "alpha");
   CHECK(v[2] == "gamma is long enough to live on the heap, beyond SSO storage");
@@ -541,15 +519,13 @@ TEST_CASE("nexenne::container::small_vector of std::string copy/move/grow") {
   cn::small_vector<std::string, 2> copy{v};
   CHECK(copy == v);
   copy[0] = "changed";
-  CHECK(v[0] == "alpha");  // deep copy
+  CHECK(v[0] == "alpha");
 }
-
-// Move-only unique_ptr where supported
 
 TEST_CASE("nexenne::container::small_vector move-only unique_ptr move-construct and swap") {
   cn::small_vector<std::unique_ptr<int>, 2> a;
   for (int i{0}; i < 4; ++i) {
-    a.push_back(std::make_unique<int>(i));  // grows to heap
+    a.push_back(std::make_unique<int>(i));
   }
   cn::small_vector<std::unique_ptr<int>, 2> b{std::move(a)};
   CHECK(b.size() == 4);
@@ -573,8 +549,6 @@ TEST_CASE("nexenne::container::small_vector move-only pop_back destroys element"
   CHECK(*v[0] == 1);
 }
 
-// const-correctness and reverse iterators
-
 TEST_CASE("nexenne::container::small_vector const overloads and accessors") {
   sv const v{10, 20, 30};
   CHECK(v.size() == 3);
@@ -586,7 +560,6 @@ TEST_CASE("nexenne::container::small_vector const overloads and accessors") {
   CHECK(v.data()[0] == 10);
   CHECK(v.span().size() == 3);
 
-  // const iteration
   int sum{0};
   for (int const x : v) {
     sum += x;
@@ -614,33 +587,26 @@ TEST_CASE("nexenne::container::small_vector reverse iterators forward and const"
   CHECK(cv.rbegin() == cv.crbegin());
 }
 
-// equality and three-way comparison
-
 TEST_CASE("nexenne::container::small_vector comparison across inline/heap boundary") {
-  // Equal content, different storage mode, must still compare equal.
   sv inline_v{1, 2, 3};
   sv heap_v{1, 2, 3};
-  heap_v.reserve(64);  // forces heap without changing content
+  heap_v.reserve(64);
   CHECK_FALSE(heap_v.is_inline());
   CHECK(inline_v == heap_v);
   CHECK_FALSE(inline_v != heap_v);
 
-  // prefix orders before longer
   CHECK(sv{1, 2} < sv{1, 2, 3});
   CHECK(sv{1, 2, 3} > sv{1, 2});
   CHECK(sv{1, 2, 3} <= sv{1, 2, 3});
   CHECK(sv{1, 2, 3} >= sv{1, 2, 3});
   CHECK(sv{1, 2, 4} > sv{1, 2, 3});
 
-  // empties
   CHECK(sv{} == sv{});
   CHECK(sv{} < sv{0});
 
   auto const ordering{sv{1, 2, 3} <=> sv{1, 2, 4}};
   CHECK(ordering == std::strong_ordering::less);
 }
-
-// Differential randomized test vs std::vector model
 
 TEST_CASE("nexenne::container::small_vector differential vs std::vector model") {
   std::mt19937 rng{0xC0FFEEu};
@@ -658,13 +624,13 @@ TEST_CASE("nexenne::container::small_vector differential vs std::vector model") 
   for (int step{0}; step < 5000; ++step) {
     switch (op_dist(rng)) {
       case 0:
-      case 1: {  // push_back (weighted heavier to grow)
+      case 1: {
         int const val{val_dist(rng)};
         sut.push_back(val);
         model.push_back(val);
         break;
       }
-      case 2: {  // push_back aliasing an existing element
+      case 2: {
         if (!model.empty()) {
           std::uniform_int_distribution<std::size_t> idx_dist{0, model.size() - 1};
           std::size_t const i{idx_dist(rng)};
@@ -673,7 +639,7 @@ TEST_CASE("nexenne::container::small_vector differential vs std::vector model") 
         }
         break;
       }
-      case 3: {  // pop_back
+      case 3: {
         if (model.empty()) {
           CHECK(sut.pop_back().error() == cn::container_error::empty);
         } else {
@@ -682,27 +648,27 @@ TEST_CASE("nexenne::container::small_vector differential vs std::vector model") 
         }
         break;
       }
-      case 4: {  // emplace_back
+      case 4: {
         int const val{val_dist(rng)};
         CHECK(sut.emplace_back(val) == val);
         model.push_back(val);
         break;
       }
-      case 5: {  // clear occasionally
+      case 5: {
         if ((step % 37) == 0) {
           sut.clear();
           model.clear();
         }
         break;
       }
-      case 6: {  // reserve / shrink_to_fit (content-preserving)
+      case 6: {
         if ((step % 2) == 0) {
           std::uniform_int_distribution<std::size_t> cap_dist{0, 32};
           sut.reserve(cap_dist(rng));
         } else {
           sut.shrink_to_fit();
         }
-        break;  // model unchanged
+        break;
       }
       default:
         break;
@@ -712,24 +678,19 @@ TEST_CASE("nexenne::container::small_vector differential vs std::vector model") 
   check_equal();
 }
 
-// [M1] The grow (cold) path once list-initialized the element while the hot
-// path used std::construct_at, so the SAME emplace_back call could yield a
-// different value depending on whether it grew. std::vector<int>(3, 5) is
-// {5, 5, 5} (parens), std::vector<int>{3, 5} is {3, 5} (braces): both paths must
-// agree, using the parenthesized construct_at semantics like std::vector.
 TEST_CASE("nexenne::container::small_vector emplace_back grow path matches construct_at") {
   cn::small_vector<std::vector<int>, 1> grow;
-  grow.emplace_back(1, 9);  // fills the single inline slot: vector(1, 9) = {9}
+  grow.emplace_back(1, 9);
   REQUIRE(grow.size() == 1);
-  auto& grown{grow.emplace_back(3, 5)};  // size == capacity: cold/grow path
-  CHECK(grown.size() == 3);              // vector(3, 5) = {5, 5, 5}, not {3, 5}
+  auto& grown{grow.emplace_back(3, 5)};
+  CHECK(grown.size() == 3);
   CHECK(grown[0] == 5);
   CHECK(grow.back()->size() == 3);
 
   cn::small_vector<std::vector<int>, 4> hot;
-  auto& warm{hot.emplace_back(3, 5)};  // size < capacity: hot path
+  auto& warm{hot.emplace_back(3, 5)};
   CHECK(warm.size() == 3);
-  CHECK(warm == grown);  // both paths build the identical element
+  CHECK(warm == grown);
 }
 
 TEST_CASE(

@@ -45,9 +45,7 @@ auto main() -> int {
   for (int p{0}; p < producers; ++p) {
     threads.emplace_back([&q] {
       for (int i{0}; i < per_producer; ++i) {
-        while (!q.push(1).has_value()) {
-          // full: wait for a consumer to free a slot
-        }
+        while (!q.push(1).has_value()) {}
       }
     });
   }
@@ -61,13 +59,10 @@ auto main() -> int {
       }
     });
   }
-  threads.clear();  // join all jthreads
+  threads.clear();
 
   std::println("{} producers, {} consumers", producers, consumers);
   std::println("items handled: {}", consumed.load());
   std::println("summed total (each item = 1): {}", sum.load());
-  // 4 producers, 4 consumers
-  // items handled: 4000
-  // summed total (each item = 1): 4000
   return 0;
 }

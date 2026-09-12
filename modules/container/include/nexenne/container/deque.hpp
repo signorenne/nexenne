@@ -102,11 +102,6 @@ private:
     if (want <= m_cap) {
       return;
     }
-    // std::bit_ceil is undefined when the rounded-up power of two is not
-    // representable (want past 2^63 on a 64-bit size_type), and even a
-    // representable new_cap must satisfy new_cap * sizeof(T) <= SIZE_MAX or the
-    // byte count wraps into an undersized allocation. Both are unsatisfiable
-    // requests, so fail loudly rather than silently corrupt the heap.
     if (want > max_size()) {
       std::terminate();
     }
@@ -800,14 +795,6 @@ public:
     std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
   ) -> reference {
     if (m_size >= m_cap) {
-      // Cold grow path. Stage the element in raw storage with the same
-      // direct-initialization semantics as the in-capacity path's
-      // std::construct_at (parenthesized, not braced), so an
-      // initializer_list-greedy or narrowing-convertible argument yields an
-      // identical element on both paths (a fresh deque has capacity 0, so the
-      // very first emplace runs here). Staging before grow frees the old buffer
-      // also keeps an argument aliasing an existing element (push_back(d[0]))
-      // valid across the reallocation.
       alignas(T) std::array<std::byte, sizeof(T)> staging{};
       auto* const staged{
         std::construct_at(reinterpret_cast<T*>(staging.data()), std::forward<Args>(args)...)
@@ -848,9 +835,6 @@ public:
     std::is_nothrow_constructible_v<T, Args...> && std::is_nothrow_move_constructible_v<T>
   ) -> reference {
     if (m_size >= m_cap) {
-      // Cold grow path. Stage with std::construct_at semantics (see emplace_back)
-      // so both paths build an identical element, and so an argument aliasing an
-      // existing element (push_front(d[0])) survives the reallocation.
       alignas(T) std::array<std::byte, sizeof(T)> staging{};
       auto* const staged{
         std::construct_at(reinterpret_cast<T*>(staging.data()), std::forward<Args>(args)...)

@@ -133,7 +133,7 @@ private:
       while (!pending.empty()) {
         auto victim{std::move(pending.back())};
         pending.pop_back();
-        detach(*victim);  // victim then destructs with no children, so O(1)
+        detach(*victim);
       }
     }
   };
@@ -370,8 +370,6 @@ public:
   template <typename KeyRange>
     requires detail::trie_key<KeyRange, Char>
   constexpr auto erase(KeyRange&& key) noexcept(nothrow_key_walk_v<KeyRange>) -> bool {
-    // Record the (parent, edge) pairs along the descent so a removal can prune
-    // back up its own path in O(k) instead of rescanning the whole trie.
     std::vector<std::pair<node*, uchar_type>> path;
     auto* cur{m_root.get()};
     for (auto const& c : key_span(std::forward<KeyRange>(key))) {
@@ -388,8 +386,6 @@ public:
     }
     cur->value.reset();
     --m_size;
-    // Walk back up the path, dropping each node that is now a valueless leaf and
-    // stopping at the first node still in use (it holds a value or has children).
     for (auto it{path.rbegin()}; it != path.rend(); ++it) {
       auto* const slot{it->first->children.at(it->second)};
       auto const* const child{slot != nullptr ? slot->get() : nullptr};
