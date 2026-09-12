@@ -610,4 +610,19 @@ TEST_CASE("nexenne::random::discrete_distribution<float> never picks a trailing 
   CHECK(dist.sample(g) == 0);
 }
 
+TEST_CASE("nexenne::random::discrete_distribution treats non-finite weights as zero") {
+  auto const inf{std::numeric_limits<double>::infinity()};
+  auto const nan{std::numeric_limits<double>::quiet_NaN()};
+  rnd::discrete_distribution<double> const dist{inf, 1.0, nan, 3.0};
+  CHECK(dist.total_weight() == doctest::Approx(4.0));
+  CHECK(dist.probability(0) == doctest::Approx(0.0));
+  CHECK(dist.probability(2) == doctest::Approx(0.0));
+  CHECK(dist.probability(3) == doctest::Approx(0.75));
+  rnd::pcg32 g{9, 9};
+  for (int i{0}; i < 2000; ++i) {
+    auto const pick{dist.sample(g)};
+    REQUIRE((pick == 1 || pick == 3));
+  }
+}
+
 }  // namespace

@@ -41,6 +41,8 @@
  */
 
 #include <algorithm>
+#include <cassert>
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <initializer_list>
@@ -68,13 +70,14 @@ public:
   /**
    * @brief Constructs the distribution from a range of weights.
    *
-   * Builds the cumulative-weight table once. Negative weights are
-   * clamped to zero before accumulation.
+   * Builds the cumulative-weight table once. Negative and non-finite (NaN or
+   * infinite) weights are clamped to zero before accumulation.
    *
    * @tparam R Input range of weights convertible to \c T.
    * @param weights Per-outcome weights, in outcome order.
    *
-   * @pre None. Negative weights are clamped to zero.
+   * @pre The positive finite weights sum to a finite total (asserted in debug
+   *      builds). Negative and non-finite weights are clamped to zero.
    * @post \c size() equals the number of weights and \c total_weight()
    *       equals the sum of the clamped weights.
    *
@@ -87,12 +90,13 @@ public:
     }
     auto running{T{0}};
     for (auto const w : weights) {
-      if (w > T{0}) {
+      if (w > T{0} && std::isfinite(w)) {
         running += w;
         m_last_positive = m_cumulative.size();
       }
       m_cumulative.push_back(running);
     }
+    assert(std::isfinite(running) && "discrete_distribution: the weights overflow T");
     m_total = running;
   }
 
@@ -101,7 +105,8 @@ public:
    *
    * @param weights Per-outcome weights, in outcome order.
    *
-   * @pre None. Negative weights are clamped to zero.
+   * @pre The positive finite weights sum to a finite total (asserted in debug
+   *      builds). Negative and non-finite weights are clamped to zero.
    * @post \c size() equals the number of weights and \c total_weight()
    *       equals the sum of the clamped weights.
    *

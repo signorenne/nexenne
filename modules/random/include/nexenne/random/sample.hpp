@@ -16,6 +16,8 @@
  * All callable on any \c rng_engine.
  */
 
+#include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <iterator>
 #include <ranges>
@@ -114,9 +116,9 @@ template <std::ranges::input_range R, rng_engine G>
 /**
  * @brief Picks one index proportional to its weight.
  *
- * Sums the non-negative weights, draws a uniform target, and returns the
- * first index whose cumulative weight exceeds the target. Negative
- * entries are treated as zero. For repeated draws from the same weight
+ * Sums the positive finite weights, draws a uniform target, and returns the
+ * first index whose cumulative weight exceeds the target. Negative and
+ * non-finite (NaN or infinite) entries are treated as zero. For repeated draws from the same weight
  * vector an alias-method sampler would be faster, but this single linear
  * scan keeps setup cost at zero.
  *
@@ -127,7 +129,8 @@ template <std::ranges::input_range R, rng_engine G>
  * @return The chosen index, or \c weights.size() as a past-the-end
  *         sentinel when the input is empty or every weight is zero.
  *
- * @pre None. Negative weights are treated as zero.
+ * @pre The positive finite weights sum to a finite total (asserted in debug
+ *      builds). Negative and non-finite weights are treated as zero.
  * @post The result is a valid index in \c [0, weights.size()) or the
  *       sentinel \c weights.size(); \p g has advanced.
  *
@@ -138,18 +141,19 @@ template <rng_engine G>
   auto total{0.0};
   auto last_positive{std::size_t{0}};
   for (std::size_t i{0}; i < weights.size(); ++i) {
-    if (weights[i] > 0.0) {
+    if (weights[i] > 0.0 && std::isfinite(weights[i])) {
       total += weights[i];
       last_positive = i;
     }
   }
+  assert(std::isfinite(total) && "weighted_choice: the weights overflow a double");
   if (total <= 0.0) {
     return weights.size();
   }
   auto const target{uniform_real(g) * total};
   auto acc{0.0};
   for (std::size_t i{0}; i < weights.size(); ++i) {
-    auto const w{weights[i] > 0.0 ? weights[i] : 0.0};
+    auto const w{weights[i] > 0.0 && std::isfinite(weights[i]) ? weights[i] : 0.0};
     acc += w;
     if (target < acc) {
       return i;

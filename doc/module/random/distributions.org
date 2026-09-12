@@ -72,8 +72,9 @@ would be slow. The mean is =lambda=.
 
 =discrete_distribution<T>(weights)= builds a cumulative-weight table once, then
 each =sample= draws a uniform point in =[0, total)= and binary-searches the table,
-so selection is =O(log k)= and proportional to the weights. Zero and negative
-weights are clamped out; an empty or all-zero distribution returns an
+so selection is =O(log k)= and proportional to the weights. Zero, negative and
+non-finite (NaN or infinite) weights are clamped out, and the remaining weights
+must sum to a finite total; an empty or all-zero distribution returns an
 out-of-range index as its "no choice" signal.
 
 #+BEGIN_EXAMPLE

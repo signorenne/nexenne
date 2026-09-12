@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <limits>
 #include <span>
 #include <string>
 #include <utility>
@@ -344,6 +345,23 @@ TEST_CASE("nexenne::random::weighted_choice with all-equal weights is ~uniform")
   for (std::size_t i{0}; i < categories; ++i) {
     CHECK(static_cast<double>(hits[i]) == doctest::Approx(expected).epsilon(0.05));
   }
+}
+
+TEST_CASE("nexenne::random::weighted_choice treats non-finite weights as zero") {
+  rnd::pcg32 g{5, 5};
+  auto const inf{std::numeric_limits<double>::infinity()};
+  auto const nan{std::numeric_limits<double>::quiet_NaN()};
+  std::array<double, 4> const weights{inf, 1.0, nan, 2.0};
+  std::array<int, 4> hits{};
+  for (int i{0}; i < 3000; ++i) {
+    auto const pick{rnd::weighted_choice(weights, g)};
+    REQUIRE(pick < weights.size());
+    ++hits[pick];
+  }
+  CHECK(hits[0] == 0);
+  CHECK(hits[2] == 0);
+  CHECK(hits[1] > 800);
+  CHECK(hits[3] > 1600);
 }
 
 }  // namespace

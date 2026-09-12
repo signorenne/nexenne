@@ -44,8 +44,9 @@ reservoir_sample(stream, 10, g)  ->  10 distinct items, each equally likely,
 
 =weighted_choice(weights, g)= picks an index with probability proportional to its
 weight, building no persistent state, the one-shot counterpart to
-[[file:distributions.org][discrete_distribution]] (which precomputes a table for repeated draws). A zero
-weight is never chosen.
+[[file:distributions.org][discrete_distribution]] (which precomputes a table for repeated draws). A zero,
+negative or non-finite (NaN or infinite) weight is never chosen, and the
+remaining weights must sum to a finite total.
 
 * Complexity
 
