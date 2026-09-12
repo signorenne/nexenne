@@ -7,6 +7,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 
@@ -396,5 +397,36 @@ TEST_CASE("nexenne::random::uniform_int honours its lo <= hi precondition (M1)")
     CHECK(v <= 7);
   }
 }
+
+TEST_CASE("nexenne::random::uniform_int works for 8- and 16-bit integer types") {
+  rnd::pcg32 g{11, 3};
+  std::array<int, 6> faces{};
+  for (int i{0}; i < 6000; ++i) {
+    auto const v{rnd::uniform_int(g, std::uint8_t{1}, std::uint8_t{6})};
+    REQUIRE(v >= 1);
+    REQUIRE(v <= 6);
+    ++faces[static_cast<std::size_t>(v - 1)];
+  }
+  for (auto const f : faces) {
+    CHECK(f > 800);
+  }
+  int negative{0};
+  for (int i{0}; i < 1000; ++i) {
+    negative += rnd::uniform_int(g, std::int8_t{-128}, std::int8_t{127}) < 0 ? 1 : 0;
+  }
+  CHECK(negative > 400);
+  CHECK(negative < 600);
+  auto const w{rnd::uniform_int(g, std::int16_t{-5}, std::int16_t{5})};
+  CHECK(w >= -5);
+  CHECK(w <= 5);
+  auto const u{rnd::uniform_int(g, std::uint16_t{65533}, std::uint16_t{65535})};
+  CHECK(u >= 65533);
+}
+
+static_assert([] {
+  rnd::pcg32 g{1, 1};
+  auto const v{rnd::uniform_int(g, std::uint8_t{10}, std::uint8_t{20})};
+  return v >= 10 && v <= 20;
+}());
 
 }  // namespace

@@ -110,7 +110,8 @@ template <std::integral Int, rng_engine G>
     return static_cast<Int>(bits);
   }
 
-  if (range <= U{0xFFFF'FFFFu}) {
+  // Compared in 64 bits: U{0xFFFF'FFFF} would narrow for an 8- or 16-bit Int.
+  if (static_cast<std::uint64_t>(range) <= std::uint64_t{0xFFFF'FFFFu}) {
     // Narrow path: Lemire's 32-bit form with a 64-bit widening multiply.
     auto const r32{static_cast<std::uint32_t>(range)};
     while (true) {
