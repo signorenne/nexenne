@@ -136,9 +136,11 @@ template <std::ranges::input_range R, rng_engine G>
 template <rng_engine G>
 [[nodiscard]] auto weighted_choice(std::span<double const> weights, G& g) noexcept -> std::size_t {
   auto total{0.0};
-  for (auto const w : weights) {
-    if (w > 0.0) {
-      total += w;
+  auto last_positive{std::size_t{0}};
+  for (std::size_t i{0}; i < weights.size(); ++i) {
+    if (weights[i] > 0.0) {
+      total += weights[i];
+      last_positive = i;
     }
   }
   if (total <= 0.0) {
@@ -153,7 +155,7 @@ template <rng_engine G>
       return i;
     }
   }
-  return weights.size() - 1;  // floating-point slack guard
+  return last_positive;
 }
 
 }  // namespace nexenne::random

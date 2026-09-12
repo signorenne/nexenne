@@ -62,6 +62,7 @@ public:
 private:
   std::vector<T> m_cumulative{};
   T m_total{T{0}};
+  size_type m_last_positive{0};  // the slack fallback's pick, never a zero weight
 
 public:
   /**
@@ -86,7 +87,10 @@ public:
     }
     auto running{T{0}};
     for (auto const w : weights) {
-      running += w > T{0} ? w : T{0};
+      if (w > T{0}) {
+        running += w;
+        m_last_positive = m_cumulative.size();
+      }
       m_cumulative.push_back(running);
     }
     m_total = running;
@@ -163,7 +167,7 @@ public:
     // case that uniform_real can produce.
     auto const it{std::ranges::upper_bound(m_cumulative, target)};
     if (it == m_cumulative.end()) {
-      return m_cumulative.size() - 1;  // floating-point slack guard
+      return m_last_positive;
     }
     return static_cast<size_type>(std::distance(m_cumulative.begin(), it));
   }

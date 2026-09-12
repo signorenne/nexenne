@@ -594,4 +594,20 @@ TEST_CASE("distributions accept their documented positive parameters (M2)") {
   nexenne::utility::ignore(p.sample(g));  // a non-negative event count
 }
 
+// An engine stuck at its maximum output: uniform_real returns its largest
+// value below 1, the draw that exposes rounding at the top of the range.
+struct top_engine {
+  using result_type = std::uint64_t;
+
+  auto next() noexcept -> result_type {
+    return std::numeric_limits<result_type>::max();
+  }
+};
+
+TEST_CASE("nexenne::random::discrete_distribution<float> never picks a trailing zero weight") {
+  rnd::discrete_distribution<float> const dist{1.0F, 0.0F};
+  top_engine g;
+  CHECK(dist.sample(g) == 0);
+}
+
 }  // namespace
