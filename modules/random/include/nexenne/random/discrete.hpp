@@ -91,7 +91,8 @@ public:
    *
    * @complexity \c O(size()).
    */
-  template <std::ranges::input_range R>
+  template <typename R>
+    requires std::ranges::input_range<R const>
   explicit discrete_distribution(R const& weights) {
     if constexpr (std::ranges::sized_range<R>) {
       m_cumulative.reserve(std::ranges::size(weights));

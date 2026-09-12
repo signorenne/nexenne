@@ -18,6 +18,7 @@
 #include <concepts>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 
 #include <nexenne/random/uniform.hpp>
 
@@ -35,6 +36,7 @@ namespace nexenne::random {
  * @post A default-constructed distribution has mean one.
  */
 template <std::integral T = std::uint32_t>
+  requires(!std::same_as<std::remove_cv_t<T>, bool>)
 class poisson_distribution {
 public:
   using value_type = T;

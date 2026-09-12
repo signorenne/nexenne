@@ -83,6 +83,7 @@ concept rng_engine = requires(G g) {
  *             but the expected number of rejections is below one.
  */
 template <std::integral Int, rng_engine G>
+  requires(!std::same_as<std::remove_cv_t<Int>, bool>)
 [[nodiscard]] constexpr auto uniform_int(G& g, Int const lo, Int const hi) noexcept -> Int {
   // Confined to the runtime path via \c if \c !consteval so a valid
   // constant-evaluated draw stays well formed under UBSan instrumentation,

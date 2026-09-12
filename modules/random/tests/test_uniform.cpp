@@ -429,4 +429,9 @@ static_assert([] {
   return v >= 10 && v <= 20;
 }());
 
+template <typename Int>
+concept uniform_int_callable = requires(rnd::pcg32& g, Int v) { rnd::uniform_int(g, v, v); };
+static_assert(!uniform_int_callable<bool>);
+static_assert(uniform_int_callable<int>);
+
 }  // namespace

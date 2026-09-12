@@ -9,6 +9,9 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <ranges>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <nexenne/random/discrete.hpp>
@@ -624,5 +627,17 @@ TEST_CASE("nexenne::random::discrete_distribution treats non-finite weights as z
     REQUIRE((pick == 1 || pick == 3));
   }
 }
+
+// A filter view is rejected: it caches begin(), so it cannot be iterated through const.
+template <typename T>
+concept poisson_type = requires { typename rnd::poisson_distribution<T>; };
+static_assert(!poisson_type<bool>);
+static_assert(poisson_type<int>);
+static_assert(!std::is_constructible_v<
+              rnd::discrete_distribution<double>,
+              decltype(std::declval<std::vector<double>&>() | std::views::filter([](double) {
+                         return true;
+                       }))>);
+static_assert(std::is_constructible_v<rnd::discrete_distribution<double>, std::vector<double>>);
 
 }  // namespace
