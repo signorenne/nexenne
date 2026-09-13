@@ -397,4 +397,14 @@ TEST_CASE("nexenne::chrono duration_parts std::formatter round-trips suppress fl
   CHECK(std::format("{:!}", z) == "00d:00h:00m:00s.000");
 }
 
+TEST_CASE("nexenne::chrono::duration_parts formatter handles the milliseconds minimum") {
+  auto const low{std::chrono::milliseconds::min()};
+  auto const parts{ch::extract_parts(low)};
+  CHECK(std::format("{}", parts) == ch::format(low));
+  CHECK(
+    std::format("{}", ch::extract_parts(std::chrono::milliseconds{-90'061'500}))
+    == ch::format(std::chrono::milliseconds{-90'061'500})
+  );
+}
+
 }  // namespace

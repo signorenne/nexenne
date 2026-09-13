@@ -236,22 +236,20 @@ replace_all(std::string& inout, std::string_view const token, std::string_view c
 
 }  // namespace detail
 
+namespace detail {
+
+/// @cond INTERNAL
+
 /**
- * @brief Render a millisecond duration through a token format string.
+ * @brief Renders already-extracted parts through a token format string.
  *
- * Substitutes the placeholders \c {s+}, \c {s-}, \c {d}, \c {h}, \c {m},
- * \c {s}, and \c {ms} in \p fmt with the corresponding zero-padded
- * components. When \p fmt contains no \c {ms}, the value is rounded to the
- * nearest second, ties away from zero. With \p suppress_zero, a component
- * renders only when its token is present in \p fmt, leading zero components
- * are dropped while an interior zero is kept, and the survivors are joined
- * with \c ':' using canonical unit labels rather than the spec's separators.
- * With \p suppress_zero false the spec is honored literally.
+ * The body of \c format, shared with the \c std::formatter so a value made by
+ * \c extract_parts is printed from its fields, never summed back into a
+ * duration (which overflows for \c milliseconds::min()).
  *
- * @param ms Duration to render.
+ * @param parts Decomposed value to render.
  * @param fmt Token format string.
- * @param suppress_zero Whether to drop leading zero components and select
- *                      components by token presence.
+ * @param suppress_zero Whether to drop leading zero components.
  * @param pos_sign Text emitted for a positive value at \c {s+}.
  * @param neg_sign Text emitted for a negative value at \c {s-}.
  *
@@ -260,25 +258,17 @@ replace_all(std::string& inout, std::string_view const token, std::string_view c
  * @pre None.
  * @post None.
  * @throws std::bad_alloc if string construction fails.
- *
- * @par Example
- * \code
- *   auto const s{nexenne::chrono::format(std::chrono::milliseconds{90061500})};
- *   // "01d:01h:01m:01s:500ms"  (suppress-zero joins every piece with ':')
- * \endcode
  */
-[[nodiscard]] inline auto format(
-  std::chrono::milliseconds const ms,
-  std::string_view const fmt = "{s-}{d}d:{h}h:{m}m:{s}s.{ms}",
-  bool const suppress_zero = true,
-  std::string_view const pos_sign = "+",
-  std::string_view const neg_sign = "-"
+[[nodiscard]] inline auto format_parts(
+  duration_parts const& parts,
+  std::string_view const fmt,
+  bool const suppress_zero,
+  std::string_view const pos_sign,
+  std::string_view const neg_sign
 ) -> std::string {
   auto const want_ms{fmt.find("{ms}") != std::string_view::npos};
   auto const want_plus{fmt.find("{s+}") != std::string_view::npos};
   auto const want_minus{fmt.find("{s-}") != std::string_view::npos};
-
-  auto const parts{extract_parts(ms, !want_ms)};
 
   auto const s_d{std::format("{:02}", parts.days)};
   auto const s_h{std::format("{:02}", parts.hours)};
@@ -349,6 +339,52 @@ replace_all(std::string& inout, std::string_view const token, std::string_view c
   add(part_ms);
 
   return sign_out + body;
+}
+
+/// @endcond
+
+}  // namespace detail
+
+/**
+ * @brief Render a millisecond duration through a token format string.
+ *
+ * Substitutes the placeholders \c {s+}, \c {s-}, \c {d}, \c {h}, \c {m},
+ * \c {s}, and \c {ms} in \p fmt with the corresponding zero-padded
+ * components. When \p fmt contains no \c {ms}, the value is rounded to the
+ * nearest second, ties away from zero. With \p suppress_zero, a component
+ * renders only when its token is present in \p fmt, leading zero components
+ * are dropped while an interior zero is kept, and the survivors are joined
+ * with \c ':' using canonical unit labels rather than the spec's separators.
+ * With \p suppress_zero false the spec is honored literally.
+ *
+ * @param ms Duration to render.
+ * @param fmt Token format string.
+ * @param suppress_zero Whether to drop leading zero components and select
+ *                      components by token presence.
+ * @param pos_sign Text emitted for a positive value at \c {s+}.
+ * @param neg_sign Text emitted for a negative value at \c {s-}.
+ *
+ * @return The formatted string.
+ *
+ * @pre None.
+ * @post None.
+ * @throws std::bad_alloc if string construction fails.
+ *
+ * @par Example
+ * \code
+ *   auto const s{nexenne::chrono::format(std::chrono::milliseconds{90061500})};
+ *   // "01d:01h:01m:01s:500ms"  (suppress-zero joins every piece with ':')
+ * \endcode
+ */
+[[nodiscard]] inline auto format(
+  std::chrono::milliseconds const ms,
+  std::string_view const fmt = "{s-}{d}d:{h}h:{m}m:{s}s.{ms}",
+  bool const suppress_zero = true,
+  std::string_view const pos_sign = "+",
+  std::string_view const neg_sign = "-"
+) -> std::string {
+  auto const want_ms{fmt.find("{ms}") != std::string_view::npos};
+  return detail::format_parts(extract_parts(ms, !want_ms), fmt, suppress_zero, pos_sign, neg_sign);
 }
 
 /**
@@ -477,19 +513,11 @@ struct std::formatter<nexenne::chrono::duration_parts, char> {
   auto format(
     nexenne::chrono::duration_parts const& p, std::basic_format_context<Out, char>& ctx
   ) const {
-    using std::chrono::days;
-    using std::chrono::hours;
-    using std::chrono::milliseconds;
-    using std::chrono::minutes;
-    using std::chrono::seconds;
-    auto total{
-      days{p.days} + hours{p.hours} + minutes{p.minutes} + seconds{p.seconds}
-      + milliseconds{p.millis}
-    };
-    if (p.sign < 0) {
-      total = -total;
-    }
-    auto const s{nexenne::chrono::format(total, "{s-}{d}d:{h}h:{m}m:{s}s.{ms}", suppress_zero)};
+    // Rendered from the fields: summing them back into a duration overflows for
+    // the parts of milliseconds::min().
+    auto const s{nexenne::chrono::detail::format_parts(
+      p, "{s-}{d}d:{h}h:{m}m:{s}s.{ms}", suppress_zero, "+", "-"
+    )};
     return std::ranges::copy(s, ctx.out()).out;
   }
 };
