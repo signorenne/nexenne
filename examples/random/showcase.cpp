@@ -71,7 +71,6 @@
 #include <nexenne/random/seed_seq.hpp>
 #include <nexenne/random/uniform.hpp>
 #include <nexenne/random/xoshiro.hpp>
-#include <nexenne/utility/ignore.hpp>
 
 namespace rng = nexenne::random;
 
