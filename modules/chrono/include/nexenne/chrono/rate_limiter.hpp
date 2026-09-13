@@ -229,7 +229,8 @@ public:
     if (!std::isfinite(wanted_ns) || wanted_ns >= max_ns) {
       return duration::max();
     }
-    return std::chrono::duration_cast<duration>(
+    // ceil, not duration_cast: truncating on a coarse clock advises a wait that ends too early.
+    return std::chrono::ceil<duration>(
       std::chrono::nanoseconds{static_cast<std::int64_t>(wanted_ns)}
     );
   }

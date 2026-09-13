@@ -7,9 +7,11 @@
 #include <doctest/doctest.h>
 
 #include <chrono>
+#include <cstdint>
 #include <format>
 #include <limits>
 #include <memory>
+#include <ratio>
 #include <string>
 
 #include <nexenne/chrono/alarm.hpp>
@@ -18,6 +20,7 @@
 #include <nexenne/chrono/interval.hpp>
 #include <nexenne/chrono/manual_clock.hpp>
 #include <nexenne/chrono/rate_limiter.hpp>
+#include <nexenne/chrono/tick_clock.hpp>
 #include <nexenne/utility/in_place_function.hpp>
 
 namespace {
@@ -1004,6 +1007,31 @@ TEST_CASE("nexenne::chrono::alarm periodic callback can re-arm or reschedule its
   CHECK(
     rescheduled.next_fire_time() == clk::now() + std::chrono::duration_cast<clk::duration>(20ms)
   );
+}
+
+// A 1 kHz RTOS-style tick, driven by hand.
+struct ms_tick_backend {
+  using rep = std::int64_t;
+  using period = std::milli;
+  static constexpr bool is_steady{true};
+  static inline rep now_ticks{0};
+
+  static auto ticks() noexcept -> rep {
+    return now_ticks;
+  }
+};
+
+TEST_CASE("nexenne::chrono::rate_limiter until_next_token rounds up on a coarse clock") {
+  using clk = ch::tick_clock<ms_tick_backend>;
+  ms_tick_backend::now_ticks = 0;
+  ch::rate_limiter<clk> rl{1.0, 400.0};
+  CHECK(rl.try_acquire());
+  for (int i{0}; i < 4; ++i) {
+    auto const wait{rl.until_next_token()};
+    CHECK(wait > clk::duration::zero());
+    ms_tick_backend::now_ticks += wait.count();
+    CHECK(rl.try_acquire());
+  }
 }
 
 }  // namespace
