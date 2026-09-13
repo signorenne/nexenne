@@ -157,8 +157,11 @@ public:
     // Confined to the runtime path so a valid constant-evaluated restore stays
     // well formed, matching the utility::non_null precedent.
     if !consteval {
-      auto const all_zero{std::array<std::uint64_t, 4>{0, 0, 0, 0}};
-      assert(state != all_zero && "xoshiro256ss::from_state state must not be all zero");
+      // Comparand inline, not a named local: the local would be unused under NDEBUG.
+      assert(
+        (state != std::array<std::uint64_t, 4>{0, 0, 0, 0})
+        && "xoshiro256ss::from_state state must not be all zero"
+      );
     }
     auto engine{xoshiro256ss{}};
     engine.m_s = state;
