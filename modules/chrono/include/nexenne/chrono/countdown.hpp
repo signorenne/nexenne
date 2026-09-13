@@ -33,6 +33,7 @@
 #include <string>
 
 #include <nexenne/chrono/concepts.hpp>
+#include <nexenne/chrono/conversion.hpp>
 #include <nexenne/chrono/duration_parts.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
 
@@ -117,7 +118,7 @@ public:
    */
   template <chrono_duration D>
   constexpr explicit countdown(D const target) noexcept
-      : m_target{std::chrono::duration_cast<duration>(target)} {
+      : m_target{detail::saturating_cast<duration>(target)} {
     if (m_target < duration::zero()) {
       m_target = duration::zero();
     }
@@ -149,7 +150,7 @@ public:
    */
   template <chrono_duration D>
   auto set_target(D const target) noexcept -> void {
-    m_target = std::chrono::duration_cast<duration>(target);
+    m_target = detail::saturating_cast<duration>(target);
     if (m_target < duration::zero()) {
       m_target = duration::zero();
     }
@@ -169,7 +170,7 @@ public:
    */
   template <chrono_duration D>
   auto extend(D const delta) noexcept -> void {
-    m_target += std::chrono::duration_cast<duration>(delta);
+    m_target = detail::saturating_add(m_target, detail::saturating_cast<duration>(delta));
     if (m_target < duration::zero()) {
       m_target = duration::zero();
     }
@@ -188,7 +189,7 @@ public:
    */
   template <chrono_duration D>
   auto shrink(D const delta) noexcept -> void {
-    extend(-std::chrono::duration_cast<duration>(delta));
+    extend(detail::saturating_negate(detail::saturating_cast<duration>(delta)));
   }
 
   /**
@@ -433,12 +434,12 @@ public:
    * @post The result lies in the closed range \c [0, 1].
    */
   [[nodiscard]] auto progress() const noexcept -> double {
-    auto const target_ns{std::chrono::duration_cast<std::chrono::nanoseconds>(m_target).count()};
-    if (target_ns <= 0) {
+    // Clock's own unit: a nanosecond cast overflows a saturated target on a coarse clock.
+    auto const target_count{m_target.count()};
+    if (target_count <= 0) {
       return m_state == state::expired ? 1.0 : 0.0;
     }
-    auto const e_ns{std::chrono::duration_cast<std::chrono::nanoseconds>(m_sw.elapsed()).count()};
-    auto const p{static_cast<double>(e_ns) / static_cast<double>(target_ns)};
+    auto const p{static_cast<double>(m_sw.elapsed().count()) / static_cast<double>(target_count)};
     if (p <= 0.0) {
       return 0.0;
     }

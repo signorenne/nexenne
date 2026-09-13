@@ -1034,4 +1034,23 @@ TEST_CASE("nexenne::chrono::rate_limiter until_next_token rounds up on a coarse 
   }
 }
 
+TEST_CASE("nexenne::chrono::countdown and interval saturate instead of overflowing") {
+  using dur = ch::countdown<>::duration;
+  ch::countdown<> never{dur::max()};
+  never.extend(1s);
+  CHECK(never.target() == dur::max());
+  never.shrink(std::chrono::nanoseconds::min());
+  CHECK(never.target() == dur::max());
+  CHECK(ch::countdown<>{std::chrono::hours::max()}.target() == dur::max());
+  never.start();
+  CHECK_FALSE(never.tick());
+  CHECK(never.progress() < 1.0);
+
+  ch::interval<> slow{std::chrono::hours{3'000'000}};
+  CHECK(slow.period() == ch::interval<>::duration::max());
+  slow.start();
+  CHECK_FALSE(slow.tick());
+  CHECK(slow.next_tick_at() == ch::interval<>::time_point::max());
+}
+
 }  // namespace

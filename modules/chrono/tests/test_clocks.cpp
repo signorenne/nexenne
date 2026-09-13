@@ -429,4 +429,13 @@ TEST_CASE("nexenne::chrono::manual_clock the default-tag alias is its own shared
   ch::manual_clock::reset();
 }
 
+TEST_CASE("nexenne::chrono::manual_clock advance saturates at the maximum") {
+  using clk = ch::basic_manual_clock<struct mc_saturate_tag>;
+  clk::reset();
+  clk::advance(clk::duration::max());
+  clk::advance(1s);
+  CHECK(clk::now().time_since_epoch() == clk::duration::max());
+  clk::reset();
+}
+
 }  // namespace

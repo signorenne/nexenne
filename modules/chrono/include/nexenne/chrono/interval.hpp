@@ -38,6 +38,7 @@
 #include <string>
 
 #include <nexenne/chrono/concepts.hpp>
+#include <nexenne/chrono/conversion.hpp>
 #include <nexenne/chrono/duration_parts.hpp>
 
 namespace nexenne::chrono {
@@ -91,7 +92,7 @@ public:
    */
   template <chrono_duration D>
   constexpr explicit interval(D const period) noexcept
-      : m_period{std::chrono::duration_cast<duration>(period)} {
+      : m_period{detail::saturating_cast<duration>(period)} {
     if (m_period < duration::zero()) {
       m_period = duration::zero();
     }
@@ -111,7 +112,7 @@ public:
    */
   template <chrono_duration D>
   auto set_period(D const period) noexcept -> void {
-    m_period = std::chrono::duration_cast<duration>(period);
+    m_period = detail::saturating_cast<duration>(period);
     if (m_period < duration::zero()) {
       m_period = duration::zero();
     }
@@ -207,7 +208,8 @@ public:
     if (!m_running || m_period <= duration::zero()) {
       return false;
     }
-    if (Clock::now() < m_anchor + m_period) {
+    // Elapsed form: anchor + period would overflow for a period near duration::max().
+    if (Clock::now() - m_anchor < m_period) {
       return false;
     }
     m_anchor += m_period;
@@ -262,6 +264,9 @@ public:
    */
   [[nodiscard]] auto next_tick_at() const noexcept -> time_point {
     if (!m_running) {
+      return time_point::max();
+    }
+    if (m_anchor.time_since_epoch() > duration::max() - m_period) {
       return time_point::max();
     }
     return m_anchor + m_period;

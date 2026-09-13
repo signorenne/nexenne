@@ -40,6 +40,7 @@
 #include <cstdint>
 
 #include <nexenne/chrono/concepts.hpp>
+#include <nexenne/chrono/conversion.hpp>
 
 namespace nexenne::chrono {
 
@@ -101,7 +102,7 @@ public:
    */
   template <chrono_duration D>
   static auto advance(D const d) noexcept -> void {
-    s_now += std::chrono::duration_cast<duration>(d);
+    s_now = detail::saturating_add(s_now, detail::saturating_cast<duration>(d));
   }
 
   /**

@@ -206,6 +206,85 @@ template <std::integral Int, chrono_duration ToDur, chrono_duration FromDur>
   }
 }
 
+namespace detail {
+
+/// @cond INTERNAL
+
+/**
+ * @brief \c duration_cast that saturates instead of overflowing.
+ *
+ * For an integral target the count comes from \c to_count_sat, so a value
+ * beyond \p ToDur's range clamps to its minimum or maximum; a floating target
+ * cannot overflow and is cast directly.
+ *
+ * @tparam ToDur Target duration type.
+ * @tparam FromDur Source duration type, deduced from \p d.
+ * @param d Duration to convert.
+ *
+ * @return \p d in \p ToDur, clamped to its range.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <chrono_duration ToDur, chrono_duration FromDur>
+[[nodiscard]] constexpr auto saturating_cast(FromDur const d) noexcept -> ToDur {
+  if constexpr (std::is_floating_point_v<typename ToDur::rep>) {
+    return std::chrono::duration_cast<ToDur>(d);
+  } else {
+    return ToDur{to_count_sat<typename ToDur::rep, ToDur>(d)};
+  }
+}
+
+/**
+ * @brief \p a plus \p b, clamped to the range of \p D.
+ *
+ * @tparam D Duration type of both operands.
+ * @param a First operand.
+ * @param b Second operand.
+ *
+ * @return The sum, or \c D::max() / \c D::min() where it would overflow.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <chrono_duration D>
+[[nodiscard]] constexpr auto saturating_add(D const a, D const b) noexcept -> D {
+  if constexpr (std::is_integral_v<typename D::rep>) {
+    if (b > D::zero() && a > D::max() - b) {
+      return D::max();
+    }
+    if (b < D::zero() && a < D::min() - b) {
+      return D::min();
+    }
+  }
+  return a + b;
+}
+
+/**
+ * @brief \p d negated, with the minimum mapping to the maximum.
+ *
+ * @tparam D Duration type.
+ * @param d Duration to negate.
+ *
+ * @return \c -d, or \c D::max() for \c D::min().
+ *
+ * @pre None.
+ * @post None.
+ */
+template <chrono_duration D>
+[[nodiscard]] constexpr auto saturating_negate(D const d) noexcept -> D {
+  if constexpr (std::is_integral_v<typename D::rep>) {
+    if (d == D::min()) {
+      return D::max();
+    }
+  }
+  return -d;
+}
+
+/// @endcond
+
+}  // namespace detail
+
 /**
  * @brief Saturating conversion of \p d to microseconds in a 32-bit unsigned.
  *
