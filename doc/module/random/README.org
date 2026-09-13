@@ -47,6 +47,14 @@ every run and every platform. Use =seed_sequence<N>(master)= to fan one seed out
 into =N= uncorrelated streams (one per worker) deterministically. None of this is
 cryptographically secure; it is for simulation and procedural use, not secrets.
 
+* Debug checks
+
+Preconditions such as =lo <= hi= for =uniform_int=, a positive exponential rate,
+or the non-zero state handed to =from_state= are asserted in debug builds. In a
+=constexpr= function the assert sits behind =if !consteval=, so a valid
+constant-evaluated call stays well formed under UBSan instrumentation; the check
+runs only on the runtime path.
+
 * Formatting
 
 =format.hpp= adds the three-layer printing support (=to_string=, =operator<<=,

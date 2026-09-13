@@ -597,11 +597,26 @@ TEST_CASE("distributions accept their documented positive parameters (M2)") {
   nexenne::utility::ignore(p.sample(g));  // a non-negative event count
 }
 
-// An engine stuck at its maximum output: uniform_real returns its largest
-// value below 1, the draw that exposes rounding at the top of the range.
+/**
+ * @brief Engine stuck at its maximum output.
+ *
+ * \c uniform_real then returns its largest value below one, the draw that
+ * exposes rounding at the top of the range.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct top_engine {
-  using result_type = std::uint64_t;
+  using result_type = std::uint64_t;  ///< 64-bit output word.
 
+  /**
+   * @brief Returns the maximum 64-bit word on every call.
+   *
+   * @return \c std::numeric_limits<result_type>::max().
+   *
+   * @pre None.
+   * @post None.
+   */
   auto next() noexcept -> result_type {
     return std::numeric_limits<result_type>::max();
   }

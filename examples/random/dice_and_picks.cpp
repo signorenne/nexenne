@@ -3,10 +3,25 @@
  * @brief Uniform draws, coins, weighted choice, shuffling, and reservoir picks.
  *
  * The grab-bag of "pick something" primitives, all reproducible because the
- * engine is seeded deterministically: bounded integers, a fair and a biased
- * coin, two flavours of weighted selection (the O(n)-setup weighted_choice and
- * the O(log n)-per-draw discrete_distribution), an in-place shuffle, and a
- * single-pass reservoir sample from a stream of unknown length.
+ * engine is seeded deterministically:
+ *
+ *   1. Bounded integers: uniform_int draws a closed range [lo, hi] with zero
+ *      bias (Lemire's method), here five d6 rolls.
+ *   2. Coins: bernoulli(g) is a fair coin from a single low bit (no
+ *      rejection); bernoulli(g, p) is true with probability p, here a 5% crit.
+ *   3. Weighted choice by linear scan: weighted_choice sums the weights and
+ *      scans once per draw, O(n) each call but nothing to precompute; fine for
+ *      a one-off pick over a few outcomes.
+ *   4. Weighted choice by cumulative table: discrete_distribution builds the
+ *      table once, then samples in O(log n) by binary search, the right pick
+ *      when drawing from the same weights many times. probability(i) recovers
+ *      the design intent, and an all-zero or empty table returns size() as a
+ *      "no outcome" sentinel.
+ *   5. Shuffle: an in-place Fisher-Yates.
+ *   6. Reservoir sample: pick k items uniformly from a stream you can only
+ *      traverse once and whose length you do not know up front (a log, a
+ *      network feed). Algorithm R keeps each seen item with the right
+ *      probability; here 3 of 100 in one pass.
  */
 
 #include <array>

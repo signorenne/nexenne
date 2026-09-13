@@ -39,12 +39,11 @@ template <std::integral T = std::uint32_t>
   requires(!std::same_as<std::remove_cv_t<T>, bool>)
 class poisson_distribution {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Integer type of the sampled event count.
 
 private:
   double m_lambda{0.0};
-  // Precomputed exp(-lambda) for the small-lambda Knuth path.
-  double m_exp_neg_lambda{0.0};
+  double m_exp_neg_lambda{0.0};  ///< Precomputed exp(-lambda) for the small-lambda Knuth path.
 
 public:
   /**
@@ -58,6 +57,9 @@ public:
    *
    * @pre \p lambda is non-negative and finite.
    * @post \c mean() returns \p lambda.
+   *
+   * @note Not \c constexpr: \c std::exp is not usable in a constant expression
+   *       before C++26.
    */
   // Not constexpr: std::exp is not usable in a constant expression before C++26.
   explicit poisson_distribution(double const lambda = 1.0) noexcept

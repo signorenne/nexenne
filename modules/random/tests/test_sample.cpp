@@ -21,11 +21,18 @@ namespace {
 
 namespace rnd = nexenne::random;
 
-// A type whose swap can throw, so std::is_nothrow_swappable_v is false. Used to
-// pin the conditional noexcept on shuffle (M3): a throwing element swap must
-// propagate, not terminate.
+/**
+ * @brief Element type whose swap can throw.
+ *
+ * \c std::is_nothrow_swappable_v is false for it, which pins the conditional
+ * \c noexcept on \c shuffle: a throwing element swap must propagate, not
+ * terminate.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct throwing_swap {
-  int value{0};
+  int value{0};  ///< Payload carried through the shuffle.
   throwing_swap() = default;
   throwing_swap(throwing_swap const&) = default;
 

@@ -7,22 +7,43 @@
  * worth of content and prints it, so you can see how the pieces of the module
  * fit together in context:
  *
- *   1. Seed everything   -> a human-readable string -> one master seed, then
- *                           one independent sub-seed per subsystem.
- *   2. Lay out the rooms  -> uniform_int for counts, a weighted discrete_
- *                           distribution for room *kinds*.
- *   3. Roll the loot      -> a discrete loot table (rarity) plus a gamma-
- *                           distributed gold payout per chest.
- *   4. Schedule monsters  -> exponential inter-arrival times (a Poisson
- *                           process) and a poisson count of spawns per wave.
- *   5. Roll the party     -> normal-distributed ability scores, a shuffled
- *                           initiative order, a reservoir-sampled "MVP".
- *   6. Estimate the odds  -> a Monte-Carlo combat win-rate, self-checked
- *                           against a closed-form value.
- *   7. Prove determinism  -> re-run the whole thing and confirm the digest
- *                           is bit-identical.
+ *   1. Seed everything. seed_from_string hashes a designer-friendly phrase
+ *      into a seed with the same mixing on every toolchain (std::seed_seq is
+ *      implementation-defined). seed_sequence then derives one independent
+ *      sub-seed per subsystem via SplitMix64, so one extra loot draw never
+ *      shifts the monster or party streams. Each subsystem gets its own
+ *      xoshiro256ss, the 64-bit-native engine; its constructor substitutes
+ *      the one forbidden (zero) seed, so any sub-seed is safe.
+ *   2. Lay out the rooms. uniform_int is the bias-free, portable replacement
+ *      for std::uniform_int_distribution (Lemire's nearly-divisionless
+ *      sampler over a closed range). Room kinds are not equally likely, so a
+ *      discrete_distribution builds a cumulative table once, samples in
+ *      O(log N), and probability(i) prints the design intent next to the rolls.
+ *   3. Roll the loot. Each chest rolls a rarity off a weighted loot table, then
+ *      a gamma-distributed gold payout: strictly positive, right-skewed, with
+ *      mean shape * scale (2 * 100 = 200 gold), which is how a designer reasons
+ *      about a payout curve. A normal would allow negative gold and an
+ *      exponential has no typical-value hump. Rare and legendary chests pay a
+ *      multiplier on the same curve.
+ *   4. Schedule monsters. Spawns are a Poisson process: exponential_distribution
+ *      gives the gap between spawns (rate 1.5 per minute, so a mean gap of
+ *      1 / 1.5 minutes) and poisson_distribution the count per wave (mean 4).
+ *   5. Roll the party. Ability scores cluster around a mean (12, stddev 3), the
+ *      textbook normal; normal_distribution caches the Box-Muller pair's second
+ *      variate, half the cost of the free normal() over many draws. Scores are
+ *      clamped to the 3 to 18 die range. shuffle is an in-place, unbiased
+ *      Fisher-Yates for the initiative order, and reservoir_sample with k = 1
+ *      picks the MVP: the tool when a stream's length is unknown.
+ *   6. Estimate the odds. Each hero survives with probability p and the party
+ *      wins if any does, 1 - (1 - p)^k in closed form. bernoulli trials
+ *      estimate it by simulation, and the estimate is checked against the
+ *      exact value.
+ *   7. Prove determinism. Re-running the same phrase must reproduce the digest
+ *      bit for bit, and a different phrase must differ. format.hpp then prints
+ *      an engine's exact state and a distribution's parameters for a
+ *      reproducibility report (opt-in, because std::format is heavy).
  *
- * Each step notes *why* a given API is the right tool. Read it top to bottom.
+ * Read it top to bottom.
  *
  * Reproducibility is the throughline. Every stochastic choice flows from one
  * seed; nothing reads the clock or the OS RNG. The same seed therefore replays
@@ -56,8 +77,18 @@ namespace rng = nexenne::random;
 
 namespace {
 
-// One reproducible expedition. The return value is a 64-bit digest folded from
-// every roll, so two runs with the same seed can be compared bit-for-bit.
+/**
+ * @brief Generates one reproducible expedition and digests every roll.
+ *
+ * @param seed_phrase Human-readable phrase the whole run is seeded from.
+ * @param verbose Whether to print each step of the run.
+ *
+ * @return A 64-bit digest folded from every roll, so two runs with the same
+ *         seed can be compared bit for bit.
+ *
+ * @pre None.
+ * @post Equal \p seed_phrase values give equal digests.
+ */
 auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> std::uint64_t {
   // An order-dependent FNV-1a mixing accumulator. Every interesting value gets
   // folded in, so the digest captures the full run and its exact sequence.

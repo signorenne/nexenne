@@ -1,6 +1,6 @@
 /**
  * @file
- * @brief Tests for the nexenne::random formatters (M4).
+ * @brief Tests for the nexenne::random formatters.
  */
 
 #include <doctest/doctest.h>

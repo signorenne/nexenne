@@ -33,7 +33,7 @@ namespace nexenne::random {
 template <std::floating_point T = double>
 class exponential_distribution {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Floating-point sample type.
 
 private:
   T m_rate{};

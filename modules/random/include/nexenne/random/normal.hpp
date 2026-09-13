@@ -63,7 +63,7 @@ namespace nexenne::random {
 template <std::floating_point T = double>
 class normal_distribution {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Floating-point sample type.
 
 private:
   T m_mean{};
@@ -93,7 +93,9 @@ public:
    *
    * Returns the cached second variate of the previous Box-Muller pair
    * when available, otherwise generates a fresh pair and caches the
-   * second value for the next call.
+   * second value for the next call. The transform runs in \c T, so a
+   * \c float distribution stays in single precision instead of emulating the
+   * \c double logarithm on a single-precision FPU.
    *
    * @tparam G Engine type satisfying \c rng_engine.
    * @param g Engine to draw uniforms from.

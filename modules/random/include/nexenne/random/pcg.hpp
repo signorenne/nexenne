@@ -51,8 +51,8 @@ namespace nexenne::random {
  */
 class pcg32 {
 public:
-  using result_type = std::uint32_t;
-  using value_type = result_type;
+  using result_type = std::uint32_t;  ///< 32-bit output word produced by each next() call.
+  using value_type = result_type;     ///< Same as result_type: the engine's output word.
 
   /// @brief Default seeding state used by the default constructor.
   static constexpr auto default_state{std::uint64_t{0x853c'49e6'748f'ea9bULL}};

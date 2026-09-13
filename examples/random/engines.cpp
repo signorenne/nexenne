@@ -3,10 +3,29 @@
  * @brief Seedable RNG engines: reproducible sequences, parallel streams, seeds.
  *
  * Both engines are seedable and deterministic, so a fixed seed replays the exact
- * same sequence, which is what makes simulations and tests reproducible. This
- * tour covers: reproducibility, the standard-library interop interface, pcg's
- * O(log n) jump-ahead, xoshiro's constant-time stream splitting, and the three
- * seed-derivation helpers (string, bytes, and a master-to-N fan-out).
+ * same sequence, which is what makes simulations and tests reproducible. The
+ * tour, in order:
+ *
+ *   1. Reproducibility: a fixed (state, sequence) pair fully determines a
+ *      pcg32 stream, so two engines seeded identically agree forever. The
+ *      sequence argument selects an independent stream from the same state.
+ *   2. Standard-library interop: every engine exposes result_type, min(),
+ *      max(), and operator() (which is just next()), so it models
+ *      std::uniform_random_bit_generator and can drive the standard random
+ *      header if you want it, though the portable samplers in uniform.hpp are
+ *      the reason this module exists.
+ *   3. pcg32 jump-ahead: advance(n) skips n outputs in O(log n) via the LCG
+ *      jump formula, landing exactly where n calls to next() would.
+ *   4. xoshiro256ss parallel streams: copy the engine and jump() each copy;
+ *      jump() advances by 2^128 draws in constant time, so two workers cannot
+ *      collide for any realistic workload.
+ *   5. Seed derivation: seed_sequence<N> fans one master seed out into N
+ *      independent sub-seeds via SplitMix64 (one per thread or subsystem);
+ *      seed_from_string maps a human-readable name to the same seed on every
+ *      toolchain (unlike std::seed_seq, whose mixing is
+ *      implementation-defined); seed_from_bytes hashes binary input, such as a
+ *      save-file header, with the identical stable mixing. Five d6 rolls off a
+ *      string-seeded engine show the whole chain.
  */
 
 #include <array>

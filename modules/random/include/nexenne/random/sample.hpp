@@ -126,7 +126,9 @@ template <std::ranges::input_range R, rng_engine G>
  * first index whose cumulative weight exceeds the target. Negative and
  * non-finite (NaN or infinite) entries are treated as zero. For repeated draws from the same weight
  * vector an alias-method sampler would be faster, but this single linear
- * scan keeps setup cost at zero.
+ * scan keeps setup cost at zero. A target that floating-point rounding lifts
+ * to the total falls back to the last positive weight, never to a trailing
+ * zero weight.
  *
  * @tparam G Engine type satisfying \c rng_engine.
  * @param weights Per-index weights.

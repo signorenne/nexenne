@@ -36,16 +36,13 @@ namespace nexenne::random {
 template <std::floating_point T = double>
 class gamma_distribution {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Floating-point sample type.
 
 private:
   T m_shape{};
   T m_scale{};
-  // Marsaglia-Tsang constants for the effective alpha (shape for shape >= 1, or
-  // shape + 1 for the boost path), precomputed once so the per-sample loop avoids
-  // recomputing them and their sqrt on every draw.
-  T m_d{};
-  T m_c{};
+  T m_d{};  ///< Marsaglia-Tsang \c d = alpha - 1/3 for the effective alpha, cached per object.
+  T m_c{};  ///< Marsaglia-Tsang \c c = 1 / sqrt(9 d), cached so no draw recomputes the sqrt.
 
   /**
    * @brief Draws one standard-normal variate via Box-Muller.
@@ -115,6 +112,10 @@ private:
 public:
   /**
    * @brief Constructs a gamma distribution from shape and scale.
+   *
+   * Precomputes the Marsaglia-Tsang constants for the effective alpha, which
+   * is always at least one: \p shape itself when it is at least one, or
+   * \p shape + 1 for the boost path used below it.
    *
    * @param shape Shape parameter alpha; controls the distribution's
    *              skew. The mean is \c shape * scale.

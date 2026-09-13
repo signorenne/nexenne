@@ -66,13 +66,13 @@ namespace nexenne::random {
 template <std::floating_point T = double>
 class discrete_distribution {
 public:
-  using value_type = T;
-  using size_type = std::size_t;
+  using value_type = T;           ///< Floating-point weight type.
+  using size_type = std::size_t;  ///< Type of outcome indices and counts.
 
 private:
   std::vector<T> m_cumulative{};
   T m_total{T{0}};
-  size_type m_last_positive{0};  // the slack fallback's pick, never a zero weight
+  size_type m_last_positive{0};  ///< Last positive-weight index, the rounding fallback of sample.
 
 public:
   /**
@@ -153,7 +153,12 @@ public:
    * @brief Draws one outcome index proportional to its weight.
    *
    * Scales a uniform draw by the total weight and binary-searches the
-   * cumulative table.
+   * cumulative table with \c upper_bound, so outcome \c i owns the half-open
+   * interval \c [cumulative[i-1], cumulative[i]) and a zero-weight outcome is
+   * never selected, even for a zero draw. A draw just below one can round the
+   * target up to the total (for \c float, any draw in \c [1 - 2^-25, 1)); that
+   * case falls back to the last positive-weight outcome, never a trailing zero
+   * weight.
    *
    * @tparam G Engine type satisfying \c rng_engine.
    * @param g Engine to draw a uniform from.

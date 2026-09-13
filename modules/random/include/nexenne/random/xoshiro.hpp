@@ -44,8 +44,8 @@ namespace nexenne::random {
  */
 class xoshiro256ss {
 public:
-  using result_type = std::uint64_t;
-  using value_type = result_type;
+  using result_type = std::uint64_t;  ///< 64-bit output word produced by each next() call.
+  using value_type = result_type;     ///< Same as result_type: the engine's output word.
 
 private:
   /**

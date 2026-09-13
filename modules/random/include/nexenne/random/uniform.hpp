@@ -40,7 +40,10 @@ namespace nexenne::random {
  *
  * A \c rng_engine exposes an unsigned-integral \c result_type and a
  * \c next() member returning that type. Both \c pcg32 and
- * \c xoshiro256ss satisfy it out of the box.
+ * \c xoshiro256ss satisfy it out of the box. The \c result_type must be 32
+ * or 64 bits wide: the samplers assemble draws (a 53-bit mantissa included)
+ * from 32- or 64-bit chunks, so a narrower word would silently confine the
+ * output range and is rejected instead.
  *
  * @tparam G Candidate engine type.
  *
