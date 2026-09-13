@@ -181,4 +181,18 @@ TEST_CASE("nexenne::chrono::hertz_from guards a product overflow without UB (m1)
   CHECK(ch::hertz_from(std::chrono::milliseconds{1}) == 1000);
 }
 
+TEST_CASE("nexenne::chrono::hertz_from inverts a floating period below one tick") {
+  CHECK(ch::hertz_from(std::chrono::duration<double>{0.5}) == 2);
+  CHECK(ch::hertz_from(std::chrono::duration<double, std::milli>{0.25}) == 4000);
+  CHECK(
+    ch::hertz_from(std::chrono::duration<double>{1e-30})
+    == std::numeric_limits<std::uint64_t>::max()
+  );
+  CHECK(
+    ch::hertz_from(std::chrono::duration<double>{std::numeric_limits<double>::quiet_NaN()}) == 0
+  );
+}
+
+static_assert(ch::hertz_from(std::chrono::duration<double>{0.5}) == 2);
+
 }  // namespace

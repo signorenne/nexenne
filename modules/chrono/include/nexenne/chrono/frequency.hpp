@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <limits>
 #include <ratio>
+#include <type_traits>
 
 namespace nexenne::chrono {
 
@@ -74,16 +75,27 @@ template <typename F>
  * @tparam Period Tick-period ratio of \p period.
  * @param period The period to invert.
  *
- * @return The frequency in hertz, or zero when \p period is not positive.
+ * @return The frequency in hertz, truncated, saturated at the \c std::uint64_t
+ *         maximum, or zero when \p period is not positive (or is NaN).
  *
  * @pre None.
  * @post None.
  */
 template <typename Rep, typename Period>
+  requires std::is_arithmetic_v<Rep>
 [[nodiscard]] constexpr auto hertz_from(std::chrono::duration<Rep, Period> const period) noexcept
   -> std::uint64_t {
-  if (period.count() <= 0) {
+  if (!(period.count() > 0)) {  // negated so a NaN count also returns zero
     return 0;
+  }
+  if constexpr (std::is_floating_point_v<Rep>) {
+    // Floating point: a fractional count truncates to zero below, a division by zero.
+    auto const hz{
+      static_cast<long double>(Period::den)
+      / (static_cast<long double>(Period::num) * static_cast<long double>(period.count()))
+    };
+    constexpr auto limit{static_cast<long double>(std::numeric_limits<std::uint64_t>::max())};
+    return hz >= limit ? std::numeric_limits<std::uint64_t>::max() : static_cast<std::uint64_t>(hz);
   }
   // freq = 1 / (count * seconds-per-tick) = Period::den / (Period::num * count),
   // evaluated as a single division so the intermediate is not truncated twice.
