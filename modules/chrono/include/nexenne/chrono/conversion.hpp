@@ -29,6 +29,7 @@
 #include <concepts>
 #include <cstdint>
 #include <limits>
+#include <ratio>
 #include <type_traits>
 
 #include <nexenne/chrono/concepts.hpp>
@@ -82,6 +83,79 @@ template <std::integral Int>
 
 /// @endcond
 
+/**
+ * @brief \c c times \c N/D, truncated toward zero, saturated into \p Int.
+ *
+ * The exact result \c duration_cast would compute for an integral count, but
+ * without its intermediate \c c*N, which overflows (undefined behaviour) for a
+ * large count whenever \c N is above one, whether the target unit is finer or
+ * a non-integral fraction of the source. The magnitude is split as
+ * \c q*D + r, so \c q*N is checked against the bound before it is formed and
+ * \c r*N stays below \c N*D. The sign is handled separately, so an unsigned
+ * source never meets a negative bound.
+ *
+ * @tparam Int Target integer type.
+ * @tparam N Numerator of the source-to-target period ratio, positive.
+ * @tparam D Denominator of the source-to-target period ratio, positive.
+ * @tparam Rep Integral source count type.
+ * @param c Source count.
+ *
+ * @return \c trunc(c * N / D), clamped to the range of \p Int.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::integral Int, std::intmax_t N, std::intmax_t D, std::integral Rep>
+[[nodiscard]] constexpr auto scale_saturate(Rep const c) noexcept -> Int {
+  static_assert(N > 0 && D > 0, "a period ratio is positive");
+  using U = std::uintmax_t;
+  constexpr auto un{static_cast<U>(N)};
+  constexpr auto ud{static_cast<U>(D)};
+  static_assert(
+    un <= std::numeric_limits<U>::max() / ud, "period ratio too extreme to scale exactly"
+  );
+  using lim = std::numeric_limits<Int>;
+
+  bool negative{false};
+  U magnitude{0};
+  if constexpr (std::is_signed_v<Rep>) {
+    negative = c < 0;
+    // -(c + 1) + 1 avoids negating the minimum.
+    magnitude = negative ? static_cast<U>(-(c + 1)) + 1U : static_cast<U>(c);
+  } else {
+    magnitude = static_cast<U>(c);
+  }
+  if (negative && std::is_unsigned_v<Int>) {
+    return Int{0};
+  }
+  auto bound{static_cast<U>(lim::max())};
+  if constexpr (std::is_signed_v<Int>) {
+    if (negative) {
+      bound += 1U;  // |min| is one more than max
+    }
+  }
+  auto const q{magnitude / ud};
+  auto const r{magnitude % ud};
+  auto const saturated{[&]() noexcept -> Int { return negative ? lim::min() : lim::max(); }};
+  if (q > bound / un) {
+    return saturated();
+  }
+  auto const high{q * un};
+  auto const low{(r * un) / ud};
+  if (low > bound - high) {
+    return saturated();
+  }
+  auto const total{high + low};
+  if (!negative) {
+    return static_cast<Int>(total);
+  }
+  if (total == 0U) {
+    return Int{0};
+  }
+  // total <= |min|: step back from -(total - 1) so -|min| never overflows.
+  return static_cast<Int>(-static_cast<Int>(total - 1U) - 1);
+}
+
 }  // namespace detail
 
 /**
@@ -113,8 +187,6 @@ template <std::integral Int>
  */
 template <std::integral Int, chrono_duration ToDur, chrono_duration FromDur>
 [[nodiscard]] constexpr auto to_count_sat(FromDur const d) noexcept -> Int {
-  using lim = std::numeric_limits<Int>;
-
   // A floating-point source goes through a long double duration so a NaN or
   // infinity is saturated (NaN to 0) rather than cast to an integer ToDur,
   // which would be undefined behaviour and silently lose the NaN.
@@ -122,64 +194,14 @@ template <std::integral Int, chrono_duration ToDur, chrono_duration FromDur>
     using fdur = std::chrono::duration<long double, typename ToDur::period>;
     return detail::saturate_from_ld<Int>(std::chrono::duration_cast<fdur>(d).count());
   } else {
-    // Clamp the source duration into the ToDur-representable range before the
-    // cast. When ToDur is finer than FromDur (a coarse-to-fine conversion,
-    // e.g. seconds -> microseconds) duration_cast multiplies the count by the
-    // unit ratio in the source rep, which overflows for a large d (undefined
-    // behaviour) before any saturation can run. Bounding d by the FromDur
-    // images of ToDur::max()/min() keeps that multiply in range; the clamped
-    // count then saturates into Int below exactly as an in-range one would.
-    auto clamped{d};
-    if constexpr (std::is_integral_v<typename ToDur::rep>
-                  && std::ratio_greater_v<typename FromDur::period, typename ToDur::period>) {
-      constexpr auto hi{std::chrono::duration_cast<FromDur>(ToDur::max())};
-      constexpr auto lo{std::chrono::duration_cast<FromDur>(ToDur::min())};
-      if (clamped > hi) {
-        clamped = hi;
-      } else if (clamped < lo) {
-        clamped = lo;
-      }
-    }
-    auto const c{std::chrono::duration_cast<ToDur>(clamped).count()};
-    using C = decltype(c);
-
-    if constexpr (std::is_floating_point_v<C>) {
-      return detail::saturate_from_ld<Int>(static_cast<long double>(c));
-    } else if constexpr (std::is_unsigned_v<Int>) {
-      if constexpr (std::is_signed_v<C>) {
-        if (c <= C{0}) {
-          return Int{0};
-        }
-        using UC = std::make_unsigned_t<C>;
-        using W = std::common_type_t<UC, std::uintmax_t>;
-        auto const wc{static_cast<W>(static_cast<UC>(c))};
-        auto const wmax{static_cast<W>(lim::max())};
-        return wc > wmax ? lim::max() : static_cast<Int>(wc);
-      } else {
-        using W = std::common_type_t<C, std::uintmax_t>;
-        auto const wc{static_cast<W>(c)};
-        auto const wmax{static_cast<W>(lim::max())};
-        return wc > wmax ? lim::max() : static_cast<Int>(wc);
-      }
+    if constexpr (std::is_floating_point_v<typename ToDur::rep>) {
+      return detail::saturate_from_ld<Int>(
+        static_cast<long double>(std::chrono::duration_cast<ToDur>(d).count())
+      );
     } else {
-      if constexpr (std::is_unsigned_v<C>) {
-        using UW = std::common_type_t<C, std::make_unsigned_t<Int>, std::uintmax_t>;
-        auto const wc{static_cast<UW>(c)};
-        auto const wmax{static_cast<UW>(lim::max())};
-        return wc > wmax ? lim::max() : static_cast<Int>(wc);
-      } else {
-        using W = std::common_type_t<C, Int, std::intmax_t>;
-        auto const wc{static_cast<W>(c)};
-        auto const wmin{static_cast<W>(lim::min())};
-        auto const wmax{static_cast<W>(lim::max())};
-        if (wc < wmin) {
-          return lim::min();
-        }
-        if (wc > wmax) {
-          return lim::max();
-        }
-        return static_cast<Int>(wc);
-      }
+      // Not duration_cast: its count * num intermediate overflows (UB) for a large count.
+      using ratio = std::ratio_divide<typename FromDur::period, typename ToDur::period>;
+      return detail::scale_saturate<Int, ratio::num, ratio::den>(d.count());
     }
   }
 }

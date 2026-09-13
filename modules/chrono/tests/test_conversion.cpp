@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstdint>
 #include <limits>
+#include <ratio>
 
 #include <nexenne/chrono/conversion.hpp>
 
@@ -256,5 +257,50 @@ TEST_CASE("nexenne::chrono::to_count_sat coarse-to-fine clamp is usable at compi
   static_assert(v == std::numeric_limits<std::uint32_t>::max());
   CHECK(v == std::numeric_limits<std::uint32_t>::max());
 }
+
+TEST_CASE("nexenne::chrono::to_count_sat converts an unsigned source rep exactly") {
+  using u64_seconds = std::chrono::duration<std::uint64_t>;
+  CHECK(ch::to_count_sat<std::uint32_t, std::chrono::microseconds>(u64_seconds{5}) == 5'000'000U);
+  CHECK(ch::to_count_sat<std::int64_t, std::chrono::microseconds>(u64_seconds{5}) == 5'000'000);
+  CHECK(
+    ch::to_count_sat<std::uint64_t, std::chrono::milliseconds>(
+      std::chrono::duration<std::uint32_t>{std::numeric_limits<std::uint32_t>::max()}
+    )
+    == std::uint64_t{std::numeric_limits<std::uint32_t>::max()} * 1000U
+  );
+  CHECK(
+    ch::to_count_sat<std::int32_t, std::chrono::nanoseconds>(
+      std::chrono::duration<std::uint64_t>{std::numeric_limits<std::uint64_t>::max()}
+    )
+    == std::numeric_limits<std::int32_t>::max()
+  );
+}
+
+TEST_CASE("nexenne::chrono::to_count_sat saturates into a non-integral tick period") {
+  // 32.768 kHz: one tick is 1e9 / 32768 = 1953125 / 64 ns.
+  using rtc_tick = std::chrono::duration<std::int64_t, std::ratio<1, 32768>>;
+  CHECK(
+    ch::to_count_sat<std::uint32_t, rtc_tick>(std::chrono::nanoseconds::max())
+    == std::numeric_limits<std::uint32_t>::max()
+  );
+  CHECK(
+    ch::to_count_sat<std::int64_t, rtc_tick>(std::chrono::nanoseconds::max())
+    == std::chrono::nanoseconds::max().count() / 1'953'125 * 64
+         + (std::chrono::nanoseconds::max().count() % 1'953'125) * 64 / 1'953'125
+  );
+  CHECK(ch::to_count_sat<std::int64_t, rtc_tick>(std::chrono::seconds{1}) == 32768);
+  CHECK(ch::to_count_sat<std::int64_t, rtc_tick>(std::chrono::nanoseconds{-30'518}) == -1);
+  CHECK(
+    ch::to_count_sat<std::int32_t, rtc_tick>(std::chrono::nanoseconds::min())
+    == std::numeric_limits<std::int32_t>::min()
+  );
+}
+
+static_assert(
+  ch::to_count_sat<std::int64_t, std::chrono::duration<std::int64_t, std::ratio<1, 32768>>>(
+    std::chrono::nanoseconds::max()
+  )
+  > 0
+);
 
 }  // namespace
