@@ -9,6 +9,7 @@
 #include <chrono>
 #include <format>
 #include <limits>
+#include <memory>
 #include <string>
 
 #include <nexenne/chrono/alarm.hpp>
@@ -953,6 +954,31 @@ TEST_CASE("nexenne::chrono::rate_limiter until_next_token is unreachable above c
   auto const wait{rl2.until_next_token(5.0)};
   CHECK(wait > clk::duration::zero());
   CHECK(wait != clk::duration::max());
+}
+
+TEST_CASE("nexenne::chrono::alarm callback can replace itself while it runs") {
+  // set_callback from inside the callback used to destroy the running closure
+  // in place, so reading its captures afterwards was a use-after-destroy.
+  using clk = ch::basic_manual_clock<struct al_self_replace_tag>;
+  clk::reset();
+  ch::alarm<clk> a;
+  int first{0};
+  int second{0};
+  int seen{0};
+  a.set_callback([&a, &first, &second, &seen, payload = std::make_unique<int>(42)] {
+    ++first;
+    a.set_callback([&second] { ++second; });
+    seen = *payload;
+  });
+  a.arm_periodic(clk::now(), 10ms);
+  clk::advance(10ms);
+  a.poll(clk::now());
+  CHECK(first == 1);
+  CHECK(seen == 42);
+  clk::advance(10ms);
+  a.poll(clk::now());
+  CHECK(first == 1);
+  CHECK(second == 1);
 }
 
 }  // namespace

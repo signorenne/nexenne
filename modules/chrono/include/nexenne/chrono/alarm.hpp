@@ -26,6 +26,7 @@
  * @tparam CallbackBytes Inline storage for the callback (default 64)
  */
 
+#include <cstdint>
 #include <utility>
 
 #include <nexenne/chrono/concepts.hpp>
@@ -77,6 +78,7 @@ public:
 
 private:
   callback_type m_cb{};
+  std::uint32_t m_cb_epoch{0};  // bumped by set_callback, so poll sees a swap
   time_point m_next{};
   duration m_period{duration::zero()};
   alarm_mode m_mode{alarm_mode::one_shot};
@@ -104,6 +106,7 @@ public:
    */
   auto set_callback(callback_type cb) noexcept -> void {
     m_cb = std::move(cb);
+    ++m_cb_epoch;
   }
 
   /**
@@ -232,14 +235,10 @@ public:
         // of being clobbered by a post-call disarm. The callback then owns the
         // armed state on return.
         m_armed = false;
-        if (m_cb) {
-          m_cb();
-        }
+        fire();
         return;
       }
-      if (m_cb) {
-        m_cb();
-      }
+      fire();
       m_next += m_period;
       // A zero or negative period would never advance past now: disarm rather
       // than spin forever (and overflow m_next on a negative period).
@@ -248,6 +247,41 @@ public:
         return;
       }
     }
+  }
+
+private:
+  /**
+   * @brief Runs the stored callback from a local copy of it.
+   *
+   * The callback lives in inline storage, so a \c set_callback made from
+   * inside it would otherwise destroy the closure that is still running. It is
+   * moved out first, and moved back afterwards (also when it throws) only if no
+   * new callback was set while it ran.
+   *
+   * @pre None.
+   * @post The stored callback is the one that ran, or the one it installed.
+   * @throws Whatever the callback throws.
+   */
+  auto fire() -> void {
+    if (!m_cb) {
+      return;
+    }
+
+    struct restore {
+      alarm& self;
+      callback_type& running;
+      std::uint32_t epoch;
+
+      ~restore() {
+        if (self.m_cb_epoch == epoch) {
+          self.m_cb = std::move(running);
+        }
+      }
+    };
+
+    auto running{std::move(m_cb)};
+    restore const guard{*this, running, m_cb_epoch};
+    running();
   }
 };
 
