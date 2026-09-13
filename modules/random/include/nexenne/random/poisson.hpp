@@ -61,7 +61,6 @@ public:
    * @note Not \c constexpr: \c std::exp is not usable in a constant expression
    *       before C++26.
    */
-  // Not constexpr: std::exp is not usable in a constant expression before C++26.
   explicit poisson_distribution(double const lambda = 1.0) noexcept
       : m_lambda{lambda}, m_exp_neg_lambda{lambda < 30.0 ? std::exp(-lambda) : 0.0} {
     assert(
@@ -125,9 +124,7 @@ public:
     if (!(x > 0.0)) {
       return T{0};
     }
-    // Saturate before the cast: converting a double beyond T's range is
-    // undefined behaviour, so clamp a value that overflows T to its maximum
-    // rather than letting it wrap or trap.
+    // Saturate before the cast: converting a double beyond T's range is UB.
     auto const rounded{x + 0.5};
     if (rounded >= static_cast<double>(std::numeric_limits<T>::max())) {
       return std::numeric_limits<T>::max();

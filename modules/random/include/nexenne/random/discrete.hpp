@@ -178,12 +178,7 @@ public:
       return m_cumulative.size();
     }
     auto const target{static_cast<T>(uniform_real(g)) * m_total};
-    // upper_bound (first cumulative strictly greater than target), not
-    // lower_bound: index i is selected iff cumulative[i-1] <= target <
-    // cumulative[i], so it owns the half-open interval
-    // [cumulative[i-1], cumulative[i]). A zero-weight outcome (an equal
-    // cumulative run) is therefore never selected, including the target == 0
-    // case that uniform_real can produce.
+    // upper_bound, not lower_bound: lower_bound would select a zero-weight outcome.
     auto const it{std::ranges::upper_bound(m_cumulative, target)};
     if (it == m_cumulative.end()) {
       return m_last_positive;

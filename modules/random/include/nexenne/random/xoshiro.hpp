@@ -154,8 +154,6 @@ public:
    */
   [[nodiscard]] static constexpr auto from_state(std::array<std::uint64_t, 4> const& state) noexcept
     -> xoshiro256ss {
-    // Confined to the runtime path so a valid constant-evaluated restore stays
-    // well formed, matching the utility::non_null precedent.
     if !consteval {
       // Comparand inline, not a named local: the local would be unused under NDEBUG.
       assert(

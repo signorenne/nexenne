@@ -116,8 +116,6 @@ public:
    */
   [[nodiscard]] static constexpr auto
   from_state(std::uint64_t const state, std::uint64_t const stream) noexcept -> pcg32 {
-    // Confined to the runtime path so a valid constant-evaluated restore stays
-    // well formed, matching the utility::non_null precedent.
     if !consteval {
       assert((stream & 1u) != 0u && "pcg32::from_state stream increment must be odd");
     }

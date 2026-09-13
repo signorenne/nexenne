@@ -120,13 +120,7 @@ public:
       m_has_cached = false;
       return m_mean + m_stddev * m_cached;
     }
-    // Box-Muller (trigonometric form). \c u1 must be > 0
-    // since we take its log; the engine virtually never
-    // returns exactly zero, but guard anyway.
-    // Computed in T, so a float distribution runs single-precision maths (a
-    // single-precision FPU would otherwise emulate the double log); for double
-    // the expressions are unchanged. The zero guard follows the conversion,
-    // which can underflow a tiny draw to zero.
+    // Box-Muller, trigonometric form. Guard zero after the cast: it can underflow u1.
     auto u1{static_cast<T>(uniform_real(g))};
     if (u1 == T{0}) {
       u1 = std::numeric_limits<T>::min();

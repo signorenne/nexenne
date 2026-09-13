@@ -62,7 +62,6 @@ private:
    */
   template <rng_engine Engine>
   [[nodiscard]] static auto sample_unit_normal(Engine& engine) noexcept -> T {
-    // Box-Muller (one variate per call, wastes the second).
     T u1{};
     do {
       u1 = static_cast<T>(uniform_real(engine));
@@ -89,7 +88,6 @@ private:
    */
   template <rng_engine Engine>
   [[nodiscard]] auto sample_marsaglia_tsang(Engine& engine) const noexcept -> T {
-    // Marsaglia-Tsang for the cached effective alpha (>= 1).
     while (true) {
       T x{};
       T v{};
@@ -127,8 +125,6 @@ public:
   explicit gamma_distribution(T const shape = T{1}, T const scale = T{1}) noexcept
       : m_shape{shape}, m_scale{scale} {
     assert(shape > T{0} && scale > T{0} && "gamma_distribution shape and scale must be positive");
-    // The Marsaglia-Tsang core always runs at an alpha of at least one: shape
-    // itself when shape >= 1, or shape + 1 for the boost path used below it.
     auto const effective_alpha{shape >= T{1} ? shape : shape + T{1}};
     m_d = effective_alpha - T{1} / T{3};
     m_c = T{1} / std::sqrt(T{9} * m_d);
@@ -180,8 +176,7 @@ public:
     if (m_shape >= T{1}) {
       return m_scale * sample_marsaglia_tsang(engine);
     }
-    // Boost: sample Gamma(alpha+1, 1) * U^(1/alpha), then scale. The cached
-    // m_d/m_c were computed for the effective alpha = shape + 1.
+    // Marsaglia boost: Gamma(alpha) = Gamma(alpha + 1) * U^(1/alpha), then scale.
     auto const g{sample_marsaglia_tsang(engine)};
     T u{};
     do {

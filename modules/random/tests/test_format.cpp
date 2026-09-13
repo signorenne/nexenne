@@ -16,7 +16,7 @@ namespace {
 
 namespace rnd = nexenne::random;
 
-TEST_CASE("engine to_string names the engine and prints its hex state") {
+TEST_CASE("engine to_string names the engine and prints its hex state and stream") {
   rnd::pcg32 const g{42, 54};
   auto const text{rnd::to_string(g)};
   CHECK(text.starts_with("pcg32(state=0x"));

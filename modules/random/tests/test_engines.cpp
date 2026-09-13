@@ -25,10 +25,10 @@ TEST_CASE("nexenne::random::xoshiro256ss is deterministic for a fixed seed") {
   rnd::xoshiro256ss a{12345};
   rnd::xoshiro256ss b{12345};
   for (int i{0}; i < 100; ++i) {
-    CHECK(a.next() == b.next());  // same seed, identical sequence
+    CHECK(a.next() == b.next());
   }
   rnd::xoshiro256ss c{99999};
-  CHECK(a.next() != c.next());  // different seed diverges (overwhelmingly likely)
+  CHECK(a.next() != c.next());
 }
 
 TEST_CASE("nexenne::random::xoshiro256ss zero seed is replaced, never stuck at zero") {
@@ -39,12 +39,10 @@ TEST_CASE("nexenne::random::xoshiro256ss zero seed is replaced, never stuck at z
       any_nonzero = true;
     }
   }
-  CHECK(any_nonzero);  // zero seed does not trap the engine in the all-zero state
+  CHECK(any_nonzero);
 }
 
 TEST_CASE("nexenne::random::xoshiro256ss jump and long_jump carve distinct deterministic streams") {
-  // jump() advances by 2^128 steps: a jumped copy must diverge from the original,
-  // and the jump itself must be deterministic (same seed + same jump -> same).
   rnd::xoshiro256ss base{777};
   rnd::xoshiro256ss jumped{777};
   jumped.jump();
@@ -54,19 +52,19 @@ TEST_CASE("nexenne::random::xoshiro256ss jump and long_jump carve distinct deter
       ++same;
     }
   }
-  CHECK(same < 3);  // the two streams are effectively non-overlapping
+  CHECK(same < 3);
 
   rnd::xoshiro256ss a{777};
   rnd::xoshiro256ss b{777};
   a.jump();
   b.jump();
-  CHECK(a.next() == b.next());  // jump is deterministic
+  CHECK(a.next() == b.next());
 
   rnd::xoshiro256ss lj{777};
   lj.long_jump();
   rnd::xoshiro256ss j2{777};
   j2.jump();
-  CHECK(lj.next() != j2.next());  // long_jump lands somewhere other than jump
+  CHECK(lj.next() != j2.next());
 }
 
 TEST_CASE("nexenne::random::pcg32 is deterministic and streams are independent") {
@@ -75,7 +73,6 @@ TEST_CASE("nexenne::random::pcg32 is deterministic and streams are independent")
   for (int i{0}; i < 100; ++i) {
     CHECK(a.next() == b.next());
   }
-  // same state, different stream selector -> independent sequences
   rnd::pcg32 s0{42, 1};
   rnd::pcg32 s1{42, 2};
   int matches{0};
@@ -84,7 +81,7 @@ TEST_CASE("nexenne::random::pcg32 is deterministic and streams are independent")
       ++matches;
     }
   }
-  CHECK(matches < 5);  // essentially uncorrelated
+  CHECK(matches < 5);
 }
 
 TEST_CASE("nexenne::random::pcg32 default construction is reproducible") {
@@ -101,21 +98,16 @@ TEST_CASE("nexenne::random::seed helpers are deterministic and cross-platform st
   CHECK(rnd::seed_from_string("hello") == rnd::seed_from_string("hello"));
   CHECK(rnd::seed_from_string("hello") != rnd::seed_from_string("world"));
 
-  // seed_sequence derives N distinct, deterministic seeds from one master
   constexpr auto seeds{rnd::seed_sequence<4>(0xABCDEF)};
   CHECK(seeds[0] != seeds[1]);
   CHECK(seeds[1] != seeds[2]);
-  CHECK(rnd::seed_sequence<4>(0xABCDEF) == seeds);  // reproducible
+  CHECK(rnd::seed_sequence<4>(0xABCDEF) == seeds);
 }
 
 TEST_CASE(
   "nexenne::random::xoshiro256ss matches the canonical reference vector for state {1,2,3,4}"
 ) {
-  // The reference xoshiro256** C implementation (Blackman & Vigna) initialised
-  // with the canonical raw state s = {1, 2, 3, 4} emits this exact sequence.
-  // from_state installs the raw lanes verbatim, so this drives the real engine
-  // class against the published literals as a third-party oracle that guards
-  // the core transform (not a local reimplementation).
+  // Output of the Blackman and Vigna reference C code from the raw state {1, 2, 3, 4}.
   auto ref{rnd::xoshiro256ss::from_state({1, 2, 3, 4})};
   std::array<std::uint64_t, 8> const canonical{
     0x0000000000002d00ULL,
@@ -128,14 +120,11 @@ TEST_CASE(
     0x75a1690ef7a20380ULL
   };
   for (auto const expected : canonical) {
-    CHECK(ref.next() == expected);  // matches the published xoshiro256** reference
+    CHECK(ref.next() == expected);
   }
 }
 
 TEST_CASE("nexenne::random::xoshiro256ss seeded sequence is a fixed determinism baseline") {
-  // Baseline captured from the engine's own current output for seed 12345.
-  // These are not a third-party reference vector (the SplitMix64 seeding is this
-  // library's choice); they exist so any future algorithm change is caught.
   rnd::xoshiro256ss e{12345};
   std::array<std::uint64_t, 8> const expected{
     0xbe6a36374160d49bULL,
@@ -153,7 +142,6 @@ TEST_CASE("nexenne::random::xoshiro256ss seeded sequence is a fixed determinism 
 }
 
 TEST_CASE("nexenne::random::xoshiro256ss default construction is deterministic and documented") {
-  // Default ctor seeds with the golden-ratio constant, so it is reproducible.
   rnd::xoshiro256ss a;
   rnd::xoshiro256ss b;
   for (int i{0}; i < 16; ++i) {
@@ -166,8 +154,6 @@ TEST_CASE("nexenne::random::xoshiro256ss default construction is deterministic a
   for (auto const v : expected) {
     CHECK(def.next() == v);
   }
-  // The golden-ratio seed equals seed 0's substitute and the default ctor, so
-  // all three share one initial state and one sequence.
   rnd::xoshiro256ss golden{0x9e3779b97f4a7c15ULL};
   rnd::xoshiro256ss zero{0};
   rnd::xoshiro256ss again;
@@ -179,14 +165,13 @@ TEST_CASE("nexenne::random::xoshiro256ss default construction is deterministic a
 TEST_CASE(
   "nexenne::random::pcg32 matches O'Neill's canonical reference vector (state 42, seq 54)"
 ) {
-  // The PCG demo program seeds pcg32_srandom_r(&rng, 42u, 54u) and prints these
-  // exact 32-bit outputs. This is the published canonical reference vector.
+  // Output of the PCG demo program after pcg32_srandom_r(&rng, 42u, 54u).
   rnd::pcg32 e{42, 54};
   std::array<std::uint32_t, 6> const canonical{
     0xa15c02b7u, 0x7b47f409u, 0xba1d3330u, 0x83d2f293u, 0xbfa4784bu, 0xcbed606eu
   };
   for (auto const v : canonical) {
-    CHECK(e.next() == v);  // matches the published PCG reference
+    CHECK(e.next() == v);
   }
 }
 
@@ -211,7 +196,7 @@ TEST_CASE("nexenne::random::pcg32 default construction matches its documented co
   rnd::pcg32 def;
   rnd::pcg32 explicit_default{rnd::pcg32::default_state, rnd::pcg32::default_sequence};
   for (int i{0}; i < 16; ++i) {
-    CHECK(def.next() == explicit_default.next());  // default == documented constants
+    CHECK(def.next() == explicit_default.next());
   }
   rnd::pcg32 baseline;
   std::array<std::uint32_t, 4> const expected{0x1bbeb4f2u, 0xe82e89e9u, 0x681cfdebu, 0xe00fa2ecu};
@@ -235,12 +220,12 @@ TEST_CASE("nexenne::random::xoshiro256ss uses the full 64-bit width (high bits v
   std::uint64_t high_and{~std::uint64_t{0}};
   for (int i{0}; i < 256; ++i) {
     auto const v{e.next()};
-    auto const top{v >> 56u};  // top byte
+    auto const top{v >> 56u};
     high_or |= top;
     high_and &= top;
   }
-  CHECK(high_or == 0xFFu);  // every high bit set at least once
-  CHECK(high_and == 0u);    // every high bit clear at least once
+  CHECK(high_or == 0xFFu);
+  CHECK(high_and == 0u);
 }
 
 TEST_CASE("nexenne::random::pcg32 uses the full 32-bit width (high bits vary)") {
@@ -249,7 +234,7 @@ TEST_CASE("nexenne::random::pcg32 uses the full 32-bit width (high bits vary)") 
   std::uint32_t high_and{~std::uint32_t{0}};
   for (int i{0}; i < 256; ++i) {
     auto const v{e.next()};
-    auto const top{v >> 24u};  // top byte
+    auto const top{v >> 24u};
     high_or |= top;
     high_and &= top;
   }
@@ -276,8 +261,6 @@ TEST_CASE("nexenne::random::engines operator() is identical to next()") {
 }
 
 TEST_CASE("nexenne::random::engines drive a std::<random> distribution") {
-  // Real interop: feeding the engine to a standard distribution must compile
-  // and stay reproducible.
   rnd::pcg32 a{1234, 5};
   rnd::pcg32 b{1234, 5};
   std::uniform_int_distribution<int> dist{0, 99};
@@ -293,12 +276,12 @@ TEST_CASE("nexenne::random::engines drive a std::<random> distribution") {
 TEST_CASE("nexenne::random::xoshiro256ss copy continues the identical sequence") {
   rnd::xoshiro256ss src{0xABCDEF};
   for (int i{0}; i < 13; ++i) {
-    nexenne::utility::ignore(src.next());  // advance partway
+    nexenne::utility::ignore(src.next());
   }
-  rnd::xoshiro256ss copy{src};         // copy mid-stream
-  CHECK(copy.state() == src.state());  // state() fully captures position
+  rnd::xoshiro256ss copy{src};
+  CHECK(copy.state() == src.state());
   for (int i{0}; i < 50; ++i) {
-    CHECK(copy.next() == src.next());  // both continue in lockstep
+    CHECK(copy.next() == src.next());
   }
 }
 
@@ -318,10 +301,10 @@ TEST_CASE("nexenne::random::xoshiro256ss state() reflects advancement and equal 
   rnd::xoshiro256ss a{4242};
   auto const s0{a.state()};
   nexenne::utility::ignore(a.next());
-  CHECK(a.state() != s0);  // a single step changes the visible state
+  CHECK(a.state() != s0);
 
   rnd::xoshiro256ss fresh{4242};
-  CHECK(fresh.state() == s0);  // same seed -> same initial state
+  CHECK(fresh.state() == s0);
 }
 
 TEST_CASE("nexenne::random::pcg32 advance(n) equals n single steps") {
@@ -345,10 +328,9 @@ TEST_CASE("nexenne::random::pcg32 advance with a negative delta runs the sequenc
   for (int i{0}; i < 5; ++i) {
     nexenne::utility::ignore(e.next());
   }
-  e.advance(-5);  // unwind the five forward steps
+  e.advance(-5);
   CHECK(e.state() == start);
 
-  // advance(n) then advance(-n) is a round trip.
   rnd::pcg32 r{7, 2};
   auto const before{r.state()};
   r.advance(1000);
@@ -359,7 +341,7 @@ TEST_CASE("nexenne::random::pcg32 advance with a negative delta runs the sequenc
 TEST_CASE("nexenne::random::xoshiro256ss jump output is a fixed deterministic baseline") {
   rnd::xoshiro256ss e{777};
   e.jump();
-  CHECK(e.next() == 0x8b54fac931e581e8ULL);  // determinism regression baseline
+  CHECK(e.next() == 0x8b54fac931e581e8ULL);
 }
 
 TEST_CASE("nexenne::random::xoshiro256ss long_jump is deterministic and repeatable") {
@@ -368,7 +350,7 @@ TEST_CASE("nexenne::random::xoshiro256ss long_jump is deterministic and repeatab
   a.long_jump();
   b.long_jump();
   for (int i{0}; i < 16; ++i) {
-    CHECK(a.next() == b.next());  // long_jump is deterministic
+    CHECK(a.next() == b.next());
   }
 }
 
@@ -380,45 +362,37 @@ TEST_CASE("nexenne::random::seed helpers produce fixed cross-platform-stable val
 
 TEST_CASE("nexenne::random::seed_sequence fills N seeds deterministically and divergently") {
   constexpr auto seeds{rnd::seed_sequence<4>(0xABCDEF)};
-  // Fixed baseline: a master seed maps to a fixed, ordered set of derived seeds.
   std::array<std::uint64_t, 4> const expected{
     0x049e1b5b34c8f397ULL, 0xa0b2e33c6948e69dULL, 0xae40d8d0ed69f9f8ULL, 0x09ea6986c0f117bbULL
   };
   CHECK(seeds == expected);
 
-  // All four derived seeds are distinct.
   for (std::size_t i{0}; i < seeds.size(); ++i) {
     for (std::size_t j{i + 1}; j < seeds.size(); ++j) {
       CHECK(seeds[i] != seeds[j]);
     }
   }
 
-  // Different masters give different seed sets.
   CHECK(rnd::seed_sequence<4>(0xABCDEF) != rnd::seed_sequence<4>(0xABCDEE));
 
-  // The first N of a longer sequence are a prefix of the shorter one
-  // (SplitMix64 is iterated forward from the master either way).
   constexpr auto two{rnd::seed_sequence<2>(0xABCDEF)};
   CHECK(two[0] == seeds[0]);
   CHECK(two[1] == seeds[1]);
 }
 
 TEST_CASE("nexenne::random::seed_sequence single-element and zero-master edge cases") {
-  // N == 1 is well-formed and stable.
   constexpr auto one{rnd::seed_sequence<1>(0)};
   CHECK(one[0] == 0xe220a8397b1dcdafULL);  // SplitMix64(0)
   CHECK(rnd::seed_sequence<1>(0) == one);
-  // A zero master still yields a non-zero seed (SplitMix64 has no zero fixpoint here).
   CHECK(one[0] != 0u);
 }
 
 TEST_CASE("nexenne::random::seed helpers handle empty input") {
   std::array<std::byte, 0> const empty{};
-  // Empty input returns the FNV offset basis untouched, identically for both helpers.
+  // 0xCBF29CE484222325 is the FNV offset basis, the untouched start state.
   CHECK(rnd::seed_from_bytes(empty) == 0xCBF29CE484222325ULL);
   CHECK(rnd::seed_from_string("") == 0xCBF29CE484222325ULL);
   CHECK(rnd::seed_from_bytes(empty) == rnd::seed_from_string(""));
-  // A single appended byte diverges from the empty seed.
   std::array<std::byte, 1> const one_byte{std::byte{0}};
   CHECK(rnd::seed_from_bytes(one_byte) != rnd::seed_from_bytes(empty));
 }
@@ -432,11 +406,9 @@ TEST_CASE("nexenne::random::seed helpers seed an engine and yield distinct strea
   rnd::xoshiro256ss a2{rnd::seed_from_string("scene-a")};
   rnd::xoshiro256ss b{s_b};
 
-  // Same string -> same engine stream.
   for (int i{0}; i < 16; ++i) {
     CHECK(a.next() == a2.next());
   }
-  // Different strings -> divergent streams.
   int matches{0};
   for (int i{0}; i < 64; ++i) {
     if (a.next() == b.next()) {
@@ -445,7 +417,6 @@ TEST_CASE("nexenne::random::seed helpers seed an engine and yield distinct strea
   }
   CHECK(matches < 3);
 
-  // seed_sequence can fan out one engine per derived seed without collision.
   constexpr auto fan{rnd::seed_sequence<3>(0xFEEDFACE)};
   rnd::xoshiro256ss e0{fan[0]};
   rnd::xoshiro256ss e1{fan[1]};
@@ -461,13 +432,13 @@ TEST_CASE("nexenne::random::seed helpers seed an engine and yield distinct strea
 TEST_CASE("nexenne::random::xoshiro256ss from_state restores a saved engine exactly") {
   rnd::xoshiro256ss src{0x1234567};
   for (int i{0}; i < 37; ++i) {
-    nexenne::utility::ignore(src.next());  // advance to an arbitrary mid-stream point
+    nexenne::utility::ignore(src.next());
   }
   auto const saved{src.state()};
   auto restored{rnd::xoshiro256ss::from_state(saved)};
-  CHECK(restored.state() == saved);  // raw lanes installed verbatim, no reseed
+  CHECK(restored.state() == saved);
   for (int i{0}; i < 64; ++i) {
-    CHECK(restored.next() == src.next());  // resumes the identical sequence
+    CHECK(restored.next() == src.next());
   }
 }
 
@@ -479,15 +450,14 @@ TEST_CASE("nexenne::random::pcg32 from_state restores a saved engine exactly") {
   auto const saved_state{src.state()};
   auto const saved_stream{src.stream()};
   auto restored{rnd::pcg32::from_state(saved_state, saved_stream)};
-  CHECK(restored.state() == saved_state);    // state word installed verbatim
-  CHECK(restored.stream() == saved_stream);  // stream increment installed verbatim
+  CHECK(restored.state() == saved_state);
+  CHECK(restored.stream() == saved_stream);
   for (int i{0}; i < 64; ++i) {
-    CHECK(restored.next() == src.next());  // resumes the identical sequence
+    CHECK(restored.next() == src.next());
   }
 }
 
 TEST_CASE("nexenne::random::engines from_state is usable in a constant expression") {
-  // Raw restore is constexpr: the assert is confined to the runtime path.
   constexpr auto x{rnd::xoshiro256ss::from_state({1, 2, 3, 4})};
   static_assert(x.state() == std::array<std::uint64_t, 4>{1, 2, 3, 4});
   constexpr auto p{rnd::pcg32::from_state(0x1234, 0x9ABD)};

@@ -75,7 +75,7 @@ namespace detail {
  */
 [[nodiscard]] constexpr auto seed_from_bytes(std::span<std::byte const> bytes) noexcept
   -> std::uint64_t {
-  std::uint64_t state{0xCBF29CE484222325ULL};  // FNV offset basis as the starting mix
+  std::uint64_t state{0xCBF29CE484222325ULL};
   for (auto const b : bytes) {
     state ^= static_cast<std::uint64_t>(b);
     state = detail::splitmix64(state);

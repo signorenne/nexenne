@@ -54,10 +54,6 @@ template <typename G>
 concept rng_engine = requires(G g) {
   typename G::result_type;
   requires std::unsigned_integral<typename G::result_type>;
-  // The samplers below assume a 32-bit or 64-bit word per draw (a 53-bit
-  // mantissa needs at least 32 bits, assembled in 32/64-bit chunks). A
-  // narrower result_type would silently confine the output range, so it is
-  // rejected here rather than producing broken draws.
   requires sizeof(typename G::result_type) == 4 || sizeof(typename G::result_type) == 8;
   { g.next() } -> std::same_as<typename G::result_type>;
 };
@@ -88,9 +84,6 @@ concept rng_engine = requires(G g) {
 template <std::integral Int, rng_engine G>
   requires(!std::same_as<std::remove_cv_t<Int>, bool>)
 [[nodiscard]] constexpr auto uniform_int(G& g, Int const lo, Int const hi) noexcept -> Int {
-  // Confined to the runtime path via \c if \c !consteval so a valid
-  // constant-evaluated draw stays well formed under UBSan instrumentation,
-  // matching the utility::non_null precedent.
   if !consteval {
     assert(lo <= hi && "uniform_int bounds: lo must be <= hi");
   }
@@ -99,9 +92,7 @@ template <std::integral Int, rng_engine G>
   auto const range{static_cast<U>(static_cast<U>(hi) - lo_u + U{1})};
 
   if (range == 0) {
-    // hi == max && lo == min: full-range, no rejection needed. Fill the full
-    // width of U: a 32-bit engine must be drawn twice to cover a 64-bit Int,
-    // otherwise the high word would be stuck at zero.
+    // Full range: fill all of U, or a 32-bit engine leaves a 64-bit high word at zero.
     using engine_u = typename G::result_type;
     auto bits{static_cast<U>(g.next())};
     if constexpr (sizeof(U) > sizeof(engine_u)) {

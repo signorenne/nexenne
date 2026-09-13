@@ -90,32 +90,17 @@ namespace {
  * @post Equal \p seed_phrase values give equal digests.
  */
 auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> std::uint64_t {
-  // An order-dependent FNV-1a mixing accumulator. Every interesting value gets
-  // folded in, so the digest captures the full run and its exact sequence.
+  // FNV-1a fold: XOR then multiply by the FNV prime, so the digest is order-sensitive.
   std::uint64_t digest{0xCBF29CE484222325ULL};
   auto const fold{[&digest](std::uint64_t const x) {
     digest ^= x;
-    digest *= 0x100000001B3ULL;  // FNV-1a prime: cheap, order-sensitive mixing
+    digest *= 0x100000001B3ULL;
   }};
 
-  // 1. Seeding.
-  //
-  // Designers think in names ("crypt-of-echoes"), not 64-bit integers.
-  // seed_from_string hashes the phrase into a stable seed with the same mixing
-  // on every toolchain, so the same dungeon name always yields the same
-  // dungeon - unlike std::seed_seq, whose output is implementation-defined.
-  //
-  // From that one master seed, seed_sequence<N> derives N *independent*
-  // sub-seeds via SplitMix64. Giving each subsystem its own engine means a
-  // change to, say, the loot logic (one extra draw) does not shift the monster
-  // or party streams: each subsystem is reproducible on its own.
   auto const master{rng::seed_from_string(seed_phrase)};
   constexpr std::size_t subsystems{4};
   auto const seeds{rng::seed_sequence<subsystems>(master)};
 
-  // xoshiro256ss is the 64-bit-native engine: a touch faster than pcg and ideal
-  // when we draw a lot (the Monte-Carlo step below). Zero is the one forbidden
-  // state, but the constructor substitutes it, so any sub-seed is safe.
   rng::xoshiro256ss layout_rng{seeds[0]};
   rng::xoshiro256ss loot_rng{seeds[1]};
   rng::xoshiro256ss monster_rng{seeds[2]};
@@ -130,16 +115,6 @@ auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> s
     std::println("  subsystem seeds   {} independent streams", subsystems);
   }
 
-  // 2. Room layout.
-  //
-  // uniform_int is the bias-free, portable replacement for
-  // std::uniform_int_distribution: closed range [lo, hi], Lemire's
-  // nearly-divisionless sampler, identical output everywhere.
-  //
-  // Room *kinds* are not equally likely - corridors are common, vaults rare -
-  // so a discrete_distribution over weights is the right tool. It builds a
-  // cumulative table once and samples in O(log N), and probability(i) lets us
-  // print the design intent next to the rolls.
   constexpr std::array<std::string_view, 4> kind_names{"corridor", "chamber", "shrine", "vault"};
   rng::discrete_distribution<double> room_kinds{{50.0, 30.0, 15.0, 5.0}};
 
@@ -165,19 +140,10 @@ auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> s
     }
   }
 
-  // 3. Loot.
-  //
-  // Each chest first rolls a *rarity* off a weighted loot table (discrete
-  // again), then a *gold* amount. Gold is gamma-distributed: it is strictly
-  // positive, right-skewed (most chests modest, a few huge), and its mean is
-  // shape * scale, which is exactly how a designer reasons about a payout
-  // curve. A normal would allow negative gold; an exponential has no "typical
-  // value" hump. Gamma fits.
   [[maybe_unused]] constexpr std::array<std::string_view, 3> rarity_names{
     "common", "rare", "legendary"
   };
   rng::discrete_distribution<double> rarity{{70.0, 25.0, 5.0}};
-  // Mean payout 200 gold (shape 2 * scale 100), with a long upper tail.
   rng::gamma_distribution<double> gold{2.0, 100.0};
 
   auto const chests{rng::uniform_int(loot_rng, 2, 5)};
@@ -186,7 +152,6 @@ auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> s
   for (int c{0}; c < chests; ++c) {
     auto const tier{rarity.sample(loot_rng)};
     ++rarity_tally[tier];
-    // Legendary chests pay a multiplier on the same gamma curve.
     auto const mult{tier == 2 ? 5.0 : tier == 1 ? 2.0 : 1.0};
     auto const payout{gold.sample(loot_rng) * mult};
     total_gold += payout;
@@ -205,16 +170,6 @@ auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> s
     std::println("  total gold        {:.0f}", total_gold);
   }
 
-  // 4. Monster schedule.
-  //
-  // Spawns are a Poisson process: independent events at a constant average
-  // rate. The two faces of that process map onto two distributions here:
-  //
-  //   - exponential_distribution gives the *gap* between consecutive spawns
-  //     (inter-arrival time). Rate 1.5 means 1.5 spawns per "minute" on
-  //     average, so a mean gap of 1/1.5 minutes.
-  //   - poisson_distribution gives the *count* of monsters in one burst wave
-  //     (how many appear at once). Mean 4 here.
   rng::exponential_distribution<double> spawn_gap{1.5};
   rng::poisson_distribution<int> wave_size{4.0};
 
@@ -241,25 +196,12 @@ auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> s
     std::println("  total monsters    {}", total_monsters);
   }
 
-  // 5. The party.
-  //
-  // Ability scores cluster around an average with a few outliers - the textbook
-  // case for a normal distribution. normal_distribution(mean, stddev) caches
-  // the Box-Muller pair's second variate, so it is half the cost of the
-  // free-function normal() over many draws.
-  //
-  // Initiative is a fair random *order*: shuffle is an in-place Fisher-Yates,
-  // allocation-free and unbiased. Then we pick a surprise "MVP" with
-  // reservoir_sample(k=1) - overkill for a known-size vector, but it is the
-  // tool when the stream length is unknown (a log, a network feed), so this is
-  // a faithful demo of it.
   constexpr std::array<std::string_view, 4> heroes{"Aria", "Borin", "Cael", "Dusk"};
-  rng::normal_distribution<double> ability{12.0, 3.0};  // D&D-ish: mean 12, sd 3
+  rng::normal_distribution<double> ability{12.0, 3.0};
 
   std::array<int, heroes.size()> scores{};
   for (std::size_t h{0}; h < heroes.size(); ++h) {
     auto const raw{ability.sample(party_rng)};
-    // Clamp to a sane die range; scores are conceptually integers.
     auto const clamped{raw < 3.0 ? 3.0 : raw > 18.0 ? 18.0 : raw};
     scores[h] = static_cast<int>(clamped + 0.5);
     fold(static_cast<std::uint64_t>(scores[h]));
@@ -287,16 +229,6 @@ auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> s
     std::println("  surprise MVP      {}", heroes[mvp.front()]);
   }
 
-  // 6. Monte-Carlo win odds.
-  //
-  // "Each hero independently survives the boss with probability p; the party
-  // wins if at least one survives." The closed form is 1 - (1 - p)^k, but
-  // pretend the real model is too gnarly for algebra and estimate it by
-  // simulation. bernoulli(g, p) is the right primitive: one fair-ish trial per
-  // hero, drawn from a uniform_real comparison.
-  //
-  // The estimate is self-checking: with many trials the empirical rate must sit
-  // within a few standard errors of the analytic value, so we assert it does.
   constexpr double p_survive{0.45};
   constexpr int k_heroes{4};
   constexpr int trials{200000};
@@ -326,15 +258,8 @@ auto run_expedition(std::string_view const seed_phrase, bool const verbose) -> s
 }  // namespace
 
 auto main() -> int {
-  // First run: print every step of one expedition.
   auto const digest_a{run_expedition("crypt-of-echoes", true)};
 
-  // 7. Determinism proof.
-  //
-  // Re-run with the *same* seed phrase and confirm the digest matches to the
-  // bit. This is the whole promise of the module: same seed -> same stream ->
-  // same content, with nothing pulled from the clock or the OS. A *different*
-  // phrase must yield a different expedition, so we check that too.
   auto const digest_b{run_expedition("crypt-of-echoes", false)};
   auto const digest_c{run_expedition("hall-of-whispers", false)};
 
@@ -349,9 +274,6 @@ auto main() -> int {
     return 1;
   }
 
-  // Formatting: format.hpp prints an engine's exact state and a distribution's
-  // parameters with no hand-rolled helper, ideal for a reproducibility report.
-  // It is opt-in through nexenne/random/format.hpp because std::format is heavy.
   rng::xoshiro256ss const reporter{0x00C0'FFEEu};
   rng::normal_distribution<double> const scores{10.0, 3.0};
   std::println("== formatting ==");
