@@ -83,6 +83,7 @@ private:
   duration m_period{duration::zero()};
   alarm_mode m_mode{alarm_mode::one_shot};
   bool m_armed{false};
+  std::uint32_t m_arm_epoch{0};  // bumped by every arm and disarm, so poll sees a re-arm
 
 public:
   /**
@@ -119,6 +120,7 @@ public:
    *       and \c next_fire_time() equals \p when.
    */
   auto arm_at(time_point const when) noexcept -> void {
+    ++m_arm_epoch;
     m_next = when;
     m_period = duration::zero();
     m_mode = alarm_mode::one_shot;
@@ -153,6 +155,7 @@ public:
    *       and \c next_fire_time() equals \p now plus \p period.
    */
   auto arm_periodic(time_point const now, duration const period) noexcept -> void {
+    ++m_arm_epoch;
     m_next = now + period;
     m_period = period;
     m_mode = alarm_mode::periodic;
@@ -166,6 +169,7 @@ public:
    * @post \c is_armed() is \c false; the stored callback is retained.
    */
   auto disarm() noexcept -> void {
+    ++m_arm_epoch;
     m_armed = false;
     m_period = duration::zero();
   }
@@ -220,7 +224,8 @@ public:
    * @pre None.
    * @post A one-shot alarm that fired is disarmed unless its callback re-armed
    *       it; a periodic alarm has \c next_fire_time() strictly after \p now
-   *       unless it disarmed on a non-positive period.
+   *       unless it disarmed on a non-positive period. A callback that re-arms
+   *       or disarms its alarm leaves exactly the schedule it set.
    * @throws Whatever the stored callback throws; it is invoked unguarded.
    *
    * @note A one-shot alarm is disarmed before its callback runs, so a callback
@@ -238,7 +243,11 @@ public:
         fire();
         return;
       }
+      auto const epoch{m_arm_epoch};
       fire();
+      if (m_arm_epoch != epoch) {
+        return;
+      }
       m_next += m_period;
       // A zero or negative period would never advance past now: disarm rather
       // than spin forever (and overflow m_next on a negative period).

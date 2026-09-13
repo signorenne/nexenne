@@ -981,4 +981,29 @@ TEST_CASE("nexenne::chrono::alarm callback can replace itself while it runs") {
   CHECK(second == 1);
 }
 
+TEST_CASE("nexenne::chrono::alarm periodic callback can re-arm or reschedule itself") {
+  using clk = ch::basic_manual_clock<struct al_periodic_rearm_tag>;
+  clk::reset();
+  ch::alarm<clk> to_one_shot;
+  to_one_shot.set_callback([&to_one_shot] { to_one_shot.arm_after(clk::now(), 5ms); });
+  to_one_shot.arm_periodic(clk::now(), 10ms);
+  clk::advance(10ms);
+  to_one_shot.poll(clk::now());
+  CHECK(to_one_shot.is_armed());
+  CHECK(to_one_shot.mode() == ch::alarm_mode::one_shot);
+  CHECK(
+    to_one_shot.next_fire_time() == clk::now() + std::chrono::duration_cast<clk::duration>(5ms)
+  );
+
+  clk::reset();
+  ch::alarm<clk> rescheduled;
+  rescheduled.set_callback([&rescheduled] { rescheduled.arm_periodic(clk::now(), 20ms); });
+  rescheduled.arm_periodic(clk::now(), 10ms);
+  clk::advance(10ms);
+  rescheduled.poll(clk::now());
+  CHECK(
+    rescheduled.next_fire_time() == clk::now() + std::chrono::duration_cast<clk::duration>(20ms)
+  );
+}
+
 }  // namespace
