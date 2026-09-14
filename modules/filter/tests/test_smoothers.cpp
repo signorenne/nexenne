@@ -824,4 +824,14 @@ TEST_CASE("nexenne::filter::butterworth default arguments and shape-carrying des
   CHECK(std::isfinite(f.value()));
 }
 
+TEST_CASE("nexenne::filter::sma recovers exactly after a large sample leaves the window") {
+  flt::sma<float, 4> f;
+  nexenne::utility::ignore(f.push(1e8F));
+  auto mean{0.0F};
+  for (auto i{0}; i < 6; ++i) {
+    mean = f.push(1.0F);
+  }
+  CHECK(static_cast<double>(mean) == doctest::Approx(1.0));
+}
+
 }  // namespace

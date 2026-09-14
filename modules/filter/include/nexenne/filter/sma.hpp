@@ -18,11 +18,11 @@ namespace nexenne::filter {
  * their arithmetic mean. Useful for smoothing noisy sensor data
  * with a guaranteed-bounded delay of \c N/2 samples.
  *
- * The running sum is maintained incrementally, and re-derived from
- * the window once per wrap (every \c N pushes) so that the
- * incremental add and subtract cannot let floating-point rounding
- * drift the sum permanently after a large-magnitude sample. \c push
- * is therefore amortised \c O(1).
+ * The running sum is maintained incrementally with Neumaier
+ * compensation, so a small sample added to a large sum is not lost
+ * when the large sample later leaves the window, and it is re-derived
+ * from the window once per wrap (every \c N pushes) to shed any
+ * residual rounding. \c push is therefore amortised \c O(1).
  *
  * Zero heap: the window is a \c std::array. For a runtime-sized
  * window, use \c ema (which approximates SMA with exponential
@@ -46,6 +46,7 @@ private:
 
   buffer_type m_buf{};
   value_type m_sum{};
+  value_type m_compensation{};  ///< Neumaier correction: low-order bits m_sum lost.
   std::size_t m_idx{0};
   std::size_t m_count{0};
 
@@ -64,11 +65,11 @@ public:
    *
    * Maintains the running sum incrementally: when the window is full
    * the oldest sample is subtracted before the newest is added, so
-   * the cost is constant on most pushes. Every \c N pushes, when the
-   * write index wraps over a full window, the sum is re-derived from
-   * the buffer: an incremental add and subtract lets floating-point
-   * rounding accumulate permanently once the sum is large relative to
-   * a sample, so the periodic resum bounds that drift.
+   * the cost is constant on most pushes. Each add and subtract is
+   * compensated (Neumaier), so the low-order bits a large sum cannot
+   * hold are kept aside and survive when the large sample leaves.
+   * Every \c N pushes, when the write index wraps over a full window,
+   * the sum is re-derived from the buffer to shed residual rounding.
    *
    * @param sample New input sample.
    *
@@ -85,21 +86,21 @@ public:
   [[nodiscard]] constexpr auto push(value_type const sample) noexcept -> value_type {
     // Drop the oldest sample from the running sum before overwriting it.
     if (m_count == N) {
-      m_sum -= m_buf[m_idx];
+      accumulate(-m_buf[m_idx]);
     } else {
       ++m_count;
     }
     m_buf[m_idx] = sample;
-    m_sum += sample;
+    accumulate(sample);
     m_idx = (m_idx + 1) % N;
     if (m_idx == 0 && m_count == N) {
-      value_type sum{};
+      m_sum = value_type{};
+      m_compensation = value_type{};
       for (auto const stored : m_buf) {
-        sum += stored;
+        accumulate(stored);
       }
-      m_sum = sum;
     }
-    return m_sum / static_cast<value_type>(m_count);
+    return (m_sum + m_compensation) / static_cast<value_type>(m_count);
   }
 
   /**
@@ -112,7 +113,8 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto value() const noexcept -> value_type {
-    return m_count == 0 ? value_type{} : m_sum / static_cast<value_type>(m_count);
+    return m_count == 0 ? value_type{}
+                        : (m_sum + m_compensation) / static_cast<value_type>(m_count);
   }
 
   /**
@@ -125,6 +127,7 @@ public:
   constexpr auto reset() noexcept -> void {
     m_buf = buffer_type{};
     m_sum = value_type{};
+    m_compensation = value_type{};
     m_idx = 0;
     m_count = 0;
   }
@@ -152,6 +155,25 @@ public:
    */
   [[nodiscard]] constexpr auto count() const noexcept -> std::size_t {
     return m_count;
+  }
+
+private:
+  /**
+   * @brief Adds \p x to the running sum with Neumaier compensation.
+   *
+   * @param x Value to add (a negated sample to remove one).
+   *
+   * @pre None.
+   * @post \c m_sum plus \c m_compensation holds the sum including \p x.
+   */
+  constexpr auto accumulate(value_type const x) noexcept -> void {
+    auto const t{m_sum + x};
+    if ((m_sum < value_type{0} ? -m_sum : m_sum) >= (x < value_type{0} ? -x : x)) {
+      m_compensation += (m_sum - t) + x;
+    } else {
+      m_compensation += (x - t) + m_sum;
+    }
+    m_sum = t;
   }
 };
 
