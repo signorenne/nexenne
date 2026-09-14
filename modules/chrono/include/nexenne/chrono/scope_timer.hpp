@@ -62,7 +62,7 @@ namespace nexenne::chrono {
  */
 template <typename Callback, steady_clock_like Clock = std::chrono::steady_clock>
   requires std::invocable<Callback&, typename Clock::duration>
-class scope_timer {
+class [[nodiscard]] scope_timer final {
 public:
   using clock_type = Clock;
   using duration = typename Clock::duration;

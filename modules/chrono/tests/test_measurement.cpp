@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <string>
+#include <type_traits>
 
 #include <nexenne/chrono/frame_timer.hpp>
 #include <nexenne/chrono/manual_clock.hpp>
@@ -480,5 +481,7 @@ TEST_CASE("nexenne::chrono::frame_timer clamps a backward delta to zero") {
   clk::advance(-20ms);                        // clock jumps backward
   CHECK(ft.tick() == clk::duration::zero());  // negative delta is clamped, not corrupting
 }
+
+static_assert(std::is_final_v<ch::scope_timer<void (*)(std::chrono::nanoseconds)>>);
 
 }  // namespace
