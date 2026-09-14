@@ -19,13 +19,16 @@ existing loop, so they compose with whatever scheduler you already have (or none
 
 * countdown: a target with expiry and overrun
 
-Built on a =stopwatch=, =countdown<Clock>= runs against a target duration.
-=tick()= returns =true= *exactly once*, on the running-to-expired transition, and
-=false= otherwise; the underlying stopwatch keeps running so =overrun()= grows
-after expiry. =remaining()=, =progress()= (clamped to =[0,1]=), =elapsed()=, and
-=deadline()= (the projected expiry instant while running) round it out, and it
-pauses / resumes through its stopwatch. A zero target expires immediately on
-=start()=.
+=countdown<Clock>= runs against a target duration. =tick()= returns =true=
+*exactly once*, on the running-to-expired transition, and =false= otherwise;
+elapsed time keeps accruing so =overrun()= grows after expiry. =remaining()=,
+=progress()= (clamped to =[0,1]=), =elapsed()=, and =deadline()= (the projected
+expiry instant while running) round it out, and it pauses and resumes without
+losing elapsed time. A zero target expires immediately on =start()=.
+
+It stores a start point, an accumulated duration, the target and its state, and
+nothing else: no lap list, so it never allocates and costs about four words
+rather than a whole =stopwatch=.
 
 #+BEGIN_EXAMPLE
 countdown{100ms}; start();

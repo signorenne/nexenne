@@ -7,8 +7,8 @@
  * Set a target duration via the constructor or \c set_target,
  * then \c start(). \c tick() is the polling hook: call it in your
  * main loop and it returns \c true exactly once, on the transition
- * from running to expired. After expiry the underlying stopwatch
- * keeps running so \c overrun() continues to grow with real time.
+ * from running to expired. After expiry elapsed time keeps accruing,
+ * so \c overrun() continues to grow with real time.
  *
  * \c remaining() / \c overrun() / \c progress() let you visualise
  * the countdown in real time. Like \c stopwatch, you can \c pause()
@@ -30,7 +30,6 @@
 
 #include <nexenne/chrono/concepts.hpp>
 #include <nexenne/chrono/conversion.hpp>
-#include <nexenne/chrono/stopwatch.hpp>
 
 namespace nexenne::chrono {
 
@@ -39,8 +38,9 @@ namespace nexenne::chrono {
  *
  * Holds a target duration and a state machine driven by \c start, \c pause,
  * \c resume, \c reset, and \c tick. \c tick() returns \c true exactly once on
- * the transition from running to expired; the underlying stopwatch keeps
- * running afterward so \c overrun() continues to grow.
+ * the transition from running to expired; elapsed time keeps accruing
+ * afterward so \c overrun() continues to grow. It keeps only a start point and
+ * an accumulated duration, so it never allocates.
  *
  * @tparam Clock Steady clock to measure against.
  *
@@ -68,9 +68,40 @@ public:
   };
 
 private:
-  stopwatch<Clock> m_sw{};
+  time_point m_start{};
+  duration m_accumulated{duration::zero()};
   duration m_target{duration::zero()};
   state m_state{state::idle};
+  // Whether time is accruing. Not derivable from m_state: expired keeps the
+  // clock running after a tick() expiry but stopped after a zero-target start,
+  // and set_target can change the target afterwards.
+  bool m_ticking{false};
+
+  /**
+   * @brief Elapsed time against a caller-supplied \c now() snapshot.
+   *
+   * @param now The time snapshot to measure against.
+   *
+   * @return The accumulated time, plus the running segment while ticking.
+   *
+   * @pre None.
+   * @post The result is greater than or equal to \c duration::zero().
+   */
+  [[nodiscard]] auto elapsed_at(time_point const now) const noexcept -> duration {
+    return m_ticking ? m_accumulated + (now - m_start) : m_accumulated;
+  }
+
+  /**
+   * @brief Elapsed time as of \c Clock::now().
+   *
+   * @return The elapsed time in the clock's own unit.
+   *
+   * @pre None.
+   * @post The result is greater than or equal to \c duration::zero().
+   */
+  [[nodiscard]] auto elapsed_now() const noexcept -> duration {
+    return elapsed_at(Clock::now());
+  }
 
   /**
    * @brief Remaining time against a caller-supplied \c now() snapshot.
@@ -86,7 +117,7 @@ private:
    * @post The result is greater than or equal to \c duration::zero().
    */
   [[nodiscard]] auto remaining_at(time_point const now) const noexcept -> duration {
-    auto const e{m_sw.elapsed_at(now)};
+    auto const e{elapsed_at(now)};
     return e >= m_target ? duration::zero() : (m_target - e);
   }
 
@@ -253,7 +284,7 @@ public:
     if (m_state == state::idle) {
       return false;
     }
-    return m_sw.elapsed() >= m_target;
+    return elapsed_now() >= m_target;
   }
 
   /**
@@ -272,12 +303,14 @@ public:
     if (m_state != state::idle && m_state != state::expired) {
       return;
     }
-    m_sw.reset();
+    m_accumulated = duration::zero();
+    m_ticking = false;
     if (m_target == duration::zero()) {
       m_state = state::expired;
       return;
     }
-    m_sw.start();
+    m_start = Clock::now();
+    m_ticking = true;
     m_state = state::running;
   }
 
@@ -294,7 +327,8 @@ public:
     if (m_state != state::running) {
       return;
     }
-    m_sw.pause();
+    m_accumulated += Clock::now() - m_start;
+    m_ticking = false;
     m_state = state::paused;
   }
 
@@ -311,7 +345,8 @@ public:
     if (m_state != state::paused) {
       return;
     }
-    m_sw.resume();
+    m_start = Clock::now();
+    m_ticking = true;
     m_state = state::running;
   }
 
@@ -324,7 +359,9 @@ public:
    * @post \c is_idle() is \c true and elapsed time is zero.
    */
   auto reset() noexcept -> void {
-    m_sw.reset();
+    m_start = time_point{};
+    m_accumulated = duration::zero();
+    m_ticking = false;
     m_state = state::idle;
   }
 
@@ -344,8 +381,8 @@ public:
    * @brief Polling tick that detects the expiry transition.
    *
    * Returns \c true exactly once, on the transition from running to
-   * expired, and \c false on every other call. The underlying stopwatch
-   * keeps running after expiry so \c overrun() continues to grow.
+   * expired, and \c false on every other call. Elapsed time keeps accruing
+   * after expiry so \c overrun() continues to grow.
    *
    * @return \c true on the running-to-expired transition, else \c false.
    *
@@ -356,7 +393,7 @@ public:
     if (m_state != state::running) {
       return false;
     }
-    if (m_sw.elapsed() >= m_target) {
+    if (elapsed_now() >= m_target) {
       m_state = state::expired;
       return true;
     }
@@ -377,7 +414,7 @@ public:
    */
   template <chrono_duration D = std::chrono::milliseconds>
   [[nodiscard]] auto elapsed() const noexcept -> D {
-    return m_sw.template elapsed<D>();
+    return std::chrono::duration_cast<D>(elapsed_now());
   }
 
   /**
@@ -393,7 +430,7 @@ public:
    */
   template <chrono_duration D = std::chrono::milliseconds>
   [[nodiscard]] auto remaining() const noexcept -> D {
-    auto const e{m_sw.elapsed()};
+    auto const e{elapsed_now()};
     auto const r{e >= m_target ? duration::zero() : (m_target - e)};
     if constexpr (std::chrono::treat_as_floating_point_v<typename D::rep>) {
       return std::chrono::duration_cast<D>(r);
@@ -405,8 +442,8 @@ public:
   /**
    * @brief Time elapsed beyond the target, clamped at zero.
    *
-   * Grows with real time after expiry because the underlying stopwatch
-   * keeps running.
+   * Grows with real time after a \c tick() expiry because elapsed time keeps
+   * accruing.
    *
    * @tparam D Duration type the result is expressed in.
    *
@@ -417,7 +454,7 @@ public:
    */
   template <chrono_duration D = std::chrono::milliseconds>
   [[nodiscard]] auto overrun() const noexcept -> D {
-    auto const e{m_sw.elapsed()};
+    auto const e{elapsed_now()};
     auto const o{e > m_target ? (e - m_target) : duration::zero()};
     return std::chrono::duration_cast<D>(o);
   }
@@ -439,7 +476,7 @@ public:
     if (target_count <= 0) {
       return m_state == state::expired ? 1.0 : 0.0;
     }
-    auto const p{static_cast<double>(m_sw.elapsed().count()) / static_cast<double>(target_count)};
+    auto const p{static_cast<double>(elapsed_now().count()) / static_cast<double>(target_count)};
     if (p <= 0.0) {
       return 0.0;
     }
@@ -464,7 +501,7 @@ public:
     if (m_state != state::running) {
       return std::nullopt;
     }
-    auto const e{m_sw.elapsed()};
+    auto const e{elapsed_now()};
     auto const r{e >= m_target ? duration::zero() : (m_target - e)};
     return Clock::now() + r;
   }

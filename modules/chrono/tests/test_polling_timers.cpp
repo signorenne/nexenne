@@ -21,6 +21,7 @@
 #include <nexenne/chrono/interval.hpp>
 #include <nexenne/chrono/manual_clock.hpp>
 #include <nexenne/chrono/rate_limiter.hpp>
+#include <nexenne/chrono/stopwatch.hpp>
 #include <nexenne/chrono/tick_clock.hpp>
 #include <nexenne/utility/in_place_function.hpp>
 
@@ -210,6 +211,33 @@ TEST_CASE("nexenne::chrono::countdown restart and re-arm from expired clears ela
   CHECK(cd.template elapsed<std::chrono::milliseconds>() == 0ms);
   clk::advance(100ms);
   CHECK(cd.tick());
+}
+
+TEST_CASE("nexenne::chrono::countdown holds a start point and an accumulator, not a stopwatch") {
+  using cd = ch::countdown<>;
+  static_assert(sizeof(cd) <= sizeof(cd::time_point) + 3 * sizeof(cd::duration));
+  static_assert(sizeof(cd) < sizeof(ch::stopwatch<>));
+}
+
+TEST_CASE("nexenne::chrono::countdown keeps time after a tick expiry but not a zero-target one") {
+  using clk = ch::basic_manual_clock<struct cd_expired_clock_tag>;
+  clk::reset();
+
+  ch::countdown<clk> ticked{10ms};
+  ticked.start();
+  clk::advance(15ms);
+  REQUIRE(ticked.tick());
+  clk::advance(5ms);
+  CHECK(ticked.template elapsed<std::chrono::milliseconds>() == 20ms);
+  CHECK(ticked.template overrun<std::chrono::milliseconds>() == 10ms);
+
+  ch::countdown<clk> instant{0ms};
+  instant.start();
+  REQUIRE(instant.is_expired());
+  instant.set_target(50ms);
+  clk::advance(30ms);
+  CHECK(instant.template elapsed<std::chrono::milliseconds>() == 0ms);
+  CHECK(instant.is_expired());
 }
 
 TEST_CASE("nexenne::chrono::countdown restart with a zero target lands in expired") {
