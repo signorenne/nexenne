@@ -83,16 +83,12 @@ static_assert(
 );
 static_assert(milli_clock::is_steady == false);
 
-// is_steady is static_cast<bool> of the backend's value (7 -> true).
 static_assert(second_clock::is_steady == true);
 static_assert(std::is_same_v<decltype(second_clock::is_steady), bool const>);
 
-// now()/from_ticks/to_ticks signatures and noexcept-ness.
 static_assert(noexcept(fake_clock::now()));
 static_assert(noexcept(fake_clock::from_ticks(0)));
-// declval isolates to_ticks's own noexcept: a literal time_point{} argument
-// is not itself noexcept-constructible in libstdc++ (its chrono default ctors
-// are unmarked), which would otherwise poison the noexcept expression.
+// declval: libstdc++'s time_point{} is not noexcept-constructible and would poison this.
 static_assert(noexcept(fake_clock::to_ticks(std::declval<fake_clock::time_point>())));
 static_assert(std::is_same_v<decltype(fake_clock::now()), fake_clock::time_point>);
 static_assert(std::is_same_v<decltype(fake_clock::from_ticks(0)), fake_clock::time_point>);
@@ -100,13 +96,12 @@ static_assert(
   std::is_same_v<decltype(fake_clock::to_ticks(fake_clock::time_point{})), fake_clock::rep>
 );
 
-// from_ticks/to_ticks are constexpr: prove a compile-time round trip.
 static_assert(fake_clock::to_ticks(fake_clock::from_ticks(123456)) == 123456);
 static_assert(fake_clock::to_ticks(fake_clock::from_ticks(0)) == 0);
 static_assert(fake_clock::to_ticks(fake_clock::from_ticks(-99)) == -99);
 
 TEST_CASE("nexenne::chrono::tick_clock wraps a backend as a chrono clock") {
-  fake_backend::value = 1'500'000;  // 1.5 s worth of microseconds
+  fake_backend::value = 1'500'000;
   auto const tp{fake_clock::now()};
   CHECK(std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()) == 1500ms);
   CHECK(fake_clock::to_ticks(tp) == 1'500'000);
@@ -142,7 +137,7 @@ TEST_CASE("nexenne::chrono::tick_clock from_ticks/to_ticks round trip across ran
 }
 
 TEST_CASE("nexenne::chrono::tick_clock from_ticks builds the correct time_point") {
-  auto const tp{fake_clock::from_ticks(2'000'000)};  // 2 s in micros
+  auto const tp{fake_clock::from_ticks(2'000'000)};
   CHECK(tp.time_since_epoch().count() == 2'000'000);
   CHECK(std::chrono::duration_cast<std::chrono::seconds>(tp.time_since_epoch()) == 2s);
 }
@@ -152,7 +147,7 @@ TEST_CASE("nexenne::chrono::tick_clock negative and zero ticks are representable
   CHECK(fake_clock::to_ticks(fake_clock::now()) == 0);
   CHECK(fake_clock::now().time_since_epoch() == fake_clock::duration::zero());
 
-  fake_backend::value = -250;  // before the epoch
+  fake_backend::value = -250;
   auto const tp{fake_clock::now()};
   CHECK(fake_clock::to_ticks(tp) == -250);
   CHECK(tp.time_since_epoch().count() == -250);
@@ -184,11 +179,10 @@ TEST_CASE("nexenne::chrono::tick_clock with a milli backend uses backend's rep/p
   milli_backend::value = 0;
   CHECK(milli_clock::to_ticks(milli_clock::now()) == 0);
 
-  milli_backend::value = 1'500;  // 1.5 s in milliseconds
+  milli_backend::value = 1'500;
   auto const tp{milli_clock::now()};
   CHECK(std::chrono::duration_cast<std::chrono::seconds>(tp.time_since_epoch()) == 1s);
   CHECK(milli_clock::to_ticks(tp) == 1'500);
-  // is_steady = false on this backend; it is still clock_like but not steady.
   CHECK(milli_clock::is_steady == false);
 }
 
@@ -208,12 +202,10 @@ static_assert(ch::steady_clock_like<ch::manual_clock>);
 static_assert(ch::clock_like<ch::manual_clock>);
 static_assert(ch::chrono_duration<ch::manual_clock::duration>);
 
-// Distinct tags yield distinct types.
 static_assert(
   !std::is_same_v<ch::basic_manual_clock<struct sa_tag>, ch::basic_manual_clock<struct sb_tag>>
 );
 
-// now() signature / noexcept.
 static_assert(noexcept(ch::manual_clock::now()));
 static_assert(std::is_same_v<decltype(ch::manual_clock::now()), ch::manual_clock::time_point>);
 
@@ -240,7 +232,7 @@ TEST_CASE("nexenne::chrono::manual_clock set and distinct tags are independent")
   b::reset();
   a::advance(1s);
   CHECK(a::now().time_since_epoch() != 0ns);
-  CHECK(b::now().time_since_epoch() == 0ns);  // b unaffected by a
+  CHECK(b::now().time_since_epoch() == 0ns);
 
   b::set(b::time_point{2s});
   CHECK(std::chrono::duration_cast<std::chrono::seconds>(b::now().time_since_epoch()) == 2s);
@@ -255,7 +247,6 @@ TEST_CASE("nexenne::chrono::manual_clock now() is idempotent without advancing")
   CHECK(a == b);
   CHECK(b == c);
   clk::advance(7ms);
-  // After advancing, repeated reads still agree with each other.
   CHECK(clk::now() == clk::now());
 }
 
@@ -298,24 +289,21 @@ TEST_CASE("nexenne::chrono::manual_clock accumulates many small advances exactly
 TEST_CASE("nexenne::chrono::manual_clock advance accepts heterogeneous duration types") {
   using clk = ch::basic_manual_clock<struct hetero_tag>;
   clk::reset();
-  clk::advance(1s);           // seconds
-  clk::advance(500ms);        // milliseconds
-  clk::advance(250000us);     // microseconds
-  clk::advance(250000000ns);  // nanoseconds -> exact in nano storage
-  // 1s + 0.5s + 0.25s + 0.25s = 2s
+  clk::advance(1s);
+  clk::advance(500ms);
+  clk::advance(250000us);
+  clk::advance(250000000ns);
   CHECK(clk::now().time_since_epoch() == 2s);
 }
 
 TEST_CASE("nexenne::chrono::manual_clock advance with sub-period duration truncates") {
   using clk = ch::basic_manual_clock<struct truncate_tag>;
   clk::reset();
-  // Storage is nanoseconds; a fractional-nanosecond floating duration is cast
-  // toward zero by duration_cast.
   clk::advance(std::chrono::duration<double, std::nano>{2.9});
-  CHECK(clk::now().time_since_epoch().count() == 2);  // truncated, not rounded
+  CHECK(clk::now().time_since_epoch().count() == 2);
   clk::reset();
   clk::advance(std::chrono::duration<double, std::nano>{-2.9});
-  CHECK(clk::now().time_since_epoch().count() == -2);  // truncation toward zero
+  CHECK(clk::now().time_since_epoch().count() == -2);
 }
 
 TEST_CASE("nexenne::chrono::manual_clock advance backward (documented hazard)") {
@@ -328,7 +316,7 @@ TEST_CASE("nexenne::chrono::manual_clock advance backward (documented hazard)") 
   );
   clk::advance(-600ms);
   CHECK(clk::now().time_since_epoch() == 0ns);
-  clk::advance(-1ns);  // before the epoch
+  clk::advance(-1ns);
   CHECK(clk::now().time_since_epoch().count() == -1);
 }
 
@@ -338,15 +326,12 @@ TEST_CASE("nexenne::chrono::manual_clock set to an arbitrary absolute point") {
   clk::set(clk::time_point{12345ns});
   CHECK(clk::now().time_since_epoch().count() == 12345);
 
-  // set overwrites, it does not accumulate.
   clk::set(clk::time_point{50ns});
   CHECK(clk::now().time_since_epoch().count() == 50);
 
-  // set the clock to the epoch.
   clk::set(clk::time_point{});
   CHECK(clk::now().time_since_epoch() == 0ns);
 
-  // set to a point before the epoch.
   clk::set(clk::time_point{-7ns});
   CHECK(clk::now().time_since_epoch().count() == -7);
 }
@@ -378,7 +363,6 @@ TEST_CASE("nexenne::chrono::manual_clock handles extreme absolute values") {
 TEST_CASE("nexenne::chrono::manual_clock large advance does not lose precision in nanos") {
   using clk = ch::basic_manual_clock<struct large_tag>;
   clk::reset();
-  // One hour expressed in nanoseconds is well within int64 range.
   clk::advance(1h);
   CHECK(std::chrono::duration_cast<std::chrono::hours>(clk::now().time_since_epoch()) == 1h);
   CHECK(clk::now().time_since_epoch() == std::chrono::nanoseconds{3'600'000'000'000});
@@ -390,7 +374,6 @@ TEST_CASE("nexenne::chrono::manual_clock reset clears state regardless of prior 
   clk::advance(-12345ns);
   clk::reset();
   CHECK(clk::now().time_since_epoch() == 0ns);
-  // reset is idempotent.
   clk::reset();
   CHECK(clk::now().time_since_epoch() == 0ns);
 }
@@ -405,13 +388,11 @@ TEST_CASE("nexenne::chrono::manual_clock three independent tags do not interfere
 
   a::advance(10ns);
   b::set(b::time_point{20ns});
-  // c is untouched.
 
   CHECK(a::now().time_since_epoch().count() == 10);
   CHECK(b::now().time_since_epoch().count() == 20);
   CHECK(c::now().time_since_epoch().count() == 0);
 
-  // Mutating one leaves the others fixed.
   c::advance(30ns);
   CHECK(a::now().time_since_epoch().count() == 10);
   CHECK(b::now().time_since_epoch().count() == 20);
@@ -422,7 +403,6 @@ TEST_CASE("nexenne::chrono::manual_clock the default-tag alias is its own shared
   ch::manual_clock::reset();
   CHECK(ch::manual_clock::now().time_since_epoch() == 0ns);
   ch::manual_clock::advance(5ms);
-  // basic_manual_clock<> is literally the same type as manual_clock.
   CHECK(ch::basic_manual_clock<>::now().time_since_epoch() == 5ms);
   ch::manual_clock::reset();
 }

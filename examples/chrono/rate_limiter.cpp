@@ -39,21 +39,18 @@ auto main() -> int {
   using namespace std::chrono_literals;
 
   clk::reset();
-  ch::rate_limiter<clk> limiter{3.0, 10.0};  // capacity 3, 10 tokens/sec
+  ch::rate_limiter<clk> limiter{3.0, 10.0};
 
   int granted{0};
-  for (int i{0}; i < 5; ++i) {  // initial burst: only 3 fit
+  for (int i{0}; i < 5; ++i) {
     if (limiter.try_acquire()) {
       ++granted;
     }
   }
   std::println("burst granted: {} of 5", granted);
 
-  clk::advance(100ms);  // 10/sec means one token per 100 ms
+  clk::advance(100ms);
   std::println("after 100 ms, acquire: {}", limiter.try_acquire());
   std::println("immediately again: {}", limiter.try_acquire());
-  // burst granted: 3 of 5
-  // after 100 ms, acquire: true
-  // immediately again: false
   return 0;
 }

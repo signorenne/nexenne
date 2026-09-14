@@ -102,9 +102,7 @@ public:
   [[nodiscard]] static auto after(D const d) noexcept -> deadline {
     auto const now{Clock::now()};
     auto const off{std::chrono::duration_cast<duration>(d)};
-    // Test representability in the duration domain: the headroom bounds
-    // (duration::max() - off with off positive, duration::min() - off with off
-    // negative) never overflow themselves, unlike time_point::max() - now.
+    // Bound in the duration domain: max() - off cannot overflow, time_point::max() - now can.
     auto const now_d{now.time_since_epoch()};
     if (off > duration::zero() && now_d > duration::max() - off) {
       return deadline{time_point::max()};

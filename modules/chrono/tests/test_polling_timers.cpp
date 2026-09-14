@@ -40,9 +40,9 @@ TEST_CASE("nexenne::chrono::countdown counts down, ticks expiry once, tracks ove
   CHECK_FALSE(cd.tick());
   CHECK(cd.template remaining<std::chrono::milliseconds>() == 60ms);
   CHECK(cd.progress() == doctest::Approx(0.4));
-  clk::advance(70ms);      // now past the target (110 >= 100)
-  CHECK(cd.tick());        // transition fires exactly once
-  CHECK_FALSE(cd.tick());  // not again
+  clk::advance(70ms);
+  CHECK(cd.tick());
+  CHECK_FALSE(cd.tick());
   CHECK(cd.is_expired());
   CHECK(cd.template overrun<std::chrono::milliseconds>() == 10ms);
 }
@@ -61,7 +61,7 @@ TEST_CASE("nexenne::chrono::countdown default-constructed is idle with zero targ
   CHECK(cd.template overrun<std::chrono::milliseconds>() == 0ms);
   CHECK(cd.template elapsed<std::chrono::milliseconds>() == 0ms);
   CHECK(cd.progress() == doctest::Approx(0.0));
-  CHECK_FALSE(cd.deadline().has_value());  // not running
+  CHECK_FALSE(cd.deadline().has_value());
 }
 
 TEST_CASE("nexenne::chrono::countdown is not expired just before, expired exactly at boundary") {
@@ -69,16 +69,16 @@ TEST_CASE("nexenne::chrono::countdown is not expired just before, expired exactl
   clk::reset();
   ch::countdown<clk> cd{100ms};
   cd.start();
-  clk::advance(99ms);  // just before
+  clk::advance(99ms);
   CHECK_FALSE(cd.is_expired());
   CHECK_FALSE(cd.tick());
   CHECK(cd.template remaining<std::chrono::milliseconds>() == 1ms);
-  clk::advance(1ms);  // exactly at the boundary: elapsed == target
+  clk::advance(1ms);
   CHECK(cd.is_expired());
-  CHECK(cd.tick());  // transition at exact boundary
+  CHECK(cd.tick());
   CHECK(cd.is_expired());
   CHECK(cd.template remaining<std::chrono::milliseconds>() == 0ms);
-  CHECK(cd.template overrun<std::chrono::milliseconds>() == 0ms);  // exactly at, no overrun
+  CHECK(cd.template overrun<std::chrono::milliseconds>() == 0ms);
 }
 
 TEST_CASE("nexenne::chrono::countdown remaining decreases monotonically and clamps at zero") {
@@ -91,10 +91,10 @@ TEST_CASE("nexenne::chrono::countdown remaining decreases monotonically and clam
   CHECK(cd.template remaining<std::chrono::milliseconds>() == 70ms);
   clk::advance(30ms);
   CHECK(cd.template remaining<std::chrono::milliseconds>() == 40ms);
-  clk::advance(60ms);                                                // well past target
-  CHECK(cd.template remaining<std::chrono::milliseconds>() == 0ms);  // never negative
+  clk::advance(60ms);
+  CHECK(cd.template remaining<std::chrono::milliseconds>() == 0ms);
   CHECK(cd.template overrun<std::chrono::milliseconds>() == 20ms);
-  CHECK(cd.progress() == doctest::Approx(1.0));  // clamped at one
+  CHECK(cd.progress() == doctest::Approx(1.0));
 }
 
 TEST_CASE("nexenne::chrono::countdown a zero target is immediately expired on start") {
@@ -103,13 +103,13 @@ TEST_CASE("nexenne::chrono::countdown a zero target is immediately expired on st
   ch::countdown<clk> cd{0ms};
   CHECK(cd.target() == clk::duration::zero());
   CHECK(cd.is_idle());
-  CHECK_FALSE(cd.is_expired());  // idle is never expired
+  CHECK_FALSE(cd.is_expired());
   cd.start();
-  CHECK(cd.is_expired());  // straight to expired
+  CHECK(cd.is_expired());
   CHECK(cd.current_state() == ch::countdown<clk>::state::expired);
   CHECK_FALSE(cd.is_running());
-  CHECK_FALSE(cd.tick());                        // never was running, so no transition
-  CHECK(cd.progress() == doctest::Approx(1.0));  // zero target expired reports one
+  CHECK_FALSE(cd.tick());
+  CHECK(cd.progress() == doctest::Approx(1.0));
 }
 
 TEST_CASE("nexenne::chrono::countdown a negative target is clamped to zero") {
@@ -129,9 +129,9 @@ TEST_CASE("nexenne::chrono::countdown target, extend, shrink clamp at zero") {
   CHECK(cd.target() == std::chrono::duration_cast<clk::duration>(150ms));
   cd.shrink(30ms);
   CHECK(cd.target() == std::chrono::duration_cast<clk::duration>(120ms));
-  cd.shrink(1s);  // shrinking past zero clamps
+  cd.shrink(1s);
   CHECK(cd.target() == clk::duration::zero());
-  cd.extend(-1s);  // negative extend also clamps
+  cd.extend(-1s);
   CHECK(cd.target() == clk::duration::zero());
   cd.extend(80ms);
   CHECK(cd.target() == std::chrono::duration_cast<clk::duration>(80ms));
@@ -145,13 +145,13 @@ TEST_CASE("nexenne::chrono::countdown pause freezes and resume continues elapsed
   clk::advance(30ms);
   cd.pause();
   CHECK(cd.is_paused());
-  clk::advance(500ms);  // time passes while paused, elapsed frozen
+  clk::advance(500ms);
   CHECK(cd.template remaining<std::chrono::milliseconds>() == 70ms);
   CHECK_FALSE(cd.is_expired());
-  CHECK_FALSE(cd.tick());  // tick is a no-op while paused
+  CHECK_FALSE(cd.tick());
   cd.resume();
   CHECK(cd.is_running());
-  clk::advance(70ms);  // 30 + 70 == 100
+  clk::advance(70ms);
   CHECK(cd.is_expired());
   CHECK(cd.tick());
 }
@@ -160,19 +160,19 @@ TEST_CASE("nexenne::chrono::countdown pause/resume/start are no-ops from wrong s
   using clk = ch::basic_manual_clock<struct cd_noop_tag>;
   clk::reset();
   ch::countdown<clk> cd{100ms};
-  cd.pause();  // no-op from idle
+  cd.pause();
   CHECK(cd.is_idle());
-  cd.resume();  // no-op from idle
+  cd.resume();
   CHECK(cd.is_idle());
   cd.start();
   CHECK(cd.is_running());
-  cd.resume();  // no-op while running
+  cd.resume();
   CHECK(cd.is_running());
   clk::advance(20ms);
-  cd.start();  // no-op while running, must not clear elapsed
+  cd.start();
   CHECK(cd.template remaining<std::chrono::milliseconds>() == 80ms);
   cd.pause();
-  cd.start();  // no-op while paused
+  cd.start();
   CHECK(cd.is_paused());
 }
 
@@ -197,13 +197,11 @@ TEST_CASE("nexenne::chrono::countdown restart and re-arm from expired clears ela
   clk::advance(130ms);
   CHECK(cd.tick());
   CHECK(cd.is_expired());
-  // re-arm directly via start() from expired
   cd.start();
   CHECK(cd.is_running());
   CHECK(cd.template remaining<std::chrono::milliseconds>() == 100ms);
   clk::advance(130ms);
-  CHECK(cd.tick());  // fires again on the new cycle
-  // restart() does reset + start
+  CHECK(cd.tick());
   cd.restart();
   CHECK(cd.is_running());
   CHECK(cd.template elapsed<std::chrono::milliseconds>() == 0ms);
@@ -250,19 +248,19 @@ TEST_CASE("nexenne::chrono::countdown deadline is engaged only while running") {
   using clk = ch::basic_manual_clock<struct cd_deadline_tag>;
   clk::reset();
   ch::countdown<clk> cd{100ms};
-  CHECK_FALSE(cd.deadline().has_value());  // idle
+  CHECK_FALSE(cd.deadline().has_value());
   cd.start();
   clk::advance(40ms);
   auto const d{cd.deadline()};
   REQUIRE(d.has_value());
   CHECK(*d == clk::now() + std::chrono::duration_cast<clk::duration>(60ms));
   cd.pause();
-  CHECK_FALSE(cd.deadline().has_value());  // not running
+  CHECK_FALSE(cd.deadline().has_value());
   cd.resume();
   CHECK(cd.deadline().has_value());
   clk::advance(60ms);
   CHECK(cd.tick());
-  CHECK_FALSE(cd.deadline().has_value());  // expired
+  CHECK_FALSE(cd.deadline().has_value());
 }
 
 TEST_CASE("nexenne::chrono::countdown ordering compares by remaining time on one now() snapshot") {
@@ -272,14 +270,14 @@ TEST_CASE("nexenne::chrono::countdown ordering compares by remaining time on one
   ch::countdown<clk> later{200ms};
   soon.start();
   later.start();
-  CHECK(soon < later);  // soon fires first => smaller remaining
+  CHECK(soon < later);
   CHECK(later > soon);
   CHECK_FALSE(soon == later);
   ch::countdown<clk> twin_a{100ms};
   ch::countdown<clk> twin_b{100ms};
   twin_a.start();
   twin_b.start();
-  CHECK(twin_a == twin_b);  // equal remaining
+  CHECK(twin_a == twin_b);
 }
 
 TEST_CASE("nexenne::chrono::interval fires once per crossed period") {
@@ -288,13 +286,13 @@ TEST_CASE("nexenne::chrono::interval fires once per crossed period") {
   ch::interval<clk> iv;
   iv.period() = 50ms;
   iv.start();
-  CHECK_FALSE(iv.tick());  // nothing elapsed yet
+  CHECK_FALSE(iv.tick());
   clk::advance(50ms);
-  CHECK(iv.tick());        // one boundary
-  CHECK_FALSE(iv.tick());  // consumed
-  clk::advance(120ms);     // two more boundaries elapsed
   CHECK(iv.tick());
-  CHECK(iv.tick());  // one tick per call
+  CHECK_FALSE(iv.tick());
+  clk::advance(120ms);
+  CHECK(iv.tick());
+  CHECK(iv.tick());
   CHECK_FALSE(iv.tick());
   CHECK(iv.tick_count() == 3);
 }
@@ -307,7 +305,7 @@ TEST_CASE("nexenne::chrono::interval default-constructed is stopped with a zero 
   CHECK(iv.period() == clk::duration::zero());
   CHECK(iv.tick_count() == 0);
   CHECK(iv.remaining() == clk::duration::zero());
-  CHECK(iv.next_tick_at() == clk::time_point::max());  // stopped sorts last
+  CHECK(iv.next_tick_at() == clk::time_point::max());
   CHECK_FALSE(iv.tick());
 }
 
@@ -318,7 +316,7 @@ TEST_CASE("nexenne::chrono::interval constructed with a period exposes it but st
   CHECK(iv.period() == std::chrono::duration_cast<clk::duration>(50ms));
   CHECK_FALSE(iv.is_running());
   clk::advance(100ms);
-  CHECK_FALSE(iv.tick());  // not started yet
+  CHECK_FALSE(iv.tick());
 }
 
 TEST_CASE("nexenne::chrono::interval a negative period is clamped to zero and never fires") {
@@ -328,7 +326,7 @@ TEST_CASE("nexenne::chrono::interval a negative period is clamped to zero and ne
   CHECK(iv.period() == clk::duration::zero());
   iv.start();
   clk::advance(1s);
-  CHECK_FALSE(iv.tick());  // zero period never fires
+  CHECK_FALSE(iv.tick());
   CHECK(iv.remaining() == clk::duration::zero());
 }
 
@@ -338,11 +336,11 @@ TEST_CASE("nexenne::chrono::interval just-before, exactly-at, just-after the fir
   ch::interval<clk> iv{100ms};
   iv.start();
   clk::advance(99ms);
-  CHECK_FALSE(iv.tick());  // just before
+  CHECK_FALSE(iv.tick());
   CHECK(iv.template remaining<std::chrono::milliseconds>() == 1ms);
-  clk::advance(1ms);  // exactly at: now == anchor + period
+  clk::advance(1ms);
   CHECK(iv.template remaining<std::chrono::milliseconds>() == 0ms);
-  CHECK(iv.tick());  // fires at the exact boundary
+  CHECK(iv.tick());
   CHECK_FALSE(iv.tick());
   CHECK(iv.tick_count() == 1);
 }
@@ -354,7 +352,7 @@ TEST_CASE(
   clk::reset();
   ch::interval<clk> iv{10ms};
   iv.start();
-  clk::advance(50ms);  // exactly five periods
+  clk::advance(50ms);
   int fires{0};
   while (iv.tick()) {
     ++fires;
@@ -369,14 +367,12 @@ TEST_CASE("nexenne::chrono::interval one call per loop consumes one boundary and
   clk::reset();
   ch::interval<clk> iv{10ms};
   iv.start();
-  clk::advance(35ms);  // three full periods elapsed, plus 5ms slack
-  // Calling tick() once consumes exactly one boundary; the rest stay pending.
+  clk::advance(35ms);
   CHECK(iv.tick());
   CHECK(iv.tick_count() == 1);
-  // The anchor only advanced one period, so two boundaries remain pending.
   CHECK(iv.tick());
   CHECK(iv.tick());
-  CHECK_FALSE(iv.tick());  // 5ms slack is not a full period
+  CHECK_FALSE(iv.tick());
   CHECK(iv.tick_count() == 3);
 }
 
@@ -387,10 +383,10 @@ TEST_CASE("nexenne::chrono::interval remaining reports zero when a boundary is p
   iv.start();
   clk::advance(40ms);
   CHECK(iv.template remaining<std::chrono::milliseconds>() == 60ms);
-  clk::advance(80ms);  // 120 elapsed: a boundary is pending but unconsumed
+  clk::advance(80ms);
   CHECK(iv.remaining() == clk::duration::zero());
-  CHECK(iv.tick());  // consume it; anchor now at 100
-  CHECK(iv.template remaining<std::chrono::milliseconds>() == 80ms);  // 100 + 100 - 120
+  CHECK(iv.tick());
+  CHECK(iv.template remaining<std::chrono::milliseconds>() == 80ms);
 }
 
 TEST_CASE("nexenne::chrono::interval next_tick_at advances by exactly one period per tick") {
@@ -417,12 +413,12 @@ TEST_CASE("nexenne::chrono::interval stop freezes; reset clears anchor and count
   CHECK(iv.tick());
   iv.stop();
   CHECK_FALSE(iv.is_running());
-  CHECK_FALSE(iv.tick());       // stopped never fires
-  CHECK(iv.tick_count() == 2);  // count preserved by stop
+  CHECK_FALSE(iv.tick());
+  CHECK(iv.tick_count() == 2);
   CHECK(iv.next_tick_at() == clk::time_point::max());
   iv.reset();
   CHECK_FALSE(iv.is_running());
-  CHECK(iv.tick_count() == 0);  // reset clears count
+  CHECK(iv.tick_count() == 0);
 }
 
 TEST_CASE("nexenne::chrono::interval restart re-anchors at now and zeroes the count") {
@@ -433,9 +429,9 @@ TEST_CASE("nexenne::chrono::interval restart re-anchors at now and zeroes the co
   clk::advance(120ms);
   CHECK(iv.tick());
   CHECK(iv.tick_count() == 1);
-  iv.start();  // re-arm: anchors at now, resets count
+  iv.start();
   CHECK(iv.tick_count() == 0);
-  CHECK_FALSE(iv.tick());  // nothing elapsed since the new anchor
+  CHECK_FALSE(iv.tick());
   clk::advance(50ms);
   CHECK(iv.tick());
   CHECK(iv.tick_count() == 1);
@@ -449,14 +445,14 @@ TEST_CASE("nexenne::chrono::interval ordering: running sorts by next-tick, stopp
   ch::interval<clk> stopped{50ms};
   soon.start();
   later.start();
-  CHECK(soon < later);     // earlier next-tick sorts first
-  CHECK(stopped > later);  // stopped (max) sorts after any running
+  CHECK(soon < later);
+  CHECK(stopped > later);
   CHECK_FALSE(soon == later);
   ch::interval<clk> twin_a{100ms};
   ch::interval<clk> twin_b{100ms};
   twin_a.start();
   twin_b.start();
-  CHECK(twin_a == twin_b);  // same next-tick
+  CHECK(twin_a == twin_b);
 }
 
 TEST_CASE("nexenne::chrono::deadline reports reached and clamps remaining") {
@@ -467,7 +463,7 @@ TEST_CASE("nexenne::chrono::deadline reports reached and clamps remaining") {
   CHECK(dl.template remaining<std::chrono::milliseconds>() == 100ms);
   clk::advance(150ms);
   CHECK(dl.reached());
-  CHECK(dl.remaining() == clk::duration::zero());  // overdue clamps to zero
+  CHECK(dl.remaining() == clk::duration::zero());
 }
 
 TEST_CASE("nexenne::chrono::deadline default-constructed targets the epoch") {
@@ -475,7 +471,7 @@ TEST_CASE("nexenne::chrono::deadline default-constructed targets the epoch") {
   clk::reset();
   ch::deadline<clk> const dl{};
   CHECK(dl.when() == clk::time_point{});
-  CHECK(dl.reached());  // now == epoch >= epoch
+  CHECK(dl.reached());
   CHECK(dl.remaining() == clk::duration::zero());
 }
 
@@ -495,10 +491,10 @@ TEST_CASE("nexenne::chrono::deadline exactly at the deadline counts as reached")
   clk::reset();
   auto const dl{ch::deadline<clk>::after(100ms)};
   clk::advance(99ms);
-  CHECK_FALSE(dl.reached());  // just before
+  CHECK_FALSE(dl.reached());
   CHECK(dl.template remaining<std::chrono::milliseconds>() == 1ms);
-  clk::advance(1ms);    // exactly at
-  CHECK(dl.reached());  // now == when
+  clk::advance(1ms);
+  CHECK(dl.reached());
   CHECK(dl.remaining() == clk::duration::zero());
 }
 
@@ -509,7 +505,7 @@ TEST_CASE("nexenne::chrono::deadline already-past at construction is reached imm
   auto const past{clk::now() - std::chrono::duration_cast<clk::duration>(100ms)};
   ch::deadline<clk> const dl{past};
   CHECK(dl.reached());
-  CHECK(dl.remaining() == clk::duration::zero());  // never negative
+  CHECK(dl.remaining() == clk::duration::zero());
   CHECK(dl.template remaining<std::chrono::milliseconds>() == 0ms);
 }
 
@@ -519,37 +515,32 @@ TEST_CASE("nexenne::chrono::deadline can be reassigned to a new target") {
   ch::deadline<clk> dl{ch::deadline<clk>::after(100ms)};
   clk::advance(150ms);
   CHECK(dl.reached());
-  dl = ch::deadline<clk>::after(200ms);  // re-arm to a fresh deadline
+  dl = ch::deadline<clk>::after(200ms);
   CHECK_FALSE(dl.reached());
   CHECK(dl.template remaining<std::chrono::milliseconds>() == 200ms);
   clk::advance(200ms);
   CHECK(dl.reached());
 }
 
-TEST_CASE("nexenne::chrono::deadline after() saturates a near-max offset (m6)") {
+TEST_CASE("nexenne::chrono::deadline after() saturates a near-max offset") {
   using clk = ch::basic_manual_clock<struct dl_overflow_tag>;
   clk::reset();
-  clk::advance(1s);  // a positive now, so now + max would overflow the time point
-  // A "never expires" offset must not wrap into the past: it saturates high and
-  // reads as not reached with a huge positive remaining.
+  clk::advance(1s);
   auto const dl{ch::deadline<clk>::after(clk::duration::max())};
   CHECK_FALSE(dl.reached());
   CHECK(dl.when() == clk::time_point::max());
   CHECK(dl.remaining() > clk::duration::zero());
-  // A near-min negative offset saturates low and is already reached.
   auto const past{ch::deadline<clk>::after(clk::duration::min())};
   CHECK(past.reached());
   CHECK(past.remaining() == clk::duration::zero());
 }
 
-TEST_CASE("nexenne::chrono::deadline std::formatter renders remaining time (m5)") {
+TEST_CASE("nexenne::chrono::deadline std::formatter renders remaining time") {
   using clk = ch::basic_manual_clock<struct dl_format_tag>;
   clk::reset();
   auto const dl{ch::deadline<clk>::after(65s)};
   CHECK(std::format("{}", dl) == "01m:05s");
-  // '!' disables suppress-zero, showing every component.
   CHECK(std::format("{:!}", dl) == "00d:00h:01m:05s.000");
-  // An overdue deadline clamps remaining to zero.
   clk::advance(2min);
   CHECK(std::format("{}", dl) == "00s");
 }
@@ -575,18 +566,18 @@ TEST_CASE("nexenne::chrono::alarm one-shot and periodic firing") {
   a.set_callback([&fires] { ++fires; });
   a.arm_after(clk::now(), 100ms);
   a.poll(clk::now());
-  CHECK(fires == 0);  // not yet
+  CHECK(fires == 0);
   clk::advance(100ms);
   a.poll(clk::now());
   CHECK(fires == 1);
-  CHECK_FALSE(a.is_armed());  // one-shot disarmed
+  CHECK_FALSE(a.is_armed());
 
   fires = 0;
   a.arm_periodic(clk::now(), 50ms);
-  clk::advance(160ms);  // three boundaries elapsed
+  clk::advance(160ms);
   a.poll(clk::now());
-  CHECK(fires == 3);    // periodic catches up
-  CHECK(a.is_armed());  // still armed
+  CHECK(fires == 3);
+  CHECK(a.is_armed());
 }
 
 TEST_CASE("nexenne::chrono::alarm periodic with a non-positive period disarms, never spins") {
@@ -595,9 +586,9 @@ TEST_CASE("nexenne::chrono::alarm periodic with a non-positive period disarms, n
   int fires{0};
   ch::alarm<clk> a;
   a.set_callback([&fires] { ++fires; });
-  a.arm_periodic(clk::now(), -50ms);  // negative period must not loop forever
+  a.arm_periodic(clk::now(), -50ms);
   clk::advance(10ms);
-  a.poll(clk::now());  // fires once, then disarms instead of spinning/overflowing
+  a.poll(clk::now());
   CHECK(fires == 1);
   CHECK_FALSE(a.is_armed());
 }
@@ -608,19 +599,19 @@ TEST_CASE("nexenne::chrono::alarm default-constructed is disarmed with no callba
   ch::alarm<clk> a{};
   CHECK_FALSE(a.is_armed());
   CHECK(a.mode() == ch::alarm_mode::one_shot);
-  a.poll(clk::now());  // disarmed poll is a harmless no-op
+  a.poll(clk::now());
   CHECK_FALSE(a.is_armed());
 }
 
 TEST_CASE("nexenne::chrono::alarm armed with an empty callback still advances and disarms") {
   using clk = ch::basic_manual_clock<struct al_empty_tag>;
   clk::reset();
-  ch::alarm<clk> a;  // no callback set
+  ch::alarm<clk> a;
   a.arm_after(clk::now(), 50ms);
   CHECK(a.is_armed());
   CHECK(a.mode() == ch::alarm_mode::one_shot);
   clk::advance(50ms);
-  a.poll(clk::now());  // must not crash on a null callback
+  a.poll(clk::now());
   CHECK_FALSE(a.is_armed());
 }
 
@@ -636,10 +627,10 @@ TEST_CASE("nexenne::chrono::alarm arm_at fires exactly at and not before the fir
   CHECK(a.mode() == ch::alarm_mode::one_shot);
   clk::advance(99ms);
   a.poll(clk::now());
-  CHECK(fires == 0);  // just before
-  clk::advance(1ms);  // exactly at
+  CHECK(fires == 0);
+  clk::advance(1ms);
   a.poll(clk::now());
-  CHECK(fires == 1);  // fires at the exact boundary
+  CHECK(fires == 1);
   CHECK_FALSE(a.is_armed());
 }
 
@@ -651,9 +642,9 @@ TEST_CASE("nexenne::chrono::alarm one-shot armed in the past fires once on the f
   ch::alarm<clk> a;
   a.set_callback([&fires] { ++fires; });
   auto const past{clk::now() - std::chrono::duration_cast<clk::duration>(100ms)};
-  a.arm_at(past);  // already overdue
+  a.arm_at(past);
   a.poll(clk::now());
-  CHECK(fires == 1);  // fires once, not in a loop
+  CHECK(fires == 1);
   CHECK_FALSE(a.is_armed());
 }
 
@@ -673,9 +664,9 @@ TEST_CASE("nexenne::chrono::alarm periodic fires once per poll boundary across s
   clk::advance(100ms);
   a.poll(clk::now());
   CHECK(fires == 2);
-  clk::advance(50ms);  // partial period
+  clk::advance(50ms);
   a.poll(clk::now());
-  CHECK(fires == 2);  // no fire before the next boundary
+  CHECK(fires == 2);
 }
 
 TEST_CASE("nexenne::chrono::alarm periodic with a zero period fires once then disarms") {
@@ -684,10 +675,10 @@ TEST_CASE("nexenne::chrono::alarm periodic with a zero period fires once then di
   int fires{0};
   ch::alarm<clk> a;
   a.set_callback([&fires] { ++fires; });
-  a.arm_periodic(clk::now(), 0ms);  // zero period: must not spin forever
-  a.poll(clk::now());               // now >= next (next == now), fires once
+  a.arm_periodic(clk::now(), 0ms);
+  a.poll(clk::now());
   CHECK(fires == 1);
-  CHECK_FALSE(a.is_armed());  // disarmed instead of looping
+  CHECK_FALSE(a.is_armed());
 }
 
 TEST_CASE("nexenne::chrono::alarm disarm stops further firing and retains the callback") {
@@ -704,8 +695,7 @@ TEST_CASE("nexenne::chrono::alarm disarm stops further firing and retains the ca
   CHECK_FALSE(a.is_armed());
   clk::advance(500ms);
   a.poll(clk::now());
-  CHECK(fires == 1);  // disarmed: no more fires
-  // callback retained: re-arm without setting it again
+  CHECK(fires == 1);
   a.arm_after(clk::now(), 10ms);
   clk::advance(10ms);
   a.poll(clk::now());
@@ -724,17 +714,17 @@ TEST_CASE("nexenne::chrono::alarm re-arm from one-shot to periodic switches mode
   a.poll(clk::now());
   CHECK(fires == 1);
   CHECK_FALSE(a.is_armed());
-  a.arm_periodic(clk::now(), 50ms);  // re-arm as periodic
+  a.arm_periodic(clk::now(), 50ms);
   CHECK(a.mode() == ch::alarm_mode::periodic);
   clk::advance(100ms);
   a.poll(clk::now());
   CHECK(fires == 3);
   CHECK(a.is_armed());
-  a.arm_at(clk::now() + std::chrono::duration_cast<clk::duration>(50ms));  // back to one-shot
+  a.arm_at(clk::now() + std::chrono::duration_cast<clk::duration>(50ms));
   CHECK(a.mode() == ch::alarm_mode::one_shot);
 }
 
-TEST_CASE("nexenne::chrono::alarm one-shot callback can re-arm itself (M2)") {
+TEST_CASE("nexenne::chrono::alarm one-shot callback can re-arm itself") {
   using clk = ch::basic_manual_clock<struct al_selfrearm_tag>;
   clk::reset();
   int fires{0};
@@ -742,8 +732,6 @@ TEST_CASE("nexenne::chrono::alarm one-shot callback can re-arm itself (M2)") {
   a.set_callback([&a, &fires] {
     ++fires;
     if (fires < 3) {
-      // Self-rescheduling one-shot: arm the next occurrence from inside the
-      // callback. The disarm-before-callback order must let this survive.
       a.arm_at(clk::now() + std::chrono::duration_cast<clk::duration>(50ms));
     }
   });
@@ -751,7 +739,7 @@ TEST_CASE("nexenne::chrono::alarm one-shot callback can re-arm itself (M2)") {
   clk::advance(50ms);
   a.poll(clk::now());
   CHECK(fires == 1);
-  CHECK(a.is_armed());  // re-arm from inside the callback was not clobbered
+  CHECK(a.is_armed());
   clk::advance(50ms);
   a.poll(clk::now());
   CHECK(fires == 2);
@@ -759,7 +747,7 @@ TEST_CASE("nexenne::chrono::alarm one-shot callback can re-arm itself (M2)") {
   clk::advance(50ms);
   a.poll(clk::now());
   CHECK(fires == 3);
-  CHECK_FALSE(a.is_armed());  // the final fire did not re-arm, so it stays disarmed
+  CHECK_FALSE(a.is_armed());
 }
 
 TEST_CASE("nexenne::chrono::alarm callback can be replaced while armed") {
@@ -773,38 +761,38 @@ TEST_CASE("nexenne::chrono::alarm callback can be replaced while armed") {
   clk::advance(50ms);
   a.poll(clk::now());
   CHECK(a_fires == 1);
-  a.set_callback([&b_fires] { ++b_fires; });  // swap mid-flight
+  a.set_callback([&b_fires] { ++b_fires; });
   clk::advance(50ms);
   a.poll(clk::now());
-  CHECK(a_fires == 1);  // old callback no longer fires
-  CHECK(b_fires == 1);  // new one does
+  CHECK(a_fires == 1);
+  CHECK(b_fires == 1);
 }
 
 TEST_CASE("nexenne::chrono::rate_limiter starts full, allows a burst, then denies") {
   using clk = ch::basic_manual_clock<struct rl_burst_tag>;
   clk::reset();
-  ch::rate_limiter<clk> rl{3.0, 10.0};  // capacity 3, 10 tokens/sec
+  ch::rate_limiter<clk> rl{3.0, 10.0};
   CHECK(rl.capacity() == doctest::Approx(3.0));
   CHECK(rl.refill_rate() == doctest::Approx(10.0));
-  CHECK(rl.tokens() == doctest::Approx(3.0));  // starts full
+  CHECK(rl.tokens() == doctest::Approx(3.0));
   CHECK(rl.try_acquire());
   CHECK(rl.try_acquire());
   CHECK(rl.try_acquire());
-  CHECK_FALSE(rl.try_acquire());  // bucket empty
+  CHECK_FALSE(rl.try_acquire());
   CHECK(rl.tokens() == doctest::Approx(0.0));
 }
 
 TEST_CASE("nexenne::chrono::rate_limiter refills lazily as the clock advances") {
   using clk = ch::basic_manual_clock<struct rl_refill_tag>;
   clk::reset();
-  ch::rate_limiter<clk> rl{5.0, 10.0};  // one token per 100ms
-  CHECK(rl.try_acquire(5.0));           // drain to empty
+  ch::rate_limiter<clk> rl{5.0, 10.0};
+  CHECK(rl.try_acquire(5.0));
   CHECK_FALSE(rl.try_acquire());
   clk::advance(100ms);
-  CHECK(rl.tokens() == doctest::Approx(1.0));  // one refilled
+  CHECK(rl.tokens() == doctest::Approx(1.0));
   CHECK(rl.try_acquire());
   CHECK_FALSE(rl.try_acquire());
-  clk::advance(250ms);  // 2.5 tokens
+  clk::advance(250ms);
   CHECK(rl.tokens() == doctest::Approx(2.5));
   CHECK(rl.try_acquire(2.0));
   CHECK(rl.tokens() == doctest::Approx(0.5));
@@ -814,9 +802,9 @@ TEST_CASE("nexenne::chrono::rate_limiter refill never exceeds capacity") {
   using clk = ch::basic_manual_clock<struct rl_cap_tag>;
   clk::reset();
   ch::rate_limiter<clk> rl{2.0, 100.0};
-  CHECK(rl.try_acquire(2.0));                  // empty
-  clk::advance(10s);                           // would refill far past capacity
-  CHECK(rl.tokens() == doctest::Approx(2.0));  // clamped at capacity
+  CHECK(rl.try_acquire(2.0));
+  clk::advance(10s);
+  CHECK(rl.tokens() == doctest::Approx(2.0));
   CHECK(rl.try_acquire(2.0));
   CHECK_FALSE(rl.try_acquire());
 }
@@ -824,15 +812,13 @@ TEST_CASE("nexenne::chrono::rate_limiter refill never exceeds capacity") {
 TEST_CASE("nexenne::chrono::rate_limiter steady-state pacing after the initial burst") {
   using clk = ch::basic_manual_clock<struct rl_steady_tag>;
   clk::reset();
-  ch::rate_limiter<clk> rl{4.0, 20.0};  // one token per 50ms
-  // burst drains the bucket
+  ch::rate_limiter<clk> rl{4.0, 20.0};
   CHECK(rl.try_acquire(4.0));
   CHECK_FALSE(rl.try_acquire());
-  // steady state: exactly one token every 50ms
   for (int i{0}; i < 5; ++i) {
     clk::advance(50ms);
     CHECK(rl.try_acquire());
-    CHECK_FALSE(rl.try_acquire());  // no second token in the same window
+    CHECK_FALSE(rl.try_acquire());
   }
 }
 
@@ -840,19 +826,19 @@ TEST_CASE("nexenne::chrono::rate_limiter zero token acquire trivially succeeds")
   using clk = ch::basic_manual_clock<struct rl_zero_n_tag>;
   clk::reset();
   ch::rate_limiter<clk> rl{1.0, 1.0};
-  CHECK(rl.try_acquire(1.0));        // drain
-  CHECK(rl.try_acquire(0.0));        // zero always succeeds, even when empty
-  CHECK_FALSE(rl.try_acquire(1.0));  // still empty
+  CHECK(rl.try_acquire(1.0));
+  CHECK(rl.try_acquire(0.0));
+  CHECK_FALSE(rl.try_acquire(1.0));
 }
 
 TEST_CASE("nexenne::chrono::rate_limiter rejects negative and non-finite acquire counts") {
   using clk = ch::basic_manual_clock<struct rl_bad_n_tag>;
   clk::reset();
   ch::rate_limiter<clk> rl{5.0, 1.0};
-  CHECK_FALSE(rl.try_acquire(-1.0));  // negative is rejected
+  CHECK_FALSE(rl.try_acquire(-1.0));
   CHECK_FALSE(rl.try_acquire(std::numeric_limits<double>::quiet_NaN()));
   CHECK_FALSE(rl.try_acquire(std::numeric_limits<double>::infinity()));
-  CHECK(rl.tokens() == doctest::Approx(5.0));  // untouched by rejected acquires
+  CHECK(rl.tokens() == doctest::Approx(5.0));
 }
 
 TEST_CASE("nexenne::chrono::rate_limiter clamps a non-finite capacity to zero") {
@@ -861,18 +847,14 @@ TEST_CASE("nexenne::chrono::rate_limiter clamps a non-finite capacity to zero") 
   auto const nan{std::numeric_limits<double>::quiet_NaN()};
   auto const inf{std::numeric_limits<double>::infinity()};
 
-  // A NaN capacity must not leave the bucket silently admitting everything: it
-  // clamps to an empty, never-refilling bucket.
   ch::rate_limiter<clk> rl_nan{nan, 1.0};
   CHECK(rl_nan.capacity() == doctest::Approx(0.0));
   CHECK_FALSE(rl_nan.try_acquire());
 
-  // Infinities are clamped too, not treated as an unbounded bucket.
   ch::rate_limiter<clk> rl_inf{inf, inf};
   CHECK(rl_inf.capacity() == doctest::Approx(0.0));
   CHECK_FALSE(rl_inf.try_acquire());
 
-  // A valid limiter is unaffected by the clamp.
   ch::rate_limiter<clk> rl_ok{3.0, 10.0};
   CHECK(rl_ok.capacity() == doctest::Approx(3.0));
   CHECK(rl_ok.try_acquire());
@@ -881,13 +863,13 @@ TEST_CASE("nexenne::chrono::rate_limiter clamps a non-finite capacity to zero") 
 TEST_CASE("nexenne::chrono::rate_limiter a zero refill rate never recovers") {
   using clk = ch::basic_manual_clock<struct rl_zero_rate_tag>;
   clk::reset();
-  ch::rate_limiter<clk> rl{2.0, 0.0};  // no refill
+  ch::rate_limiter<clk> rl{2.0, 0.0};
   CHECK(rl.try_acquire(2.0));
   CHECK_FALSE(rl.try_acquire());
   clk::advance(1h);
-  CHECK(rl.tokens() == doctest::Approx(0.0));  // still empty
+  CHECK(rl.tokens() == doctest::Approx(0.0));
   CHECK_FALSE(rl.try_acquire());
-  CHECK(rl.until_next_token() == clk::duration::max());  // never available
+  CHECK(rl.until_next_token() == clk::duration::max());
 }
 
 TEST_CASE("nexenne::chrono::rate_limiter clamps negative capacity and rate to zero") {
@@ -897,44 +879,42 @@ TEST_CASE("nexenne::chrono::rate_limiter clamps negative capacity and rate to ze
   CHECK(rl.capacity() == doctest::Approx(0.0));
   CHECK(rl.refill_rate() == doctest::Approx(0.0));
   CHECK(rl.tokens() == doctest::Approx(0.0));
-  CHECK_FALSE(rl.try_acquire());  // nothing to give
-  CHECK(rl.try_acquire(0.0));     // zero still ok
+  CHECK_FALSE(rl.try_acquire());
+  CHECK(rl.try_acquire(0.0));
 }
 
 TEST_CASE("nexenne::chrono::rate_limiter until_next_token reports zero, a wait, and rounds up") {
   using clk = ch::basic_manual_clock<struct rl_until_tag>;
   clk::reset();
-  ch::rate_limiter<clk> rl{5.0, 10.0};                       // one token per 100ms
-  CHECK(rl.until_next_token() == clk::duration::zero());     // full, available now
-  CHECK(rl.until_next_token(0.0) == clk::duration::zero());  // non-positive n
-  CHECK(rl.try_acquire(5.0));                                // empty
-  // need one token at 10/sec => 100ms
+  ch::rate_limiter<clk> rl{5.0, 10.0};
+  CHECK(rl.until_next_token() == clk::duration::zero());
+  CHECK(rl.until_next_token(0.0) == clk::duration::zero());
+  CHECK(rl.try_acquire(5.0));
   CHECK(rl.until_next_token() == std::chrono::duration_cast<clk::duration>(100ms));
-  // need three tokens => 300ms
   CHECK(rl.until_next_token(3.0) == std::chrono::duration_cast<clk::duration>(300ms));
 }
 
 TEST_CASE("nexenne::chrono::rate_limiter exact-boundary refill admits an acquire at the boundary") {
   using clk = ch::basic_manual_clock<struct rl_exact_tag>;
   clk::reset();
-  ch::rate_limiter<clk> rl{1.0, 10.0};  // one token per 100ms
-  CHECK(rl.try_acquire());              // drain the one token
+  ch::rate_limiter<clk> rl{1.0, 10.0};
+  CHECK(rl.try_acquire());
   CHECK_FALSE(rl.try_acquire());
   clk::advance(99ms);
-  CHECK_FALSE(rl.try_acquire());  // just shy of one token
-  clk::advance(1ms);              // exactly 100ms elapsed => one token
-  CHECK(rl.try_acquire());        // admitted at the exact boundary
+  CHECK_FALSE(rl.try_acquire());
+  clk::advance(1ms);
+  CHECK(rl.try_acquire());
 }
 
 TEST_CASE("nexenne::chrono::rate_limiter reset fills and drain empties the bucket") {
   using clk = ch::basic_manual_clock<struct rl_resetdrain_tag>;
   clk::reset();
   ch::rate_limiter<clk> rl{4.0, 10.0};
-  CHECK(rl.try_acquire(4.0));  // empty it
-  rl.reset();                  // back to full
+  CHECK(rl.try_acquire(4.0));
+  rl.reset();
   CHECK(rl.tokens() == doctest::Approx(4.0));
   CHECK(rl.try_acquire(4.0));
-  rl.drain();  // now empty again
+  rl.drain();
   CHECK(rl.tokens() == doctest::Approx(0.0));
   CHECK_FALSE(rl.try_acquire());
 }
@@ -944,49 +924,46 @@ TEST_CASE("nexenne::chrono::rate_limiter ignores backward clock movement") {
   clk::reset();
   clk::advance(1s);
   ch::rate_limiter<clk> rl{5.0, 10.0};
-  CHECK(rl.try_acquire(5.0));                  // anchor at t=1s, empty
-  clk::advance(-500ms);                        // clock goes backward
-  CHECK(rl.tokens() == doctest::Approx(0.0));  // backward dt clamped to zero, no refill
+  CHECK(rl.try_acquire(5.0));
+  clk::advance(-500ms);
+  CHECK(rl.tokens() == doctest::Approx(0.0));
   CHECK_FALSE(rl.try_acquire());
-  clk::advance(600ms);  // net +100ms from the empty anchor => one token
+  clk::advance(600ms);
   CHECK(rl.tokens() == doctest::Approx(1.0));
 }
 
 TEST_CASE("nexenne::chrono::rate_limiter supports fractional refill rates") {
   using clk = ch::basic_manual_clock<struct rl_frac_tag>;
   clk::reset();
-  ch::rate_limiter<clk> rl{1.0, 0.5};  // one token every 2 seconds
-  CHECK(rl.try_acquire());             // empty
+  ch::rate_limiter<clk> rl{1.0, 0.5};
+  CHECK(rl.try_acquire());
   clk::advance(1s);
-  CHECK(rl.tokens() == doctest::Approx(0.5));  // half a token
+  CHECK(rl.tokens() == doctest::Approx(0.5));
   CHECK_FALSE(rl.try_acquire());
-  clk::advance(1s);  // another half
+  clk::advance(1s);
   CHECK(rl.tokens() == doctest::Approx(1.0));
   CHECK(rl.try_acquire());
 }
 
-TEST_CASE("nexenne::chrono::rate_limiter until_next_token is unreachable above capacity (M3)") {
+TEST_CASE("nexenne::chrono::rate_limiter until_next_token is unreachable above capacity") {
   using clk = ch::basic_manual_clock<struct rl_unreachable_tag>;
   clk::reset();
-  ch::rate_limiter<clk> rl{5.0, 10.0};  // capacity 5, refill 10/s
-  // refill() caps m_tokens at capacity 5, so 8 tokens can never be available:
-  // the wait must be the unreachable sentinel, not a finite (but futile) wait.
+  ch::rate_limiter<clk> rl{5.0, 10.0};
   CHECK(rl.until_next_token(8.0) == clk::duration::max());
-  clk::advance(10s);  // still unreachable no matter how long we wait
+  clk::advance(10s);
   CHECK(rl.until_next_token(8.0) == clk::duration::max());
   CHECK_FALSE(rl.try_acquire(8.0));
 
-  // A request within capacity still returns a finite, reachable wait.
   ch::rate_limiter<clk> rl2{5.0, 10.0};
-  CHECK(rl2.try_acquire(5.0));  // drain to empty
+  CHECK(rl2.try_acquire(5.0));
   auto const wait{rl2.until_next_token(5.0)};
   CHECK(wait > clk::duration::zero());
   CHECK(wait != clk::duration::max());
 }
 
-TEST_CASE("nexenne::chrono::alarm callback can replace itself while it runs") {
-  // set_callback(cb) from inside the callback used to destroy the running closure
-  // in place, so reading its captures afterwards was a use-after-destroy.
+TEST_CASE(
+  "nexenne::chrono::alarm callback can replace itself while it runs, keeping its captures alive"
+) {
   using clk = ch::basic_manual_clock<struct al_self_replace_tag>;
   clk::reset();
   ch::alarm<clk> a;
@@ -996,7 +973,7 @@ TEST_CASE("nexenne::chrono::alarm callback can replace itself while it runs") {
   a.set_callback([&a, &first, &second, &seen, payload = std::make_unique<int>(42)] {
     ++first;
     a.set_callback([&second] { ++second; });
-    seen = *payload;  // the capture must still be alive after the swap
+    seen = *payload;
   });
   a.arm_periodic(clk::now(), 10ms);
   clk::advance(10ms);

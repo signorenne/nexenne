@@ -100,17 +100,12 @@ private:
       m_anchored = true;
       return;
     }
-    // Guard against a non-monotonic clock (e.g. \c manual_clock
-    // set backward in a test). For \c steady_clock this branch
-    // is dead.
     auto dt_ns{std::chrono::duration_cast<std::chrono::nanoseconds>(now - m_last).count()};
     if (dt_ns < 0) {
       dt_ns = 0;
     }
     auto const dt_sec{static_cast<double>(dt_ns) * 1e-9};
     m_tokens = std::min(m_capacity, m_tokens + dt_sec * m_refill_per_sec);
-    // Hold the anchor monotonic: a backward clock must not move it back, which
-    // would re-credit the skipped interval as refill on the next forward step.
     m_last = std::max(m_last, now);
   }
 
@@ -208,10 +203,6 @@ public:
     if (m_tokens + eps >= n) {
       return duration::zero();
     }
-    // More tokens than the bucket can ever hold: refill() caps m_tokens at
-    // m_capacity, so n above capacity is never reachable. Report the
-    // unreachable sentinel rather than a finite wait that would never elapse
-    // into success.
     if (n > m_capacity + eps) {
       return duration::max();
     }
@@ -220,10 +211,6 @@ public:
     }
     auto const deficit{n - m_tokens};
     auto const seconds{deficit / m_refill_per_sec};
-
-    // Round up so the caller sleeps slightly longer than the
-    // bare minimum - otherwise float->int truncation can cause
-    // a busy-spin where the caller wakes one ULP too early.
     auto const wanted_ns{std::ceil(seconds * 1e9)};
     constexpr auto max_ns{static_cast<double>(std::numeric_limits<std::int64_t>::max())};
     if (!std::isfinite(wanted_ns) || wanted_ns >= max_ns) {

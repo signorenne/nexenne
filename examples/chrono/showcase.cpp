@@ -39,8 +39,6 @@
  * no sleeps, no flakiness, no dependence on how fast the machine is. Swapping
  * clk for std::chrono::steady_clock is the only change needed to make this a
  * live loop.
- *
- * Each step notes *why* a given API is the right tool. Read it top to bottom.
  */
 
 #include <array>
@@ -105,9 +103,6 @@ auto scaled(clk::duration const d) -> std::string {
 auto main() -> int {
   clk::reset();
 
-  // The per-frame costs of three engine phases, in the order a frame runs them.
-  // Frame 3 deliberately spikes (a GC pause, an asset load) so the budget check
-  // in step 4 has something to catch.
   struct frame_plan {
     clk::duration update;
     clk::duration physics;
@@ -118,64 +113,29 @@ auto main() -> int {
     {1200us, 800us, 3000us},
     {1100us, 820us, 3200us},
     {1300us, 760us, 3100us},
-    {1250us, 900us, 9000us},  // the spike: render blows the budget
+    {1250us, 900us, 9000us},
     {1180us, 810us, 2950us},
     {1220us, 780us, 3050us},
   }};
 
-  // 1. The frame timer.
-  //
-  // frame_timer::tick() returns the delta since the previous frame and folds it
-  // into a moving window, so fps() reports a smoothed recent average rather than
-  // one jittery sample. The first tick() has no previous frame, so it returns
-  // zero and just establishes the baseline - never divide by it. The window size
-  // (here 4) is a template parameter: small enough to react, large enough to
-  // smooth.
   std::println("== 1. Frame loop ==");
   ch::frame_timer<4, clk> frames;
 
-  // 2. The frame-rate cap.
-  //
-  // A token bucket is a clean throttle: one token == permission to start one
-  // frame. capacity 1 with refill 200/sec means "at most ~1 frame per 5 ms, but
-  // allow a single frame's worth of slack to absorb jitter". We poll
-  // until_next_token() to find how long we'd sleep, then (since this is a manual
-  // clock) advance time by exactly that much instead of really sleeping. In a
-  // live loop you would std::this_thread::sleep_for(wait) here instead.
   ch::rate_limiter<clk> gate{1.0, 200.0};
 
-  // 3. The profiler.
-  //
-  // The profiler aggregates timed scopes by name. We ask it once per phase for a
-  // sink(name) - a cheap callable that caches a pointer to that name's stats
-  // bucket - and hand the sink to a scope_timer. When the scope_timer leaves its
-  // block it fires the sink with the elapsed duration, which lands in the bucket.
-  // No std::function indirection, no per-sample map lookup, no allocation after
-  // the first use of each name.
   ch::profiler<clk> prof;
   auto update_sink{prof.sink("update")};
   auto physics_sink{prof.sink("physics")};
   auto render_sink{prof.sink("render")};
 
-  // The CPU budget for one frame at a 120 fps target: each frame must finish
-  // inside ~8.33 ms. We arm a deadline per frame against it; the spike frame
-  // (frame 4, ~11 ms of work) is the one that overruns.
   constexpr auto frame_budget{8333us};
   std::uint64_t blown_budgets{0};
 
-  // 5 (set up first, used in the loop). The intro countdown.
-  //
-  // A countdown fires true exactly once on the running-to-expired transition.
-  // We use it to mark when the run leaves its "intro" phase (the first 10 ms of
-  // simulated time), e.g. to swap a loading screen for gameplay.
   ch::countdown<clk> intro{10ms};
   intro.start();
   bool intro_done{false};
 
   for (std::size_t i{0}; i < plan.size(); ++i) {
-    // 2 (continued). Throttle: ask the bucket when a token will be ready and
-    // skip ahead to that instant. try_acquire() then succeeds because we waited
-    // exactly long enough. On a real clock this is the frame-pacing sleep.
     auto const wait{gate.until_next_token()};
     if (wait > clk::duration::zero()) {
       clk::advance(wait);
@@ -184,20 +144,12 @@ auto main() -> int {
 
     auto const dt{frames.tick()};
 
-    // 4. The per-frame budget guard. A deadline is the right tool for an
-    // absolute "must be done by" instant: arm it once at frame start, then ask
-    // reached() / remaining() against the live clock without re-deriving the
-    // target. A stopwatch measures the frame's own wall time in parallel.
     auto const budget{ch::deadline<clk>::after(frame_budget)};
     ch::stopwatch<clk> frame_sw;
     frame_sw.start();
 
     auto const& f{plan[i]};
 
-    // 3 (continued). Each phase is wrapped in a scope_timer bound to its sink.
-    // The braces matter: the timer fires when *its* block ends, so each phase is
-    // measured independently. Note the explicit clock template argument -
-    // scope_timer defaults its clock to steady_clock, but we want the manual one.
     {
       ch::scope_timer<decltype(update_sink), clk> t{update_sink};
       burn(f.update);
@@ -211,16 +163,11 @@ auto main() -> int {
       burn(f.render);
     }
 
-    // 5 (continued). Poll the intro countdown each frame; it returns true on the
-    // single frame where simulated time first passes 10 ms.
     if (intro.tick()) {
       intro_done = true;
       std::println("  frame {}: intro phase complete, gameplay begins", i + 1);
     }
 
-    // 4 (continued). The frame is done; did it fit its budget? deadline.reached()
-    // compares the live clock against the armed target. The stopwatch tells us by
-    // how much, and remaining() reports the slack that was left (zero once over).
     auto const cpu{frame_sw.elapsed()};
     auto const over_budget{budget.reached()};
     if (over_budget) {
@@ -236,12 +183,6 @@ auto main() -> int {
     );
   }
 
-  // 6. The report.
-  //
-  // Iterate the profiler's buckets (a std::map, so names come out sorted) and
-  // print each phase's count, total, mean, min, and max. format_scaled keeps
-  // sub-millisecond resolution, which is exactly what a micro-timing report
-  // wants - unlike the d/h/m/s breakdown, which would round these away.
   std::println("\n== 6. Profile report ==");
   std::println(
     "  {:<10}{:>6}{:>12}{:>12}{:>12}{:>12}", "phase", "n", "total", "mean", "min", "max"
@@ -262,10 +203,6 @@ auto main() -> int {
   std::println("  frames run         {}", frames.frame_count());
   std::println("  blown budgets      {}", blown_budgets);
   std::println("  intro completed    {}", intro_done);
-  // The whole simulated run, formatted through the d/h/m/s/ms breakdown, which is
-  // the right pick for a wall-clock total a human reads ("how long did the run
-  // take") rather than a per-call micro-timing. clk::now() is the time since the
-  // epoch we reset() to, i.e. the total simulated time advanced this run.
   std::println(
     "  simulated run time {}", ch::format(clk::now().time_since_epoch(), "{m}m:{s}s.{ms}")
   );

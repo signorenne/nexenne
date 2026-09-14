@@ -96,14 +96,11 @@ extract_parts(std::chrono::milliseconds ms, bool const round_to_seconds = false)
   using urep_type = std::make_unsigned_t<rep_type>;
 
   if (round_to_seconds) {
-    // Round to the nearest second within the millisecond domain. Doing this via
-    // duration_cast<seconds> then back would multiply by 1000 and could overflow
-    // int64 near milliseconds::max(); the guarded integer add stays in range and
-    // saturates at the extreme instead of invoking undefined behaviour.
+    // Round in the ms domain: a seconds round trip multiplies by 1000 and overflows near max().
     using ms_t = std::chrono::milliseconds;
     auto total{ms.count()};
     auto const rem{total % 1000};
-    total -= rem;  // toward zero to a whole second; magnitude shrinks, no overflow
+    total -= rem;
     if (rem >= 500 && total <= ms_t::max().count() - 1000) {
       total += 1000;
     } else if (rem <= -500 && total >= ms_t::min().count() + 1000) {
@@ -296,19 +293,11 @@ namespace detail {
     sign_out = std::string{neg_sign};
   }
 
-  // A component renders only when its token appears in \p fmt, so a caller that
-  // excludes a component from the layout (for example "{h}h:{m}m") never gets
-  // it back. The survivors are joined with ':' using canonical unit labels;
-  // the spec's own separators and labels apply only when suppress_zero is
-  // false. The {ms} token is detected via want_ms above.
   auto const has_d{fmt.find("{d}") != std::string_view::npos};
   auto const has_h{fmt.find("{h}") != std::string_view::npos};
   auto const has_m{fmt.find("{m}") != std::string_view::npos};
   auto const has_s{fmt.find("{s}") != std::string_view::npos};
 
-  // Leading zero components are dropped, but a zero component is kept once a
-  // coarser one is already shown, so an interior zero is never silently lost.
-  // Seconds are the anchor and always render when their token is present.
   auto const show_d{has_d && parts.days != 0};
   auto const show_h{has_h && (parts.hours != 0 || show_d)};
   auto const show_m{has_m && (parts.minutes != 0 || show_d || show_h)};

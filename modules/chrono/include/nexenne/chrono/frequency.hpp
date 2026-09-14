@@ -97,14 +97,11 @@ template <typename Rep, typename Period>
     constexpr auto limit{static_cast<long double>(std::numeric_limits<std::uint64_t>::max())};
     return hz >= limit ? std::numeric_limits<std::uint64_t>::max() : static_cast<std::uint64_t>(hz);
   }
-  // freq = 1 / (count * seconds-per-tick) = Period::den / (Period::num * count),
-  // evaluated as a single division so the intermediate is not truncated twice.
+  // freq = 1 / (count * num / den) = den / (num * count): one division, one truncation.
   auto const num{static_cast<std::uint64_t>(Period::num)};
   auto const den{static_cast<std::uint64_t>(Period::den)};
   auto const count{static_cast<std::uint64_t>(period.count())};
-  // Guard the product: num * count above 2^64 wraps, which either divides by a
-  // wrong nonzero value or (when it wraps exactly to zero) divides by zero.
-  // Such a period is far below one hertz, so the truncated frequency is zero.
+  // num * count past 2^64 wraps (maybe to zero); such a period is far below 1 Hz anyway.
   if (num == 0 || count > std::numeric_limits<std::uint64_t>::max() / num) {
     return 0;
   }

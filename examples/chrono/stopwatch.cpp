@@ -48,8 +48,8 @@ auto main() -> int {
   clk::advance(30ms);
   auto const lap1{sw.lap()};
   clk::advance(20ms);
-  sw.pause();           // freeze the accumulator
-  clk::advance(500ms);  // time passes while paused: not counted
+  sw.pause();
+  clk::advance(500ms);
   sw.resume();
   clk::advance(10ms);
 
@@ -57,11 +57,7 @@ auto main() -> int {
     "lap 1: {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(*lap1).count()
   );
   std::println("total elapsed: {} ms", sw.elapsed<std::chrono::milliseconds>().count());
-  std::println("formatted: {}", sw);        // stopwatch has a std::formatter
-  std::cout << "streamed: " << sw << '\n';  // and an operator<< with the same text
-  // lap 1: 30 ms
-  // total elapsed: 60 ms
-  // formatted: 00s:060ms
-  // streamed: 00s:060ms
+  std::println("formatted: {}", sw);
+  std::cout << "streamed: " << sw << '\n';
   return 0;
 }

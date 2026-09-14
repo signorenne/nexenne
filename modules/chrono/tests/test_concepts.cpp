@@ -39,8 +39,6 @@ struct not_steady_clock {
   }
 };
 
-// Positive: every std::chrono duration specialisation, integral and floating,
-// signed and unsigned, exotic periods, and cv/ref qualified forms.
 static_assert(ch::chrono_duration<std::chrono::nanoseconds>);
 static_assert(ch::chrono_duration<std::chrono::microseconds>);
 static_assert(ch::chrono_duration<std::chrono::milliseconds>);
@@ -55,7 +53,6 @@ static_assert(ch::chrono_duration<std::chrono::duration<double>>);
 static_assert(ch::chrono_duration<std::chrono::duration<float, std::milli>>);
 static_assert(ch::chrono_duration<std::chrono::duration<unsigned, std::ratio<3, 7>>>);
 static_assert(ch::chrono_duration<std::chrono::duration<long long, std::ratio<1, 1000000000000>>>);
-// cv / reference qualified are stripped by remove_cvref_t.
 static_assert(ch::chrono_duration<std::chrono::seconds const>);
 static_assert(ch::chrono_duration<std::chrono::seconds volatile>);
 static_assert(ch::chrono_duration<std::chrono::seconds&>);
@@ -63,8 +60,6 @@ static_assert(ch::chrono_duration<std::chrono::seconds const&>);
 static_assert(ch::chrono_duration<std::chrono::seconds&&>);
 static_assert(ch::chrono_duration<ch::manual_clock::duration>);
 
-// Negative: fundamentals, time_points, ratios, clocks, and look-alikes that
-// have rep/period members but are not the exact duration specialisation.
 namespace {
 
 /// @brief Has the right member names but is not \c std::chrono::duration.
@@ -82,9 +77,8 @@ static_assert(!ch::chrono_duration<int*>);
 static_assert(!ch::chrono_duration<std::ratio<1, 2>>);
 static_assert(!ch::chrono_duration<std::chrono::steady_clock>);
 static_assert(!ch::chrono_duration<std::chrono::steady_clock::time_point>);
-static_assert(!ch::chrono_duration<fake_duration>);  // members present, wrong identity
+static_assert(!ch::chrono_duration<fake_duration>);
 
-// Positive: standard clocks and the module's own clocks.
 static_assert(ch::clock_like<std::chrono::steady_clock>);
 static_assert(ch::clock_like<std::chrono::system_clock>);
 static_assert(ch::clock_like<std::chrono::high_resolution_clock>);
@@ -93,7 +87,6 @@ static_assert(ch::clock_like<ch::manual_clock>);
 static_assert(ch::clock_like<ch::basic_manual_clock<struct cl_tag>>);
 static_assert(ch::clock_like<ch::tick_clock<micro_backend>>);
 
-// Negative: fundamentals and types missing one of the requirements.
 namespace {
 
 /// @brief Clock whose \c now() returns the wrong type, not its own \c time_point.
@@ -104,7 +97,7 @@ struct wrong_now_type {
   using time_point = std::chrono::time_point<wrong_now_type>;
   [[maybe_unused]] static constexpr bool is_steady = true;
 
-  static auto now() noexcept -> int {  // not time_point
+  static auto now() noexcept -> int {
     return 0;
   }
 };
@@ -144,19 +137,17 @@ struct no_time_point {
 
 static_assert(!ch::clock_like<int>);
 static_assert(!ch::clock_like<void>);
-static_assert(!ch::clock_like<std::chrono::seconds>);  // a duration is not a clock
+static_assert(!ch::clock_like<std::chrono::seconds>);
 static_assert(!ch::clock_like<wrong_now_type>);
 static_assert(!ch::clock_like<no_now>);
 static_assert(!ch::clock_like<nonstatic_now>);
 static_assert(!ch::clock_like<no_time_point>);
 
-// Positive: clocks that are clock_like AND advertise is_steady == true.
 static_assert(ch::steady_clock_like<std::chrono::steady_clock>);
 static_assert(ch::steady_clock_like<ch::manual_clock>);
 static_assert(ch::steady_clock_like<ch::tick_clock<micro_backend>>);
 
-// Negative: not steady, or not clock_like at all.
-static_assert(!ch::steady_clock_like<not_steady_clock>);  // is_steady == false
+static_assert(!ch::steady_clock_like<not_steady_clock>);
 static_assert(!ch::steady_clock_like<int>);
 static_assert(!ch::steady_clock_like<std::chrono::seconds>);
 
@@ -203,17 +194,14 @@ struct zero_steady_clock {
 }  // namespace
 
 static_assert(!ch::steady_clock_like<steadyless_clock>);
-static_assert(ch::steady_clock_like<int_steady_clock>);    // truthy convertible-to-bool
-static_assert(!ch::steady_clock_like<zero_steady_clock>);  // falsey value
+static_assert(ch::steady_clock_like<int_steady_clock>);
+static_assert(!ch::steady_clock_like<zero_steady_clock>);
 
-// system_clock is not steady on the platforms we build for; assert the
-// refinement tracks the clock's own is_steady flag exactly.
 static_assert(ch::clock_like<std::chrono::system_clock>);
 static_assert(
   std::chrono::system_clock::is_steady == ch::steady_clock_like<std::chrono::system_clock>
 );
 
-// Positive: a few well-formed backends with differing reps/periods.
 static_assert(ch::tick_backend<micro_backend>);
 
 namespace {
@@ -252,9 +240,8 @@ struct odd_ratio_backend {
 
 static_assert(ch::tick_backend<nano_backend>);
 static_assert(ch::tick_backend<second_ratio_backend>);
-static_assert(ch::tick_backend<odd_ratio_backend>);  // is_steady==false still a valid backend
+static_assert(ch::tick_backend<odd_ratio_backend>);
 
-// Negative: every requirement broken in isolation.
 static_assert(!ch::tick_backend<int>);
 static_assert(!ch::tick_backend<void>);
 
@@ -331,7 +318,7 @@ struct throwing_ticks_backend {
   using period = std::micro;
   static constexpr bool is_steady = true;
 
-  static auto ticks() -> rep {  // not noexcept
+  static auto ticks() -> rep {
     return 0;
   }
 };
@@ -342,7 +329,7 @@ struct wrong_ticks_type_backend {
   using period = std::micro;
   static constexpr bool is_steady = true;
 
-  static auto ticks() noexcept -> int {  // not rep (which is int64_t)
+  static auto ticks() noexcept -> int {
     return 0;
   }
 };
@@ -380,7 +367,7 @@ struct no_period_backend {
 
 /// @brief Type with only an explicit conversion to bool, so not \c convertible_to bool.
 struct not_bool_convertible {
-  explicit operator bool() const {  // explicit: not std::convertible_to<bool>
+  explicit operator bool() const {
     return true;
   }
 };
@@ -410,14 +397,13 @@ static_assert(!ch::tick_backend<no_rep_backend>);
 static_assert(!ch::tick_backend<no_period_backend>);
 static_assert(!ch::tick_backend<non_bool_is_steady_backend>);
 
-// A clock type is not itself a tick_backend (no ticks(), wrong period kind).
 static_assert(!ch::tick_backend<std::chrono::steady_clock>);
 static_assert(!ch::tick_backend<ch::manual_clock>);
 
 static_assert(ch::clock_like<ch::tick_clock<micro_backend>>);
 static_assert(ch::clock_like<ch::tick_clock<odd_ratio_backend>>);
 static_assert(ch::steady_clock_like<ch::tick_clock<nano_backend>>);
-static_assert(!ch::steady_clock_like<ch::tick_clock<odd_ratio_backend>>);  // backend not steady
+static_assert(!ch::steady_clock_like<ch::tick_clock<odd_ratio_backend>>);
 
 TEST_CASE("nexenne::chrono::chrono_duration accepts durations, rejects others") {
   CHECK(ch::chrono_duration<std::chrono::seconds>);

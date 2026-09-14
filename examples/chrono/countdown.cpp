@@ -55,16 +55,10 @@ auto main() -> int {
   );
   std::println("state: {}", cd.current_state());
 
-  clk::advance(80ms);  // total 120ms, past the 100ms target
+  clk::advance(80ms);
   std::println("at 120ms: expired tick fires once: {}", cd.tick());
   std::println("again (no second fire): {}", cd.tick());
   std::println("overrun: {} ms", cd.overrun<std::chrono::milliseconds>().count());
   std::println("state: {}", cd.current_state());
-  // at 40ms: remaining 60 ms, progress 40%, expired tick: false
-  // state: running
-  // at 120ms: expired tick fires once: true
-  // again (no second fire): false
-  // overrun: 20 ms
-  // state: expired
   return 0;
 }

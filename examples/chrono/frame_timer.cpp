@@ -38,17 +38,15 @@ auto main() -> int {
   using namespace std::chrono_literals;
 
   clk::reset();
-  ch::frame_timer<8, clk> ft;  // 8-frame averaging window
+  ch::frame_timer<8, clk> ft;
 
-  nexenne::utility::ignore(ft.tick());  // first tick: establishes the baseline (dt 0)
+  nexenne::utility::ignore(ft.tick());
   for (int i{0}; i < 8; ++i) {
-    clk::advance(16ms);  // ~60 fps frames (16 ms each)
+    clk::advance(16ms);
     nexenne::utility::ignore(ft.tick());
   }
 
   std::println("frames: {}", ft.frame_count());
   std::println("fps (avg over window): {:.1f}", ft.fps());
-  // frames: 9
-  // fps (avg over window): 62.5
   return 0;
 }

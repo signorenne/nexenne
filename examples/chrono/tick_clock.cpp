@@ -73,36 +73,25 @@ auto main() -> int {
 
   micro_backend::s_ticks = 0;
 
-  // The adapter is a full clock: now() builds a time_point from the backend's
-  // current ticks, and the duration unit follows the backend's period (us here).
   auto const t0{micro_clock::now()};
-  micro_backend::s_ticks = 2500;  // advance the counter by 2500 us
+  micro_backend::s_ticks = 2500;
   auto const t1{micro_clock::now()};
   std::println(
     "elapsed: {} us", std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count()
   );
 
-  // from_ticks / to_ticks bridge raw counts and time_points - handy when an ISR
-  // or driver hands you a bare counter value.
-  auto const tp{micro_clock::from_ticks(1'000'000)};  // 1e6 us == 1 s
+  auto const tp{micro_clock::from_ticks(1'000'000)};
   std::println(
     "1_000_000 ticks = {} s",
     std::chrono::duration_cast<std::chrono::seconds>(tp.time_since_epoch()).count()
   );
   std::println("round-trips back to ticks: {}", micro_clock::to_ticks(tp));
 
-  // Because micro_clock satisfies steady_clock_like, every chrono primitive
-  // accepts it. Drive a stopwatch off the wrapped hardware counter with no
-  // adaptation code at all.
   micro_backend::s_ticks = 0;
   ch::stopwatch<micro_clock> sw;
   sw.start();
-  micro_backend::s_ticks = 5000;  // 5000 us pass on the backend
+  micro_backend::s_ticks = 5000;
   std::println("stopwatch on tick_clock: {} us", sw.elapsed<std::chrono::microseconds>().count());
 
-  // elapsed: 2500 us
-  // 1_000_000 ticks = 1 s
-  // round-trips back to ticks: 1000000
-  // stopwatch on tick_clock: 5000 us
   return 0;
 }

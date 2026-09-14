@@ -237,10 +237,6 @@ public:
   auto poll(time_point const now) -> void {
     while (m_armed && now >= m_next) {
       if (m_mode == alarm_mode::one_shot) {
-        // Disarm before invoking the callback so a re-arm performed from inside
-        // the callback (the self-rescheduling one-shot idiom) survives instead
-        // of being clobbered by a post-call disarm. The callback then owns the
-        // armed state on return.
         m_armed = false;
         fire();
         return;
@@ -251,8 +247,6 @@ public:
         return;
       }
       m_next += m_period;
-      // A zero or negative period would never advance past now: disarm rather
-      // than spin forever (and overflow m_next on a negative period).
       if (m_period <= duration::zero()) {
         m_armed = false;
         return;

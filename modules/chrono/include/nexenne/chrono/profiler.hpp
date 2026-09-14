@@ -175,9 +175,6 @@ public:
    *         fails.
    */
   auto record(std::string_view const name, duration const d) -> void {
-    // Heterogeneous lookup (\c std::less<> on the map) lets us
-    // probe with a \c string_view; only insert allocates a new
-    // \c std::string.
     auto it{m_stats.find(name)};
     if (it == m_stats.end()) {
       it = m_stats.emplace(std::string{name}, stats{}).first;

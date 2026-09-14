@@ -81,8 +81,6 @@ template <std::integral Int>
   }
 }
 
-/// @endcond
-
 /**
  * @brief \c c times \c N/D, truncated toward zero, saturated into \p Int.
  *
@@ -189,9 +187,7 @@ template <std::integral Int, std::intmax_t N, std::intmax_t D, std::integral Rep
  */
 template <std::integral Int, chrono_duration ToDur, chrono_duration FromDur>
 [[nodiscard]] constexpr auto to_count_sat(FromDur const d) noexcept -> Int {
-  // A floating-point source goes through a long double duration so a NaN or
-  // infinity is saturated (NaN to 0) rather than cast to an integer ToDur,
-  // which would be undefined behaviour and silently lose the NaN.
+  // Through long double: casting a NaN or infinity to an integral ToDur is UB.
   if constexpr (std::is_floating_point_v<typename FromDur::rep>) {
     using fdur = std::chrono::duration<long double, typename ToDur::period>;
     return detail::saturate_from_ld<Int>(std::chrono::duration_cast<fdur>(d).count());

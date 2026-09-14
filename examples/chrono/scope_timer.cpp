@@ -38,10 +38,9 @@ auto main() -> int {
 
   {
     ch::scope_timer<decltype(record), clk> timer{record};
-    clk::advance(250us);  // pretend the scope did 250 us of work
-  }  // callback fires here
+    clk::advance(250us);
+  }
 
   std::println("scope took {} us", measured_us);
-  // scope took 250 us
   return 0;
 }

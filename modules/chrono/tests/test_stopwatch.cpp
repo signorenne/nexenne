@@ -34,7 +34,7 @@ TEST_CASE("nexenne::chrono::stopwatch accumulates across pause and resume") {
   sw.pause();
   CHECK(sw.is_paused());
   CHECK(sw.template elapsed<std::chrono::milliseconds>() == 100ms);
-  clk::advance(500ms);  // time passes while paused: not counted
+  clk::advance(500ms);
   CHECK(sw.template elapsed<std::chrono::milliseconds>() == 100ms);
   sw.resume();
   clk::advance(50ms);
@@ -72,21 +72,21 @@ TEST_CASE("nexenne::chrono::stopwatch std::format renders elapsed time") {
 TEST_CASE("nexenne::chrono::static_stopwatch bounds its lap buffer and counts drops") {
   using clk = ch::basic_manual_clock<struct fsw_tag>;
   clk::reset();
-  ch::static_stopwatch<2, clk> sw;  // room for 2 laps (capacity first, clock second)
+  ch::static_stopwatch<2, clk> sw;
   sw.start();
   for (int i{0}; i < 4; ++i) {
     clk::advance(10ms);
     nexenne::utility::ignore(sw.lap());
   }
-  CHECK(sw.lap_count() == 4);         // total laps seen
-  CHECK(sw.stored_lap_count() == 2);  // only the buffer capacity is retained
-  CHECK(sw.laps_dropped() == 2);      // the overflow was counted, not lost silently
+  CHECK(sw.lap_count() == 4);
+  CHECK(sw.stored_lap_count() == 2);
+  CHECK(sw.laps_dropped() == 2);
 }
 
 TEST_CASE("nexenne::chrono::stopwatch is idle with zero elapsed at construction") {
   using clk = ch::basic_manual_clock<struct sw_ctor_tag>;
   clk::reset();
-  clk::advance(999ms);  // wall time moving before construction must not matter
+  clk::advance(999ms);
   ch::stopwatch<clk> const sw;
   CHECK(sw.is_idle());
   CHECK_FALSE(sw.is_running());
@@ -109,7 +109,7 @@ TEST_CASE("nexenne::chrono::stopwatch elapsed is zero immediately after start") 
   ch::stopwatch<clk> sw;
   sw.start();
   CHECK(sw.is_running());
-  CHECK(sw.elapsed() == clk::duration::zero());  // no advance yet
+  CHECK(sw.elapsed() == clk::duration::zero());
   CHECK(sw.template elapsed<ms>() == 0ms);
 }
 
@@ -120,7 +120,7 @@ TEST_CASE("nexenne::chrono::stopwatch advancing yields the exact elapsed") {
   sw.start();
   clk::advance(1234567ns);
   CHECK(sw.elapsed() == 1234567ns);
-  CHECK(sw.template elapsed<std::chrono::microseconds>() == 1234us);  // truncating cast
+  CHECK(sw.template elapsed<std::chrono::microseconds>() == 1234us);
 }
 
 TEST_CASE("nexenne::chrono::stopwatch start is a no-op while running or paused") {
@@ -129,11 +129,11 @@ TEST_CASE("nexenne::chrono::stopwatch start is a no-op while running or paused")
   ch::stopwatch<clk> sw;
   sw.start();
   clk::advance(100ms);
-  sw.start();  // no-op: must NOT reset the accumulated 100ms
+  sw.start();
   CHECK(sw.is_running());
   CHECK(sw.template elapsed<ms>() == 100ms);
   sw.pause();
-  sw.start();  // no-op while paused
+  sw.start();
   CHECK(sw.is_paused());
   CHECK(sw.template elapsed<ms>() == 100ms);
 }
@@ -142,7 +142,7 @@ TEST_CASE("nexenne::chrono::stopwatch pause is a no-op unless running") {
   using clk = ch::basic_manual_clock<struct sw_nopause_tag>;
   clk::reset();
   ch::stopwatch<clk> sw;
-  sw.pause();  // no-op while idle
+  sw.pause();
   CHECK(sw.is_idle());
   sw.start();
   clk::advance(40ms);
@@ -150,7 +150,7 @@ TEST_CASE("nexenne::chrono::stopwatch pause is a no-op unless running") {
   CHECK(sw.is_paused());
   CHECK(sw.template elapsed<ms>() == 40ms);
   clk::advance(10ms);
-  sw.pause();  // no-op while already paused: must not fold the extra 10ms
+  sw.pause();
   CHECK(sw.is_paused());
   CHECK(sw.template elapsed<ms>() == 40ms);
 }
@@ -159,10 +159,10 @@ TEST_CASE("nexenne::chrono::stopwatch resume is a no-op unless paused") {
   using clk = ch::basic_manual_clock<struct sw_noresume_tag>;
   clk::reset();
   ch::stopwatch<clk> sw;
-  sw.resume();  // no-op while idle
+  sw.resume();
   CHECK(sw.is_idle());
   sw.start();
-  sw.resume();  // no-op while running
+  sw.resume();
   CHECK(sw.is_running());
   clk::advance(25ms);
   CHECK(sw.template elapsed<ms>() == 25ms);
@@ -174,12 +174,12 @@ TEST_CASE("nexenne::chrono::stopwatch accumulates across many pause/resume cycle
   ch::stopwatch<clk> sw;
   sw.start();
   for (int i{0}; i < 5; ++i) {
-    clk::advance(20ms);  // counted
+    clk::advance(20ms);
     sw.pause();
-    clk::advance(1000ms);  // ignored
+    clk::advance(1000ms);
     sw.resume();
   }
-  clk::advance(20ms);  // counted, sixth segment
+  clk::advance(20ms);
   CHECK(sw.template elapsed<ms>() == 120ms);
 }
 
@@ -196,7 +196,7 @@ TEST_CASE("nexenne::chrono::stopwatch reset returns to idle and clears laps") {
   CHECK(sw.lap_count() == 0);
   CHECK(sw.lap_sum() == clk::duration::zero());
   CHECK(sw.laps().empty());
-  clk::advance(500ms);  // idle: still zero
+  clk::advance(500ms);
   CHECK(sw.elapsed() == clk::duration::zero());
 }
 
@@ -208,7 +208,7 @@ TEST_CASE("nexenne::chrono::stopwatch restart clears prior state and re-times") 
   clk::advance(80ms);
   nexenne::utility::ignore(sw.lap());
   nexenne::utility::ignore(sw.lap());
-  sw.restart();  // reset + start
+  sw.restart();
   CHECK(sw.is_running());
   CHECK(sw.lap_count() == 0);
   CHECK(sw.elapsed() == clk::duration::zero());
@@ -223,7 +223,7 @@ TEST_CASE("nexenne::chrono::stopwatch start clears accumulated time after reset"
   sw.start();
   clk::advance(50ms);
   sw.reset();
-  sw.start();  // fresh start from idle
+  sw.start();
   clk::advance(7ms);
   CHECK(sw.template elapsed<ms>() == 7ms);
 }
@@ -234,7 +234,6 @@ TEST_CASE("nexenne::chrono::stopwatch lap returns nullopt while idle") {
   ch::stopwatch<clk> sw;
   CHECK_FALSE(sw.lap().has_value());
   CHECK(sw.lap_count() == 0);
-  // typed overload also nullopt while idle
   CHECK_FALSE(sw.template lap<ms>().has_value());
 }
 
@@ -246,7 +245,7 @@ TEST_CASE("nexenne::chrono::stopwatch typed lap casts the segment") {
   clk::advance(2500us);
   auto const l{sw.template lap<ms>()};
   REQUIRE(l.has_value());
-  CHECK(*l == 2ms);  // 2500us truncates to 2ms
+  CHECK(*l == 2ms);
   CHECK(sw.lap_count() == 1);
 }
 
@@ -254,7 +253,7 @@ TEST_CASE("nexenne::chrono::stopwatch first lap measures from start") {
   using clk = ch::basic_manual_clock<struct sw_firstlap_tag>;
   clk::reset();
   ch::stopwatch<clk> sw;
-  clk::advance(300ms);  // before start: not counted
+  clk::advance(300ms);
   sw.start();
   clk::advance(45ms);
   auto const l{sw.lap()};
@@ -271,15 +270,15 @@ TEST_CASE("nexenne::chrono::stopwatch peek_lap does not close the segment") {
   auto const p1{sw.peek_lap()};
   REQUIRE(p1.has_value());
   CHECK(std::chrono::duration_cast<ms>(*p1) == 10ms);
-  CHECK(sw.lap_count() == 0);  // peek does not record
+  CHECK(sw.lap_count() == 0);
   clk::advance(5ms);
   auto const p2{sw.peek_lap()};
   REQUIRE(p2.has_value());
-  CHECK(std::chrono::duration_cast<ms>(*p2) == 15ms);  // still measures from start
+  CHECK(std::chrono::duration_cast<ms>(*p2) == 15ms);
   CHECK(sw.lap_count() == 0);
   auto const l{sw.lap()};
   REQUIRE(l.has_value());
-  CHECK(std::chrono::duration_cast<ms>(*l) == 15ms);  // closes from baseline (start)
+  CHECK(std::chrono::duration_cast<ms>(*l) == 15ms);
 }
 
 TEST_CASE("nexenne::chrono::stopwatch peek_lap measures from the last lap baseline") {
@@ -288,18 +287,18 @@ TEST_CASE("nexenne::chrono::stopwatch peek_lap measures from the last lap baseli
   ch::stopwatch<clk> sw;
   sw.start();
   clk::advance(10ms);
-  nexenne::utility::ignore(sw.lap());  // baseline now at 10ms
+  nexenne::utility::ignore(sw.lap());
   clk::advance(7ms);
   auto const p{sw.peek_lap()};
   REQUIRE(p.has_value());
-  CHECK(std::chrono::duration_cast<ms>(*p) == 7ms);  // measured from baseline, not start
+  CHECK(std::chrono::duration_cast<ms>(*p) == 7ms);
 }
 
 TEST_CASE("nexenne::chrono::stopwatch many laps aggregate correctly") {
   using clk = ch::basic_manual_clock<struct sw_manylaps_tag>;
   clk::reset();
   ch::stopwatch<clk> sw;
-  sw.reserve_laps(8);  // pre-allocate; subsequent laps cannot throw
+  sw.reserve_laps(8);
   sw.start();
   std::vector<int> const segs{5, 50, 20, 35, 10};
   for (auto const s : segs) {
@@ -310,7 +309,7 @@ TEST_CASE("nexenne::chrono::stopwatch many laps aggregate correctly") {
   CHECK(std::chrono::duration_cast<ms>(sw.lap_sum()) == 120ms);
   CHECK(std::chrono::duration_cast<ms>(*sw.lap_min()) == 5ms);
   CHECK(std::chrono::duration_cast<ms>(*sw.lap_max()) == 50ms);
-  CHECK(std::chrono::duration_cast<ms>(*sw.lap_average()) == 24ms);  // 120/5
+  CHECK(std::chrono::duration_cast<ms>(*sw.lap_average()) == 24ms);
   REQUIRE(sw.laps().size() == 5);
   CHECK(std::chrono::duration_cast<ms>(sw.laps()[0]) == 5ms);
   CHECK(std::chrono::duration_cast<ms>(sw.laps()[3]) == 35ms);
@@ -323,10 +322,10 @@ TEST_CASE("nexenne::chrono::stopwatch lap continues to track elapsed across paus
   sw.start();
   clk::advance(10ms);
   sw.pause();
-  clk::advance(999ms);  // ignored
+  clk::advance(999ms);
   sw.resume();
   clk::advance(20ms);
-  auto const l{sw.lap()};  // segment spans the pause: counted time only
+  auto const l{sw.lap()};
   REQUIRE(l.has_value());
   CHECK(std::chrono::duration_cast<ms>(*l) == 30ms);
 }
@@ -338,11 +337,11 @@ TEST_CASE("nexenne::chrono::stopwatch lap while paused returns frozen segment") 
   sw.start();
   clk::advance(40ms);
   sw.pause();
-  auto const l{sw.lap()};  // allowed while paused; uses frozen elapsed
+  auto const l{sw.lap()};
   REQUIRE(l.has_value());
   CHECK(std::chrono::duration_cast<ms>(*l) == 40ms);
   CHECK(sw.lap_count() == 1);
-  clk::advance(123ms);  // paused: peek stays frozen at remaining segment (zero)
+  clk::advance(123ms);
   auto const p{sw.peek_lap()};
   REQUIRE(p.has_value());
   CHECK(*p == clk::duration::zero());
@@ -362,13 +361,11 @@ TEST_CASE("nexenne::chrono::stopwatch clear_laps drops laps and rebases") {
   CHECK(sw.lap_count() == 0);
   CHECK(sw.lap_sum() == clk::duration::zero());
   CHECK_FALSE(sw.lap_min().has_value());
-  CHECK(sw.is_running());  // state preserved
-  // next lap measures from the rebase point, not from start
+  CHECK(sw.is_running());
   clk::advance(5ms);
   auto const l{sw.lap()};
   REQUIRE(l.has_value());
   CHECK(std::chrono::duration_cast<ms>(*l) == 5ms);
-  // total elapsed is preserved across clear_laps
   CHECK(std::chrono::duration_cast<ms>(sw.elapsed()) == 35ms);
 }
 
@@ -389,7 +386,7 @@ TEST_CASE("nexenne::chrono::stopwatch zero-duration lap is recorded") {
   clk::reset();
   ch::stopwatch<clk> sw;
   sw.start();
-  auto const l{sw.lap()};  // no advance: a real zero-length lap
+  auto const l{sw.lap()};
   REQUIRE(l.has_value());
   CHECK(*l == clk::duration::zero());
   CHECK(sw.lap_count() == 1);
@@ -403,7 +400,6 @@ TEST_CASE("nexenne::chrono::stopwatch elapsed_at honours an explicit snapshot") 
   sw.start();
   auto const start_now{clk::now()};
   clk::advance(60ms);
-  // elapsed_at against the start instant is zero even though now() moved
   CHECK(sw.elapsed_at(start_now) == clk::duration::zero());
   CHECK(std::chrono::duration_cast<ms>(sw.elapsed_at(clk::now())) == 60ms);
 }
@@ -412,11 +408,11 @@ TEST_CASE("nexenne::chrono::stopwatch elapsed_at is frozen while paused and zero
   using clk = ch::basic_manual_clock<struct sw_elapsedat2_tag>;
   clk::reset();
   ch::stopwatch<clk> sw;
-  CHECK(sw.elapsed_at(clk::now() + 1000ms) == clk::duration::zero());  // idle ignores now
+  CHECK(sw.elapsed_at(clk::now() + 1000ms) == clk::duration::zero());
   sw.start();
   clk::advance(30ms);
   sw.pause();
-  CHECK(std::chrono::duration_cast<ms>(sw.elapsed_at(clk::now() + 5000ms)) == 30ms);  // frozen
+  CHECK(std::chrono::duration_cast<ms>(sw.elapsed_at(clk::now() + 5000ms)) == 30ms);
 }
 
 TEST_CASE("nexenne::chrono::stopwatch comparison operators order by elapsed") {
@@ -426,17 +422,16 @@ TEST_CASE("nexenne::chrono::stopwatch comparison operators order by elapsed") {
   ch::stopwatch<clk> b;
   a.start();
   clk::advance(50ms);
-  b.start();  // b starts 50ms later, so it accrues less
+  b.start();
   clk::advance(20ms);
   CHECK(a > b);
   CHECK(b < a);
   CHECK_FALSE(a == b);
   CHECK(a != b);
-  // pause both, then equalize
-  a.pause();  // a == 70ms
-  b.pause();  // b == 20ms
+  a.pause();
+  b.pause();
   b.resume();
-  clk::advance(50ms);  // b now 70ms
+  clk::advance(50ms);
   b.pause();
   CHECK(a == b);
   CHECK_FALSE(a < b);
@@ -453,40 +448,40 @@ TEST_CASE("nexenne::chrono::stopwatch formatter suppress-zero off via '!' flag")
   auto const def{std::format("{}", sw)};
   auto const bang{std::format("{:!}", sw)};
   CHECK(def == "01m:05s");
-  CHECK(bang != def);                          // '!' changes the rendering
-  CHECK(bang.find('d') != std::string::npos);  // includes the zeroed day field
+  CHECK(bang != def);
+  CHECK(bang.find('d') != std::string::npos);
 }
 
 TEST_CASE("nexenne::chrono::stopwatch formatter renders zero elapsed") {
   using clk = ch::basic_manual_clock<struct sw_fmtzero_tag>;
   clk::reset();
-  ch::stopwatch<clk> const sw;  // idle, zero elapsed
+  ch::stopwatch<clk> const sw;
   CHECK(std::format("{}", sw) == "00s");
 }
 
-TEST_CASE("nexenne::chrono::static_stopwatch std::format renders elapsed time (m3)") {
+TEST_CASE("nexenne::chrono::static_stopwatch std::format renders elapsed time") {
   using clk = ch::basic_manual_clock<struct fsw_fmt_tag>;
   clk::reset();
   ch::static_stopwatch<4, clk> sw;
   sw.start();
   clk::advance(65s);
   CHECK(std::format("{}", sw) == "01m:05s");
-  CHECK(std::format("{:!}", sw) == "00d:00h:01m:05s.000");  // '!' shows every field
-  ch::static_stopwatch<4, clk> const idle;                  // idle, zero elapsed
+  CHECK(std::format("{:!}", sw) == "00d:00h:01m:05s.000");
+  ch::static_stopwatch<4, clk> const idle;
   CHECK(std::format("{}", idle) == "00s");
 }
 
-TEST_CASE("nexenne::chrono::static_stopwatch has the typed lap<D>() overload (m7)") {
+TEST_CASE("nexenne::chrono::static_stopwatch has the typed lap<D>() overload") {
   using clk = ch::basic_manual_clock<struct fsw_typedlap_tag>;
   clk::reset();
   ch::static_stopwatch<4, clk> sw;
   sw.start();
   clk::advance(1500ms);
-  auto const seg{sw.template lap<ms>()};  // typed lap forwards to the untyped one
+  auto const seg{sw.template lap<ms>()};
   REQUIRE(seg.has_value());
   CHECK(*seg == 1500ms);
   ch::static_stopwatch<4, clk> idle;
-  CHECK_FALSE(idle.template lap<ms>().has_value());  // idle yields nullopt
+  CHECK_FALSE(idle.template lap<ms>().has_value());
 }
 
 static_assert(ch::static_stopwatch<4>::capacity == 4);
@@ -513,13 +508,13 @@ TEST_CASE("nexenne::chrono::static_stopwatch mirrors stopwatch elapsed semantics
   ch::stopwatch<clk> sw;
   fsw.start();
   sw.start();
-  CHECK(fsw.elapsed() == sw.elapsed());  // both zero
+  CHECK(fsw.elapsed() == sw.elapsed());
   clk::advance(100ms);
   fsw.pause();
   sw.pause();
   CHECK(fsw.elapsed() == sw.elapsed());
   CHECK(fsw.template elapsed<ms>() == 100ms);
-  clk::advance(500ms);  // paused: ignored by both
+  clk::advance(500ms);
   CHECK(fsw.elapsed() == sw.elapsed());
   fsw.resume();
   sw.resume();
@@ -569,7 +564,6 @@ TEST_CASE("nexenne::chrono::static_stopwatch overflow keeps running mean faithfu
   clk::reset();
   ch::static_stopwatch<2, clk> sw;
   sw.start();
-  // four laps of 10,20,30,40 ms; buffer holds only the first two
   for (int s : {10, 20, 30, 40}) {
     clk::advance(ms{s});
     nexenne::utility::ignore(sw.lap());
@@ -577,10 +571,8 @@ TEST_CASE("nexenne::chrono::static_stopwatch overflow keeps running mean faithfu
   CHECK(sw.lap_count() == 4);
   CHECK(sw.stored_lap_count() == 2);
   CHECK(sw.laps_dropped() == 2);
-  // sum and average fold ALL laps, including dropped ones
   CHECK(std::chrono::duration_cast<ms>(sw.lap_sum()) == 100ms);
-  CHECK(std::chrono::duration_cast<ms>(*sw.lap_average()) == 25ms);  // 100/4
-  // min/max only over the STORED (first two: 10, 20)
+  CHECK(std::chrono::duration_cast<ms>(*sw.lap_average()) == 25ms);
   CHECK(std::chrono::duration_cast<ms>(*sw.lap_min()) == 10ms);
   CHECK(std::chrono::duration_cast<ms>(*sw.lap_max()) == 20ms);
 }
@@ -591,9 +583,9 @@ TEST_CASE("nexenne::chrono::static_stopwatch overflowing lap still returns the s
   ch::static_stopwatch<1, clk> sw;
   sw.start();
   clk::advance(10ms);
-  nexenne::utility::ignore(sw.lap());  // fills the buffer
+  nexenne::utility::ignore(sw.lap());
   clk::advance(33ms);
-  auto const l{sw.lap()};  // dropped from storage but still returned
+  auto const l{sw.lap()};
   REQUIRE(l.has_value());
   CHECK(std::chrono::duration_cast<ms>(*l) == 33ms);
   CHECK(sw.stored_lap_count() == 1);
@@ -616,7 +608,6 @@ TEST_CASE("nexenne::chrono::static_stopwatch clear_laps zeroes all lap counters"
   CHECK(sw.laps_dropped() == 0);
   CHECK(sw.lap_sum() == clk::duration::zero());
   CHECK(sw.is_running());
-  // rebase: next lap measures from now, total elapsed preserved
   clk::advance(5ms);
   auto const l{sw.lap()};
   REQUIRE(l.has_value());
@@ -666,19 +657,19 @@ TEST_CASE("nexenne::chrono::static_stopwatch start/pause/resume no-op guards") {
   using clk = ch::basic_manual_clock<struct fsw_guard_tag>;
   clk::reset();
   ch::static_stopwatch<2, clk> sw;
-  sw.pause();   // no-op idle
-  sw.resume();  // no-op idle
+  sw.pause();
+  sw.resume();
   CHECK(sw.is_idle());
   sw.start();
   clk::advance(30ms);
-  sw.start();  // no-op while running
+  sw.start();
   CHECK(sw.template elapsed<ms>() == 30ms);
   sw.pause();
   clk::advance(10ms);
-  sw.pause();  // no-op while paused
+  sw.pause();
   CHECK(sw.template elapsed<ms>() == 30ms);
   sw.resume();
-  sw.resume();  // no-op while running
+  sw.resume();
   clk::advance(5ms);
   CHECK(sw.template elapsed<ms>() == 35ms);
 }
