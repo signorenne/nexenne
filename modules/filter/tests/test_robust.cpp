@@ -296,7 +296,7 @@ TEST_CASE("nexenne::filter::kalman process vs measurement noise change convergen
   }
   CHECK(agile.value() > sluggish.value());
   CHECK(agile.value() == doctest::Approx(100.0).epsilon(0.05));
-  CHECK(sluggish.value() < 50.0);  // still far from the new level
+  CHECK(sluggish.value() == doctest::Approx(1000.0 / 11.0).epsilon(0.01));
 }
 
 TEST_CASE("nexenne::filter::kalman noise() swaps parameters without touching state") {
@@ -612,6 +612,17 @@ TEST_CASE("nexenne::filter::lms float instantiation hand-check") {
   f.reset();
   CHECK(f.value() == doctest::Approx(0.0));
   CHECK(f.step_size() == doctest::Approx(0.1));
+}
+
+TEST_CASE("nexenne::filter::kalman seeds its covariance with the measurement noise") {
+  auto kf{flt::kalman{1e-3, 100.0}};
+  nexenne::utility::discard(kf.push(30.0));
+  CHECK(kf.covariance() == doctest::Approx(100.0));
+  auto estimate{0.0};
+  for (auto i{0}; i < 50; ++i) {
+    estimate = kf.push(0.0);
+  }
+  CHECK(estimate < 1.0);
 }
 
 }  // namespace

@@ -126,7 +126,10 @@ variances). The gain =K= is computed automatically and is never set by hand;
 
 The filter is unprimed at construction: the first =push= after construction or
 =reset= adopts the measurement directly as the estimate and skips the update, so
-there is no slow climb from an arbitrary initial value. =reset(estimate, cov)=
+there is no slow climb from an arbitrary initial value. It also sets =P= to the
+measurement noise =R=: an estimate that is one reading is exactly as uncertain as
+the sensor, so a noisy first sample carries no more weight than any other.
+=reset(estimate, cov)=
 restores a known estimate and covariance and marks the filter unprimed again, so
 the next =push= reseeds from its measurement; =noise(q, r)= swaps the two noise
 parameters while leaving the estimate and covariance untouched.

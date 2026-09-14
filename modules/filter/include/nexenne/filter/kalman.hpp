@@ -105,7 +105,8 @@ public:
    *
    * Runs one predict-then-update cycle. The first call after
    * construction or \c reset() seeds the estimate with \p measurement
-   * and skips the update step.
+   * and skips the update step; the covariance becomes the measurement
+   * noise R, the uncertainty of an estimate that is a single reading.
    *
    * @param measurement New scalar measurement.
    *
@@ -115,14 +116,14 @@ public:
    * @pre None.
    * @post \c value() returns the value returned here. On a normal
    * update \c covariance() reflects the post-update error covariance;
-   * on the seeding first \c push the covariance is left unchanged at
-   * its constructor or \c reset() value.
+   * on the seeding first \c push it equals the measurement noise R.
    *
    * @complexity \c O(1).
    */
   [[nodiscard]] constexpr auto push(T const measurement) noexcept -> T {
     if (!m_primed) {
       m_estimate = measurement;
+      m_covariance = m_r;
       m_primed = true;
       return m_estimate;
     }
