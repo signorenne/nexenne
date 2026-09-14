@@ -63,10 +63,11 @@ enum class alarm_mode {
  * @pre None.
  * @post A default-constructed alarm is disarmed with an empty callback.
  *
- * @note No \c std::formatter is provided: an alarm stores an absolute
- *       \c next_fire_time() on a possibly non-steady \p Clock, so a "fires in
- *       X" rendering would need a caller-supplied \c now(). Format
- *       \c next_fire_time() directly, or a \c deadline built from it, instead.
+ * @note The \c std::formatter in \c format.hpp prints the armed flag, the mode
+ *       and, while armed, the absolute \c next_fire_time() as time since the
+ *       \p Clock epoch: the clock may be non-steady, so a "fires in X"
+ *       rendering would need a caller-supplied \c now(). Format a \c deadline
+ *       built from \c next_fire_time() for the time remaining instead.
  */
 template <clock_like Clock, std::size_t CallbackBytes = 64>
 class alarm {

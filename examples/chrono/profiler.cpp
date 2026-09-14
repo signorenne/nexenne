@@ -14,6 +14,7 @@
 #include <print>
 
 #include <nexenne/chrono/duration_parts.hpp>
+#include <nexenne/chrono/format.hpp>
 #include <nexenne/chrono/manual_clock.hpp>
 #include <nexenne/chrono/profiler.hpp>
 #include <nexenne/chrono/scope_timer.hpp>
@@ -70,6 +71,9 @@ auto main() -> int {
     std::println("  {:<10} n={} mean={}", name, s.count, scaled(s.mean()));
   }
 
+  // format.hpp prints a bucket, or the whole profiler, with no helper.
+  std::println("checksum: {}", prof["checksum"]);
+
   // reset() zeros stats in place but keeps the buckets, so cached sinks stay
   // valid and keep recording into the freshly-zeroed stats.
   prof.reset();
@@ -86,6 +90,7 @@ auto main() -> int {
   // -- report --
   //   checksum   n=2 mean=50.00 us
   //   decode     n=3 mean=120.00 us
+  // checksum: profiler_stats(count=2, total=100.00 us, min=40.00 us, max=60.00 us, mean=50.00 us)
   // after reset, decode count: 1
   return 0;
 }

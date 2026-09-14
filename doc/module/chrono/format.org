@@ -30,12 +30,35 @@ Every one renders through =nexenne::chrono::format= (see
 [[file:duration-helpers.org][duration helpers]]); a leading =!= in the spec, as in ={:!}=, disables
 suppress-zero and shows every component.
 
+The stateful engines print a one-line summary of what their =const= accessors
+expose. Their formatters inherit the string formatter, so a width or alignment
+spec applies to the whole line:
+
+| type                 | example                                                    |
+|----------------------+------------------------------------------------------------|
+| =alarm=              | =alarm(armed, mode=periodic, next_fire_time=02s)=          |
+| =basic_manual_clock= | =manual_clock(now=01s:250ms)=                              |
+| =frame_timer=        | =frame_timer(frames=3, fps=10)=                            |
+| =hertz=              | =hertz(1000)=                                              |
+| =profiler_stats=     | =profiler_stats(count=2, total=3.00 ms, ..., mean=1.50 ms)= |
+| =profiler=           | =profiler{"decode": profiler_stats(...)}=                  |
+| =rate_limiter=       | =rate_limiter(capacity=10, refill_rate=2.5)=               |
+| =scope_timer=        | =scope_timer(elapsed=01s:250ms)=                           |
+
+A disarmed =alarm= leaves out =next_fire_time=, which is the absolute time since
+the clock epoch while armed. A =profiler_stats= bucket renders its durations
+through =format_scaled=, so a microsecond sample keeps its resolution, and an
+empty bucket prints only =count=0=. A =rate_limiter= prints no token count:
+reading it refills the bucket, so it has no =const= accessor.
+
 =to_string(x)= returns that text as a =std::string= and =operator<<= streams it;
 both use the default spec, so neither takes the =!= flag. The three enums'
 =to_string= returns a =constexpr= =std::string_view=, also from =format.hpp=, and
 their formatter takes a string spec such as ={:>9}=. The state enums sit at namespace scope rather than inside the
 class templates, because a formatter cannot be specialised for a type nested in
-a template; each class still names its enum as =state=.
+a template; each class still names its enum as =state=. For the same reason the
+profiler bucket is the namespace-scope =profiler_stats=, which =profiler= names
+as =stats=.
 
 * Usage
 

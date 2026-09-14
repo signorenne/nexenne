@@ -59,6 +59,9 @@ reads a bucket's stats; =buckets()= gives the whole map. =reset()= zeroes every
 bucket's stats but *keeps the buckets* (so any outstanding =sink= stays valid);
 =reset(name)= zeroes one; =remove(name)= drops a bucket entirely (invalidating
 its sink).
+A bucket is a =profiler_stats= (=profiler<>::stats= names it); with
+[[file:format.org][format.hpp]] a bucket, the whole profiler and a =scope_timer= all print
+through =std::format=.
 
 #+BEGIN_EXAMPLE
 profiler<> prof;

@@ -62,6 +62,47 @@
 namespace nexenne::chrono {
 
 /**
+ * @brief Accumulated statistics for one named \c profiler bucket.
+ *
+ * Declared at namespace scope rather than inside \c profiler so a
+ * \c std::formatter can be specialised for it (a type nested in a class
+ * template cannot be matched by one); \c profiler names it as \c stats.
+ *
+ * @tparam Duration Duration type of the accumulated samples.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <chrono_duration Duration>
+struct profiler_stats {
+  using value_type = Duration;  ///< Duration type of the accumulated samples.
+
+  std::uint64_t count{0};            ///< Number of recorded samples.
+  Duration total{Duration::zero()};  ///< Sum of all samples.
+  Duration min{Duration::max()};     ///< Smallest sample seen.
+  /**
+   * @brief Largest sample seen.
+   *
+   * Starts at \c Duration::min(), so a sample set of only negatives is not
+   * lost.
+   */
+  Duration max{Duration::min()};
+
+  /**
+   * @brief Mean sample duration.
+   *
+   * @return \c total divided by \c count, or \c Duration::zero() when no
+   *         samples have been recorded.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto mean() const noexcept -> Duration {
+    return count == 0 ? Duration::zero() : total / static_cast<typename Duration::rep>(count);
+  }
+};
+
+/**
  * @brief Per-name aggregator of timed-scope durations.
  *
  * Pairs with \c scope_timer: hand a \c sink(name) to a scope timer and every
@@ -86,38 +127,9 @@ public:
   using duration = typename Clock::duration;
 
   /**
-   * @brief Accumulated statistics for one named bucket.
-   *
-   * @pre None.
-   * @post None.
+   * @brief Accumulated statistics for one named bucket; see \c profiler_stats.
    */
-  struct stats {
-    using value_type = duration;  ///< Duration type of the accumulated samples.
-
-    std::uint64_t count{0};            ///< Number of recorded samples.
-    duration total{duration::zero()};  ///< Sum of all samples.
-    duration min{duration::max()};     ///< Smallest sample seen.
-    /**
-     * @brief Largest sample seen.
-     *
-     * Starts at \c duration::min(), so a sample set of only negatives is not
-     * lost.
-     */
-    duration max{duration::min()};
-
-    /**
-     * @brief Mean sample duration.
-     *
-     * @return \c total divided by \c count, or \c duration::zero() when no
-     *         samples have been recorded.
-     *
-     * @pre None.
-     * @post None.
-     */
-    [[nodiscard]] constexpr auto mean() const noexcept -> duration {
-      return count == 0 ? duration::zero() : total / static_cast<typename duration::rep>(count);
-    }
-  };
+  using stats = profiler_stats<duration>;
 
 private:
   std::map<std::string, stats, std::less<>> m_stats{};
