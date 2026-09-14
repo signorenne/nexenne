@@ -514,7 +514,8 @@ TEST_CASE("nexenne::filter::rate_guard escape hatch recovers from a genuine step
   nexenne::utility::ignore(escaping.push(0.0));
   CHECK(escaping.push(50.0) == doctest::Approx(0.0));   // reject 1
   CHECK(escaping.push(50.0) == doctest::Approx(0.0));   // reject 2
-  CHECK(escaping.push(50.0) == doctest::Approx(50.0));  // reject 3 -> force accept
+  CHECK(escaping.push(50.0) == doctest::Approx(0.0));   // reject 3
+  CHECK(escaping.push(50.0) == doctest::Approx(50.0));  // the next is force-accepted
   CHECK(escaping.accepted() == true);
   CHECK(escaping.rejected_streak() == 0);
   CHECK(escaping.push(51.0) == doctest::Approx(51.0));  // now re-centred on 50
@@ -540,6 +541,15 @@ TEST_CASE("nexenne::filter::validator push is conditionally noexcept (M6)") {
   static_assert(noexcept(nothrow_val.push(1)));
   static_assert(!noexcept(throwing_val.push(1)));
   CHECK(nothrow_val.push(1) == 1);
+}
+
+TEST_CASE("nexenne::filter::rate_guard escape_after 1 still rejects the first spike") {
+  auto guard{flt::rate_guard{1.0, 1}};
+  nexenne::utility::discard(guard.push(0.0));
+  CHECK(guard.push(50.0) == doctest::Approx(0.0));
+  CHECK_FALSE(guard.accepted());
+  CHECK(guard.push(50.0) == doctest::Approx(50.0));
+  CHECK(guard.accepted());
 }
 
 }  // namespace

@@ -84,8 +84,9 @@ public:
    * directly. Afterward a sample is accepted only when it differs from
    * the current output by at most \c max_delta(); otherwise the output
    * is held and the rejected-run counter grows. When the escape hatch
-   * is enabled and that run reaches \c escape_after(), the sample is
-   * accepted anyway and the guard re-centres on it.
+   * is enabled and \c escape_after() samples in a row have already been
+   * rejected, the next one is accepted anyway and the guard re-centres
+   * on it.
    *
    * @param sample New input sample.
    *
@@ -108,7 +109,7 @@ public:
       m_value = sample;
       m_reject_streak = 0;
       m_accepted = true;
-    } else if (m_escape_after != 0 && m_reject_streak + 1 >= m_escape_after) {
+    } else if (m_escape_after != 0 && m_reject_streak >= m_escape_after) {
       // Escape hatch: a genuine step (or a garbage prime) would otherwise
       // reject every later reading forever. After enough consecutive
       // rejections, accept the sample and re-centre so real dynamics are
