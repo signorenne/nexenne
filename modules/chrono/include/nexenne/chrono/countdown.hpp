@@ -4,7 +4,7 @@
  * @file
  * @brief Polling-driven countdown timer.
  *
- * Set a target duration via the constructor or \c set_target,
+ * Set a target duration via the constructor or \c target(),
  * then \c start(). \c tick() is the polling hook: call it in your
  * main loop and it returns \c true exactly once, on the transition
  * from running to expired. After expiry elapsed time keeps accruing,
@@ -66,7 +66,7 @@ private:
   state m_state{state::idle};
   // Whether time is accruing. Not derivable from m_state: expired keeps the
   // clock running after a tick() expiry but stopped after a zero-target start,
-  // and set_target can change the target afterwards.
+  // and target() can change the target afterwards.
   bool m_ticking{false};
 
   /**
@@ -155,23 +155,17 @@ public:
   }
 
   /**
-   * @brief Replace the target duration.
+   * @brief Configured target duration, for modification.
    *
-   * A negative target is clamped to zero. Does not change the current state
-   * or elapsed time.
+   * Changing it does not change the current state or the elapsed time.
    *
-   * @tparam D Source duration type, deduced from \p target.
-   * @param target New target duration.
+   * @return Mutable reference to the target.
    *
-   * @pre None.
-   * @post \c target() is the non-negative cast of \p target.
+   * @pre A value written through the reference is non-negative.
+   * @post None.
    */
-  template <chrono_duration D>
-  auto set_target(D const target) noexcept -> void {
-    m_target = detail::saturating_cast<duration>(target);
-    if (m_target < duration::zero()) {
-      m_target = duration::zero();
-    }
+  [[nodiscard]] constexpr auto target() noexcept -> duration& {
+    return m_target;
   }
 
   /**

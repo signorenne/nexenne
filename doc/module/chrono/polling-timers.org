@@ -114,7 +114,7 @@ namespace ch = nexenne::chrono;
 ch::countdown<> timeout{5s}; timeout.start();
 while (working) { if (timeout.tick()) { abort_work(); break; } poll_io(); }
 
-ch::interval<> tickrate; tickrate.set_period(16ms); tickrate.start();
+ch::interval<> tickrate; tickrate.period() = 16ms; tickrate.start();
 while (running) { if (tickrate.tick()) { step(); } }
 #+END_SRC
 

@@ -78,7 +78,7 @@ public:
 
 private:
   callback_type m_cb{};
-  std::uint32_t m_cb_epoch{0};  // bumped by set_callback, so poll sees a swap
+  std::uint32_t m_cb_epoch{0};  // bumped by set_callback(cb), so poll sees a swap
   time_point m_next{};
   duration m_period{duration::zero()};
   alarm_mode m_mode{alarm_mode::one_shot};
@@ -262,7 +262,7 @@ private:
   /**
    * @brief Runs the stored callback from a local copy of it.
    *
-   * The callback lives in inline storage, so a \c set_callback made from
+   * The callback lives in inline storage, so a \c set_callback(cb) made from
    * inside it would otherwise destroy the closure that is still running. It is
    * moved out first, and moved back afterwards (also when it throws) only if no
    * new callback was set while it ran.

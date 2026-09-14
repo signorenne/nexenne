@@ -95,26 +95,6 @@ public:
   }
 
   /**
-   * @brief Replace the tick period.
-   *
-   * A negative period is clamped to zero. Does not re-anchor a running
-   * interval.
-   *
-   * @tparam D Source duration type, deduced from \p period.
-   * @param period New spacing between ticks.
-   *
-   * @pre None.
-   * @post \c period() is the non-negative cast of \p period.
-   */
-  template <chrono_duration D>
-  auto set_period(D const period) noexcept -> void {
-    m_period = detail::saturating_cast<duration>(period);
-    if (m_period < duration::zero()) {
-      m_period = duration::zero();
-    }
-  }
-
-  /**
    * @brief Configured tick period.
    *
    * @return The spacing between ticks.
@@ -123,6 +103,20 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto period() const noexcept -> duration {
+    return m_period;
+  }
+
+  /**
+   * @brief Configured tick period, for modification.
+   *
+   * Changing it does not re-anchor a running interval.
+   *
+   * @return Mutable reference to the period.
+   *
+   * @pre A value written through the reference is non-negative.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto period() noexcept -> duration& {
     return m_period;
   }
 

@@ -117,15 +117,13 @@ TEST_CASE("nexenne::chrono::countdown a negative target is clamped to zero") {
   clk::reset();
   ch::countdown<clk> cd{-100ms};
   CHECK(cd.target() == clk::duration::zero());
-  cd.set_target(-5s);
-  CHECK(cd.target() == clk::duration::zero());
 }
 
-TEST_CASE("nexenne::chrono::countdown set_target, extend, shrink clamp at zero") {
+TEST_CASE("nexenne::chrono::countdown target, extend, shrink clamp at zero") {
   using clk = ch::basic_manual_clock<struct cd_target_tag>;
   clk::reset();
   ch::countdown<clk> cd{};
-  cd.set_target(100ms);
+  cd.target() = 100ms;
   CHECK(cd.target() == std::chrono::duration_cast<clk::duration>(100ms));
   cd.extend(50ms);
   CHECK(cd.target() == std::chrono::duration_cast<clk::duration>(150ms));
@@ -234,7 +232,7 @@ TEST_CASE("nexenne::chrono::countdown keeps time after a tick expiry but not a z
   ch::countdown<clk> instant{0ms};
   instant.start();
   REQUIRE(instant.is_expired());
-  instant.set_target(50ms);
+  instant.target() = 50ms;
   clk::advance(30ms);
   CHECK(instant.template elapsed<std::chrono::milliseconds>() == 0ms);
   CHECK(instant.is_expired());
@@ -288,7 +286,7 @@ TEST_CASE("nexenne::chrono::interval fires once per crossed period") {
   using clk = ch::basic_manual_clock<struct iv_tag>;
   clk::reset();
   ch::interval<clk> iv;
-  iv.set_period(50ms);
+  iv.period() = 50ms;
   iv.start();
   CHECK_FALSE(iv.tick());  // nothing elapsed yet
   clk::advance(50ms);
@@ -332,8 +330,6 @@ TEST_CASE("nexenne::chrono::interval a negative period is clamped to zero and ne
   clk::advance(1s);
   CHECK_FALSE(iv.tick());  // zero period never fires
   CHECK(iv.remaining() == clk::duration::zero());
-  iv.set_period(-1s);
-  CHECK(iv.period() == clk::duration::zero());
 }
 
 TEST_CASE("nexenne::chrono::interval just-before, exactly-at, just-after the first boundary") {
@@ -989,7 +985,7 @@ TEST_CASE("nexenne::chrono::rate_limiter until_next_token is unreachable above c
 }
 
 TEST_CASE("nexenne::chrono::alarm callback can replace itself while it runs") {
-  // set_callback from inside the callback used to destroy the running closure
+  // set_callback(cb) from inside the callback used to destroy the running closure
   // in place, so reading its captures afterwards was a use-after-destroy.
   using clk = ch::basic_manual_clock<struct al_self_replace_tag>;
   clk::reset();
@@ -1000,7 +996,7 @@ TEST_CASE("nexenne::chrono::alarm callback can replace itself while it runs") {
   a.set_callback([&a, &first, &second, &seen, payload = std::make_unique<int>(42)] {
     ++first;
     a.set_callback([&second] { ++second; });
-    seen = *payload;
+    seen = *payload;  // the capture must still be alive after the swap
   });
   a.arm_periodic(clk::now(), 10ms);
   clk::advance(10ms);
