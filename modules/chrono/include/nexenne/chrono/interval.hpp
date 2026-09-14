@@ -55,15 +55,15 @@ namespace nexenne::chrono {
 template <steady_clock_like Clock = std::chrono::steady_clock>
 class interval {
 public:
-  using clock_type = Clock;
-  using duration = typename Clock::duration;
-  using time_point = typename Clock::time_point;
+  using clock_type = Clock;                       ///< Steady clock the interval reads.
+  using duration = typename Clock::duration;      ///< Period and remaining span on \p Clock.
+  using time_point = typename Clock::time_point;  ///< Tick boundary instant on \p Clock.
 
 private:
-  duration m_period{duration::zero()};
-  time_point m_anchor{};
-  std::uint64_t m_count{0};
-  bool m_running{false};
+  duration m_period{duration::zero()};  ///< Spacing between ticks, never negative.
+  time_point m_anchor{};                ///< Last consumed boundary, or the start time.
+  std::uint64_t m_count{0};             ///< Boundaries consumed since \c start().
+  bool m_running{false};                ///< Whether the interval is armed.
 
 public:
   /**
@@ -246,8 +246,9 @@ public:
   /**
    * @brief Absolute time of the next tick boundary.
    *
-   * @return The next boundary time, or \c time_point::max() when stopped so
-   *         that stopped intervals sort to the end of a priority queue.
+   * @return The next boundary time, or \c time_point::max() when stopped (so
+   *         that stopped intervals sort to the end of a priority queue) or when
+   *         the boundary lies beyond the clock's range.
    *
    * @pre None.
    * @post None.

@@ -335,7 +335,7 @@ template <typename Callback, steady_clock_like Clock>
  */
 template <>
 struct std::formatter<nexenne::chrono::duration_parts, char> {
-  bool suppress_zero{true};
+  bool suppress_zero{true};  ///< Drop leading zero components; the \c '!' spec flag clears it.
 
   /**
    * @brief Parse the format spec flags.
@@ -690,6 +690,9 @@ public:
  * @brief \c std::format support for a \c stopwatch_state: prints its \c to_string name.
  *
  * Inherits the string formatter so a spec (width, alignment) applies to the name.
+ *
+ * @pre None.
+ * @post None.
  */
 template <>
 struct std::formatter<nexenne::chrono::stopwatch_state> : std::formatter<std::string_view> {
@@ -715,6 +718,9 @@ struct std::formatter<nexenne::chrono::stopwatch_state> : std::formatter<std::st
  * @brief \c std::format support for a \c countdown_state: prints its \c to_string name.
  *
  * Inherits the string formatter so a spec (width, alignment) applies to the name.
+ *
+ * @pre None.
+ * @post None.
  */
 template <>
 struct std::formatter<nexenne::chrono::countdown_state> : std::formatter<std::string_view> {
@@ -740,6 +746,9 @@ struct std::formatter<nexenne::chrono::countdown_state> : std::formatter<std::st
  * @brief \c std::format support for an \c alarm_mode: prints its \c to_string name.
  *
  * Inherits the string formatter so a spec (width, alignment) applies to the name.
+ *
+ * @pre None.
+ * @post None.
  */
 template <>
 struct std::formatter<nexenne::chrono::alarm_mode> : std::formatter<std::string_view> {

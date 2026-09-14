@@ -94,10 +94,22 @@ namespace detail {
  * @brief Whether \p T is a \c std::ratio with a positive numerator and denominator.
  *
  * @tparam T Candidate type.
+ *
+ * @pre None.
+ * @post None.
  */
 template <class T>
 struct is_positive_ratio : std::false_type {};
 
+/**
+ * @brief Specialization for a \c std::ratio: true when both terms are positive.
+ *
+ * @tparam N Ratio numerator.
+ * @tparam D Ratio denominator.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <std::intmax_t N, std::intmax_t D>
 struct is_positive_ratio<std::ratio<N, D>> : std::bool_constant<(N > 0) && (D > 0)> {};
 
@@ -105,6 +117,9 @@ struct is_positive_ratio<std::ratio<N, D>> : std::bool_constant<(N > 0) && (D > 
  * @brief A positive \c std::ratio, usable as a tick period.
  *
  * @tparam P Candidate period type.
+ *
+ * @pre None.
+ * @post None.
  */
 template <class P>
 concept chrono_period = is_positive_ratio<std::remove_cvref_t<P>>::value;

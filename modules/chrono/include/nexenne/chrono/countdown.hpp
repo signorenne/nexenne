@@ -50,9 +50,9 @@ namespace nexenne::chrono {
 template <steady_clock_like Clock = std::chrono::steady_clock>
 class countdown {
 public:
-  using clock_type = Clock;
-  using duration = typename Clock::duration;
-  using time_point = typename Clock::time_point;
+  using clock_type = Clock;                       ///< Steady clock the countdown reads.
+  using duration = typename Clock::duration;      ///< Target and elapsed span on \p Clock.
+  using time_point = typename Clock::time_point;  ///< Instant on \p Clock.
 
   /**
    * @brief Lifecycle state of a \c countdown; see \c countdown_state.
@@ -64,9 +64,13 @@ private:
   duration m_accumulated{duration::zero()};
   duration m_target{duration::zero()};
   state m_state{state::idle};
-  // Whether time is accruing. Not derivable from m_state: expired keeps the
-  // clock running after a tick() expiry but stopped after a zero-target start,
-  // and target() can change the target afterwards.
+  /**
+   * @brief Whether time is accruing.
+   *
+   * Not derivable from \c m_state: \c expired keeps the clock running after a
+   * \c tick() expiry but stopped after a zero-target \c start(), and \c target()
+   * can change the target afterwards.
+   */
   bool m_ticking{false};
 
   /**

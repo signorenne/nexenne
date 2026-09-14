@@ -72,19 +72,20 @@ enum class alarm_mode {
 template <clock_like Clock, std::size_t CallbackBytes = 64>
 class alarm {
 public:
-  using clock_type = Clock;
-  using time_point = typename Clock::time_point;
-  using duration = typename Clock::duration;
+  using clock_type = Clock;                       ///< Clock the fire times are read from.
+  using time_point = typename Clock::time_point;  ///< Absolute fire instant on \p Clock.
+  using duration = typename Clock::duration;      ///< Delay or period length on \p Clock.
+  /// @brief Allocation-free callable fired on expiry, with \p CallbackBytes of inline storage.
   using callback_type = ::nexenne::utility::in_place_function<void(), CallbackBytes>;
 
 private:
   callback_type m_cb{};
-  std::uint32_t m_cb_epoch{0};  // bumped by set_callback(cb), so poll sees a swap
+  std::uint32_t m_cb_epoch{0};  ///< Bumped by \c set_callback, so \c fire sees a swap.
   time_point m_next{};
   duration m_period{duration::zero()};
   alarm_mode m_mode{alarm_mode::one_shot};
   bool m_armed{false};
-  std::uint32_t m_arm_epoch{0};  // bumped by every arm and disarm, so poll sees a re-arm
+  std::uint32_t m_arm_epoch{0};  ///< Bumped by every arm and disarm, so \c poll sees a re-arm.
 
 public:
   /**

@@ -123,8 +123,8 @@ struct profiler_stats {
 template <steady_clock_like Clock = std::chrono::steady_clock>
 class profiler {
 public:
-  using clock_type = Clock;
-  using duration = typename Clock::duration;
+  using clock_type = Clock;                   ///< Steady clock the samples are measured on.
+  using duration = typename Clock::duration;  ///< Sample length on \p Clock.
 
   /**
    * @brief Accumulated statistics for one named bucket; see \c profiler_stats.
@@ -132,7 +132,7 @@ public:
   using stats = profiler_stats<duration>;
 
 private:
-  std::map<std::string, stats, std::less<>> m_stats{};
+  std::map<std::string, stats, std::less<>> m_stats{};  ///< Buckets by name; nodes never move.
 
   /**
    * @brief Fold a single sample into a bucket's aggregates.

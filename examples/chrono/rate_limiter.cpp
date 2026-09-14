@@ -5,6 +5,21 @@
  * A token bucket starts full and refills lazily at a fixed rate. Here it caps a
  * burst then paces subsequent acquisitions; the manual clock makes the refill
  * timing deterministic.
+ *
+ * The program walks two steps:
+ *
+ * 1. A bucket of capacity 3 refilling at 10 tokens per second grants only 3 of a
+ *    5-request initial burst.
+ * 2. After 100 ms (one token at 10 per second) one acquire succeeds and an
+ *    immediate second one fails.
+ *
+ * Expected output:
+ *
+ * \code
+ * burst granted: 3 of 5
+ * after 100 ms, acquire: true
+ * immediately again: false
+ * \endcode
  */
 
 #include <chrono>

@@ -64,9 +64,9 @@ template <std::size_t N, steady_clock_like Clock = std::chrono::steady_clock>
   requires(N > 0)
 class static_stopwatch {
 public:
-  using clock_type = Clock;
-  using duration = typename Clock::duration;
-  using time_point = typename Clock::time_point;
+  using clock_type = Clock;                       ///< Steady clock the stopwatch reads.
+  using duration = typename Clock::duration;      ///< Elapsed and lap span on \p Clock.
+  using time_point = typename Clock::time_point;  ///< Instant on \p Clock, as \c elapsed_at takes.
 
   /**
    * @brief Lifecycle state of a \c static_stopwatch; see \c stopwatch_state.

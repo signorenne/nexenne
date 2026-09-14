@@ -21,7 +21,7 @@ namespace {
 namespace ch = nexenne::chrono;
 using namespace std::chrono_literals;
 
-// A backend with a settable tick source so tests are deterministic.
+/// @brief Tick backend with a settable tick source, so tests are deterministic.
 struct fake_backend {
   using rep = std::int64_t;
   using period = std::micro;
@@ -37,8 +37,7 @@ using fake_clock = ch::tick_clock<fake_backend>;
 
 static_assert(ch::steady_clock_like<fake_clock>);
 
-// A second, independent backend with a different rep/period to exercise the
-// alias plumbing and to prove tick_clock is fully type-driven by the backend.
+/// @brief Second backend with another rep and period, proving tick_clock is type-driven.
 struct milli_backend {
   using rep = std::int32_t;
   using period = std::milli;
@@ -52,12 +51,11 @@ struct milli_backend {
 
 using milli_clock = ch::tick_clock<milli_backend>;
 
-// A backend with the integer-second period (ratio<1>) and is_steady that is a
-// non-bool convertible-to-bool value, to stress is_steady's static_cast<bool>.
+/// @brief Backend with a whole-second period and a truthy, non-bool \c is_steady.
 struct second_backend {
   using rep = std::int64_t;
   using period = std::ratio<1>;
-  static constexpr int is_steady = 7;  // truthy but not a bool
+  static constexpr int is_steady = 7;  ///< Truthy but not a bool.
 
   static auto ticks() noexcept -> rep {
     return 0;

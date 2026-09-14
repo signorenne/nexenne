@@ -4,14 +4,33 @@
  *
  * Where countdown and deadline leave the polling caller to decide what happens
  * on expiry, an alarm stores a callback and fires it for you. poll(now) checks
- * the fire time against the supplied instant and invokes the callback - once for
+ * the fire time against the supplied instant and invokes the callback: once for
  * a one-shot, every elapsed cycle for a periodic alarm (it catches up if you
  * poll late). The callback lives in an in_place_function with inline storage, so
  * the alarm never allocates. The manual clock keeps the timing deterministic.
  *
  * Note: poll() takes an explicit now time_point rather than reading the clock
- * itself - that is what makes the catch-up behaviour testable and lets you drive
+ * itself; that is what makes the catch-up behaviour testable and lets you drive
  * many alarms from one shared now() snapshot.
+ *
+ * The program walks three steps:
+ *
+ * 1. A one-shot armed 50 ms out: a poll at 30 ms does nothing, a poll at 70 ms
+ *    fires it once and disarms it.
+ * 2. A periodic alarm every 100 ms, polled late at 350 ms: the single poll
+ *    catches up by firing once per missed boundary (100, 200, 300), and the next
+ *    poll after the 400 ms boundary fires once more.
+ * 3. disarm() stops further firing but keeps the callback for re-arming later.
+ *
+ * Expected output:
+ *
+ * \code
+ * at 30ms: armed true, fires 0
+ * at 70ms: armed false, fires 1
+ * periodic after 350ms: fires 3, next at 400 ms
+ * periodic after 450ms: fires 4
+ * after disarm: armed false, fires 4
+ * \endcode
  */
 
 #include <print>

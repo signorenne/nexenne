@@ -52,16 +52,16 @@ namespace nexenne::chrono {
 template <steady_clock_like Clock = std::chrono::steady_clock>
 class rate_limiter {
 public:
-  using clock_type = Clock;
-  using duration = typename Clock::duration;
-  using time_point = typename Clock::time_point;
+  using clock_type = Clock;                       ///< Steady clock the refill is timed with.
+  using duration = typename Clock::duration;      ///< Wait or elapsed span on \p Clock.
+  using time_point = typename Clock::time_point;  ///< Instant on \p Clock of the refill anchor.
 
 private:
-  double m_capacity{0.0};
-  double m_refill_per_sec{0.0};
-  double m_tokens{0.0};
-  time_point m_last{};
-  bool m_anchored{false};
+  double m_capacity{0.0};        ///< Maximum tokens held, finite and non-negative.
+  double m_refill_per_sec{0.0};  ///< Tokens credited per second, finite and non-negative.
+  double m_tokens{0.0};          ///< Tokens on hand as of \c m_last.
+  time_point m_last{};           ///< Refill anchor; never moves backward.
+  bool m_anchored{false};        ///< Whether \c m_last holds a real clock reading.
 
   /**
    * @brief Clamp a rate parameter to a finite, non-negative value.

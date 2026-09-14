@@ -353,9 +353,10 @@ namespace detail {
  * components. When \p fmt contains no \c {ms}, the value is rounded to the
  * nearest second, ties away from zero. With \p suppress_zero, a component
  * renders only when its token is present in \p fmt, leading zero components
- * are dropped while an interior zero is kept, and the survivors are joined
- * with \c ':' using canonical unit labels rather than the spec's separators.
- * With \p suppress_zero false the spec is honored literally.
+ * are dropped while an interior zero is kept, seconds always render when their
+ * token is present, and the survivors are joined with \c ':' using canonical
+ * unit labels rather than the spec's separators. With \p suppress_zero false
+ * the spec is honored literally.
  *
  * @param ms Duration to render.
  * @param fmt Token format string.

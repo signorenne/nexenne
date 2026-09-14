@@ -1034,7 +1034,7 @@ TEST_CASE("nexenne::chrono::alarm periodic callback can re-arm or reschedule its
   );
 }
 
-// A 1 kHz RTOS-style tick, driven by hand.
+/// @brief A 1 kHz RTOS-style tick backend, driven by hand.
 struct ms_tick_backend {
   using rep = std::int64_t;
   using period = std::milli;

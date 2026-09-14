@@ -60,18 +60,18 @@ template <std::size_t WindowSize = 60, steady_clock_like Clock = std::chrono::st
   requires(WindowSize > 0)
 class frame_timer {
 public:
-  using clock_type = Clock;
-  using duration = typename Clock::duration;
-  using time_point = typename Clock::time_point;
+  using clock_type = Clock;                       ///< Steady clock the frames are timed with.
+  using duration = typename Clock::duration;      ///< Frame delta on \p Clock.
+  using time_point = typename Clock::time_point;  ///< Frame boundary instant on \p Clock.
 
 private:
-  std::array<duration, WindowSize> m_window{};
-  duration m_sum{duration::zero()};
-  std::size_t m_idx{0};
-  std::size_t m_filled{0};
-  std::uint64_t m_frames{0};
-  time_point m_last{};
-  bool m_started{false};
+  std::array<duration, WindowSize> m_window{};  ///< Ring of the most recent frame deltas.
+  duration m_sum{duration::zero()};             ///< Running sum of the filled window slots.
+  std::size_t m_idx{0};                         ///< Next ring slot to overwrite.
+  std::size_t m_filled{0};                      ///< Filled ring slots, up to \p WindowSize.
+  std::uint64_t m_frames{0};                    ///< Ticks since construction or reset.
+  time_point m_last{};                          ///< Instant of the most recent tick.
+  bool m_started{false};                        ///< Whether a tick has been recorded.
 
 public:
   /**
@@ -87,7 +87,9 @@ public:
    * @brief Record a frame boundary and return the frame delta.
    *
    * Reads \c Clock::now(), folds the delta into the moving window, and
-   * advances the frame counter.
+   * advances the frame counter. A negative delta (a clock stepped backward,
+   * such as a \c manual_clock advanced by a negative amount) is clamped to zero
+   * so it cannot corrupt the running sum behind \c fps().
    *
    * @return The duration since the previous \c tick(), or zero on the first
    *         call.

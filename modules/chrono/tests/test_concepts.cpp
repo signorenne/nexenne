@@ -67,7 +67,7 @@ static_assert(ch::chrono_duration<ch::manual_clock::duration>);
 // have rep/period members but are not the exact duration specialisation.
 namespace {
 
-// Has the right member names but is not std::chrono::duration<rep, period>.
+/// @brief Has the right member names but is not \c std::chrono::duration.
 struct fake_duration {
   using rep = int;
   using period = std::milli;
@@ -96,7 +96,7 @@ static_assert(ch::clock_like<ch::tick_clock<micro_backend>>);
 // Negative: fundamentals and types missing one of the requirements.
 namespace {
 
-// now() returns the wrong type (not its own time_point).
+/// @brief Clock whose \c now() returns the wrong type, not its own \c time_point.
 struct wrong_now_type {
   using rep = int;
   using period = std::milli;
@@ -109,7 +109,7 @@ struct wrong_now_type {
   }
 };
 
-// Missing the static now() entirely.
+/// @brief Clock missing the static \c now() entirely.
 struct no_now {
   using rep = int;
   using period = std::milli;
@@ -117,7 +117,7 @@ struct no_now {
   using time_point = std::chrono::time_point<no_now>;
 };
 
-// now() is non-static (not callable as C::now()).
+/// @brief Clock whose \c now() is non-static, so \c C::now() does not compile.
 struct nonstatic_now {
   using rep = int;
   using period = std::milli;
@@ -129,7 +129,7 @@ struct nonstatic_now {
   }
 };
 
-// Missing the time_point alias.
+/// @brief Clock missing the \c time_point alias.
 struct no_time_point {
   using rep = int;
   using period = std::milli;
@@ -162,7 +162,7 @@ static_assert(!ch::steady_clock_like<std::chrono::seconds>);
 
 namespace {
 
-// clock_like but with no is_steady member at all.
+/// @brief A \c clock_like type with no \c is_steady member at all.
 struct steadyless_clock {
   using rep = int;
   using period = std::milli;
@@ -174,8 +174,7 @@ struct steadyless_clock {
   }
 };
 
-// is_steady present and truthy but as a non-bool integer (convertible_to<bool>
-// plus a truthy runtime value -> should satisfy).
+/// @brief Clock whose \c is_steady is a truthy non-bool integer, so it still satisfies.
 struct int_steady_clock {
   using rep = int;
   using period = std::milli;
@@ -188,7 +187,7 @@ struct int_steady_clock {
   }
 };
 
-// is_steady present but zero -> the (C::is_steady) clause is false.
+/// @brief Clock whose \c is_steady is zero, so the steadiness clause is false.
 struct zero_steady_clock {
   using rep = int;
   using period = std::milli;
@@ -232,7 +231,7 @@ struct nano_backend {
 struct second_ratio_backend {
   using rep = std::int32_t;
   using period = std::ratio<1>;
-  static constexpr int is_steady = 5;  // convertible to bool
+  static constexpr int is_steady = 5;  ///< Convertible to bool.
 
   static auto ticks() noexcept -> rep {
     return 0;
@@ -242,7 +241,7 @@ struct second_ratio_backend {
 struct odd_ratio_backend {
   using rep = long long;
   using period = std::ratio<7, 13>;
-  static constexpr bool is_steady = false;  // steadiness not required by tick_backend
+  static constexpr bool is_steady = false;  ///< Steadiness is not required by \c tick_backend.
 
   static auto ticks() noexcept -> rep {
     return 0;
@@ -261,7 +260,7 @@ static_assert(!ch::tick_backend<void>);
 
 namespace {
 
-// Unsigned rep violates signed_integral.
+/// @brief Backend whose unsigned \c rep violates \c signed_integral.
 struct unsigned_rep_backend {
   using rep = unsigned;
   using period = std::micro;
@@ -272,7 +271,7 @@ struct unsigned_rep_backend {
   }
 };
 
-// Floating rep violates signed_integral.
+/// @brief Backend whose floating \c rep violates \c signed_integral.
 struct float_rep_backend {
   using rep = double;
   using period = std::micro;
@@ -283,7 +282,7 @@ struct float_rep_backend {
   }
 };
 
-// Negative-numerator ratio is not a positive period.
+/// @brief Backend whose negative-numerator ratio is not a positive period.
 struct negative_period_backend {
   using rep = std::int64_t;
   using period = std::ratio<-1, 1000>;
@@ -294,7 +293,7 @@ struct negative_period_backend {
   }
 };
 
-// Zero-numerator ratio is not a positive period.
+/// @brief Backend whose zero-numerator ratio is not a positive period.
 struct zero_period_backend {
   using rep = std::int64_t;
   using period = std::ratio<0, 1>;
@@ -305,7 +304,7 @@ struct zero_period_backend {
   }
 };
 
-// period is not a std::ratio at all.
+/// @brief Backend whose \c period is not a \c std::ratio at all.
 struct nonratio_period_backend {
   using rep = std::int64_t;
   using period = int;
@@ -316,7 +315,7 @@ struct nonratio_period_backend {
   }
 };
 
-// Missing is_steady member.
+/// @brief Backend missing the \c is_steady member.
 struct no_is_steady_backend {
   using rep = std::int64_t;
   using period = std::micro;
@@ -326,7 +325,7 @@ struct no_is_steady_backend {
   }
 };
 
-// ticks() is not noexcept.
+/// @brief Backend whose \c ticks() is not \c noexcept.
 struct throwing_ticks_backend {
   using rep = std::int64_t;
   using period = std::micro;
@@ -337,7 +336,7 @@ struct throwing_ticks_backend {
   }
 };
 
-// ticks() returns the wrong type.
+/// @brief Backend whose \c ticks() returns \c int instead of \c rep.
 struct wrong_ticks_type_backend {
   using rep = std::int64_t;
   using period = std::micro;
@@ -348,7 +347,7 @@ struct wrong_ticks_type_backend {
   }
 };
 
-// ticks() is non-static.
+/// @brief Backend whose \c ticks() is non-static.
 struct nonstatic_ticks_backend {
   using rep = std::int64_t;
   using period = std::micro;
@@ -359,7 +358,7 @@ struct nonstatic_ticks_backend {
   }
 };
 
-// Missing rep alias.
+/// @brief Backend missing the \c rep alias.
 struct no_rep_backend {
   using period = std::micro;
   [[maybe_unused]] static constexpr bool is_steady = true;
@@ -369,7 +368,7 @@ struct no_rep_backend {
   }
 };
 
-// Missing period alias.
+/// @brief Backend missing the \c period alias.
 struct no_period_backend {
   using rep = std::int64_t;
   [[maybe_unused]] static constexpr bool is_steady = true;
@@ -379,7 +378,7 @@ struct no_period_backend {
   }
 };
 
-// is_steady is a class type with no implicit conversion to bool.
+/// @brief Type with only an explicit conversion to bool, so not \c convertible_to bool.
 struct not_bool_convertible {
   explicit operator bool() const {  // explicit: not std::convertible_to<bool>
     return true;

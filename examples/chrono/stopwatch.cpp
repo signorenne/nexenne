@@ -5,6 +5,23 @@
  * Every nexenne::chrono type is templated on its clock; here a manual_clock is
  * advanced by hand so the output is deterministic (a real program would use the
  * default std::chrono::steady_clock and let wall time pass).
+ *
+ * The program walks two steps:
+ *
+ * 1. A 30 ms lap, then 20 ms more before pause() freezes the accumulator: the
+ *    500 ms that pass while paused are not counted, and 10 ms more follow the
+ *    resume().
+ * 2. The stopwatch prints through its std::formatter and through an operator<<
+ *    that gives the same text.
+ *
+ * Expected output:
+ *
+ * \code
+ * lap 1: 30 ms
+ * total elapsed: 60 ms
+ * formatted: 00s:060ms
+ * streamed: 00s:060ms
+ * \endcode
  */
 
 #include <chrono>

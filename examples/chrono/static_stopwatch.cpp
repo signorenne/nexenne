@@ -4,11 +4,36 @@
  *
  * A static_stopwatch mirrors stopwatch (start / pause / resume / lap / min /
  * max / average) but stores laps in a fixed-size std::array instead of a
- * std::vector, so it never touches the heap - safe for an MCU or any
- * heap-averse target. Its distinguishing feature is the overflow policy: once
- * the buffer fills, extra laps are still counted and folded into the running
- * sum and average, but not stored, and laps_dropped() reports the overflow.
- * The manual clock keeps the output deterministic.
+ * std::vector, so it never touches the heap: safe for an MCU or any heap-averse
+ * target. Its distinguishing feature is the overflow policy: once the buffer
+ * fills, extra laps are still counted and folded into the running sum and
+ * average, but not stored, and laps_dropped() reports the overflow. The manual
+ * clock keeps the output deterministic.
+ *
+ * The program walks four steps:
+ *
+ * 1. A capacity-3 stopwatch records five laps, so the last two overflow; lap()
+ *    returns the closed segment even when it is dropped.
+ * 2. lap_count() counts every lap observed, stored_lap_count() only the ones
+ *    retained, and laps_dropped() is the difference.
+ * 3. min and max cover the stored laps only (the dropped values are gone), while
+ *    sum and average use every observed lap, so the mean stays faithful after
+ *    overflow.
+ * 4. pause() freezes the accumulator: time advanced while paused is not counted.
+ *
+ * Expected output:
+ *
+ * \code
+ * lap closed: 10 ms
+ * lap closed: 20 ms
+ * lap closed: 30 ms
+ * lap closed: 40 ms
+ * lap closed: 50 ms
+ * observed 5, stored 3, dropped 2
+ * stored min 10 ms, max 30 ms
+ * sum (all laps) 150 ms, average 30 ms
+ * total elapsed 155 ms (paused gap excluded)
+ * \endcode
  */
 
 #include <array>
@@ -23,6 +48,16 @@ namespace {
 namespace ch = nexenne::chrono;
 using clk = ch::basic_manual_clock<struct sw_static_tag>;
 
+/**
+ * @brief Whole milliseconds in \p d, for printing.
+ *
+ * @param d Duration to convert.
+ *
+ * @return The millisecond count of \p d, truncated.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto ms(clk::duration const d) -> std::int64_t {
   return std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
 }

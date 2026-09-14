@@ -50,12 +50,13 @@ namespace nexenne::chrono {
  */
 template <tick_backend Backend>
 struct tick_clock {
-  using backend_type = Backend;
-  using rep = typename Backend::rep;
-  using period = typename Backend::period;
-  using duration = std::chrono::duration<rep, period>;
-  using time_point = std::chrono::time_point<tick_clock, duration>;
+  using backend_type = Backend;                         ///< Raw tick source being adapted.
+  using rep = typename Backend::rep;                    ///< Tick count type of the backend.
+  using period = typename Backend::period;              ///< Seconds per backend tick.
+  using duration = std::chrono::duration<rep, period>;  ///< Span counted in backend ticks.
+  using time_point = std::chrono::time_point<tick_clock, duration>;  ///< Instant on this clock.
 
+  /// @brief Steadiness forwarded from \c Backend::is_steady.
   static constexpr bool is_steady{static_cast<bool>(Backend::is_steady)};
 
   /**

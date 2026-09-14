@@ -5,6 +5,19 @@
  * A frame_timer reports the delta since the previous tick and a moving-average
  * FPS over a fixed window. Advancing the manual clock by a fixed step makes the
  * averaged FPS deterministic.
+ *
+ * The program walks two steps:
+ *
+ * 1. The first tick() only establishes the baseline and returns a zero delta.
+ * 2. Eight 16 ms frames (about 60 fps) fill the 8-frame window, so fps() is the
+ *    window average, 1 / 16 ms.
+ *
+ * Expected output:
+ *
+ * \code
+ * frames: 9
+ * fps (avg over window): 62.5
+ * \endcode
  */
 
 #include <chrono>

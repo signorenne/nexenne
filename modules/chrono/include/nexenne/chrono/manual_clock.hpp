@@ -65,15 +65,16 @@ namespace nexenne::chrono {
 template <typename Tag = struct default_manual_tag>
 class basic_manual_clock {
 public:
-  using rep = std::int64_t;
-  using period = std::nano;
-  using duration = std::chrono::duration<rep, period>;
-  using time_point = std::chrono::time_point<basic_manual_clock, duration>;
+  using rep = std::int64_t;                             ///< Signed tick count type.
+  using period = std::nano;                             ///< One tick is one nanosecond.
+  using duration = std::chrono::duration<rep, period>;  ///< Nanosecond span of virtual time.
+  using time_point = std::chrono::time_point<basic_manual_clock, duration>;  ///< Virtual instant.
 
+  /// @brief Advertised as steady; a negative \c advance breaks this, see the class warning.
   static constexpr bool is_steady{true};
 
 private:
-  static inline duration s_now{duration::zero()};
+  static inline duration s_now{duration::zero()};  ///< Virtual time since the epoch, per \p Tag.
 
 public:
   /**

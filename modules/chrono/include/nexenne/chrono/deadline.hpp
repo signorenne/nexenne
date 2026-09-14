@@ -38,12 +38,12 @@ namespace nexenne::chrono {
 template <steady_clock_like Clock = std::chrono::steady_clock>
 class deadline {
 public:
-  using clock_type = Clock;
-  using duration = typename Clock::duration;
-  using time_point = typename Clock::time_point;
+  using clock_type = Clock;                       ///< Steady clock the deadline is anchored on.
+  using duration = typename Clock::duration;      ///< Span on \p Clock, as \c remaining() returns.
+  using time_point = typename Clock::time_point;  ///< Absolute instant on \p Clock.
 
 private:
-  time_point m_when{};
+  time_point m_when{};  ///< Absolute target instant.
 
 public:
   /**

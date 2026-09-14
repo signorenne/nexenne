@@ -8,6 +8,34 @@
  * measurement under that name lands in the bucket with no map lookup per sample
  * and no allocation after the name's first use. The manual clock keeps every
  * number below exactly reproducible.
+ *
+ * The program walks six steps:
+ *
+ * 1. Cache one sink per name up front. It holds a pointer to the bucket, and map
+ *    nodes are stable, so it stays valid as new names are inserted later.
+ * 2. Three simulated decodes, each in a scope_timer that fires the sink when its
+ *    block ends; record(name, d) is the direct path for a duration already in
+ *    hand, inserting the bucket on first use.
+ * 3. operator[] reads a bucket back as a copy (a zeroed stats for an unknown name,
+ *    without inserting); contains and size introspect without materialising one.
+ * 4. buckets() iterates every bucket, in name order since it is a std::map.
+ * 5. format.hpp prints a bucket, or the whole profiler, with no helper.
+ * 6. reset() zeros the stats in place but keeps the buckets, so a cached sink
+ *    keeps recording into the freshly zeroed stats.
+ *
+ * Expected output:
+ *
+ * \code
+ * decode: count 3, total 360.00 us, mean 120.00 us
+ * decode: min 90.00 us, max 150.00 us
+ * has "checksum": true, has "render": false
+ * bucket count: 2
+ * -- report --
+ *   checksum   n=2 mean=50.00 us
+ *   decode     n=3 mean=120.00 us
+ * checksum: profiler_stats(count=2, total=100.00 us, min=40.00 us, max=60.00 us, mean=50.00 us)
+ * after reset, decode count: 1
+ * \endcode
  */
 
 #include <chrono>
@@ -24,6 +52,16 @@ namespace {
 namespace ch = nexenne::chrono;
 using clk = ch::basic_manual_clock<struct prof_example_tag>;
 
+/**
+ * @brief Formats \p d as an auto-scaled single unit (us, ms, ...).
+ *
+ * @param d Duration to format.
+ *
+ * @return The scaled, unit-suffixed text.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto scaled(clk::duration const d) -> std::string {
   return ch::format_scaled(std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(d));
 }

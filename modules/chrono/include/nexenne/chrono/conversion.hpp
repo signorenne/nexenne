@@ -156,6 +156,8 @@ template <std::integral Int, std::intmax_t N, std::intmax_t D, std::integral Rep
   return static_cast<Int>(-static_cast<Int>(total - 1U) - 1);
 }
 
+/// @endcond
+
 }  // namespace detail
 
 /**

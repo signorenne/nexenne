@@ -2,12 +2,38 @@
  * @file
  * @brief interval: a polling-driven periodic timer with catch-up semantics.
  *
- * Where countdown fires once, interval fires repeatedly - one tick per period.
+ * Where countdown fires once, interval fires repeatedly: one tick per period.
  * Call tick() in your loop; each call returns true at most once per crossed
- * boundary and advances the internal anchor by exactly one period. That single-
- * step-per-call design lets the caller choose the policy: call tick() once per
- * iteration to *skip* missed periods, or drain it in a while loop to *process*
- * every missed period. The manual clock makes the timing deterministic.
+ * boundary and advances the internal anchor by exactly one period. That single
+ * step per call lets the caller choose the policy: drain it in a while loop to
+ * process every missed period now, or call tick() once per iteration to spread
+ * the backlog over later iterations (start() again re-anchors and drops it). The
+ * manual clock makes the timing deterministic.
+ *
+ * The program walks five steps:
+ *
+ * 1. start() anchors at now and zeroes the count; at 40 ms tick() is false and
+ *    remaining() reports the wait.
+ * 2. At 110 ms one period has elapsed: a single tick fires and the anchor moves
+ *    to the 200 ms boundary. tick() is sequenced before tick_count() is read,
+ *    since argument evaluation order is unspecified.
+ * 3. At 460 ms the boundaries at 200, 300 and 400 are due; a while loop drains
+ *    all three, the right choice for a fixed-step physics update that must not
+ *    skip steps.
+ * 4. After a restart and a 450 ms overshoot, one tick() call consumes just one
+ *    boundary and leaves the rest pending.
+ * 5. next_tick_at() gives the absolute boundary time, a sort key for scheduling
+ *    several intervals in a priority queue.
+ *
+ * Expected output:
+ *
+ * \code
+ * at 40ms: tick false, remaining 60 ms
+ * at 110ms: tick true, count 1
+ * at 460ms: drained 3 missed ticks, count now 4
+ * skip policy: one tick consumes just 1 boundary
+ * next boundary is at 660 ms since epoch
+ * \endcode
  */
 
 #include <chrono>

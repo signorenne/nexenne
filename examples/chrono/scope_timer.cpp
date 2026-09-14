@@ -4,7 +4,14 @@
  *
  * A scope_timer captures the clock at construction and fires its callback with
  * the elapsed duration when it leaves scope. The manual clock is advanced inside
- * the scope so the measured value is deterministic.
+ * the scope, standing in for 250 us of work, so the measured value is
+ * deterministic; the callback fires at the closing brace of that scope.
+ *
+ * Expected output:
+ *
+ * \code
+ * scope took 250 us
+ * \endcode
  */
 
 #include <chrono>

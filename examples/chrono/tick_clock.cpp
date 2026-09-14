@@ -2,7 +2,7 @@
  * @file
  * @brief tick_clock: adapt a raw tick source into a Chrono-compatible clock.
  *
- * On embedded targets the time source is rarely std::chrono - it is a hardware
+ * On embedded targets the time source is rarely std::chrono: it is a hardware
  * counter, an esp_timer_get_time() call, or an RTOS tick. tick_clock wraps any
  * such source (a "backend" exposing rep / period / is_steady / ticks()) as a
  * clock_like type that the rest of nexenne::chrono and the standard std::chrono
@@ -11,6 +11,24 @@
  *
  * Here the backend is a settable software counter so the demo is deterministic;
  * a real backend's ticks() would read the hardware.
+ *
+ * The program walks three steps:
+ *
+ * 1. The adapter is a full clock: now() builds a time_point from the backend's
+ *    current ticks, and the duration unit follows the backend's period.
+ * 2. from_ticks and to_ticks bridge raw counts and time_points, handy when an ISR
+ *    or driver hands you a bare counter value.
+ * 3. The adapted clock satisfies steady_clock_like, so every chrono primitive
+ *    accepts it: a stopwatch runs off the wrapped counter with no adaptation code.
+ *
+ * Expected output:
+ *
+ * \code
+ * elapsed: 2500 us
+ * 1_000_000 ticks = 1 s
+ * round-trips back to ticks: 1000000
+ * stopwatch on tick_clock: 5000 us
+ * \endcode
  */
 
 #include <chrono>
@@ -24,16 +42,22 @@ namespace {
 
 namespace ch = nexenne::chrono;
 
-// A backend where one tick == one microsecond (period = std::micro). It must
-// expose: a signed-integral rep, a positive std::ratio period (seconds/tick),
-// a compile-time is_steady, and a noexcept static ticks() returning rep. Those
-// four members are exactly what the tick_backend concept requires.
+/**
+ * @brief Tick backend where one tick is one microsecond.
+ *
+ * Exposes exactly what the tick_backend concept requires: a signed-integral
+ * \c rep, a positive \c std::ratio \c period (seconds per tick), a compile-time
+ * \c is_steady, and a \c noexcept static \c ticks() returning \c rep.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct micro_backend {
   using rep = std::int64_t;
   using period = std::micro;
   static constexpr bool is_steady{true};
 
-  static inline rep s_ticks{0};  // a real backend would read a hardware counter
+  static inline rep s_ticks{0};  ///< Software counter; a real backend reads hardware.
 
   static auto ticks() noexcept -> rep {
     return s_ticks;

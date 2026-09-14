@@ -3,16 +3,35 @@
  * @brief A guided tour of nexenne::chrono through one realistic task: the timing
  *        spine of a game / render loop with a built-in profiler.
  *
- * This program does not draw anything - it *runs the clock* a real engine would,
+ * This program does not draw anything: it *runs the clock* a real engine would,
  * and prints the timings, so you can see how the module's pieces fit together in
  * context:
  *
- *   1. Drive the loop      -> frame_timer for the per-frame delta and FPS.
- *   2. Cap the frame rate  -> rate_limiter as a "may I render now?" gate.
+ *   1. Drive the loop      -> frame_timer for the per-frame delta and FPS. tick()
+ *                             folds each delta into a moving window (here four
+ *                             frames), so fps() is a smoothed recent average, not
+ *                             one jittery sample. The first tick() has no previous
+ *                             frame, so it returns zero: never divide by it.
+ *   2. Cap the frame rate  -> rate_limiter as a "may I render now?" gate. One token
+ *                             is one frame; capacity 1 refilling at 200 per second
+ *                             allows a frame every 5 ms. until_next_token() says
+ *                             how long to wait; the manual clock advances by that
+ *                             much where a live loop would sleep_for(wait).
  *   3. Profile the phases  -> scope_timer feeding per-name buckets in a profiler.
- *   4. Budget one frame    -> stopwatch + deadline to catch a frame that overran.
- *   5. Run a timed phase   -> countdown for a fixed "intro" segment of the run.
- *   6. Report              -> duration_parts::format / format_scaled for output.
+ *                             A sink(name) caches its bucket pointer, so recording
+ *                             needs no map lookup and no allocation. Each timer
+ *                             fires when its own block ends, and names the manual
+ *                             clock explicitly since it defaults to steady_clock.
+ *   4. Budget one frame    -> stopwatch + deadline to catch a frame that overran
+ *                             the 120 fps budget of 8.33 ms. The deadline is armed
+ *                             once at frame start and asked reached() at the end;
+ *                             the planned spike in frame 4 (a GC pause, an asset
+ *                             load) is the one that blows it.
+ *   5. Run a timed phase   -> countdown for a fixed 10 ms "intro" segment; tick()
+ *                             is true on the single frame that crosses it.
+ *   6. Report              -> format_scaled keeps the sub-millisecond resolution
+ *                             the per-phase table needs; format's d/h/m/s breakdown
+ *                             suits the human-read total run time.
  *
  * Every nexenne::chrono type is templated on its clock. A shipping engine would
  * use the default std::chrono::steady_clock and let real wall time pass; here we
@@ -45,20 +64,38 @@ namespace {
 namespace ch = nexenne::chrono;
 using namespace std::chrono_literals;
 
-// One hand-advanced clock for the whole simulation. A distinct tag keeps this
-// clock's static state from colliding with any other manual_clock in the build.
+/// @brief The simulation's hand-advanced clock; its own tag keeps its state separate.
 using clk = ch::basic_manual_clock<struct showcase_tag>;
 
-// A frozen "work simulator": instead of doing real CPU work and timing it (which
-// would be non-deterministic), each phase just advances the manual clock by a
-// fixed cost. The scope_timer then measures exactly that advance.
+/**
+ * @brief Simulates a phase's work by advancing the manual clock by \p cost.
+ *
+ * Real CPU work would time non-deterministically; a fixed advance lets the
+ * scope_timer measure exactly that cost.
+ *
+ * @param cost Simulated cost of the phase.
+ *
+ * @pre None.
+ * @post \c clk::now() has advanced by \p cost.
+ */
 auto burn(clk::duration const cost) noexcept -> void {
   clk::advance(cost);
 }
 
-// Pretty-print a duration as an auto-scaled single unit (us / ms / ...). Pass a
-// double-based nanosecond duration so format_scaled keeps fractional precision;
-// an integer ms duration would round 4170 us down to "4 ms".
+/**
+ * @brief Formats \p d as an auto-scaled single unit (us, ms, ...).
+ *
+ * Converts to a double-based nanosecond duration first so format_scaled keeps
+ * fractional precision; an integer millisecond duration would round 4170 us down
+ * to "4 ms".
+ *
+ * @param d Duration to format.
+ *
+ * @return The scaled, unit-suffixed text.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto scaled(clk::duration const d) -> std::string {
   return ch::format_scaled(std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(d));
 }

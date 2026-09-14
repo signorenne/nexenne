@@ -39,7 +39,17 @@ TEST_CASE("nexenne::chrono::format.hpp alone formats every printable chrono type
   CHECK(!std::format("{}", iv).empty());
 }
 
-// Checks that to_string and operator<< give exactly the formatter's text.
+/**
+ * @brief Whether \c to_string and \c operator<< give exactly the formatter's text.
+ *
+ * @tparam T Formattable chrono type.
+ * @param value Value printed through all three layers.
+ *
+ * @return \c true when the three renderings match.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename T>
 auto three_layers_agree(T const& value) -> bool {
   auto os{std::ostringstream{}};
@@ -132,7 +142,18 @@ TEST_CASE("nexenne::chrono profiler prints its buckets by name") {
   CHECK(three_layers_agree(prof));
 }
 
-// Checks that the formatter, to_string and operator<< all print the name.
+/**
+ * @brief Whether the formatter, \c to_string and \c operator<< all print \p name.
+ *
+ * @tparam E Chrono enum type.
+ * @param value Enumerator printed through all three layers.
+ * @param name Expected enumerator name.
+ *
+ * @return \c true when every layer prints \p name.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename E>
 auto names_agree(E const value, std::string_view const name) -> bool {
   auto os{std::ostringstream{}};

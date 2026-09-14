@@ -64,15 +64,13 @@ template <typename Callback, steady_clock_like Clock = std::chrono::steady_clock
   requires std::invocable<Callback&, typename Clock::duration>
 class [[nodiscard]] scope_timer final {
 public:
-  using clock_type = Clock;
-  using duration = typename Clock::duration;
-  using time_point = typename Clock::time_point;
+  using clock_type = Clock;                       ///< Steady clock the scope is timed with.
+  using duration = typename Clock::duration;      ///< Elapsed span on \p Clock.
+  using time_point = typename Clock::time_point;  ///< Instant on \p Clock.
 
 private:
-  time_point m_start{};
-  // No default init: Callback (e.g. a capturing lambda) need not be
-  // default-constructible; the constructor always sets it.
-  Callback m_cb;
+  time_point m_start{};  ///< Instant the timer was constructed.
+  Callback m_cb;         ///< No default init: \p Callback need not be default-constructible.
 
 public:
   /**
