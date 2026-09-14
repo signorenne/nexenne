@@ -1054,4 +1054,20 @@ TEST_CASE("nexenne::chrono::countdown and interval saturate instead of overflowi
   CHECK(slow.next_tick_at() == ch::interval<>::time_point::max());
 }
 
+TEST_CASE("nexenne::chrono::countdown and deadline remaining never read zero early") {
+  using clk = ch::basic_manual_clock<struct remaining_ceil_tag>;
+  clk::reset();
+  ch::countdown<clk> cd{1ms};
+  cd.start();
+  clk::advance(100us);
+  CHECK_FALSE(cd.is_expired());
+  CHECK(cd.remaining<std::chrono::milliseconds>() == 1ms);
+  auto const dl{ch::deadline<clk>::after(1ms)};
+  clk::advance(100us);
+  CHECK_FALSE(dl.reached());
+  CHECK(dl.remaining<std::chrono::milliseconds>() == 1ms);
+  clk::advance(1ms);
+  CHECK(dl.remaining<std::chrono::milliseconds>() == 0ms);
+}
+
 }  // namespace

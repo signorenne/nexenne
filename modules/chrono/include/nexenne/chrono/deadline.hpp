@@ -162,14 +162,19 @@ public:
    *
    * @tparam D Duration type the result is cast to.
    *
-   * @return The non-negative time left, expressed in \p D.
+   * @return The non-negative time left, expressed in \p D, rounded up for an
+   *         integral \p D so it reads zero only once the deadline is reached.
    *
    * @pre None.
    * @post The result is greater than or equal to \c D::zero().
    */
   template <chrono_duration D>
   [[nodiscard]] auto remaining() const noexcept -> D {
-    return std::chrono::duration_cast<D>(remaining());
+    if constexpr (std::chrono::treat_as_floating_point_v<typename D::rep>) {
+      return std::chrono::duration_cast<D>(remaining());
+    } else {
+      return std::chrono::ceil<D>(remaining());
+    }
   }
 
   /**

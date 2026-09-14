@@ -385,7 +385,8 @@ public:
    *
    * @tparam D Duration type the result is expressed in.
    *
-   * @return The non-negative remaining time, in units \p D.
+   * @return The non-negative remaining time, in units \p D, rounded up for an
+   *         integral \p D so it reads zero only once the target is reached.
    *
    * @pre None.
    * @post The result is greater than or equal to \c D::zero().
@@ -394,7 +395,11 @@ public:
   [[nodiscard]] auto remaining() const noexcept -> D {
     auto const e{m_sw.elapsed()};
     auto const r{e >= m_target ? duration::zero() : (m_target - e)};
-    return std::chrono::duration_cast<D>(r);
+    if constexpr (std::chrono::treat_as_floating_point_v<typename D::rep>) {
+      return std::chrono::duration_cast<D>(r);
+    } else {
+      return std::chrono::ceil<D>(r);
+    }
   }
 
   /**
