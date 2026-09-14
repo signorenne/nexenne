@@ -6,9 +6,11 @@
 #include <doctest/doctest.h>
 
 #include <chrono>
+#include <concepts>
 #include <format>
 #include <sstream>
 #include <string>
+#include <string_view>
 
 #include <nexenne/chrono/format.hpp>
 #include <nexenne/chrono/manual_clock.hpp>
@@ -66,6 +68,29 @@ TEST_CASE("nexenne::chrono to_string and operator<< print the formatter's text")
   CHECK(three_layers_agree(dl));
   CHECK(three_layers_agree(iv));
   CHECK(ch::to_string(sw) == ch::format(1'250ms));
+}
+
+// Checks that the formatter, to_string and operator<< all print the name.
+template <typename E>
+auto names_agree(E const value, std::string_view const name) -> bool {
+  auto os{std::ostringstream{}};
+  os << value;
+  return ch::to_string(value) == name && std::format("{}", value) == name && os.str() == name;
+}
+
+TEST_CASE("nexenne::chrono state enums print their names through every layer") {
+  CHECK(names_agree(ch::stopwatch_state::idle, "idle"));
+  CHECK(names_agree(ch::stopwatch_state::running, "running"));
+  CHECK(names_agree(ch::stopwatch_state::paused, "paused"));
+  CHECK(names_agree(ch::countdown_state::expired, "expired"));
+  CHECK(names_agree(ch::alarm_mode::one_shot, "one_shot"));
+  CHECK(names_agree(ch::alarm_mode::periodic, "periodic"));
+  CHECK(std::format("[{:>9}]", ch::countdown_state::paused) == "[   paused]");
+
+  static_assert(std::same_as<ch::stopwatch<>::state, ch::stopwatch_state>);
+  static_assert(std::same_as<ch::static_stopwatch<2>::state, ch::stopwatch_state>);
+  static_assert(std::same_as<ch::countdown<>::state, ch::countdown_state>);
+  CHECK(ch::to_string(ch::stopwatch<>{}.current_state()) == "idle");
 }
 
 }  // namespace

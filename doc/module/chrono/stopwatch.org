@@ -15,6 +15,9 @@ for embedded use. Both default to =std::chrono::steady_clock= and work with any
 A naive "elapsed = now - start" cannot pause, and storing every lap needs a
 buffer. A stopwatch is a tiny state machine, *idle* / *running* / *paused*, plus
 an accumulator that captures time only while running, and a list of lap segments.
+=current_state()= returns that state as a =stopwatch_state=, shared by both
+stopwatches (=stopwatch<>::state= names it too), and it prints by name through
+[[file:format.org][format.hpp]].
 Templating on the clock makes it testable (drive a =manual_clock=) and portable
 (use a =tick_clock= on hardware).
 

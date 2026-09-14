@@ -32,5 +32,6 @@
 #include <nexenne/chrono/static_stopwatch.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
 #include <nexenne/chrono/tick_clock.hpp>
+#include <nexenne/chrono/timer_state.hpp>
 
 namespace nexenne::chrono {}

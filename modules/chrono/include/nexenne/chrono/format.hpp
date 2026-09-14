@@ -11,7 +11,9 @@
  * \c deadline, \c interval or \c countdown is printed. Each gets a
  * \c std::formatter, which renders through \c nexenne::chrono::format (a
  * leading \c '!' in the spec disables suppress-zero), and a \c to_string and
- * an \c operator<< that give the formatter's default text.
+ * an \c operator<< that give the formatter's default text. The enums
+ * \c stopwatch_state, \c countdown_state and \c alarm_mode print their names
+ * through all three, their \c to_string a \c constexpr \c std::string_view.
  */
 
 #include <algorithm>
@@ -20,7 +22,9 @@
 #include <format>
 #include <ostream>
 #include <string>
+#include <string_view>
 
+#include <nexenne/chrono/alarm.hpp>
 #include <nexenne/chrono/concepts.hpp>
 #include <nexenne/chrono/countdown.hpp>
 #include <nexenne/chrono/deadline.hpp>
@@ -28,6 +32,77 @@
 #include <nexenne/chrono/interval.hpp>
 #include <nexenne/chrono/static_stopwatch.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
+#include <nexenne/chrono/timer_state.hpp>
+
+namespace nexenne::chrono {
+
+/**
+ * @brief Returns the name of a stopwatch state.
+ *
+ * @param s State to name.
+ *
+ * @return The enumerator's name, or \c "?" for a value outside the enum.
+ *
+ * @pre None.
+ * @post The returned view refers to a static string.
+ */
+[[nodiscard]] constexpr auto to_string(stopwatch_state const s) noexcept -> std::string_view {
+  switch (s) {
+    case stopwatch_state::idle:
+      return "idle";
+    case stopwatch_state::running:
+      return "running";
+    case stopwatch_state::paused:
+      return "paused";
+  }
+  return "?";
+}
+
+/**
+ * @brief Returns the name of a countdown state.
+ *
+ * @param s State to name.
+ *
+ * @return The enumerator's name, or \c "?" for a value outside the enum.
+ *
+ * @pre None.
+ * @post The returned view refers to a static string.
+ */
+[[nodiscard]] constexpr auto to_string(countdown_state const s) noexcept -> std::string_view {
+  switch (s) {
+    case countdown_state::idle:
+      return "idle";
+    case countdown_state::running:
+      return "running";
+    case countdown_state::paused:
+      return "paused";
+    case countdown_state::expired:
+      return "expired";
+  }
+  return "?";
+}
+
+/**
+ * @brief Returns the name of an alarm mode.
+ *
+ * @param mode Mode to name.
+ *
+ * @return The enumerator's name, or \c "?" for a value outside the enum.
+ *
+ * @pre None.
+ * @post The returned view refers to a static string.
+ */
+[[nodiscard]] constexpr auto to_string(alarm_mode const mode) noexcept -> std::string_view {
+  switch (mode) {
+    case alarm_mode::one_shot:
+      return "one_shot";
+    case alarm_mode::periodic:
+      return "periodic";
+  }
+  return "?";
+}
+
+}  // namespace nexenne::chrono
 
 /**
  * @brief \c std::format support for \c duration_parts.
@@ -392,6 +467,81 @@ public:
   }
 };
 
+/**
+ * @brief \c std::format support for a \c stopwatch_state: prints its \c to_string name.
+ *
+ * Inherits the string formatter so a spec (width, alignment) applies to the name.
+ */
+template <>
+struct std::formatter<nexenne::chrono::stopwatch_state> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the enumerator's name through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param state Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The name has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::chrono::stopwatch_state const state, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::chrono::to_string(state), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for a \c countdown_state: prints its \c to_string name.
+ *
+ * Inherits the string formatter so a spec (width, alignment) applies to the name.
+ */
+template <>
+struct std::formatter<nexenne::chrono::countdown_state> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the enumerator's name through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param state Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The name has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::chrono::countdown_state const state, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::chrono::to_string(state), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for an \c alarm_mode: prints its \c to_string name.
+ *
+ * Inherits the string formatter so a spec (width, alignment) applies to the name.
+ */
+template <>
+struct std::formatter<nexenne::chrono::alarm_mode> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the enumerator's name through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param mode Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The name has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::chrono::alarm_mode const mode, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::chrono::to_string(mode), ctx);
+  }
+};
+
 namespace nexenne::chrono {
 
 /**
@@ -612,6 +762,51 @@ template <steady_clock_like Clock>
 template <steady_clock_like Clock>
 auto operator<<(std::ostream& os, countdown<Clock> const& cd) -> std::ostream& {
   return os << to_string(cd);
+}
+
+/**
+ * @brief Streams a \c stopwatch_state by its name.
+ *
+ * @param os Output stream.
+ * @param state Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The name of \p state has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, stopwatch_state const state) -> std::ostream& {
+  return os << to_string(state);
+}
+
+/**
+ * @brief Streams a \c countdown_state by its name.
+ *
+ * @param os Output stream.
+ * @param state Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The name of \p state has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, countdown_state const state) -> std::ostream& {
+  return os << to_string(state);
+}
+
+/**
+ * @brief Streams an \c alarm_mode by its name.
+ *
+ * @param os Output stream.
+ * @param mode Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The name of \p mode has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, alarm_mode const mode) -> std::ostream& {
+  return os << to_string(mode);
 }
 
 }  // namespace nexenne::chrono

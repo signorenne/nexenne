@@ -25,6 +25,8 @@ elapsed time keeps accruing so =overrun()= grows after expiry. =remaining()=,
 =progress()= (clamped to =[0,1]=), =elapsed()=, and =deadline()= (the projected
 expiry instant while running) round it out, and it pauses and resumes without
 losing elapsed time. A zero target expires immediately on =start()=.
+=current_state()= reports *idle*, *running*, *paused* or *expired* as a
+=countdown_state= (=countdown<>::state= names it too), which prints by name.
 
 It stores a start point, an accumulated duration, the target and its state, and
 nothing else: no lap list, so it never allocates and costs about four words
@@ -73,7 +75,9 @@ the time is reached, once for a one-shot (then it disarms), and once per elapsed
 cycle for a periodic alarm (rearming to the next boundary, catching up if you
 polled late). A one-shot disarms *before* it runs its callback, so a callback
 that re-arms the alarm (the self-rescheduling idiom) leaves it armed rather than
-being clobbered. A non-positive period disarms rather than looping forever. Use
+being clobbered. A non-positive period disarms rather than looping forever.
+=mode()= returns =alarm_mode::one_shot= or =alarm_mode::periodic=, which prints
+by name. Use
 =alarm= when you want the "what to do on expiry" baked into the timer;
 use =countdown= / =deadline= when the polling caller decides.
 

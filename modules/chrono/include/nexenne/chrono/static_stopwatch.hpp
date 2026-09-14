@@ -36,12 +36,12 @@
 #include <chrono>
 #include <compare>
 #include <cstddef>
-#include <cstdint>
 #include <optional>
 #include <ranges>
 #include <span>
 
 #include <nexenne/chrono/concepts.hpp>
+#include <nexenne/chrono/timer_state.hpp>
 
 namespace nexenne::chrono {
 
@@ -69,16 +69,9 @@ public:
   using time_point = typename Clock::time_point;
 
   /**
-   * @brief Lifecycle state of a \c static_stopwatch.
-   *
-   * @pre None.
-   * @post None.
+   * @brief Lifecycle state of a \c static_stopwatch; see \c stopwatch_state.
    */
-  enum class state : std::uint8_t {
-    idle,
-    running,
-    paused,
-  };
+  using state = stopwatch_state;
 
   static constexpr std::size_t capacity{N};  ///< Lap-buffer capacity, equal to \p N.
 

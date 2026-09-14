@@ -22,13 +22,20 @@ where the printing happens.
 | =countdown=                     | the time remaining                |
 | =deadline=                      | the time remaining                |
 | =interval=                      | the time until the next tick      |
+| =stopwatch_state=               | the enumerator name               |
+| =countdown_state=               | the enumerator name               |
+| =alarm_mode=                    | the enumerator name               |
 
 Every one renders through =nexenne::chrono::format= (see
 [[file:duration-helpers.org][duration helpers]]); a leading =!= in the spec, as in ={:!}=, disables
 suppress-zero and shows every component.
 
 =to_string(x)= returns that text as a =std::string= and =operator<<= streams it;
-both use the default spec, so neither takes the =!= flag.
+both use the default spec, so neither takes the =!= flag. The three enums'
+=to_string= returns a =constexpr= =std::string_view=, also from =format.hpp=, and
+their formatter takes a string spec such as ={:>9}=. The state enums sit at namespace scope rather than inside the
+class templates, because a formatter cannot be specialised for a type nested in
+a template; each class still names its enum as =state=.
 
 * Usage
 

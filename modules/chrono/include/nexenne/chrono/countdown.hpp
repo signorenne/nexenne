@@ -25,11 +25,11 @@
 
 #include <chrono>
 #include <compare>
-#include <cstdint>
 #include <optional>
 
 #include <nexenne/chrono/concepts.hpp>
 #include <nexenne/chrono/conversion.hpp>
+#include <nexenne/chrono/timer_state.hpp>
 
 namespace nexenne::chrono {
 
@@ -55,17 +55,9 @@ public:
   using time_point = typename Clock::time_point;
 
   /**
-   * @brief Lifecycle state of a \c countdown.
-   *
-   * @pre None.
-   * @post None.
+   * @brief Lifecycle state of a \c countdown; see \c countdown_state.
    */
-  enum class state : std::uint8_t {
-    idle,
-    running,
-    paused,
-    expired,
-  };
+  using state = countdown_state;
 
 private:
   time_point m_start{};
