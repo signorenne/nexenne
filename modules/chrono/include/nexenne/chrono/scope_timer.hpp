@@ -96,9 +96,11 @@ public:
    *
    * @pre None.
    * @post The stored callback has been invoked once with the elapsed time.
-   * @throws Whatever the stored callback throws; it is invoked unguarded.
+   *
+   * @note The destructor is \c noexcept, as every destructor is: a callback
+   *       that throws terminates the program.
    */
-  ~scope_timer() noexcept(noexcept(m_cb(duration{}))) {
+  ~scope_timer() noexcept {
     m_cb(elapsed());
   }
 

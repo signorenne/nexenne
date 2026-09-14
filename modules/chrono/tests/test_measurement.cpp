@@ -484,4 +484,8 @@ TEST_CASE("nexenne::chrono::frame_timer clamps a backward delta to zero") {
 
 static_assert(std::is_final_v<ch::scope_timer<void (*)(std::chrono::nanoseconds)>>);
 
+// Destructors are noexcept: a throwing callback terminates rather than escapes.
+using throwing_report = void (*)(std::chrono::nanoseconds);
+static_assert(std::is_nothrow_destructible_v<ch::scope_timer<throwing_report>>);
+
 }  // namespace

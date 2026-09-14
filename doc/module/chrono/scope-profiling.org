@@ -38,8 +38,8 @@ default clock.
 }   // callback fires here, on any exit path
 #+END_EXAMPLE
 
-If the callback throws, the throwing destructor propagates it; wrap the callback
-yourself if you need to swallow exceptions.
+The destructor is =noexcept=, as every destructor is, so a callback that throws
+terminates the program; catch inside the callback if it can fail.
 
 * profiler: named aggregated samples
 
