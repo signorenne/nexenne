@@ -37,6 +37,7 @@ and allocation-free except the growable-lap =stopwatch= and the map-backed
   =alarm= (a polled callback-on-expiry, one-shot or periodic).
 - [[file:rate-limiter.org][rate limiter]] : =rate_limiter=, a lazy-refill token bucket for throttling and
   pacing.
+- [[file:format.org][format]] : =std::formatter= specialisations for the printable chrono types.
 
 * The clock contract
 

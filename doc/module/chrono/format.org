@@ -1,0 +1,47 @@
+#+TITLE: format
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=format.hpp= holds the =std::formatter= specialisations for the chrono types,
+so =std::format("{}", x)= and =std::print= accept them. It is separate from the
+type headers because =<format>= is heavy: =static_stopwatch=, =deadline= and
+=interval= are meant for small microcontrollers, and code that only times
+things does not pay for it. Include =format.hpp= (or the =chrono.hpp= umbrella)
+where the printing happens.
+
+* What it provides
+
+| type                            | renders                           |
+|---------------------------------+-----------------------------------|
+| =duration_parts=                | its components, as =format= would |
+| =stopwatch=, =static_stopwatch= | the elapsed time                  |
+| =countdown=                     | the time remaining                |
+| =deadline=                      | the time remaining                |
+| =interval=                      | the time until the next tick      |
+
+Every one renders through =nexenne::chrono::format= (see
+[[file:duration-helpers.org][duration helpers]]); a leading =!= in the spec, as in ={:!}=, disables
+suppress-zero and shows every component.
+
+* Usage
+
+#+BEGIN_SRC cpp
+#include <nexenne/chrono/format.hpp>
+#include <nexenne/chrono/stopwatch.hpp>
+
+nexenne::chrono::stopwatch<> sw;
+sw.start();
+// ... work ...
+std::println("took {}", sw);  // for example "00s:060ms"
+#+END_SRC
+
+* Gotchas
+
+- *Include it where you format.* Without =format.hpp= a =std::format= call on
+  one of these types does not compile; nothing falls back silently.
+- *=format= and =format_scaled= stay in =duration_parts.hpp=.* They build a
+  =std::string= directly and do not need this header.
+
+Runnable: [[file:../../../examples/chrono/stopwatch.cpp][examples/chrono/stopwatch.cpp]]

@@ -10,6 +10,7 @@
 #include <chrono>
 #include <print>
 
+#include <nexenne/chrono/format.hpp>
 #include <nexenne/chrono/manual_clock.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
 

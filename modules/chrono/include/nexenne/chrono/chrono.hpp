@@ -21,6 +21,7 @@
 #include <nexenne/chrono/countdown.hpp>
 #include <nexenne/chrono/deadline.hpp>
 #include <nexenne/chrono/duration_parts.hpp>
+#include <nexenne/chrono/format.hpp>
 #include <nexenne/chrono/frame_timer.hpp>
 #include <nexenne/chrono/frequency.hpp>
 #include <nexenne/chrono/interval.hpp>

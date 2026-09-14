@@ -42,8 +42,9 @@ special-case the past. It is =<=>=-comparable by target time, so deadlines sort
 into a priority queue (use =std::greater= for soonest-first, since the standard
 queue is a max-heap). =after(d)= saturates to =time_point::max()= rather than
 overflowing when =d= is near =duration::max= (a "never expires" idiom). A
-=std::formatter<deadline>= renders =remaining()= (a leading =!= shows every
-component), so =std::format("{}", dl)= prints the time left.
+=std::formatter<deadline>= (from [[file:format.org][format.hpp]]) renders =remaining()= (a
+leading =!= shows every component), so =std::format("{}", dl)= prints the time
+left.
 
 * interval: fixed-period boundaries
 

@@ -46,8 +46,9 @@ format(hours{24}+minutes{5}+seconds{34}) -> "01d:00h:05m:34s"  (interior 0h kept
 format(milliseconds{3'750'000}, "{h}h:{m}m") -> "01h:02m"      (seconds excluded)
 #+END_EXAMPLE
 
-A =std::formatter<duration_parts>= is provided too, so =std::format("{}", parts)=
-works; a leading =!= in the spec disables suppress-zero to show every component.
+A =std::formatter<duration_parts>= is provided too, in [[file:format.org][format.hpp]], so
+=std::format("{}", parts)= works; a leading =!= in the spec disables
+suppress-zero to show every component.
 
 * to_count_sat: saturating duration to integer
 

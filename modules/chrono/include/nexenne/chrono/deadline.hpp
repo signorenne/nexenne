@@ -18,12 +18,8 @@
 
 #include <chrono>
 #include <compare>
-#include <format>
-#include <ranges>
-#include <string>
 
 #include <nexenne/chrono/concepts.hpp>
-#include <nexenne/chrono/duration_parts.hpp>
 
 namespace nexenne::chrono {
 
@@ -204,63 +200,3 @@ public:
 };
 
 }  // namespace nexenne::chrono
-
-/**
- * @brief \c std::format support for \c deadline.
- *
- * Formats the time remaining until the deadline (clamped at zero) using the
- * same token layout as \c nexenne::chrono::format. A leading \c '!' disables
- * suppress-zero. Reads \c Clock::now() at format time.
- *
- * @tparam Clock Steady clock of the formatted deadline.
- *
- * @pre None.
- * @post None.
- */
-template <nexenne::chrono::steady_clock_like Clock>
-struct std::formatter<nexenne::chrono::deadline<Clock>, char> {
-private:
-  bool suppress_zero{true};
-
-public:
-  /**
-   * @brief Parse the format spec flags.
-   *
-   * @param ctx The format parse context.
-   *
-   * @return Iterator past the consumed spec.
-   *
-   * @pre None.
-   * @post The \c '!' flag, if present, has been consumed.
-   */
-  constexpr auto parse(std::format_parse_context& ctx) {
-    auto it{ctx.begin()};
-    auto const end{ctx.end()};
-    if (it != end && *it == '!') {
-      suppress_zero = false;
-      ++it;
-    }
-    return it;
-  }
-
-  /**
-   * @brief Write the formatted remaining time to the output.
-   *
-   * @tparam Out Output iterator type of the format context.
-   * @param dl The deadline to format.
-   * @param ctx The format context to write into.
-   *
-   * @return Iterator past the written output.
-   *
-   * @pre None.
-   * @post None.
-   */
-  template <class Out>
-  auto format(
-    nexenne::chrono::deadline<Clock> const& dl, std::basic_format_context<Out, char>& ctx
-  ) const {
-    auto const ms{dl.template remaining<std::chrono::milliseconds>()};
-    auto const s{nexenne::chrono::format(ms, "{s-}{d}d:{h}h:{m}m:{s}s.{ms}", suppress_zero)};
-    return std::ranges::copy(s, ctx.out()).out;
-  }
-};

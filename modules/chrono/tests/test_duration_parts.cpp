@@ -11,6 +11,7 @@
 #include <string>
 
 #include <nexenne/chrono/duration_parts.hpp>
+#include <nexenne/chrono/format.hpp>
 
 namespace {
 

@@ -4,6 +4,7 @@ nexenne_add_module_tests(chrono
         test_concepts.cpp
         test_conversion.cpp
         test_duration_parts.cpp
+        test_format.cpp
         test_frequency.cpp
         test_measurement.cpp
         test_polling_timers.cpp

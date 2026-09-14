@@ -52,7 +52,8 @@ and *counts the overflow*: =stored_lap_count()= caps at =N=, =lap_count()= is th
 true total, and =laps_dropped()= reports how many did not fit, so a full buffer
 is visible rather than silently truncated. It never allocates. Both variants
 share the same surface: the typed =lap<D>()= overload and a
-=std::formatter= that prints the elapsed time (=std::format("{}", sw)=, a
+=std::formatter= from [[file:format.org][format.hpp]] that prints the elapsed time
+(=std::format("{}", sw)=, a
 leading =!= showing every component) work on =static_stopwatch= just as on
 =stopwatch=.
 

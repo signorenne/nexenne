@@ -29,17 +29,12 @@
  * @tparam Clock Steady clock to measure against.
  */
 
-#include <algorithm>
 #include <chrono>
 #include <compare>
 #include <cstdint>
-#include <format>
-#include <ranges>
-#include <string>
 
 #include <nexenne/chrono/concepts.hpp>
 #include <nexenne/chrono/conversion.hpp>
-#include <nexenne/chrono/duration_parts.hpp>
 
 namespace nexenne::chrono {
 
@@ -301,62 +296,3 @@ public:
 };
 
 }  // namespace nexenne::chrono
-
-/**
- * @brief \c std::format support for \c interval.
- *
- * Formats the time remaining until the next tick. A leading \c '!' disables
- * suppress-zero.
- *
- * @tparam Clock Steady clock of the formatted interval.
- *
- * @pre None.
- * @post None.
- */
-template <nexenne::chrono::steady_clock_like Clock>
-struct std::formatter<nexenne::chrono::interval<Clock>, char> {
-private:
-  bool suppress_zero{true};
-
-public:
-  /**
-   * @brief Parse the format spec flags.
-   *
-   * @param ctx The format parse context.
-   *
-   * @return Iterator past the consumed spec.
-   *
-   * @pre None.
-   * @post The \c '!' flag, if present, has been consumed.
-   */
-  constexpr auto parse(std::format_parse_context& ctx) {
-    auto it{ctx.begin()};
-    auto const end{ctx.end()};
-    if (it != end && *it == '!') {
-      suppress_zero = false;
-      ++it;
-    }
-    return it;
-  }
-
-  /**
-   * @brief Write the formatted interval to the output.
-   *
-   * @tparam Out Output iterator type of the format context.
-   * @param iv The interval to format.
-   * @param ctx The format context to write into.
-   *
-   * @return Iterator past the written output.
-   *
-   * @pre None.
-   * @post None.
-   */
-  template <class Out>
-  auto format(
-    nexenne::chrono::interval<Clock> const& iv, std::basic_format_context<Out, char>& ctx
-  ) const {
-    auto const ms{iv.template remaining<std::chrono::milliseconds>()};
-    auto const s{nexenne::chrono::format(ms, "{s-}{d}d:{h}h:{m}m:{s}s.{ms}", suppress_zero)};
-    return std::ranges::copy(s, ctx.out()).out;
-  }
-};

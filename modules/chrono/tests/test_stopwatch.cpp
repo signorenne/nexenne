@@ -10,6 +10,7 @@
 #include <optional>
 #include <vector>
 
+#include <nexenne/chrono/format.hpp>
 #include <nexenne/chrono/manual_clock.hpp>
 #include <nexenne/chrono/static_stopwatch.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
