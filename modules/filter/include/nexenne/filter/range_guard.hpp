@@ -7,7 +7,9 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <concepts>
+#include <type_traits>
 
 namespace nexenne::filter {
 
@@ -67,7 +69,8 @@ public:
    * A sample inside \c [lo, hi] is accepted and becomes the output.
    * An out-of-range sample is rejected and the previous valid output
    * is held, except that an out-of-range first sample is clamped to
-   * the nearest bound so the guard starts in a defined state.
+   * the nearest bound so the guard starts in a defined state. A NaN is
+   * rejected and never primes the guard: it has no nearest bound.
    *
    * @param sample New input sample.
    *
@@ -84,7 +87,7 @@ public:
     if (m_accepted) {
       m_value = sample;
       m_primed = true;
-    } else if (!m_primed) {
+    } else if (!m_primed && !is_nan(sample)) {
       m_value = std::clamp(sample, m_lo, m_hi);
       m_primed = true;
     }
@@ -192,6 +195,25 @@ public:
    */
   [[nodiscard]] constexpr auto hi() const noexcept -> value_type {
     return m_hi;
+  }
+
+private:
+  /**
+   * @brief Whether \p v is NaN; always \c false for a non-floating \c T.
+   *
+   * @param v Value to test.
+   *
+   * @return \c true for a floating-point NaN.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] static constexpr auto is_nan(value_type const v) noexcept -> bool {
+    if constexpr (std::is_floating_point_v<value_type>) {
+      return std::isnan(v);
+    } else {
+      return false;
+    }
   }
 };
 

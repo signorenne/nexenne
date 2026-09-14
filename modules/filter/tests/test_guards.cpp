@@ -108,12 +108,9 @@ TEST_CASE("nexenne::filter::range_guard integer instantiation") {
 
 TEST_CASE("nexenne::filter::range_guard NaN never passes and never clamps to a number") {
   auto const nan{std::numeric_limits<double>::quiet_NaN()};
-  // First-sample NaN: the in-range comparison is false, the guard primes and
-  // clamps. std::clamp(NaN, lo, hi) is NaN (no comparison is true), so value
-  // stays NaN.
   auto first{flt::range_guard{0.0, 10.0}};
-  CHECK(std::isnan(first.push(nan)));
-  CHECK(first.primed() == true);
+  CHECK(first.push(nan) == doctest::Approx(0.0));
+  CHECK(first.primed() == false);
 
   // NaN after a good value is rejected and holds the last good value.
   auto later{flt::range_guard{0.0, 10.0}};
@@ -208,12 +205,12 @@ TEST_CASE("nexenne::filter::rate_guard NaN sample fails the <= test and is rejec
   CHECK(f.push(12.0) == doctest::Approx(12.0));  // recovers from the held 10
 }
 
-TEST_CASE("nexenne::filter::rate_guard NaN as the first sample seeds NaN") {
+TEST_CASE("nexenne::filter::rate_guard NaN as the first sample does not seed") {
   auto const nan{std::numeric_limits<double>::quiet_NaN()};
   auto f{flt::rate_guard{5.0}};
-  CHECK(std::isnan(f.push(nan)));  // first sample seeds unconditionally
-  // Held value is NaN; every subsequent delta is NaN and rejected, so it sticks.
-  CHECK(std::isnan(f.push(5.0)));
+  CHECK(f.push(nan) == doctest::Approx(0.0));
+  CHECK_FALSE(f.accepted());
+  CHECK(f.push(5.0) == doctest::Approx(5.0));
 }
 
 TEST_CASE("nexenne::filter::validator unprimed accepts the first sample unconditionally") {
@@ -545,11 +542,28 @@ TEST_CASE("nexenne::filter::validator push is conditionally noexcept (M6)") {
 
 TEST_CASE("nexenne::filter::rate_guard escape_after 1 still rejects the first spike") {
   auto guard{flt::rate_guard{1.0, 1}};
-  nexenne::utility::discard(guard.push(0.0));
+  nexenne::utility::ignore(guard.push(0.0));
   CHECK(guard.push(50.0) == doctest::Approx(0.0));
   CHECK_FALSE(guard.accepted());
   CHECK(guard.push(50.0) == doctest::Approx(50.0));
   CHECK(guard.accepted());
+}
+
+TEST_CASE("nexenne::filter guards never prime on a NaN sample") {
+  auto const nan{std::numeric_limits<double>::quiet_NaN()};
+  auto range{flt::range_guard{0.0, 10.0}};
+  nexenne::utility::ignore(range.push(nan));
+  CHECK_FALSE(range.accepted());
+  CHECK_FALSE(range.primed());
+  CHECK(range.push(20.0) == doctest::Approx(10.0));
+
+  auto rate{flt::rate_guard{1.0}};
+  nexenne::utility::ignore(rate.push(nan));
+  CHECK_FALSE(rate.accepted());
+  CHECK(rate.push(5.0) == doctest::Approx(5.0));
+  CHECK(rate.push(nan) == doctest::Approx(5.0));
+  CHECK(rate.rejected_streak() == 0);
+  CHECK(rate.push(5.5) == doctest::Approx(5.5));
 }
 
 }  // namespace

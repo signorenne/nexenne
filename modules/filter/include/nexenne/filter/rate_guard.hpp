@@ -8,6 +8,7 @@
 #include <cmath>
 #include <concepts>
 #include <cstddef>
+#include <type_traits>
 
 namespace nexenne::filter {
 
@@ -81,7 +82,9 @@ public:
    * @brief Feeds one sample, rejecting it if it jumps too far.
    *
    * The first sample after construction or \c reset() is accepted
-   * directly. Afterward a sample is accepted only when it differs from
+   * directly, unless it is NaN: a NaN is always rejected, never primes
+   * the guard, and does not count toward the escape. Afterward a sample
+   * is accepted only when it differs from
    * the current output by at most \c max_delta(); otherwise the output
    * is held and the rejected-run counter grows. When the escape hatch
    * is enabled and \c escape_after() samples in a row have already been
@@ -100,6 +103,10 @@ public:
    * @complexity \c O(1).
    */
   [[nodiscard]] constexpr auto push(value_type const sample) noexcept -> value_type {
+    if (is_nan(sample)) {
+      m_accepted = false;
+      return m_value;
+    }
     if (!m_primed) {
       m_value = sample;
       m_primed = true;
@@ -245,6 +252,25 @@ public:
    */
   constexpr auto escape_after(std::size_t const n) noexcept -> void {
     m_escape_after = n;
+  }
+
+private:
+  /**
+   * @brief Whether \p v is NaN; always \c false for a non-floating \c T.
+   *
+   * @param v Value to test.
+   *
+   * @return \c true for a floating-point NaN.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] static constexpr auto is_nan(value_type const v) noexcept -> bool {
+    if constexpr (std::is_floating_point_v<value_type>) {
+      return std::isnan(v);
+    } else {
+      return false;
+    }
   }
 };
 
