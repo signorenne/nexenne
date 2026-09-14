@@ -4,8 +4,10 @@
 
 * Purpose
 
-=format.hpp= holds the =std::formatter= specialisations for the chrono types,
-so =std::format("{}", x)= and =std::print= accept them. It is separate from the
+=format.hpp= holds the three formatting layers for the chrono types: a
+=std::formatter= specialisation, so =std::format("{}", x)= and =std::print=
+accept them, and a =to_string= and an =operator<<= that give the formatter's
+default text. It is separate from the
 type headers because =<format>= is heavy: =static_stopwatch=, =deadline= and
 =interval= are meant for small microcontrollers, and code that only times
 things does not pay for it. Include =format.hpp= (or the =chrono.hpp= umbrella)
@@ -25,6 +27,9 @@ Every one renders through =nexenne::chrono::format= (see
 [[file:duration-helpers.org][duration helpers]]); a leading =!= in the spec, as in ={:!}=, disables
 suppress-zero and shows every component.
 
+=to_string(x)= returns that text as a =std::string= and =operator<<= streams it;
+both use the default spec, so neither takes the =!= flag.
+
 * Usage
 
 #+BEGIN_SRC cpp
@@ -35,12 +40,16 @@ nexenne::chrono::stopwatch<> sw;
 sw.start();
 // ... work ...
 std::println("took {}", sw);  // for example "00s:060ms"
+std::cout << sw << '\n';       // the same text
 #+END_SRC
 
 * Gotchas
 
-- *Include it where you format.* Without =format.hpp= a =std::format= call on
-  one of these types does not compile; nothing falls back silently.
+- *Include it where you format.* Without =format.hpp= a =std::format= call or
+  a stream insertion on one of these types does not compile; nothing falls back
+  silently.
+- *A running timer prints the moment it is formatted.* =to_string= reads the
+  clock, so two calls on a running =stopwatch= can differ.
 - *=format= and =format_scaled= stay in =duration_parts.hpp=.* They build a
   =std::string= directly and do not need this header.
 

@@ -7,9 +7,11 @@
 
 #include <chrono>
 #include <format>
+#include <sstream>
 #include <string>
 
 #include <nexenne/chrono/format.hpp>
+#include <nexenne/chrono/manual_clock.hpp>
 
 namespace {
 
@@ -31,6 +33,39 @@ TEST_CASE("nexenne::chrono::format.hpp alone formats every printable chrono type
   CHECK(!std::format("{:!}", dl).empty());
   ch::interval<> const iv{1s};
   CHECK(!std::format("{}", iv).empty());
+}
+
+// Checks that to_string and operator<< give exactly the formatter's text.
+template <typename T>
+auto three_layers_agree(T const& value) -> bool {
+  auto os{std::ostringstream{}};
+  os << value;
+  auto const formatted{std::format("{}", value)};
+  return ch::to_string(value) == formatted && os.str() == formatted;
+}
+
+TEST_CASE("nexenne::chrono to_string and operator<< print the formatter's text") {
+  using clk = ch::basic_manual_clock<struct format_layers_tag>;
+  clk::reset();
+
+  CHECK(three_layers_agree(ch::extract_parts(std::chrono::milliseconds{61'500})));
+
+  auto sw{ch::stopwatch<clk>{}};
+  sw.start();
+  auto ssw{ch::static_stopwatch<2, clk>{}};
+  ssw.start();
+  auto cd{ch::countdown<clk>{5s}};
+  cd.start();
+  auto const dl{ch::deadline<clk>::after(5s)};
+  auto const iv{ch::interval<clk>{1s}};
+  clk::advance(1'250ms);
+
+  CHECK(three_layers_agree(sw));
+  CHECK(three_layers_agree(ssw));
+  CHECK(three_layers_agree(cd));
+  CHECK(three_layers_agree(dl));
+  CHECK(three_layers_agree(iv));
+  CHECK(ch::to_string(sw) == ch::format(1'250ms));
 }
 
 }  // namespace

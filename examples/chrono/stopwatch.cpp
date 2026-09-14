@@ -8,6 +8,7 @@
  */
 
 #include <chrono>
+#include <iostream>
 #include <print>
 
 #include <nexenne/chrono/format.hpp>
@@ -39,9 +40,11 @@ auto main() -> int {
     "lap 1: {} ms", std::chrono::duration_cast<std::chrono::milliseconds>(*lap1).count()
   );
   std::println("total elapsed: {} ms", sw.elapsed<std::chrono::milliseconds>().count());
-  std::println("formatted: {}", sw);  // stopwatch has a std::formatter
+  std::println("formatted: {}", sw);        // stopwatch has a std::formatter
+  std::cout << "streamed: " << sw << '\n';  // and an operator<< with the same text
   // lap 1: 30 ms
   // total elapsed: 60 ms
   // formatted: 00s:060ms
+  // streamed: 00s:060ms
   return 0;
 }
