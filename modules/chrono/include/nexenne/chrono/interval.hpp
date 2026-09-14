@@ -20,11 +20,12 @@
  * }
  * \endcode
  *
- * Catch-up semantics: each \c tick() call advances by exactly one
- * period. If you're far behind, drain with a \c while loop. This
- * lets the caller choose between "skip missed periods" (call
- * once per loop iteration) and "process every period" (drain in
- * a loop).
+ * Catch-up semantics: each \c tick() call advances by exactly one period. If
+ * you're far behind, drain with a \c while loop to process every missed period
+ * now; calling once per loop iteration spreads the backlog over later
+ * iterations instead. Missed periods are never skipped on their own: call
+ * \c start() again to re-anchor at the current time when they should be
+ * dropped.
  *
  * @tparam Clock Steady clock to measure against.
  */
@@ -44,7 +45,7 @@ namespace nexenne::chrono {
  * Fires once per \c period boundary. Each \c tick() returns \c true at most
  * once per crossed boundary and advances the internal anchor by exactly one
  * period, so a caller that is far behind can drain missed ticks with a loop
- * or skip them by calling once per iteration.
+ * or work through them one per iteration; none is skipped.
  *
  * @tparam Clock Steady clock to measure against.
  *

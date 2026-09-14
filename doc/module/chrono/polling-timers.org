@@ -96,7 +96,8 @@ Things to keep in mind:
 
 - These never sleep; you must call =tick= / =poll= from your loop.
 - =alarm::poll= invokes the callback unguarded; keep it cheap and non-throwing.
-- An =interval= or =alarm= with a non-positive period is inert (it will not fire).
+- An =interval= with a non-positive period is inert (it never ticks). A periodic
+  =alarm= with a non-positive period fires once, then disarms.
 
 * Usage
 

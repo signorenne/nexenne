@@ -97,8 +97,13 @@ public:
     std::uint64_t count{0};            ///< Number of recorded samples.
     duration total{duration::zero()};  ///< Sum of all samples.
     duration min{duration::max()};     ///< Smallest sample seen.
-    duration max{duration::min()};     ///< Largest sample seen (min() sentinel so a
-                                       ///< sample set of only negatives is not lost).
+    /**
+     * @brief Largest sample seen.
+     *
+     * Starts at \c duration::min(), so a sample set of only negatives is not
+     * lost.
+     */
+    duration max{duration::min()};
 
     /**
      * @brief Mean sample duration.

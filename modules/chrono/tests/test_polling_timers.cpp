@@ -340,13 +340,13 @@ TEST_CASE(
   CHECK_FALSE(iv.tick());
 }
 
-TEST_CASE("nexenne::chrono::interval coalesce-vs-drain: one call per loop skips missed periods") {
+TEST_CASE("nexenne::chrono::interval one call per loop consumes one boundary and keeps the rest") {
   using clk = ch::basic_manual_clock<struct iv_coalesce_tag>;
   clk::reset();
   ch::interval<clk> iv{10ms};
   iv.start();
   clk::advance(35ms);  // three full periods elapsed, plus 5ms slack
-  // Calling tick() once consumes exactly one boundary (caller chooses to skip).
+  // Calling tick() once consumes exactly one boundary; the rest stay pending.
   CHECK(iv.tick());
   CHECK(iv.tick_count() == 1);
   // The anchor only advanced one period, so two boundaries remain pending.

@@ -93,6 +93,14 @@ private:
   std::size_t m_laps_dropped{0};
   state m_state{state::idle};
 
+  /**
+   * @brief The laps currently held, oldest first.
+   *
+   * @return A view over the first \c m_stored lap slots.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto stored_span() const noexcept -> std::span<duration const> {
     return std::span<duration const>{m_laps.data(), m_stored};
   }

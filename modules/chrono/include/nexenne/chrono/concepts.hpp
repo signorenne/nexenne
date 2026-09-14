@@ -88,14 +88,28 @@ concept steady_clock_like = clock_like<C> && requires {
 
 namespace detail {
 
+/// @cond INTERNAL
+
+/**
+ * @brief Whether \p T is a \c std::ratio with a positive numerator and denominator.
+ *
+ * @tparam T Candidate type.
+ */
 template <class T>
 struct is_positive_ratio : std::false_type {};
 
 template <std::intmax_t N, std::intmax_t D>
 struct is_positive_ratio<std::ratio<N, D>> : std::bool_constant<(N > 0) && (D > 0)> {};
 
+/**
+ * @brief A positive \c std::ratio, usable as a tick period.
+ *
+ * @tparam P Candidate period type.
+ */
 template <class P>
 concept chrono_period = is_positive_ratio<std::remove_cvref_t<P>>::value;
+
+/// @endcond
 
 }  // namespace detail
 
