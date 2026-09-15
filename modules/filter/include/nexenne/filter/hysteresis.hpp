@@ -174,6 +174,7 @@ public:
    * returns \p high; the latched state is unchanged.
    */
   constexpr auto thresholds(input_type const low, input_type const high) noexcept -> void {
+    assert(low <= high && "hysteresis requires low <= high");
     m_low = low;
     m_high = high;
   }
