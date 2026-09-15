@@ -8,6 +8,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -571,5 +572,21 @@ TEST_CASE("nexenne::filter::glitch a sustained run after acceptance keeps the va
 static_assert(!noexcept(std::declval<flt::debounce<std::string, 3>&>().push(std::string{})));
 static_assert(!noexcept(std::declval<flt::glitch<std::string, 3>&>().push(std::string{})));
 static_assert(noexcept(std::declval<flt::debounce<bool, 3>&>().push(true)));
+
+TEST_CASE("nexenne::filter::slew rejects non-finite targets and a NaN rate") {
+  auto const inf{std::numeric_limits<double>::infinity()};
+  auto const nan{std::numeric_limits<double>::quiet_NaN()};
+  auto s{flt::slew{1.0}};
+  CHECK(s.push(inf) == doctest::Approx(0.0));
+  CHECK(s.push(0.0) == doctest::Approx(0.0));
+  CHECK(s.push(10.0) == doctest::Approx(1.0));
+
+  auto no_rate{flt::slew{nan}};
+  CHECK(no_rate.max_rate() == doctest::Approx(0.0));
+  nexenne::utility::ignore(no_rate.push(0.0));
+  CHECK(no_rate.push(1000.0) == doctest::Approx(0.0));
+  no_rate.max_rate(nan);
+  CHECK(no_rate.max_rate() == doctest::Approx(0.0));
+}
 
 }  // namespace

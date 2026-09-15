@@ -6,6 +6,7 @@
  */
 
 #include <algorithm>
+#include <cmath>
 #include <concepts>
 
 namespace nexenne::filter {
@@ -51,11 +52,12 @@ public:
    * between consecutive \c push calls.
    *
    * @pre None. Negative inputs are clamped to zero.
-   * @post \c max_rate() returns \c max(max_rate_per_sample, 0) and the
+   * @post \c max_rate() returns \c max(max_rate_per_sample, 0) (zero for a
+   * NaN) and the
    * filter is unprimed.
    */
   constexpr explicit slew(T const max_rate_per_sample) noexcept
-      : m_max_rate{max_rate_per_sample < T{0} ? T{0} : max_rate_per_sample} {}
+      : m_max_rate{max_rate_per_sample > T{0} ? max_rate_per_sample : T{0}} {}
 
   /**
    * @brief Moves the output toward \p target by at most the max rate.
@@ -72,17 +74,16 @@ public:
    * @post \c value() returns the value returned here, which differs
    * from the previous output by at most \c max_rate().
    *
-   * @note A NaN target is rejected and the previous output is held: a
-   * NaN would otherwise poison the output and make the next \c push
-   * call \c std::clamp with NaN bounds, which violates its \c lo <= hi
-   * requirement and is undefined behaviour.
+   * @note A NaN or infinite target is rejected and the previous output is
+   * held: a NaN would otherwise poison the output and make the next
+   * \c push call \c std::clamp with NaN bounds (undefined behaviour),
+   * and an infinite first target would leave the output at infinity,
+   * from which no finite step can move it.
    *
    * @complexity \c O(1).
    */
   [[nodiscard]] constexpr auto push(T const target) noexcept -> T {
-    // A self-comparison is false only for NaN; hold the output on NaN so
-    // clamp never sees NaN bounds on the following push.
-    if (target != target) {
+    if (!std::isfinite(target)) {
       return m_value;
     }
     if (!m_primed) {
@@ -153,11 +154,11 @@ public:
    * @param r New rate limit.
    *
    * @pre None. Negative inputs are clamped to zero.
-   * @post \c max_rate() returns \c max(r, 0); the stored output is
+   * @post \c max_rate() returns \c max(r, 0) (zero for a NaN); the stored output is
    * unchanged.
    */
   constexpr auto max_rate(value_type const r) noexcept -> void {
-    m_max_rate = r < value_type{0} ? value_type{0} : r;
+    m_max_rate = r > value_type{0} ? r : value_type{0};  // NaN and negative become 0
   }
 };
 
