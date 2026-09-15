@@ -6,6 +6,7 @@
  */
 
 #include <chrono>
+#include <concepts>
 #include <optional>
 
 namespace nexenne::filter {
@@ -47,7 +48,9 @@ namespace nexenne::filter {
  * unknown sample rate.
  */
 template <typename Duration = std::chrono::nanoseconds>
-class timed_debounce {
+  requires std::
+    same_as<Duration, std::chrono::duration<typename Duration::rep, typename Duration::period>>
+  class timed_debounce {
 public:
   using duration = Duration;
 

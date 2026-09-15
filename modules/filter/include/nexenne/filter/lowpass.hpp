@@ -43,6 +43,19 @@ private:
   value_type m_value{};
   bool m_primed{false};
 
+  /**
+   * @brief The low-pass coefficient of an RC stage for a cutoff and rate.
+   *
+   * @param cutoff_hz Cutoff frequency in Hz.
+   * @param sample_rate_hz Sample rate in Hz.
+   *
+   * @return The coefficient, with \c dt = 1 / \p sample_rate_hz and
+   *         \c RC = 1 / (2 pi \p cutoff_hz).
+   *
+   * @pre \p sample_rate_hz is positive and \p cutoff_hz lies in
+   * \c (0, sample_rate_hz / 2).
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto
   compute_alpha(value_type const cutoff_hz, value_type const sample_rate_hz) noexcept
     -> value_type {

@@ -8,6 +8,7 @@
 #include <array>
 #include <cstddef>
 #include <span>
+#include <type_traits>
 
 namespace nexenne::filter {
 
@@ -43,7 +44,7 @@ namespace nexenne::filter {
  * \c T is left explicit too and both parameters are always spelled out.
  */
 template <typename T, std::size_t N>
-  requires(N > 0)
+  requires std::is_arithmetic_v<T> && (N > 0)
 class fir {
 public:
   using value_type = T;

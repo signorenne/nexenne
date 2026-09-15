@@ -320,4 +320,13 @@ TEST_CASE("nexenne::filter umbrella exposes every family and they run") {
   }
 }
 
+template <typename T>
+concept fir_type = requires { typename flt::fir<T, 2>; };
+static_assert(!fir_type<std::string>);
+static_assert(fir_type<int>);
+template <typename D>
+concept debounce_duration = requires { typename flt::timed_debounce<D>; };
+static_assert(!debounce_duration<int>);
+static_assert(debounce_duration<std::chrono::milliseconds>);
+
 }  // namespace
