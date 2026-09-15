@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 
@@ -25,10 +26,11 @@ namespace nexenne::filter {
  * that occasionally return nonsense), or any situation where
  * you want to reject isolated outliers rather than smooth them.
  *
- * Implementation: maintains a ring buffer of raw samples and
- * a separate sorted copy for the median query. Per-sample cost
- * is O(N log N) for the sort step; for typical window sizes
- * (3 to 11) this is a handful of comparisons.
+ * Implementation: maintains a ring buffer of raw samples and selects the
+ * median from a scratch copy with \c std::nth_element, so each sample costs
+ * \c O(N) on average. For a floating-point \c T a NaN sample is ignored: the
+ * median is taken over the samples that are numbers, so a NaN is removed like
+ * any other spike instead of breaking the ordering the selection relies on.
  *
  * @tparam T Ordered sample type. Default \c double.
  * @tparam N Window size. Must be odd for a single-value median;
@@ -66,9 +68,10 @@ public:
   /**
    * @brief Feeds one sample and returns the median of the window.
    *
-   * Stores \p sample in the ring buffer, sorts a scratch copy of the
-   * valid portion, and selects the middle element. For an even number
-   * of valid samples the lower of the two central values is returned.
+   * Stores \p sample in the ring buffer and selects the middle element of
+   * a scratch copy of the valid portion. For an even number of samples
+   * the lower of the two central values is returned. NaN samples are
+   * left out; a window holding only NaN yields NaN.
    *
    * @param sample New input sample.
    *
@@ -78,7 +81,7 @@ public:
    * @post \c value() returns the value returned here and the window
    * holds at most \c N samples.
    *
-   * @complexity \c O(N log N) from the sort step.
+   * @complexity \c O(N) on average (\c std::nth_element).
    */
   [[nodiscard]] constexpr auto push(T const sample) noexcept -> T {
     m_buf[m_idx] = sample;
@@ -87,16 +90,26 @@ public:
       ++m_count;
     }
 
-    // Copy the valid portion into local scratch and sort it.
     auto work{buffer_type{}};
     for (std::size_t i{0}; i < m_count; ++i) {
       work[i] = m_buf[i];
     }
-    std::sort(work.begin(), work.begin() + static_cast<std::ptrdiff_t>(m_count));
+    auto const first{work.begin()};
+    auto numbers_end{first + static_cast<std::ptrdiff_t>(m_count)};
+    if constexpr (std::floating_point<T>) {
+      // NaN breaks the strict weak order std::nth_element needs, so partition it out first.
+      numbers_end = std::partition(first, numbers_end, [](T const v) { return !std::isnan(v); });
+      if (numbers_end == first) {
+        m_value = sample;
+        return m_value;
+      }
+    }
     // Lower of the two central values for an even count; the middle
-    // element for an odd count. (m_count - 1) / 2 yields the lower
-    // middle index without favouring the upper element on even windows.
-    m_value = work[(m_count - 1) / 2];
+    // element for an odd count. (count - 1) / 2 yields the lower middle
+    // index without favouring the upper element on even windows.
+    auto const middle{first + (numbers_end - first - 1) / 2};
+    std::nth_element(first, middle, numbers_end);
+    m_value = *middle;
     return m_value;
   }
 

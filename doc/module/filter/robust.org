@@ -64,11 +64,14 @@ against stability.
 ** median: the order statistic
 
 =median<T, N>= holds a ring buffer of the last =N= raw samples and, on each
-=push=, copies the valid portion into scratch, sorts it, and returns the central
-element. =T= is any =std::totally_ordered= type (default =double=), =N= the
-window size (default 3). There are no units: the filter only compares, never
-arithmetically combines, so it works on integers, fixed-point, or anything with
-an order.
+=push=, copies the valid portion into scratch and selects its central element
+with =std::nth_element= (=O(N)= on average; the walkthrough below shows the
+sorted order the selection is equivalent to). =T= is any =std::totally_ordered=
+type (default =double=), =N= the window size (default 3). There are no units:
+the filter only compares, never arithmetically combines, so it works on
+integers, fixed-point, or anything with an order. For a floating-point =T= a NaN
+sample is left out of the selection, so it is dropped like any other spike; a
+window of nothing but NaN yields NaN.
 
 Before the window has filled, =push= operates on the samples seen so far rather
 than waiting, so there is no startup transient and no priming step to remember;

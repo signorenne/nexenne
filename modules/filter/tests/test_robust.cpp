@@ -9,6 +9,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <span>
 
 #include <nexenne/filter/filter.hpp>
@@ -616,13 +617,35 @@ TEST_CASE("nexenne::filter::lms float instantiation hand-check") {
 
 TEST_CASE("nexenne::filter::kalman seeds its covariance with the measurement noise") {
   auto kf{flt::kalman{1e-3, 100.0}};
-  nexenne::utility::discard(kf.push(30.0));
+  nexenne::utility::ignore(kf.push(30.0));
   CHECK(kf.covariance() == doctest::Approx(100.0));
   auto estimate{0.0};
   for (auto i{0}; i < 50; ++i) {
     estimate = kf.push(0.0);
   }
   CHECK(estimate < 1.0);
+}
+
+TEST_CASE("nexenne::filter::median ignores NaN samples whatever their position") {
+  auto const nan{std::numeric_limits<double>::quiet_NaN()};
+  std::array<std::array<double, 3>, 3> const orders{
+    {{1.0, nan, 100.0}, {nan, 1.0, 100.0}, {100.0, 1.0, nan}}
+  };
+  for (auto const& order : orders) {
+    flt::median<double, 3> m;
+    auto out{0.0};
+    for (auto const x : order) {
+      out = m.push(x);
+    }
+    CHECK(out == doctest::Approx(1.0));
+  }
+  flt::median<double, 3> only_nan;
+  CHECK(std::isnan(only_nan.push(nan)));
+  flt::median<double, 5> spike;
+  for (auto const x : {3.0, 4.0, nan, 5.0, 6.0}) {
+    nexenne::utility::ignore(spike.push(x));
+  }
+  CHECK(spike.value() == doctest::Approx(4.0));
 }
 
 }  // namespace
