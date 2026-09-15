@@ -2,17 +2,20 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-Discrete-time digital filters for embedded signal conditioning, with no
-dependencies on the rest of the stack. The single idea that ties the module
+Discrete-time digital filters for embedded signal conditioning. The library
+headers use nothing from the rest of the stack; =module.deps= lists =utility=
+only because the tests and examples use =utility::ignore=. The single idea that ties the module
 together: every filter holds its state inline (no heap, no allocation), is
 generic over the sample type, and processes one sample at a time through the
 same small surface, =push= a sample to get the filtered output, =value= to read
 the last output again, =reset= to return to the initial state. That uniformity
 lets generic code accept "any filter" through the =filter_like= concept, and it
 means each one drops into an interrupt handler or a bare-metal control loop
-without a scheduler. The members that take a single sample and return the same
-type satisfy =filter_like=; a few (the two-input fusion and adaptive filters, the
-boolean shapers, and the guards) have a wider surface and are used directly.
+without a scheduler. Nearly every filter satisfies =filter_like=, the guards and
+the boolean shapers included; three have a different surface and are used
+directly: =hysteresis= (a converter with separate input and output types), =lms=
+(a two-input adaptive filter) and =timed_debounce= (fed timestamps through
+=update=).
 
 The roster is grouped by what each family is for.
 

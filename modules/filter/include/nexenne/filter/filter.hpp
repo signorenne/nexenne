@@ -4,12 +4,12 @@
  * @file
  * @brief Umbrella header for the nexenne::filter module.
  *
- * Discrete-time digital filters for embedded signal conditioning, all sharing
- * the \c filter_like surface (\c push to feed one sample, \c value to read the
- * last output, \c reset to return to the initial state). Every filter is generic
- * over the sample type, holds its state inline (no heap, no allocation), and
- * processes one sample at a time, so it runs in an interrupt handler or a tight
- * control loop.
+ * Discrete-time digital filters for embedded signal conditioning, nearly all
+ * sharing the \c filter_like surface (\c push to feed one sample, \c value to
+ * read the last output, \c reset to return to the initial state). Every filter
+ * is generic over the sample type, holds its state inline (no heap, no
+ * allocation), and processes one sample at a time, so it runs in an interrupt
+ * handler or a tight control loop.
  *
  * The roster, by role:
  *

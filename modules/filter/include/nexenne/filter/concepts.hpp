@@ -21,9 +21,11 @@ namespace nexenne::filter {
  * - \c value() : read the last output without advancing.
  * - \c reset() : return the filter to its initial state.
  *
- * Every filter in this module satisfies \c filter_like, so
- * generic code can accept "any filter" without naming a
- * concrete type.
+ * Most filters in this module satisfy \c filter_like, so generic code can
+ * accept "any filter" without naming a concrete type. The exceptions have a
+ * different surface and are used directly: \c hysteresis (a boolean output from
+ * a numeric input), \c lms (two inputs), and \c timed_debounce (no
+ * \c value_type).
  *
  * @tparam F Candidate filter type. Must expose a \c value_type and the
  * \c push / \c value / \c reset surface described above.

@@ -21,11 +21,13 @@ namespace nexenne::filter {
  * \c bool(T const&) plugs in:
  *
  * \code
- * // Accept only even register values (bit 0 must be clear):
- * auto v{validator{[](std::uint16_t r){ return (r & 1u) == 0; }}};
+ * // Accept only even register values (bit 0 must be clear), holding 0 until
+ * // a valid one arrives; the initial value lets the sample type be deduced:
+ * auto v{validator{[](std::uint16_t r) { return (r & 1u) == 0; }, std::uint16_t{0}}};
  *
- * // Accept only readings where the status byte is OK:
- * auto v{validator{[](reading r){ return r.status == 0; }}};
+ * // Unprimed (the first sample is taken as is): name the types.
+ * auto const ok{[](reading r) { return r.status == 0; }};
+ * auto w{validator<reading, decltype(ok)>{ok}};
  * \endcode
  *
  * If the very first sample fails the predicate, it is accepted

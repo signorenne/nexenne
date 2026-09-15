@@ -15,9 +15,10 @@ namespace nexenne::filter {
 /**
  * @brief N-sample majority-vote filter.
  *
- * Collects \p N consecutive samples, then outputs the value that
- * appears most often (the mode). If no clear majority exists, the
- * last value in the batch wins (tie-break by recency).
+ * Keeps the last \p N samples in a sliding window and outputs the
+ * value that appears most often among them (the mode), from the first
+ * push on. When several values tie for the highest count, the one seen
+ * most recently wins.
  *
  * This is the software equivalent of Triple Modular Redundancy
  * (TMR), the standard technique in safety-critical systems for
@@ -31,8 +32,8 @@ namespace nexenne::filter {
  * auto vote{nexenne::filter::majority<std::uint16_t, 3>{}};
  *
  * // Read the register three times and vote:
- * vote.push(read_reg(0x42));
- * vote.push(read_reg(0x42));
+ * nexenne::utility::ignore(vote.push(read_reg(0x42)));
+ * nexenne::utility::ignore(vote.push(read_reg(0x42)));
  * auto const clean{vote.push(read_reg(0x42))};
  * // clean is the majority of the three readings
  * \endcode

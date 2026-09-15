@@ -33,7 +33,8 @@ namespace nexenne::filter {
  * Cookbook formulae for audio equalizer biquad filter coefficients,
  * https://www.w3.org/TR/audio-eq-cookbook/.
  *
- * Two delay elements (Direct Form I), zero allocation.
+ * Direct Form I: two input and two output delay elements, zero
+ * allocation.
  *
  * @tparam T Floating-point sample type. Default \c double.
  *

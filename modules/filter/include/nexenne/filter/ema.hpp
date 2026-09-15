@@ -18,7 +18,7 @@ namespace nexenne::filter {
  *
  * \c y[n] = alpha * x[n] + (1 - alpha) * y[n-1]
  *
- * \c alpha (the smoothing factor, 0 < alpha <= 1) controls how quickly
+ * \c alpha (the smoothing factor, 0 <= alpha <= 1) controls how quickly
  * old data is forgotten. Higher alpha tracks faster; lower alpha
  * smooths more aggressively. Equivalent to a first-order
  * low-pass filter with time constant tau = (1 - alpha) / alpha samples.

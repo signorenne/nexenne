@@ -193,12 +193,12 @@ out
 
 ** glitch: reject pulses shorter than N samples
 
-=glitch<T, N>= rejects any pulse narrower than =N= samples. It is *stricter*
-than =debounce=: where debounce accepts any value that repeats =Threshold=
-times, glitch accepts a new value only if it persists for =N= consecutive
-samples *and* the signal does not return to the stable value in between. If the
-signal drops back to stable before the count is reached, the candidate is
-discarded and the transient is suppressed entirely. =T= is usually =bool= for a
+=glitch<T, N>= rejects any pulse narrower than =N= samples: it accepts a new value
+only if it persists for =N= consecutive samples, and if the signal drops back to
+the stable value before the count is reached, the candidate is discarded and the
+transient is suppressed entirely. Its output is the same as =debounce= with the
+same count (an exhaustive comparison over short sequences finds no difference);
+what it adds is =pending()=, which reports a candidate being held. =T= is usually =bool= for a
 digital line, or an integer register value for a bus read; =N= (default 3) is
 the minimum accepted pulse width in samples.
 
@@ -256,8 +256,8 @@ stable  : 0 0 0 0 0 0 0 0 1 1
 - glitch :: Reach for =glitch= to suppress short transient pulses such as an EMI
   or ESD spike on a digital line, ringing on a UART RX or I2C SDA edge, or any
   line where a wrong value must persist for several samples before you trust it,
-  while still passing a genuine sustained change. Stricter than =debounce=
-  because a return to the prior state cancels the candidate outright.
+  while still passing a genuine sustained change. It filters exactly like
+  =debounce=; choose it when you also want =pending()= to see a candidate.
 
 A few notes that apply to all five:
 

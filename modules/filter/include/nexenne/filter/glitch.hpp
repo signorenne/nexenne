@@ -15,12 +15,12 @@ namespace nexenne::filter {
  * @brief Digital glitch filter that rejects transient pulses shorter
  * than \p N samples.
  *
- * Where \c debounce requires \p N consecutive /identical/ samples,
- * the glitch filter is stricter: a new value is only accepted if
- * it persists for at least \p N consecutive samples /and/ the
- * signal hasn't returned to the stable value in between. If it
- * does return, the pending candidate is cancelled (the transient
- * is treated as a glitch and suppressed).
+ * A new value is accepted only once it persists for \p N consecutive samples;
+ * if the signal returns to the stable value first, the pending candidate is
+ * cancelled and the transient suppressed. The output is the same as \c debounce
+ * with the same count (an exhaustive comparison over short sequences finds no
+ * difference); the glitch filter adds \c pending(), which reports a candidate
+ * being held.
  *
  * Think of it as a hardware glitch filter implemented in software:
  * many MCU GPIO peripherals have a configurable N-cycle glitch
