@@ -9,6 +9,8 @@
 #include <chrono>
 #include <cstddef>
 #include <optional>
+#include <string>
+#include <utility>
 
 #include <nexenne/filter/filter.hpp>
 #include <nexenne/utility/ignore.hpp>
@@ -565,5 +567,9 @@ TEST_CASE("nexenne::filter::glitch a sustained run after acceptance keeps the va
     CHECK_FALSE(f.pending());
   }
 }
+
+static_assert(!noexcept(std::declval<flt::debounce<std::string, 3>&>().push(std::string{})));
+static_assert(!noexcept(std::declval<flt::glitch<std::string, 3>&>().push(std::string{})));
+static_assert(noexcept(std::declval<flt::debounce<bool, 3>&>().push(true)));
 
 }  // namespace

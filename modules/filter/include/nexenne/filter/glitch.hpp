@@ -7,6 +7,7 @@
 
 #include <concepts>
 #include <cstddef>
+#include <type_traits>
 
 namespace nexenne::filter {
 
@@ -51,6 +52,12 @@ public:
   static constexpr std::size_t hold_count{N};
 
 private:
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
+  /// then.
+  static constexpr bool nothrow_copy{
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
+  };
+
   value_type m_stable{};   ///< last accepted (output) value
   value_type m_pending{};  ///< candidate under observation
   std::size_t m_hold{0};   ///< consecutive samples matching pending
@@ -74,7 +81,7 @@ public:
    * @pre None.
    * @post \c value() returns \p initial and \c pending() is \c false.
    */
-  constexpr explicit glitch(T const initial) noexcept
+  constexpr explicit glitch(T const initial) noexcept(nothrow_copy)
       : m_stable{initial}, m_pending{initial}, m_primed{true} {}
 
   /**
@@ -94,7 +101,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto push(T const sample) noexcept -> T {
+  [[nodiscard]] constexpr auto push(T const sample) noexcept(nothrow_copy) -> T {
     if (!m_primed) {
       m_stable = sample;
       m_pending = sample;
@@ -131,7 +138,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto value() const noexcept -> T {
+  [[nodiscard]] constexpr auto value() const noexcept(nothrow_copy) -> T {
     return m_stable;
   }
 
@@ -142,7 +149,7 @@ public:
    * @post \c value() returns a value-initialised \c T, \c pending() is
    * \c false, and the next \c push seeds the stable value.
    */
-  constexpr auto reset() noexcept -> void {
+  constexpr auto reset() noexcept(nothrow_copy) -> void {
     m_stable = T{};
     m_pending = T{};
     m_hold = 0;
@@ -157,7 +164,7 @@ public:
    * @pre None.
    * @post \c value() returns \p initial and \c pending() is \c false.
    */
-  constexpr auto reset(T const initial) noexcept -> void {
+  constexpr auto reset(T const initial) noexcept(nothrow_copy) -> void {
     m_stable = initial;
     m_pending = initial;
     m_hold = 0;

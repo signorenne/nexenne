@@ -10,6 +10,7 @@
 #include <cmath>
 #include <concepts>
 #include <cstddef>
+#include <type_traits>
 
 namespace nexenne::filter {
 
@@ -50,6 +51,12 @@ public:
   static constexpr std::size_t window_size{N};
 
 private:
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
+  /// then.
+  static constexpr bool nothrow_copy{
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
+  };
+
   buffer_type m_buf{};
   std::size_t m_idx{0};
   std::size_t m_count{0};
@@ -83,7 +90,7 @@ public:
    *
    * @complexity \c O(N) on average (\c std::nth_element).
    */
-  [[nodiscard]] constexpr auto push(T const sample) noexcept -> T {
+  [[nodiscard]] constexpr auto push(T const sample) noexcept(nothrow_copy) -> T {
     m_buf[m_idx] = sample;
     m_idx = (m_idx + 1) % N;
     if (m_count < N) {
@@ -122,7 +129,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto value() const noexcept -> T {
+  [[nodiscard]] constexpr auto value() const noexcept(nothrow_copy) -> T {
     return m_value;
   }
 
@@ -133,7 +140,7 @@ public:
    * @post \c filled() is \c false, the window is empty, and
    * \c value() returns a value-initialised \c T.
    */
-  constexpr auto reset() noexcept -> void {
+  constexpr auto reset() noexcept(nothrow_copy) -> void {
     m_buf = {};
     m_idx = 0;
     m_count = 0;

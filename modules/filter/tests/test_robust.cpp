@@ -11,6 +11,8 @@
 #include <cstddef>
 #include <limits>
 #include <span>
+#include <string>
+#include <utility>
 
 #include <nexenne/filter/filter.hpp>
 #include <nexenne/utility/ignore.hpp>
@@ -647,5 +649,8 @@ TEST_CASE("nexenne::filter::median ignores NaN samples whatever their position")
   }
   CHECK(spike.value() == doctest::Approx(4.0));
 }
+
+static_assert(!noexcept(std::declval<flt::median<std::string, 3>&>().push(std::string{})));
+static_assert(noexcept(std::declval<flt::median<double, 3>&>().push(1.0)));
 
 }  // namespace

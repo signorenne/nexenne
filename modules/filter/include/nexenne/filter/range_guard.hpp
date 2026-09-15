@@ -42,6 +42,12 @@ public:
   using value_type = T;
 
 private:
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
+  /// then.
+  static constexpr bool nothrow_copy{
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
+  };
+
   value_type m_lo{};
   value_type m_hi{};
   value_type m_value{};
@@ -59,7 +65,8 @@ public:
    * @post \c lo() returns \p lo, \c hi() returns \p hi, and the guard
    * is unprimed.
    */
-  constexpr range_guard(value_type const lo, value_type const hi) noexcept : m_lo{lo}, m_hi{hi} {
+  constexpr range_guard(value_type const lo, value_type const hi) noexcept(nothrow_copy)
+      : m_lo{lo}, m_hi{hi} {
     assert(lo <= hi && "range_guard requires lo <= hi");
   }
 
@@ -82,7 +89,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto push(value_type const sample) noexcept -> value_type {
+  [[nodiscard]] constexpr auto push(value_type const sample) noexcept(nothrow_copy) -> value_type {
     m_accepted = sample >= m_lo && sample <= m_hi;
     if (m_accepted) {
       m_value = sample;
@@ -103,7 +110,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto value() const noexcept -> value_type {
+  [[nodiscard]] constexpr auto value() const noexcept(nothrow_copy) -> value_type {
     return m_value;
   }
 
@@ -115,7 +122,7 @@ public:
    * \c accepted() return \c false, and the next out-of-range \c push is
    * clamped rather than rejected.
    */
-  constexpr auto reset() noexcept -> void {
+  constexpr auto reset() noexcept(nothrow_copy) -> void {
     m_value = T{};
     m_primed = false;
     m_accepted = false;
@@ -167,7 +174,7 @@ public:
    * @post \c lo() returns \p lo and \c hi() returns \p hi; the held
    * value is unchanged even if it now falls outside the range.
    */
-  constexpr auto range(value_type const lo, value_type const hi) noexcept -> void {
+  constexpr auto range(value_type const lo, value_type const hi) noexcept(nothrow_copy) -> void {
     assert(lo <= hi && "range_guard requires lo <= hi");
     m_lo = lo;
     m_hi = hi;
@@ -181,7 +188,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto lo() const noexcept -> value_type {
+  [[nodiscard]] constexpr auto lo() const noexcept(nothrow_copy) -> value_type {
     return m_lo;
   }
 
@@ -193,7 +200,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto hi() const noexcept -> value_type {
+  [[nodiscard]] constexpr auto hi() const noexcept(nothrow_copy) -> value_type {
     return m_hi;
   }
 

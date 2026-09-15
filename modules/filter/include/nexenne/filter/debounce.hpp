@@ -7,6 +7,7 @@
 
 #include <concepts>
 #include <cstddef>
+#include <type_traits>
 
 namespace nexenne::filter {
 
@@ -45,6 +46,12 @@ public:
   static constexpr std::size_t threshold{Threshold};
 
 private:
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
+  /// then.
+  static constexpr bool nothrow_copy{
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
+  };
+
   value_type m_stable{};     ///< last accepted value
   value_type m_candidate{};  ///< candidate being counted
   std::size_t m_streak{0};   ///< consecutive matching samples
@@ -69,7 +76,7 @@ public:
    * @post \c value() returns \p initial and a new value still needs
    * \c Threshold consecutive samples to be accepted.
    */
-  constexpr explicit debounce(T const initial) noexcept
+  constexpr explicit debounce(T const initial) noexcept(nothrow_copy)
       : m_stable{initial}, m_candidate{initial}, m_primed{true} {}
 
   /**
@@ -89,7 +96,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto push(T const sample) noexcept -> T {
+  [[nodiscard]] constexpr auto push(T const sample) noexcept(nothrow_copy) -> T {
     if (!m_primed) {
       m_stable = sample;
       m_candidate = sample;
@@ -122,7 +129,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto value() const noexcept -> T {
+  [[nodiscard]] constexpr auto value() const noexcept(nothrow_copy) -> T {
     return m_stable;
   }
 
@@ -133,7 +140,7 @@ public:
    * @post \c value() returns a value-initialised \c T and the next
    * \c push is accepted immediately.
    */
-  constexpr auto reset() noexcept -> void {
+  constexpr auto reset() noexcept(nothrow_copy) -> void {
     m_stable = T{};
     m_candidate = T{};
     m_streak = 0;
@@ -149,7 +156,7 @@ public:
    * @post \c value() returns \p initial with the streak counter at
    * \c Threshold, so the value is already confirmed.
    */
-  constexpr auto reset(T const initial) noexcept -> void {
+  constexpr auto reset(T const initial) noexcept(nothrow_copy) -> void {
     m_stable = initial;
     m_candidate = initial;
     m_streak = Threshold;

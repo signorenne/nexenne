@@ -7,6 +7,7 @@
 
 #include <concepts>
 #include <cstddef>
+#include <type_traits>
 
 namespace nexenne::filter {
 
@@ -46,6 +47,12 @@ public:
   static constexpr std::size_t threshold{N};
 
 private:
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
+  /// then.
+  static constexpr bool nothrow_copy{
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
+  };
+
   value_type m_last{};
   value_type m_value{};
   std::size_t m_streak{0};
@@ -68,8 +75,8 @@ private:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] static constexpr auto same_value(value_type const a, value_type const b) noexcept
-    -> bool {
+  [[nodiscard]] static constexpr auto
+  same_value(value_type const a, value_type const b) noexcept(nothrow_copy) -> bool {
     if constexpr (std::floating_point<value_type>) {
       // A self-comparison is false only for NaN, so (a != a && b != b)
       // detects the both-NaN case that plain == would miss.
@@ -106,7 +113,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  [[nodiscard]] constexpr auto push(value_type const sample) noexcept -> value_type {
+  [[nodiscard]] constexpr auto push(value_type const sample) noexcept(nothrow_copy) -> value_type {
     m_value = sample;
     if (!m_primed) {
       m_last = sample;
@@ -133,7 +140,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto value() const noexcept -> value_type {
+  [[nodiscard]] constexpr auto value() const noexcept(nothrow_copy) -> value_type {
     return m_value;
   }
 
@@ -170,7 +177,7 @@ public:
    * @post \c is_stale() returns \c false, \c streak() returns zero,
    * and \c value() returns a value-initialised \c T.
    */
-  constexpr auto reset() noexcept -> void {
+  constexpr auto reset() noexcept(nothrow_copy) -> void {
     m_last = value_type{};
     m_value = value_type{};
     m_streak = 0;

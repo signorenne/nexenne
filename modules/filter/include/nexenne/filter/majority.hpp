@@ -8,6 +8,7 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <type_traits>
 
 namespace nexenne::filter {
 
@@ -53,6 +54,12 @@ public:
   static constexpr std::size_t batch_size{N};
 
 private:
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
+  /// then.
+  static constexpr bool nothrow_copy{
+    std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
+  };
+
   buffer_type m_buf{};
   std::size_t m_idx{0};
   std::size_t m_count{0};
@@ -92,7 +99,7 @@ private:
    *
    * @complexity \c O(N^2) from the pairwise scan.
    */
-  [[nodiscard]] constexpr auto compute_mode() const noexcept -> value_type {
+  [[nodiscard]] constexpr auto compute_mode() const noexcept(nothrow_copy) -> value_type {
     auto const n{m_count < N ? m_count : N};
     value_type best{m_buf[chrono_index(0, n)]};
     auto best_cnt{std::size_t{0}};
@@ -141,7 +148,7 @@ public:
    *
    * @complexity \c O(N^2) from the pairwise mode scan.
    */
-  [[nodiscard]] constexpr auto push(value_type const sample) noexcept -> value_type {
+  [[nodiscard]] constexpr auto push(value_type const sample) noexcept(nothrow_copy) -> value_type {
     m_buf[m_idx] = sample;
     m_idx = (m_idx + 1) % N;
     if (m_count < N) {
@@ -160,7 +167,7 @@ public:
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] constexpr auto value() const noexcept -> value_type {
+  [[nodiscard]] constexpr auto value() const noexcept(nothrow_copy) -> value_type {
     return m_value;
   }
 
@@ -171,7 +178,7 @@ public:
    * @post \c filled() is \c false, the buffer is empty, and
    * \c value() returns a value-initialised \c T.
    */
-  constexpr auto reset() noexcept -> void {
+  constexpr auto reset() noexcept(nothrow_copy) -> void {
     m_buf = buffer_type{};
     m_idx = 0;
     m_count = 0;

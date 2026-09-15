@@ -10,6 +10,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <string>
+#include <utility>
 
 #include <nexenne/filter/filter.hpp>
 #include <nexenne/utility/ignore.hpp>
@@ -565,5 +567,10 @@ TEST_CASE("nexenne::filter guards never prime on a NaN sample") {
   CHECK(rate.rejected_streak() == 0);
   CHECK(rate.push(5.5) == doctest::Approx(5.5));
 }
+
+static_assert(!noexcept(std::declval<flt::range_guard<std::string>&>().push(std::string{})));
+static_assert(!noexcept(std::declval<flt::majority<std::string, 3>&>().push(std::string{})));
+static_assert(!noexcept(std::declval<flt::stale_detector<std::string, 3>&>().push(std::string{})));
+static_assert(noexcept(std::declval<flt::range_guard<double>&>().push(1.0)));
 
 }  // namespace
