@@ -135,8 +135,7 @@ public:
 
     value_type acc{};
     std::size_t pos{m_idx};
-    // Multiply-accumulate against coefficients, walking history
-    // newest-to-oldest by stepping the ring index backward.
+    // y[n] = sum(h[i] * x[n - i]), walking the ring newest to oldest.
     for (std::size_t i{0}; i < N; ++i) {
       pos = (pos == 0) ? N - 1 : pos - 1;
       acc += m_coeffs[i] * m_history[pos];

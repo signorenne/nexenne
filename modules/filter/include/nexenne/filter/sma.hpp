@@ -84,7 +84,7 @@ public:
    * \c N that resums the full window.
    */
   [[nodiscard]] constexpr auto push(value_type const sample) noexcept -> value_type {
-    // Drop the oldest sample from the running sum before overwriting it.
+    // Subtract the oldest sample before its slot is overwritten.
     if (m_count == N) {
       accumulate(-m_buf[m_idx]);
     } else {

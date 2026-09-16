@@ -104,19 +104,15 @@ constexpr double sample_rate_hz{1000.0};
 [[nodiscard]] auto raw_sample(int const n) -> double {
   auto x{clean_signal(n)};
 
-  // Small zero-mean wobble built from two incommensurate sines: looks like
-  // noise to the filters but needs no rng, so the demo stays reproducible.
   x += 1.5 * std::sin(static_cast<double>(n) * 1.7);
   x += 0.8 * std::cos(static_cast<double>(n) * 0.9);
 
-  // Two lone spikes a median rejects but a mean would smear.
   if (n == 12) {
-    x += 35.0;  // a stuck-high transient
+    x += 35.0;
   }
   if (n == 25) {
-    x -= 30.0;  // a stuck-low transient
+    x -= 30.0;
   }
-  // One physically impossible read: the load cell cannot report 900.
   if (n == 31) {
     x = 900.0;
   }
@@ -183,46 +179,13 @@ template <flt::filter_like F>
 auto main() -> int {
   std::println("== nexenne::filter pipeline: a noisy 1 kHz sensor, cleaned in stages ==\n");
 
-  // Stage 1: the range guard. The sensor's physical output can only fall in
-  // 0..100; anything outside is a corrupted read, so we hold the last good value
-  // instead of forwarding garbage. This is the cheapest, bluntest defence and it
-  // belongs first: it stops a wild value from ever reaching the smoother's state.
   auto guard{flt::range_guard{0.0, 100.0}};
-
-  // Stage 2: a width-5 median. Nonlinear, so it deletes an isolated spike rather
-  // than averaging it in. Cost: it lags by about two samples and rounds off true
-  // peaks a little. We size the window odd so the middle element is unambiguous,
-  // and just large enough to outvote a single bad sample (a lone spike loses 4
-  // to 1). It does not smooth Gaussian jitter, which is why a linear stage
-  // follows.
   auto despike{flt::median<double, 5>{}};
-
-  // Stage 3a: a Kalman smoother. We tell it the sensor is fairly noisy (R = 4)
-  // and the true value drifts only slowly (Q = 0.05). Because the gain adapts,
-  // it tracks a genuine trend faster than an EMA of the same steady-state
-  // smoothness - the right default when you can characterise the noise.
   auto kf{flt::kalman{0.05, 4.0}};
-
-  // Stage 3b/3c: two cheaper smoothers, shown side by side so the latency vs.
-  // smoothness trade-off is visible. The EMA (alpha 0.25) is one multiply-add
-  // and forgets old data geometrically; the first-order low-pass is the same
-  // math but parameterised by a 30 Hz cutoff at the 1 kHz rate, so you tune it
-  // in physical units instead of a raw coefficient.
   auto ema{flt::ema{0.25}};
   auto lp{flt::lowpass{30.0, sample_rate_hz}};
-
-  // Stage 4: the slew limiter. It shapes the final command, not the noise: even
-  // the smoothed signal would jolt a motor on its steepest stretches, so we cap
-  // the change at 0.3 units per sample. The Kalman command it is fed still steps
-  // up to ~0.5/sample on the wave's steep parts, so the limiter engages there -
-  // watch the slew column trail the kalman column, then catch up on the flats. It
-  // adds a little ramp lag in exchange for a bounded actuator rate (the cap is
-  // set tight here to make that visible; size it to your real actuator). This is
-  // the trade you want on the output side, never on the measurement.
   auto slew{flt::slew{0.3}};
 
-  // The trace header. Each row is one sample; the bar column traces the Kalman
-  // output so the smoothing is visible as a clean curve next to the jagged raw.
   std::println(
     "{:>3}  {:>7}  {:>6}  {:>6}  {:>6}  {:>6}  {:>6}  {:>6}",
     "n",
@@ -242,9 +205,6 @@ auto main() -> int {
   for (int n{0}; n < sample_count; ++n) {
     auto const raw{raw_sample(n)};
 
-    // The pipeline, left to right. Each stage consumes the previous output, so
-    // the spike is gone before the smoother sees it and the smooth value is what
-    // the slew limiter ramps toward.
     auto const guarded{step(guard, raw)};
     auto const medianed{step(despike, guarded)};
     auto const kalmaned{step(kf, medianed)};
@@ -252,8 +212,6 @@ auto main() -> int {
     auto const lped{step(lp, medianed)};
     auto const slewed{step(slew, kalmaned)};
 
-    // Accumulate how far the raw stream and the final command sit from truth, to
-    // quantify the cleanup at the end.
     auto const truth{clean_signal(n)};
     sum_abs_err_raw += std::abs(raw - truth);
     sum_abs_err_out += std::abs(slewed - truth);
@@ -274,9 +232,6 @@ auto main() -> int {
   std::println("\n== Kalman output traced against the 40..60 band ==");
   std::println("   (every row is one sample; the spike rows never bend the curve)\n");
 
-  // Re-run only the guard + median + Kalman path to draw the bar trace. Filters
-  // are cheap and stateful, so we reset() them to replay from a clean slate
-  // rather than allocating new ones.
   guard.reset();
   despike.reset();
   kf.reset();
@@ -285,9 +240,6 @@ auto main() -> int {
     std::println("{:3}  |{}|  {:5.1f}", n, bar(cleaned, 35.0, 65.0), cleaned);
   }
 
-  // The headline number: mean absolute error before and after. The pipeline
-  // should shrink it by a wide margin, dominated by killing the spikes and the
-  // out-of-range read that the raw stream still carries.
   auto const mae_raw{sum_abs_err_raw / sample_count};
   auto const mae_out{sum_abs_err_out / sample_count};
   std::println("\n== Result ==");

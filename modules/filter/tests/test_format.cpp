@@ -39,7 +39,7 @@ TEST_CASE("nexenne::filter::to_string renders the guard family with status flags
 
   auto rate{flt::rate_guard{1.0}};
   nexenne::utility::ignore(rate.push(0.0));
-  nexenne::utility::ignore(rate.push(50.0));  // rejected -> rejected_streak grows
+  nexenne::utility::ignore(rate.push(50.0));
   CHECK(flt::to_string(rate) == "rate_guard(value=0, max_delta=1, rejected_streak=1)");
 
   auto stale{flt::stale_detector<int, 2>{}};

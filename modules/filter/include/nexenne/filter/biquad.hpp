@@ -68,28 +68,6 @@ struct biquad_coefficients {
  * 50 / 60 Hz mains hum). A \c q of \c 0.7071 gives the flat
  * Butterworth corner; higher \c q peaks.
  */
-/**
- * @brief Normalised Direct Form I biquad coefficients.
- *
- * The feedback coefficient \c a0 is assumed normalised to \c 1, so only the
- * two feedforward taps after \c b0 and the two feedback taps are stored. It
- * lives at namespace scope, not inside \c biquad, so one formatter serves every
- * sample type: a formatter cannot be specialised for a type nested in a class
- * template. \c biquad<T>::coefficients names it.
- *
- * @tparam T Floating-point coefficient type.
- */
-template <std::floating_point T = double>
-struct biquad_coefficients {
-  using value_type = T;
-
-  value_type b0{value_type{1}};  ///< feedforward tap for x[n]
-  value_type b1{value_type{0}};  ///< feedforward tap for x[n-1]
-  value_type b2{value_type{0}};  ///< feedforward tap for x[n-2]
-  value_type a1{value_type{0}};  ///< feedback tap for y[n-1]
-  value_type a2{value_type{0}};  ///< feedback tap for y[n-2]
-};
-
 template <std::floating_point T = double>
 class biquad {
 public:

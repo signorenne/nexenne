@@ -112,7 +112,6 @@ private:
           ++cnt;
         }
       }
-      // Greater-or-equal so ties resolve toward the more recent candidate.
       if (cnt >= best_cnt) {
         best = candidate;
         best_cnt = cnt;

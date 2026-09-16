@@ -118,10 +118,6 @@ public:
       m_reject_streak = 0;
       m_accepted = true;
     } else if (m_escape_after != 0 && m_reject_streak >= m_escape_after) {
-      // Escape hatch: a genuine step (or a garbage prime) would otherwise
-      // reject every later reading forever. After enough consecutive
-      // rejections, accept the sample and re-centre so real dynamics are
-      // not lost.
       m_value = sample;
       m_reject_streak = 0;
       m_accepted = true;

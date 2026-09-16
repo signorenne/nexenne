@@ -77,8 +77,7 @@ private:
   [[nodiscard]] static constexpr auto
   same_value(value_type const a, value_type const b) noexcept(nothrow_copy) -> bool {
     if constexpr (std::floating_point<value_type>) {
-      // A self-comparison is false only for NaN, so (a != a && b != b)
-      // detects the both-NaN case that plain == would miss.
+      // x != x holds only for NaN (IEEE 754), so this also matches NaN against NaN.
       return a == b || (a != a && b != b);
     } else {
       return a == b;

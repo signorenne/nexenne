@@ -22,7 +22,6 @@ namespace {
 
 namespace flt = nexenne::filter;
 
-// Linear smoothers.
 static_assert(flt::filter_like<flt::ema<double>>);
 static_assert(flt::filter_like<flt::sma<double, 4>>);
 static_assert(flt::filter_like<flt::lowpass<double>>);
@@ -31,47 +30,33 @@ static_assert(flt::filter_like<flt::biquad<double>>);
 static_assert(flt::filter_like<flt::butterworth<double, 2>>);
 static_assert(flt::filter_like<flt::fir<double, 4>>);
 
-// Nonlinear and robust.
 static_assert(flt::filter_like<flt::median<double, 3>>);
 static_assert(flt::filter_like<flt::kalman<double>>);
-// complementary exposes a single-argument push overload alongside its
-// two-sensor fusion overload, so it still models filter_like.
 static_assert(flt::filter_like<flt::complementary<double>>);
 
-// Control and shaping.
 static_assert(flt::filter_like<flt::slew<double>>);
 static_assert(flt::filter_like<flt::debounce<bool, 3>>);
 static_assert(flt::filter_like<flt::glitch<bool, 3>>);
 
-// Validation and guards.
 static_assert(flt::filter_like<flt::range_guard<double>>);
 static_assert(flt::filter_like<flt::rate_guard<double>>);
 static_assert(flt::filter_like<flt::majority<int, 3>>);
 static_assert(flt::filter_like<flt::stale_detector<int, 3>>);
 
-// The concept is generic over the sample type, not pinned to double.
 static_assert(flt::filter_like<flt::ema<float>>);
 static_assert(flt::filter_like<flt::sma<long double, 8>>);
 static_assert(flt::filter_like<flt::median<int, 5>>);
 
-// A plain scalar has none of the surface.
 static_assert(!flt::filter_like<int>);
 static_assert(!flt::filter_like<double>);
 static_assert(!flt::filter_like<void>);
 
-// hysteresis is a converter: it names input_type / output_type rather than
-// value_type, so it deliberately does not model filter_like.
 static_assert(!flt::filter_like<flt::hysteresis<double>>);
 
-// lms only offers a two-argument push(input, desired); there is no
-// single-argument push, so it does not satisfy the requires-expression.
 static_assert(!flt::filter_like<flt::lms<double, 4>>);
 
-// timed_debounce exposes update(timestamp, level) instead of push(sample) and
-// carries no value_type, so it deliberately does not model filter_like.
 static_assert(!flt::filter_like<flt::timed_debounce<std::chrono::nanoseconds>>);
 
-// A type with the methods but no value_type member type.
 struct no_value_type {
   auto push(double s) -> double {
     return s;
@@ -86,7 +71,6 @@ struct no_value_type {
 
 static_assert(!flt::filter_like<no_value_type>);
 
-// A type missing value().
 struct no_value_method {
   using value_type = double;
 
@@ -99,7 +83,6 @@ struct no_value_method {
 
 static_assert(!flt::filter_like<no_value_method>);
 
-// A type missing push().
 struct no_push_method {
   using value_type = double;
 
@@ -112,7 +95,6 @@ struct no_push_method {
 
 static_assert(!flt::filter_like<no_push_method>);
 
-// A type missing reset().
 struct no_reset_method {
   using value_type = double;
 
@@ -127,7 +109,6 @@ struct no_reset_method {
 
 static_assert(!flt::filter_like<no_reset_method>);
 
-// Wrong push return type: the concept pins push to return value_type exactly.
 struct wrong_push_return {
   using value_type = double;
 
@@ -144,7 +125,6 @@ struct wrong_push_return {
 
 static_assert(!flt::filter_like<wrong_push_return>);
 
-// Wrong value() return type.
 struct wrong_value_return {
   using value_type = double;
 
@@ -161,8 +141,6 @@ struct wrong_value_return {
 
 static_assert(!flt::filter_like<wrong_value_return>);
 
-// push that does not accept the sample type (no callable single-arg overload
-// taking value_type), even though every other part of the surface is present.
 struct push_takes_no_args {
   using value_type = double;
 
@@ -179,11 +157,9 @@ struct push_takes_no_args {
 
 static_assert(!flt::filter_like<push_takes_no_args>);
 
-// A library-ish non-filter type.
 static_assert(!flt::filter_like<std::string>);
 
 TEST_CASE("nexenne::filter umbrella exposes every family and they run") {
-  // Linear smoothers.
   {
     auto f{flt::ema{0.5}};
     nexenne::utility::ignore(f.push(1.0));
@@ -228,7 +204,6 @@ TEST_CASE("nexenne::filter umbrella exposes every family and they run") {
     f.reset();
   }
 
-  // Nonlinear and robust.
   {
     auto f{flt::median<double, 3>{}};
     nexenne::utility::ignore(f.push(5.0));
@@ -243,18 +218,17 @@ TEST_CASE("nexenne::filter umbrella exposes every family and they run") {
   }
   {
     auto f{flt::complementary{0.98}};
-    nexenne::utility::ignore(f.push(10.0, 9.5));  // two-sensor fusion overload
+    nexenne::utility::ignore(f.push(10.0, 9.5));
     nexenne::utility::ignore(f.value());
     f.reset();
   }
   {
     auto f{flt::lms<double, 4>{}};
-    nexenne::utility::ignore(f.push(1.0, 5.0));  // input, desired
+    nexenne::utility::ignore(f.push(1.0, 5.0));
     nexenne::utility::ignore(f.value());
     f.reset();
   }
 
-  // Control and shaping.
   {
     auto f{flt::slew{5.0}};
     nexenne::utility::ignore(f.push(0.0));
@@ -290,7 +264,6 @@ TEST_CASE("nexenne::filter umbrella exposes every family and they run") {
     db.reset();
   }
 
-  // Validation and guards.
   {
     auto f{flt::range_guard{0.0, 100.0}};
     CHECK(f.push(50.0) == doctest::Approx(50.0));

@@ -109,18 +109,16 @@ public:
     }
 
     if (sample == m_stable) {
-      // Signal returned to stable, so cancel any pending candidate.
       m_pending = m_stable;
       m_hold = 0;
     } else {
       if (sample == m_pending) {
-        ++m_hold;  // candidate persists, so count up
+        ++m_hold;
       } else {
-        m_pending = sample;  // new candidate, so restart the hold counter
+        m_pending = sample;
         m_hold = 1;
       }
-      // Accept on either path so that N == 1 promotes a single sample: a fresh
-      // candidate already holds for one sample.
+      // Accept on both paths: with N == 1 a fresh candidate is accepted at once.
       if (m_hold >= N) {
         m_stable = m_pending;
         m_hold = 0;

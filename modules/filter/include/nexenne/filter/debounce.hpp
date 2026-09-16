@@ -112,8 +112,7 @@ public:
       m_candidate = sample;
       m_streak = 1;
     }
-    // Promote on either path so that Threshold == 1 accepts immediately: a
-    // fresh candidate already has a streak of 1.
+    // Promote on both paths: with Threshold == 1 a fresh candidate is accepted at once.
     if (m_streak >= Threshold) {
       m_stable = m_candidate;
     }

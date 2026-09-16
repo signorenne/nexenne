@@ -128,12 +128,10 @@ public:
       return m_estimate;
     }
 
-    // Predict
+    // Predict (Welch and Bishop time update): P_pred = P + Q.
     auto const p_pred{m_covariance + m_q};
 
-    // Update. Guard the gain against a zero denominator (P + Q + R == 0):
-    // with no uncertainty anywhere the gain is zero, so the prediction is
-    // trusted and the estimate is held rather than producing a NaN.
+    // Update (measurement update): K = P_pred / (P_pred + R), zero when P + Q + R == 0.
     auto const denom{p_pred + m_r};
     auto const k{denom > T{0} ? p_pred / denom : T{0}};
     m_estimate = m_estimate + k * (measurement - m_estimate);

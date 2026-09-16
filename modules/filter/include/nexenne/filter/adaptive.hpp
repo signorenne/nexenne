@@ -149,7 +149,7 @@ public:
     m_history[m_idx] = input;
     m_idx = (m_idx + 1) % N;
 
-    // Compute output y[n] = sum(w[i] * x[n - i])
+    // y[n] = sum(w[i] * x[n - i])
     value_type output{};
     std::size_t pos{m_idx};
     for (std::size_t i{0}; i < N; ++i) {
@@ -157,7 +157,7 @@ public:
       output += m_coeffs[i] * m_history[pos];
     }
 
-    // Error and coefficient update
+    // e[n] = d[n] - y[n]; w[i] += mu * e[n] * x[n - i] (Widrow-Hoff LMS)
     value_type const error{desired - output};
     pos = m_idx;
     for (std::size_t i{0}; i < N; ++i) {

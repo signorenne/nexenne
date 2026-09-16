@@ -48,11 +48,6 @@ public:
   using input_type = T;      ///< the analogue signal type fed to \c push()
   using output_type = bool;  ///< the binary output type returned by \c push()
 
-  // \c hysteresis is intentionally NOT \c filter_like: its input
-  // type (T, analogue) and output type (bool, digital) differ.
-  // Same-type filters use \c value_type; converters like this one
-  // use \c input_type / \c output_type instead.
-
 private:
   input_type m_low{input_type{0}};
   input_type m_high{input_type{0}};

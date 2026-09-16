@@ -110,9 +110,7 @@ public:
         return m_value;
       }
     }
-    // Lower of the two central values for an even count; the middle
-    // element for an odd count. (count - 1) / 2 yields the lower middle
-    // index without favouring the upper element on even windows.
+    // (count - 1) / 2 is the middle index for an odd count and the lower middle for an even one.
     auto const middle{first + (numbers_end - first - 1) / 2};
     std::nth_element(first, middle, numbers_end);
     m_value = *middle;
