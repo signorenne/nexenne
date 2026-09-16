@@ -970,13 +970,18 @@ private:
   }
 
   /**
-   * @brief In-place stable insertion sort by priority, no allocation.
+   * @brief In-place insertion sort by priority, then id, no allocation.
    *
-   * For slots appended during an emit. O(MaxSlots^2), MaxSlots is small.
+   * For slots connected during an emit. Ties break by id, which grows with
+   * every connect, so a slot that reused an earlier entry still fires after
+   * the older equal-priority slots. O(MaxSlots^2), MaxSlots is small.
    */
   auto sort_by_priority() noexcept -> void {
+    auto const before{[](slot_entry const& a, slot_entry const& b) noexcept {
+      return a.priority < b.priority || (a.priority == b.priority && a.id < b.id);
+    }};
     for (auto i{std::size_t{1}}; i < m_slots.size(); ++i) {
-      for (auto j{i}; j > 0 && m_slots[j].priority < m_slots[j - 1].priority; --j) {
+      for (auto j{i}; j > 0 && before(m_slots[j], m_slots[j - 1]); --j) {
         using std::swap;
         swap(m_slots[j], m_slots[j - 1]);
       }

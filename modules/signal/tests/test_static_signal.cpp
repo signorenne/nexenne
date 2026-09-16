@@ -1037,7 +1037,7 @@ TEST_CASE(
       return;
     }
     st.sig.emit();
-    nexenne::utility::discard(st.self.disconnect());
+    nexenne::utility::ignore(st.self.disconnect());
     st.replacement_valid = st.sig.connect([] noexcept {}).has_target();
     st.destroyed_mid_call = st.destroyed;
   });
@@ -1055,7 +1055,7 @@ TEST_CASE(
     auto sig{static_signal<void()>{}};
     auto companion_runs{0};
     auto const companion{sig.connect([&] noexcept { ++companion_runs; }, 1)};
-    nexenne::utility::discard(
+    nexenne::utility::ignore(
       sig.connect_once([g = static_scoped_connection{companion}] noexcept {}, 0)
     );
     sig.emit();
@@ -1074,12 +1074,33 @@ TEST_CASE(
   SUBCASE("disconnect_all") {
     auto sig{static_signal<void()>{}};
     auto const companion{sig.connect([] noexcept {}, 0)};
-    nexenne::utility::discard(
+    nexenne::utility::ignore(
       sig.connect([g = static_scoped_connection{companion}] noexcept {}, 1)
     );
     sig.disconnect_all();
     CHECK(sig.empty());
   }
+}
+
+TEST_CASE(
+  "nexenne::signal::static_signal a slot that reuses a dead entry fires after older "
+  "equal-priority slots"
+) {
+  auto sig{static_signal<void(), 2>{}};
+  auto order{std::string{}};
+  auto added{false};
+  nexenne::utility::ignore(sig.connect_once([&] noexcept { order += 'A'; }));
+  nexenne::utility::ignore(sig.connect([&] noexcept {
+    order += 'B';
+    if (!added) {
+      added = true;
+      nexenne::utility::ignore(sig.connect([&] noexcept { order += 'C'; }));
+    }
+  }));
+  sig.emit();
+  order.clear();
+  sig.emit();
+  CHECK(order == "BC");
 }
 
 }  // namespace
