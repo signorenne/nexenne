@@ -181,6 +181,45 @@ auto operator<<(std::ostream& os, highpass<T> const& f) -> std::ostream& {
 }
 
 /**
+ * @brief Debug string for a set of biquad coefficients.
+ *
+ * Output looks like \c "biquad_coefficients(b0=1, b1=0, b2=0, a1=0, a2=0)".
+ *
+ * @tparam T Floating-point coefficient type.
+ * @param c Coefficients to render.
+ *
+ * @return A freshly allocated debug string.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <std::floating_point T>
+[[nodiscard]] auto to_string(biquad_coefficients<T> const& c) -> std::string {
+  return std::format(
+    "biquad_coefficients(b0={}, b1={}, b2={}, a1={}, a2={})", c.b0, c.b1, c.b2, c.a1, c.a2
+  );
+}
+
+/**
+ * @brief Streams a set of biquad coefficients via its debug string.
+ *
+ * @tparam T Floating-point coefficient type.
+ * @param os Output stream to write to.
+ * @param c Coefficients to stream.
+ *
+ * @return \p os, for chaining.
+ *
+ * @pre None.
+ * @post The debug string of \p c has been written to \p os.
+ */
+template <std::floating_point T>
+auto operator<<(std::ostream& os, biquad_coefficients<T> const& c) -> std::ostream& {
+  return os << to_string(c);
+}
+
+/**
  * @brief Debug string for a \c biquad filter.
  *
  * @tparam T Floating-point sample type.
@@ -930,6 +969,43 @@ struct std::formatter<nexenne::filter::highpass<T>> {
    */
   static auto format(nexenne::filter::highpass<T> const& f, auto& ctx) {
     return std::format_to(ctx.out(), "{}", nexenne::filter::to_string(f));
+  }
+};
+
+/**
+ * @brief \c std::format support for \c biquad_coefficients, forwarding to \c to_string.
+ *
+ * @tparam T Floating-point coefficient type.
+ */
+template <std::floating_point T>
+struct std::formatter<nexenne::filter::biquad_coefficients<T>> {
+  /**
+   * @brief Accepts the format spec (only the empty spec is used).
+   *
+   * @param ctx Format parse context.
+   *
+   * @return Iterator past the parsed spec.
+   *
+   * @pre None.
+   * @post None.
+   */
+  static constexpr auto parse(std::format_parse_context& ctx) {
+    return ctx.begin();
+  }
+
+  /**
+   * @brief Writes the coefficients' debug string to the output context.
+   *
+   * @param c Coefficients to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the written characters.
+   *
+   * @pre None.
+   * @post The debug string of \p c has been written to \p ctx.
+   */
+  static auto format(nexenne::filter::biquad_coefficients<T> const& c, auto& ctx) {
+    return std::format_to(ctx.out(), "{}", nexenne::filter::to_string(c));
   }
 };
 

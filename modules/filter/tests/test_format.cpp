@@ -6,9 +6,12 @@
 
 #include <doctest/doctest.h>
 
+#include <array>
 #include <chrono>
+#include <concepts>
 #include <cstdint>
 #include <format>
+#include <span>
 #include <sstream>
 #include <string>
 
@@ -74,6 +77,45 @@ TEST_CASE("nexenne::filter::to_string covers converter and windowed types") {
   auto td{flt::timed_debounce{std::chrono::milliseconds{5}}};
   nexenne::utility::ignore(td.update(std::chrono::milliseconds{0}, true));
   CHECK(std::format("{}", td) == flt::to_string(td));
+}
+
+// Checks that the formatter and operator<< give exactly to_string's text.
+template <typename T>
+auto three_layers_agree(T const& value) -> bool {
+  auto os{std::ostringstream{}};
+  os << value;
+  auto const text{flt::to_string(value)};
+  return std::format("{}", value) == text && os.str() == text;
+}
+
+TEST_CASE("nexenne::filter every formatted type prints the same text through every layer") {
+  CHECK(three_layers_agree(flt::ema{0.5}));
+  CHECK(three_layers_agree(flt::sma<double, 4>{}));
+  CHECK(three_layers_agree(flt::lowpass{10.0, 1000.0}));
+  CHECK(three_layers_agree(flt::highpass{10.0, 1000.0}));
+  CHECK(three_layers_agree(flt::biquad<double>::make_lowpass(50.0, 1000.0)));
+  CHECK(three_layers_agree(flt::butterworth<double, 2>{}));
+  auto const taps{std::array{0.25, 0.5, 0.25}};
+  CHECK(three_layers_agree(flt::fir<double, 3>{std::span<double const, 3>{taps}}));
+  CHECK(three_layers_agree(flt::median<double, 3>{}));
+  CHECK(three_layers_agree(flt::kalman{0.1, 1.0}));
+  CHECK(three_layers_agree(flt::complementary{0.98}));
+  CHECK(three_layers_agree(flt::lms<double, 4>{}));
+  CHECK(three_layers_agree(flt::slew{2.0}));
+  CHECK(three_layers_agree(flt::debounce<bool, 3>{}));
+  CHECK(three_layers_agree(flt::timed_debounce{std::chrono::milliseconds{5}}));
+  CHECK(three_layers_agree(flt::hysteresis{1.0, 2.0}));
+  CHECK(three_layers_agree(flt::glitch<bool, 3>{}));
+  CHECK(three_layers_agree(flt::range_guard{0.0, 10.0}));
+  CHECK(three_layers_agree(flt::rate_guard{1.0}));
+  CHECK(three_layers_agree(flt::validator{[](int r) { return r > 0; }, 1}));
+  CHECK(three_layers_agree(flt::majority<int, 3>{}));
+  CHECK(three_layers_agree(flt::stale_detector<int, 2>{}));
+
+  auto const coefs{flt::biquad<double>::coefficients{.b0 = 0.5, .a1 = -0.25}};
+  CHECK(three_layers_agree(coefs));
+  CHECK(flt::to_string(coefs) == "biquad_coefficients(b0=0.5, b1=0, b2=0, a1=-0.25, a2=0)");
+  static_assert(std::same_as<flt::biquad<float>::coefficients, flt::biquad_coefficients<float>>);
 }
 
 }  // namespace

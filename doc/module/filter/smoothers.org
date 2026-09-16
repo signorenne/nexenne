@@ -186,7 +186,10 @@ y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]
 band-pass, notch, and more, all from this one recurrence with two input and two
 output delay elements. You can set the five coefficients directly through the
 =coefficients= struct (=b0, b1, b2, a1, a2=) via the constructor or =coefs(c)=,
-and read them back with =coefs()=. =reset()= clears the four delay elements but
+and read them back with =coefs()=. The struct is =biquad_coefficients<T>=, which
+=biquad<T>::coefficients= names; it sits at namespace scope so it can print
+through =format.hpp= (=biquad_coefficients(b0=..., b1=..., ...)=) like the
+filters do. =reset()= clears the four delay elements but
 keeps the coefficients (so a coefficient swap with =coefs= mid-stream may cause a
 transient, since the old delay line lives on).
 
