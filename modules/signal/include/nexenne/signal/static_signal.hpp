@@ -637,13 +637,12 @@ public:
    * @complexity \c O(MaxSlots).
    */
   auto disconnect_all() noexcept -> void {
-    if (m_emit_depth > 0) {
-      for (auto& s : m_slots) {
-        s.alive = false;
-      }
-      return;
+    for (auto& s : m_slots) {
+      s.alive = false;
     }
-    m_slots.clear();
+    if (m_emit_depth == 0) {
+      settle();
+    }
   }
 
   /**
@@ -707,11 +706,7 @@ public:
     }
     auto const at_exit{nexenne::utility::defer{[this] {
       if (--m_emit_depth == 0) {
-        if (m_dirty) {
-          sort_by_priority();
-          m_dirty = false;
-        }
-        sweep_dead();
+        settle();
       }
     }}};
     auto const n{m_slots.size()};
@@ -935,8 +930,8 @@ private:
   /**
    * @brief Removes the slot named by \p id, honouring the emit deferral rules.
    *
-   * During an emit a match is marked dead for the post-emit sweep; outside an
-   * emit it is erased in place.
+   * The match is marked dead; outside an emit the list is settled at once,
+   * during one the outermost emit settles it.
    *
    * @param id Identifier of the slot to remove.
    *
@@ -948,10 +943,9 @@ private:
   auto disconnect_by_id(id_type const id) noexcept -> bool {
     for (auto i{std::size_t{0}}; i < m_slots.size(); ++i) {
       if (m_slots[i].id == id && m_slots[i].alive) {
-        if (m_emit_depth > 0) {
-          m_slots[i].alive = false;  // deferred removal
-        } else {
-          erase_at(i);
+        m_slots[i].alive = false;
+        if (m_emit_depth == 0) {
+          settle();
         }
         return true;
       }
@@ -990,20 +984,53 @@ private:
   }
 
   /**
-   * @brief Erases the slot at \p pos, shifting the tail down to stay stable.
+   * @brief Destroys the callable of a dead entry, if it still holds one.
    *
-   * Preserves the relative order of the remaining priority-sorted slots.
+   * Moves the callable out before destroying it, so the entry is already empty
+   * when the callable's destructor runs and may re-enter this signal.
    *
-   * @param pos Index of the slot to remove.
+   * @param e Entry to release.
    *
-   * @pre \p pos is a valid index into \c m_slots.
-   * @post \c m_slots has one fewer entry and its order is otherwise unchanged.
+   * @return \c true when a callable was destroyed.
+   *
+   * @pre None.
+   * @post A dead \p e holds no callable.
    */
-  auto erase_at(std::size_t const pos) noexcept -> void {
-    for (auto i{pos}; i + 1 < m_slots.size(); ++i) {
-      m_slots[i] = std::move(m_slots[i + 1]);
+  static auto release_if_dead(slot_entry& e) noexcept -> bool {
+    if (e.alive || !e.fn_obj) {
+      return false;
     }
-    nexenne::utility::discard(m_slots.pop_back());
+    slot_fn_type{std::move(e.fn_obj)}.reset();
+    return true;
+  }
+
+  /**
+   * @brief Removes every dead slot once no emit is iterating the list.
+   *
+   * First destroys the callables of dead slots with the emit depth raised, so a
+   * callable whose destructor disconnects or connects a slot on this signal only
+   * marks or appends, and repeats while that marks more. Then re-sorts slots
+   * connected meanwhile and compacts the list, which destroys no callable.
+   *
+   * @pre No emit is iterating \c m_slots.
+   * @post \c m_slots holds only alive entries, in priority order.
+   *
+   * @complexity \c O(MaxSlots) per pass, plus a re-sort after a connect.
+   */
+  auto settle() noexcept -> void {
+    ++m_emit_depth;
+    for (auto released{true}; released;) {
+      released = false;
+      for (auto i{std::size_t{0}}; i < m_slots.size(); ++i) {
+        released = release_if_dead(m_slots[i]) || released;
+      }
+    }
+    --m_emit_depth;
+    if (m_dirty) {
+      sort_by_priority();
+      m_dirty = false;
+    }
+    sweep_dead();
   }
 
   /**

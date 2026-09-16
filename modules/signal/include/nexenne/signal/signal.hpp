@@ -442,16 +442,16 @@ public:
   auto disconnect_all() noexcept -> void {
     if (!m_core)
       return;
-    if (m_core->emit_depth > 0) {
-      for (auto& s : m_core->slots) {
-        s.alive = false;
-      }
-      // Drop connects deferred earlier in this emit too, otherwise they would be
-      // merged when the emit finishes and survive a disconnect_all.
-      m_core->pending.clear();
-      return;
+    for (auto& s : m_core->slots) {
+      s.alive = false;
     }
-    m_core->slots.clear();
+    for (auto& p : m_core->pending) {
+      p.alive = false;
+    }
+    if (m_core->emit_depth == 0) {
+      auto const pin{m_core};
+      settle(*pin);
+    }
   }
 
   /**
@@ -685,8 +685,7 @@ private:
     // early return from a slot.
     auto const at_exit{nexenne::utility::defer{[&pin] {
       if (--pin->emit_depth == 0 && pin->owner != nullptr) {
-        apply_pending(*pin);
-        sweep_dead(*pin);
+        settle(*pin);
       }
     }}};
     auto const n{pin->slots.size()};
@@ -771,7 +770,7 @@ private:
    *
    * Searches the live list first; during an emit a match is marked dead for the
    * post-emit sweep instead of erased, and an id still parked in the pending list
-   * is marked so the merge drops it. Outside an emit the slot is erased in place.
+   * is marked so the merge drops it. Outside an emit the list is settled at once.
    *
    * @param id Identifier of the slot to remove.
    *
@@ -805,11 +804,11 @@ private:
       }
       return false;
     }
-    if (m_core->emit_depth > 0) {
-      slots[found_at].alive = false;
-      return true;
+    slots[found_at].alive = false;
+    if (m_core->emit_depth == 0) {
+      auto const pin{m_core};
+      settle(*pin);
     }
-    stable_erase_at(*m_core, found_at);
     return true;
   }
 
@@ -833,21 +832,56 @@ private:
   }
 
   /**
-   * @brief Erases the slot at \p pos, shifting the tail down to stay stable.
+   * @brief Destroys the callable of a dead entry, if it still holds one.
    *
-   * Preserves the relative order of the remaining priority-sorted slots.
+   * Moves the callable out before destroying it, so the entry is already empty
+   * when the callable's destructor runs and may re-enter the signal.
    *
-   * @param c The core whose slot list is edited.
-   * @param pos Index of the slot to remove.
+   * @param e Entry to release.
    *
-   * @pre \p pos is a valid index into \c c.slots.
-   * @post \c c.slots has one fewer entry and its order is otherwise unchanged.
+   * @return \c true when a callable was destroyed.
+   *
+   * @pre None.
+   * @post A dead \p e holds no callable.
    */
-  static auto stable_erase_at(core& c, std::size_t const pos) noexcept -> void {
-    for (auto i{pos}; i + 1 < c.slots.size(); ++i) {
-      c.slots[i] = std::move(c.slots[i + 1]);
+  static auto release_if_dead(slot_entry& e) noexcept -> bool {
+    if (e.alive || !e.fn_obj) {
+      return false;
     }
-    [[maybe_unused]] auto const _{c.slots.pop_back()};
+    slot_fn_type{std::move(e.fn_obj)}.reset();
+    return true;
+  }
+
+  /**
+   * @brief Merges deferred connects and removes dead slots once no emit runs.
+   *
+   * First destroys the callables of dead entries with the emit depth raised, so
+   * a callable whose destructor disconnects or connects a slot on this signal
+   * only marks it or parks it as pending, and repeats while that marks more.
+   * Then merges and compacts, which destroys no callable.
+   *
+   * @param c The core to settle.
+   *
+   * @pre No emit is iterating \c c.slots.
+   * @post \c c.slots holds only alive entries, in priority order, and
+   *       \c c.pending is empty.
+   *
+   * @complexity \c O(n) per pass.
+   */
+  static auto settle(core& c) noexcept -> void {
+    ++c.emit_depth;
+    for (auto released{true}; released;) {
+      released = false;
+      for (auto i{std::size_t{0}}; i < c.slots.size(); ++i) {
+        released = release_if_dead(c.slots[i]) || released;
+      }
+      for (auto i{std::size_t{0}}; i < c.pending.size(); ++i) {
+        released = release_if_dead(c.pending[i]) || released;
+      }
+    }
+    --c.emit_depth;
+    apply_pending(c);
+    sweep_dead(c);
   }
 
   /**

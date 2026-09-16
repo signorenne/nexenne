@@ -1169,4 +1169,35 @@ TEST_CASE(
   CHECK(nexenne::signal::to_string(sc).starts_with("static_connection(id="));
 }
 
+TEST_CASE(
+  "nexenne::signal::signal a callable that disconnects another slot from its destructor "
+  "leaves a consistent list"
+) {
+  SUBCASE("one-shot sweep") {
+    auto sig{signal<void()>{}};
+    auto companion_runs{0};
+    auto const companion{sig.connect([&] noexcept { ++companion_runs; }, 1)};
+    nexenne::utility::discard(sig.connect_once([g = scoped_connection{companion}] noexcept {}, 0));
+    sig.emit();
+    companion_runs = 0;
+    sig.emit();
+    CHECK(companion_runs == 0);
+    CHECK(sig.empty());
+  }
+  SUBCASE("disconnect") {
+    auto sig{signal<void()>{}};
+    auto const companion{sig.connect([] noexcept {}, 1)};
+    auto owner{sig.connect([g = scoped_connection{companion}] noexcept {}, 0)};
+    CHECK(owner.disconnect());
+    CHECK(sig.empty());
+  }
+  SUBCASE("disconnect_all") {
+    auto sig{signal<void()>{}};
+    auto const companion{sig.connect([] noexcept {}, 0)};
+    nexenne::utility::discard(sig.connect([g = scoped_connection{companion}] noexcept {}, 1));
+    sig.disconnect_all();
+    CHECK(sig.empty());
+  }
+}
+
 }  // namespace
