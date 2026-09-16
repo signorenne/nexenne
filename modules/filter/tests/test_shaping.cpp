@@ -92,20 +92,18 @@ TEST_CASE("nexenne::filter::slew rate zero freezes after priming") {
   CHECK(f.push(-999.0) == doctest::Approx(7.0));
 }
 
-TEST_CASE("nexenne::filter::slew max_rate setter clamps negatives to zero") {
+TEST_CASE("nexenne::filter::slew max_rate is read and written through its accessor") {
   auto f{flt::slew{2.0}};
   CHECK(f.max_rate() == doctest::Approx(2.0));
-  f.max_rate(8.0);
+  f.max_rate() = 8.0;
   CHECK(f.max_rate() == doctest::Approx(8.0));
-  f.max_rate(-3.0);
-  CHECK(f.max_rate() == doctest::Approx(0.0));
 }
 
 TEST_CASE("nexenne::filter::slew changing the rate mid-run takes effect next push") {
   auto f{flt::slew{1.0}};
   nexenne::utility::ignore(f.push(0.0));
   CHECK(f.push(100.0) == doctest::Approx(1.0));
-  f.max_rate(50.0);
+  f.max_rate() = 50.0;
   CHECK(f.push(100.0) == doctest::Approx(51.0));  // 1 + 50
 }
 
@@ -310,9 +308,7 @@ TEST_CASE("nexenne::filter::timed_debounce zero period collapses to pass-through
 TEST_CASE("nexenne::filter::timed_debounce a negative period is clamped to zero") {
   auto db{flt::timed_debounce<ns>{ns{-5}}};
   CHECK(db.period() == ns{0});
-  db.period(ns{-100});
-  CHECK(db.period() == ns{0});
-  db.period(20ms);
+  db.period() = 20ms;
   CHECK(db.period() == ns{20'000'000});
 }
 
@@ -585,8 +581,6 @@ TEST_CASE("nexenne::filter::slew rejects non-finite targets and a NaN rate") {
   CHECK(no_rate.max_rate() == doctest::Approx(0.0));
   nexenne::utility::ignore(no_rate.push(0.0));
   CHECK(no_rate.push(1000.0) == doctest::Approx(0.0));
-  no_rate.max_rate(nan);
-  CHECK(no_rate.max_rate() == doctest::Approx(0.0));
 }
 
 }  // namespace

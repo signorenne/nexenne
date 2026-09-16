@@ -90,23 +90,6 @@ public:
   }
 
   /**
-   * @brief Replaces the coefficient vector.
-   *
-   * @param coeffs The new \c N filter taps.
-   *
-   * @pre None.
-   * @post \c coefficients() returns a copy of \p coeffs; the history
-   * buffer is left unchanged.
-   *
-   * @complexity \c O(N).
-   */
-  constexpr auto coefficients(coefficient_span coeffs) noexcept -> void {
-    for (std::size_t i{0}; i < N; ++i) {
-      m_coeffs[i] = coeffs[i];
-    }
-  }
-
-  /**
    * @brief Returns the current coefficient vector.
    *
    * @return A const reference to the \c N filter taps.
@@ -115,6 +98,18 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto coefficients() const noexcept -> coefficient_array const& {
+    return m_coeffs;
+  }
+
+  /**
+   * @brief Returns the current coefficient vector, for modification.
+   *
+   * @return Mutable reference to the stored value.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto coefficients() noexcept -> coefficient_array& {
     return m_coeffs;
   }
 

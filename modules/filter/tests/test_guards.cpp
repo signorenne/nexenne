@@ -163,13 +163,10 @@ TEST_CASE("nexenne::filter::rate_guard negative max_delta clamps to zero and fre
   CHECK(f.push(8.0) == doctest::Approx(7.0));  // any nonzero change rejected
 }
 
-TEST_CASE("nexenne::filter::rate_guard max_delta(d) setter clamps negatives and keeps value") {
+TEST_CASE("nexenne::filter::rate_guard max_delta changes through its accessor and keeps value") {
   auto f{flt::rate_guard{1.0}};
   nexenne::utility::ignore(f.push(50.0));
-  f.max_delta(-3.0);
-  CHECK(f.max_delta() == doctest::Approx(0.0));
-  CHECK(f.value() == doctest::Approx(50.0));  // held value untouched
-  f.max_delta(20.0);
+  f.max_delta() = 20.0;
   CHECK(f.max_delta() == doctest::Approx(20.0));
   CHECK(f.push(65.0) == doctest::Approx(65.0));  // |15| <= 20 now passes
 }

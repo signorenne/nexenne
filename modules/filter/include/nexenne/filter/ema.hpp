@@ -143,16 +143,15 @@ public:
   }
 
   /**
-   * @brief Replaces the smoothing factor for subsequent samples.
+   * @brief Returns the current smoothing factor, for modification.
    *
-   * @param a New smoothing factor in \c [0, 1].
+   * @return Mutable reference to the stored value.
    *
-   * @pre \p a lies in \c [0, 1].
-   * @post \c alpha() returns \p a; the stored output is unchanged.
+   * @pre A value written through the reference lies in [0, 1].
+   * @post None.
    */
-  constexpr auto alpha(value_type const a) noexcept -> void {
-    assert(a >= value_type{0} && a <= value_type{1} && "ema alpha must lie in [0, 1]");
-    m_alpha = a;
+  [[nodiscard]] constexpr auto alpha() noexcept -> value_type& {
+    return m_alpha;
   }
 };
 

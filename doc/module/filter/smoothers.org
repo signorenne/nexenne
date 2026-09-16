@@ -89,8 +89,8 @@ samples. The weight of a sample =k= steps in the past decays as
 The first =push= after construction (or =reset()=) *primes* the filter by
 seeding =y= directly with that sample, so there is no slow ramp up from zero.
 =reset()= drops back to the unprimed state; =reset(initial)= seeds a known
-primed value instead. =alpha(a)= retunes on the fly without disturbing the
-stored output. Cost is one multiply and one add per sample, no buffer.
+primed value instead. Assigning through =alpha()= retunes on the fly (keep it
+in =[0, 1]=) without disturbing the stored output. Cost is one multiply and one add per sample, no buffer.
 
 ** sma: simple moving average
 
@@ -185,8 +185,8 @@ y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]
 (=a0= is normalised to 1.) Different coefficient sets give low-pass, high-pass,
 band-pass, notch, and more, all from this one recurrence with two input and two
 output delay elements. You can set the five coefficients directly through the
-=coefficients= struct (=b0, b1, b2, a1, a2=) via the constructor or =coefs(c)=,
-and read them back with =coefs()=. The struct is =biquad_coefficients<T>=, which
+=coefficients= struct (=b0, b1, b2, a1, a2=) via the constructor, or read and
+replace them through =coefs()=. The struct is =biquad_coefficients<T>=, which
 =biquad<T>::coefficients= names; it sits at namespace scope so it can print
 through =format.hpp= (=biquad_coefficients(b0=..., b1=..., ...)=) like the
 filters do. =reset()= clears the four delay elements but
@@ -264,8 +264,8 @@ stable, and if the taps are symmetric it has exact *linear phase* with a group
 delay of =(N-1)/2= samples. =fir<T, N>= stores both the =N= taps and an =N=-slot
 ring-buffer history in =std::array=, so it is heap-free. You supply the taps as a
 =std::span<T const, N>= (a fixed-extent span, so the size is checked at compile
-time) through the constructor or =coefficients(span)=, and read them back with
-=coefficients()=. The coefficients themselves are designed offline, by a
+time) through the constructor, and read or replace them through =coefficients()=,
+which hands out the tap array. The coefficients themselves are designed offline, by a
 windowed-sinc or Parks-McClellan tool, and pasted in. =push= stores the sample
 and multiply-accumulates against the last =N= inputs, newest first, at =O(N)= per
 sample. =reset()= zeros the history (the taps survive). The default-constructed

@@ -156,16 +156,15 @@ public:
   }
 
   /**
-   * @brief Replaces the blend weight for subsequent samples.
+   * @brief Returns the current blend weight of the fast sensor, for modification.
    *
-   * @param a New blend weight in \c [0, 1].
+   * @return Mutable reference to the stored value.
    *
-   * @pre \p a lies in \c [0, 1].
-   * @post \c alpha() returns \p a; the stored output is unchanged.
+   * @pre A value written through the reference lies in [0, 1].
+   * @post None.
    */
-  constexpr auto alpha(value_type const a) noexcept -> void {
-    assert(a >= T{0} && a <= T{1} && "complementary alpha must lie in [0, 1]");
-    m_alpha = a;
+  [[nodiscard]] constexpr auto alpha() noexcept -> T& {
+    return m_alpha;
   }
 };
 

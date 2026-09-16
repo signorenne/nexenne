@@ -89,7 +89,7 @@ public:
    *       in-progress candidate are unchanged.
    */
   constexpr auto period(std::chrono::nanoseconds const period) noexcept -> void {
-    m_filter.period(period);
+    m_filter.period() = period;
   }
 
   /**

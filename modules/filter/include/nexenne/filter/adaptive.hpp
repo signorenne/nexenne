@@ -91,20 +91,6 @@ public:
   }
 
   /**
-   * @brief Replaces the adaptation step size.
-   *
-   * @param mu New step size.
-   *
-   * @pre \p mu is positive and within the stable range for the input
-   * power.
-   * @post \c step_size() returns \p mu; taps and history are unchanged.
-   */
-  constexpr auto step_size(value_type const mu) noexcept -> void {
-    assert(mu > value_type{0} && "lms step size must be positive");
-    m_step_size = mu;
-  }
-
-  /**
    * @brief Returns the current adaptation step size.
    *
    * @return The step size mu in use.
@@ -113,6 +99,18 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto step_size() const noexcept -> T {
+    return m_step_size;
+  }
+
+  /**
+   * @brief Returns the current adaptation step size, for modification.
+   *
+   * @return Mutable reference to the stored value.
+   *
+   * @pre A value written through the reference is positive.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto step_size() noexcept -> T& {
     return m_step_size;
   }
 

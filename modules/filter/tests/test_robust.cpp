@@ -400,14 +400,14 @@ TEST_CASE("nexenne::filter::complementary high/low-pass split sums to the inputs
   // any alpha (the two-band split reconstructs a shared DC level).
   auto cf{flt::complementary{0.7}};
   CHECK(cf.push(5.0, 5.0) == doctest::Approx(5.0));
-  cf.alpha(0.3);
+  cf.alpha() = 0.3;
   CHECK(cf.push(-2.0, -2.0) == doctest::Approx(-2.0));
 }
 
 TEST_CASE("nexenne::filter::complementary alpha() setter changes subsequent blends") {
   auto cf{flt::complementary{0.5}};
   CHECK(cf.push(10.0, 0.0) == doctest::Approx(5.0));
-  cf.alpha(0.9);
+  cf.alpha() = 0.9;
   CHECK(cf.alpha() == doctest::Approx(0.9));
   CHECK(cf.push(10.0, 0.0) == doctest::Approx(9.0));  // new weight applied
 }
@@ -541,7 +541,7 @@ TEST_CASE("nexenne::filter::lms a stable mu drives the running error toward zero
 TEST_CASE("nexenne::filter::lms step_size getter/setter") {
   auto f{flt::lms<double, 3>{}};
   CHECK(f.step_size() == doctest::Approx(0.01));  // default
-  f.step_size(0.2);
+  f.step_size() = 0.2;
   CHECK(f.step_size() == doctest::Approx(0.2));
   // The explicit step-size constructor sets it directly.
   auto g{flt::lms<double, 3>{0.05}};

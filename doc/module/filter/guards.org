@@ -87,7 +87,8 @@ count toward the escape hatch below.
 Afterward a sample is accepted only when =abs(sample - value()) <= max_delta=;
 otherwise the output holds. This catches the read that passes a range check but
 is physically impossible, like a temperature sensor reading 25 then 250 in one
-period. =max_delta(v)= changes the limit at run time. There are two resets:
+period. Assigning through =max_delta()= changes the limit at run time (keep it
+non-negative). There are two resets:
 =reset()= returns to zero and unprimed so the next =push= seeds again, while
 =reset(initial)= jumps straight to a known primed value so the next =push= is
 rate-limited against =initial=. Both preserve the limit.
@@ -97,7 +98,7 @@ corrupted first sample that primed the guard with garbage) would otherwise lock
 the output forever, since every later reading now differs by more than the limit.
 The optional escape hatch breaks that deadlock: pass a rejection count as the
 second constructor argument, =rate_guard{max_delta, escape_after}= (or set it
-later with =escape_after(n)=), and after that many consecutive rejections the next
+later through =escape_after()=), and after that many consecutive rejections the next
 sample is accepted and the guard re-centres on it. An =escape_after= of zero (the
 default) keeps the strict behaviour, so =reset()= is then the only recovery. For
 observability, =accepted()= reports whether the last =push= was accepted and

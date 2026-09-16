@@ -102,18 +102,15 @@ public:
   }
 
   /**
-   * @brief Replaces the settling period.
+   * @brief Returns the current settling period, for modification.
    *
-   * A negative period is clamped to zero.
+   * @return Mutable reference to the stored value.
    *
-   * @param v New settling period.
-   *
-   * @pre None. A negative \p v is clamped to zero.
-   * @post \c period() returns \c max(v, 0); any in-progress candidate
-   * and the stable value are unchanged.
+   * @pre A value written through the reference is non-negative.
+   * @post None.
    */
-  constexpr auto period(duration const v) noexcept -> void {
-    m_period = v.count() < 0 ? duration{0} : v;
+  [[nodiscard]] constexpr auto period() noexcept -> duration& {
+    return m_period;
   }
 
   /**

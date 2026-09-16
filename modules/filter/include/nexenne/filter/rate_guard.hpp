@@ -187,18 +187,15 @@ public:
   }
 
   /**
-   * @brief Replaces the maximum per-sample change.
+   * @brief Returns the current maximum per-sample change, for modification.
    *
-   * A negative argument is clamped to zero.
+   * @return Mutable reference to the stored value.
    *
-   * @param d New rate limit.
-   *
-   * @pre None. Negative inputs are clamped to zero.
-   * @post \c max_delta() returns \c max(d, 0); the held value is
-   * unchanged.
+   * @pre A value written through the reference is non-negative.
+   * @post None.
    */
-  constexpr auto max_delta(value_type const d) noexcept -> void {
-    m_max_delta = d < value_type{0} ? value_type{0} : d;
+  [[nodiscard]] constexpr auto max_delta() noexcept -> value_type& {
+    return m_max_delta;
   }
 
   /**
@@ -242,16 +239,15 @@ public:
   }
 
   /**
-   * @brief Replaces the consecutive-rejection escape threshold.
+   * @brief Returns the consecutive-rejection escape threshold, for modification.
    *
-   * @param n New escape threshold; zero disables the escape hatch.
+   * @return Mutable reference to the stored value.
    *
    * @pre None.
-   * @post \c escape_after() returns \p n; the held value and current
-   * rejected run are unchanged.
+   * @post None.
    */
-  constexpr auto escape_after(std::size_t const n) noexcept -> void {
-    m_escape_after = n;
+  [[nodiscard]] constexpr auto escape_after() noexcept -> std::size_t& {
+    return m_escape_after;
   }
 
 private:

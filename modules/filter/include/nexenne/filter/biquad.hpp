@@ -157,19 +157,6 @@ public:
   }
 
   /**
-   * @brief Replaces the coefficient set without touching the state.
-   *
-   * @param c New normalised coefficients.
-   *
-   * @pre None.
-   * @post \c coefs() returns \p c; the delay line is unchanged, so a
-   * large coefficient jump may produce a transient.
-   */
-  constexpr auto coefs(coefficients const c) noexcept -> void {
-    m_c = c;
-  }
-
-  /**
    * @brief Returns the coefficient set currently in use.
    *
    * @return The active normalised coefficients.
@@ -178,6 +165,18 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto coefs() const noexcept -> coefficients {
+    return m_c;
+  }
+
+  /**
+   * @brief Returns the coefficient set currently in use, for modification.
+   *
+   * @return Mutable reference to the stored value.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto coefs() noexcept -> coefficients& {
     return m_c;
   }
 

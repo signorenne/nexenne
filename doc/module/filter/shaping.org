@@ -64,8 +64,8 @@ The *first* =push= after construction or =reset()= jumps straight to its target;
 there is nothing to ramp from yet. After that, the limit applies. =reset()=
 clears to the unprimed state (=value()= reads zero and the next =push= jumps
 again); =reset(initial)= seeds a primed value, so the next =push= is already
-rate-limited from =initial=. Read =max_rate()= and change it live with
-=max_rate(v)=.
+rate-limited from =initial=. Read =max_rate()= and change it live by assigning
+through it on a mutable filter (a non-negative rate).
 
 #+BEGIN_EXAMPLE
 target -------+
@@ -136,8 +136,9 @@ be monotonically non-decreasing for the elapsed-time comparison to mean
 anything.
 
 Inspect state with =stable_value()= and =has_stable()= (false until the first
-sample). Read or set the settling time with =period()= / =period(v)= (a negative
-period is clamped to zero). =reset()= returns to the "no observation yet"
+sample). Read the settling time through =period()=, and change it by assigning
+through it on a mutable filter (keep it non-negative; the constructor clamps a
+negative one to zero). =reset()= returns to the "no observation yet"
 condition, so the next =update= seeds the stable value again, useful after a
 source is reopened and the cached level no longer reflects reality.
 

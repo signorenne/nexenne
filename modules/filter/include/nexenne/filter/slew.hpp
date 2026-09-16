@@ -147,18 +147,15 @@ public:
   }
 
   /**
-   * @brief Replaces the maximum per-sample rate.
+   * @brief Returns the current maximum per-sample rate, for modification.
    *
-   * A negative argument is clamped to zero.
+   * @return Mutable reference to the stored value.
    *
-   * @param r New rate limit.
-   *
-   * @pre None. Negative inputs are clamped to zero.
-   * @post \c max_rate() returns \c max(r, 0) (zero for a NaN); the stored output is
-   * unchanged.
+   * @pre A value written through the reference is non-negative.
+   * @post None.
    */
-  constexpr auto max_rate(value_type const r) noexcept -> void {
-    m_max_rate = r > value_type{0} ? r : value_type{0};  // NaN and negative become 0
+  [[nodiscard]] constexpr auto max_rate() noexcept -> T& {
+    return m_max_rate;
   }
 };
 

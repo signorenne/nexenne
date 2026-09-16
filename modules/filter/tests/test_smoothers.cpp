@@ -56,7 +56,7 @@ TEST_CASE("nexenne::filter::ema construction and accessors") {
   CHECK(f.alpha() == doctest::Approx(0.25));
   // value() is zero before the first push.
   CHECK(f.value() == doctest::Approx(0.0));
-  f.alpha(0.5);
+  f.alpha() = 0.5;
   CHECK(f.alpha() == doctest::Approx(0.5));
 }
 
@@ -440,7 +440,7 @@ TEST_CASE("nexenne::filter::biquad explicit coefficients drive the difference eq
 
 TEST_CASE("nexenne::filter::biquad coefs() setter replaces the coefficient set") {
   auto bq{flt::biquad<double>{}};
-  bq.coefs(flt::biquad<double>::coefficients{.b0 = 0.0, .b1 = 1.0});
+  bq.coefs() = flt::biquad<double>::coefficients{.b0 = 0.0, .b1 = 1.0};
   // y[n] = x[n-1]: a one-sample delay.
   CHECK(bq.push(5.0) == doctest::Approx(0.0));  // x1 still 0
   CHECK(bq.push(0.0) == doctest::Approx(5.0));  // now x1 == 5
@@ -728,10 +728,10 @@ TEST_CASE("nexenne::filter::fir symmetric (linear-phase) coefficients") {
   CHECK(got[0] == doctest::Approx(got[2]));
 }
 
-TEST_CASE("nexenne::filter::fir coefficients() setter changes the response") {
+TEST_CASE("nexenne::filter::fir coefficients written through the accessor change the response") {
   auto f{flt::fir<double, 2>{}};
   auto const coeffs{std::array<double, 2>{1.0, 1.0}};  // running sum of 2
-  f.coefficients(std::span<double const, 2>{coeffs});
+  f.coefficients() = coeffs;
   CHECK(f.push(3.0) == doctest::Approx(3.0));  // 1*3 + 1*0
   CHECK(f.push(4.0) == doctest::Approx(7.0));  // 1*4 + 1*3
   CHECK(f.coefficients()[0] == doctest::Approx(1.0));

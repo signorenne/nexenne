@@ -184,7 +184,8 @@ low-pass with smoothing factor =alpha=. Reach for it only when you have one
 signal and want EMA-like behaviour from this type; the two-argument form is the
 reason the filter exists.
 
-=alpha()= reads the weight and =alpha(a)= replaces it for subsequent samples.
+=alpha()= reads the weight, and assigning through it on a mutable filter replaces
+it for subsequent samples (keep it in =[0, 1]=).
 =reset()= clears the stored output to zero and =reset(initial)= sets it to a
 known starting value, which matters for the single-argument overload because that
 form feeds the previous output back; the two-argument form recomputes from
