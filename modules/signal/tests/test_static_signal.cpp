@@ -997,4 +997,54 @@ TEST_CASE(
   CHECK(to_string(static_connection{}) == "static_connection(id=0, has_target=false)");
 }
 
+/// Counts its own destruction; a moved-from counter counts nothing.
+struct destroy_counter {
+  int* destroyed;
+
+  explicit destroy_counter(int* const d) noexcept : destroyed{d} {}
+
+  destroy_counter(destroy_counter const&) = delete;
+
+  destroy_counter(destroy_counter&& other) noexcept
+      : destroyed{std::exchange(other.destroyed, nullptr)} {}
+
+  auto operator=(destroy_counter const&) -> destroy_counter& = delete;
+  auto operator=(destroy_counter&&) -> destroy_counter& = delete;
+
+  ~destroy_counter() {
+    if (destroyed != nullptr) {
+      ++*destroyed;
+    }
+  }
+};
+
+TEST_CASE(
+  "nexenne::signal::static_signal a slot re-run by a nested emit is not reclaimed while "
+  "still running"
+) {
+  struct state {
+    static_signal<void(), 1> sig{};
+    static_connection self{};
+    int destroyed{0};
+    int depth{0};
+    int destroyed_mid_call{-1};
+    bool replacement_valid{true};
+  };
+
+  auto st{state{}};
+  st.self = st.sig.connect([&st, t = destroy_counter{&st.destroyed}] noexcept {
+    if (st.depth++ > 0) {
+      return;
+    }
+    st.sig.emit();
+    nexenne::utility::discard(st.self.disconnect());
+    st.replacement_valid = st.sig.connect([] noexcept {}).has_target();
+    st.destroyed_mid_call = st.destroyed;
+  });
+  st.sig.emit();
+  CHECK(st.destroyed_mid_call == 0);
+  CHECK_FALSE(st.replacement_valid);
+  CHECK(st.sig.empty());
+}
+
 }  // namespace

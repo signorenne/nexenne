@@ -725,10 +725,13 @@ public:
           slot.alive = false;
         }
         // Flag the running slot so a reclaim from inside its body (a connect at
-        // capacity) never overwrites the callable currently on the stack.
+        // capacity) never overwrites the callable currently on the stack. Restore
+        // the previous flag rather than clearing it: a nested emit may run this
+        // same slot while an outer frame is still inside it.
+        auto const was_executing{slot.executing};
         slot.executing = true;
         slot.invoke(args...);
-        slot.executing = false;
+        slot.executing = was_executing;
       }
     }
   }
@@ -1000,7 +1003,7 @@ private:
     for (auto i{pos}; i + 1 < m_slots.size(); ++i) {
       m_slots[i] = std::move(m_slots[i + 1]);
     }
-    nexenne::utility::ignore(m_slots.pop_back());
+    nexenne::utility::discard(m_slots.pop_back());
   }
 
   /**
