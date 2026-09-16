@@ -160,7 +160,7 @@ public:
  *
  * Move-only (matches \c std::unique_ptr semantics).
  */
-class scoped_connection {
+class [[nodiscard]] scoped_connection {
 private:
   connection m_conn{};
 

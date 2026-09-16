@@ -185,7 +185,7 @@ public:
  * Move-only, the heap-free counterpart of \c scoped_connection. The signal must
  * outlive this object.
  */
-class static_scoped_connection {
+class [[nodiscard]] static_scoped_connection {
 private:
   static_connection m_conn{};
 

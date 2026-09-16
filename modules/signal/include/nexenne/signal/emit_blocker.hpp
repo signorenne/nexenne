@@ -68,7 +68,7 @@ concept blockable = requires(S& s) {
  *          reachable and then leaves the signal in the wrong blocked state.
  */
 template <blockable Signal>
-class emit_blocker {
+class [[nodiscard]] emit_blocker {
 private:
   Signal* m_signal{nullptr};
   bool m_prior_blocked{false};
