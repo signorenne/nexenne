@@ -38,8 +38,8 @@ template <std::floating_point T = double, std::size_t N = 8>
   requires(N > 0)
 class sma {
 public:
-  using value_type = T;
-  static constexpr std::size_t window_size{N};
+  using value_type = T;                         ///< Sample type of the input and the mean.
+  static constexpr std::size_t window_size{N};  ///< Number of samples averaged over.
 
 private:
   using buffer_type = std::array<value_type, N>;

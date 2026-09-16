@@ -42,12 +42,11 @@ template <std::equality_comparable T = bool, std::size_t Threshold = 3>
   requires(Threshold > 0)
 class debounce {
 public:
-  using value_type = T;
-  static constexpr std::size_t threshold{Threshold};
+  using value_type = T;                               ///< Debounced sample type.
+  static constexpr std::size_t threshold{Threshold};  ///< Matching samples to accept a change.
 
 private:
-  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
-  /// then.
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept then.
   static constexpr bool nothrow_copy{
     std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
   };

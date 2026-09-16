@@ -53,8 +53,8 @@ template <std::floating_point T, std::size_t N>
   requires(N > 0)
 class lms {
 public:
-  using value_type = T;
-  static constexpr std::size_t taps{N};
+  using value_type = T;                  ///< Sample and coefficient type.
+  static constexpr std::size_t taps{N};  ///< Number of adaptive taps (the filter length).
 
 private:
   std::array<value_type, N> m_coeffs{};

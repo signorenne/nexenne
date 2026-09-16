@@ -47,10 +47,10 @@ template <typename T, std::size_t N>
   requires std::is_arithmetic_v<T> && (N > 0)
 class fir {
 public:
-  using value_type = T;
-  using coefficient_array = std::array<value_type, N>;
-  using coefficient_span = std::span<value_type const, N>;
-  static constexpr std::size_t taps{N};
+  using value_type = T;                                     ///< Sample and coefficient type.
+  using coefficient_array = std::array<value_type, N>;      ///< Owned storage for the \c N taps.
+  using coefficient_span = std::span<value_type const, N>;  ///< Read-only view of the \c N taps.
+  static constexpr std::size_t taps{N};                     ///< Number of taps (the filter length).
 
 private:
   coefficient_array m_coeffs{};

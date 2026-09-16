@@ -13,6 +13,28 @@
 namespace nexenne::filter {
 
 /**
+ * @brief Normalised Direct Form I biquad coefficients.
+ *
+ * The feedback coefficient \c a0 is assumed normalised to \c 1, so only the
+ * two feedforward taps after \c b0 and the two feedback taps are stored. It
+ * lives at namespace scope, not inside \c biquad, so one formatter serves every
+ * sample type: a formatter cannot be specialised for a type nested in a class
+ * template. \c biquad<T>::coefficients names it.
+ *
+ * @tparam T Floating-point coefficient type.
+ */
+template <std::floating_point T = double>
+struct biquad_coefficients {
+  using value_type = T;  ///< Coefficient type.
+
+  value_type b0{value_type{1}};  ///< feedforward tap for x[n]
+  value_type b1{value_type{0}};  ///< feedforward tap for x[n-1]
+  value_type b2{value_type{0}};  ///< feedforward tap for x[n-2]
+  value_type a1{value_type{0}};  ///< feedback tap for y[n-1]
+  value_type a2{value_type{0}};  ///< feedback tap for y[n-2]
+};
+
+/**
  * @brief General second-order IIR (biquad) filter.
  *
  * The biquad is the Swiss-army knife of digital filtering: by
@@ -37,6 +59,9 @@ namespace nexenne::filter {
  * allocation.
  *
  * @tparam T Floating-point sample type. Default \c double.
+ *
+ * @pre None.
+ * @post A default-constructed biquad passes its input unchanged.
  *
  * @note Reach for this when a single-pole slope is too gentle or you need
  * a resonant peak, a band-pass, or a notch (for example rejecting
@@ -68,7 +93,7 @@ struct biquad_coefficients {
 template <std::floating_point T = double>
 class biquad {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Sample and coefficient type.
 
   /**
    * @brief The filter's coefficients; see \c biquad_coefficients.

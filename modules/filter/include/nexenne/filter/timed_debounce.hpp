@@ -52,7 +52,7 @@ template <typename Duration = std::chrono::nanoseconds>
     same_as<Duration, std::chrono::duration<typename Duration::rep, typename Duration::period>>
   class timed_debounce {
 public:
-  using duration = Duration;
+  using duration = Duration;  ///< Clock duration type of timestamps and the settling period.
 
 private:
   duration m_period{0};

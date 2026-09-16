@@ -11,6 +11,27 @@
  * Each stateful push is bound to a named value before printing: argument
  * evaluation order is unspecified in C++, so feeding one filter several times
  * inside a single call would print the results in an undefined order.
+ *
+ * The program walks seven steps:
+ *
+ * 1. A slew limited to 5 units per sample turns a step of 100 into a ramp, the
+ *    shape that protects a motor or an LED from a jolt; the first push seeds.
+ * 2. The rate knob trades response speed for gentleness: each limiter starts
+ *    primed at 0, so its first push is already rate-limited, and the samples to
+ *    reach a step of 20 are printed.
+ * 3. A debounce of 3 ignores a lone true and switches on the third steady true,
+ *    the classic contact-bounce reject.
+ * 4. glitch(3) beside debounce(3) on a bouncing line 0,1,0,1,1,1: the glitch
+ *    filter cancels a pending candidate the moment the line returns to the
+ *    stable value, so the flicker never promotes, and its output matches
+ *    debounce with the same count.
+ * 5. Hysteresis with a [20, 25] deadband latches high above 25, holds inside the
+ *    band, and latches low below 20, so a hovering signal never chatters.
+ * 6. The deadband width sets the chatter immunity: a wobble around 23 flips a
+ *    single-threshold comparator repeatedly but barely moves a [20, 26] band.
+ * 7. timed_debounce with a 20 ms period: the first update seeds the stable level,
+ *    a changed level yields nothing while it is younger than the period, and
+ *    promotes once it has held for 20 ms or more.
  */
 
 #include <array>

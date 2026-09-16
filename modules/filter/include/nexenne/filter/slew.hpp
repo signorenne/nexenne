@@ -34,7 +34,7 @@ namespace nexenne::filter {
 template <std::floating_point T = double>
 class slew {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Sample type of the target and the rate-limited output.
 
 private:
   value_type m_max_rate{value_type{0}};

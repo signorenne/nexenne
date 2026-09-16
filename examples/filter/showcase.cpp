@@ -22,8 +22,32 @@
  * them, and print an ASCII trace so the cleanup is visible column by column.
  *
  * Every filter shares the same surface: push(sample) -> output, value(), reset().
- * That is what lets process() below take "any filter" generically. Read it top
+ * That is what lets step() below take "any filter" generically. Read it top
  * to bottom.
+ *
+ * How each stage is tuned in main():
+ *
+ * - The range guard admits 0..100, the sensor's physical output. It is the
+ *   cheapest defence and goes first, so a wild value never reaches a smoother's
+ *   state.
+ * - The median is width 5: odd so the middle is unambiguous, and wide enough
+ *   that a lone spike loses 4 to 1. It lags about two samples, rounds true peaks
+ *   a little, and does not smooth jitter, hence the linear stage after it.
+ * - The Kalman stage is told the sensor is fairly noisy (R = 4) and the truth
+ *   drifts slowly (Q = 0.05); its adaptive gain tracks a trend faster than an
+ *   EMA of equal smoothness. An EMA (alpha 0.25) and a 30 Hz low-pass run beside
+ *   it to show the latency against smoothness trade; the low-pass is the same
+ *   math tuned in physical units.
+ * - The slew cap is 0.3 units per sample, set tight on purpose: the Kalman
+ *   command steps up to about 0.5 per sample on the steep parts, so the slew
+ *   column trails it there and catches up on the flats. Size it to the real
+ *   actuator.
+ *
+ * The raw stream is deterministic (two incommensurate sines stand in for
+ * jitter, no rng), so the trace is identical on every run. After the table the
+ * guard, median, and Kalman stages are reset() and replayed to draw a bar trace,
+ * and the mean absolute error of the raw stream and of the final command against
+ * the clean signal quantifies the cleanup.
  */
 
 #include <array>
@@ -48,17 +72,35 @@ namespace flt = nexenne::filter;
 constexpr int sample_count{40};
 constexpr double sample_rate_hz{1000.0};
 
-// The clean waveform we are trying to recover: a slow 12 Hz sine biased to 50,
-// so it swings roughly over 40..60. Everything else added on top is the enemy.
+/**
+ * @brief The clean waveform to recover: a 12 Hz sine biased to 50, swinging over 40..60.
+ *
+ * @param n Sample index.
+ *
+ * @return The clean value at sample \p n.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] auto clean_signal(int const n) -> double {
   auto const t{static_cast<double>(n) / sample_rate_hz};
   return 50.0 + 10.0 * std::sin(2.0 * std::numbers::pi * 12.0 * t);
 }
 
-// The raw sensor stream: the clean signal plus deterministic Gaussian-ish
-// jitter, two impulsive spikes (a stuck-high and a stuck-low bus read), and one
-// out-of-range garbage value a corrupted transfer would return. Deterministic
-// so the printed trace is identical on every run.
+/**
+ * @brief The raw sensor stream at sample \p n.
+ *
+ * The clean signal plus a deterministic jitter, a stuck-high spike at sample 12,
+ * a stuck-low spike at sample 25, and an impossible read of 900 at sample 31,
+ * the value a corrupted transfer would return.
+ *
+ * @param n Sample index.
+ *
+ * @return The noisy reading at sample \p n.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] auto raw_sample(int const n) -> double {
   auto x{clean_signal(n)};
 
@@ -81,9 +123,20 @@ constexpr double sample_rate_hz{1000.0};
   return x;
 }
 
-// Renders a value in [lo, hi] as a single bar position, so a column of these
-// traces the signal's shape down the page. Out-of-range values clamp to the edge
-// and are marked so the eye catches them.
+/**
+ * @brief Renders \p v in [lo, hi] as one bar position, so a column traces the signal's shape.
+ *
+ * An out-of-range value clamps to the edge and marks it, so the eye catches it.
+ *
+ * @param v Value to place.
+ * @param lo Value at the left edge.
+ * @param hi Value at the right edge.
+ *
+ * @return A fixed-width line holding one marker.
+ *
+ * @pre \p lo is less than \p hi.
+ * @post None.
+ */
 [[nodiscard]] auto bar(double const v, double const lo, double const hi) -> std::string {
   constexpr int width{32};
   auto const span{hi - lo};
@@ -104,9 +157,22 @@ constexpr double sample_rate_hz{1000.0};
   return line;
 }
 
-// Pushes one sample through any filter_like stage. Templated on the concept so
-// the same call site drives the median, the smoother, or the slew limiter; this
-// is the payoff of the shared push/value/reset surface.
+/**
+ * @brief Pushes one sample through any \c filter_like stage.
+ *
+ * Constrained on the concept, so the same call site drives the median, the
+ * smoother, or the slew limiter: the payoff of the shared push / value / reset
+ * surface.
+ *
+ * @tparam F Stage type modelling \c filter_like.
+ * @param stage Stage to advance.
+ * @param in Input sample.
+ *
+ * @return The stage output for \p in.
+ *
+ * @pre None.
+ * @post \p stage has consumed \p in.
+ */
 template <flt::filter_like F>
 [[nodiscard]] auto step(F& stage, double const in) -> double {
   return stage.push(in);

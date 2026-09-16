@@ -11,6 +11,25 @@
  * Each stateful push is bound to a named value before printing: argument
  * evaluation order is unspecified in C++, so feeding one filter several times
  * inside a single call would print the results in an undefined order.
+ *
+ * The program walks nine steps:
+ *
+ * 1. range_guard holds the last valid sample when a corrupted transfer returns a
+ *    value outside the sensor's physical range.
+ * 2. An out-of-range first sample has no prior value to hold, so it is clamped
+ *    to the nearest bound; only later out-of-range samples are rejected.
+ * 3. rate_guard rejects a jump larger than its limit from the last accepted
+ *    value: in range, but changed too fast to be real.
+ * 4. The two compose: range first rejects the impossible (999), then rate rejects
+ *    the physically too fast (60, a 50-unit jump from 10).
+ * 5. validator accepts a sample only when its predicate does, so any domain rule
+ *    (a parity bit, a status byte, a plausibility check) plugs in.
+ * 6. majority(3) is software triple modular redundancy: a single corrupted read
+ *    loses the vote 2 to 1.
+ * 7. A wider vote tolerates more corruption: majority(5) outvotes two bad reads.
+ * 8. stale_detector is a diagnostic, not a corrective stage: it passes every
+ *    sample through and only sets is_stale() after three identical reads.
+ * 9. A fresh value clears the stale flag and restarts the streak.
  */
 
 #include <print>

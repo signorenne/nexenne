@@ -7,6 +7,27 @@
  * and covariance shrink, a complementary filter fusing a fast and a slow source,
  * and an LMS filter identifying an unknown gain online and tracking it when it
  * changes.
+ *
+ * The program walks six steps:
+ *
+ * 1. A median of 3 deletes a lone 99 in a run of 10s outright: being nonlinear,
+ *    it never averages the outlier in.
+ * 2. The window size is the spike-rejection budget: a width-N median survives up
+ *    to (N-1)/2 consecutive bad samples, so a two-sample burst fools N = 3 but
+ *    not N = 5.
+ * 3. A Kalman filter on a constant 42 with alternating +/-2 noise grows
+ *    confident: its covariance P and its gain both shrink, so later samples move
+ *    the estimate less.
+ * 4. The process noise Q is the "how fast can the truth move" knob: a larger Q
+ *    keeps the gain high and tracks a clean unit-per-sample ramp with less lag,
+ *    at the cost of admitting more measurement noise.
+ * 5. Complementary fusion trusts a fast, drifty source at 0.95 and a slow, stable
+ *    one at 0.05; the two-argument push blends them directly, while the
+ *    single-argument overload blends with the previous output and degenerates
+ *    into a first-order low-pass.
+ * 6. LMS identifies an unknown gain of 3, then re-converges when the true gain
+ *    changes to 5, the property that suits it to echo cancellation and channel
+ *    equalisation where the system drifts.
  */
 
 #include <cmath>

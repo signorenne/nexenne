@@ -33,7 +33,7 @@ namespace nexenne::filter {
 template <std::floating_point T = double>
 class highpass {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Sample type of the input and the filtered output.
 
 private:
   value_type m_alpha{};

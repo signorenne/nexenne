@@ -37,7 +37,7 @@ namespace nexenne::filter {
 template <std::floating_point T = double>
 class complementary {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Sample type of both sensor inputs and the fused output.
 
 private:
   value_type m_alpha{};

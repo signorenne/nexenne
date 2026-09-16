@@ -40,9 +40,9 @@ template <std::floating_point T = double, std::size_t SectionsN = 2>
   requires(SectionsN > 0)
 class butterworth {
 public:
-  using value_type = T;
-  static constexpr std::size_t sections{SectionsN};
-  static constexpr std::size_t order{2 * SectionsN};
+  using value_type = T;                               ///< Sample and coefficient type.
+  static constexpr std::size_t sections{SectionsN};   ///< Number of cascaded biquad sections.
+  static constexpr std::size_t order{2 * SectionsN};  ///< Filter order, two poles per section.
 
 private:
   std::array<biquad<T>, SectionsN> m_sections{};

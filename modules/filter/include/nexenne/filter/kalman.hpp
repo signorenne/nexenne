@@ -51,7 +51,7 @@ namespace nexenne::filter {
 template <std::floating_point T = double>
 class kalman {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Scalar type of the measurement, estimate, and covariances.
 
 private:
   value_type m_q{};           ///< process noise covariance Q

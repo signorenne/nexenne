@@ -194,14 +194,14 @@ out
 
 ** glitch: reject pulses shorter than N samples
 
-=glitch<T, N>= rejects any pulse narrower than =N= samples: it accepts a new value
-only if it persists for =N= consecutive samples, and if the signal drops back to
-the stable value before the count is reached, the candidate is discarded and the
-transient is suppressed entirely. Its output is the same as =debounce= with the
-same count (an exhaustive comparison over short sequences finds no difference);
-what it adds is =pending()=, which reports a candidate being held. =T= is usually =bool= for a
-digital line, or an integer register value for a bus read; =N= (default 3) is
-the minimum accepted pulse width in samples.
+=glitch<T, N>= rejects any pulse narrower than =N= samples: it accepts a new
+value only if it persists for =N= consecutive samples, and if the signal drops
+back to the stable value before the count is reached, the candidate is discarded
+and the transient is suppressed entirely. Its output is the same as =debounce=
+with the same count (an exhaustive comparison over short sequences finds no
+difference); what it adds is =pending()=, which reports a candidate being held.
+=T= is usually =bool= for a digital line, or an integer register value for a bus
+read; =N= (default 3) is the minimum accepted pulse width in samples.
 
 Each =push(sample)= returns the stable value. A sample equal to the stable value
 *cancels* any pending candidate and resets the hold counter to zero. A sample

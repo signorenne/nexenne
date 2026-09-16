@@ -39,11 +39,10 @@ namespace nexenne::filter {
 template <std::totally_ordered T = double>
 class range_guard {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Guarded sample type.
 
 private:
-  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
-  /// then.
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept then.
   static constexpr bool nothrow_copy{
     std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
   };

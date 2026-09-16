@@ -79,7 +79,17 @@ TEST_CASE("nexenne::filter::to_string covers converter and windowed types") {
   CHECK(std::format("{}", td) == flt::to_string(td));
 }
 
-// Checks that the formatter and operator<< give exactly to_string's text.
+/**
+ * @brief Whether the formatter and \c operator<< give exactly \c to_string's text.
+ *
+ * @tparam T Formatted filter type.
+ * @param value Filter to print through every layer.
+ *
+ * @return \c true when \c std::format, \c operator<<, and \c to_string agree.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename T>
 auto three_layers_agree(T const& value) -> bool {
   auto os{std::ostringstream{}};

@@ -48,12 +48,11 @@ template <std::equality_comparable T = bool, std::size_t N = 3>
   requires(N > 0)
 class glitch {
 public:
-  using value_type = T;
-  static constexpr std::size_t hold_count{N};
+  using value_type = T;                        ///< Filtered sample type.
+  static constexpr std::size_t hold_count{N};  ///< Minimum accepted pulse width, in samples.
 
 private:
-  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
-  /// then.
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept then.
   static constexpr bool nothrow_copy{
     std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
   };

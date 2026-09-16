@@ -46,13 +46,12 @@ template <std::totally_ordered T = double, std::size_t N = 3>
   requires(N > 0)
 class median {
 public:
-  using value_type = T;
-  using buffer_type = std::array<value_type, N>;
-  static constexpr std::size_t window_size{N};
+  using value_type = T;                           ///< Filtered sample type.
+  using buffer_type = std::array<value_type, N>;  ///< Ring of the last \c N samples.
+  static constexpr std::size_t window_size{N};    ///< Number of samples the median is taken over.
 
 private:
-  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
-  /// then.
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept then.
   static constexpr bool nothrow_copy{
     std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
   };

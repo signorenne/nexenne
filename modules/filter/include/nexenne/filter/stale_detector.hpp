@@ -43,12 +43,11 @@ template <std::equality_comparable T = double, std::size_t N = 10>
   requires(N > 0)
 class stale_detector {
 public:
-  using value_type = T;
-  static constexpr std::size_t threshold{N};
+  using value_type = T;                       ///< Watched sample type.
+  static constexpr std::size_t threshold{N};  ///< Identical samples in a row that mean stale.
 
 private:
-  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
-  /// then.
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept then.
   static constexpr bool nothrow_copy{
     std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
   };

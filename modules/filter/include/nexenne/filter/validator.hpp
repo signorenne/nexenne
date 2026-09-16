@@ -48,13 +48,11 @@ namespace nexenne::filter {
 template <typename T, std::predicate<T const&> Pred>
 class validator {
 public:
-  using value_type = T;
-  using predicate_type = Pred;
+  using value_type = T;         ///< Validated sample type.
+  using predicate_type = Pred;  ///< Stored acceptance predicate, called as \c bool(T const&).
 
 private:
-  // A capturing lambda predicate need not be default-constructible, so
-  // m_pred is initialised only through the constructors.
-  predicate_type m_pred;
+  predicate_type m_pred;  ///< No default init: a capturing lambda may lack a default ctor.
   value_type m_value{};
   bool m_primed{false};
 

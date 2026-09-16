@@ -89,8 +89,9 @@ samples. The weight of a sample =k= steps in the past decays as
 The first =push= after construction (or =reset()=) *primes* the filter by
 seeding =y= directly with that sample, so there is no slow ramp up from zero.
 =reset()= drops back to the unprimed state; =reset(initial)= seeds a known
-primed value instead. Assigning through =alpha()= retunes on the fly (keep it
-in =[0, 1]=) without disturbing the stored output. Cost is one multiply and one add per sample, no buffer.
+primed value instead. Assigning through =alpha()= retunes on the fly (keep it in
+=[0, 1]=) without disturbing the stored output. Cost is one multiply and one add
+per sample, no buffer.
 
 ** sma: simple moving average
 

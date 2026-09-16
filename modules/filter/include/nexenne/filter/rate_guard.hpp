@@ -44,7 +44,7 @@ namespace nexenne::filter {
 template <std::floating_point T = double>
 class rate_guard {
 public:
-  using value_type = T;
+  using value_type = T;  ///< Guarded sample type.
 
 private:
   value_type m_max_delta{value_type{0}};
@@ -83,7 +83,8 @@ public:
    *
    * The first sample after construction or \c reset() is accepted
    * directly, unless it is NaN: a NaN is always rejected, never primes
-   * the guard, and does not count toward the escape. Afterward a sample
+   * the guard, and does not count toward the escape, so garbage can
+   * neither lock the guard nor force a jump to itself. Afterward a sample
    * is accepted only when it differs from
    * the current output by at most \c max_delta(); otherwise the output
    * is held and the rejected-run counter grows. When the escape hatch

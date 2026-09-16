@@ -50,13 +50,12 @@ template <std::equality_comparable T = bool, std::size_t N = 3>
   requires(N > 0)
 class majority {
 public:
-  using value_type = T;
-  using buffer_type = std::array<value_type, N>;
-  static constexpr std::size_t batch_size{N};
+  using value_type = T;                           ///< Voted sample type.
+  using buffer_type = std::array<value_type, N>;  ///< Ring of the last \c N samples voted over.
+  static constexpr std::size_t batch_size{N};     ///< Number of samples in each vote.
 
 private:
-  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept exactly
-  /// then.
+  /// @brief Whether copying a sample cannot throw; members that copy one are \c noexcept then.
   static constexpr bool nothrow_copy{
     std::is_nothrow_copy_constructible_v<T> && std::is_nothrow_copy_assignable_v<T>
   };

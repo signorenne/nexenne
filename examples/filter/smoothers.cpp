@@ -5,9 +5,31 @@
  * Runs a noisy step signal through an exponential moving average, a simple
  * moving average, a first-order low-pass, and a second-order biquad low-pass,
  * then explores the parameter knobs (alpha, window, cutoff, Q, order), the
- * complementary high-pass, and the standard probes - a unit impulse to read a
+ * complementary high-pass, and the standard probes: a unit impulse to read a
  * filter's kernel and a step to read its rise and overshoot. Every filter shares
  * the same push / value / reset surface.
+ *
+ * The program walks eight steps:
+ *
+ * 1. The four workhorse smoothers on one noisy step. Every linear filter smears
+ *    the spike at n == 8 (rejecting an outlier is the median's job, in
+ *    robust.cpp); the EMA and the low-pass are the same single-pole math, while
+ *    the SMA weighs its window equally and lags by a fixed N/2 samples.
+ * 2. The EMA alpha knob: each filter starts primed at zero, so the printed value
+ *    after eight unit samples is pure rise; a smaller alpha is still climbing.
+ * 3. The SMA window knob: a wider window rejects more noise but ramps over more
+ *    samples.
+ * 4. The biquad Q knob: 0.7071 is the flat Butterworth corner, a higher Q peaks
+ *    near the cutoff and overshoots a step before settling.
+ * 5. Filter order: each Butterworth section adds two poles, so the order-6
+ *    cascade attenuates a 200 Hz tone harder than the order-2 one; the residual
+ *    amplitude is measured after the transient has died.
+ * 6. The high-pass, the low-pass's complement, strips a DC offset and keeps the
+ *    fast wiggle.
+ * 7. The impulse response: an FIR's response to a unit impulse is its
+ *    coefficients, walked out one per sample.
+ * 8. reset() returns a primed EMA to its initial condition, so the next push
+ *    reseeds with no memory of the old value.
  */
 
 #include <algorithm>
@@ -30,7 +52,16 @@ namespace {
 
 namespace flt = nexenne::filter;
 
-// A 0..1 step at sample 4, with a single +0.5 spike at sample 8.
+/**
+ * @brief A 0 to 1 step at sample 4, with a single +0.5 spike at sample 8.
+ *
+ * @param n Sample index.
+ *
+ * @return The test signal at sample \p n.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] auto noisy_step(int const n) -> double {
   auto x{n >= 4 ? 1.0 : 0.0};
   if (n == 8) {
