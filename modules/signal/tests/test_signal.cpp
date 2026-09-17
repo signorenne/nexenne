@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <array>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
@@ -11,6 +12,9 @@
 #include <nexenne/signal/signal.hpp>
 #include <nexenne/signal/slot.hpp>
 #include <nexenne/utility/ignore.hpp>
+#include <nexenne/utility/in_place_function.hpp>
+
+#include "alloc_counter.hpp"
 
 namespace {
 
@@ -490,6 +494,46 @@ TEST_CASE(
   CHECK(sig.size() == 21);
   sig.emit();  // now all 21 fire
   CHECK(fired == 1 + 21);
+}
+
+template <std::size_t SlotCapacity>
+auto first_connect_bytes() -> std::size_t {
+  auto sig{signal<void(int), SlotCapacity>{}};
+  auto const before{signal_tests::alloc_counter::bytes};
+  [[maybe_unused]] auto conn{sig.connect([](int) noexcept {})};
+  auto const after{signal_tests::alloc_counter::bytes};
+  return after - before;
+}
+
+TEST_CASE("nexenne::signal::signal core holds four inline slots and no inline pending entry") {
+  using small_fn = nexenne::utility::in_place_function<void(int), 64>;
+  using large_fn = nexenne::utility::in_place_function<void(int), 128>;
+  auto const per_entry{sizeof(large_fn) - sizeof(small_fn)};
+  CHECK(first_connect_bytes<128>() - first_connect_bytes<64>() == 4 * per_entry);
+}
+
+TEST_CASE("nexenne::signal::signal allocates the pending list on the first connect during emit") {
+  auto sig{signal<void()>{}};
+  auto fired{0};
+  auto keep{std::vector<connection>{}};
+  keep.reserve(4);
+  [[maybe_unused]] auto first{sig.connect([&] noexcept {
+    ++fired;
+    if (keep.size() < 2) {
+      keep.push_back(sig.connect([&] noexcept { ++fired; }));
+    }
+  })};
+
+  auto const before{signal_tests::alloc_counter::allocations};
+  sig.emit();
+  auto const after_first{signal_tests::alloc_counter::allocations};
+  sig.emit();
+  auto const after_second{signal_tests::alloc_counter::allocations};
+
+  CHECK(after_first - before == 1);
+  CHECK(after_second == after_first);
+  CHECK(sig.size() == 3);
+  CHECK(fired == 3);
 }
 
 TEST_CASE("nexenne::signal::signal reentrancy (b): a slot can disconnect itself") {
@@ -1178,7 +1222,7 @@ TEST_CASE(
     auto sig{signal<void()>{}};
     auto companion_runs{0};
     auto const companion{sig.connect([&] noexcept { ++companion_runs; }, 1)};
-    nexenne::utility::discard(sig.connect_once([g = scoped_connection{companion}] noexcept {}, 0));
+    nexenne::utility::ignore(sig.connect_once([g = scoped_connection{companion}] noexcept {}, 0));
     sig.emit();
     companion_runs = 0;
     sig.emit();
@@ -1195,7 +1239,7 @@ TEST_CASE(
   SUBCASE("disconnect_all") {
     auto sig{signal<void()>{}};
     auto const companion{sig.connect([] noexcept {}, 0)};
-    nexenne::utility::discard(sig.connect([g = scoped_connection{companion}] noexcept {}, 1));
+    nexenne::utility::ignore(sig.connect([g = scoped_connection{companion}] noexcept {}, 1));
     sig.disconnect_all();
     CHECK(sig.empty());
   }

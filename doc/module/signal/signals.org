@@ -24,7 +24,9 @@ pointer and everything else lives inline. A callable too large to fit is a
 compile error, not a silent allocation. The slot list itself is a
 =container::small_vector= with four inline slots, so a signal with a few
 subscribers never touches the heap beyond the single allocation for its shared
-core.
+core. Connects made during an emit wait in a second list that holds nothing
+inline, so the core does not pay for it: the first such connect allocates its
+storage, and later ones reuse it.
 
 Lifetime: a connection has two ends, and either can die first. The =connection=
 handle refers to the signal through a =std::weak_ptr= to its core, so it stays

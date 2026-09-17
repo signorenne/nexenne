@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cstddef>
-#include <new>
 #include <string>
 #include <utility>
 #include <vector>
@@ -12,6 +11,8 @@
 #include <nexenne/signal/static_signal.hpp>
 #include <nexenne/utility/ignore.hpp>
 
+#include "alloc_counter.hpp"
+
 namespace {
 
 using nexenne::signal::static_connection;
@@ -19,40 +20,7 @@ using nexenne::signal::static_scoped_connection;
 using nexenne::signal::static_signal;
 using nexenne::signal::static_slot;
 
-struct alloc_counter {
-  static inline std::size_t allocations{0};
-  static inline std::size_t deallocations{0};
-
-  static auto snapshot() noexcept -> std::size_t {
-    return allocations;
-  }
-};
-
-}  // namespace
-
-auto operator new(std::size_t const size) -> void* {
-  ++alloc_counter::allocations;
-  // [new.delete] requires a non-null, distinct pointer even for a zero request;
-  // round up to one byte so the underlying allocator always returns storage.
-  auto* const p{__builtin_malloc(size == 0 ? std::size_t{1} : size)};
-  if (p == nullptr) {
-    throw std::bad_alloc{};
-  }
-  return p;
-}
-
-auto operator delete(void* const ptr) noexcept -> void {
-  if (ptr != nullptr) {
-    ++alloc_counter::deallocations;
-    __builtin_free(ptr);
-  }
-}
-
-auto operator delete(void* const ptr, std::size_t) noexcept -> void {
-  ::operator delete(ptr);
-}
-
-namespace {
+using signal_tests::alloc_counter;
 
 // Counts every move/copy of a value type, to prove emit forwards by const&
 // (one copy per slot at the slot's own call boundary, not per forwarder).

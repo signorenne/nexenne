@@ -210,9 +210,11 @@ private:
      * @brief Connections made while an emit is in progress.
      *
      * Merged into \c slots once the outermost emit finishes, so the live list
-     * never moves mid-iteration.
+     * never moves mid-iteration. It holds no entry inline: the core does not
+     * pay for it until the first connect during an emit allocates it, and the
+     * storage is kept for later ones.
      */
-    nexenne::container::small_vector<slot_entry, 2> pending{};
+    nexenne::container::small_vector<slot_entry, 0> pending{};
     detail::slot_id_type next_id{1};
     int emit_depth{0};
     bool blocked{false};
