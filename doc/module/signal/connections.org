@@ -11,9 +11,12 @@ lifetime automatic and safe from both ends: =connection= and =scoped_connection=
 =emit_blocker= (a scoped mute). None of them allocate.
 
 For debug printing, =nexenne/signal/format.hpp= adds =to_string=, an =ostream=
-inserter, and a =std::formatter= for =connection= and =static_connection= (slot
-id plus liveness or target state); it is opt-in because it pulls in the heavy
-=<format>= header.
+inserter, and a =std::formatter= for every public type of the module. The
+handles print their slot id plus liveness or target state, for example
+=scoped_connection(id=3, valid=true)=; the stateful types print a one-line
+summary such as =signal(size=2, blocked=false)=, =slot(size=1, capacity=4)= or
+=emit_blocker(active=true)=. It is opt-in because it pulls in the heavy
+=<format>= header (the umbrella =signal.hpp= includes it).
 
 * The idea
 
@@ -85,6 +88,8 @@ restores the prior state on destruction. Because it saves and restores rather
 than forcing unblocked, nested blockers compose correctly: an inner guard's
 destructor restores the outer block, not the unblocked baseline. It is move-only
 and holds only a pointer and a bool (zero heap), cheap enough for a hot path.
+=is_active()= reports whether the guard still holds a signal to restore: it is
+=false= after =release()= or once the guard has been moved from.
 
 The save-and-restore composes only under last-in-first-out destruction, the
 natural nested-scope case. Because the guard is movable (into an =optional= or a

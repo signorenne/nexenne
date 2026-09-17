@@ -156,6 +156,19 @@ public:
       m_signal = nullptr;
     }
   }
+
+  /**
+   * @brief Reports whether the guard still holds a signal to restore.
+   *
+   * @return \c true from construction until \c release, a move away, or
+   *         destruction; \c false once the guard is inert.
+   *
+   * @pre None.
+   * @post The guard is unchanged.
+   */
+  [[nodiscard]] auto is_active() const noexcept -> bool {
+    return m_signal != nullptr;
+  }
 };
 
 /**

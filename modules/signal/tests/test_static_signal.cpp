@@ -2,6 +2,8 @@
 
 #include <array>
 #include <cstddef>
+#include <format>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -966,6 +968,60 @@ TEST_CASE(
   CHECK(to_string(static_connection{}) == "static_connection(id=0, has_target=false)");
 }
 
+TEST_CASE("nexenne::signal::static_signal formats its slot count, capacity and blocked flag") {
+  auto sig{static_signal<void()>{}};
+  CHECK(std::format("{}", sig) == "static_signal(size=0, capacity=8, blocked=false)");
+  [[maybe_unused]] auto const c{sig.connect([] noexcept {})};
+  sig.block();
+  CHECK(std::format("{}", sig) == "static_signal(size=1, capacity=8, blocked=true)");
+
+  std::ostringstream os{};
+  os << sig;
+  CHECK(os.str() == to_string(sig));
+}
+
+TEST_CASE("nexenne::signal::static_sink formats the alive slot count of its signal") {
+  auto sig{static_signal<void(int)>{}};
+  auto const s{sig.as_sink()};
+  CHECK(std::format("{}", s) == "static_sink(size=0)");
+  [[maybe_unused]] auto const c{sig.connect([](int) noexcept {})};
+  CHECK(std::format("{}", s) == "static_sink(size=1)");
+
+  std::ostringstream os{};
+  os << s;
+  CHECK(os.str() == to_string(s));
+}
+
+TEST_CASE("nexenne::signal::static_slot formats its tracked count and capacity") {
+  auto sig{static_signal<void()>{}};
+  auto tracker{static_slot<4>{}};
+  CHECK(std::format("{}", tracker) == "static_slot(size=0, capacity=4)");
+  nexenne::utility::ignore(sig.connect([] noexcept {}, tracker));
+  CHECK(std::format("{}", tracker) == "static_slot(size=1, capacity=4)");
+
+  std::ostringstream os{};
+  os << tracker;
+  CHECK(os.str() == to_string(tracker));
+}
+
+TEST_CASE("nexenne::signal::static_scoped_connection exposes and formats its owned connection") {
+  CHECK(
+    std::format("{}", static_scoped_connection{})
+    == "static_scoped_connection(id=0, has_target=false)"
+  );
+  auto sig{static_signal<void()>{}};
+  auto const c{sig.connect([] noexcept {})};
+  auto const sc{static_scoped_connection{c}};
+  CHECK(sc.get() == c);
+  CHECK(
+    std::format("{}", sc) == std::format("static_scoped_connection(id={}, has_target=true)", c.id())
+  );
+
+  std::ostringstream os{};
+  os << sc;
+  CHECK(os.str() == to_string(sc));
+}
+
 /// Counts its own destruction; a moved-from counter counts nothing.
 struct destroy_counter {
   int* destroyed;
@@ -1043,9 +1099,7 @@ TEST_CASE(
   SUBCASE("disconnect_all") {
     auto sig{static_signal<void()>{}};
     auto const companion{sig.connect([] noexcept {}, 0)};
-    nexenne::utility::ignore(
-      sig.connect([g = static_scoped_connection{companion}] noexcept {}, 1)
-    );
+    nexenne::utility::ignore(sig.connect([g = static_scoped_connection{companion}] noexcept {}, 1));
     sig.disconnect_all();
     CHECK(sig.empty());
   }

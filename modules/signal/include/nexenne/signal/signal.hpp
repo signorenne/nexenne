@@ -92,7 +92,9 @@
  * \c nexenne/signal/signal.hpp matches the module name, so it also includes
  * every other leaf header (\c connection.hpp, \c emit_blocker.hpp,
  * \c format.hpp, \c slot.hpp, \c static_signal.hpp) so that including
- * \c nexenne/signal/signal.hpp delivers the whole module.
+ * \c nexenne/signal/signal.hpp delivers the whole module. \c format.hpp is
+ * included last, after \c signal and \c sink are defined, because its
+ * formatters for those two templates include this header in turn.
  */
 
 #include <algorithm>
@@ -107,7 +109,6 @@
 #include <nexenne/container/small_vector.hpp>
 #include <nexenne/signal/connection.hpp>
 #include <nexenne/signal/emit_blocker.hpp>
-#include <nexenne/signal/format.hpp>
 #include <nexenne/signal/slot.hpp>
 #include <nexenne/signal/static_signal.hpp>
 #include <nexenne/utility/defer.hpp>
@@ -1128,3 +1129,5 @@ template <typename R, typename... Args, std::size_t SlotCapacity>
 }
 
 }  // namespace nexenne::signal
+
+#include <nexenne/signal/format.hpp>

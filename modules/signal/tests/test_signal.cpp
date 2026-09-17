@@ -2,7 +2,9 @@
 
 #include <array>
 #include <cstddef>
+#include <format>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1212,6 +1214,74 @@ TEST_CASE(
   [[maybe_unused]] auto const c{sig.connect([] noexcept {})};
   CHECK(nexenne::signal::to_string(c).starts_with("connection(id="));
   CHECK(nexenne::signal::to_string(sc).starts_with("static_connection(id="));
+}
+
+TEST_CASE("nexenne::signal::signal formats its alive slot count and blocked flag") {
+  auto sig{signal<void()>{}};
+  CHECK(std::format("{}", sig) == "signal(size=0, blocked=false)");
+  [[maybe_unused]] auto const a{sig.connect([] noexcept {})};
+  [[maybe_unused]] auto const b{sig.connect([] noexcept {})};
+  sig.block();
+  CHECK(std::format("{}", sig) == "signal(size=2, blocked=true)");
+
+  std::ostringstream os{};
+  os << sig;
+  CHECK(os.str() == nexenne::signal::to_string(sig));
+}
+
+TEST_CASE("nexenne::signal::sink formats the alive slot count of its signal") {
+  auto sig{signal<void(int)>{}};
+  auto const s{sig.as_sink()};
+  CHECK(std::format("{}", s) == "sink(size=0)");
+  [[maybe_unused]] auto const c{sig.connect([](int) noexcept {})};
+  CHECK(std::format("{}", s) == "sink(size=1)");
+
+  std::ostringstream os{};
+  os << s;
+  CHECK(os.str() == nexenne::signal::to_string(s));
+}
+
+TEST_CASE("nexenne::signal::scoped_connection formats through its owned connection") {
+  CHECK(std::format("{}", scoped_connection{}) == "scoped_connection(id=0, valid=false)");
+  auto sig{signal<void()>{}};
+  auto const sc{scoped_connection{sig.connect([] noexcept {})}};
+  CHECK(
+    std::format("{}", sc) == std::format("scoped_connection(id={}, valid=true)", sc.get().slot_id())
+  );
+
+  std::ostringstream os{};
+  os << sc;
+  CHECK(os.str() == nexenne::signal::to_string(sc));
+}
+
+TEST_CASE("nexenne::signal::slot formats its tracked count and capacity") {
+  auto sig{signal<void()>{}};
+  auto owner{nexenne::signal::slot<4>{}};
+  CHECK(std::format("{}", owner) == "slot(size=0, capacity=4)");
+  [[maybe_unused]] auto const c{sig.connect([] noexcept {}, owner)};
+  CHECK(std::format("{}", owner) == "slot(size=1, capacity=4)");
+
+  std::ostringstream os{};
+  os << owner;
+  CHECK(os.str() == nexenne::signal::to_string(owner));
+}
+
+TEST_CASE("nexenne::signal::emit_blocker reports and formats whether it is active") {
+  auto sig{signal<void()>{}};
+  auto blocker{nexenne::signal::emit_blocker{sig}};
+  CHECK(blocker.is_active());
+  CHECK(std::format("{}", blocker) == "emit_blocker(active=true)");
+
+  auto moved{std::move(blocker)};
+  CHECK(moved.is_active());
+  CHECK_FALSE(blocker.is_active());  // NOLINT(bugprone-use-after-move)
+  moved.release();
+  CHECK_FALSE(moved.is_active());
+  CHECK(std::format("{}", moved) == "emit_blocker(active=false)");
+
+  std::ostringstream os{};
+  os << moved;
+  CHECK(os.str() == nexenne::signal::to_string(moved));
 }
 
 TEST_CASE(

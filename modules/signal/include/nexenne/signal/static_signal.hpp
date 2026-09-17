@@ -279,6 +279,18 @@ public:
   auto disconnect() noexcept -> bool {
     return m_conn.disconnect();
   }
+
+  /**
+   * @brief Read-only access to the owned connection.
+   *
+   * @return A const reference to the wrapped \c static_connection.
+   *
+   * @pre None.
+   * @post This object is unchanged.
+   */
+  [[nodiscard]] auto get() const noexcept -> static_connection const& {
+    return m_conn;
+  }
 };
 
 /**

@@ -105,7 +105,8 @@ because with no heap core it cannot tell whether the signal is still alive, only
 whether it was ever connected (=has_target()=).
 
 For automatic teardown there are the heap-free counterparts of the dynamic
-handles: =static_scoped_connection= (RAII, disconnects on destruction) and
+handles: =static_scoped_connection= (RAII, disconnects on destruction, with
+=get()= exposing the owned =static_connection=) and
 =static_slot<Capacity>= (the receiver-side tracker that disconnects every
 subscription it holds when it dies). Both require the signal to still be alive
 when they run, which is the normal case when the signal is the longer-lived
