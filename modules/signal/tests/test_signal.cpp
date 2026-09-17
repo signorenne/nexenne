@@ -1227,4 +1227,10 @@ static_assert(!connects_member<signal<void(int)>, &counter_listener::on_void>);
 static_assert(connects_member<signal<void(int)>, &counter_listener::on_int>);
 static_assert(!connects_member<sink<void(int)>, &counter_listener::on_void>);
 
+template <typename S>
+concept collects = requires(S& s) { s.emit_and_collect(); };
+
+static_assert(collects<signal<int()>>);
+static_assert(!collects<signal<int&()>>);
+
 }  // namespace

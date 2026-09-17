@@ -144,8 +144,8 @@ class sink;
  * destroying it mid-emit. See the file-level documentation for the full
  * design rationale.
  *
- * @tparam R Slot return type. \c emit_and_collect requires a non-void
- *         \c R.
+ * @tparam R Slot return type. \c emit_and_collect requires a non-void,
+ *         non-reference \c R.
  * @tparam Args Slot argument types.
  * @tparam SlotCapacity Inline byte capacity for each type-erased slot;
  *         a connected callable that exceeds it is rejected at compile
@@ -568,7 +568,7 @@ public:
    *             allocation.
    */
   [[nodiscard]] auto emit_and_collect(Args... args) noexcept -> std::vector<R>
-    requires(!std::is_void_v<R>)
+    requires(!std::is_void_v<R> && !std::is_reference_v<R>)
   {
     auto out{std::vector<R>{}};
     if (m_core && !m_core->blocked) {
