@@ -1,31 +1,54 @@
 /**
  * @file
- * @brief A guided tour of nexenne::signal through one realistic system: the
- *        event plumbing of a tiny game loop.
+ * @brief A guided tour of nexenne::signal: the event plumbing of a tiny game loop.
  *
- * Nothing here renders or sleeps - it wires subscribers to typed signals and
+ * Nothing here renders or sleeps: it wires subscribers to typed signals and
  * fires them, printing what each slot sees, so the module's pieces show up in
- * context rather than in isolation:
- *
- *   1. An event bus       -> a dynamic signal<> published as a connect-only
- *                            sink, so systems subscribe but cannot forge events.
- *   2. Lifetime safety    -> a slot member auto-disconnects a subscriber that
- *                            dies mid-game; a scoped_connection scopes another.
- *   3. Ordering and once  -> priority puts physics before audio; connect_once
- *                            arms a one-shot "first blood" hook.
- *   4. Mid-emit edits     -> a slot disconnects another slot while emit walks
- *                            the list, and emit_blocker mutes a noisy channel.
- *   5. Aggregation        -> emit_and_collect polls every damage modifier and
- *                            folds the returned multipliers into one number.
- *   6. Heap-free variant  -> a static_signal input dispatcher: same API, fixed
- *                            capacity, zero allocation, connect-past-bound fails.
+ * context rather than in isolation.
  *
  * The thread running through it: why a signal beats a hand-rolled
  * std::vector<std::function>. A manual callback list makes YOU prove three
- * things on every edit - that a dead subscriber is removed before it is called
+ * things on every edit: that a dead subscriber is removed before it is called
  * (lifetime), that systems do not reach into each other to unsubscribe
  * (decoupling), and that firing while editing the list does not corrupt it
- * (reentrancy). A signal proves all three for you. Read it top to bottom.
+ * (reentrancy). A signal proves all three for you.
+ *
+ * The program walks seven steps:
+ *
+ * 1. An event bus. The bus owns the signals and publishes connect-only sinks,
+ *    so any system can subscribe but only the bus can fire: a subscriber names
+ *    the bus, never the other subscribers, so adding or removing a system
+ *    touches one site. Damage events travel by const reference and are never
+ *    copied per slot. The HUD's captureless lambda is stored as a raw function
+ *    pointer, so its emit is one indirect call.
+ * 2. Ordered systems. Priority puts physics (-10) before audio (5) without
+ *    either knowing about the other; lower fires first and ties keep insertion
+ *    order. connect_once arms a "first blood" hook for exactly one emit, after
+ *    which the slot sweeps itself, with no manual "remove me" flag.
+ * 3. A lifetime-tied subscriber. The goblin's hit handler is tracked by its slot
+ *    member, so when the goblin dies at the end of its scope the subscription
+ *    goes with it and later emits make no dangling call, exactly the bug a
+ *    hand-maintained list invites.
+ * 4. Scoped and blocked emission. A scoped_connection disconnects a transient
+ *    subscriber (a buff, a cutscene listener) at the end of a block, with no
+ *    member to declare. An emit_blocker mutes the damage channel for an
+ *    invulnerability frame and restores the prior state on exit, nesting-correct
+ *    where a bare block() and unblock() pair could be left stuck by an early
+ *    return; it needs the signal itself, not a sink, since it calls block().
+ * 5. Disconnect mid-emit. A one-shot trap disarms an indicator connected before
+ *    it while emit walks the list; the signal defers the removal to the end of
+ *    the outermost emit, where a hand-rolled list erasing mid-loop would
+ *    invalidate its own iterator.
+ * 6. Aggregation. emit_and_collect gathers every modifier's damage multiplier in
+ *    fire order and the program folds them into one factor: one query fans out
+ *    to every responder with no central table to maintain.
+ * 7. The heap-free sibling. static_signal keeps the same connect, emit and
+ *    priority API with all slot storage inline: zero allocation and a footprint
+ *    sized at compile time. The trade is a fixed capacity, so a connect past
+ *    MaxSlots returns an invalid handle instead of growing. Disconnecting one
+ *    handler frees a slot for a transient hook held by a
+ *    static_scoped_connection, which must not outlive the signal, since a token
+ *    handle cannot detect the signal's death.
  */
 
 #include <cstdint>
@@ -42,17 +65,13 @@ namespace sig = nexenne::signal;
 
 namespace {
 
-// A damage event carried by reference: the signal parameter is a const& so the
-// struct is never copied per slot (see the forwarding note in signal.hpp).
+/// @brief A damage event, emitted by const reference so no slot copies it.
 struct damage_event {
-  std::string_view source{};
-  int amount{0};
+  std::string_view source{};  ///< Who dealt the damage.
+  int amount{0};              ///< Hit points removed.
 };
 
-// The game's central event bus. It owns the signals and hands out connect-only
-// sinks, so any system can subscribe but only the bus can fire. This is the
-// decoupling win: a subscriber names the bus, never the other subscribers, so
-// adding or removing a system touches exactly one site.
+/// @brief The game's central event bus: it fires the signals and publishes connect-only sinks.
 class event_bus {
 public:
   [[nodiscard]] auto on_damage() noexcept -> sig::sink<void(damage_event const&)> {
@@ -73,10 +92,7 @@ private:
   sig::signal<void(damage_event const&)> m_on_damage{};
 };
 
-// An enemy that subscribes with a member function tracked by a slot. When the
-// enemy dies its slot destructor disconnects the subscription, so the bus never
-// calls into a freed object - the lifetime guarantee a raw callback list cannot
-// give without bookkeeping you have to get right by hand.
+/// @brief An enemy whose slot member disconnects its hit handler when it dies.
 class enemy {
 public:
   enemy(std::string_view name, sig::sink<void(damage_event const&)> dmg) noexcept : m_name{name} {
@@ -91,7 +107,7 @@ public:
 private:
   std::string_view m_name{};
   int m_hp{100};
-  sig::slot<2> m_slot{};  // auto-disconnects every tracked subscription on death
+  sig::slot<2> m_slot{};  ///< Disconnects every tracked subscription on destruction.
 };
 
 }  // namespace

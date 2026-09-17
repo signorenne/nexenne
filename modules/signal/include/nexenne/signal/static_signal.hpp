@@ -427,7 +427,10 @@ class static_sink;
  * \c emit performs no allocation.
  *
  * @tparam R Slot return type (\c emit discards returns).
- * @tparam Args Slot argument types.
+ * @tparam Args Slot argument types. None may be an rvalue reference, since one
+ *         value cannot be moved into many slots; a by-value parameter must be
+ *         copyable, since each slot copies it from the const reference emit
+ *         fans out (declare an expensive one as a const reference instead).
  * @tparam MaxSlots Inline slot capacity; \c connect fails past this.
  * @tparam SlotCapacity Inline byte capacity for each type-erased slot.
  */
@@ -461,7 +464,7 @@ private:
     int priority{0};
     bool alive{true};
     bool once{false};
-    bool executing{false};  // its invoke is on the stack; do not reclaim this entry
+    bool executing{false};  ///< Its invoke is on the stack, so the entry must not be reclaimed.
     slot_fn_type fn_obj{};
 
     /**
@@ -861,7 +864,9 @@ private:
    * @brief Shared connect engine for \c connect and \c connect_once.
    *
    * Stores \p fn in a new slot entry, reclaiming a dead-but-unswept entry when
-   * physically full during an emit. During an emit it appends without moving the
+   * physically full during an emit, so a slot that reconnects from inside an
+   * emit (rescheduling from a once slot) is not rejected while fewer than
+   * \c MaxSlots slots are live. During an emit it appends without moving the
    * live prefix (marking the list dirty for a post-emit re-sort); otherwise it
    * bubbles the entry into priority order.
    *

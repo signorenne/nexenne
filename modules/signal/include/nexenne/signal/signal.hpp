@@ -147,7 +147,10 @@ class sink;
  *
  * @tparam R Slot return type. \c emit_and_collect requires a non-void,
  *         non-reference \c R.
- * @tparam Args Slot argument types.
+ * @tparam Args Slot argument types. None may be an rvalue reference, since one
+ *         value cannot be moved into many slots; a by-value parameter must be
+ *         copyable, since each slot copies it from the const reference emit
+ *         fans out (declare an expensive one as a const reference instead).
  * @tparam SlotCapacity Inline byte capacity for each type-erased slot;
  *         a connected callable that exceeds it is rejected at compile
  *         time.
@@ -436,7 +439,9 @@ public:
    *
    * If called during an \c emit, slots are marked dead and swept when
    * the outermost emit finishes (the in-progress emit completes
-   * safely); otherwise the slot list is cleared immediately.
+   * safely); otherwise the slot list is cleared immediately. Connects
+   * deferred earlier in the same emit are dropped too, so the merge at
+   * the end of the emit does not revive them.
    *
    * @pre None.
    * @post No slot will fire on a subsequent emit. After any

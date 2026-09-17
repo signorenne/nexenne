@@ -8,6 +8,20 @@
  * connect-only sink, a one-shot slot, an emit_blocker, and a reentrant
  * disconnect from inside a running slot.
  *
+ * The program walks three steps:
+ *
+ * 1. A sensor owns a 4-slot signal and hands out a connect-only sink. A logger
+ *    at priority -1 fires before a display whose static_slot tracker drops its
+ *    subscription when the display expires, leaving the logger alone.
+ * 2. Capacity is fixed: on a 2-slot signal the third connect fails with an
+ *    invalid handle instead of allocating.
+ * 3. A 4-slot tick channel carries the frame index with the heap signal's
+ *    reentrancy and lifecycle features, heap-free: a one-shot startup hook
+ *    fires on the first tick and sweeps itself, an emit_blocker mutes one tick
+ *    and restores emission on scope exit, and a watchdog disconnects the frame
+ *    logger from inside its own invocation, a removal the signal defers to the
+ *    end of the outermost emit so the running iteration stays valid.
+ *
  * The same trade-offs as showcase.cpp's heap-free section, examined on their
  * own: pick static_signal when the slot count is known and the heap is unwanted.
  */
@@ -22,7 +36,7 @@ namespace {
 
 namespace sg = nexenne::signal;
 
-// A sensor that owns a 4-slot, heap-free signal and exposes a connect-only sink.
+/// @brief A sensor that owns a 4-slot, heap-free signal and exposes a connect-only sink.
 class sensor {
 public:
   [[nodiscard]] auto readings() noexcept -> sg::static_sink<void(double), 4> {
@@ -34,10 +48,10 @@ public:
   }
 
 private:
-  sg::static_signal<void(double), 4> m_on_reading{};  // up to 4 slots, zero heap
+  sg::static_signal<void(double), 4> m_on_reading{};  ///< Up to 4 slots, zero heap.
 };
 
-// A subscriber that ties its subscription to its own lifetime via a tracker.
+/// @brief A subscriber whose static_slot tracker ties its subscription to its lifetime.
 class display {
 public:
   explicit display(sg::static_sink<void(double), 4> source) noexcept {
@@ -49,7 +63,7 @@ public:
   }
 
 private:
-  sg::static_slot<2> m_tracker{};  // auto-disconnects on destruction
+  sg::static_slot<2> m_tracker{};  ///< Disconnects its tracked subscriptions on destruction.
 };
 
 }  // namespace
