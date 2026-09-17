@@ -394,6 +394,7 @@ public:
    *          Prefer the \c slot overload.
    */
   template <auto MemberFn, typename T>
+    requires std::is_invocable_r_v<R, decltype(MemberFn), T&, Args...>
   [[nodiscard]] auto connect(T& obj, int const priority = 0) -> connection {
     return connect(bind_member<MemberFn>(obj), priority);
   }
@@ -422,6 +423,7 @@ public:
    * @complexity \c O(n) to insert into the priority-sorted slot list.
    */
   template <auto MemberFn, typename T, std::size_t Capacity>
+    requires std::is_invocable_r_v<R, decltype(MemberFn), T&, Args...>
   auto connect(T& obj, slot<Capacity>& owner, int const priority = 0) -> connection {
     return connect(bind_member<MemberFn>(obj), owner, priority);
   }
@@ -970,7 +972,11 @@ public:
    * @post As for \c signal::connect.
    */
   template <typename Fn>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<
+      Fn,
+      nexenne::utility::in_place_function<R(Args...), SlotCapacity>,
+      R,
+      Args...>
   [[nodiscard]] auto connect(Fn&& fn, int const priority = 0) -> connection {
     return m_signal->connect(std::forward<Fn>(fn), priority);
   }
@@ -988,7 +994,11 @@ public:
    * @post As for \c signal::connect_once.
    */
   template <typename Fn>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<
+      Fn,
+      nexenne::utility::in_place_function<R(Args...), SlotCapacity>,
+      R,
+      Args...>
   [[nodiscard]] auto connect_once(Fn&& fn, int const priority = 0) -> connection {
     return m_signal->connect_once(std::forward<Fn>(fn), priority);
   }
@@ -1008,7 +1018,11 @@ public:
    * @post As for the tracking \c signal::connect.
    */
   template <typename Fn, std::size_t Capacity>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<
+      Fn,
+      nexenne::utility::in_place_function<R(Args...), SlotCapacity>,
+      R,
+      Args...>
   auto connect(Fn&& fn, slot<Capacity>& owner, int const priority = 0) -> connection {
     return m_signal->connect(std::forward<Fn>(fn), owner, priority);
   }
@@ -1027,6 +1041,7 @@ public:
    * @post As for the member-function \c signal::connect.
    */
   template <auto MemberFn, typename T>
+    requires std::is_invocable_r_v<R, decltype(MemberFn), T&, Args...>
   [[nodiscard]] auto connect(T& obj, int const priority = 0) -> connection {
     return m_signal->template connect<MemberFn>(obj, priority);
   }
@@ -1047,6 +1062,7 @@ public:
    * @post As for the member-function tracking \c signal::connect.
    */
   template <auto MemberFn, typename T, std::size_t Capacity>
+    requires std::is_invocable_r_v<R, decltype(MemberFn), T&, Args...>
   auto connect(T& obj, slot<Capacity>& owner, int const priority = 0) -> connection {
     return m_signal->template connect<MemberFn>(obj, owner, priority);
   }

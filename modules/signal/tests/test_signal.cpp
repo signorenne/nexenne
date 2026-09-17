@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <array>
 #include <memory>
 #include <string>
 #include <utility>
@@ -1199,5 +1200,31 @@ TEST_CASE(
     CHECK(sig.empty());
   }
 }
+
+using nexenne::signal::sink;
+
+struct oversized_slot {
+  std::array<char, 256> pad{};
+
+  auto operator()(int) const noexcept -> void {}
+};
+
+struct counter_listener {
+  auto on_int(int) noexcept -> void {}
+
+  auto on_void() noexcept -> void {}
+};
+
+template <typename S, typename F>
+concept connects_callable = requires(S& s, F f) { s.connect(f); };
+
+template <typename S, auto MemberFn>
+concept connects_member = requires(S& s, counter_listener& l) { s.template connect<MemberFn>(l); };
+
+static_assert(!connects_callable<sink<void(int)>, oversized_slot>);
+static_assert(connects_callable<sink<void(int)>, void (*)(int)>);
+static_assert(!connects_member<signal<void(int)>, &counter_listener::on_void>);
+static_assert(connects_member<signal<void(int)>, &counter_listener::on_int>);
+static_assert(!connects_member<sink<void(int)>, &counter_listener::on_void>);
 
 }  // namespace

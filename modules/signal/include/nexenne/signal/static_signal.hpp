@@ -601,6 +601,7 @@ public:
    * @warning No lifetime tie: prefer the \c static_slot overload.
    */
   template <auto MemberFn, typename T>
+    requires std::is_invocable_r_v<R, decltype(MemberFn), T&, Args...>
   [[nodiscard]] auto connect(T& obj, int const priority = 0) -> static_connection {
     return connect(bind_member<MemberFn>(obj), priority);
   }
@@ -623,6 +624,7 @@ public:
    * @complexity \c O(MaxSlots).
    */
   template <auto MemberFn, typename T, std::size_t Capacity>
+    requires std::is_invocable_r_v<R, decltype(MemberFn), T&, Args...>
   auto connect(T& obj, static_slot<Capacity>& owner, int const priority = 0) -> static_connection {
     return connect(bind_member<MemberFn>(obj), owner, priority);
   }
@@ -1104,7 +1106,11 @@ public:
    * @post As for \c static_signal::connect.
    */
   template <typename Fn>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<
+      Fn,
+      nexenne::utility::in_place_function<R(Args...), SlotCapacity>,
+      R,
+      Args...>
   [[nodiscard]] auto connect(Fn&& fn, int const priority = 0) -> static_connection {
     return m_signal->connect(std::forward<Fn>(fn), priority);
   }
@@ -1122,7 +1128,11 @@ public:
    * @post As for \c static_signal::connect_once.
    */
   template <typename Fn>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<
+      Fn,
+      nexenne::utility::in_place_function<R(Args...), SlotCapacity>,
+      R,
+      Args...>
   [[nodiscard]] auto connect_once(Fn&& fn, int const priority = 0) -> static_connection {
     return m_signal->connect_once(std::forward<Fn>(fn), priority);
   }
@@ -1142,7 +1152,11 @@ public:
    * @post As for the tracked \c static_signal::connect.
    */
   template <typename Fn, std::size_t Capacity>
-    requires std::invocable<Fn&, Args...>
+    requires detail::slot_connectable<
+      Fn,
+      nexenne::utility::in_place_function<R(Args...), SlotCapacity>,
+      R,
+      Args...>
   auto connect(Fn&& fn, static_slot<Capacity>& owner, int const priority = 0) -> static_connection {
     return m_signal->connect(std::forward<Fn>(fn), owner, priority);
   }
@@ -1161,6 +1175,7 @@ public:
    * @post As for the member-function \c static_signal::connect.
    */
   template <auto MemberFn, typename T>
+    requires std::is_invocable_r_v<R, decltype(MemberFn), T&, Args...>
   [[nodiscard]] auto connect(T& obj, int const priority = 0) -> static_connection {
     return m_signal->template connect<MemberFn>(obj, priority);
   }
@@ -1181,6 +1196,7 @@ public:
    * @post As for the tracked member-function \c static_signal::connect.
    */
   template <auto MemberFn, typename T, std::size_t Capacity>
+    requires std::is_invocable_r_v<R, decltype(MemberFn), T&, Args...>
   auto connect(T& obj, static_slot<Capacity>& owner, int const priority = 0) -> static_connection {
     return m_signal->template connect<MemberFn>(obj, owner, priority);
   }
