@@ -442,8 +442,9 @@ public:
    * @complexity \c O(n).
    */
   auto disconnect_all() noexcept -> void {
-    if (!m_core)
+    if (!m_core) {
       return;
+    }
     for (auto& s : m_core->slots) {
       s.alive = false;
     }
@@ -482,8 +483,9 @@ public:
    * @post \c is_blocked() is \c false.
    */
   auto unblock() noexcept -> void {
-    if (m_core)
+    if (m_core) {
       m_core->blocked = false;
+    }
   }
 
   /**
@@ -607,8 +609,9 @@ public:
    * @complexity \c O(n).
    */
   [[nodiscard]] auto size() const noexcept -> std::size_t {
-    if (!m_core)
+    if (!m_core) {
       return 0;
+    }
     return static_cast<std::size_t>(
       std::count_if(m_core->slots.begin(), m_core->slots.end(), [](slot_entry const& s) noexcept {
         return s.alive;
@@ -796,8 +799,9 @@ private:
    * @post The named slot will not fire again once any in-progress emit completes.
    */
   auto disconnect_by_id(detail::slot_id_type const id) noexcept -> bool {
-    if (!m_core)
+    if (!m_core) {
       return false;
+    }
     auto& slots{m_core->slots};
     auto found_at{slots.size()};
     for (auto i{std::size_t{0}}; i < slots.size(); ++i) {
