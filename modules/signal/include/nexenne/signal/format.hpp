@@ -15,8 +15,9 @@
  * \c static_scoped_connection print through their owned handle, so a dedicated
  * formatter would only duplicate them.
  *
- * As with every module, the standard \c format header is heavy, so this header is opt-in: include
- * it only where you print a handle.
+ * The standard \c format header is heavy. The umbrella \c signal.hpp includes
+ * this header; include \c connection.hpp or \c static_signal.hpp directly to
+ * leave it out.
  */
 
 #include <format>

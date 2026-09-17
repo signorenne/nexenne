@@ -55,7 +55,7 @@ namespace nexenne::signal {
  * connections in fixed inline storage (zero heap) and disconnects all
  * of them on destruction.
  *
- * @tparam Capacity  Maximum number of connections tracked inline.
+ * @tparam Capacity Maximum number of connections tracked inline.
  *                   \c track returns \c false once this many are held.
  */
 template <std::size_t Capacity = 8>
@@ -111,7 +111,7 @@ public:
   /**
    * @brief Tracks \p c so it auto-disconnects with this slot.
    *
-   * @param c  Connection to take ownership of.
+   * @param c Connection to take ownership of.
    *
    * @return \c true when \p c was tracked, \c false when the slot is
    *         already full. On \c false the connection stays live and

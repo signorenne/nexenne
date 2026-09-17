@@ -325,8 +325,8 @@ public:
    * @param fn Callable to connect.
    * @param priority Ordering key; lower fires first. Default 0.
    *
-   * @return A \c connection handle. It reports invalid once the slot
-   *         has fired and been swept.
+   * @return A \c connection handle. It stays \c valid() while the signal
+   *         lives; once the slot has fired, \c disconnect() returns \c false.
    *
    * @pre Same storage constraint as \c connect.
    * @post \c size() has increased by one until the first emit reaches
@@ -465,6 +465,8 @@ public:
    *
    * @pre None.
    * @post \c is_blocked() is \c true.
+   *
+   * @note Since it is \c noexcept, a failed allocation of the core terminates.
    */
   auto block() noexcept -> void {
     ensure_core().blocked = true;
@@ -523,6 +525,8 @@ public:
    *       reserve the slot list or keep connects out of the emit path in
    *       hard-real-time code.
    *
+   * @note \c emit is \c noexcept: a slot that throws terminates the program.
+   *
    * @complexity \c O(n) in the number of slots.
    */
   auto emit(Args... args) noexcept -> void {
@@ -562,7 +566,7 @@ public:
    * @note Unlike \c emit this always allocates the result vector, plus the
    *       possible pending merge when a slot connects during the collection.
    *       Since it is \c noexcept, an allocation failure terminates (the
-   *       standard embedded policy).
+   *       standard embedded policy), as does a slot that throws.
    *
    * @complexity \c O(n) in the number of slots, plus the vector
    *             allocation.
@@ -651,6 +655,15 @@ private:
    *
    * Bound by reference and shared by both member-function connect overloads.
    * \p obj must outlive the resulting connection.
+   *
+   * @tparam MemberFn Pointer-to-member-function to invoke.
+   * @tparam T Owning object type.
+   * @param obj Object the member function is called on.
+   *
+   * @return A lambda invoking \c obj.*MemberFn with the slot arguments.
+   *
+   * @pre \p obj outlives the returned callable.
+   * @post None.
    */
   template <auto MemberFn, typename T>
   static auto bind_member(T& obj) noexcept {
@@ -820,6 +833,11 @@ private:
    * O(n) worst case, O(1) when the new slot belongs at the end. Stable:
    * equal-priority entries keep insertion order because we only bubble past
    * strictly lower-priority neighbours.
+   *
+   * @param c The core whose last slot is placed.
+   *
+   * @pre \c c.slots is priority-sorted except for its last entry.
+   * @post \c c.slots is priority-sorted.
    */
   static auto bubble_last_into_position(core& c) noexcept -> void {
     auto& s{c.slots};
@@ -891,6 +909,11 @@ private:
    *
    * Each is bubbled into priority position; dead (disconnected before the merge)
    * entries are dropped. Called once the outermost emit finishes.
+   *
+   * @param c The core whose pending connects are merged.
+   *
+   * @pre No emit is iterating \c c.slots.
+   * @post \c c.pending is empty and \c c.slots is priority-sorted.
    */
   static auto apply_pending(core& c) noexcept -> void {
     for (auto& entry : c.pending) {

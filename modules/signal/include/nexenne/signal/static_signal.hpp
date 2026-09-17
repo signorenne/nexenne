@@ -53,6 +53,7 @@
 
 namespace nexenne::signal {
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -74,6 +75,8 @@ concept slot_connectable =
   std::is_invocable_r_v<R, std::decay_t<Fn>&, Args...> && std::constructible_from<SlotFn, Fn>;
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Token handle to a slot on a \c static_signal.
@@ -436,7 +439,7 @@ class static_signal<R(Args...), MaxSlots, SlotCapacity> {
   );
 
 public:
-  using id_type = static_connection::id_type;
+  using id_type = static_connection::id_type;  ///< Slot identifier type.
 
 private:
   using slot_fn_type = nexenne::utility::in_place_function<R(Args...), SlotCapacity>;
@@ -694,6 +697,8 @@ public:
    *       not visited by it. One-shot and disconnected slots are swept after the
    *       outermost emit.
    *
+   * @note \c emit is \c noexcept: a slot that throws terminates the program.
+   *
    * @complexity \c O(MaxSlots), plus an in-place re-sort if a slot connected.
    */
   auto emit(Args... args) noexcept -> void {
@@ -894,6 +899,17 @@ private:
    * new callable and a fresh id. The new id is past the emit watermark, so the
    * emit in progress skips it like any mid-emit connect, and the outermost emit
    * re-sorts it into priority order.
+   *
+   * @tparam Fn Callable type to store.
+   * @param fn Callable to store.
+   * @param priority Ordering key; lower fires first.
+   * @param once Whether the slot auto-disconnects after its first invocation.
+   *
+   * @return A \c static_connection naming the reused entry, or an invalid one
+   *         when every entry is live or executing.
+   *
+   * @pre An emit is in progress and \c m_slots is full.
+   * @post On success the reused entry is alive with a fresh id.
    */
   template <typename Fn>
   auto reclaim_dead_slot(Fn&& fn, int const priority, bool const once) -> static_connection {
@@ -959,6 +975,9 @@ private:
    * @brief Bubbles the just-appended slot left into priority position.
    *
    * Stable: only past strictly lower-priority neighbours.
+   *
+   * @pre \c m_slots is priority-sorted except for its last entry.
+   * @post \c m_slots is priority-sorted.
    */
   auto bubble_last_into_position() noexcept -> void {
     for (auto i{m_slots.size()}; i > 1; --i) {
@@ -977,6 +996,9 @@ private:
    * For slots connected during an emit. Ties break by id, which grows with
    * every connect, so a slot that reused an earlier entry still fires after
    * the older equal-priority slots. O(MaxSlots^2), MaxSlots is small.
+   *
+   * @pre No emit is iterating \c m_slots.
+   * @post \c m_slots is sorted by priority, then id.
    */
   auto sort_by_priority() noexcept -> void {
     auto const before{[](slot_entry const& a, slot_entry const& b) noexcept {

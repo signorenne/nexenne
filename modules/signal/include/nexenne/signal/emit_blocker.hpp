@@ -77,7 +77,7 @@ public:
   /**
    * @brief Saves \p s's prior blocked state and blocks it.
    *
-   * @param s  Signal to block. Must outlive the blocker.
+   * @param s Signal to block. Must outlive the blocker.
    *
    * @pre \p s outlives this blocker.
    * @post \p s is blocked; its prior state is recorded for restore.
@@ -94,7 +94,7 @@ public:
   /**
    * @brief Move-constructs, taking over the guard from \p other.
    *
-   * @param other  Source guard; left inert (restores nothing).
+   * @param other Source guard; left inert (restores nothing).
    *
    * @pre None.
    * @post This guard now owns the restore; \p other does nothing on
@@ -107,7 +107,7 @@ public:
    * @brief Move-assigns: restores this guard's signal, then adopts
    *        \p other's.
    *
-   * @param other  Source guard; left inert.
+   * @param other Source guard; left inert.
    *
    * @return Reference to \c *this.
    *

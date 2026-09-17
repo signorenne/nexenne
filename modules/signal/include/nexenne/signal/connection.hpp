@@ -24,6 +24,7 @@
 
 namespace nexenne::signal {
 
+/// @cond INTERNAL
 namespace detail {
 
 using slot_id_type = std::uint64_t;
@@ -38,6 +39,8 @@ using slot_id_type = std::uint64_t;
 using disconnect_fn_type = auto (*)(void*, slot_id_type) noexcept -> bool;
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Value-type handle to a connected slot.

@@ -122,7 +122,7 @@ Keep in mind:
 nexenne::signal::signal<void(int)> on_change;
 
 auto c{on_change.connect([](int v) noexcept { use(v); })};   // subscribe
-on_change.connect_once([](int) noexcept { calibrate(); });   // one-shot
+auto once{on_change.connect_once([](int) noexcept { calibrate(); })};  // one-shot
 on_change.emit(42);                                          // fire all slots
 c.disconnect();                                              // unsubscribe
 #+END_SRC
