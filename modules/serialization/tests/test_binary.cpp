@@ -3,6 +3,7 @@
 #include <array>
 #include <bit>
 #include <cmath>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -934,5 +935,47 @@ TEST_CASE("nexenne::serialization::binary - read_array<bool> validates every wir
     CHECK(r.position() == 0);
   }
 }
+
+template <typename T>
+concept writes = requires(binary::writer& w, T const t) { w.write(t); };
+
+template <typename T>
+concept writes_array =
+  requires(binary::writer& w, std::span<T const> const xs) { w.write_array(xs); };
+
+template <typename T>
+concept reads = requires(binary::reader& r) { r.template read<T>(); };
+
+template <typename T>
+concept peeks = requires(binary::reader const& r) { r.template peek<T>(); };
+
+template <typename T>
+concept reads_array = requires(binary::reader& r, std::span<T> const out) { r.read_array(out); };
+
+template <typename T>
+concept wire_scalar = writes<T> && writes_array<T> && reads<T> && peeks<T> && reads_array<T>;
+
+template <typename T>
+concept no_wire_scalar =
+  !writes<T> && !writes_array<T> && !reads<T> && !peeks<T> && !reads_array<T>;
+
+static_assert(wire_scalar<bool>);
+static_assert(wire_scalar<char>);
+static_assert(wire_scalar<char8_t>);
+static_assert(wire_scalar<std::int8_t> && wire_scalar<std::uint8_t>);
+static_assert(wire_scalar<std::int16_t> && wire_scalar<std::uint16_t>);
+static_assert(wire_scalar<std::int32_t> && wire_scalar<std::uint32_t>);
+static_assert(wire_scalar<std::int64_t> && wire_scalar<std::uint64_t>);
+static_assert(wire_scalar<float> && wire_scalar<double>);
+static_assert(reads<std::uint32_t const>);
+
+static_assert(no_wire_scalar<wchar_t>);
+static_assert(no_wire_scalar<char16_t>);
+static_assert(no_wire_scalar<char32_t>);
+static_assert(no_wire_scalar<long double>);
+// By type identity, not width: where std::int64_t is long, long long is rejected.
+static_assert(!std::same_as<std::int64_t, long> || no_wire_scalar<long long>);
+static_assert(!std::same_as<std::uint64_t, unsigned long> || no_wire_scalar<unsigned long long>);
+static_assert(!std::same_as<std::int32_t, long> || no_wire_scalar<int>);
 
 }  // namespace

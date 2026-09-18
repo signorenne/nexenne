@@ -45,15 +45,14 @@
 
 #include <array>
 #include <bit>
-#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <expected>
 #include <span>
 #include <string_view>
-#include <type_traits>
 
+#include <nexenne/serialization/binary/fixed_width.hpp>
 #include <nexenne/serialization/error.hpp>
 #include <nexenne/utility/buffer_cursor.hpp>
 #include <nexenne/utility/ignore.hpp>
@@ -246,10 +245,10 @@ public:
    * @brief Write one primitive in little-endian byte order.
    *
    * One \c memcpy on the little-endian fast path; on a big-endian host
-   * the bytes are reversed first. Works for any built-in integer or
-   * floating-point type.
+   * the bytes are reversed first. Accepts only a \c fixed_width_scalar, so
+   * the encoded width cannot change with the platform.
    *
-   * @tparam T Trivially-copyable integral or floating-point type.
+   * @tparam T Scalar of one width on every platform; see \c fixed_width_scalar.
    * @param value Value to encode.
    *
    * @return Empty on success.
@@ -261,8 +260,7 @@ public:
    * @throws None. Returns \c error::buffer_full when fewer than
    *         \c sizeof(T) bytes remain.
    */
-  template <typename T>
-    requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
+  template <fixed_width_scalar T>
   [[nodiscard]] auto write(T const value) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_full};
@@ -317,7 +315,7 @@ public:
    * otherwise each element is byte-swapped through \c write. A single
    * bounds check fronts the whole batch.
    *
-   * @tparam T Trivially-copyable integral or floating-point type.
+   * @tparam T Scalar of one width on every platform; see \c fixed_width_scalar.
    * @param xs Elements to encode, in order.
    *
    * @return Empty on success.
@@ -329,8 +327,7 @@ public:
    * @throws None. Returns \c error::buffer_full when fewer than
    *         \c xs.size()*sizeof(T) bytes remain.
    */
-  template <typename T>
-    requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
+  template <fixed_width_scalar T>
   [[nodiscard]] auto write_array(std::span<T const> const xs) noexcept
     -> std::expected<void, error> {
     // Compare counts, not byte totals: xs.size() * sizeof(T) could overflow

@@ -30,6 +30,30 @@ round-trip exactly. A plain =write= of a signed integer emits fixed-width
 little-endian two's complement; signed integers *may* instead be zig-zag packed
 via =write_zigzag= so small magnitudes of either sign stay small.
 
+** Only fixed-width scalars
+
+A wire value has to take the same number of bytes on both ends, or a payload
+written on one ABI misreads on another: =long= is 8 bytes on a 64-bit Linux host
+and 4 on a Cortex-M, =wchar_t= is 4 bytes on Linux and 2 on Windows, and
+=long double= is anything from 8 to 16. So =write=, =read=, =peek=,
+=write_array= and =read_array= take only a =binary::fixed_width_scalar=: the
+exact-width integers =std::int8_t= to =std::uint64_t=, =bool=, =char=,
+=char8_t=, =float= and =double=. Anything else is a compile error at the call.
+
+The check is type identity against the =<cstdint>= aliases, the only test a
+compiler can make. A type that *is* an alias on the target passes: on 64-bit
+Linux =long= is =std::int64_t=, so a =long= still compiles there and only fails
+on a target where it is not an alias. The reverse also holds: arm-none-eabi
+defines =std::int32_t= as =long=, so a plain =int= is rejected on that target.
+Spell every wire field with the aliases and the code compiles, and encodes the
+same bytes, everywhere.
+
+#+BEGIN_SRC cpp
+w.write(std::uint32_t{42});   // fine on every target
+w.write(std::size_t{42});     // compiles only where size_t is an alias
+w.write(L'x');                // never: wchar_t's width varies
+#+END_SRC
+
 ** Strings as LEB128-prefixed bytes
 
 A string is an unsigned LEB128 varint length followed by the bytes. LEB128 stores

@@ -35,7 +35,6 @@
 
 #include <array>
 #include <bit>
-#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -44,6 +43,7 @@
 #include <string_view>
 #include <type_traits>
 
+#include <nexenne/serialization/binary/fixed_width.hpp>
 #include <nexenne/serialization/error.hpp>
 #include <nexenne/utility/buffer_cursor.hpp>
 
@@ -228,10 +228,10 @@ public:
    * @brief Decode one little-endian primitive and advance the cursor.
    *
    * On the little-endian fast path the read is a single \c memcpy; on a
-   * big-endian host the bytes are reversed first. Works for any built-in
-   * integer or floating-point type.
+   * big-endian host the bytes are reversed first. Accepts only a
+   * \c fixed_width_scalar, so the decoded width cannot change with the platform.
    *
-   * @tparam T Trivially-copyable integral or floating-point type.
+   * @tparam T Scalar of one width on every platform; see \c fixed_width_scalar.
    *
    * @return The decoded value on success.
    *
@@ -243,8 +243,7 @@ public:
    *         \c sizeof(T) bytes remain, or \c error::invalid_input when
    *         \c T is \c bool and the wire byte is neither 0 nor 1.
    */
-  template <typename T>
-    requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
+  template <fixed_width_scalar T>
   [[nodiscard]] auto read() noexcept -> std::expected<T, error> {
     if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
@@ -282,7 +281,7 @@ public:
    * depends on an upcoming value. Decodes exactly as \c read but leaves
    * the cursor in place.
    *
-   * @tparam T Trivially-copyable integral or floating-point type.
+   * @tparam T Scalar of one width on every platform; see \c fixed_width_scalar.
    *
    * @return The value at the current position on success.
    *
@@ -293,8 +292,7 @@ public:
    *         \c sizeof(T) bytes remain, or \c error::invalid_input when
    *         \c T is \c bool and the wire byte is neither 0 nor 1.
    */
-  template <typename T>
-    requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
+  template <fixed_width_scalar T>
   [[nodiscard]] auto peek() const noexcept -> std::expected<T, error> {
     if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
@@ -352,7 +350,7 @@ public:
    * One \c memcpy on little-endian hosts (or whenever \c sizeof(T) is 1);
    * otherwise each element is byte-swapped through \c read.
    *
-   * @tparam T Trivially-copyable integral or floating-point type.
+   * @tparam T Scalar of one width on every platform; see \c fixed_width_scalar.
    * @param out Destination span; its current size sets the element
    *             count to read.
    *
@@ -367,8 +365,7 @@ public:
    *         \c out.size()*sizeof(T) bytes remain, or \c error::invalid_input
    *         when \c T is \c bool and a wire byte is neither 0 nor 1.
    */
-  template <typename T>
-    requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
+  template <fixed_width_scalar T>
   [[nodiscard]] auto read_array(std::span<T> const out) noexcept -> std::expected<void, error> {
     // Compare counts, not byte totals: out.size() * sizeof(T) could overflow
     // size_t and wrap to a small value that passes a bounds check, then memcpy

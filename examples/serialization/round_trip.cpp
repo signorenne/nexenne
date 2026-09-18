@@ -42,7 +42,6 @@ auto main() -> int {
     std::println("json   : re-serialized {}", ser::json::serialize(*doc));
   }
 
-  // 2. Schema-driven binary: no tags, both sides walk the same order.
   {
     auto buf{std::array<std::byte, 64>{}};
     auto w{ser::binary::writer{buf}};

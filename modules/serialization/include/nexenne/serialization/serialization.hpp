@@ -10,6 +10,7 @@
  * directly when you do not need the rest.
  */
 
+#include <nexenne/serialization/binary/fixed_width.hpp>
 #include <nexenne/serialization/binary/reader.hpp>
 #include <nexenne/serialization/binary/writer.hpp>
 #include <nexenne/serialization/cbor.hpp>
