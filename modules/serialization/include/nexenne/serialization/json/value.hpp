@@ -707,11 +707,11 @@ public:
    * @pre The value is null or already an object.
    * @post After the call the value is an object and \p key is present.
    *
-   * @warning Behaviour is undefined (the underlying variant access
-   *          throws \c std::bad_variant_access) when the value already
-   *          holds a non-object, non-null kind.
+   * @warning Breaking the precondition asserts in a debug build; a release
+   *          build throws \c std::bad_variant_access.
    */
   [[nodiscard]] auto operator[](std::string_view const key) -> value& {
+    assert((is_null() || is_object()) && "json::value::operator[]: not an object");
     if (is_null()) {
       m_data = object_type{};
     }

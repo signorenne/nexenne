@@ -947,7 +947,7 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the item; on failure it is
-   *       unchanged, or advanced past the head byte on a mid-item
+   *       unchanged, or advanced past the head byte and any length bytes on a mid-item
    *       truncation.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation,
@@ -1044,7 +1044,7 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the item; on failure it is
-   *       unchanged, or advanced past the head byte on a mid-item
+   *       unchanged, or advanced past the head byte and any length bytes on a mid-item
    *       truncation.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
@@ -1103,7 +1103,7 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the item; on failure it is
-   *       unchanged, or advanced past the head byte on a mid-item
+   *       unchanged, or advanced past the head byte and any length bytes on a mid-item
    *       truncation.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
@@ -1235,7 +1235,7 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header; on failure it
-   *       is unchanged, or advanced past the head byte on a mid-item
+   *       is unchanged, or advanced past the head byte and any length bytes on a mid-item
    *       truncation.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
@@ -1273,7 +1273,7 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header; on failure it
-   *       is unchanged, or advanced past the head byte on a mid-item
+   *       is unchanged, or advanced past the head byte and any length bytes on a mid-item
    *       truncation.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or

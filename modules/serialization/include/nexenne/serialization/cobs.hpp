@@ -93,8 +93,8 @@ namespace detail {
  *
  * @complexity \c O(1).
  */
-[[nodiscard]] constexpr auto cobs_max_encoded_size(std::size_t const payload_len) noexcept
-  -> std::size_t {
+[[nodiscard, deprecated("use max_encoded_size")]] constexpr auto
+cobs_max_encoded_size(std::size_t const payload_len) noexcept -> std::size_t {
   return max_encoded_size(payload_len);
 }
 

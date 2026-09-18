@@ -131,7 +131,8 @@ For machine-to-machine payloads where size and speed matter more than
 readability, prefer [[file:binary.org][binary]] or [[file:codecs.org][CBOR/MessagePack]]. Gotchas: parsing is strict
 by default (opt into comments or trailing commas through =parse_options=);
 =max_depth= caps nesting; and reading a value as the wrong type returns
-=type_mismatch=, it does not coerce.
+=type_mismatch=. The one coercion is between the numbers: =as_int= accepts a
+float that fits, and =as_float= accepts an integer.
 
 * Usage
 
@@ -145,7 +146,7 @@ if (doc) {
 }
 
 auto root{js::value{js::object{{"ok", true}, {"n", 42}}}};
-auto const text{js::serialize(root)};   // {"ok":true,"n":42}
+auto const text{js::serialize(root)};   // {"n":42,"ok":true} (keys sorted)
 #+END_SRC
 
 Runnable: [[file:../../../examples/serialization/round_trip.cpp][examples/serialization/round_trip.cpp]].

@@ -359,7 +359,10 @@ TEST_CASE("cobs: cobs_max_encoded_size alias equals max_encoded_size") {
         std::size_t{254},
         std::size_t{255},
         std::size_t{1000}}) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     CHECK(cobs::cobs_max_encoded_size(n) == cobs::max_encoded_size(n));
+#pragma GCC diagnostic pop
   }
 }
 

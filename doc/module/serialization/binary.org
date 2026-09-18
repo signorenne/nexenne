@@ -41,7 +41,7 @@ caps it further. A varint is rejected past 10 bytes (over-long for 64 bits), and
 a non-canonical tenth byte that would overflow is rejected too.
 
 #+BEGIN_EXAMPLE
-  write_string("hi")  ->  02 'h' 'i'        (length 2 as one LEB128 byte)
+  write("hi")         ->  02 'h' 'i'        (length 2 as one LEB128 byte)
   write(uint32 300)   ->  2C 01 00 00       (little-endian)
 
   read side walks the same schema; a length prefix > bytes-left -> buffer_underrun

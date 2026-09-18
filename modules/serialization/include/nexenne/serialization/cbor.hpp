@@ -28,9 +28,10 @@
  * integers wrapped in tags. They can be added without breaking
  * the existing API.
  *
- * Output is canonical (deterministic): integers are encoded with
- * the smallest representation, and the writer never emits
- * indefinite-length items.
+ * Output is deterministic: integers are encoded with the smallest
+ * representation, and the writer never emits indefinite-length
+ * items. It is not fully canonical: floats keep the width the caller
+ * wrote, and map key order is the caller's.
  */
 
 #include <bit>
@@ -937,7 +938,7 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header and body; on
-   *       failure it is unchanged or advanced only past the head byte.
+   *       failure it is unchanged or advanced past the head byte and any length bytes it read.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
    *         \c error::type_mismatch when the next item is not major
@@ -975,7 +976,7 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header and body; on
-   *       failure it is unchanged or advanced only past the head byte.
+   *       failure it is unchanged or advanced past the head byte and any length bytes it read.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
    *         \c error::type_mismatch when the next item is not major
@@ -1012,7 +1013,7 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header; on failure it
-   *       is unchanged or advanced only past the head byte.
+   *       is unchanged or advanced past the head byte and any length bytes it read.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
    *         \c error::type_mismatch when the next item is not major
@@ -1037,7 +1038,7 @@ public:
    *
    * @pre None.
    * @post On success the cursor advances past the header; on failure it
-   *       is unchanged or advanced only past the head byte.
+   *       is unchanged or advanced past the head byte and any length bytes it read.
    *
    * @throws None. Returns \c error::buffer_underrun on truncation, or
    *         \c error::type_mismatch when the next item is not major
