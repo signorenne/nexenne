@@ -62,7 +62,7 @@ namespace detail {
 /**
  * @brief Worst-case encoded size for \p payload_len bytes (excludes delimiter).
  *
- * @param payload_len  Number of payload bytes to encode.
+ * @param payload_len Number of payload bytes to encode.
  *
  * @return The maximum number of bytes \c encode can produce.
  *
@@ -82,7 +82,7 @@ namespace detail {
  * Kept as a thin forwarder during the rename away from the redundant
  * \c cobs_ prefix inside namespace \c cobs. Prefer \c max_encoded_size.
  *
- * @param payload_len  Number of payload bytes to encode.
+ * @param payload_len Number of payload bytes to encode.
  *
  * @return The maximum number of bytes \c encode can produce.
  *
@@ -101,8 +101,8 @@ cobs_max_encoded_size(std::size_t const payload_len) noexcept -> std::size_t {
 /**
  * @brief COBS-encode \p in into \p out.
  *
- * @param in   Payload bytes (may contain zeros; may be empty).
- * @param out  Destination; size it with \c max_encoded_size(in.size()).
+ * @param in Payload bytes (may contain zeros; may be empty).
+ * @param out Destination; size it with \c max_encoded_size(in.size()).
  *
  * @return Number of bytes written, or \c error::buffer_full if \p out is too
  *         small.
@@ -121,8 +121,8 @@ encode(std::span<std::byte const> const in, std::span<std::byte> const out) noex
 /**
  * @brief COBS-decode \p in into \p out.
  *
- * @param in   Encoded bytes (one frame, delimiter byte NOT included).
- * @param out  Destination for the recovered payload.
+ * @param in Encoded bytes (one frame, delimiter byte NOT included).
+ * @param out Destination for the recovered payload.
  *
  * @return Number of bytes written, or \c error::invalid_input on a malformed
  *         frame, \c error::buffer_underrun on a truncated frame, or

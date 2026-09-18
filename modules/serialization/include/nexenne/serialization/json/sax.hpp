@@ -2,8 +2,7 @@
 
 /**
  * @file
- * @brief Streaming SAX-style JSON parser, zero heap, bounded
- *        stack, suitable for bare-metal MCUs.
+ * @brief Streaming SAX-style JSON parser: zero heap, bounded stack, fit for bare-metal MCUs.
  *
  * Inspired by jsmn (the embedded C tokenizer) and nlohmann's
  * \c sax_parse: instead of building a DOM, the parser walks the
@@ -70,7 +69,7 @@ namespace nexenne::serialization::json {
  * aborts the parse cleanly, which \c scan surfaces as
  * \c error::invalid_input.
  *
- * @tparam V  Candidate visitor type.
+ * @tparam V Candidate visitor type.
  */
 template <typename V>
 concept sax_visitor = requires(V& v, bool b, std::int64_t i, double d, std::string_view sv) {
@@ -87,8 +86,9 @@ concept sax_visitor = requires(V& v, bool b, std::int64_t i, double d, std::stri
 };
 
 /**
- * @brief Default-implemented visitor. Inherit and override the
- *        events you care about; the rest stay no-ops.
+ * @brief Default-implemented visitor whose every event is a no-op.
+ *
+ * Inherit and override the events you care about.
  */
 struct noop_visitor {
   /**
@@ -106,36 +106,42 @@ struct noop_visitor {
   /**
    * @brief Handle a JSON boolean. Default: ignore and continue.
    *
+   * @param b The boolean.
+   *
    * @return Always \c true (continue parsing).
    *
    * @pre None.
    * @post None.
    */
-  auto on_bool(bool) noexcept -> bool {
+  auto on_bool([[maybe_unused]] bool const b) noexcept -> bool {
     return true;
   }
 
   /**
    * @brief Handle an integer number. Default: ignore and continue.
    *
+   * @param i The integer.
+   *
    * @return Always \c true (continue parsing).
    *
    * @pre None.
    * @post None.
    */
-  auto on_int(std::int64_t) noexcept -> bool {
+  auto on_int([[maybe_unused]] std::int64_t const i) noexcept -> bool {
     return true;
   }
 
   /**
    * @brief Handle a floating-point number. Default: ignore and continue.
    *
+   * @param d The number.
+   *
    * @return Always \c true (continue parsing).
    *
    * @pre None.
    * @post None.
    */
-  auto on_float(double) noexcept -> bool {
+  auto on_float([[maybe_unused]] double const d) noexcept -> bool {
     return true;
   }
 
@@ -144,12 +150,14 @@ struct noop_visitor {
    *
    * The argument is a raw, undecoded view into the source buffer.
    *
+   * @param s The decoded string.
+   *
    * @return Always \c true (continue parsing).
    *
    * @pre None.
    * @post None.
    */
-  auto on_string(std::string_view) noexcept -> bool {
+  auto on_string([[maybe_unused]] std::string_view const s) noexcept -> bool {
     return true;
   }
 
@@ -158,12 +166,14 @@ struct noop_visitor {
    *
    * The argument is a raw, undecoded view into the source buffer.
    *
+   * @param k The decoded member name.
+   *
    * @return Always \c true (continue parsing).
    *
    * @pre None.
    * @post None.
    */
-  auto on_key(std::string_view) noexcept -> bool {
+  auto on_key([[maybe_unused]] std::string_view const k) noexcept -> bool {
     return true;
   }
 
@@ -806,10 +816,10 @@ private:
  *                  (32 by default). Each level is a real stack frame, so
  *                  size it against the target's stack budget: bump for
  *                  deeply nested payloads, shrink for tight RAM.
- * @tparam V        Visitor type satisfying \c sax_visitor.
- * @param src      JSON text to scan.
- * @param visitor  Receiver of parse events; mutated through its
- *                  callbacks.
+ * @tparam V Visitor type satisfying \c sax_visitor.
+ * @param src JSON text to scan.
+ * @param visitor Receiver of parse events; mutated through its
+ *                 callbacks.
  *
  * @return Empty on success, or an error on the first malformed token,
  *         depth overflow, or visitor abort.

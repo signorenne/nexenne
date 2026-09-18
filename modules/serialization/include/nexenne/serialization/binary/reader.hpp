@@ -66,8 +66,8 @@ namespace nexenne::serialization::binary {
  */
 class reader {
 public:
-  using byte_type = std::byte;
-  using size_type = std::size_t;
+  using byte_type = std::byte;    ///< Byte type of the buffer.
+  using size_type = std::size_t;  ///< Size and offset type.
 
   /**
    * @brief Default hard cap on the length of a single decoded string.
@@ -90,8 +90,8 @@ public:
    * The cursor starts at offset zero. The reader stores the span by
    * value but does not own the underlying bytes.
    *
-   * @param buf  Source bytes to decode. Must outlive the reader and any
-   *             view it returns.
+   * @param buf Source bytes to decode. Must outlive the reader and any
+   *            view it returns.
    *
    * @pre \p buf refers to valid memory for the lifetime of the reader.
    * @post \c position() is zero and \c bytes_remaining() equals
@@ -167,7 +167,7 @@ public:
    * when the decoded length prefix exceeds \p n. Lower it on
    * RAM-constrained targets.
    *
-   * @param n  New maximum decoded string length, in bytes.
+   * @param n New maximum decoded string length, in bytes.
    *
    * @pre None.
    * @post Later \c read_string calls reject lengths greater than \p n.
@@ -182,7 +182,7 @@ public:
    * Useful for random access into a known layout, such as a flash block
    * whose field offsets the caller already knows.
    *
-   * @param pos  Absolute offset to seek to, in bytes from the start.
+   * @param pos Absolute offset to seek to, in bytes from the start.
    *
    * @return Empty on success.
    *
@@ -206,7 +206,7 @@ public:
    * Steps over a padding region or an unknown field whose size the
    * schema specifies. Bounds-checked.
    *
-   * @param n  Number of bytes to skip.
+   * @param n Number of bytes to skip.
    *
    * @return Empty on success.
    *
@@ -225,14 +225,13 @@ public:
   }
 
   /**
-   * @brief Decode one trivially-copyable primitive from little-endian
-   *        bytes and advance the cursor.
+   * @brief Decode one little-endian primitive and advance the cursor.
    *
    * On the little-endian fast path the read is a single \c memcpy; on a
    * big-endian host the bytes are reversed first. Works for any built-in
    * integer or floating-point type.
    *
-   * @tparam T  Trivially-copyable integral or floating-point type.
+   * @tparam T Trivially-copyable integral or floating-point type.
    *
    * @return The decoded value on success.
    *
@@ -283,7 +282,7 @@ public:
    * depends on an upcoming value. Decodes exactly as \c read but leaves
    * the cursor in place.
    *
-   * @tparam T  Trivially-copyable integral or floating-point type.
+   * @tparam T Trivially-copyable integral or floating-point type.
    *
    * @return The value at the current position on success.
    *
@@ -326,7 +325,7 @@ public:
    * Zero-copy: the returned span aliases the reader's backing storage
    * and stays valid only as long as that storage does.
    *
-   * @param n  Number of bytes to view.
+   * @param n Number of bytes to view.
    *
    * @return A span covering the next \p n bytes on success.
    *
@@ -353,9 +352,9 @@ public:
    * One \c memcpy on little-endian hosts (or whenever \c sizeof(T) is 1);
    * otherwise each element is byte-swapped through \c read.
    *
-   * @tparam T  Trivially-copyable integral or floating-point type.
-   * @param out  Destination span; its current size sets the element
-   *              count to read.
+   * @tparam T Trivially-copyable integral or floating-point type.
+   * @param out Destination span; its current size sets the element
+   *             count to read.
    *
    * @return Empty on success.
    *
@@ -468,8 +467,7 @@ public:
   }
 
   /**
-   * @brief Read a length-prefixed string written by
-   *        \c writer::write(std::string_view).
+   * @brief Read a string written by \c writer::write(std::string_view).
    *
    * Decodes the varint length prefix and returns a view of the following
    * bytes directly into the source buffer (zero-copy). The view stays

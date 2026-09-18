@@ -76,8 +76,8 @@ namespace nexenne::serialization::binary {
  */
 class writer {
 public:
-  using byte_type = std::byte;
-  using size_type = std::size_t;
+  using byte_type = std::byte;    ///< Byte type of the buffer.
+  using size_type = std::size_t;  ///< Size and offset type.
 
 private:
   nexenne::utility::buffer_cursor<byte_type> m_cursor;
@@ -129,7 +129,7 @@ public:
    * The cursor starts at offset zero. The writer stores the span by
    * value but does not own the underlying bytes.
    *
-   * @param buf  Destination bytes to fill. Must outlive the writer.
+   * @param buf Destination bytes to fill. Must outlive the writer.
    *
    * @pre \p buf refers to writable memory for the lifetime of the
    *       writer.
@@ -224,7 +224,7 @@ public:
    * patch-at-offset, so bytes stepped over here cannot be backfilled
    * through it. Bounds-checked.
    *
-   * @param n  Number of bytes to skip.
+   * @param n Number of bytes to skip.
    *
    * @return Empty on success.
    *
@@ -249,8 +249,8 @@ public:
    * the bytes are reversed first. Works for any built-in integer or
    * floating-point type.
    *
-   * @tparam T  Trivially-copyable integral or floating-point type.
-   * @param value  Value to encode.
+   * @tparam T Trivially-copyable integral or floating-point type.
+   * @param value Value to encode.
    *
    * @return Empty on success.
    *
@@ -286,7 +286,7 @@ public:
    * Use when the schema fixes or otherwise communicates the size out of
    * band (fixed arrays, sentinel-terminated blocks, etc).
    *
-   * @param data  Bytes to copy verbatim into the buffer.
+   * @param data Bytes to copy verbatim into the buffer.
    *
    * @return Empty on success.
    *
@@ -317,8 +317,8 @@ public:
    * otherwise each element is byte-swapped through \c write. A single
    * bounds check fronts the whole batch.
    *
-   * @tparam T  Trivially-copyable integral or floating-point type.
-   * @param xs  Elements to encode, in order.
+   * @tparam T Trivially-copyable integral or floating-point type.
+   * @param xs Elements to encode, in order.
    *
    * @return Empty on success.
    *
@@ -360,7 +360,7 @@ public:
    * more bytes follow, so small values cost a single byte. A single
    * bounds check fronts the whole encode.
    *
-   * @param value  Unsigned value to encode.
+   * @param value Unsigned value to encode.
    *
    * @return Empty on success.
    *
@@ -391,7 +391,7 @@ public:
    * of magnitude. This mirrors protobuf's \c sint32 / \c sint64 wire
    * format. Decode with \c reader::read_zigzag.
    *
-   * @param value  Signed value to encode.
+   * @param value Signed value to encode.
    *
    * @return Empty on success.
    *
@@ -412,16 +412,15 @@ public:
   }
 
   /**
-   * @brief Write a string as a varint length prefix followed by its
-   *        bytes.
+   * @brief Write a string as a varint length prefix followed by its bytes.
    *
    * The length is encoded as an unsigned LEB128 varint, then the bytes
    * of \p s are copied verbatim. Decode with \c reader::read_string. The
    * length is capped at \c 2^32-1 to keep prefixes sane.
    *
-   * @param s  String to encode. Its bytes are copied as-is and are
-   *           expected to be valid UTF-8, though the writer does not
-   *           validate the encoding.
+   * @param s String to encode. Its bytes are copied as-is and are
+   *          expected to be valid UTF-8, though the writer does not
+   *          validate the encoding.
    *
    * @return Empty on success.
    *

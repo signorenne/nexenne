@@ -426,7 +426,6 @@ TEST_CASE("nexenne::serialization::json parse - u-escapes and UTF-8") {
   CHECK(*json::parse("\"\\u00e9\"")->as_string() == "\xc3\xa9");
   // U+20AC (euro) -> 3-byte UTF-8 E2 82 AC.
   CHECK(*json::parse("\"\\u20ac\"")->as_string() == "\xe2\x82\xac");
-  // NUL via  .
   CHECK(*json::parse("\"\\u0000\"")->as_string() == std::string(1, '\0'));
   // case-insensitive hex digits decode identically.
   CHECK(*json::parse("\"\\u00E9\"")->as_string() == *json::parse("\"\\u00e9\"")->as_string());

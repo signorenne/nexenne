@@ -67,7 +67,7 @@ namespace nexenne::serialization {
  * \c std::expected carrying \c error as its error type, for some payload
  * value type. The \c versioned_decoder concept builds on it.
  *
- * @tparam T  Candidate result type.
+ * @tparam T Candidate result type.
  */
 template <typename T>
 concept expected_with_error = requires {
@@ -85,7 +85,7 @@ concept expected_with_error = requires {
  * codec whose \c decode returns the wrong shape is rejected at the call site
  * rather than failing deeper.
  *
- * @tparam Codec  Candidate codec type.
+ * @tparam Codec Candidate codec type.
  */
 template <typename Codec>
 concept versioned_decoder = requires(Codec const& c, binary::reader& r, std::uint16_t v) {
@@ -171,10 +171,10 @@ inline constexpr std::size_t versioned_header_size{8};
  * (\c versioned_header_size bytes: magic, version, and a zeroed reserved
  * field), so the caller never has to backfill anything.
  *
- * @param w        Writer positioned where the envelope should go,
- *                 normally at offset zero.
- * @param magic    Application tag identifying the payload kind.
- * @param version  Schema version of the body that follows.
+ * @param w Writer positioned where the envelope should go,
+ *          normally at offset zero.
+ * @param magic Application tag identifying the payload kind.
+ * @param version Schema version of the body that follows.
  *
  * @return Empty on success.
  *
@@ -210,7 +210,7 @@ struct header {
  * and leaves the reader positioned at the start of the body. The reserved
  * field is not surfaced.
  *
- * @param r              Reader positioned at the start of the envelope.
+ * @param r Reader positioned at the start of the envelope.
  * @param expected_magic Application tag this payload must carry.
  *
  * @return The parsed header on success.
@@ -253,10 +253,10 @@ read_header(binary::reader& r, std::uint32_t const expected_magic) noexcept
  * only owns version-dispatch. On envelope failure the error is repackaged
  * into the codec's own result type without calling \c decode.
  *
- * @tparam Codec  Codec type satisfying \c versioned_decoder.
- * @param r              Reader positioned at the start of the envelope.
+ * @tparam Codec Codec type satisfying \c versioned_decoder.
+ * @param r Reader positioned at the start of the envelope.
  * @param expected_magic Application tag this payload must carry.
- * @param codec          Codec that decodes the body for a given version.
+ * @param codec Codec that decodes the body for a given version.
  *
  * @return The codec's result on success, or the codec's result type
  *         carrying the envelope error on failure.

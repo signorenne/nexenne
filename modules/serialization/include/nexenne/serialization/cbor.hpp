@@ -2,9 +2,9 @@
 
 /**
  * @file
- * @brief CBOR (RFC 8949) writer / reader, subset covering the
- *        eight major types except tagged values and indefinite
- *        lengths.
+ * @brief CBOR (RFC 8949) writer and reader.
+ *
+ * Covers the eight major types except tagged values and indefinite lengths.
  *
  * CBOR is the IETF binary equivalent of JSON used by COSE, COAP,
  * WebAuthn / FIDO2, DNS-over-HTTPS responses, and most low-power
@@ -51,8 +51,7 @@
 namespace nexenne::serialization::cbor {
 
 /**
- * @brief Logical kind of the next CBOR item, as reported by
- *        \c reader::peek_type.
+ * @brief Logical kind of the next CBOR item, as reported by \c reader::peek_type.
  *
  * Collapses the CBOR major type and the simple-value sub-tags into a flat
  * set the caller can branch on before choosing a \c read_* call. Tags
@@ -246,6 +245,9 @@ inline auto half_to_double(std::uint16_t const h) noexcept -> double {
  *
  * @return The length as \c SizeT, or \c error::string_too_long when it exceeds
  *         the range of \c SizeT.
+ *
+ * @pre None.
+ * @post On success the value equals \p len.
  */
 template <std::unsigned_integral SizeT>
 [[nodiscard]] constexpr auto length_to_size(std::uint64_t const len) noexcept
@@ -273,8 +275,8 @@ template <std::unsigned_integral SizeT>
  */
 class writer {
 public:
-  using byte_type = std::byte;
-  using size_type = std::size_t;
+  using byte_type = std::byte;    ///< Byte type of the buffer.
+  using size_type = std::size_t;  ///< Size and offset type.
 
 private:
   nexenne::utility::buffer_cursor<byte_type> m_cursor;
@@ -386,7 +388,7 @@ public:
   /**
    * @brief Construct a writer over the mutable byte span \p buf.
    *
-   * @param buf  Destination bytes to fill. Must outlive the writer.
+   * @param buf Destination bytes to fill. Must outlive the writer.
    *
    * @pre \p buf refers to writable memory for the lifetime of the
    *       writer.
@@ -444,7 +446,7 @@ public:
    *
    * Uses the smallest of the 1/2/3/5/9-byte forms.
    *
-   * @param v  Unsigned value to encode.
+   * @param v Unsigned value to encode.
    *
    * @return Empty on success.
    *
@@ -466,7 +468,7 @@ public:
    * type 1, which encodes \c -1-n as argument \c n. The full \c int64_t
    * range is representable.
    *
-   * @param v  Signed value to encode.
+   * @param v Signed value to encode.
    *
    * @return Empty on success.
    *
@@ -488,7 +490,7 @@ public:
    *
    * Writes the length header followed by the raw bytes.
    *
-   * @param data  Bytes to encode.
+   * @param data Bytes to encode.
    *
    * @return Empty on success.
    *
@@ -521,8 +523,8 @@ public:
    *
    * Writes the length header followed by the string bytes.
    *
-   * @param s  Text to encode; expected to be valid UTF-8, which the
-   *           writer does not verify.
+   * @param s Text to encode; expected to be valid UTF-8, which the
+   *          writer does not verify.
    *
    * @return Empty on success.
    *
@@ -553,7 +555,7 @@ public:
    *
    * The caller must then write exactly \p n items.
    *
-   * @param n  Number of array elements that will follow.
+   * @param n Number of array elements that will follow.
    *
    * @return Empty on success.
    *
@@ -574,7 +576,7 @@ public:
    *
    * The caller must then write exactly \p n key/value item pairs.
    *
-   * @param n  Number of key-value pairs that will follow.
+   * @param n Number of key-value pairs that will follow.
    *
    * @return Empty on success.
    *
@@ -593,8 +595,8 @@ public:
   /**
    * @brief Encode a boolean simple value.
    *
-   * @param v  Boolean to write as CBOR \c true (0xF5) or \c false
-   *           (0xF4).
+   * @param v Boolean to write as CBOR \c true (0xF5) or \c false
+   *          (0xF4).
    *
    * @return Empty on success.
    *
@@ -650,7 +652,7 @@ public:
   /**
    * @brief Encode a single-precision float (0xFA prefix).
    *
-   * @param v  Value to encode as IEEE-754 float32 in big-endian order.
+   * @param v Value to encode as IEEE-754 float32 in big-endian order.
    *
    * @return Empty on success.
    *
@@ -673,7 +675,7 @@ public:
   /**
    * @brief Encode a double-precision float (0xFB prefix).
    *
-   * @param v  Value to encode as IEEE-754 float64 in big-endian order.
+   * @param v Value to encode as IEEE-754 float64 in big-endian order.
    *
    * @return Empty on success.
    *
@@ -704,8 +706,8 @@ public:
  */
 class reader {
 public:
-  using byte_type = std::byte;
-  using size_type = std::size_t;
+  using byte_type = std::byte;    ///< Byte type of the buffer.
+  using size_type = std::size_t;  ///< Size and offset type.
 
 private:
   nexenne::utility::buffer_cursor<byte_type const> m_cursor;
@@ -770,8 +772,8 @@ public:
   /**
    * @brief Construct a reader over the immutable byte span \p buf.
    *
-   * @param buf  Source bytes to decode. Must outlive the reader and any
-   *             view it returns.
+   * @param buf Source bytes to decode. Must outlive the reader and any
+   *            view it returns.
    *
    * @pre \p buf refers to valid memory for the lifetime of the reader.
    * @post \c bytes_read() is zero.

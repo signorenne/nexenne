@@ -36,7 +36,7 @@ namespace nexenne::serialization::cbor {
 /**
  * @brief Human-readable name of a CBOR token kind \p t.
  *
- * @param t  Token kind to name.
+ * @param t Token kind to name.
  *
  * @return Static string view naming \p t, or \c "?" for an unknown value.
  *
@@ -76,7 +76,7 @@ namespace nexenne::serialization::msgpack {
 /**
  * @brief Human-readable name of a MessagePack token kind \p t.
  *
- * @param t  Token kind to name.
+ * @param t Token kind to name.
  *
  * @return Static string view naming \p t, or \c "?" for an unknown value.
  *
@@ -112,7 +112,7 @@ namespace nexenne::serialization::json {
 /**
  * @brief Human-readable name of a JSON value kind \p k.
  *
- * @param k  Value kind to name.
+ * @param k Value kind to name.
  *
  * @return Static string view naming \p k, or \c "?" for an unknown value.
  *
@@ -145,7 +145,7 @@ namespace nexenne::serialization::json {
  * Combines the error code with the failure location, for example
  * \c "invalid_string at line 3, column 12 (offset 41)".
  *
- * @param e  Parse error to render.
+ * @param e Parse error to render.
  *
  * @return A freshly built diagnostic string.
  *
@@ -168,7 +168,7 @@ namespace nexenne::serialization {
  * Renders the parsed magic tag (in hex) and schema version, for example
  * \c "{magic: 0x4e455801, version: 2}".
  *
- * @param h  Parsed envelope fields to render.
+ * @param h Parsed envelope fields to render.
  *
  * @return A freshly built diagnostic string.
  *
@@ -248,8 +248,7 @@ struct std::formatter<nexenne::serialization::json::value> : std::formatter<std:
 template <>
 struct std::formatter<nexenne::serialization::cbor::type> : std::formatter<std::string_view> {
   /**
-   * @brief Formats the token kind's \c to_string name through the string
-   *        formatter.
+   * @brief Formats the token kind's \c to_string name through the string formatter.
    *
    * @tparam FormatContext Deduced output context type.
    * @param t Token kind to format.
@@ -277,8 +276,7 @@ struct std::formatter<nexenne::serialization::cbor::type> : std::formatter<std::
 template <>
 struct std::formatter<nexenne::serialization::msgpack::type> : std::formatter<std::string_view> {
   /**
-   * @brief Formats the token kind's \c to_string name through the string
-   *        formatter.
+   * @brief Formats the token kind's \c to_string name through the string formatter.
    *
    * @tparam FormatContext Deduced output context type.
    * @param t Token kind to format.

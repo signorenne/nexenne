@@ -59,8 +59,7 @@
 namespace nexenne::serialization::msgpack {
 
 /**
- * @brief Logical kind of the next MessagePack item, as reported by
- *        \c reader::peek_type.
+ * @brief Logical kind of the next MessagePack item, as reported by \c reader::peek_type.
  *
  * Collapses the format's many one-byte type prefixes into a flat set the
  * caller can branch on before choosing a \c read_* call.
@@ -212,8 +211,8 @@ inline auto store_be64(std::byte* const dst, std::uint64_t const v) noexcept -> 
  */
 class writer {
 public:
-  using byte_type = std::byte;
-  using size_type = std::size_t;
+  using byte_type = std::byte;    ///< Byte type of the buffer.
+  using size_type = std::size_t;  ///< Size and offset type.
 
 private:
   nexenne::utility::buffer_cursor<byte_type> m_cursor;
@@ -263,7 +262,7 @@ public:
   /**
    * @brief Construct a writer over the mutable byte span \p buf.
    *
-   * @param buf  Destination bytes to fill. Must outlive the writer.
+   * @param buf Destination bytes to fill. Must outlive the writer.
    *
    * @pre \p buf refers to writable memory for the lifetime of the
    *       writer.
@@ -334,7 +333,7 @@ public:
   /**
    * @brief Encode a boolean.
    *
-   * @param v  Boolean to write as 0xC3 (true) or 0xC2 (false).
+   * @param v Boolean to write as 0xC3 (true) or 0xC2 (false).
    *
    * @return Empty on success.
    *
@@ -354,7 +353,7 @@ public:
    * Non-negative values are routed through \c write_uint; negative
    * values use fixint or the int 8/16/32/64 forms.
    *
-   * @param v  Signed value to encode.
+   * @param v Signed value to encode.
    *
    * @return Empty on success.
    *
@@ -407,7 +406,7 @@ public:
    *
    * Uses positive fixint or the uint 8/16/32/64 forms.
    *
-   * @param v  Unsigned value to encode.
+   * @param v Unsigned value to encode.
    *
    * @return Empty on success.
    *
@@ -455,7 +454,7 @@ public:
   /**
    * @brief Encode a single-precision float (0xCA prefix).
    *
-   * @param v  Value to encode as IEEE-754 float32 in big-endian order.
+   * @param v Value to encode as IEEE-754 float32 in big-endian order.
    *
    * @return Empty on success.
    *
@@ -478,7 +477,7 @@ public:
   /**
    * @brief Encode a double-precision float (0xCB prefix).
    *
-   * @param v  Value to encode as IEEE-754 float64 in big-endian order.
+   * @param v Value to encode as IEEE-754 float64 in big-endian order.
    *
    * @return Empty on success.
    *
@@ -503,8 +502,8 @@ public:
    *
    * Uses fixstr or the str 8/16/32 forms, then copies the bytes.
    *
-   * @param s  Text to encode; expected to be valid UTF-8, which the
-   *           writer does not verify.
+   * @param s Text to encode; expected to be valid UTF-8, which the
+   *          writer does not verify.
    *
    * @return Empty on success.
    *
@@ -555,7 +554,7 @@ public:
    *
    * Uses the bin 8/16/32 forms, then copies the bytes.
    *
-   * @param data  Bytes to encode.
+   * @param data Bytes to encode.
    *
    * @return Empty on success.
    *
@@ -605,7 +604,7 @@ public:
    * Uses fixarray or the array16/array32 forms. The caller then writes
    * exactly \p n values.
    *
-   * @param n  Number of array elements that will follow.
+   * @param n Number of array elements that will follow.
    *
    * @return Empty on success.
    *
@@ -642,7 +641,7 @@ public:
    * Uses fixmap or the map16/map32 forms. The caller then writes exactly
    * \p n key/value pairs.
    *
-   * @param n  Number of key-value pairs that will follow.
+   * @param n Number of key-value pairs that will follow.
    *
    * @return Empty on success.
    *
@@ -688,8 +687,8 @@ public:
  */
 class reader {
 public:
-  using byte_type = std::byte;
-  using size_type = std::size_t;
+  using byte_type = std::byte;    ///< Byte type of the buffer.
+  using size_type = std::size_t;  ///< Size and offset type.
 
 private:
   nexenne::utility::buffer_cursor<byte_type const> m_cursor;
@@ -783,8 +782,8 @@ public:
   /**
    * @brief Construct a reader over the immutable byte span \p buf.
    *
-   * @param buf  Source bytes to decode. Must outlive the reader and any
-   *             view it returns.
+   * @param buf Source bytes to decode. Must outlive the reader and any
+   *            view it returns.
    *
    * @pre \p buf refers to valid memory for the lifetime of the reader.
    * @post \c bytes_read() is zero.

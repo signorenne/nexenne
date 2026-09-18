@@ -98,13 +98,13 @@ public:
   /// @brief Self-referential element type: a JSON value's children are values.
   using value_type = value;
 
-  using null_type = std::monostate;
-  using bool_type = bool;
-  using int_type = std::int64_t;
-  using float_type = double;
-  using string_type = std::string;
-  using array_type = array;
-  using object_type = object;
+  using null_type = std::monostate;  ///< Storage type of null.
+  using bool_type = bool;            ///< Storage type of a boolean.
+  using int_type = std::int64_t;     ///< Storage type of an integer.
+  using float_type = double;         ///< Storage type of a floating number.
+  using string_type = std::string;   ///< Storage type of a string.
+  using array_type = array;          ///< Storage type of an array.
+  using object_type = object;        ///< Storage type of an object.
 
   /**
    * @brief Discriminator for the seven JSON kinds a \c value can hold.
@@ -251,7 +251,7 @@ public:
   /**
    * @brief Construct a boolean value.
    *
-   * @param b  The boolean to store.
+   * @param b The boolean to store.
    *
    * @pre None.
    * @post \c is_bool() is \c true and \c as_bool() yields \p b.
@@ -265,8 +265,8 @@ public:
    * The argument is widened to \c int_type. The \c bool overload is
    * excluded so \c true and \c false stay booleans.
    *
-   * @tparam I  Integral type other than \c bool.
-   * @param i  Integer to store, widened to \c int64_t.
+   * @tparam I Integral type other than \c bool.
+   * @param i Integer to store, widened to \c int64_t.
    *
    * @pre None.
    * @post \c is_integer() is \c true.
@@ -281,8 +281,8 @@ public:
    *
    * The argument is widened to \c double.
    *
-   * @tparam F  Floating-point type.
-   * @param f  Value to store, widened to \c double.
+   * @tparam F Floating-point type.
+   * @param f Value to store, widened to \c double.
    *
    * @pre None.
    * @post \c is_floating() is \c true.
@@ -294,7 +294,7 @@ public:
   /**
    * @brief Construct a string value, taking ownership of \p s.
    *
-   * @param s  String moved into the node.
+   * @param s String moved into the node.
    *
    * @pre None.
    * @post \c is_string() is \c true.
@@ -305,7 +305,7 @@ public:
   /**
    * @brief Construct a string value by copying from a view.
    *
-   * @param sv  Characters copied into the node.
+   * @param sv Characters copied into the node.
    *
    * @pre \p sv refers to valid characters for the duration of the call.
    * @post \c is_string() is \c true.
@@ -316,7 +316,7 @@ public:
   /**
    * @brief Construct a string value from a null-terminated C string.
    *
-   * @param s  Null-terminated string copied into the node.
+   * @param s Null-terminated string copied into the node.
    *
    * @pre \p s is non-null and null-terminated.
    * @post \c is_string() is \c true.
@@ -327,7 +327,7 @@ public:
   /**
    * @brief Construct an array value, taking ownership of \p a.
    *
-   * @param a  Array of child values moved into the node.
+   * @param a Array of child values moved into the node.
    *
    * @pre None.
    * @post \c is_array() is \c true.
@@ -346,7 +346,7 @@ public:
   /**
    * @brief Construct an object value, taking ownership of \p o.
    *
-   * @param o  Key-ordered map of child values moved into the node.
+   * @param o Key-ordered map of child values moved into the node.
    *
    * @pre None.
    * @post \c is_object() is \c true.
@@ -641,7 +641,7 @@ public:
    * \c std::nullopt; a floating result is converted to \p T. Any other \p T
    * always yields \c std::nullopt.
    *
-   * @tparam T  Target type to extract.
+   * @tparam T Target type to extract.
    *
    * @return The extracted value, or \c std::nullopt when the kind does
    *         not match \p T.
@@ -679,8 +679,8 @@ public:
    * Convenience wrapper over \c get that substitutes \p fallback when
    * the kind does not match \p T.
    *
-   * @tparam T  Target type to extract.
-   * @param fallback  Value returned when extraction fails.
+   * @tparam T Target type to extract.
+   * @param fallback Value returned when extraction fails.
    *
    * @return The extracted value, or \p fallback.
    *
@@ -700,7 +700,7 @@ public:
    * missing key is default-constructed (to null) and a reference to it
    * returned.
    *
-   * @param key  Member name to look up or create.
+   * @param key Member name to look up or create.
    *
    * @return Mutable reference to the member value.
    *
@@ -729,7 +729,7 @@ public:
    * Never mutates and never inserts. A missing key, or any non-object
    * value, yields a reference to a shared static null sentinel.
    *
-   * @param key  Member name to look up.
+   * @param key Member name to look up.
    *
    * @return Reference to the member value, or to a null sentinel when
    *         absent.
@@ -750,7 +750,7 @@ public:
   /**
    * @brief Mutable array-element access by index, unchecked.
    *
-   * @param i  Zero-based element index.
+   * @param i Zero-based element index.
    *
    * @return Mutable reference to the element at \p i.
    *
@@ -773,7 +773,7 @@ public:
    * An out-of-range index, or any non-array value, yields a reference to
    * a shared static null sentinel.
    *
-   * @param i  Zero-based element index.
+   * @param i Zero-based element index.
    *
    * @return Reference to the element, or to a null sentinel when out of
    *         range.
@@ -798,7 +798,7 @@ public:
    * must be all-digit indices. An empty path returns this value
    * unchanged.
    *
-   * @param path  JSON Pointer, for example \c "/users/0/name".
+   * @param path JSON Pointer, for example \c "/users/0/name".
    *
    * @return A reference wrapper to the resolved value on success.
    *
@@ -907,8 +907,8 @@ public:
    * stack-safe, matching the iterative destructor. An integer and a numerically
    * equal floating value are distinct kinds and therefore compare unequal.
    *
-   * @param a  Left operand.
-   * @param b  Right operand.
+   * @param a Left operand.
+   * @param b Right operand.
    *
    * @return \c true when both values hold the same kind and equal
    *         contents.

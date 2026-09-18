@@ -55,7 +55,7 @@ enum class error : std::uint8_t {
  * and diagnostics. The returned view points at a static string literal and
  * outlives every caller.
  *
- * @param e  Error code to name.
+ * @param e Error code to name.
  *
  * @return Static string view naming \p e, or \c "?" if \p e is not a
  *         declared enumerator.

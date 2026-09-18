@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the JSON DOM parser.
+ */
+
 #include <charconv>
 #include <cstddef>
 #include <cstdint>

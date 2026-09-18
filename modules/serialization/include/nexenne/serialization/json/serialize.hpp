@@ -34,8 +34,7 @@
 namespace nexenne::serialization::json {
 
 /**
- * @brief Formatting options shared by \c serialize and
- *        \c serialize_pretty.
+ * @brief Formatting options shared by \c serialize and \c serialize_pretty.
  */
 struct serialize_options {
   std::size_t indent{2};   ///< Spaces per nesting level (pretty output only).
@@ -107,8 +106,6 @@ auto write_number(std::string& out, double const d) -> void;
  */
 auto write_number(std::string& out, std::int64_t const i) -> void;
 
-/// @endcond
-
 /**
  * @brief Kind of a pending unit of output on the serialisation work stack.
  *
@@ -134,8 +131,6 @@ struct emit_step {
   std::string_view text{};      ///< Literal or key text (text / key ops).
   std::size_t depth{0};         ///< Nesting depth for indentation.
 };
-
-/// @cond INTERNAL
 
 /**
  * @brief Serialise \p root into \p out, compact or pretty.
@@ -171,9 +166,9 @@ auto write_value(
  * non-ASCII bytes escaped only when \c serialize_options::ascii_only is
  * set.
  *
- * @param v     DOM value to serialise.
- * @param opts  Formatting options; only \c ascii_only affects compact
- *              output.
+ * @param v DOM value to serialise.
+ * @param opts Formatting options; only \c ascii_only affects compact
+ *             output.
  *
  * @return The serialised JSON text.
  *
@@ -197,8 +192,8 @@ auto write_value(
  * \c serialize_options::indent spaces of indentation per nesting level.
  * Keys remain sorted for deterministic output.
  *
- * @param v     DOM value to serialise.
- * @param opts  Formatting options; both \c indent and \c ascii_only apply.
+ * @param v DOM value to serialise.
+ * @param opts Formatting options; both \c indent and \c ascii_only apply.
  *
  * @return The pretty-printed JSON text.
  *

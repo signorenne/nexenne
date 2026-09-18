@@ -462,9 +462,9 @@ private:
  * one too large is rejected with \c error::invalid_number. The whole input
  * must be consumed, trailing non-whitespace is an error.
  *
- * @param input  The JSON text to parse.
- * @param opts   Parsing relaxations and the depth limit; strict by
- *               default.
+ * @param input The JSON text to parse.
+ * @param opts Parsing relaxations and the depth limit; strict by
+ *             default.
  *
  * @return The parsed DOM tree on success, or a \c parse_error locating the
  *         first failure.

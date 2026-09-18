@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the JSON serializer.
+ */
+
 #include <algorithm>
 #include <charconv>
 #include <cstdint>

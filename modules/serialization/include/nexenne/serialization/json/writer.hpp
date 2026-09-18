@@ -72,16 +72,16 @@ namespace nexenne::serialization::json {
  * Numbers are formatted with \c std::to_chars; NaN and infinity are
  * written as \c null.
  *
- * @tparam MaxDepth  Maximum container nesting depth. The writer reserves a
- *                   \c std::array<bool, MaxDepth> to track each open
- *                   container; defaults to 32.
+ * @tparam MaxDepth Maximum container nesting depth. The writer reserves a
+ *                  \c std::array<bool, MaxDepth> to track each open
+ *                  container; defaults to 32.
  *
  * @note All emit operations are \c noexcept and never allocate.
  */
 template <std::size_t MaxDepth = 32>
 class writer {
 public:
-  using size_type = std::size_t;
+  using size_type = std::size_t;  ///< Size and offset type.
 
 private:
   enum class slot : std::uint8_t {
@@ -329,7 +329,7 @@ public:
    * The writer starts empty at the top-level slot and does not own the
    * backing memory.
    *
-   * @param buf  Destination characters to fill. Must outlive the writer.
+   * @param buf Destination characters to fill. Must outlive the writer.
    *
    * @pre \p buf refers to writable memory for the lifetime of the
    *       writer.
@@ -558,8 +558,8 @@ public:
    * Writes the escaped key and a colon (prefixing a comma between
    * members), then expects a value next.
    *
-   * @param k  Member name; escaped as needed and expected to be valid
-   *           UTF-8.
+   * @param k Member name; escaped as needed and expected to be valid
+   *          UTF-8.
    *
    * @return Empty on success.
    *
@@ -615,7 +615,7 @@ public:
   /**
    * @brief Emit a boolean value.
    *
-   * @param b  Boolean to write as \c true or \c false.
+   * @param b Boolean to write as \c true or \c false.
    *
    * @return Empty on success.
    *
@@ -643,8 +643,8 @@ public:
    * Formatted with \c std::to_chars. The \c bool overload is excluded so
    * booleans take the dedicated overload.
    *
-   * @tparam I  Integral type other than \c bool.
-   * @param i  Integer to write.
+   * @tparam I Integral type other than \c bool.
+   * @param i Integer to write.
    *
    * @return Empty on success.
    *
@@ -678,8 +678,8 @@ public:
    * Formatted with \c std::to_chars. NaN and infinity are written as
    * \c null since JSON cannot represent them.
    *
-   * @tparam F  Floating-point type.
-   * @param f  Value to write.
+   * @tparam F Floating-point type.
+   * @param f Value to write.
    *
    * @return Empty on success.
    *
@@ -723,8 +723,8 @@ public:
   /**
    * @brief Emit a string value, escaped as JSON requires.
    *
-   * @param s  String to write; the JSON-required characters are escaped
-   *           and the bytes are expected to be valid UTF-8.
+   * @param s String to write; the JSON-required characters are escaped
+   *          and the bytes are expected to be valid UTF-8.
    *
    * @return Empty on success.
    *
@@ -751,7 +751,7 @@ public:
    *
    * Convenience overload that forwards to the \c std::string_view form.
    *
-   * @param s  Null-terminated string to write.
+   * @param s Null-terminated string to write.
    *
    * @return Empty on success.
    *
