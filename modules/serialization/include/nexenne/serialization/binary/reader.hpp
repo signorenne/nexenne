@@ -21,7 +21,7 @@
  *     mid-value.
  *   - \c error::string_too_long when a string length prefix
  *     exceeds the safety cap (defaults to 64 MiB; override with
- *     \c set_max_string_size on memory-constrained targets).
+ *     \c max_string_size() on memory-constrained targets).
  *
  * Typical use:
  *
@@ -74,7 +74,7 @@ public:
    *
    * Defends against corrupt or malicious input that claims a
    * gigabyte-long string. Override per instance with
-   * \c set_max_string_size for tight RAM budgets (e.g. 256 on a
+   * \c max_string_size() for tight RAM budgets (e.g. 256 on a
    * Cortex-M0). Value is 64 MiB.
    */
   static constexpr size_type default_max_string_size{64u * 1024u * 1024u};
@@ -161,19 +161,30 @@ public:
   }
 
   /**
-   * @brief Override the per-string size cap for this reader.
+   * @brief The per-string size cap this reader enforces.
    *
-   * Subsequent \c read_string calls fail with \c error::string_too_long
-   * when the decoded length prefix exceeds \p n. Lower it on
-   * RAM-constrained targets.
-   *
-   * @param n New maximum decoded string length, in bytes.
+   * @return The largest decoded string length \c read_string accepts, in bytes.
    *
    * @pre None.
-   * @post Later \c read_string calls reject lengths greater than \p n.
+   * @post None.
    */
-  constexpr auto set_max_string_size(size_type const n) noexcept -> void {
-    m_max_str = n;
+  [[nodiscard]] constexpr auto max_string_size() const noexcept -> size_type {
+    return m_max_str;
+  }
+
+  /**
+   * @brief The per-string size cap, for modification.
+   *
+   * Later \c read_string calls fail with \c error::string_too_long when a
+   * decoded length prefix exceeds it; lower it on RAM-constrained targets.
+   *
+   * @return Mutable reference to the cap, in bytes.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto max_string_size() noexcept -> size_type& {
+    return m_max_str;
   }
 
   /**

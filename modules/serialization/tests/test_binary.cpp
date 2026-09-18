@@ -657,7 +657,7 @@ TEST_CASE("nexenne::serialization::binary - huge string prefix rejected, no over
   }
   SUBCASE("cap lifted still rejects with buffer_underrun") {
     auto r{binary::reader{prefix}};
-    r.set_max_string_size(std::numeric_limits<std::size_t>::max());
+    r.max_string_size() = std::numeric_limits<std::size_t>::max();
     auto const got{r.read_string()};
     CHECK(!got.has_value());
     CHECK(got.error() == error::buffer_underrun);  // body bytes not present
@@ -830,7 +830,9 @@ TEST_CASE("nexenne::serialization::binary - reachable error codes from the codec
     auto w{binary::writer{buf}};
     REQUIRE(w.write(std::string_view{"abcdef"}).has_value());
     auto r{binary::reader{w.written()}};
-    r.set_max_string_size(3);
+    CHECK(r.max_string_size() == binary::reader::default_max_string_size);
+    r.max_string_size() = 3;
+    CHECK(r.max_string_size() == 3);
     CHECK(r.read_string().error() == error::string_too_long);
   }
   // invalid_input: over-long varint.
