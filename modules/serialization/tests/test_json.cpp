@@ -1463,4 +1463,14 @@ TEST_CASE("nexenne::serialization::json value - get rejects an integer that does
   CHECK(json::value{-128}.get<std::int8_t>() == std::int8_t{-128});
 }
 
+TEST_CASE("nexenne::serialization::json parse - duplicate key reported at its second occurrence") {
+  auto const r{json::parse(R"({"b":1,"a":2,"b":3,"a":4})")};
+  REQUIRE_FALSE(r.has_value());
+  CHECK(r.error().code == error::duplicate_key);
+  CHECK(r.error().offset == 18);  // just past "b":3, the first repeat in the text
+  auto const ok{json::parse(R"({"c":3,"b":2,"a":1})")};
+  REQUIRE(ok.has_value());
+  CHECK(json::serialize(*ok) == R"({"a":1,"b":2,"c":3})");
+}
+
 }  // namespace

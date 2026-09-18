@@ -27,6 +27,7 @@
  * can produce a useful diagnostic.
  */
 
+#include <algorithm>
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
@@ -35,6 +36,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include <nexenne/serialization/error.hpp>
 #include <nexenne/serialization/json/value.hpp>
@@ -316,10 +318,64 @@ private:
   [[nodiscard]] auto parse_array(std::size_t const depth) -> std::expected<value, parse_error>;
 
   /**
+   * @brief One parsed object member, with the error to report if its key repeats.
+   */
+  struct member {
+    std::string key;  ///< Decoded member name.
+    value val;        ///< Parsed member value.
+    parse_error end;  ///< A duplicate-key error positioned where this member ended.
+  };
+
+  /**
+   * @brief Builds an object from its parsed members, rejecting a repeated key.
+   *
+   * Sorts stably by key, so equal keys keep their text order, and reports the
+   * duplicate whose second occurrence came first in the text. Keys then enter
+   * the map in ascending order, each one appended.
+   *
+   * @param members Parsed members in text order.
+   *
+   * @return The object value, or the \c error::duplicate_key error.
+   *
+   * @pre None.
+   * @post On success the object holds every member.
+   *
+   * @throws None directly. May propagate \c std::bad_alloc from building the
+   *         object.
+   *
+   * @complexity \c O(k log k) in the member count \c k.
+   */
+  [[nodiscard]] static auto build_object(std::vector<member> members)
+    -> std::expected<value, parse_error> {
+    std::ranges::stable_sort(members, std::less<>{}, &member::key);
+    auto const* first_duplicate{static_cast<parse_error const*>(nullptr)};
+    for (auto i{std::size_t{1}}; i < members.size(); ++i) {
+      auto const& m{members[i]};
+      if (m.key == members[i - 1].key && (i < 2 || members[i - 2].key != m.key)
+          && (first_duplicate == nullptr || m.end.offset < first_duplicate->offset)) {
+        first_duplicate = &m.end;
+      }
+    }
+    if (first_duplicate != nullptr) {
+      return std::unexpected{*first_duplicate};
+    }
+    auto obj{object{}};
+    obj.reserve(members.size());
+    for (auto& m : members) {
+      obj.try_emplace(std::move(m.key), std::move(m.val));
+    }
+    return value{std::move(obj)};
+  }
+
+  /**
    * @brief Parse a JSON object, recursing one level per member value.
    *
    * Enforces \c max_depth on entry, rejects a duplicate key with
-   * \c error::duplicate_key, and honours \c allow_trailing_commas.
+   * \c error::duplicate_key, and honours \c allow_trailing_commas. Members are
+   * collected first and the object is built once they are sorted, so a
+   * hostile object with many keys costs \c O(k log k), not \c O(k^2); a
+   * duplicate is therefore reported after the rest of the object parsed, at
+   * the position the second occurrence ended.
    *
    * @param depth Number of containers already open around this object.
    *
@@ -337,11 +393,11 @@ private:
       return std::unexpected{make_error(error::depth_limit_exceeded)};
     }
     advance();  // '{'
-    object obj{};
+    auto members{std::vector<member>{}};
     skip_ws();
     if (!m_cursor.exhausted() && m_cursor.data()[0] == '}') {
       advance();
-      return value{std::move(obj)};
+      return value{object{}};
     }
     while (true) {
       skip_ws();
@@ -359,10 +415,11 @@ private:
       auto val{parse_value(depth + 1)};
       if (!val)
         return std::unexpected{val.error()};
-      auto const [it, inserted]{obj.try_emplace(std::move(*key), std::move(*val))};
-      if (!inserted) {
-        return std::unexpected{make_error(error::duplicate_key)};
-      }
+      members.push_back(
+        member{
+          .key = std::move(*key), .val = std::move(*val), .end = make_error(error::duplicate_key)
+        }
+      );
       skip_ws();
       if (m_cursor.exhausted()) {
         return std::unexpected{make_error(error::unexpected_end)};
@@ -372,13 +429,13 @@ private:
         skip_ws();
         if (m_opts.allow_trailing_commas && !m_cursor.exhausted() && m_cursor.data()[0] == '}') {
           advance();
-          return value{std::move(obj)};
+          return build_object(std::move(members));
         }
         continue;
       }
       if (m_cursor.data()[0] == '}') {
         advance();
-        return value{std::move(obj)};
+        return build_object(std::move(members));
       }
       return std::unexpected{make_error(error::unexpected_character)};
     }
