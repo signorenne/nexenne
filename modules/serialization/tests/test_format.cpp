@@ -1,7 +1,9 @@
 #include <doctest/doctest.h>
 
 #include <array>
+#include <concepts>
 #include <format>
+#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -121,5 +123,39 @@ TEST_CASE("nexenne::serialization::header - std::format renders magic and versio
   CHECK(std::format("{}", h) == "{magic: 0x4e455801, version: 2}");
   CHECK(std::format("{}", h) == to_string(h));
 }
+
+// Checks that to_string and operator<< give exactly the formatter's text.
+template <typename T>
+auto three_layers_agree(T const& value) -> bool {
+  auto os{std::ostringstream{}};
+  os << value;
+  auto const formatted{std::format("{}", value)};
+  return std::string{to_string(value)} == formatted && os.str() == formatted;
+}
+
+TEST_CASE("nexenne::serialization - to_string and operator<< print the formatter's text") {
+  using json::to_string;
+  CHECK(three_layers_agree(error::invalid_escape));
+  CHECK(three_layers_agree(header{.magic = 0x4E455801u, .version = 2}));
+  CHECK(three_layers_agree(cbor::type::text_string));
+  CHECK(three_layers_agree(msgpack::type::map_header));
+  CHECK(three_layers_agree(json::value::kind::array_kind));
+  CHECK(three_layers_agree(
+    json::parse_error{.code = error::invalid_string, .offset = 41, .line = 3, .column = 12}
+  ));
+  auto const doc{json::parse(R"({"n":[1,true]})")};
+  REQUIRE(doc.has_value());
+  CHECK(three_layers_agree(*doc));
+  CHECK(json::to_string(*doc) == R"({"n":[1,true]})");
+}
+
+// The json::value layers bind only a real value: a number or a string does not
+// convert into one and come out as JSON text.
+template <typename T>
+concept json_to_string = requires(T const& t) { json::to_string(t); };
+
+static_assert(json_to_string<json::value>);
+static_assert(!json_to_string<int>);
+static_assert(!json_to_string<char const*>);
 
 }  // namespace

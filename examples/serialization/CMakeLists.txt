@@ -1,5 +1,6 @@
 # One executable per example, named nexenne_example_serialization_<name>.
 set(_serialization_examples
+    format
     round_trip
     showcase
 )

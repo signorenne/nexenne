@@ -2,9 +2,11 @@
 
 /**
  * @file
- * @brief \c std::format support for the nexenne::serialization public types.
+ * @brief The three formatting layers for the nexenne::serialization public types.
  *
- * Opt-in printing layer so callers can write \c std::format("{}", v) directly:
+ * Opt-in printing layer so callers can write \c std::format("{}", v), or stream
+ * a value with \c operator<<, directly. Each type below has a \c to_string, an
+ * \c operator<< and a \c std::formatter, all printing the same text:
  *
  *   - \c error : prints its \c to_string enumerator name;
  *   - \c json::value : prints its compact \c serialize output;
@@ -17,9 +19,11 @@
  * only where the formatting hooks are wanted, keeping it off the hot path.
  */
 
+#include <concepts>
 #include <cstdint>
 #include <expected>
 #include <format>
+#include <ostream>
 #include <string>
 #include <string_view>
 
@@ -378,3 +382,148 @@ struct std::formatter<nexenne::serialization::header> : std::formatter<std::stri
     return std::formatter<std::string_view>::format(nexenne::serialization::to_string(h), ctx);
   }
 };
+
+namespace nexenne::serialization {
+
+/**
+ * @brief Streams an \c error by its name via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param err Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p err has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, error const err) -> std::ostream& {
+  return os << to_string(err);
+}
+
+/**
+ * @brief Streams a versioned envelope via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param h Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p h has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, header const& h) -> std::ostream& {
+  return os << to_string(h);
+}
+
+}  // namespace nexenne::serialization
+
+namespace nexenne::serialization::cbor {
+
+/**
+ * @brief Streams a CBOR token kind by its name via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param t Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p t has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, type const t) -> std::ostream& {
+  return os << to_string(t);
+}
+
+}  // namespace nexenne::serialization::cbor
+
+namespace nexenne::serialization::msgpack {
+
+/**
+ * @brief Streams a MessagePack token kind by its name via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param t Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p t has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, type const t) -> std::ostream& {
+  return os << to_string(t);
+}
+
+}  // namespace nexenne::serialization::msgpack
+
+namespace nexenne::serialization::json {
+
+/**
+ * @brief Compact JSON text of a \c value, as \c serialize writes it.
+ *
+ * Constrained to exactly \c value: \c value converts implicitly from numbers
+ * and strings, and a plain overload would turn an unqualified \c to_string(42)
+ * in this namespace into JSON text.
+ *
+ * @tparam V Exactly \c value.
+ * @param v Value to render.
+ *
+ * @return The compact JSON text.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <std::same_as<value> V>
+[[nodiscard]] auto to_string(V const& v) -> std::string {
+  return serialize(v);
+}
+
+/**
+ * @brief Streams a \c value as compact JSON via its \c to_string.
+ *
+ * @tparam V Exactly \c value; deduction keeps other types from converting.
+ * @param os Output stream.
+ * @param v Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p v has been written to \p os.
+ */
+template <std::same_as<value> V>
+auto operator<<(std::ostream& os, V const& v) -> std::ostream& {
+  return os << to_string(v);
+}
+
+/**
+ * @brief Streams a \c value kind by its name via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param k Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p k has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, value::kind const k) -> std::ostream& {
+  return os << to_string(k);
+}
+
+/**
+ * @brief Streams a JSON parse failure via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param e Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p e has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, parse_error const& e) -> std::ostream& {
+  return os << to_string(e);
+}
+
+}  // namespace nexenne::serialization::json

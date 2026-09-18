@@ -33,6 +33,12 @@ wire without pulling in two libraries.
   UART; =versioned= prefixes a payload with a small magic-and-version header so a
   reader can reject or migrate an unknown wire version.
 
+* Printing
+
+- [[file:format.org][format]] : =std::formatter=, =to_string= and =operator<<= for the error enum,
+  =json::value= and its kind, parse errors, versioned headers, and the CBOR and
+  MessagePack token kinds.
+
 * The error policy
 
 There is one =error= enum (=error.hpp=) shared by every subsystem, with a

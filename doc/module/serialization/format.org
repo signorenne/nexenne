@@ -1,0 +1,64 @@
+#+TITLE: format
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=format.hpp= holds the three formatting layers for the serialization types a
+caller gets back and may want to print: a =std::formatter= specialisation, so
+=std::format("{}", x)= and =std::print= accept them, and a =to_string= and an
+=operator<<= that give the same text. It is separate from the codec headers
+because =<format>= is heavy: code that only encodes and decodes does not pay for
+it. Include =format.hpp= where the printing happens.
+
+* What it provides
+
+| type                | output                                              | format spec           |
+|---------------------+-----------------------------------------------------+-----------------------|
+| =error=             | the enumerator name                                 | string, e.g. ={:>16}= |
+| =json::value=       | the compact JSON text, as =serialize= writes it     | string                |
+| =json::value::kind= | the kind name, such as =array=                      | string                |
+| =json::parse_error= | =code at line L, column C (offset O)=               | string                |
+| =header=            | ={magic: 0x..., version: N}=                        | string                |
+| =cbor::type=        | the token kind name                                 | string                |
+| =msgpack::type=     | the token kind name                                 | string                |
+
+The enums keep the =constexpr= =std::string_view= =to_string= they already had;
+the others get a =std::string= =to_string=. Either way =operator<<= streams the
+same text the formatter prints. For indented JSON call =serialize_pretty=; the
+formatter covers only the compact form.
+
+The =to_string= and =operator<<= for =json::value= are constrained to exactly
+=value=. A =value= converts implicitly from numbers and strings, so a plain
+overload would turn an unqualified =to_string(42)= inside the =json= namespace
+into the JSON text ="42"=.
+
+The readers and writers (=binary=, =cbor=, =msgpack=, the JSON =writer= and
+=sax=) and the option structs have no formatter: they are engines and
+configuration, not values to show.
+
+* Usage
+
+#+BEGIN_SRC cpp
+#include <iostream>
+#include <nexenne/serialization/format.hpp>
+#include <nexenne/serialization/json/parse.hpp>
+
+namespace json = nexenne::serialization::json;
+
+if (auto const doc{json::parse(R"({"a":[1,2]})")}) {
+  std::cout << *doc << '\n';  // {"a":[1,2]}
+} else {
+  std::cout << doc.error() << '\n';  // for example "invalid_string at line 1, ..."
+}
+#+END_SRC
+
+* Gotchas
+
+- *Include it where you print.* Without =format.hpp= a =std::format= call or a
+  stream insertion on one of these types fails to compile; nothing falls back
+  silently.
+- *The text is for people.* The diagnostic strings are not a stable wire format;
+  serialise with the codecs, not with =to_string=.
+
+Runnable: [[file:../../../examples/serialization/format.cpp][examples/serialization/format.cpp]]
