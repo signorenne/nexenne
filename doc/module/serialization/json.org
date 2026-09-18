@@ -32,6 +32,14 @@ type yields =type_mismatch= instead of a surprise. =as_int= on a floating value
 range-checks before the cast: a value like =1e300= cannot be cast to =int64_t=
 (that is undefined behaviour), so it returns =type_mismatch=.
 
+A =value= is built from any integer, but not from a character: =value{'a'}= and
+=writer::value('a')= are compile errors rather than the number 97. =char=,
+=wchar_t=, =char8_t=, =char16_t= and =char32_t= are text, so pass a string
+instead; =signed char= and =unsigned char= stay integers, since they are
+=std::int8_t= and =std::uint8_t=. The character overloads are deleted outright,
+because merely excluding them would let a =char= convert to the =bool= overload
+and store =true=.
+
 #+BEGIN_EXAMPLE
   value
    +-- monostate            (null)

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cmath>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -1482,5 +1483,28 @@ struct throwing_visitor : json::noop_visitor {
 
 static_assert(json::sax_visitor<json::noop_visitor>);
 static_assert(!json::sax_visitor<throwing_visitor>);
+
+// A character is text, not a number; signed and unsigned char stay 8-bit integers.
+template <typename T>
+concept json_value_from = std::constructible_from<json::value, T>;
+
+template <typename T>
+concept json_writes = requires(json::writer<>& w, T const t) { w.value(t); };
+
+template <typename T>
+concept json_number = json_value_from<T> && json_writes<T>;
+
+template <typename T>
+concept json_rejects =
+  !json_value_from<T> && !std::convertible_to<T, json::value> && !json_writes<T>;
+
+static_assert(json_rejects<char>);
+static_assert(json_rejects<wchar_t>);
+static_assert(json_rejects<char8_t>);
+static_assert(json_rejects<char16_t>);
+static_assert(json_rejects<char32_t>);
+static_assert(json_number<signed char> && json_number<unsigned char>);
+static_assert(json_number<int> && json_number<std::int64_t> && json_number<std::uint64_t>);
+static_assert(json_number<bool> && json_number<double>);
 
 }  // namespace

@@ -260,12 +260,16 @@ public:
       : m_data{b} {}
 
   /**
-   * @brief Construct an integer value from any non-\c bool integral.
+   * @brief Construct an integer value from any integral other than \c bool or a character.
    *
    * The argument is widened to \c int_type. The \c bool overload is
-   * excluded so \c true and \c false stay booleans.
+   * excluded so \c true and \c false stay booleans. The character types
+   * \c char, \c wchar_t, \c char8_t, \c char16_t and \c char32_t are
+   * deleted, so \c 'a' is a compile error rather than the integer 97;
+   * \c signed \c char and \c unsigned \c char stay integers, since they are
+   * \c std::int8_t and \c std::uint8_t.
    *
-   * @tparam I Integral type other than \c bool.
+   * @tparam I Integral type other than \c bool or a character type.
    * @param i Integer to store, widened to \c int64_t.
    *
    * @pre None.
@@ -275,6 +279,16 @@ public:
     requires(!std::same_as<I, bool>)
   value(I const i) noexcept  // NOLINT
       : m_data{static_cast<int_type>(i)} {}
+
+  /// @cond INTERNAL
+  // Deleted exact matches: a char would otherwise convert to the bool constructor.
+  value(char) = delete;
+  value(wchar_t) = delete;
+  value(char8_t) = delete;
+  value(char16_t) = delete;
+  value(char32_t) = delete;
+
+  /// @endcond
 
   /**
    * @brief Construct a floating value from any floating-point type.

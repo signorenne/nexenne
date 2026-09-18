@@ -641,9 +641,13 @@ public:
    * @brief Emit an integer value.
    *
    * Formatted with \c std::to_chars. The \c bool overload is excluded so
-   * booleans take the dedicated overload.
+   * booleans take the dedicated overload. The character types \c char,
+   * \c wchar_t, \c char8_t, \c char16_t and \c char32_t are deleted, so
+   * \c 'a' is a compile error rather than the number 97; \c signed \c char
+   * and \c unsigned \c char stay integers, since they are \c std::int8_t and
+   * \c std::uint8_t.
    *
-   * @tparam I Integral type other than \c bool.
+   * @tparam I Integral type other than \c bool or a character type.
    * @param i Integer to write.
    *
    * @return Empty on success.
@@ -671,6 +675,16 @@ public:
       return {};
     });
   }
+
+  /// @cond INTERNAL
+  // Deleted exact matches: a char would otherwise convert to the bool overload.
+  auto value(char) -> std::expected<void, error> = delete;
+  auto value(wchar_t) -> std::expected<void, error> = delete;
+  auto value(char8_t) -> std::expected<void, error> = delete;
+  auto value(char16_t) -> std::expected<void, error> = delete;
+  auto value(char32_t) -> std::expected<void, error> = delete;
+
+  /// @endcond
 
   /**
    * @brief Emit a floating-point value.
