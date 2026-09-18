@@ -71,7 +71,6 @@ private:
 auto main() -> int {
   auto temp{sensor{}};
 
-  // A priority-ordered logger (lower priority fires first).
   [[maybe_unused]] auto log{temp.readings().connect(
     [](double const c) noexcept { std::println("  log[prio -1]: {:.1f} C", c); }, -1
   )};
@@ -79,17 +78,16 @@ auto main() -> int {
   {
     auto screen{display{temp.readings()}};
     std::println("two subscribers:");
-    temp.publish(21.0);  // logger (prio -1) then display
-  }  // screen dies: its tracker disconnects the display subscription
+    temp.publish(21.0);
+  }
 
   std::println("after the display expired:");
-  temp.publish(22.5);  // only the logger remains
+  temp.publish(22.5);
 
-  // Capacity is fixed: a connect past the bound fails instead of allocating.
   auto bus{sg::static_signal<void(), 2>{}};
   auto a{bus.connect([] noexcept {})};
   auto b{bus.connect([] noexcept {})};
-  auto c{bus.connect([] noexcept {})};  // bus is full
+  auto c{bus.connect([] noexcept {})};
   std::println(
     "\nstatic_signal<void(),2>: connected a={} b={}, third c={} (full, rejected)",
     a.has_target(),
@@ -97,36 +95,28 @@ auto main() -> int {
     c.has_target()
   );
 
-  // The same reentrancy and lifecycle features as the heap signal, heap-free. A
-  // 4-slot tick channel carries the frame index to its subscribers.
   auto tick{sg::static_signal<void(int), 4>{}};
 
-  // A one-shot startup hook fires on the first tick only, then sweeps itself.
   [[maybe_unused]] auto const startup{tick.connect_once([](int frame) noexcept {
     std::println("  startup on frame {}", frame);
   })};
 
-  // A persistent frame logger, and a self-disarming watchdog that disconnects
-  // the logger from inside its own invocation. static_signal defers the removal
-  // to the end of the outermost emit, so iterating this emit stays valid.
   auto logger{tick.connect([](int frame) noexcept { std::println("  frame {}", frame); })};
   [[maybe_unused]] auto const watchdog{tick.connect([&logger](int frame) noexcept {
     if (frame == 2) {
       std::println("  watchdog silences the logger");
-      nexenne::utility::ignore(logger.disconnect());  // safe mid-emit, deferred sweep
+      nexenne::utility::ignore(logger.disconnect());
     }
   })};
 
   std::println("\nheap-free tick channel:");
-  tick.emit(1);  // startup, frame 1
+  tick.emit(1);
   {
-    // An emit_blocker mutes the channel for a scope and restores it on exit; the
-    // same RAII guard works on static_signal as on the heap signal.
     auto const paused{sg::emit_blocker{tick}};
     std::println("paused (this tick is suppressed):");
-    tick.emit(99);  // nothing prints
+    tick.emit(99);
   }
-  tick.emit(2);  // frame 2, then watchdog disconnects the logger
+  tick.emit(2);
   std::println("after the watchdog fired (logger gone):");
-  tick.emit(3);  // watchdog only
+  tick.emit(3);
 }

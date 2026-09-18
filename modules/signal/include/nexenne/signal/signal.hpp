@@ -157,17 +157,9 @@ class sink;
  */
 template <typename R, typename... Args, std::size_t SlotCapacity>
 class signal<R(Args...), SlotCapacity> {
-  // A multicast signal fans one argument out to every connected slot, so an
-  // rvalue-reference parameter is meaningless (a value cannot be moved into more
-  // than one slot). Reject it here with a clear message rather than let it fail
-  // deep inside the by-const-reference forwarder only when emit is instantiated.
   static_assert(
     (... && !std::is_rvalue_reference_v<Args>), "signal parameters cannot be rvalue references"
   );
-  // A by-value parameter is fanned out to every slot by const reference, so each
-  // slot's own by-value copy needs a copy constructor. Reject a move-only
-  // by-value parameter here rather than deep inside the forwarder; declare an
-  // expensive-to-copy parameter as a const reference instead.
   static_assert(
     (... && (std::is_reference_v<Args> || std::is_copy_constructible_v<Args>)),
     "signal by-value parameters must be copyable; declare the parameter as a const reference"
@@ -707,8 +699,6 @@ private:
     }
     auto pin{m_core};
     ++pin->emit_depth;
-    // Decrement and merge deferred work when the outermost emit ends, even on an
-    // early return from a slot.
     auto const at_exit{nexenne::utility::defer{[&pin] {
       if (--pin->emit_depth == 0 && pin->owner != nullptr) {
         settle(*pin);
@@ -718,9 +708,7 @@ private:
     for (auto i{std::size_t{0}}; i < n; ++i) {
       auto& slot{pin->slots[i]};
       if (slot.alive) {
-        // Mark a one-shot dead before invoking, not after: the callable may
-        // re-enter emit on this same signal, and a still-alive once slot would
-        // fire itself again without bound.
+        // Before invoking: a once slot that re-enters emit must not fire itself again.
         if (slot.once) {
           slot.alive = false;
         }
@@ -762,9 +750,7 @@ private:
     } else {
       entry.fn_obj = slot_fn_type{std::forward<Fn>(fn)};
     }
-    // During an emit the live slot list must not move: a slot may be connecting
-    // from inside its own invocation, so a reallocation would free the callable
-    // mid-call. Park the entry and merge it after the outermost emit instead.
+    // The live list must not reallocate mid-emit: a running slot's callable lives in it.
     if (c.emit_depth > 0) {
       c.pending.push_back(std::move(entry));
     } else {
@@ -819,8 +805,6 @@ private:
       }
     }
     if (found_at == slots.size()) {
-      // Not in the live list. It may be a connection made earlier in this same
-      // emit and still parked in the pending list; mark it so the merge drops it.
       if (m_core->emit_depth > 0) {
         for (auto& p : m_core->pending) {
           if (p.id == id && p.alive) {

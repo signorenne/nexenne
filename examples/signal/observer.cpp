@@ -77,12 +77,10 @@ private:
 auto main() -> int {
   auto temp{sensor{}};
 
-  // A priority-ordered logger: lower priority fires first.
   [[maybe_unused]] auto log{temp.readings().connect(
     [](double const c) noexcept { std::println("  log[prio -1]: {:.1f} C", c); }, -1
   )};
 
-  // A one-shot calibration hook that fires only on the first reading.
   [[maybe_unused]] auto calib{temp.readings().connect_once([](double const c) noexcept {
     std::println("  calibrate once at {:.1f} C", c);
   })};
@@ -91,53 +89,44 @@ auto main() -> int {
     auto screen{display{temp.readings()}};
 
     std::println("first reading:");
-    temp.publish(21.0);  // log, calibrate-once, then display
+    temp.publish(21.0);
 
     std::println("second reading:");
-    temp.publish(22.5);  // log and display; the one-shot is gone
+    temp.publish(22.5);
 
     std::println("third reading (display about to expire):");
     temp.publish(23.0);
-  }  // screen dies here; its slot auto-disconnects the tracked subscription
+  }
 
   std::println("after the display expired:");
-  temp.publish(24.0);  // only the logger remains
+  temp.publish(24.0);
 
-  // A directly-owned signal shows scoped_connection (RAII disconnect) and
-  // emit_blocker (scoped, save-and-restore emission suppression).
   auto alarm{sg::signal<void()>{}};
   {
     auto const beep{sg::scoped_connection{alarm.connect([] noexcept { std::println("  beep"); })}};
     std::println("\nalarm with a scoped subscriber:");
-    alarm.emit();  // beeps
+    alarm.emit();
     {
       auto const quiet{sg::emit_blocker{alarm}};
       std::println("blocked scope (no beep follows):");
-      alarm.emit();  // suppressed, prints nothing
+      alarm.emit();
     }
     std::println("unblocked again:");
-    alarm.emit();  // beeps
-  }  // beep's scoped_connection disconnects here
+    alarm.emit();
+  }
   std::println("after the scoped subscriber left:");
-  alarm.emit();  // nothing connected
+  alarm.emit();
 
-  // A connection is a value handle: keep it and disconnect explicitly when the
-  // subscription's life is neither a scope nor an object, and disconnect_all to
-  // clear the whole signal at once (here, a "tear down the UI" moment).
   std::println("\nexplicit disconnect and disconnect_all:");
   auto chime{alarm.connect([] noexcept { std::println("  chime"); })};
-  // disconnect_all below strands this handle: its slot is gone, so it no-ops.
   [[maybe_unused]] auto buzz{alarm.connect([] noexcept { std::println("  buzz"); })};
   std::println("both connected ({} slots):", alarm.size());
-  alarm.emit();  // chime, buzz
+  alarm.emit();
   std::println("disconnect chime explicitly: {}", chime.disconnect());
-  alarm.emit();  // buzz only
+  alarm.emit();
   alarm.disconnect_all();
   std::println("after disconnect_all, empty: {}", alarm.empty());
 
-  // A non-void signal: each slot returns a value and emit_and_collect gathers
-  // them in fire order. A poll like this fans one query out to every registered
-  // responder, then folds the answers - no central response table to maintain.
   std::println("\nvote tally via emit_and_collect:");
   auto poll{sg::signal<bool(int)>{}};
   [[maybe_unused]] auto const a{poll.connect([](int n) noexcept { return n > 0; })};

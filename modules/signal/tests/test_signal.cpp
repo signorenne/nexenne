@@ -81,7 +81,6 @@ TEST_CASE("nexenne::signal::signal reference mutation chains across multiple slo
 
   auto value{2};
   sig.emit(value);
-  // First slot makes 3, second makes 30: each sees the previous slot's mutation.
   CHECK(value == 30);
 }
 
@@ -102,11 +101,11 @@ TEST_CASE("nexenne::signal::signal supports multiple slots in connection order")
 
 TEST_CASE("nexenne::signal::signal empty emit is a no-op") {
   auto sig{signal<void()>{}};
-  sig.emit();  // no slots, must not crash
+  sig.emit();
   CHECK(sig.empty());
 
   auto sig_args{signal<void(int)>{}};
-  sig_args.emit(7);  // no slots with args either
+  sig_args.emit(7);
   CHECK(sig_args.empty());
 }
 
@@ -128,19 +127,19 @@ TEST_CASE("nexenne::signal::connection.disconnect removes the slot") {
   CHECK(sig.size() == 0);
 
   sig.emit();
-  CHECK(count == 1);  // unchanged
+  CHECK(count == 1);
 
-  CHECK_FALSE(conn.disconnect());  // already disconnected
+  CHECK_FALSE(conn.disconnect());
 }
 
 TEST_CASE("nexenne::signal::connection double-disconnect and copy semantics") {
   auto sig{signal<void()>{}};
   auto conn{sig.connect([] noexcept {})};
-  auto copy{conn};  // copies share the same logical connection
+  auto copy{conn};
 
-  CHECK(conn.disconnect());        // first wins
-  CHECK_FALSE(copy.disconnect());  // the copy now reports already-disconnected
-  CHECK_FALSE(conn.disconnect());  // and the original on a second call too
+  CHECK(conn.disconnect());
+  CHECK_FALSE(copy.disconnect());
+  CHECK_FALSE(conn.disconnect());
 }
 
 TEST_CASE("nexenne::signal::connection is valid until signal is destroyed") {
@@ -150,13 +149,11 @@ TEST_CASE("nexenne::signal::connection is valid until signal is destroyed") {
 
   sig.reset();
   CHECK_FALSE(conn.valid());
-  // Disconnect on dead signal is a safe no-op.
   CHECK_FALSE(conn.disconnect());
 }
 
 TEST_CASE("nexenne::signal::connection disconnect of an already-dead connection is safe") {
   auto conn{connection{}};
-  // A default connection refers to nothing; disconnect must be a no-op.
   CHECK_FALSE(conn.disconnect());
   CHECK_FALSE(conn.disconnect());
   CHECK_FALSE(conn.valid());
@@ -171,7 +168,7 @@ TEST_CASE("nexenne::signal::scoped_connection disconnects on destruction") {
     CHECK(count == 1);
   }
   sig.emit();
-  CHECK(count == 1);  // scoped_connection destructor ran
+  CHECK(count == 1);
 }
 
 TEST_CASE(
@@ -182,9 +179,8 @@ TEST_CASE(
   auto outer{scoped_connection{}};
   {
     auto inner{scoped_connection{sig.connect([&] noexcept { ++count; })}};
-    outer = std::move(inner);  // ownership transferred to outer
+    outer = std::move(inner);
   }
-  // inner destroyed (now empty); outer still owns -> slot still connected
   sig.emit();
   CHECK(count == 1);
   CHECK(sig.size() == 1);
@@ -196,11 +192,11 @@ TEST_CASE("nexenne::signal::scoped_connection move-construct transfers ownership
   auto holder{std::optional<scoped_connection>{}};
   {
     auto inner{scoped_connection{sig.connect([&] noexcept { ++count; })}};
-    holder.emplace(std::move(inner));  // move-construct out of inner
-  }  // ~inner is now inert
+    holder.emplace(std::move(inner));
+  }
   sig.emit();
-  CHECK(count == 1);  // moved-from inner did NOT disconnect
-  holder.reset();     // destination disconnects here
+  CHECK(count == 1);
+  holder.reset();
   sig.emit();
   CHECK(count == 1);
 }
@@ -213,11 +209,11 @@ TEST_CASE("nexenne::signal::scoped_connection move-assign disconnects the prior 
   {
     auto src{scoped_connection{sig.connect([&] noexcept { ++b_fired; })}};
     CHECK(sig.size() == 2);
-    dst = std::move(src);  // dst's old (a) connection must disconnect now
+    dst = std::move(src);
   }
-  CHECK(sig.size() == 1);  // only b survives
+  CHECK(sig.size() == 1);
   sig.emit();
-  CHECK(a_fired == 0);  // a was disconnected by the move-assign
+  CHECK(a_fired == 0);
   CHECK(b_fired == 1);
 }
 
@@ -226,9 +222,9 @@ TEST_CASE("nexenne::signal::scoped_connection self-move-assign is safe") {
   auto fired{0};
   auto sc{scoped_connection{sig.connect([&] noexcept { ++fired; })}};
   auto& ref{sc};
-  ref = std::move(sc);  // self-move must not disconnect
+  ref = std::move(sc);
   sig.emit();
-  CHECK(fired == 1);  // still connected
+  CHECK(fired == 1);
   CHECK(sc.valid());
 }
 
@@ -238,11 +234,11 @@ TEST_CASE("nexenne::signal::scoped_connection.release returns the connection") {
   auto raw_conn{connection{}};
   {
     auto sc{scoped_connection{sig.connect([&] noexcept { ++count; })}};
-    raw_conn = sc.release();  // sc no longer auto-disconnects
-    CHECK_FALSE(sc.valid());  // released: scope holds nothing
+    raw_conn = sc.release();
+    CHECK_FALSE(sc.valid());
   }
   sig.emit();
-  CHECK(count == 1);  // still connected
+  CHECK(count == 1);
 
   raw_conn.disconnect();
   sig.emit();
@@ -258,7 +254,7 @@ TEST_CASE("nexenne::signal::scoped_connection.disconnect ends early and get() ob
   CHECK(sc.disconnect());
   sig.emit();
   CHECK(fired == 0);
-  CHECK_FALSE(sc.disconnect());  // already disconnected
+  CHECK_FALSE(sc.disconnect());
 }
 
 TEST_CASE("nexenne::signal::signal disconnect_all clears every slot") {
@@ -276,21 +272,19 @@ TEST_CASE("nexenne::signal::signal disconnect_all clears every slot") {
   CHECK(count == 0);
 }
 
-// priority ordering
-
 TEST_CASE("nexenne::signal::signal slot priority orders invocation") {
   auto sig{signal<void()>{}};
   auto log{std::vector<int>{}};
 
-  [[maybe_unused]] auto c_low{sig.connect([&] noexcept { log.push_back(2); }, 10)};   // last
-  [[maybe_unused]] auto c_mid{sig.connect([&] noexcept { log.push_back(1); }, 0)};    // middle
-  [[maybe_unused]] auto c_high{sig.connect([&] noexcept { log.push_back(0); }, -5)};  // first
+  [[maybe_unused]] auto c_low{sig.connect([&] noexcept { log.push_back(2); }, 10)};
+  [[maybe_unused]] auto c_mid{sig.connect([&] noexcept { log.push_back(1); }, 0)};
+  [[maybe_unused]] auto c_high{sig.connect([&] noexcept { log.push_back(0); }, -5)};
 
   sig.emit();
   REQUIRE(log.size() == 3);
-  CHECK(log[0] == 0);  // priority -5 fires first
-  CHECK(log[1] == 1);  // priority 0
-  CHECK(log[2] == 2);  // priority 10
+  CHECK(log[0] == 0);
+  CHECK(log[1] == 1);
+  CHECK(log[2] == 2);
 }
 
 TEST_CASE("nexenne::signal::signal same priority preserves insertion order (stable sort)") {
@@ -308,21 +302,15 @@ TEST_CASE("nexenne::signal::signal same priority preserves insertion order (stab
 }
 
 TEST_CASE("nexenne::signal::signal mixed priorities with ties keep insertion order within a tier") {
-  // Insertion-bubble path: equal priorities never swap, so a tie keeps the
-  // order the slots were connected in, regardless of surrounding priorities.
   auto sig{signal<void()>{}};
   auto order{std::vector<int>{}};
   [[maybe_unused]] auto c1{sig.connect([&] { order.push_back(1); }, 10)};
   [[maybe_unused]] auto c2{sig.connect([&] { order.push_back(2); }, 5)};
   [[maybe_unused]] auto c3{sig.connect([&] { order.push_back(3); }, 15)};
-  [[maybe_unused]] auto c4{
-    sig.connect([&] { order.push_back(4); }, 5)
-  };  // tied with c2: comes after
+  [[maybe_unused]] auto c4{sig.connect([&] { order.push_back(4); }, 5)};
   sig.emit();
   CHECK(order == std::vector{2, 4, 1, 3});
 }
-
-// one-shot
 
 TEST_CASE("nexenne::signal::signal connect_once fires exactly once") {
   auto sig{signal<void(int)>{}};
@@ -341,11 +329,10 @@ TEST_CASE("nexenne::signal::signal connect_once fires exactly once") {
 TEST_CASE("nexenne::signal::signal connect_once handle reports invalid-target after the sweep") {
   auto sig{signal<void()>{}};
   auto conn{sig.connect_once([] noexcept {})};
-  CHECK(conn.valid());  // signal alive
+  CHECK(conn.valid());
 
   sig.emit();
   CHECK(sig.empty());
-  // The slot was swept; a disconnect on the now-removed slot reports false.
   CHECK_FALSE(conn.disconnect());
 }
 
@@ -364,19 +351,18 @@ TEST_CASE("nexenne::signal::signal connect_once with stateful capture fires once
 TEST_CASE(
   "nexenne::signal::signal connect_once does not re-fire when its slot re-emits the same signal"
 ) {
-  // CRITICAL regression: a still-alive once slot would recurse without bound.
   auto sig{signal<void()>{}};
   auto n{0};
   [[maybe_unused]] auto c{sig.connect_once([&] noexcept {
     ++n;
-    if (n < 5) {   // a still-alive once slot would recurse without bound here
-      sig.emit();  // re-entrant emit of the same signal from the once slot
+    if (n < 5) {
+      sig.emit();
     }
   })};
 
   sig.emit();
-  CHECK(n == 1);       // fired exactly once despite the re-entrant emit
-  CHECK(sig.empty());  // and was swept
+  CHECK(n == 1);
+  CHECK(sig.empty());
 }
 
 TEST_CASE(
@@ -392,24 +378,22 @@ TEST_CASE(
   sig.emit();
   CHECK(persistent == 1);
   CHECK(once == 1);
-  CHECK(sig.size() == 1);  // once swept, persistent remains
+  CHECK(sig.size() == 1);
 
   sig.emit();
   CHECK(persistent == 2);
   CHECK(once == 1);
 }
 
-// emit_and_collect
-
 TEST_CASE("nexenne::signal::signal emit_and_collect returns slot results in priority order") {
   auto sig{signal<int(int)>{}};
   [[maybe_unused]] auto c1{sig.connect([](int n) noexcept { return n + 1; }, 0)};
-  [[maybe_unused]] auto c2{sig.connect([](int n) noexcept { return n * 2; }, -1)};  // fires first
+  [[maybe_unused]] auto c2{sig.connect([](int n) noexcept { return n * 2; }, -1)};
 
   auto results{sig.emit_and_collect(10)};
   REQUIRE(results.size() == 2);
-  CHECK(results[0] == 20);  // c2: n*2 (priority -1)
-  CHECK(results[1] == 11);  // c1: n+1 (priority 0)
+  CHECK(results[0] == 20);
+  CHECK(results[1] == 11);
 }
 
 TEST_CASE("nexenne::signal::signal emit_and_collect skips disconnected slots") {
@@ -442,21 +426,15 @@ TEST_CASE("nexenne::signal::signal supports non-void return types (values discar
   })};
   sig.emit(7);
   CHECK(last == 7);
-  // Return value of slot is discarded; emit() returns void.
 }
 
-// THE REENTRANCY MATRIX
-
 TEST_CASE("nexenne::signal::signal reentrancy (a): a slot connecting a new slot defers it") {
-  // The new slot must NOT fire during the current emit and MUST be present after.
   auto sig{signal<void()>{}};
   auto order{std::vector<int>{}};
   auto added{connection{}};
   auto connected{false};
   [[maybe_unused]] auto first{sig.connect([&] noexcept {
     order.push_back(1);
-    // Connect the deferred slot exactly once (a flag, not a disconnect side
-    // effect, so the once-added slot survives to fire on the next emit).
     if (!connected) {
       connected = true;
       added = sig.connect([&] noexcept { order.push_back(2); });
@@ -464,13 +442,12 @@ TEST_CASE("nexenne::signal::signal reentrancy (a): a slot connecting a new slot 
   })};
 
   sig.emit();
-  // Only the first slot fired; the deferred slot was not visited.
   REQUIRE(order.size() == 1);
   CHECK(order[0] == 1);
-  CHECK(sig.size() == 2);  // deferred slot is now merged in
+  CHECK(sig.size() == 2);
 
   order.clear();
-  sig.emit();  // now both are live; first runs, then the once-deferred slot
+  sig.emit();
   REQUIRE(order.size() == 2);
   CHECK(order[0] == 1);
   CHECK(order[1] == 2);
@@ -479,8 +456,6 @@ TEST_CASE("nexenne::signal::signal reentrancy (a): a slot connecting a new slot 
 TEST_CASE(
   "nexenne::signal::signal reentrancy (a-bulk): a slot connecting many slots forces no UAF"
 ) {
-  // Connect enough new slots from inside the running callable to grow the inline
-  // slot list past its inline capacity. Deferred, so the live list never moves.
   auto sig{signal<void()>{}};
   auto fired{0};
   auto keep{std::vector<connection>{}};
@@ -491,10 +466,10 @@ TEST_CASE(
     }
   })};
 
-  sig.emit();  // only the first slot fires; the 20 deferred ones are not visited
+  sig.emit();
   CHECK(fired == 1);
   CHECK(sig.size() == 21);
-  sig.emit();  // now all 21 fire
+  sig.emit();
   CHECK(fired == 1 + 21);
 }
 
@@ -567,7 +542,7 @@ TEST_CASE(
   c1 = sig.connect([&] noexcept { log.push_back(1); });
   c2 = sig.connect([&] noexcept {
     log.push_back(2);
-    c3.disconnect();  // c3 has not fired yet: marked dead before the loop reaches it
+    c3.disconnect();
   });
   c3 = sig.connect([&] noexcept { log.push_back(3); });
 
@@ -578,7 +553,7 @@ TEST_CASE(
 
   log.clear();
   sig.emit();
-  REQUIRE(log.size() == 2);  // c3 is gone for good
+  REQUIRE(log.size() == 2);
   CHECK(log[0] == 1);
   CHECK(log[1] == 2);
 }
@@ -588,8 +563,6 @@ TEST_CASE("nexenne::signal::signal reentrancy (d): disconnecting an already-fire
   auto log{std::vector<int>{}};
   auto c1{connection{}};
   [[maybe_unused]] auto c2{connection{}};
-  // Disconnect c1 exactly once (the slot body re-runs on every emit, and a
-  // second disconnect of the same connection returns false by contract).
   auto disconnected_once{false};
   auto disconnect_result{false};
 
@@ -598,20 +571,20 @@ TEST_CASE("nexenne::signal::signal reentrancy (d): disconnecting an already-fire
     log.push_back(2);
     if (!disconnected_once) {
       disconnected_once = true;
-      disconnect_result = c1.disconnect();  // c1 already fired this emit
+      disconnect_result = c1.disconnect();
     }
   });
 
   sig.emit();
-  CHECK(disconnect_result);  // disconnecting an already-fired live slot succeeds
+  CHECK(disconnect_result);
   REQUIRE(log.size() == 2);
   CHECK(log[0] == 1);
   CHECK(log[1] == 2);
-  CHECK(sig.size() == 1);  // c1 swept after the emit
+  CHECK(sig.size() == 1);
 
   log.clear();
   sig.emit();
-  REQUIRE(log.size() == 1);  // only c2 remains
+  REQUIRE(log.size() == 1);
   CHECK(log[0] == 2);
 }
 
@@ -624,14 +597,14 @@ TEST_CASE("nexenne::signal::signal reentrancy (e): disconnect_all during emit em
 
   first = sig.connect([&] noexcept {
     ++fired;
-    sig.disconnect_all();  // documented @post: empty() afterward
+    sig.disconnect_all();
   });
   tail = sig.connect([&] noexcept { ++tail_fired; });
 
   sig.emit();
   CHECK(fired == 1);
-  CHECK(tail_fired == 0);  // tail was marked dead by disconnect_all before it fired
-  CHECK(sig.empty());      // @post
+  CHECK(tail_fired == 0);
+  CHECK(sig.empty());
 
   sig.emit();
   CHECK(fired == 1);
@@ -646,21 +619,17 @@ TEST_CASE(
   auto fired{0};
   [[maybe_unused]] auto first{sig.connect([&] noexcept {
     ++fired;
-    [[maybe_unused]] auto const pending{sig.connect([&] noexcept {
-      ++fired;
-    })};                   // deferred this emit
-    sig.disconnect_all();  // must drop the deferred connect too, not just live slots
+    [[maybe_unused]] auto const pending{sig.connect([&] noexcept { ++fired; })};
+    sig.disconnect_all();
   })};
 
-  sig.emit();  // first fires, connects a slot, then disconnect_all
-  sig.emit();  // nothing must fire: every slot, including the deferred one, is gone
+  sig.emit();
+  sig.emit();
   CHECK(fired == 1);
   CHECK(sig.empty());
 }
 
 TEST_CASE("nexenne::signal::signal reentrancy (f): nested emit of the same signal") {
-  // A slot re-emits the same signal. The inner emit visits the slots alive at
-  // entry; guard the recursion so it bottoms out, and assert the call counts.
   auto sig{signal<void()>{}};
   auto depth{0};
   auto outer_hits{0};
@@ -670,20 +639,18 @@ TEST_CASE("nexenne::signal::signal reentrancy (f): nested emit of the same signa
     ++depth;
     if (depth == 1) {
       ++outer_hits;
-      sig.emit();  // nested emit from within a slot
+      sig.emit();
     } else {
       ++inner_hits;
     }
     --depth;
   })};
-  [[maybe_unused]] auto plain{sig.connect([&] noexcept { /* present in both passes */ })};
+  [[maybe_unused]] auto plain{sig.connect([&] noexcept {})};
 
   sig.emit();
-  // Outer emit: re_emitter fires (depth 1) and triggers an inner emit.
-  // Inner emit: re_emitter fires again (depth 2, inner_hits) and plain fires.
   CHECK(outer_hits == 1);
   CHECK(inner_hits == 1);
-  CHECK(sig.size() == 2);  // both slots survive the nested emit
+  CHECK(sig.size() == 2);
 }
 
 TEST_CASE(
@@ -695,11 +662,11 @@ TEST_CASE(
   [[maybe_unused]] auto first{sig.connect([&] noexcept {
     ++fired;
     auto pending{sig.connect([&] noexcept { ++fired; })};
-    pending.disconnect();  // kill it before it is ever merged into the live list
+    pending.disconnect();
   })};
 
-  sig.emit();  // first fires; the pending connection is marked dead, never merged
-  sig.emit();  // so the second emit only fires the first slot again
+  sig.emit();
+  sig.emit();
   CHECK(fired == 2);
   CHECK(sig.size() == 1);
 }
@@ -709,10 +676,10 @@ TEST_CASE("nexenne::signal::signal reentrancy: a slot may destroy the signal mid
   auto fired{0};
   [[maybe_unused]] auto c{sig->connect([&] noexcept {
     ++fired;
-    sig.reset();  // destroy the signal from within its own emit
+    sig.reset();
   })};
 
-  sig->emit();  // the pinned core keeps the iteration alive; must not crash
+  sig->emit();
   CHECK(fired == 1);
   CHECK(sig == nullptr);
 }
@@ -727,24 +694,18 @@ TEST_CASE(
 
   auto c1{sig->connect([&] noexcept {
     ++first_fired;
-    sig.reset();  // destroy mid-emit, before the second slot is visited
+    sig.reset();
   })};
   auto c2{sig->connect([&] noexcept { ++second_fired; })};
   auto* const raw{sig.get()};
 
   raw->emit();
   CHECK(first_fired == 1);
-  // The second slot still runs from the pinned core: it was alive at entry and
-  // the in-flight emit completes on the immutable snapshot (a stronger guarantee
-  // than Boost.Signals2, where destroying mid-emit is undefined).
   CHECK(second_fired == 1);
   CHECK(sig == nullptr);
-  // Outstanding connections now see a null owner: disconnect is a no-op.
   CHECK_FALSE(c1.disconnect());
   CHECK_FALSE(c2.disconnect());
 }
-
-// lifetime tracking via slot
 
 TEST_CASE("nexenne::signal::slot auto-disconnects every tracked slot on destruction") {
   auto sig{signal<void()>{}};
@@ -758,7 +719,7 @@ TEST_CASE("nexenne::signal::slot auto-disconnects every tracked slot on destruct
     CHECK(fired == 2);
   }
   sig.emit();
-  CHECK(fired == 2);  // owner dead -> no more slot invocations
+  CHECK(fired == 2);
   CHECK(sig.size() == 0);
 }
 
@@ -772,10 +733,10 @@ TEST_CASE("nexenne::signal::slot.clear disconnects but stays usable") {
   owner.clear();
   CHECK(owner.empty());
   sig.emit();
-  CHECK(fired == 1);  // slot detached
+  CHECK(fired == 1);
   [[maybe_unused]] auto const c2{sig.connect([&fired] noexcept { ++fired; }, owner)};
   sig.emit();
-  CHECK(fired == 2);  // owner is back in use
+  CHECK(fired == 2);
 }
 
 TEST_CASE("nexenne::signal::slot reports full when over capacity") {
@@ -787,7 +748,7 @@ TEST_CASE("nexenne::signal::slot reports full when over capacity") {
   CHECK(owner.size() == 2);
   CHECK(owner.capacity() == 2);
   [[maybe_unused]] auto const c3{sig.connect([] noexcept {}, owner)};
-  CHECK(owner.size() == 2);  // overflow ignored, no heap
+  CHECK(owner.size() == 2);
 }
 
 TEST_CASE("nexenne::signal::slot.track leaves the connection live and connected when full") {
@@ -796,14 +757,14 @@ TEST_CASE("nexenne::signal::slot.track leaves the connection live and connected 
   auto tracker{nexenne::signal::slot<1>{}};
 
   auto c1{sig.connect([&] noexcept { ++count; })};
-  CHECK(tracker.track(std::move(c1)));  // room for one, tracked
+  CHECK(tracker.track(std::move(c1)));
 
   auto c2{sig.connect([&] noexcept { ++count; })};
-  CHECK_FALSE(tracker.track(c2));  // full, must report false WITHOUT disconnecting
+  CHECK_FALSE(tracker.track(c2));
   CHECK(c2.valid());
 
   sig.emit();
-  CHECK(count == 2);  // both slots still fire: c2 was not disconnected by track
+  CHECK(count == 2);
 }
 
 TEST_CASE("nexenne::signal::slot move transfers ownership of tracked connections") {
@@ -814,14 +775,12 @@ TEST_CASE("nexenne::signal::slot move transfers ownership of tracked connections
     auto src{nexenne::signal::slot<2>{}};
     [[maybe_unused]] auto const c{sig.connect([&fired] noexcept { ++fired; }, src)};
     CHECK(src.size() == 1);
-    dst = std::move(src);  // ownership of the subscription moves to dst
-  }  // src dies, but it no longer owns the connection
+    dst = std::move(src);
+  }
   CHECK(dst.size() == 1);
   sig.emit();
-  CHECK(fired == 1);  // still connected because dst keeps it alive
+  CHECK(fired == 1);
 }
-
-// weak_ptr/shared_ptr owner lifetime tracking
 
 TEST_CASE("nexenne::signal::signal slot fires while a tracked owner is alive, stops once it dies") {
   auto sig{signal<void()>{}};
@@ -836,11 +795,11 @@ TEST_CASE("nexenne::signal::signal slot fires while a tracked owner is alive, st
   })};
 
   sig.emit();
-  CHECK(fired == 1);  // owner alive
+  CHECK(fired == 1);
 
-  owner.reset();  // owner dies BETWEEN emits
+  owner.reset();
   sig.emit();
-  CHECK(fired == 1);  // slot saw the dead owner and did nothing
+  CHECK(fired == 1);
 }
 
 TEST_CASE(
@@ -852,7 +811,6 @@ TEST_CASE(
   auto killer_ran{false};
   auto observer_saw_alive{false};
 
-  // Killer fires first and destroys the owner mid-emit.
   [[maybe_unused]] auto killer{sig.connect(
     [&owner, &killer_ran] noexcept {
       killer_ran = true;
@@ -860,17 +818,14 @@ TEST_CASE(
     },
     -1
   )};
-  // Observer fires after and must see the owner already gone.
   [[maybe_unused]] auto observer{sig.connect(
     [weak, &observer_saw_alive] noexcept { observer_saw_alive = static_cast<bool>(weak.lock()); }, 0
   )};
 
   sig.emit();
   CHECK(killer_ran);
-  CHECK_FALSE(observer_saw_alive);  // owner died during this same emit
+  CHECK_FALSE(observer_saw_alive);
 }
-
-// sink (connect-only view)
 
 TEST_CASE("nexenne::signal::sink exposes connect but hides emit") {
   auto sig{signal<void(int)>{}};
@@ -881,7 +836,7 @@ TEST_CASE("nexenne::signal::sink exposes connect but hides emit") {
   CHECK(sink.size() == 1);
   CHECK_FALSE(sink.empty());
 
-  sig.emit(42);  // only the signal can fire
+  sig.emit(42);
   CHECK(count == 1);
 }
 
@@ -889,7 +844,6 @@ TEST_CASE("nexenne::signal::sink refers to the live signal: connects land on it"
   auto sig{signal<void()>{}};
   auto a{sig.as_sink()};
   auto fired{0};
-  // Connect via the signal and via the sink; both land on the same core.
   [[maybe_unused]] auto c1{sig.connect([&] noexcept { ++fired; })};
   [[maybe_unused]] auto c2{a.connect([&] noexcept { ++fired; })};
   CHECK(a.size() == 2);
@@ -909,8 +863,6 @@ TEST_CASE("nexenne::signal::sink supports connect_once") {
   CHECK(sig.empty());
 }
 
-// emit_blocker
-
 TEST_CASE("nexenne::signal::signal block / unblock suppresses emit without disconnecting") {
   auto sig{signal<void()>{}};
   auto fired{0};
@@ -920,7 +872,7 @@ TEST_CASE("nexenne::signal::signal block / unblock suppresses emit without disco
   sig.emit();
   sig.emit();
   CHECK(fired == 0);
-  CHECK(sig.size() == 1);  // slot stays connected while blocked
+  CHECK(sig.size() == 1);
   sig.unblock();
   CHECK_FALSE(sig.is_blocked());
   sig.emit();
@@ -938,7 +890,7 @@ TEST_CASE("nexenne::signal::emit_blocker scopes a block to a region") {
     sig.emit();
     sig.emit();
   }
-  CHECK_FALSE(sig.is_blocked());  // restored on scope exit
+  CHECK_FALSE(sig.is_blocked());
   CHECK(fired == 0);
   sig.emit();
   CHECK(fired == 1);
@@ -955,7 +907,7 @@ TEST_CASE("nexenne::signal::emit_blocker.release ends the block early") {
   CHECK_FALSE(sig.is_blocked());
   sig.emit();
   CHECK(fired == 1);
-  guard.release();  // idempotent: second release is a no-op
+  guard.release();
   CHECK_FALSE(sig.is_blocked());
 }
 
@@ -969,10 +921,10 @@ TEST_CASE("nexenne::signal::emit_blocker nested restores prior block, not unbloc
     nexenne::signal::emit_blocker inner{sig};
     sig.emit();
     CHECK(fired == 0);
-  }  // ~inner restores prior (which was blocked by outer)
+  }
   CHECK(sig.is_blocked());
   sig.emit();
-  CHECK(fired == 0);  // outer still blocking
+  CHECK(fired == 0);
 }
 
 TEST_CASE(
@@ -986,10 +938,10 @@ TEST_CASE(
   {
     nexenne::signal::emit_blocker inner{sig};
     CHECK(sig.is_blocked());
-    holder.emplace(std::move(inner));  // move the restore out
-  }  // ~inner is inert, must NOT restore
-  CHECK(sig.is_blocked());  // still blocked: the moved-from guard did nothing
-  holder.reset();           // destination restores here
+    holder.emplace(std::move(inner));
+  }
+  CHECK(sig.is_blocked());
+  holder.reset();
   CHECK_FALSE(sig.is_blocked());
   sig.emit();
   CHECK(fired == 1);
@@ -998,16 +950,16 @@ TEST_CASE(
 TEST_CASE("nexenne::signal::emit_blocker move-assign restores the prior signal first") {
   auto sig_a{signal<void()>{}};
   auto sig_b{signal<void()>{}};
-  sig_a.block();  // pre-existing block: the blocker records this as a's prior state
+  sig_a.block();
 
-  auto blocker_a{nexenne::signal::emit_blocker{sig_a}};  // a: prior=true, now blocked
+  auto blocker_a{nexenne::signal::emit_blocker{sig_a}};
   {
-    auto blocker_b{nexenne::signal::emit_blocker{sig_b}};  // b: prior=false, now blocked
+    auto blocker_b{nexenne::signal::emit_blocker{sig_b}};
     CHECK(sig_b.is_blocked());
-    blocker_a = std::move(blocker_b);  // restores a to its prior (true), adopts b
+    blocker_a = std::move(blocker_b);
   }
-  CHECK(sig_a.is_blocked());  // a restored to prior true by the move-assign
-  CHECK(sig_b.is_blocked());  // b still held by blocker_a
+  CHECK(sig_a.is_blocked());
+  CHECK(sig_b.is_blocked());
 }
 
 TEST_CASE("nexenne::signal::blockable concept is satisfied by signal") {
@@ -1018,12 +970,12 @@ TEST_CASE("nexenne::signal::blockable concept is satisfied by signal") {
 
 TEST_CASE("nexenne::signal::signal block before first connect still takes effect") {
   auto sig{signal<void()>{}};
-  sig.block();  // pre-create core before any connect
+  sig.block();
   CHECK(sig.is_blocked());
   auto fired{0};
   [[maybe_unused]] auto const c{sig.connect([&fired] noexcept { ++fired; })};
   sig.emit();
-  CHECK(fired == 0);  // still blocked across the connect
+  CHECK(fired == 0);
   sig.unblock();
   sig.emit();
   CHECK(fired == 1);
@@ -1031,11 +983,9 @@ TEST_CASE("nexenne::signal::signal block before first connect still takes effect
 
 TEST_CASE("nexenne::signal::signal unblock on a never-used signal is a safe no-op") {
   auto sig{signal<void()>{}};
-  sig.unblock();  // core never created: must not crash
+  sig.unblock();
   CHECK_FALSE(sig.is_blocked());
 }
-
-// member-function connect
 
 namespace {
 struct receiver {
@@ -1066,7 +1016,7 @@ TEST_CASE("nexenne::signal::signal member-function connect with slot ties lifeti
     CHECK(r.hits == 5);
   }
   sig.emit(10);
-  CHECK(r.hits == 5);  // owner dropped -> no fire
+  CHECK(r.hits == 5);
 }
 
 TEST_CASE("nexenne::signal::sink supports slot and member-function overloads") {
@@ -1080,10 +1030,8 @@ TEST_CASE("nexenne::signal::sink supports slot and member-function overloads") {
     CHECK(r.hits == 7);
   }
   sig.emit(11);
-  CHECK(r.hits == 7);  // owner dropped -> no fire via sink-registered slot
+  CHECK(r.hits == 7);
 }
-
-// free-function fast path
 
 namespace {
 auto free_count{0};
@@ -1117,17 +1065,13 @@ TEST_CASE("nexenne::signal::signal mixes fast-path and capturing slots correctly
   auto local_count{0};
   auto sig{signal<void(int)>{}};
 
-  [[maybe_unused]] auto c1{sig.connect(&free_increment)};  // fast
-  [[maybe_unused]] auto c2{sig.connect([&](int n) noexcept {
-    local_count += n * 2;
-  })};  // slow (capture)
+  [[maybe_unused]] auto c1{sig.connect(&free_increment)};
+  [[maybe_unused]] auto c2{sig.connect([&](int n) noexcept { local_count += n * 2; })};
 
   sig.emit(3);
   CHECK(free_count == 3);
   CHECK(local_count == 6);
 }
-
-// connection identity
 
 TEST_CASE("nexenne::signal::connection default is invalid") {
   auto const c{connection{}};
@@ -1137,12 +1081,12 @@ TEST_CASE("nexenne::signal::connection default is invalid") {
 TEST_CASE("nexenne::signal::connection equality: same slot, same signal") {
   auto sig{signal<void()>{}};
   [[maybe_unused]] auto c1{sig.connect([] noexcept {})};
-  auto c2{c1};  // copy
+  auto c2{c1};
   CHECK(c1 == c2);
   CHECK(c1.slot_id() == c2.slot_id());
 
   [[maybe_unused]] auto c3{sig.connect([] noexcept {})};
-  CHECK_FALSE(c1 == c3);  // different slot
+  CHECK_FALSE(c1 == c3);
 }
 
 TEST_CASE("nexenne::signal::connection equality: different signals never compare equal") {
@@ -1150,7 +1094,6 @@ TEST_CASE("nexenne::signal::connection equality: different signals never compare
   auto b{signal<void()>{}};
   auto ca{a.connect([] noexcept {})};
   auto cb{b.connect([] noexcept {})};
-  // Even if both have slot_id 1, they refer to different cores.
   CHECK_FALSE(ca == cb);
 }
 
@@ -1161,21 +1104,15 @@ TEST_CASE("nexenne::signal::signal survives destroy-during-emit (slot pulls the 
 
   [[maybe_unused]] auto conn{sig->connect([&] noexcept {
     ++count;
-    // Reset the unique_ptr from inside the slot - signal is now
-    // being destroyed while we're still inside its emit().
     sig.reset();
   })};
 
-  // We have to hold a raw pointer because we just deleted the owner.
   sig_ptr->emit();
   CHECK(count == 1);
-  // No UB; the core was pinned during emit and outlived the signal.
 }
 
-// Review findings
-
 TEST_CASE(
-  "nexenne::signal::signal [M1] emit @post: a slot disconnected earlier in the emit does "
+  "nexenne::signal::signal emit @post: a slot disconnected earlier in the emit does "
   "not run, and one connected during it is not visited"
 ) {
   auto sig{signal<void()>{}};
@@ -1183,26 +1120,22 @@ TEST_CASE(
   auto c_target{connection{}};
   [[maybe_unused]] auto first{sig.connect([&] noexcept {
     log.push_back(1);
-    c_target.disconnect();  // a not-yet-fired slot: marked dead before it runs
-    nexenne::utility::ignore(sig.connect([&] noexcept { log.push_back(99); }));  // mid-emit connect
+    c_target.disconnect();
+    nexenne::utility::ignore(sig.connect([&] noexcept { log.push_back(99); }));
   })};
-  // Alive at the start of the emit, but disconnected earlier in it, so it must
-  // not be invoked, contradicting the old @post ("every slot alive at the start").
   c_target = sig.connect([&] noexcept { log.push_back(2); });
 
   sig.emit();
   REQUIRE(log.size() == 1);
   CHECK(log[0] == 1);
-  CHECK(sig.size() == 2);  // first plus the merged mid-emit connect
+  CHECK(sig.size() == 2);
 }
 
 TEST_CASE(
-  "nexenne::signal::signal [M3] the umbrella header delivers static_signal and the "
+  "nexenne::signal::signal the umbrella header delivers static_signal and the "
   "formatters"
 ) {
-  // This translation unit includes <nexenne/signal/signal.hpp> for the signal
-  // types but never static_signal.hpp or format.hpp: both must reach it through
-  // the umbrella, the whole point of M3.
+  // Never include static_signal.hpp or format.hpp in this file: the umbrella must deliver them.
   auto ssig{nexenne::signal::static_signal<void(int)>{}};
   auto got{0};
   auto const sc{ssig.connect([&](int v) noexcept { got = v; })};

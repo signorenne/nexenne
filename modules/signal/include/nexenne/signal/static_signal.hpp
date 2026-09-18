@@ -436,18 +436,10 @@ class static_sink;
  */
 template <typename R, typename... Args, std::size_t MaxSlots, std::size_t SlotCapacity>
 class static_signal<R(Args...), MaxSlots, SlotCapacity> {
-  // A multicast signal fans one argument out to every connected slot, so an
-  // rvalue-reference parameter is meaningless (a value cannot be moved into more
-  // than one slot). Reject it here with a clear message rather than let it fail
-  // deep inside the by-const-reference forwarder only when emit is instantiated.
   static_assert(
     (... && !std::is_rvalue_reference_v<Args>),
     "static_signal parameters cannot be rvalue references"
   );
-  // A by-value parameter is fanned out to every slot by const reference, so each
-  // slot's own by-value copy needs a copy constructor. Reject a move-only
-  // by-value parameter here rather than deep inside the forwarder; declare an
-  // expensive-to-copy parameter as a const reference instead.
   static_assert(
     (... && (std::is_reference_v<Args> || std::is_copy_constructible_v<Args>)),
     "static_signal by-value parameters must be copyable; declare the parameter as a const reference"
@@ -722,8 +714,6 @@ public:
     }
     ++m_emit_depth;
     if (m_emit_depth == 1) {
-      // Ids minted from here on name slots connected during this emit; both this
-      // frame and any nested in it must skip them.
       m_emit_id_watermark = m_next_id;
     }
     auto const at_exit{nexenne::utility::defer{[this] {
@@ -734,17 +724,11 @@ public:
     auto const n{m_slots.size()};
     for (auto i{std::size_t{0}}; i < n; ++i) {
       auto& slot{m_slots[i]};
-      // Skip slots connected during this outer emit (id at or past the watermark):
-      // the captured length hides them from this frame, and the id check hides
-      // them from a nested frame that would otherwise walk the grown list.
       if (slot.alive && slot.id < m_emit_id_watermark) {
         if (slot.once) {
           slot.alive = false;
         }
-        // Flag the running slot so a reclaim from inside its body (a connect at
-        // capacity) never overwrites the callable currently on the stack. Restore
-        // the previous flag rather than clearing it: a nested emit may run this
-        // same slot while an outer frame is still inside it.
+        // Restore, not clear: a nested emit may run this slot while an outer frame is inside it.
         auto const was_executing{slot.executing};
         slot.executing = true;
         slot.invoke(args...);
@@ -883,25 +867,16 @@ private:
   template <typename Fn>
   auto connect_impl(Fn&& fn, int const priority, bool const once) -> static_connection {
     if (m_slots.size() == MaxSlots) {
-      // Physically full. During an emit some entries may be dead but not yet
-      // swept (a slot disconnected during the emit, or a fired once-slot); reclaim
-      // one in place so a slot that reconnects from inside an emit (the
-      // reschedule-from-a-once-slot pattern) is not rejected while fewer than
-      // MaxSlots slots are actually live. The entry currently on the stack is
-      // never reused: its callable is still running.
       if (m_emit_depth > 0) {
         return reclaim_dead_slot(std::forward<Fn>(fn), priority, once);
       }
-      return static_connection{};  // full: invalid handle, callable not stored
+      return static_connection{};
     }
     auto const id{m_next_id++};
     auto entry{slot_entry{.id = id, .priority = priority, .alive = true, .once = once}};
     entry.fn_obj = slot_fn_type{std::forward<Fn>(fn)};
     nexenne::utility::ignore(m_slots.push_back(std::move(entry)));
     if (m_emit_depth > 0) {
-      // Append only: the live prefix must not move while an emit iterates it. The
-      // new slot's id sits at or past the emit watermark, so this emit and any
-      // nested in it skip it, and the outermost emit re-sorts before the next one.
       m_dirty = true;
     } else {
       bubble_last_into_position();
@@ -942,7 +917,7 @@ private:
         return static_connection{this, &disconnect_thunk, id};
       }
     }
-    return static_connection{};  // every slot is live or executing: genuinely full
+    return static_connection{};
   }
 
   /**

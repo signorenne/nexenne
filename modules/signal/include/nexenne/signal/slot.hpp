@@ -123,9 +123,7 @@ public:
    *       the slot is unchanged.
    */
   [[nodiscard]] auto track(connection c) noexcept -> bool {
-    // Check for room before wrapping: a failed push_back returns before moving
-    // from its argument, so an owning scoped_connection temporary would survive
-    // and disconnect \p c on the full path, breaking the "stays live" contract.
+    // Check room first: a scoped_connection built for a failed push_back would disconnect c.
     if (m_owned.size() == Capacity) {
       return false;
     }
