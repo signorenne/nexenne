@@ -1448,4 +1448,11 @@ TEST_CASE("nexenne::serialization::json writer - a failed emit leaves no partial
   }
 }
 
+TEST_CASE("nexenne::serialization::json writer - nullptr writes null") {
+  auto buf{std::array<char, 8>{}};
+  auto w{json::writer{buf}};
+  REQUIRE(w.value(nullptr).has_value());
+  CHECK(w.view() == "null");
+}
+
 }  // namespace

@@ -47,6 +47,7 @@
  */
 
 #include <array>
+#include <cassert>
 #include <charconv>
 #include <cmath>
 #include <cstddef>
@@ -762,7 +763,26 @@ public:
    *         expected, or \c error::buffer_full when it does not fit.
    */
   auto value(char const* const s) noexcept -> std::expected<void, error> {
+    assert(s != nullptr && "json::writer::value: null C string");
     return value(std::string_view{s});
+  }
+
+  /**
+   * @brief Emit a JSON \c null for a \c nullptr argument.
+   *
+   * Without this overload \c nullptr would select the C-string overload and
+   * be dereferenced; \c json::value{nullptr} is JSON null too.
+   *
+   * @return Empty on success.
+   *
+   * @pre A value is structurally expected at the current position.
+   * @post As for \c value_null.
+   *
+   * @throws None. Returns \c error::invalid_input when a value is not
+   *         expected, or \c error::buffer_full when it does not fit.
+   */
+  auto value(std::nullptr_t) noexcept -> std::expected<void, error> {
+    return value_null();
   }
 };
 
