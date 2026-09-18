@@ -13,13 +13,18 @@
  *   - \c json::value::kind : prints its kind name;
  *   - \c json::parse_error : prints a \c code at line, column diagnostic;
  *   - \c header : prints the versioned envelope fields;
- *   - \c cbor::type and \c msgpack::type : print the peeked token kind.
+ *   - \c cbor::type and \c msgpack::type : print the peeked token kind;
+ *   - \c json::parse_options and \c json::serialize_options : print every knob;
+ *   - the \c binary, \c cbor and \c msgpack readers and writers, and the
+ *     streaming \c json::writer : print the bytes consumed or produced, the
+ *     bytes left, and (for the JSON writer) the open nesting depth.
  *
  * The core headers stay free of the \c \<format\> include; pull this header in
  * only where the formatting hooks are wanted, keeping it off the hot path.
  */
 
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <format>
@@ -27,11 +32,14 @@
 #include <string>
 #include <string_view>
 
+#include <nexenne/serialization/binary/reader.hpp>
+#include <nexenne/serialization/binary/writer.hpp>
 #include <nexenne/serialization/cbor.hpp>
 #include <nexenne/serialization/error.hpp>
 #include <nexenne/serialization/json/parse.hpp>
 #include <nexenne/serialization/json/serialize.hpp>
 #include <nexenne/serialization/json/value.hpp>
+#include <nexenne/serialization/json/writer.hpp>
 #include <nexenne/serialization/msgpack.hpp>
 #include <nexenne/serialization/versioned.hpp>
 
@@ -73,6 +81,44 @@ namespace nexenne::serialization::cbor {
   return "?";
 }
 
+/**
+ * @brief Summary string for a CBOR \c writer \p w.
+ *
+ * Renders the bytes encoded so far and the room left, for example
+ * \c "cbor::writer(bytes_written=3, bytes_remaining=13)".
+ *
+ * @param w Writer to render.
+ *
+ * @return A freshly built summary string.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(writer const& w) -> std::string {
+  return std::format(
+    "cbor::writer(bytes_written={}, bytes_remaining={})", w.bytes_written(), w.bytes_remaining()
+  );
+}
+
+/**
+ * @brief Summary string for a CBOR \c reader \p r.
+ *
+ * Renders the bytes consumed so far and the bytes left, for example
+ * \c "cbor::reader(bytes_read=1, bytes_remaining=2)".
+ *
+ * @param r Reader to render.
+ *
+ * @return A freshly built summary string.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(reader const& r) -> std::string {
+  return std::format(
+    "cbor::reader(bytes_read={}, bytes_remaining={})", r.bytes_read(), r.bytes_remaining()
+  );
+}
+
 }  // namespace nexenne::serialization::cbor
 
 namespace nexenne::serialization::msgpack {
@@ -109,7 +155,91 @@ namespace nexenne::serialization::msgpack {
   return "?";
 }
 
+/**
+ * @brief Summary string for a MessagePack \c writer \p w.
+ *
+ * Renders the bytes encoded so far and the room left, for example
+ * \c "msgpack::writer(bytes_written=3, bytes_remaining=13)".
+ *
+ * @param w Writer to render.
+ *
+ * @return A freshly built summary string.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(writer const& w) -> std::string {
+  return std::format(
+    "msgpack::writer(bytes_written={}, bytes_remaining={})", w.bytes_written(), w.bytes_remaining()
+  );
+}
+
+/**
+ * @brief Summary string for a MessagePack \c reader \p r.
+ *
+ * Renders the bytes consumed so far and the bytes left, for example
+ * \c "msgpack::reader(bytes_read=1, bytes_remaining=2)".
+ *
+ * @param r Reader to render.
+ *
+ * @return A freshly built summary string.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(reader const& r) -> std::string {
+  return std::format(
+    "msgpack::reader(bytes_read={}, bytes_remaining={})", r.bytes_read(), r.bytes_remaining()
+  );
+}
+
 }  // namespace nexenne::serialization::msgpack
+
+namespace nexenne::serialization::binary {
+
+/**
+ * @brief Summary string for a binary \c writer \p w.
+ *
+ * Renders the bytes written so far and the room left, for example
+ * \c "binary::writer(bytes_written=4, bytes_remaining=12)".
+ *
+ * @param w Writer to render.
+ *
+ * @return A freshly built summary string.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(writer const& w) -> std::string {
+  return std::format(
+    "binary::writer(bytes_written={}, bytes_remaining={})", w.bytes_written(), w.bytes_remaining()
+  );
+}
+
+/**
+ * @brief Summary string for a binary \c reader \p r.
+ *
+ * Renders the bytes consumed so far, the bytes left and the per-string size
+ * cap, for example
+ * \c "binary::reader(bytes_read=2, bytes_remaining=2, max_string_size=67108864)".
+ *
+ * @param r Reader to render.
+ *
+ * @return A freshly built summary string.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(reader const& r) -> std::string {
+  return std::format(
+    "binary::reader(bytes_read={}, bytes_remaining={}, max_string_size={})",
+    r.bytes_read(),
+    r.bytes_remaining(),
+    r.max_string_size()
+  );
+}
+
+}  // namespace nexenne::serialization::binary
 
 namespace nexenne::serialization::json {
 
@@ -159,6 +289,72 @@ namespace nexenne::serialization::json {
 [[nodiscard]] inline auto to_string(parse_error const& e) -> std::string {
   return std::format(
     "{} at line {}, column {} (offset {})", to_string(e.code), e.line, e.column, e.offset
+  );
+}
+
+/**
+ * @brief Summary string for the parser options \p o, every knob included.
+ *
+ * Renders, for example,
+ * \c "json::parse_options(allow_comments=false, allow_trailing_commas=false, max_depth=128)".
+ *
+ * @param o Options to render.
+ *
+ * @return A freshly built summary string.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(parse_options const& o) -> std::string {
+  return std::format(
+    "json::parse_options(allow_comments={}, allow_trailing_commas={}, max_depth={})",
+    o.allow_comments,
+    o.allow_trailing_commas,
+    o.max_depth
+  );
+}
+
+/**
+ * @brief Summary string for the serialiser options \p o, every knob included.
+ *
+ * Renders, for example, \c "json::serialize_options(indent=2, ascii_only=false)".
+ *
+ * @param o Options to render.
+ *
+ * @return A freshly built summary string.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(serialize_options const& o) -> std::string {
+  return std::format("json::serialize_options(indent={}, ascii_only={})", o.indent, o.ascii_only);
+}
+
+/**
+ * @brief Summary string for a streaming JSON \c writer \p w.
+ *
+ * Renders the characters written so far, the room left, the open container
+ * depth against its limit and whether a complete document has been emitted,
+ * for example
+ * \c "json::writer(bytes_written=1, bytes_remaining=63, depth=1, max_depth=32, complete=false)".
+ *
+ * @tparam MaxDepth Maximum container nesting depth of the writer.
+ * @param w Writer to render.
+ *
+ * @return A freshly built summary string.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::size_t MaxDepth>
+[[nodiscard]] auto to_string(writer<MaxDepth> const& w) -> std::string {
+  return std::format(
+    "json::writer(bytes_written={}, bytes_remaining={}, depth={}, max_depth={}, complete={})",
+    w.bytes_written(),
+    w.bytes_remaining(),
+    w.depth(),
+    MaxDepth,
+    w.is_complete()
   );
 }
 
@@ -383,6 +579,290 @@ struct std::formatter<nexenne::serialization::header> : std::formatter<std::stri
   }
 };
 
+/**
+ * @brief \c std::format support for \c json::parse_options: prints every parser knob.
+ *
+ * Inherits the string formatter so a width / alignment spec applies to the
+ * rendered summary.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::serialization::json::parse_options>
+    : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the \c to_string summary of the options.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param o Options to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The summary has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::serialization::json::parse_options const& o, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::json::to_string(o), ctx
+    );
+  }
+};
+
+/**
+ * @brief \c std::format support for \c json::serialize_options: prints every serialiser knob.
+ *
+ * Inherits the string formatter so a width / alignment spec applies to the
+ * rendered summary.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::serialization::json::serialize_options>
+    : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the \c to_string summary of the options.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param o Options to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The summary has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::serialization::json::serialize_options const& o, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::json::to_string(o), ctx
+    );
+  }
+};
+
+/**
+ * @brief \c std::format support for \c binary::writer: prints the bytes written and left.
+ *
+ * Inherits the string formatter so a width / alignment spec applies to the
+ * rendered summary.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::serialization::binary::writer> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the writer's \c to_string summary.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param w Writer to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The summary has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::serialization::binary::writer const& w, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::binary::to_string(w), ctx
+    );
+  }
+};
+
+/**
+ * @brief \c std::format support for \c binary::reader: prints its progress and string cap.
+ *
+ * Inherits the string formatter so a width / alignment spec applies to the
+ * rendered summary.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::serialization::binary::reader> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the reader's \c to_string summary.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param r Reader to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The summary has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::serialization::binary::reader const& r, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::binary::to_string(r), ctx
+    );
+  }
+};
+
+/**
+ * @brief \c std::format support for \c cbor::writer: prints the bytes written and left.
+ *
+ * Inherits the string formatter so a width / alignment spec applies to the
+ * rendered summary.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::serialization::cbor::writer> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the writer's \c to_string summary.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param w Writer to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The summary has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::serialization::cbor::writer const& w, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::cbor::to_string(w), ctx
+    );
+  }
+};
+
+/**
+ * @brief \c std::format support for \c cbor::reader: prints the bytes read and left.
+ *
+ * Inherits the string formatter so a width / alignment spec applies to the
+ * rendered summary.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::serialization::cbor::reader> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the reader's \c to_string summary.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param r Reader to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The summary has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::serialization::cbor::reader const& r, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::cbor::to_string(r), ctx
+    );
+  }
+};
+
+/**
+ * @brief \c std::format support for \c msgpack::writer: prints the bytes written and left.
+ *
+ * Inherits the string formatter so a width / alignment spec applies to the
+ * rendered summary.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::serialization::msgpack::writer> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the writer's \c to_string summary.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param w Writer to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The summary has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::serialization::msgpack::writer const& w, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::msgpack::to_string(w), ctx
+    );
+  }
+};
+
+/**
+ * @brief \c std::format support for \c msgpack::reader: prints the bytes read and left.
+ *
+ * Inherits the string formatter so a width / alignment spec applies to the
+ * rendered summary.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::serialization::msgpack::reader> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the reader's \c to_string summary.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param r Reader to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The summary has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::serialization::msgpack::reader const& r, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::msgpack::to_string(r), ctx
+    );
+  }
+};
+
+/**
+ * @brief \c std::format support for a streaming \c json::writer: prints its state.
+ *
+ * Inherits the string formatter so a width / alignment spec applies to the
+ * rendered summary.
+ *
+ * @tparam MaxDepth Maximum container nesting depth of the writer.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::size_t MaxDepth>
+struct std::formatter<nexenne::serialization::json::writer<MaxDepth>>
+    : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the writer's \c to_string summary.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param w Writer to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The summary has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::serialization::json::writer<MaxDepth> const& w, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(
+      nexenne::serialization::json::to_string(w), ctx
+    );
+  }
+};
+
 namespace nexenne::serialization {
 
 /**
@@ -434,6 +914,36 @@ inline auto operator<<(std::ostream& os, type const t) -> std::ostream& {
   return os << to_string(t);
 }
 
+/**
+ * @brief Streams a CBOR \c writer summary via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param w Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p w has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, writer const& w) -> std::ostream& {
+  return os << to_string(w);
+}
+
+/**
+ * @brief Streams a CBOR \c reader summary via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param r Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p r has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, reader const& r) -> std::ostream& {
+  return os << to_string(r);
+}
+
 }  // namespace nexenne::serialization::cbor
 
 namespace nexenne::serialization::msgpack {
@@ -453,7 +963,71 @@ inline auto operator<<(std::ostream& os, type const t) -> std::ostream& {
   return os << to_string(t);
 }
 
+/**
+ * @brief Streams a MessagePack \c writer summary via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param w Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p w has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, writer const& w) -> std::ostream& {
+  return os << to_string(w);
+}
+
+/**
+ * @brief Streams a MessagePack \c reader summary via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param r Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p r has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, reader const& r) -> std::ostream& {
+  return os << to_string(r);
+}
+
 }  // namespace nexenne::serialization::msgpack
+
+namespace nexenne::serialization::binary {
+
+/**
+ * @brief Streams a binary \c writer summary via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param w Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p w has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, writer const& w) -> std::ostream& {
+  return os << to_string(w);
+}
+
+/**
+ * @brief Streams a binary \c reader summary via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param r Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p r has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, reader const& r) -> std::ostream& {
+  return os << to_string(r);
+}
+
+}  // namespace nexenne::serialization::binary
 
 namespace nexenne::serialization::json {
 
@@ -524,6 +1098,53 @@ inline auto operator<<(std::ostream& os, value::kind const k) -> std::ostream& {
  */
 inline auto operator<<(std::ostream& os, parse_error const& e) -> std::ostream& {
   return os << to_string(e);
+}
+
+/**
+ * @brief Streams the parser options via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param o Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p o has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, parse_options const& o) -> std::ostream& {
+  return os << to_string(o);
+}
+
+/**
+ * @brief Streams the serialiser options via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param o Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p o has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, serialize_options const& o) -> std::ostream& {
+  return os << to_string(o);
+}
+
+/**
+ * @brief Streams a streaming JSON \c writer summary via its \c to_string.
+ *
+ * @tparam MaxDepth Maximum container nesting depth of the writer.
+ * @param os Output stream.
+ * @param w Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The text of \p w has been written to \p os.
+ */
+template <std::size_t MaxDepth>
+auto operator<<(std::ostream& os, writer<MaxDepth> const& w) -> std::ostream& {
+  return os << to_string(w);
 }
 
 }  // namespace nexenne::serialization::json

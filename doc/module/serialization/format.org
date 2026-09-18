@@ -13,15 +13,22 @@ it. Include =format.hpp= where the printing happens.
 
 * What it provides
 
-| type                | output                                              | format spec           |
-|---------------------+-----------------------------------------------------+-----------------------|
-| =error=             | the enumerator name                                 | string, e.g. ={:>16}= |
-| =json::value=       | the compact JSON text, as =serialize= writes it     | string                |
-| =json::value::kind= | the kind name, such as =array=                      | string                |
-| =json::parse_error= | =code at line L, column C (offset O)=               | string                |
-| =header=            | ={magic: 0x..., version: N}=                        | string                |
-| =cbor::type=        | the token kind name                                 | string                |
-| =msgpack::type=     | the token kind name                                 | string                |
+| type                              | output                                                                     | format spec           |
+|-----------------------------------+----------------------------------------------------------------------------+-----------------------|
+| =error=                           | the enumerator name                                                        | string, e.g. ={:>16}= |
+| =json::value=                     | the compact JSON text, as =serialize= writes it                            | string                |
+| =json::value::kind=               | the kind name, such as =array=                                             | string                |
+| =json::parse_error=               | =code at line L, column C (offset O)=                                      | string                |
+| =header=                          | ={magic: 0x..., version: N}=                                               | string                |
+| =cbor::type=                      | the token kind name                                                        | string                |
+| =msgpack::type=                   | the token kind name                                                        | string                |
+| =json::parse_options=             | =json::parse_options(allow_comments=false, ...)=, every knob               | string                |
+| =json::serialize_options=         | =json::serialize_options(indent=2, ascii_only=false)=                      | string                |
+| =binary::writer=                  | =binary::writer(bytes_written=4, bytes_remaining=12)=                      | string                |
+| =binary::reader=                  | =binary::reader(bytes_read=2, bytes_remaining=2, max_string_size=N)=       | string                |
+| =cbor::writer=, =msgpack::writer= | =cbor::writer(bytes_written=3, bytes_remaining=13)=                        | string                |
+| =cbor::reader=, =msgpack::reader= | =cbor::reader(bytes_read=1, bytes_remaining=2)=                            | string                |
+| =json::writer<D>=                 | =json::writer(bytes_written=1, ..., depth=1, max_depth=D, complete=false)= | string                |
 
 The enums keep the =constexpr= =std::string_view= =to_string= they already had;
 the others get a =std::string= =to_string=. Either way =operator<<= streams the
@@ -33,9 +40,12 @@ The =to_string= and =operator<<= for =json::value= are constrained to exactly
 overload would turn an unqualified =to_string(42)= inside the =json= namespace
 into the JSON text ="42"=.
 
-The readers and writers (=binary=, =cbor=, =msgpack=, the JSON =writer= and
-=sax=) and the option structs have no formatter: they are engines and
-configuration, not values to show.
+The readers and writers print a one-line summary of what their accessors
+expose: the bytes consumed or produced so far and the bytes left, plus the
+string cap for the =binary= reader and the open nesting depth, its limit and
+=is_complete= for the JSON =writer=. The option structs print every knob, so a
+log line shows the exact configuration a parse ran with. =noop_visitor= holds
+no state and has no formatter; the SAX engine behind =scan= is internal.
 
 * Usage
 

@@ -36,8 +36,9 @@ wire without pulling in two libraries.
 * Printing
 
 - [[file:format.org][format]] : =std::formatter=, =to_string= and =operator<<= for the error enum,
-  =json::value= and its kind, parse errors, versioned headers, and the CBOR and
-  MessagePack token kinds.
+  =json::value= and its kind, parse errors, versioned headers, the CBOR and
+  MessagePack token kinds, the JSON option structs, and every reader and
+  writer.
 
 * The error policy
 

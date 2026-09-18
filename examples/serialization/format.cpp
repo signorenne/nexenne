@@ -5,8 +5,8 @@
  * The codec headers stay free of <format>; format.hpp adds a std::formatter, a
  * to_string and an operator<< for each type a caller gets back and may want to
  * show, all printing the same text. This prints a parsed document, a parse
- * failure with its location, a codec error, a versioned header and a peeked
- * CBOR token kind.
+ * failure with its location, a codec error, a versioned header, the parser
+ * options, a CBOR writer's progress and a peeked CBOR token kind.
  */
 
 #include <array>
@@ -38,10 +38,12 @@ auto main() -> int {
 
   std::println("error:    [{:>16}]", ser::error::buffer_full);
   std::cout << "header:   " << ser::header{.magic = 0x4E455801U, .version = 2} << '\n';
+  std::println("options:  {}", json::parse_options{.allow_comments = true});
 
   auto buf{std::array<std::byte, 16>{}};
   auto w{ser::cbor::writer{buf}};
   if (w.write_string("hi")) {
+    std::println("writer:   {}", w);
     auto r{ser::cbor::reader{w.written()}};
     if (auto const t{r.peek_type()}) {
       std::println("cbor:     {}", *t);

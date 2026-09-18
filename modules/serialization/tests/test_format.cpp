@@ -2,6 +2,8 @@
 
 #include <array>
 #include <concepts>
+#include <cstddef>
+#include <cstdint>
 #include <format>
 #include <sstream>
 #include <string>
@@ -147,6 +149,78 @@ TEST_CASE("nexenne::serialization - to_string and operator<< print the formatter
   REQUIRE(doc.has_value());
   CHECK(three_layers_agree(*doc));
   CHECK(json::to_string(*doc) == R"({"n":[1,true]})");
+}
+
+TEST_CASE("nexenne::serialization::json options print every knob") {
+  CHECK(
+    std::format("{}", json::parse_options{})
+    == "json::parse_options(allow_comments=false, allow_trailing_commas=false, max_depth=128)"
+  );
+  auto const relaxed{json::parse_options{.allow_comments = true, .max_depth = 8}};
+  CHECK(
+    std::format("{}", relaxed)
+    == "json::parse_options(allow_comments=true, allow_trailing_commas=false, max_depth=8)"
+  );
+  CHECK(three_layers_agree(relaxed));
+
+  auto const pretty{json::serialize_options{.indent = 4, .ascii_only = true}};
+  CHECK(std::format("{}", pretty) == "json::serialize_options(indent=4, ascii_only=true)");
+  CHECK(three_layers_agree(pretty));
+}
+
+TEST_CASE("nexenne::serialization::binary reader and writer print their progress") {
+  auto buf{std::array<std::byte, 16>{}};
+  auto w{binary::writer{buf}};
+  REQUIRE(w.write(std::uint32_t{7}));
+  CHECK(std::format("{}", w) == "binary::writer(bytes_written=4, bytes_remaining=12)");
+  CHECK(three_layers_agree(w));
+
+  auto r{binary::reader{w.written()}};
+  r.max_string_size() = 64;
+  REQUIRE(r.read<std::uint16_t>());
+  CHECK(
+    std::format("{}", r) == "binary::reader(bytes_read=2, bytes_remaining=2, max_string_size=64)"
+  );
+  CHECK(three_layers_agree(r));
+}
+
+TEST_CASE("nexenne::serialization::cbor and msgpack readers and writers print their progress") {
+  auto cbor_buf{std::array<std::byte, 16>{}};
+  auto cw{cbor::writer{cbor_buf}};
+  REQUIRE(cw.write_bool(true));
+  CHECK(std::format("{}", cw) == "cbor::writer(bytes_written=1, bytes_remaining=15)");
+  CHECK(three_layers_agree(cw));
+  auto cr{cbor::reader{cw.written()}};
+  CHECK(std::format("{}", cr) == "cbor::reader(bytes_read=0, bytes_remaining=1)");
+  REQUIRE(cr.read_bool());
+  CHECK(std::format("{}", cr) == "cbor::reader(bytes_read=1, bytes_remaining=0)");
+  CHECK(three_layers_agree(cr));
+
+  auto msgpack_buf{std::array<std::byte, 8>{}};
+  auto mw{msgpack::writer{msgpack_buf}};
+  REQUIRE(mw.write_bool(false));
+  CHECK(std::format("{}", mw) == "msgpack::writer(bytes_written=1, bytes_remaining=7)");
+  CHECK(three_layers_agree(mw));
+  auto mr{msgpack::reader{mw.written()}};
+  REQUIRE(mr.read_bool());
+  CHECK(std::format("{}", mr) == "msgpack::reader(bytes_read=1, bytes_remaining=0)");
+  CHECK(three_layers_agree(mr));
+}
+
+TEST_CASE("nexenne::serialization::json::writer prints its progress and depth") {
+  auto buf{std::array<char, 64>{}};
+  auto w{json::writer<8>{buf}};
+  REQUIRE(w.begin_array());
+  CHECK(
+    std::format("{}", w)
+    == "json::writer(bytes_written=1, bytes_remaining=63, depth=1, max_depth=8, complete=false)"
+  );
+  REQUIRE(w.end_array());
+  CHECK(
+    std::format("{}", w)
+    == "json::writer(bytes_written=2, bytes_remaining=62, depth=0, max_depth=8, complete=true)"
+  );
+  CHECK(three_layers_agree(w));
 }
 
 // The json::value layers bind only a real value: a number or a string does not
