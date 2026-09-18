@@ -143,6 +143,31 @@ private:
   }
 
   /**
+   * @brief Runs one emit operation, undoing its output if it fails.
+   *
+   * Every emit operation changes the structural state only after its last
+   * write succeeds, so rewinding the cursor to where the operation started
+   * restores the writer exactly.
+   *
+   * @tparam Op Callable returning \c std::expected<void, error>.
+   * @param op The emit operation.
+   *
+   * @return The result of \p op.
+   *
+   * @pre \p op changes the structural state only on success.
+   * @post On failure the cursor is back where it was on entry.
+   */
+  template <typename Op>
+  auto transact(Op op) noexcept -> std::expected<void, error> {
+    auto const mark{m_cursor.position()};
+    auto r{op()};
+    if (!r) {
+      m_cursor.seek(mark);
+    }
+    return r;
+  }
+
+  /**
    * @brief Common prefix work for every scalar or container open.
    *
    * Emits the leading comma (when continuing an array) and validates that a
@@ -152,7 +177,7 @@ private:
    *
    * @pre None.
    * @post On success any needed separator has been emitted; on failure the
-   *       writer state is unchanged.
+   *       structural state is unchanged.
    *
    * @throws None. Returns \c error::invalid_input when a value is not expected
    *         here, or \c error::buffer_full when the separator does not fit.
@@ -421,17 +446,18 @@ public:
    *         \c error::buffer_full when the brace does not fit.
    */
   auto begin_object() noexcept -> std::expected<void, error> {
-    // Check depth before begin_value_slot, which would otherwise emit the
-    // separating comma before the rejected open, corrupting the buffer.
-    if (m_depth >= MaxDepth) [[unlikely]]
-      return std::unexpected{error::depth_limit_exceeded};
-    if (auto r{begin_value_slot()}; !r)
-      return r;
-    if (auto r{raw_put('{')}; !r)
-      return r;
-    m_is_object[m_depth++] = true;
-    m_state = slot::object_first_key;
-    return {};
+    return transact([&]() noexcept -> std::expected<void, error> {
+      // Depth first: begin_value_slot would already have emitted the separating comma.
+      if (m_depth >= MaxDepth) [[unlikely]]
+        return std::unexpected{error::depth_limit_exceeded};
+      if (auto r{begin_value_slot()}; !r)
+        return r;
+      if (auto r{raw_put('{')}; !r)
+        return r;
+      m_is_object[m_depth++] = true;
+      m_state = slot::object_first_key;
+      return {};
+    });
   }
 
   /**
@@ -482,17 +508,18 @@ public:
    *         \c error::buffer_full when the bracket does not fit.
    */
   auto begin_array() noexcept -> std::expected<void, error> {
-    // Check depth before begin_value_slot, which would otherwise emit the
-    // separating comma before the rejected open, corrupting the buffer.
-    if (m_depth >= MaxDepth) [[unlikely]]
-      return std::unexpected{error::depth_limit_exceeded};
-    if (auto r{begin_value_slot()}; !r)
-      return r;
-    if (auto r{raw_put('[')}; !r)
-      return r;
-    m_is_object[m_depth++] = false;
-    m_state = slot::array_first;
-    return {};
+    return transact([&]() noexcept -> std::expected<void, error> {
+      // Depth first: begin_value_slot would already have emitted the separating comma.
+      if (m_depth >= MaxDepth) [[unlikely]]
+        return std::unexpected{error::depth_limit_exceeded};
+      if (auto r{begin_value_slot()}; !r)
+        return r;
+      if (auto r{raw_put('[')}; !r)
+        return r;
+      m_is_object[m_depth++] = false;
+      m_state = slot::array_first;
+      return {};
+    });
   }
 
   /**
@@ -544,18 +571,20 @@ public:
    *         fit.
    */
   auto key(std::string_view const k) noexcept -> std::expected<void, error> {
-    if (m_state == slot::object_next_key) {
-      if (auto r{raw_put(',')}; !r)
+    return transact([&]() noexcept -> std::expected<void, error> {
+      if (m_state == slot::object_next_key) {
+        if (auto r{raw_put(',')}; !r)
+          return r;
+      } else if (m_state != slot::object_first_key) {
+        return std::unexpected{error::invalid_input};
+      }
+      if (auto r{write_escaped(k)}; !r)
         return r;
-    } else if (m_state != slot::object_first_key) {
-      return std::unexpected{error::invalid_input};
-    }
-    if (auto r{write_escaped(k)}; !r)
-      return r;
-    if (auto r{raw_put(':')}; !r)
-      return r;
-    m_state = slot::object_value;
-    return {};
+      if (auto r{raw_put(':')}; !r)
+        return r;
+      m_state = slot::object_value;
+      return {};
+    });
   }
 
   /**
@@ -571,12 +600,14 @@ public:
    *         expected, or \c error::buffer_full when it does not fit.
    */
   auto value_null() noexcept -> std::expected<void, error> {
-    if (auto r{begin_value_slot()}; !r)
-      return r;
-    if (auto r{raw_write("null")}; !r)
-      return r;
-    advance_after_value();
-    return {};
+    return transact([&]() noexcept -> std::expected<void, error> {
+      if (auto r{begin_value_slot()}; !r)
+        return r;
+      if (auto r{raw_write("null")}; !r)
+        return r;
+      advance_after_value();
+      return {};
+    });
   }
 
   /**
@@ -594,12 +625,14 @@ public:
    *         expected, or \c error::buffer_full when it does not fit.
    */
   auto value(bool const b) noexcept -> std::expected<void, error> {
-    if (auto r{begin_value_slot()}; !r)
-      return r;
-    if (auto r{raw_write(b ? "true" : "false")}; !r)
-      return r;
-    advance_after_value();
-    return {};
+    return transact([&]() noexcept -> std::expected<void, error> {
+      if (auto r{begin_value_slot()}; !r)
+        return r;
+      if (auto r{raw_write(b ? "true" : "false")}; !r)
+        return r;
+      advance_after_value();
+      return {};
+    });
   }
 
   /**
@@ -623,16 +656,18 @@ public:
   template <std::integral I>
     requires(!std::same_as<I, bool>)
   auto value(I const i) noexcept -> std::expected<void, error> {
-    if (auto r{begin_value_slot()}; !r)
-      return r;
-    auto buf{std::array<char, 24>{}};
-    auto const r{std::to_chars(buf.data(), buf.data() + buf.size(), i)};
-    if (r.ec != std::errc{}) [[unlikely]]
-      return std::unexpected{error::buffer_full};
-    if (auto w{raw_write({buf.data(), static_cast<size_type>(r.ptr - buf.data())})}; !w)
-      return w;
-    advance_after_value();
-    return {};
+    return transact([&]() noexcept -> std::expected<void, error> {
+      if (auto r{begin_value_slot()}; !r)
+        return r;
+      auto buf{std::array<char, 24>{}};
+      auto const r{std::to_chars(buf.data(), buf.data() + buf.size(), i)};
+      if (r.ec != std::errc{}) [[unlikely]]
+        return std::unexpected{error::buffer_full};
+      if (auto w{raw_write({buf.data(), static_cast<size_type>(r.ptr - buf.data())})}; !w)
+        return w;
+      advance_after_value();
+      return {};
+    });
   }
 
   /**
@@ -655,33 +690,32 @@ public:
    */
   template <std::floating_point F>
   auto value(F const f) noexcept -> std::expected<void, error> {
-    if (auto r{begin_value_slot()}; !r)
-      return r;
-    if (std::isnan(f) || std::isinf(f)) {
-      if (auto r{raw_write("null")}; !r)
+    return transact([&]() noexcept -> std::expected<void, error> {
+      if (auto r{begin_value_slot()}; !r)
         return r;
-    } else {
-      auto buf{std::array<char, 40>{}};
-      // Reserve two bytes so a ".0" can always be appended below.
-      auto const r{std::to_chars(buf.data(), buf.data() + buf.size() - 2, f)};
-      if (r.ec != std::errc{}) [[unlikely]]
-        return std::unexpected{error::buffer_full};
-      auto len{static_cast<std::size_t>(r.ptr - buf.data())};
-      std::string_view const num{buf.data(), len};
-      // Keep it a JSON float: to_chars can render a large magnitude in pure
-      // integer form (e.g. 31480088169990615040), which would reparse as an
-      // integer and overflow. Append ".0" so it stays a floating-point literal.
-      if (num.find('.') == std::string_view::npos && num.find('e') == std::string_view::npos
-          && num.find('E') == std::string_view::npos) {
-        buf[len] = '.';
-        buf[len + 1] = '0';
-        len += 2;
+      if (std::isnan(f) || std::isinf(f)) {
+        if (auto r{raw_write("null")}; !r)
+          return r;
+      } else {
+        auto buf{std::array<char, 40>{}};
+        // Reserve two bytes so a ".0" can always be appended below.
+        auto const r{std::to_chars(buf.data(), buf.data() + buf.size() - 2, f)};
+        if (r.ec != std::errc{}) [[unlikely]]
+          return std::unexpected{error::buffer_full};
+        auto len{static_cast<std::size_t>(r.ptr - buf.data())};
+        std::string_view const num{buf.data(), len};
+        if (num.find('.') == std::string_view::npos && num.find('e') == std::string_view::npos
+            && num.find('E') == std::string_view::npos) {
+          buf[len] = '.';
+          buf[len + 1] = '0';
+          len += 2;
+        }
+        if (auto w{raw_write({buf.data(), static_cast<size_type>(len)})}; !w)
+          return w;
       }
-      if (auto w{raw_write({buf.data(), static_cast<size_type>(len)})}; !w)
-        return w;
-    }
-    advance_after_value();
-    return {};
+      advance_after_value();
+      return {};
+    });
   }
 
   /**
@@ -700,12 +734,14 @@ public:
    *         expected, or \c error::buffer_full when it does not fit.
    */
   auto value(std::string_view const s) noexcept -> std::expected<void, error> {
-    if (auto r{begin_value_slot()}; !r)
-      return r;
-    if (auto r{write_escaped(s)}; !r)
-      return r;
-    advance_after_value();
-    return {};
+    return transact([&]() noexcept -> std::expected<void, error> {
+      if (auto r{begin_value_slot()}; !r)
+        return r;
+      if (auto r{write_escaped(s)}; !r)
+        return r;
+      advance_after_value();
+      return {};
+    });
   }
 
   /**

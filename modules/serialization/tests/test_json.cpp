@@ -1424,4 +1424,28 @@ TEST_CASE("nexenne::serialization::json parse - max_depth counts open containers
   CHECK(json::scan<0>("42", vis).has_value());
 }
 
+TEST_CASE("nexenne::serialization::json writer - a failed emit leaves no partial output") {
+  SUBCASE("value after a comma") {
+    auto buf{std::array<char, 5>{}};
+    auto w{json::writer{buf}};
+    REQUIRE(w.begin_array().has_value());
+    REQUIRE(w.value(1).has_value());
+    CHECK(w.value_null().error() == error::buffer_full);
+    REQUIRE(w.end_array().has_value());
+    CHECK(w.view() == "[1]");
+    CHECK(json::parse(w.view()).has_value());
+  }
+  SUBCASE("escaped key") {
+    auto buf{std::array<char, 11>{}};
+    auto w{json::writer{buf}};
+    REQUIRE(w.begin_object().has_value());
+    REQUIRE(w.key("a").has_value());
+    REQUIRE(w.value(1).has_value());
+    CHECK(w.key("bb\n").error() == error::buffer_full);
+    REQUIRE(w.end_object().has_value());
+    CHECK(w.view() == R"({"a":1})");
+    CHECK(json::parse(w.view()).has_value());
+  }
+}
+
 }  // namespace
