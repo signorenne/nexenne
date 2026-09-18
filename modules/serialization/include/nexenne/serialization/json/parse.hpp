@@ -114,7 +114,8 @@ public:
    * @post On success the whole input has been consumed.
    *
    * @throws None directly. May propagate \c std::bad_alloc from building the
-   *         DOM.
+   *         DOM; an allocation failure inside the \c noexcept object map
+   *         terminates instead.
    */
   [[nodiscard]] auto parse() -> std::expected<value, parse_error>;
 
@@ -388,7 +389,8 @@ private:
    * @post On success the cursor sits just past the closing brace.
    *
    * @throws None directly. May propagate \c std::bad_alloc from building the
-   *         object.
+   *         object; an allocation failure inside the \c noexcept object map
+   *         terminates instead.
    */
   [[nodiscard]] auto parse_object(std::size_t const depth) -> std::expected<value, parse_error> {
     if (depth >= m_opts.max_depth) {
@@ -473,7 +475,9 @@ private:
  *       \c input.size().
  *
  * @throws None directly. May propagate \c std::bad_alloc from building the
- *         DOM, since the parser allocates strings, arrays, and objects.
+ *         DOM, since the parser allocates strings, arrays, and objects; an
+ *         allocation failure inside the \c noexcept object map (a
+ *         \c container::flat_map) terminates instead.
  */
 [[nodiscard]] auto parse(std::string_view const input, parse_options const opts = {})
   -> std::expected<value, parse_error>;

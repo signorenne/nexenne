@@ -163,6 +163,9 @@ public:
    *
    * @pre None.
    * @post All owned storage is released.
+   *
+   * @note Destructors are \c noexcept, so an allocation failure of the
+   *       worklist terminates.
    */
   ~value() {
     auto pending{std::vector<storage_type>{}};
@@ -646,6 +649,9 @@ public:
    * @pre None.
    * @post None.
    *
+   * @note Since it is \c noexcept, an allocation failure while copying a
+   *       \c std::string result terminates.
+   *
    * @warning When \p T is \c std::string_view the returned view aliases
    *          this value and is invalidated by mutation or destruction.
    */
@@ -803,6 +809,9 @@ public:
    *         does not begin with \c '/', or \c error::path_not_found when
    *         any segment fails to resolve.
    *
+   * @note Since it is \c noexcept, an allocation failure while decoding an
+   *       escaped path segment terminates.
+   *
    * @warning The returned reference aliases this value and is
    *          invalidated by mutation or destruction.
    */
@@ -906,6 +915,9 @@ public:
    *
    * @pre None.
    * @post None.
+   *
+   * @note Since it is \c noexcept, an allocation failure of its work stack
+   *       terminates.
    */
   [[nodiscard]] friend auto operator==(value const& a, value const& b) noexcept -> bool {
     auto work{std::vector<std::pair<value const*, value const*>>{}};
