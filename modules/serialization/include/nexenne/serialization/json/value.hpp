@@ -634,7 +634,8 @@ public:
    * Dispatches to the matching typed accessor based on \p T: \c bool to
    * \c as_bool, any other integral to \c as_int, floating-point to
    * \c as_float, and \c std::string or \c std::string_view to
-   * \c as_string. The numeric result is narrowed to \p T. Any other \p T
+   * \c as_string. An integer that does not fit an integral \p T yields
+   * \c std::nullopt; a floating result is converted to \p T. Any other \p T
    * always yields \c std::nullopt.
    *
    * @tparam T  Target type to extract.
@@ -654,7 +655,7 @@ public:
       if (auto r{as_bool()}; r)
         return *r;
     } else if constexpr (std::integral<T>) {
-      if (auto r{as_int()}; r)
+      if (auto r{as_int()}; r && std::in_range<T>(*r))
         return static_cast<T>(*r);
     } else if constexpr (std::floating_point<T>) {
       if (auto r{as_float()}; r)

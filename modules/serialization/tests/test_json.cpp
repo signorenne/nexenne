@@ -1455,4 +1455,12 @@ TEST_CASE("nexenne::serialization::json writer - nullptr writes null") {
   CHECK(w.view() == "null");
 }
 
+TEST_CASE("nexenne::serialization::json value - get rejects an integer that does not fit") {
+  CHECK_FALSE(json::value{300}.get<std::uint8_t>().has_value());
+  CHECK_FALSE(json::value{-1}.get<std::uint64_t>().has_value());
+  CHECK_FALSE(json::value{1e10}.get<int>().has_value());
+  CHECK(json::value{255}.get<std::uint8_t>() == std::uint8_t{255});
+  CHECK(json::value{-128}.get<std::int8_t>() == std::int8_t{-128});
+}
+
 }  // namespace
