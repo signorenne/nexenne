@@ -235,7 +235,6 @@ auto parser::parse_string() -> std::expected<std::string, parse_error> {
   }
   advance();
   auto out{std::string{}};
-  out.reserve(16);
   while (!m_cursor.exhausted()) {
     auto const c{m_cursor.data()[0]};
     if (c == '"') {
