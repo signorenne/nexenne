@@ -34,11 +34,11 @@
  * \code
  * std::array<std::byte, 64> buf{};
  * msgpack::writer w{buf};
- * w.write_map_header(2);
- *   w.write_string("id");
- *   w.write_int(42);
- *   w.write_string("name");
- *   w.write_string("oslo");
+ * nexenne::utility::ignore(w.write_map_header(2));
+ * nexenne::utility::ignore(w.write_string("id"));
+ * nexenne::utility::ignore(w.write_int(42));
+ * nexenne::utility::ignore(w.write_string("name"));
+ * nexenne::utility::ignore(w.write_string("oslo"));
  * \endcode
  */
 
@@ -252,7 +252,7 @@ private:
    *
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
-  auto put1(std::uint8_t const b) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto put1(std::uint8_t const b) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1)) [[unlikely]]
       return std::unexpected{error::buffer_full};
     m_cursor.put(static_cast<byte_type>(b));
@@ -327,7 +327,7 @@ public:
    *
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
-  auto write_nil() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_nil() noexcept -> std::expected<void, error> {
     return put1(0xC0);
   }
 
@@ -344,7 +344,7 @@ public:
    *
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
-  auto write_bool(bool const v) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_bool(bool const v) noexcept -> std::expected<void, error> {
     return put1(v ? 0xC3 : 0xC2);
   }
 
@@ -365,7 +365,7 @@ public:
    * @throws None. Returns \c error::buffer_full when the encoding does
    *         not fit.
    */
-  auto write_int(std::int64_t const v) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_int(std::int64_t const v) noexcept -> std::expected<void, error> {
     if (v >= 0)
       return write_uint(static_cast<std::uint64_t>(v));
     if (v >= -32) {
@@ -418,7 +418,7 @@ public:
    * @throws None. Returns \c error::buffer_full when the encoding does
    *         not fit.
    */
-  auto write_uint(std::uint64_t const v) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_uint(std::uint64_t const v) noexcept -> std::expected<void, error> {
     if (v <= 0x7F)
       return put1(static_cast<std::uint8_t>(v));  // positive fixint
     if (v <= 0xFF) {
@@ -466,7 +466,7 @@ public:
    * @throws None. Returns \c error::buffer_full when five bytes do not
    *         remain.
    */
-  auto write_float32(float const v) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_float32(float const v) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(5))
       return std::unexpected{error::buffer_full};
     m_cursor.put(static_cast<byte_type>(0xCA));
@@ -489,7 +489,7 @@ public:
    * @throws None. Returns \c error::buffer_full when nine bytes do not
    *         remain.
    */
-  auto write_float64(double const v) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_float64(double const v) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(9))
       return std::unexpected{error::buffer_full};
     m_cursor.put(static_cast<byte_type>(0xCB));
@@ -516,7 +516,7 @@ public:
    *         \c 2^32-1 bytes, or \c error::buffer_full when the header
    *         plus body does not fit.
    */
-  auto write_string(std::string_view const s) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_string(std::string_view const s) noexcept -> std::expected<void, error> {
     auto const n{s.size()};
     if (n > 0xFFFFFFFFu)
       return std::unexpected{error::string_too_long};
@@ -567,7 +567,8 @@ public:
    *         \c 2^32-1 bytes, or \c error::buffer_full when the header
    *         plus body does not fit.
    */
-  auto write_binary(std::span<byte_type const> const data) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_binary(std::span<byte_type const> const data) noexcept
+    -> std::expected<void, error> {
     auto const n{data.size()};
     if (n > 0xFFFFFFFFu)
       return std::unexpected{error::string_too_long};
@@ -615,7 +616,8 @@ public:
    * @throws None. Returns \c error::buffer_full when the header does not
    *         fit.
    */
-  auto write_array_header(std::uint32_t const n) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_array_header(std::uint32_t const n) noexcept
+    -> std::expected<void, error> {
     if (n <= 15)
       return put1(static_cast<std::uint8_t>(0x90 | n));
     if (n <= 0xFFFF) {
@@ -651,7 +653,8 @@ public:
    * @throws None. Returns \c error::buffer_full when the header does not
    *         fit.
    */
-  auto write_map_header(std::uint32_t const n) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_map_header(std::uint32_t const n) noexcept
+    -> std::expected<void, error> {
     if (n <= 15)
       return put1(static_cast<std::uint8_t>(0x80 | n));
     if (n <= 0xFFFF) {
@@ -899,7 +902,7 @@ public:
    * @throws None. Returns \c error::type_mismatch when the next byte is
    *         not 0xC0 (also returned at end of input).
    */
-  auto read_nil() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto read_nil() noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1) || static_cast<std::uint8_t>(m_cursor.data()[0]) != 0xC0) {
       return std::unexpected{error::type_mismatch};
     }

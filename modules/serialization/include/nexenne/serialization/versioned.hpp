@@ -185,7 +185,7 @@ inline constexpr std::size_t versioned_header_size{8};
  * @throws None. Returns \c error::buffer_full when the writer lacks room
  *         for the header.
  */
-inline auto
+[[nodiscard]] inline auto
 write_header(binary::writer& w, std::uint32_t const magic, std::uint16_t const version) noexcept
   -> std::expected<void, error> {
   auto hdr{std::array<std::byte, versioned_header_size>{}};

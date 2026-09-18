@@ -36,9 +36,9 @@
  * \code
  * auto buf{std::array<std::byte, 256>{}};
  * auto w{writer{buf}};
- * w.write(std::uint32_t{42});
- * w.write(3.14);
- * w.write("hello");
+ * nexenne::utility::ignore(w.write(std::uint32_t{42}));
+ * nexenne::utility::ignore(w.write(3.14));
+ * nexenne::utility::ignore(w.write("hello"));
  * auto const written{w.bytes_written()};
  * \endcode
  */
@@ -235,7 +235,7 @@ public:
    * @throws None. Returns \c error::buffer_full when fewer than \p n
    *         bytes remain.
    */
-  auto skip(size_type const n) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto skip(size_type const n) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(n)) [[unlikely]]
       return std::unexpected{error::buffer_full};
     m_cursor.advance(n);
@@ -263,7 +263,7 @@ public:
    */
   template <typename T>
     requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
-  auto write(T const value) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write(T const value) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_full};
     if constexpr (std::endian::native == std::endian::little) {
@@ -297,7 +297,8 @@ public:
    * @throws None. Returns \c error::buffer_full when fewer than
    *         \c data.size() bytes remain.
    */
-  auto write_bytes(std::span<byte_type const> const data) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_bytes(std::span<byte_type const> const data) noexcept
+    -> std::expected<void, error> {
     if (!m_cursor.has(data.size())) [[unlikely]]
       return std::unexpected{error::buffer_full};
     // Guard the copy: memcpy with a null pointer is undefined even for size 0,
@@ -330,7 +331,8 @@ public:
    */
   template <typename T>
     requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
-  auto write_array(std::span<T const> const xs) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_array(std::span<T const> const xs) noexcept
+    -> std::expected<void, error> {
     // Compare counts, not byte totals: xs.size() * sizeof(T) could overflow
     // size_t and wrap to a small value that passes a bounds check, then memcpy
     // would over-read the source span.
@@ -369,7 +371,7 @@ public:
    * @throws None. Returns \c error::buffer_full when the encoded varint
    *         does not fit in the remaining space.
    */
-  auto write_varint(std::uint64_t value) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_varint(std::uint64_t value) noexcept -> std::expected<void, error> {
     auto const n{varint_size(value)};
     if (!m_cursor.has(n)) [[unlikely]]
       return std::unexpected{error::buffer_full};
@@ -400,7 +402,7 @@ public:
    * @throws None. Returns \c error::buffer_full when the encoded value
    *         does not fit in the remaining space.
    */
-  auto write_zigzag(std::int64_t const value) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_zigzag(std::int64_t const value) noexcept -> std::expected<void, error> {
     // Zig-zag in the unsigned domain: a signed left shift of a negative value
     // is undefined behaviour. (value >> 63 is an arithmetic shift, 0 or all-ones.)
     auto const u{
@@ -431,7 +433,7 @@ public:
    *         \c 2^32-1 bytes, or \c error::buffer_full when the prefix
    *         plus body does not fit in the remaining space.
    */
-  auto write(std::string_view const s) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write(std::string_view const s) noexcept -> std::expected<void, error> {
     if (s.size() > 0xFFFFFFFFu) [[unlikely]]
       return std::unexpected{error::string_too_long};
     auto const len_n{varint_size(s.size())};

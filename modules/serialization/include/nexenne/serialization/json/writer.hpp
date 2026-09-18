@@ -111,7 +111,7 @@ private:
    *
    * @throws None. Returns \c error::buffer_full when no character remains.
    */
-  auto raw_put(char const c) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto raw_put(char const c) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1)) [[unlikely]]
       return std::unexpected{error::buffer_full};
     m_cursor.put(c);
@@ -131,7 +131,7 @@ private:
    *
    * @throws None. Returns \c error::buffer_full when the string does not fit.
    */
-  auto raw_write(std::string_view const s) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto raw_write(std::string_view const s) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(s.size())) [[unlikely]]
       return std::unexpected{error::buffer_full};
     // memcpy with a null pointer is UB even for size 0; an empty string_view's
@@ -159,7 +159,7 @@ private:
    * @post On failure the cursor is back where it was on entry.
    */
   template <typename Op>
-  auto transact(Op op) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto transact(Op op) noexcept -> std::expected<void, error> {
     auto const mark{m_cursor.position()};
     auto r{op()};
     if (!r) {
@@ -183,7 +183,7 @@ private:
    * @throws None. Returns \c error::invalid_input when a value is not expected
    *         here, or \c error::buffer_full when the separator does not fit.
    */
-  auto begin_value_slot() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto begin_value_slot() noexcept -> std::expected<void, error> {
     switch (m_state) {
       case slot::top:
         return {};
@@ -267,7 +267,8 @@ private:
    *
    * @throws None. Returns \c error::buffer_full when the literal does not fit.
    */
-  auto write_escaped(std::string_view const s) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_escaped(std::string_view const s) noexcept
+    -> std::expected<void, error> {
     if (auto r{raw_put('"')}; !r)
       return r;
     for (auto const c : s) {
@@ -446,7 +447,7 @@ public:
    *         expected, \c error::depth_limit_exceeded at \c MaxDepth, or
    *         \c error::buffer_full when the brace does not fit.
    */
-  auto begin_object() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto begin_object() noexcept -> std::expected<void, error> {
     return transact([&]() noexcept -> std::expected<void, error> {
       // Depth first: begin_value_slot would already have emitted the separating comma.
       if (m_depth >= MaxDepth) [[unlikely]]
@@ -477,7 +478,7 @@ public:
    *         or a value is still pending, or \c error::buffer_full when
    *         the brace does not fit.
    */
-  auto end_object() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto end_object() noexcept -> std::expected<void, error> {
     if (m_depth == 0 || !m_is_object[m_depth - 1]) {
       return std::unexpected{error::invalid_input};
     }
@@ -508,7 +509,7 @@ public:
    *         expected, \c error::depth_limit_exceeded at \c MaxDepth, or
    *         \c error::buffer_full when the bracket does not fit.
    */
-  auto begin_array() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto begin_array() noexcept -> std::expected<void, error> {
     return transact([&]() noexcept -> std::expected<void, error> {
       // Depth first: begin_value_slot would already have emitted the separating comma.
       if (m_depth >= MaxDepth) [[unlikely]]
@@ -537,7 +538,7 @@ public:
    * @throws None. Returns \c error::invalid_input when no array is open,
    *         or \c error::buffer_full when the bracket does not fit.
    */
-  auto end_array() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto end_array() noexcept -> std::expected<void, error> {
     if (m_depth == 0 || m_is_object[m_depth - 1]) {
       return std::unexpected{error::invalid_input};
     }
@@ -571,7 +572,7 @@ public:
    *         expected, or \c error::buffer_full when the key does not
    *         fit.
    */
-  auto key(std::string_view const k) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto key(std::string_view const k) noexcept -> std::expected<void, error> {
     return transact([&]() noexcept -> std::expected<void, error> {
       if (m_state == slot::object_next_key) {
         if (auto r{raw_put(',')}; !r)
@@ -600,7 +601,7 @@ public:
    * @throws None. Returns \c error::invalid_input when a value is not
    *         expected, or \c error::buffer_full when it does not fit.
    */
-  auto value_null() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto value_null() noexcept -> std::expected<void, error> {
     return transact([&]() noexcept -> std::expected<void, error> {
       if (auto r{begin_value_slot()}; !r)
         return r;
@@ -625,7 +626,7 @@ public:
    * @throws None. Returns \c error::invalid_input when a value is not
    *         expected, or \c error::buffer_full when it does not fit.
    */
-  auto value(bool const b) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto value(bool const b) noexcept -> std::expected<void, error> {
     return transact([&]() noexcept -> std::expected<void, error> {
       if (auto r{begin_value_slot()}; !r)
         return r;
@@ -656,7 +657,7 @@ public:
    */
   template <std::integral I>
     requires(!std::same_as<I, bool>)
-  auto value(I const i) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto value(I const i) noexcept -> std::expected<void, error> {
     return transact([&]() noexcept -> std::expected<void, error> {
       if (auto r{begin_value_slot()}; !r)
         return r;
@@ -690,7 +691,7 @@ public:
    *         expected, or \c error::buffer_full when it does not fit.
    */
   template <std::floating_point F>
-  auto value(F const f) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto value(F const f) noexcept -> std::expected<void, error> {
     return transact([&]() noexcept -> std::expected<void, error> {
       if (auto r{begin_value_slot()}; !r)
         return r;
@@ -734,7 +735,7 @@ public:
    * @throws None. Returns \c error::invalid_input when a value is not
    *         expected, or \c error::buffer_full when it does not fit.
    */
-  auto value(std::string_view const s) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto value(std::string_view const s) noexcept -> std::expected<void, error> {
     return transact([&]() noexcept -> std::expected<void, error> {
       if (auto r{begin_value_slot()}; !r)
         return r;
@@ -762,7 +763,7 @@ public:
    * @throws None. Returns \c error::invalid_input when a value is not
    *         expected, or \c error::buffer_full when it does not fit.
    */
-  auto value(char const* const s) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto value(char const* const s) noexcept -> std::expected<void, error> {
     assert(s != nullptr && "json::writer::value: null C string");
     return value(std::string_view{s});
   }
@@ -781,7 +782,7 @@ public:
    * @throws None. Returns \c error::invalid_input when a value is not
    *         expected, or \c error::buffer_full when it does not fit.
    */
-  auto value(std::nullptr_t) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto value(std::nullptr_t) noexcept -> std::expected<void, error> {
     return value_null();
   }
 };

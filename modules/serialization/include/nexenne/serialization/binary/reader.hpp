@@ -193,7 +193,7 @@ public:
    * @throws None. Returns \c error::buffer_underrun when \p pos exceeds
    *         \c capacity().
    */
-  auto seek(size_type const pos) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto seek(size_type const pos) noexcept -> std::expected<void, error> {
     if (pos > m_cursor.size()) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
     m_cursor.seek(pos);
@@ -217,7 +217,7 @@ public:
    * @throws None. Returns \c error::buffer_underrun when fewer than
    *         \p n bytes remain.
    */
-  auto skip(size_type const n) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto skip(size_type const n) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(n)) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
     m_cursor.advance(n);
@@ -370,7 +370,7 @@ public:
    */
   template <typename T>
     requires std::is_trivially_copyable_v<T> && (std::integral<T> || std::floating_point<T>)
-  auto read_array(std::span<T> const out) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto read_array(std::span<T> const out) noexcept -> std::expected<void, error> {
     // Compare counts, not byte totals: out.size() * sizeof(T) could overflow
     // size_t and wrap to a small value that passes a bounds check, then memcpy
     // would over-write the destination span.

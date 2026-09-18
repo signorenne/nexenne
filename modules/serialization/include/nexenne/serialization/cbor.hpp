@@ -341,7 +341,7 @@ private:
    *
    * @throws None. Returns \c error::buffer_full when the head does not fit.
    */
-  auto write_head(std::uint8_t const major, std::uint64_t const v) noexcept
+  [[nodiscard]] auto write_head(std::uint8_t const major, std::uint64_t const v) noexcept
     -> std::expected<void, error> {
     auto const m{static_cast<std::uint8_t>(major << 5)};
     if (v <= 23) {
@@ -454,7 +454,7 @@ public:
    * @throws None. Returns \c error::buffer_full when the encoding does
    *         not fit.
    */
-  auto write_uint(std::uint64_t const v) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_uint(std::uint64_t const v) noexcept -> std::expected<void, error> {
     return write_head(0, v);
   }
 
@@ -476,7 +476,7 @@ public:
    * @throws None. Returns \c error::buffer_full when the encoding does
    *         not fit.
    */
-  auto write_int(std::int64_t const v) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_int(std::int64_t const v) noexcept -> std::expected<void, error> {
     if (v >= 0)
       return write_head(0, static_cast<std::uint64_t>(v));
     return write_head(1, static_cast<std::uint64_t>(-(v + 1)));
@@ -498,7 +498,8 @@ public:
    * @throws None. Returns \c error::buffer_full when the header or body
    *         does not fit.
    */
-  auto write_bytes(std::span<byte_type const> const data) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_bytes(std::span<byte_type const> const data) noexcept
+    -> std::expected<void, error> {
     // Pre-check head plus body so a failure leaves the cursor untouched rather
     // than dangling a written header (all-or-nothing, like the other writers).
     if (!fits_prefixed(head_size(data.size()), data.size()))
@@ -531,7 +532,7 @@ public:
    * @throws None. Returns \c error::buffer_full when the header or body
    *         does not fit.
    */
-  auto write_string(std::string_view const s) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_string(std::string_view const s) noexcept -> std::expected<void, error> {
     // Pre-check head plus body so a failure leaves the cursor untouched rather
     // than dangling a written header (all-or-nothing, like the other writers).
     if (!fits_prefixed(head_size(s.size()), s.size()))
@@ -562,7 +563,8 @@ public:
    * @throws None. Returns \c error::buffer_full when the header does not
    *         fit.
    */
-  auto write_array_header(std::uint64_t const n) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_array_header(std::uint64_t const n) noexcept
+    -> std::expected<void, error> {
     return write_head(4, n);
   }
 
@@ -582,7 +584,8 @@ public:
    * @throws None. Returns \c error::buffer_full when the header does not
    *         fit.
    */
-  auto write_map_header(std::uint64_t const n) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_map_header(std::uint64_t const n) noexcept
+    -> std::expected<void, error> {
     return write_head(5, n);
   }
 
@@ -600,7 +603,7 @@ public:
    *
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
-  auto write_bool(bool const v) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_bool(bool const v) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_full};
     m_cursor.put(static_cast<byte_type>(v ? 0xF5 : 0xF4));
@@ -618,7 +621,7 @@ public:
    *
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
-  auto write_null() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_null() noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_full};
     m_cursor.put(static_cast<byte_type>(0xF6));
@@ -636,7 +639,7 @@ public:
    *
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
-  auto write_undefined() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_undefined() noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_full};
     m_cursor.put(static_cast<byte_type>(0xF7));
@@ -657,7 +660,7 @@ public:
    * @throws None. Returns \c error::buffer_full when five bytes do not
    *         remain.
    */
-  auto write_float32(float const v) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_float32(float const v) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(5))
       return std::unexpected{error::buffer_full};
     m_cursor.put(static_cast<byte_type>(0xFA));
@@ -680,7 +683,7 @@ public:
    * @throws None. Returns \c error::buffer_full when nine bytes do not
    *         remain.
    */
-  auto write_float64(double const v) noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto write_float64(double const v) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(9))
       return std::unexpected{error::buffer_full};
     m_cursor.put(static_cast<byte_type>(0xFB));
@@ -1090,7 +1093,7 @@ public:
    * @throws None. Returns \c error::type_mismatch when the next byte is
    *         not 0xF6 (also returned at end of input).
    */
-  auto read_null() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto read_null() noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1) || static_cast<std::uint8_t>(m_cursor.data()[0]) != 0xF6) {
       return std::unexpected{error::type_mismatch};
     }
@@ -1114,7 +1117,7 @@ public:
    * @throws None. Returns \c error::type_mismatch when the next byte is
    *         not 0xF7 (also returned at end of input).
    */
-  auto read_undefined() noexcept -> std::expected<void, error> {
+  [[nodiscard]] auto read_undefined() noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1) || static_cast<std::uint8_t>(m_cursor.data()[0]) != 0xF7) {
       return std::unexpected{error::type_mismatch};
     }
