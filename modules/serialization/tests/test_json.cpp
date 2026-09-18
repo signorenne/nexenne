@@ -1473,4 +1473,15 @@ TEST_CASE("nexenne::serialization::json parse - duplicate key reported at its se
   CHECK(json::serialize(*ok) == R"({"a":1,"b":2,"c":3})");
 }
 
+// serialization-05: scan is noexcept, so a visitor must be too; a throwing
+// visitor used to satisfy sax_visitor and terminate inside scan.
+struct throwing_visitor : json::noop_visitor {
+  auto on_int(std::int64_t) -> bool {
+    return true;
+  }
+};
+
+static_assert(json::sax_visitor<json::noop_visitor>);
+static_assert(!json::sax_visitor<throwing_visitor>);
+
 }  // namespace

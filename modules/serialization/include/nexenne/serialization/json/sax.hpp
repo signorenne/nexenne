@@ -65,8 +65,8 @@ namespace nexenne::serialization::json {
 /**
  * @brief Requirements a type must meet to drive \c scan.
  *
- * A visitor must expose all ten event callbacks, each taking the event's
- * payload and returning \c bool. Returning \c false from any callback
+ * A visitor must expose all ten event callbacks, each \c noexcept, taking the
+ * event's payload and returning \c bool. Returning \c false from any callback
  * aborts the parse cleanly, which \c scan surfaces as
  * \c error::invalid_input.
  *
@@ -74,16 +74,16 @@ namespace nexenne::serialization::json {
  */
 template <typename V>
 concept sax_visitor = requires(V& v, bool b, std::int64_t i, double d, std::string_view sv) {
-  { v.on_null() } -> std::same_as<bool>;
-  { v.on_bool(b) } -> std::same_as<bool>;
-  { v.on_int(i) } -> std::same_as<bool>;
-  { v.on_float(d) } -> std::same_as<bool>;
-  { v.on_string(sv) } -> std::same_as<bool>;
-  { v.on_key(sv) } -> std::same_as<bool>;
-  { v.on_begin_object() } -> std::same_as<bool>;
-  { v.on_end_object() } -> std::same_as<bool>;
-  { v.on_begin_array() } -> std::same_as<bool>;
-  { v.on_end_array() } -> std::same_as<bool>;
+  { v.on_null() } noexcept -> std::same_as<bool>;
+  { v.on_bool(b) } noexcept -> std::same_as<bool>;
+  { v.on_int(i) } noexcept -> std::same_as<bool>;
+  { v.on_float(d) } noexcept -> std::same_as<bool>;
+  { v.on_string(sv) } noexcept -> std::same_as<bool>;
+  { v.on_key(sv) } noexcept -> std::same_as<bool>;
+  { v.on_begin_object() } noexcept -> std::same_as<bool>;
+  { v.on_end_object() } noexcept -> std::same_as<bool>;
+  { v.on_begin_array() } noexcept -> std::same_as<bool>;
+  { v.on_end_array() } noexcept -> std::same_as<bool>;
 };
 
 /**
@@ -818,9 +818,8 @@ private:
  * @post On success the whole of \p src has been consumed; the visitor has
  *       observed every event in document order.
  *
- * @throws None from \c scan itself. May propagate an exception only if a
- *         visitor callback throws, which would also break the callbacks'
- *         \c noexcept contract.
+ * @throws None. The visitor callbacks are \c noexcept by
+ *         \c sax_visitor.
  */
 template <std::size_t MaxDepth = 32, sax_visitor V>
 [[nodiscard]] auto scan(std::string_view const src, V& visitor) noexcept
