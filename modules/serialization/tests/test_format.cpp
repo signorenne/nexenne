@@ -37,7 +37,6 @@ TEST_CASE("nexenne::serialization::error - std::format matches to_string") {
 }
 
 TEST_CASE("nexenne::serialization::error - format spec applies to the name") {
-  // The inherited string formatter honours width and alignment.
   CHECK(std::format("{:>16}", error::buffer_full) == "     buffer_full");
   CHECK(std::format("[{:<8}]", error::type_mismatch) == "[type_mismatch]");
 }
@@ -233,8 +232,6 @@ TEST_CASE("nexenne::serialization::json::writer prints its progress and depth") 
   CHECK(three_layers_agree(w));
 }
 
-// The json::value layers bind only a real value: a number or a string does not
-// convert into one and come out as JSON text.
 template <typename T>
 concept json_to_string = requires(T const& t) { json::to_string(t); };
 

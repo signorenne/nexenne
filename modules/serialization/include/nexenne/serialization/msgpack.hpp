@@ -589,8 +589,7 @@ public:
       detail::store_be32(m_cursor.data(), static_cast<std::uint32_t>(n));
       m_cursor.advance(4);
     }
-    // memcpy with a null pointer is UB even for size 0; an empty payload's
-    // data() may be null.
+    // memcpy with a null pointer is UB even for size 0.
     if (n != 0) {
       std::memcpy(m_cursor.data(), data.data(), n);
     }
@@ -993,8 +992,6 @@ public:
         if (!p)
           return std::unexpected{p.error()};
         auto const v{detail::load_be64(p->data())};
-        // A uint64 past INT64_MAX cannot be held signed without wrapping to a
-        // negative value; reject it here and let the caller reach for read_uint.
         if (v > static_cast<std::uint64_t>(0x7FFFFFFFFFFFFFFFLL))
           return std::unexpected{error::type_mismatch};
         return static_cast<std::int64_t>(v);

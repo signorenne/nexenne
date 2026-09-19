@@ -134,8 +134,7 @@ private:
   [[nodiscard]] auto raw_write(std::string_view const s) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(s.size())) [[unlikely]]
       return std::unexpected{error::buffer_full};
-    // memcpy with a null pointer is UB even for size 0; an empty string_view's
-    // data() may be null.
+    // memcpy with a null pointer is UB even for size 0.
     if (!s.empty()) {
       std::memcpy(m_cursor.data(), s.data(), s.size());
       m_cursor.advance(s.size());
@@ -244,8 +243,7 @@ private:
       m_state = slot::top_done;
       return;
     }
-    m_state = m_is_object[m_depth - 1] ? slot::object_value  // parent is object; value just closed
-                                       : slot::array_next;   // parent is array; element just closed
+    m_state = m_is_object[m_depth - 1] ? slot::object_value : slot::array_next;
     advance_after_value();
   }
 
@@ -306,8 +304,6 @@ private:
           break;
       }
       if (uc < 0x20) {
-        // Manual hex, no snprintf or locale (as the file header promises). A
-        // control byte is < 0x20, so the form is always "\u00XX".
         constexpr char hex[]{"0123456789abcdef"};
         auto const esc{
           std::array<char, 6>{'\\', 'u', '0', '0', hex[(uc >> 4) & 0xF], hex[uc & 0xF]}

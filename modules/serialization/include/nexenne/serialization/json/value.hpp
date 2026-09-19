@@ -522,9 +522,7 @@ public:
     if (auto const* p{std::get_if<int_type>(&m_data)})
       return *p;
     if (auto const* p{std::get_if<float_type>(&m_data)}) {
-      // Casting a non-finite or out-of-range double to an integer is undefined
-      // behaviour. The upper bound rounds up to 2^63 (one past int64 max), so
-      // reject with >=; the lower bound is exactly int64 min, so reject with <.
+      // hi rounds up to 2^63, one past int64 max, so reject with >=; lo is exact.
       constexpr auto lo{static_cast<float_type>(std::numeric_limits<int_type>::min())};
       constexpr auto hi{static_cast<float_type>(std::numeric_limits<int_type>::max())};
       if (!std::isfinite(*p) || *p < lo || *p >= hi) {
@@ -741,7 +739,7 @@ public:
       m_data = object_type{};
     }
     auto& obj{std::get<object_type>(m_data)};
-    auto it{obj.find(key)};  // transparent string_view lookup, no temporary key
+    auto it{obj.find(key)};
     if (it == obj.end()) {
       it = obj.try_emplace(std::string{key}).first;
     }
@@ -765,7 +763,7 @@ public:
   [[nodiscard]] auto operator[](std::string_view const key) const noexcept -> value const& {
     static value const null_v{};
     if (auto const* obj{std::get_if<object_type>(&m_data)}) {
-      auto const it{obj->find(key)};  // transparent string_view lookup, no temporary key
+      auto const it{obj->find(key)};
       if (it != obj->end())
         return it->second;
     }
@@ -851,10 +849,7 @@ public:
     }
     path.remove_prefix(1);
 
-    // path begins with '/', already stripped, so there is always at least one
-    // reference token (possibly empty). Drive the loop per separator: a trailing
-    // empty token must not be dropped (RFC 6901: "/" is the single token "", and
-    // "/a/" descends into a's "" child).
+    // One token per separator, keeping a trailing empty one (RFC 6901: "/" is the token "").
     for (;;) {
       auto const slash{path.find('/')};
       auto const token{path.substr(0, slash)};
@@ -893,8 +888,7 @@ public:
             return std::unexpected{error::path_not_found};
           }
           auto const digit{static_cast<std::size_t>(*p - '0')};
-          // Reject rather than let idx wrap (a wrapped index could resolve to
-          // the wrong element instead of failing).
+          // Reject rather than let idx wrap onto the wrong element.
           if (idx > (std::numeric_limits<std::size_t>::max() - digit) / 10) {
             return std::unexpected{error::path_not_found};
           }
@@ -976,8 +970,6 @@ public:
           work.emplace_back(&xi->second, &yi->second);
         }
       } else if (x->m_data != y->m_data) {
-        // Scalar alternative: equal indices mean equal types, and the variant
-        // comparison touches only the active scalar, so it does not recurse.
         return false;
       }
     }

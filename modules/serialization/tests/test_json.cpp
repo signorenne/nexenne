@@ -38,7 +38,6 @@ TEST_CASE("nexenne::serialization::json value - construction and type queries") 
   CHECK_FALSE(json::value{"x"}.is_number());
   CHECK_FALSE(json::value{true}.is_number());
 
-  // bool stays bool, does not become integer.
   CHECK(json::value{true}.type() == json::value::kind::boolean_kind);
   CHECK(json::value{42}.type() == json::value::kind::integer_kind);
   CHECK(json::value{1.0}.type() == json::value::kind::floating_kind);
@@ -68,7 +67,7 @@ TEST_CASE("nexenne::serialization::json value - safe accessors return expected")
 
   auto const f{json::value{2.5}};
   CHECK(*f.as_float() == 2.5);
-  CHECK(*f.as_int() == 2);  // floating accepted, truncated toward zero
+  CHECK(*f.as_int() == 2);
 
   auto const s{json::value{"hello"}};
   CHECK(*s.as_string() == "hello");
@@ -105,7 +104,7 @@ TEST_CASE("nexenne::serialization::json value - get and get_or") {
   CHECK_FALSE(v.get<std::string>().has_value());
 
   CHECK(v.get_or<int>(0) == 42);
-  CHECK(v.get_or<std::string>("x") == "x");  // mismatch -> fallback
+  CHECK(v.get_or<std::string>("x") == "x");
 
   auto const s{json::value{"hi"}};
   CHECK(s.get<std::string>() == "hi");
@@ -114,7 +113,7 @@ TEST_CASE("nexenne::serialization::json value - get and get_or") {
 
   auto const b{json::value{true}};
   CHECK(b.get<bool>() == true);
-  CHECK_FALSE(b.get<int>().has_value());  // bool is not int via get
+  CHECK_FALSE(b.get<int>().has_value());
 }
 
 TEST_CASE("nexenne::serialization::json value - operator[] builder syntax") {
@@ -129,12 +128,10 @@ TEST_CASE("nexenne::serialization::json value - operator[] builder syntax") {
   CHECK(*root["admin"].as_bool() == true);
   CHECK(*root["nested"]["deep"].as_int() == 99);
 
-  // const operator[]: missing key -> null sentinel.
   auto const& cref{root};
   CHECK(cref["missing"].is_null());
   CHECK(cref["name"].is_string());
 
-  // const operator[] on a non-object -> null sentinel.
   auto const not_obj{json::value{42}};
   CHECK(not_obj["whatever"].is_null());
 }
@@ -146,12 +143,10 @@ TEST_CASE("nexenne::serialization::json value - array element access") {
   arr[1] = 99;
   CHECK(*arr[1].as_int() == 99);
 
-  // const out-of-range index -> null sentinel.
   auto const& cref{arr};
   CHECK(cref[2].is_integer());
   CHECK(cref[99].is_null());
 
-  // const index on non-array -> null sentinel.
   auto const not_arr{json::value{"s"}};
   CHECK(not_arr[0].is_null());
 }
@@ -170,7 +165,6 @@ TEST_CASE("nexenne::serialization::json value - array_mut and object_mut") {
 TEST_CASE("nexenne::serialization::json value - equality") {
   CHECK(json::value{42} == json::value{42});
   CHECK_FALSE(json::value{42} == json::value{43});
-  // integer and numerically-equal float are distinct kinds.
   CHECK_FALSE(json::value{2} == json::value{2.0});
   CHECK(json::value{json::array{1, 2}} == json::value{json::array{1, 2}});
   CHECK_FALSE(json::value{json::array{1, 2}} == json::value{json::array{1, 3}});
@@ -188,8 +182,6 @@ TEST_CASE("nexenne::serialization::json value - deep nesting copy") {
 }
 
 TEST_CASE("nexenne::serialization::json value - iterative destructor on 10000-deep nest") {
-  // A recursive variant destructor would overflow the stack at this depth.
-  // The iterative teardown must release it cleanly.
   auto v{json::value{json::array{}}};
   auto* cur{&v};
   for (auto i{0}; i < 10000; ++i) {
@@ -197,7 +189,6 @@ TEST_CASE("nexenne::serialization::json value - iterative destructor on 10000-de
     cur = &cur->array_mut()[0];
   }
   REQUIRE(v.is_array());
-  // Destructs here at depth 10000 without overflowing.
   CHECK(true);
 }
 
@@ -227,27 +218,24 @@ TEST_CASE("nexenne::serialization::json value - at_path RFC 6901") {
   CHECK(*root.at_path("/a~1b")->get().as_string() == "slash");
   CHECK(*root.at_path("/a~0b")->get().as_string() == "tilde");
 
-  // empty path returns the root unchanged.
   CHECK(root.at_path("")->get().is_object());
 
-  // non-slash-prefixed path is invalid input.
   auto const bad{root.at_path("nope")};
   CHECK_FALSE(bad.has_value());
   CHECK(bad.error() == error::invalid_input);
 
-  // missing segments report path_not_found.
   CHECK(root.at_path("/missing").error() == error::path_not_found);
   CHECK(root.at_path("/users/99/name").error() == error::path_not_found);
-  CHECK(root.at_path("/users/x").error() == error::path_not_found);  // non-numeric array idx
+  CHECK(root.at_path("/users/x").error() == error::path_not_found);
 }
 
 TEST_CASE("nexenne::serialization::json value - at_path malformed array indices") {
   auto const root{json::parse("[10,20,30]")};
   REQUIRE(root.has_value());
   CHECK(*root->at_path("/0")->get().as_int() == 10);
-  CHECK_FALSE(root->at_path("/01").has_value());                    // leading zero
-  CHECK_FALSE(root->at_path("/18446744073709551618").has_value());  // overflows size_t
-  CHECK_FALSE(root->at_path("/99").has_value());                    // out of range
+  CHECK_FALSE(root->at_path("/01").has_value());
+  CHECK_FALSE(root->at_path("/18446744073709551618").has_value());
+  CHECK_FALSE(root->at_path("/99").has_value());
   // "/" is the single reference token "" (RFC 6901); an array has no "" index.
   CHECK(root->at_path("/").error() == error::path_not_found);
 }
@@ -263,7 +251,7 @@ TEST_CASE("nexenne::serialization::json parse - primitives") {
   CHECK(*json::parse("3.14")->as_float() == 3.14);
   CHECK(*json::parse("1e3")->as_float() == 1000.0);
   CHECK(*json::parse("\"hi\"")->as_string() == "hi");
-  CHECK(json::parse("\"\"")->as_string() == "");  // empty string
+  CHECK(json::parse("\"\"")->as_string() == "");
 }
 
 TEST_CASE("nexenne::serialization::json parse - whitespace handling") {
@@ -271,7 +259,6 @@ TEST_CASE("nexenne::serialization::json parse - whitespace handling") {
   CHECK(*json::parse("\t\n\r 42\n")->as_int() == 42);
   CHECK(json::parse(" [ 1 , 2 , 3 ] ")->is_array());
   CHECK(json::parse("{\n  \"a\" : 1\n}")->is_object());
-  // leading/trailing whitespace only, no value.
   CHECK_FALSE(json::parse("   ").has_value());
   CHECK_FALSE(json::parse("").has_value());
 }
@@ -298,7 +285,6 @@ TEST_CASE("nexenne::serialization::json parse - array and object content") {
   CHECK(*(*obj)["a"].as_int() == 1);
   CHECK(*(*obj)["b"].as_string() == "x");
 
-  // nested mix
   auto const nested{json::parse("{\"a\":1,\"b\":[1,2,3],\"c\":{\"d\":true}}")};
   REQUIRE(nested.has_value());
   CHECK(*nested->at_path("/c/d")->get().as_bool() == true);
@@ -352,28 +338,27 @@ TEST_CASE("nexenne::serialization::json parse - number values") {
 }
 
 TEST_CASE("nexenne::serialization::json parse - RFC 8259 number strictness") {
-  CHECK_FALSE(json::parse("01").has_value());  // leading zero
+  CHECK_FALSE(json::parse("01").has_value());
   CHECK_FALSE(json::parse("00").has_value());
   CHECK_FALSE(json::parse("-01").has_value());
-  CHECK_FALSE(json::parse("1.").has_value());  // no digit after dot
-  CHECK_FALSE(json::parse(".5").has_value());  // no integer part
-  CHECK_FALSE(json::parse("1e").has_value());  // no digit in exponent
+  CHECK_FALSE(json::parse("1.").has_value());
+  CHECK_FALSE(json::parse(".5").has_value());
+  CHECK_FALSE(json::parse("1e").has_value());
   CHECK_FALSE(json::parse("1e+").has_value());
   CHECK_FALSE(json::parse("1e-").has_value());
-  CHECK_FALSE(json::parse("-").has_value());     // bare minus
-  CHECK_FALSE(json::parse("+1").has_value());    // leading plus not allowed
-  CHECK_FALSE(json::parse("0x10").has_value());  // hex not allowed
+  CHECK_FALSE(json::parse("-").has_value());
+  CHECK_FALSE(json::parse("+1").has_value());
+  CHECK_FALSE(json::parse("0x10").has_value());
   CHECK_FALSE(json::parse("Infinity").has_value());
   CHECK_FALSE(json::parse("NaN").has_value());
   CHECK_FALSE(json::parse("1.2.3").has_value());
 
-  // error code is invalid_number for malformed digits.
   CHECK(json::parse("1.").error().code == error::invalid_number);
   CHECK(json::parse("1e").error().code == error::invalid_number);
 }
 
 TEST_CASE("nexenne::serialization::json parse - over-large integer widens to double") {
-  auto const r{json::parse("99999999999999999999")};  // beyond int64 range
+  auto const r{json::parse("99999999999999999999")};
   REQUIRE(r.has_value());
   CHECK(r->is_floating());
   CHECK(*r->as_float() == doctest::Approx(1e20));
@@ -387,23 +372,19 @@ TEST_CASE("nexenne::serialization::json parse - very large exponent and as_int r
   auto const big{json::parse("1e300")};
   REQUIRE(big.has_value());
   REQUIRE(big->is_floating());
-  // historically-fixed UB: casting an out-of-range double to int64 is UB; must reject.
   CHECK_FALSE(big->as_int().has_value());
   CHECK(big->as_int().error() == error::type_mismatch);
 
-  // in-range float still truncates.
   CHECK(*json::value{3.9}.as_int() == 3);
   CHECK(*json::value{-3.9}.as_int() == -3);
 
-  // boundary: exactly int64 max as a double rounds up to 2^63, must reject (>= hi).
+  // int64 max as a double rounds up to 2^63, one past the range.
   auto const at_max{json::value{static_cast<double>(std::numeric_limits<std::int64_t>::max())}};
   CHECK_FALSE(at_max.as_int().has_value());
-  // exactly int64 min as a double is representable and accepted.
   auto const at_min{json::value{static_cast<double>(std::numeric_limits<std::int64_t>::min())}};
   CHECK(at_min.as_int().has_value());
   CHECK(*at_min.as_int() == std::numeric_limits<std::int64_t>::min());
 
-  // non-finite doubles rejected by as_int.
   CHECK_FALSE(json::value{std::numeric_limits<double>::infinity()}.as_int().has_value());
   CHECK_FALSE(json::value{-std::numeric_limits<double>::infinity()}.as_int().has_value());
   CHECK_FALSE(json::value{std::numeric_limits<double>::quiet_NaN()}.as_int().has_value());
@@ -423,54 +404,48 @@ TEST_CASE("nexenne::serialization::json parse - simple escapes") {
 
 TEST_CASE("nexenne::serialization::json parse - u-escapes and UTF-8") {
   CHECK(*json::parse("\"\\u0041\"")->as_string() == "A");
-  // U+00E9 (e-acute) -> 2-byte UTF-8 C3 A9.
   CHECK(*json::parse("\"\\u00e9\"")->as_string() == "\xc3\xa9");
-  // U+20AC (euro) -> 3-byte UTF-8 E2 82 AC.
   CHECK(*json::parse("\"\\u20ac\"")->as_string() == "\xe2\x82\xac");
   CHECK(*json::parse("\"\\u0000\"")->as_string() == std::string(1, '\0'));
-  // case-insensitive hex digits decode identically.
   CHECK(*json::parse("\"\\u00E9\"")->as_string() == *json::parse("\"\\u00e9\"")->as_string());
-  // raw UTF-8 in the source passes through untouched.
   CHECK(*json::parse("\"\xc3\xa9\"")->as_string() == "\xc3\xa9");
 }
 
 TEST_CASE("nexenne::serialization::json parse - surrogate pairs") {
-  // valid surrogate pair: U+1D11E (musical G clef) -> 4-byte UTF-8 F0 9D 84 9E.
+  // D834 DD1E is the surrogate pair of U+1D11E, UTF-8 F0 9D 84 9E.
   auto const escaped{json::parse("\"\\uD834\\uDD1E\"")};
   REQUIRE(escaped.has_value());
   CHECK(*escaped->as_string() == "\xF0\x9D\x84\x9E");
 
-  // the same code point given as raw UTF-8 bytes parses to the same string.
   auto const raw{json::parse("\"\xF0\x9D\x84\x9E\"")};
   REQUIRE(raw.has_value());
   CHECK(*raw->as_string() == "\xF0\x9D\x84\x9E");
 
-  // U+10000 lowest non-BMP, as an escaped pair.
+  // D800 DC00 is U+10000, the lowest code point above the BMP.
   auto const low{json::parse("\"\\uD800\\uDC00\"")};
   REQUIRE(low.has_value());
   CHECK(*low->as_string() == "\xF0\x90\x80\x80");
 }
 
 TEST_CASE("nexenne::serialization::json parse - invalid surrogates rejected") {
-  CHECK_FALSE(json::parse("\"\\uDC00\"").has_value());         // lone low surrogate
-  CHECK_FALSE(json::parse("\"\\uD800\"").has_value());         // lone high surrogate (EOF after)
-  CHECK_FALSE(json::parse("\"\\uD800A\"").has_value());        // high then non-escape char
-  CHECK_FALSE(json::parse("\"\\uD800x\"").has_value());        // high then non-escape char
-  CHECK_FALSE(json::parse("\"\\uD800\\u0041\"").has_value());  // high then non-low surrogate
-  CHECK_FALSE(json::parse("\"\\uD800\\uD800\"").has_value());  // high then high
-  CHECK(json::parse("\"\\uD800\\uDC00\"").has_value());        // valid pair (U+10000)
+  CHECK_FALSE(json::parse("\"\\uDC00\"").has_value());
+  CHECK_FALSE(json::parse("\"\\uD800\"").has_value());
+  CHECK_FALSE(json::parse("\"\\uD800A\"").has_value());
+  CHECK_FALSE(json::parse("\"\\uD800x\"").has_value());
+  CHECK_FALSE(json::parse("\"\\uD800\\u0041\"").has_value());
+  CHECK_FALSE(json::parse("\"\\uD800\\uD800\"").has_value());
+  CHECK(json::parse("\"\\uD800\\uDC00\"").has_value());
 }
 
 TEST_CASE("nexenne::serialization::json parse - invalid escapes rejected") {
-  CHECK_FALSE(json::parse("\"\\x\"").has_value());      // unknown escape
-  CHECK_FALSE(json::parse("\"\\u12\"").has_value());    // short \u (only 2 hex before quote)
-  CHECK_FALSE(json::parse("\"\\u12zz\"").has_value());  // non-hex in \u
+  CHECK_FALSE(json::parse("\"\\x\"").has_value());
+  CHECK_FALSE(json::parse("\"\\u12\"").has_value());
+  CHECK_FALSE(json::parse("\"\\u12zz\"").has_value());
   CHECK(json::parse("\"\\u12\"").error().code == error::invalid_escape);
   CHECK(json::parse("\"\\x\"").error().code == error::invalid_escape);
 }
 
 TEST_CASE("nexenne::serialization::json parse - control characters in strings rejected") {
-  // a raw newline (0x0A) inside a string is illegal; must be escaped.
   auto const nl{std::string{"\"a\nb\""}};
   CHECK_FALSE(json::parse(nl).has_value());
   CHECK(json::parse(nl).error().code == error::invalid_string);
@@ -488,18 +463,18 @@ TEST_CASE("nexenne::serialization::json parse - structural errors") {
   CHECK_FALSE(json::parse("[").has_value());
   CHECK_FALSE(json::parse("}").has_value());
   CHECK_FALSE(json::parse("]").has_value());
-  CHECK_FALSE(json::parse("[1,2,]").has_value());      // trailing comma
-  CHECK_FALSE(json::parse("{\"a\":1,}").has_value());  // trailing comma object
-  CHECK_FALSE(json::parse("{\"a\":1,").has_value());   // unterminated
-  CHECK_FALSE(json::parse("[,]").has_value());         // bare comma
-  CHECK_FALSE(json::parse("[1,,2]").has_value());      // double comma
-  CHECK_FALSE(json::parse("[1 2]").has_value());       // missing comma
-  CHECK_FALSE(json::parse("{\"a\" 1}").has_value());   // missing colon
-  CHECK_FALSE(json::parse("{a:1}").has_value());       // unquoted key
-  CHECK_FALSE(json::parse("{1:2}").has_value());       // non-string key
-  CHECK_FALSE(json::parse("[1]extra").has_value());    // trailing garbage
-  CHECK_FALSE(json::parse("truefalse").has_value());   // trailing garbage
-  CHECK_FALSE(json::parse("nul").has_value());         // truncated literal
+  CHECK_FALSE(json::parse("[1,2,]").has_value());
+  CHECK_FALSE(json::parse("{\"a\":1,}").has_value());
+  CHECK_FALSE(json::parse("{\"a\":1,").has_value());
+  CHECK_FALSE(json::parse("[,]").has_value());
+  CHECK_FALSE(json::parse("[1,,2]").has_value());
+  CHECK_FALSE(json::parse("[1 2]").has_value());
+  CHECK_FALSE(json::parse("{\"a\" 1}").has_value());
+  CHECK_FALSE(json::parse("{a:1}").has_value());
+  CHECK_FALSE(json::parse("{1:2}").has_value());
+  CHECK_FALSE(json::parse("[1]extra").has_value());
+  CHECK_FALSE(json::parse("truefalse").has_value());
+  CHECK_FALSE(json::parse("nul").has_value());
   CHECK_FALSE(json::parse("tru").has_value());
   CHECK_FALSE(json::parse("fals").has_value());
 }
@@ -527,13 +502,11 @@ TEST_CASE("nexenne::serialization::json parse - options trailing commas and comm
   CHECK(json::parse("[1, // tail\n 2]", opts).has_value());
   CHECK(json::parse("// lead\n42", opts).has_value());
 
-  // unterminated block comment is still rejected.
   CHECK_FALSE(json::parse("42 /* unterminated", opts).has_value());
   CHECK(json::parse("42 /* closed */", opts).has_value());
 }
 
 TEST_CASE("nexenne::serialization::json parse - depth limit returns error, no overflow") {
-  // depth far beyond the default 128: must report an error, never crash.
   auto deep{std::string(200, '[')};
   deep += std::string(200, ']');
   auto const r{json::parse(deep)};
@@ -544,13 +517,11 @@ TEST_CASE("nexenne::serialization::json parse - depth limit returns error, no ov
   ok += std::string(50, ']');
   CHECK(json::parse(ok).has_value());
 
-  // custom shallow limit.
   auto shallow{json::parse_options{.max_depth = 10}};
   auto d2{std::string(100, '[')};
   d2 += std::string(100, ']');
   CHECK_FALSE(json::parse(d2, shallow).has_value());
 
-  // object nesting depth limit too.
   auto obj_deep{std::string{}};
   for (auto i{0}; i < 200; ++i)
     obj_deep += "{\"a\":";
@@ -562,36 +533,35 @@ TEST_CASE("nexenne::serialization::json parse - depth limit returns error, no ov
 
 TEST_CASE("nexenne::serialization::json parse - truncated input never crashes") {
   auto const fragments{std::array<std::string_view, 24>{
-    "\"unterminated",  // cut mid-string
-    "\"escape\\",      // cut mid-escape
-    "\"\\u",           // cut mid-\u, no digits
-    "\"\\u12",         // cut mid-\u, partial digits
-    "\"\\uD800",       // cut after high surrogate
-    "\"\\uD800\\u",    // cut mid-low-surrogate-escape
-    "123",             // (valid, control)
-    "12.",             // cut mid-fraction
-    "12e",             // cut mid-exponent
-    "12e+",            // cut mid-exponent sign
-    "-",               // bare minus
-    "[1,2",            // unterminated array
-    "[1,",             // unterminated array after comma
-    "[",               // bare open bracket
-    "{",               // bare open brace
-    "{\"k\"",          // object key, no colon
-    "{\"k\":",         // object, no value
-    "{\"k\":1",        // object, no close
-    "{\"k\":1,",       // object, dangling comma
-    "tr",              // truncated true
-    "nul",             // truncated null
-    "fal",             // truncated false
-    "\xff\xfe",        // garbage bytes
-    "\x01\x02\x03",    // control bytes
+    "\"unterminated",
+    "\"escape\\",
+    "\"\\u",
+    "\"\\u12",
+    "\"\\uD800",
+    "\"\\uD800\\u",
+    "123",
+    "12.",
+    "12e",
+    "12e+",
+    "-",
+    "[1,2",
+    "[1,",
+    "[",
+    "{",
+    "{\"k\"",
+    "{\"k\":",
+    "{\"k\":1",
+    "{\"k\":1,",
+    "tr",
+    "nul",
+    "fal",
+    "\xff\xfe",
+    "\x01\x02\x03",
   }};
   for (auto const f : fragments) {
     auto const r{json::parse(f)};
-    // every malformed fragment must fail cleanly (no crash, no OOB).
     if (f == "123") {
-      CHECK(r.has_value());  // the one valid control case
+      CHECK(r.has_value());
     } else {
       CHECK_MESSAGE(!r.has_value(), f);
     }
@@ -599,12 +569,10 @@ TEST_CASE("nexenne::serialization::json parse - truncated input never crashes") 
 }
 
 TEST_CASE("nexenne::serialization::json parse - all prefixes of a valid document") {
-  // Feeding every truncation of a valid document must never crash or read OOB.
   auto const full{std::string{"{\"name\":\"alice\",\"scores\":[42,73.5,null],\"ok\":true}"}};
   for (std::size_t n{0}; n <= full.size(); ++n) {
     auto const prefix{std::string_view{full}.substr(0, n)};
     auto const r{json::parse(prefix)};
-    // Only the complete document should parse; every strict prefix is malformed.
     if (n == full.size()) {
       CHECK(r.has_value());
     } else {
@@ -616,7 +584,7 @@ TEST_CASE("nexenne::serialization::json parse - all prefixes of a valid document
 TEST_CASE("nexenne::serialization::json parse - garbage and control bytes") {
   for (int b{1}; b < 0x20; ++b) {
     auto const s{std::string(1, static_cast<char>(b))};
-    CHECK_FALSE(json::parse(s).has_value());  // control byte as document
+    CHECK_FALSE(json::parse(s).has_value());
   }
   CHECK_FALSE(json::parse("\x7f").has_value());
   CHECK_FALSE(json::parse("@#$%").has_value());
@@ -654,7 +622,6 @@ TEST_CASE("nexenne::serialization::json serialize - string escapes") {
   CHECK(json::serialize(json::value{"a\nb\"c"}) == "\"a\\nb\\\"c\"");
   CHECK(json::serialize(json::value{"\b\f\r\t"}) == "\"\\b\\f\\r\\t\"");
   CHECK(json::serialize(json::value{"\\"}) == "\"\\\\\"");
-  // control char below 0x20 with no shorthand -> \u00XX.
   CHECK(json::serialize(json::value{std::string(1, '\x01')}) == "\"\\u0001\"");
   CHECK(json::serialize(json::value{std::string(1, '\x1f')}) == "\"\\u001f\"");
 }
@@ -662,13 +629,10 @@ TEST_CASE("nexenne::serialization::json serialize - string escapes") {
 TEST_CASE("nexenne::serialization::json serialize - ascii_only escapes non-ASCII") {
   auto opts{json::serialize_options{}};
   opts.ascii_only = true;
-  // U+00E9 (C3 A9) -> é
   CHECK(json::serialize(json::value{"\xc3\xa9"}, opts) == "\"\\u00e9\"");
-  // 4-byte UTF-8 (U+1D11E) -> surrogate pair 𝄞
+  // F0 9D 84 9E is U+1D11E, surrogate pair D834 DD1E.
   CHECK(json::serialize(json::value{"\xF0\x9D\x84\x9E"}, opts) == "\"\\ud834\\udd1e\"");
-  // valid ASCII passes through untouched.
   CHECK(json::serialize(json::value{"abc"}, opts) == "\"abc\"");
-  // malformed UTF-8 becomes U+FFFD replacement -> �
   CHECK(json::serialize(json::value{std::string("\xff", 1)}, opts) == "\"\\ufffd\"");
 }
 
@@ -683,18 +647,15 @@ TEST_CASE("nexenne::serialization::json serialize - number formatting round-trip
     CHECK(*back->as_float() == doctest::Approx(n));
   }
 
-  // integer-valued double keeps a ".0" so it reparses as a float.
   auto const two{json::parse(json::serialize(json::value{2.0}))};
   REQUIRE(two.has_value());
   CHECK(two->is_floating());
 
-  // a large double rendered in integer form gets ".0" so it does not overflow on reparse.
   auto const big{json::parse(json::serialize(json::value{3.148e19}))};
   REQUIRE(big.has_value());
   CHECK(big->is_floating());
   CHECK(*big->as_float() == 3.148e19);
 
-  // NaN/Inf serialize to null.
   CHECK(json::serialize(json::value{std::numeric_limits<double>::quiet_NaN()}) == "null");
   CHECK(json::serialize(json::value{std::numeric_limits<double>::infinity()}) == "null");
 }
@@ -722,14 +683,11 @@ TEST_CASE("nexenne::serialization::json serialize_pretty") {
   auto const pretty{json::serialize_pretty(v)};
   CHECK(pretty.find('\n') != std::string::npos);
   CHECK(pretty.find("  ") != std::string::npos);
-  // pretty and compact carry the same content (reparse equal).
   CHECK(*json::parse(pretty) == *json::parse(json::serialize(v)));
 
-  // empty containers stay inline even when pretty.
   CHECK(json::serialize_pretty(json::value{json::array{}}) == "[]");
   CHECK(json::serialize_pretty(json::value{json::object{}}) == "{}");
 
-  // custom indent width.
   auto opts{json::serialize_options{}};
   opts.indent = 4;
   auto const wide{json::serialize_pretty(json::value{json::object{{"a", 1}}}, opts)};
@@ -826,7 +784,6 @@ TEST_CASE("nexenne::serialization::json writer - float dot-zero suffix and NaN/I
     auto buf{std::array<char, 64>{}};
     auto w{json::writer{buf}};
     REQUIRE(w.value(2.0).has_value());
-    // must reparse as a float, not an int.
     auto const back{json::parse(w.view())};
     REQUIRE(back.has_value());
     CHECK(back->is_floating());
@@ -913,7 +870,7 @@ TEST_CASE("nexenne::serialization::json writer - structural errors") {
   SUBCASE("end_object before any value pending") {
     auto buf{std::array<char, 64>{}};
     auto w{json::writer{buf}};
-    auto const r{w.end_object()};  // no object open
+    auto const r{w.end_object()};
     CHECK_FALSE(r.has_value());
     CHECK(r.error() == error::invalid_input);
   }
@@ -921,7 +878,7 @@ TEST_CASE("nexenne::serialization::json writer - structural errors") {
     auto buf{std::array<char, 64>{}};
     auto w{json::writer{buf}};
     REQUIRE(w.value(1).has_value());
-    auto const r{w.value(2)};  // nothing more accepted at top level
+    auto const r{w.value(2)};
     CHECK_FALSE(r.has_value());
     CHECK(r.error() == error::invalid_input);
   }
@@ -930,7 +887,7 @@ TEST_CASE("nexenne::serialization::json writer - structural errors") {
     auto w{json::writer{buf}};
     REQUIRE(w.begin_object().has_value());
     REQUIRE(w.key("k").has_value());
-    auto const r{w.end_object()};  // value expected, not close
+    auto const r{w.end_object()};
     CHECK_FALSE(r.has_value());
     CHECK(r.error() == error::invalid_input);
   }
@@ -941,7 +898,7 @@ TEST_CASE("nexenne::serialization::json writer - depth limit") {
   auto w{json::writer<2>{buf}};
   REQUIRE(w.begin_array().has_value());
   REQUIRE(w.begin_array().has_value());
-  auto const r{w.begin_array()};  // third level exceeds MaxDepth==2
+  auto const r{w.begin_array()};
   CHECK_FALSE(r.has_value());
   CHECK(r.error() == error::depth_limit_exceeded);
 }
@@ -959,7 +916,6 @@ TEST_CASE("nexenne::serialization::json writer - reset reuses buffer") {
 }
 
 TEST_CASE("nexenne::serialization::json writer vs DOM serialize agree") {
-  // Build the same document two ways; their compact text must match.
   auto const dom{json::value{json::object{
     {"admin", true},
     {"age", 30},
@@ -969,7 +925,7 @@ TEST_CASE("nexenne::serialization::json writer vs DOM serialize agree") {
 
   auto buf{std::array<char, 256>{}};
   auto w{json::writer{buf}};
-  // DOM keys are sorted (admin, age, name); emit in the same order.
+  // A DOM object is key-sorted, so the writer emits the keys in that order.
   REQUIRE(w.begin_object().has_value());
   REQUIRE(w.key("admin").has_value());
   REQUIRE(w.value(true).has_value());
@@ -1095,7 +1051,7 @@ TEST_CASE("nexenne::serialization::json scan - strings passed raw and undecoded"
   auto v{recording_visitor{}};
   REQUIRE(json::scan("[\"a\\nb\\\"\"]", v).has_value());
   CHECK(v.strings == 1);
-  CHECK(v.last_string == "a\\nb\\\"");  // raw bytes, escape not decoded
+  CHECK(v.last_string == "a\\nb\\\"");
   CHECK(v.last_string.find('\n') == std::string::npos);
 }
 
@@ -1148,20 +1104,20 @@ TEST_CASE("nexenne::serialization::json scan - depth limit") {
 
 TEST_CASE("nexenne::serialization::json scan - malformed input errors cleanly") {
   auto const fragments{std::array<std::string_view, 14>{
-    "{\"a\":}",        // missing value
-    "[1,2",            // unterminated array
-    "{",               // bare brace
-    "[",               // bare bracket
-    "\"unterminated",  // cut mid-string
-    "\"bad\\",         // trailing backslash, unterminated escape
-    "01",              // leading zero
-    "1.",              // mid-fraction
-    "[1 2]",           // missing comma
-    "{\"k\" 1}",       // missing colon
-    "nul",             // truncated literal
-    ",",               // bare comma
-    "\xff",            // garbage byte
-    "[1,2]extra",      // trailing garbage
+    "{\"a\":}",
+    "[1,2",
+    "{",
+    "[",
+    "\"unterminated",
+    "\"bad\\",
+    "01",
+    "1.",
+    "[1 2]",
+    "{\"k\" 1}",
+    "nul",
+    ",",
+    "\xff",
+    "[1,2]extra",
   }};
   for (auto const f : fragments) {
     auto v{recording_visitor{}};
@@ -1208,7 +1164,6 @@ TEST_CASE("nexenne::serialization::json writer + scan round trip") {
   CHECK(v.floats == 1);
   CHECK(v.bools == 1);
 
-  // and the writer's output parses through the DOM identically.
   auto const dom{json::parse(w.view())};
   REQUIRE(dom.has_value());
   CHECK(*dom->at_path("/id")->get().as_int() == 42);
@@ -1217,46 +1172,39 @@ TEST_CASE("nexenne::serialization::json writer + scan round trip") {
 }
 
 TEST_CASE("nexenne::serialization::json at_path resolves empty JSON-Pointer tokens") {
-  // RFC 6901: "" is the whole document, "/" is the single token "" (the value at
-  // the empty-string key), and "/a/" descends into a's "" child.
+  // RFC 6901: "" is the whole document, "/" the single token "", "/a/" a's "" child.
   auto const dom{json::parse(R"({"": 1, "a": {"": 2}, "x": 9})")};
   REQUIRE(dom.has_value());
 
-  CHECK(dom->at_path("")->get().is_object());  // whole document
+  CHECK(dom->at_path("")->get().is_object());
 
-  auto const root_empty{dom->at_path("/")};  // token "" -> value at key ""
+  auto const root_empty{dom->at_path("/")};
   REQUIRE(root_empty.has_value());
-  REQUIRE(root_empty->get().is_integer());  // not the whole document
+  REQUIRE(root_empty->get().is_integer());
   CHECK(*root_empty->get().as_int() == 1);
 
-  auto const a_empty{dom->at_path("/a/")};  // "a" then ""
+  auto const a_empty{dom->at_path("/a/")};
   REQUIRE(a_empty.has_value());
-  REQUIRE(a_empty->get().is_integer());  // not the object at "a"
+  REQUIRE(a_empty->get().is_integer());
   CHECK(*a_empty->get().as_int() == 2);
 
   CHECK(dom->at_path("/a")->get().is_object());
   CHECK(*dom->at_path("/x")->get().as_int() == 9);
 
-  // "//" is two empty tokens, not one.
   auto const nested{json::parse(R"({"": {"": 5}})")};
   REQUIRE(nested.has_value());
   auto const both{nested->at_path("//")};
   REQUIRE(both.has_value());
   REQUIRE(both->get().is_integer());
   CHECK(*both->get().as_int() == 5);
-  CHECK(nested->at_path("/")->get().is_object());  // one token -> the inner object
+  CHECK(nested->at_path("/")->get().is_object());
 }
 
 TEST_CASE("nexenne::serialization::json value equality is stack-safe on deep DOMs") {
-  // Build a hand-made DOM far deeper than the parser's depth limit; a recursive
-  // operator== would overflow the stack comparing it (the destructor is already
-  // iterative, so building and destroying it is safe).
   auto build{[](int const depth, int const leaf) {
     auto v{json::value{static_cast<std::int64_t>(leaf)}};
     for (int i{0}; i < depth; ++i) {
-      // Default-construct the array: auto arr{json::array{}} would deduce a
-      // one-element vector via value's implicit array constructor, corrupting
-      // the intended single-element-per-level DOM shape.
+      // Default-construct: auto arr{json::array{}} would yield a one-element vector.
       json::array arr;
       arr.push_back(std::move(v));
       v = json::value{std::move(arr)};
@@ -1265,22 +1213,16 @@ TEST_CASE("nexenne::serialization::json value equality is stack-safe on deep DOM
   }};
   auto const a{build(100000, 7)};
   auto const b{build(100000, 7)};
-  auto const c{build(100000, 8)};  // identical except the innermost leaf
+  auto const c{build(100000, 8)};
   CHECK(a == b);
   CHECK_FALSE(a == c);
 }
 
 TEST_CASE("nexenne::serialization::json serialize is stack-safe on deep DOMs") {
-  // A recursive serialiser overflows the stack on a hand-built DOM deeper than
-  // any call-stack budget; the iterative walk must serialise it cleanly (the
-  // value type supports such DOMs, as its iterative destructor and operator==
-  // already prove). 1000 deep survived historically, 100000 did not.
   auto build{[](int const depth, int const leaf) {
     auto v{json::value{static_cast<std::int64_t>(leaf)}};
     for (int i{0}; i < depth; ++i) {
-      // Default-construct the array: auto arr{json::array{}} would deduce a
-      // one-element vector via value's implicit array constructor, corrupting
-      // the intended single-element-per-level DOM shape.
+      // Default-construct: auto arr{json::array{}} would yield a one-element vector.
       json::array arr;
       arr.push_back(std::move(v));
       v = json::value{std::move(arr)};
@@ -1289,16 +1231,11 @@ TEST_CASE("nexenne::serialization::json serialize is stack-safe on deep DOMs") {
   }};
   auto const deep{build(100000, 7)};
   auto const compact{json::serialize(deep)};
-  // 100000 '[' then "7" then 100000 ']'.
   CHECK(compact.size() == 100000 * 2 + 1);
   CHECK(compact.front() == '[');
   CHECK(compact.back() == ']');
   CHECK(compact.find('7') != std::string::npos);
-  // Pretty output shares the same iterative walk, so the compact case above
-  // already proves the walk never recurses. Pretty indentation is quadratic in
-  // depth (each of N levels indents by up to N spaces), so re-running it at
-  // 100000 would build gigabytes of whitespace; a still-far-past-any-call-stack
-  // depth exercises the newline and indent branches without exhausting the heap.
+  // Pretty indentation is quadratic in depth: 100000 levels would be gigabytes.
   auto const shallower{build(5000, 7)};
   auto const pretty{json::serialize_pretty(shallower)};
   CHECK(pretty.find('7') != std::string::npos);
@@ -1307,8 +1244,6 @@ TEST_CASE("nexenne::serialization::json serialize is stack-safe on deep DOMs") {
 TEST_CASE(
   "nexenne::serialization::json parse - number underflow to signed zero, overflow rejected"
 ) {
-  // A magnitude too small for a double is valid JSON: it underflows to a signed
-  // zero rather than being rejected as invalid_number.
   auto const tiny{json::parse("1e-999")};
   REQUIRE(tiny.has_value());
   REQUIRE(tiny->is_floating());
@@ -1318,12 +1253,10 @@ TEST_CASE(
   auto const ntiny{json::parse("-1e-999")};
   REQUIRE(ntiny.has_value());
   CHECK(*ntiny->as_float() == 0.0);
-  CHECK(std::signbit(*ntiny->as_float()));  // -0.0 sign preserved
+  CHECK(std::signbit(*ntiny->as_float()));
 
-  // a subnormal that IS representable stays nonzero (acceptance is not just range).
   CHECK(*json::parse("4.9e-324")->as_float() > 0.0);
 
-  // a magnitude too large is rejected (documented policy: not stored as infinity).
   auto const huge{json::parse("1e999")};
   CHECK_FALSE(huge.has_value());
   CHECK(huge.error().code == error::invalid_number);
@@ -1351,8 +1284,6 @@ TEST_CASE("nexenne::serialization::json scan - number underflow accepted, overfl
 }
 
 TEST_CASE("nexenne::serialization::json parse - raw string bytes are not UTF-8 validated") {
-  // The parser copies bytes >= 0x20 through unchecked, so malformed UTF-8 in a
-  // string body is accepted; UTF-8 correctness is the caller's responsibility.
   auto const lone{json::parse(std::string_view{"\"\xff\"", 3})};
   REQUIRE(lone.has_value());
   CHECK(*lone->as_string() == "\xff");
@@ -1365,13 +1296,12 @@ TEST_CASE(
 ) {
   auto opts{json::serialize_options{}};
   opts.ascii_only = true;
-  // decodes to 0x1FFFFF, beyond U+10FFFF.
+  // F7 BF BF BF decodes to 0x1FFFFF, beyond U+10FFFF.
   CHECK(json::serialize(json::value{std::string{"\xF7\xBF\xBF\xBF"}}, opts) == "\"\\ufffd\"");
-  // CESU-8 lone high surrogate (0xD800).
+  // ED A0 80 is the CESU-8 lone high surrogate D800.
   CHECK(json::serialize(json::value{std::string{"\xED\xA0\x80"}}, opts) == "\"\\ufffd\"");
-  // overlong encoding of U+0000.
+  // C0 80 is an overlong encoding of U+0000.
   CHECK(json::serialize(json::value{std::string{"\xC0\x80"}}, opts) == "\"\\ufffd\"");
-  // every such output must reparse (it was previously an unpaired/invalid escape).
   auto const bad{std::array<std::string, 3>{
     std::string{"\xF7\xBF\xBF\xBF"}, std::string{"\xED\xA0\x80"}, std::string{"\xC0\x80"}
   }};
@@ -1382,11 +1312,10 @@ TEST_CASE(
 
 TEST_CASE("nexenne::serialization::json scan - invalid string escapes rejected") {
   auto v{recording_visitor{}};
-  CHECK_FALSE(json::scan("\"\\q\"", v).has_value());      // unknown escape char
-  CHECK_FALSE(json::scan("\"\\u12zz\"", v).has_value());  // non-hex \u digits
-  CHECK_FALSE(json::scan("\"\\uD800\"", v).has_value());  // lone high surrogate
-  CHECK_FALSE(json::scan("\"\\uDC00\"", v).has_value());  // lone low surrogate
-  // valid escapes, hex, and a proper surrogate pair still scan.
+  CHECK_FALSE(json::scan("\"\\q\"", v).has_value());
+  CHECK_FALSE(json::scan("\"\\u12zz\"", v).has_value());
+  CHECK_FALSE(json::scan("\"\\uD800\"", v).has_value());
+  CHECK_FALSE(json::scan("\"\\uDC00\"", v).has_value());
   CHECK(json::scan("\"a\\nb\\\"\\u0041\\uD834\\uDD1E\"", v).has_value());
 }
 
@@ -1396,13 +1325,11 @@ TEST_CASE("nexenne::serialization::json writer - rejected nested open leaves no 
   REQUIRE(w.begin_array().has_value());
   REQUIRE(w.value(1).has_value());
   CHECK(w.view() == "[1");
-  auto const r{w.begin_array()};  // depth 1 == MaxDepth 1: rejected
+  auto const r{w.begin_array()};
   CHECK_FALSE(r.has_value());
   CHECK(r.error() == error::depth_limit_exceeded);
-  // the depth check must run before the separating comma is emitted.
   CHECK(w.view() == "[1");
   CHECK_FALSE(w.is_complete());
-  // recovery from the failure still produces well-formed JSON.
   REQUIRE(w.value(2).has_value());
   REQUIRE(w.end_array().has_value());
   CHECK(w.view() == "[1,2]");
@@ -1410,16 +1337,12 @@ TEST_CASE("nexenne::serialization::json writer - rejected nested open leaves no 
 }
 
 TEST_CASE("nexenne::serialization::json parse - max_depth counts open containers") {
-  // A top-level scalar has no nesting, so it is accepted even at max_depth 0.
   CHECK(json::parse("42", {.max_depth = 0}).has_value());
-  // One container needs max_depth 1; empty and single-scalar agree (no off-by-one).
   CHECK(json::parse("[]", {.max_depth = 1}).has_value());
   CHECK(json::parse("[5]", {.max_depth = 1}).has_value());
   CHECK_FALSE(json::parse("[]", {.max_depth = 0}).has_value());
-  // Two nested containers need max_depth 2.
   CHECK(json::parse("[[]]", {.max_depth = 2}).has_value());
   CHECK_FALSE(json::parse("[[]]", {.max_depth = 1}).has_value());
-  // The SAX engine agrees: a scalar scans at depth cap 0.
   auto vis{recording_visitor{}};
   CHECK(json::scan<0>("42", vis).has_value());
 }

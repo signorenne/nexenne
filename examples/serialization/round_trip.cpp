@@ -47,7 +47,6 @@ namespace ser = nexenne::serialization;
 }  // namespace
 
 auto main() -> int {
-  // 1. JSON: parse, query by JSON Pointer, re-serialize.
   if (auto doc{ser::json::parse(R"({"name":"alice","scores":[10,20,30]})")}) {
     auto const name{doc->at_path("/name")->get().as_string()};
     auto const second{doc->at_path("/scores/1")->get().as_int()};
@@ -66,7 +65,6 @@ auto main() -> int {
     std::println("binary : {} bytes -> n={} s={}", w.written().size(), *n, *s);
   }
 
-  // 3. CBOR: self-describing, peek the type then read.
   {
     auto buf{std::array<std::byte, 64>{}};
     auto w{ser::cbor::writer{buf}};
@@ -78,7 +76,6 @@ auto main() -> int {
     std::println("cbor   : {} bytes -> {} {}", w.written().size(), *a, *b);
   }
 
-  // 4. COBS: frame a payload that itself contains 0x00 so a 0x00 can delimit it.
   {
     std::array<std::byte, 4> const payload{
       std::byte{0x11}, std::byte{0x00}, std::byte{0x22}, std::byte{0x00}
@@ -102,10 +99,6 @@ auto main() -> int {
     );
   }
 
-  // 5. CBOR nested: an array of two maps, each {"id": uint, "ok": bool}. CBOR is
-  // self-describing, so the reader does not need the schema: it reads the array
-  // length, then for each element reads the map pair-count and peeks the type of
-  // each value before choosing the matching read_* call.
   {
     auto buf{std::array<std::byte, 64>{}};
     auto w{ser::cbor::writer{buf}};
@@ -127,7 +120,6 @@ auto main() -> int {
       auto ok{false};
       for (auto p{std::uint64_t{0}}; p < *pairs; ++p) {
         [[maybe_unused]] auto const key{r.read_string()};
-        // Peek the value's type to branch, rather than assuming a fixed layout.
         if (*r.peek_type() == ser::cbor::type::boolean) {
           ok = *r.read_bool();
         } else {
@@ -139,30 +131,23 @@ auto main() -> int {
     std::println("cbor   : {} rows decoded by peeking types -> {}", *rows, decoded);
   }
 
-  // 6. JSON DOM built in code (not parsed), then read back typed. operator[]
-  // mutates, get<T>() returns std::optional for a safe typed read, and the
-  // object serialises in sorted-key order for a deterministic string.
   {
     auto doc{ser::json::value{ser::json::object{
       {"name", "bob"},
       {"level", std::int64_t{4}},
       {"tags", ser::json::array{"new", "vip"}},
     }}};
-    doc["level"] = std::int64_t{5};  // mutate in place through the DOM
+    doc["level"] = std::int64_t{5};
     auto const level{doc["level"].get<std::int64_t>()};
     std::println(
       "json   : built DOM, level={} -> {}", level.value_or(-1), ser::json::serialize(doc)
     );
   }
 
-  // 7. Error paths arrive as values, never exceptions. A writer with no room
-  // reports buffer_full; a reader past the end reports buffer_underrun; a bad
-  // JSON document reports a parse_error whose .code names the failure and whose
-  // line/column point at it.
   {
     auto tiny{std::array<std::byte, 1>{}};
     auto w{ser::binary::writer{tiny}};
-    auto const full{w.write(std::uint32_t{0})};  // needs 4 bytes, has 1
+    auto const full{w.write(std::uint32_t{0})};
     auto under{ser::binary::reader{std::span<std::byte const>{tiny.data(), 0}}};
     auto const empty{under.read<std::uint32_t>()};
     auto const bad{ser::json::parse(R"({"unterminated":)")};

@@ -251,7 +251,6 @@ TEST_CASE("nexenne::serialization::msgpack negative fixint covers -1..-32 single
     auto w{msgpack::writer{buf}};
     REQUIRE(w.write_int(i).has_value());
     CHECK(w.bytes_written() == 1);
-    // negative fixint occupies 0xE0..0xFF
     auto const b{static_cast<std::uint8_t>(w.written()[0])};
     CHECK(b >= 0xE0);
 
@@ -270,15 +269,15 @@ TEST_CASE("nexenne::serialization::msgpack unsigned width boundaries pick smalle
   };
 
   auto const cases{std::array<case_t, 9>{{
-    {0x7F, 1, -1},                     // positive fixint max
-    {0x80, 2, 0xCC},                   // first uint8
-    {0xFF, 2, 0xCC},                   // uint8 max
-    {0x100, 3, 0xCD},                  // first uint16
-    {0xFFFF, 3, 0xCD},                 // uint16 max
-    {0x10000, 5, 0xCE},                // first uint32
-    {0xFFFFFFFFu, 5, 0xCE},            // uint32 max
-    {0x100000000ULL, 9, 0xCF},         // first uint64
-    {0xFFFFFFFFFFFFFFFFULL, 9, 0xCF},  // uint64 max
+    {0x7F, 1, -1},
+    {0x80, 2, 0xCC},
+    {0xFF, 2, 0xCC},
+    {0x100, 3, 0xCD},
+    {0xFFFF, 3, 0xCD},
+    {0x10000, 5, 0xCE},
+    {0xFFFFFFFFu, 5, 0xCE},
+    {0x100000000ULL, 9, 0xCF},
+    {0xFFFFFFFFFFFFFFFFULL, 9, 0xCF},
   }}};
 
   for (auto const& c : cases) {
@@ -291,7 +290,6 @@ TEST_CASE("nexenne::serialization::msgpack unsigned width boundaries pick smalle
     auto r{msgpack::reader{w.written()}};
     auto const got{r.read_uint()};
     REQUIRE(got.has_value());
-    // read_uint decodes the full unsigned range exactly, uint64 max included.
     CHECK(*got == c.value);
     CHECK(r.at_end());
   }
@@ -307,15 +305,15 @@ TEST_CASE("nexenne::serialization::msgpack signed negative width boundaries pick
   };
 
   auto const cases{std::array<case_t, 9>{{
-    {-1, 1, -1},               // negative fixint
-    {-32, 1, -1},              // negative fixint min
-    {-33, 2, 0xD0},            // first int8
-    {-128, 2, 0xD0},           // int8 min
-    {-129, 3, 0xD1},           // first int16
-    {-32768, 3, 0xD1},         // int16 min
-    {-32769, 5, 0xD2},         // first int32
-    {-2147483648LL, 5, 0xD2},  // int32 min
-    {-2147483649LL, 9, 0xD3},  // first int64
+    {-1, 1, -1},
+    {-32, 1, -1},
+    {-33, 2, 0xD0},
+    {-128, 2, 0xD0},
+    {-129, 3, 0xD1},
+    {-32768, 3, 0xD1},
+    {-32769, 5, 0xD2},
+    {-2147483648LL, 5, 0xD2},
+    {-2147483649LL, 9, 0xD3},
   }}};
 
   for (auto const& c : cases) {
@@ -360,11 +358,9 @@ TEST_CASE("nexenne::serialization::msgpack string forms round trip across length
     std::size_t header;
   };
 
-  // 31 = fixstr max, 32 = first str8, 255 = str8 max, 256 = first str16,
-  // 65535 = str16 max, 65536 = first str32.
   auto const cases{std::array<case_t, 7>{{
     {0, 0xA0, 1},
-    {31, 0xBF, 1},  // 0xA0 | 31
+    {31, 0xBF, 1},
     {32, 0xD9, 2},
     {255, 0xD9, 2},
     {256, 0xDA, 3},
@@ -410,7 +406,6 @@ TEST_CASE("nexenne::serialization::msgpack binary forms round trip across length
     std::size_t header;
   };
 
-  // bin has no fixbin; smallest is bin8.
   auto const cases{std::array<case_t, 6>{{
     {0, 0xC4, 2},
     {255, 0xC4, 2},
@@ -453,10 +448,10 @@ TEST_CASE("nexenne::serialization::msgpack array header forms round trip across 
 
   auto const cases{std::array<case_t, 6>{{
     {0, 0x90, 1},
-    {15, 0x9F, 1},     // fixarray max
-    {16, 0xDC, 3},     // first array16
-    {65535, 0xDC, 3},  // array16 max
-    {65536, 0xDD, 5},  // first array32
+    {15, 0x9F, 1},
+    {16, 0xDC, 3},
+    {65535, 0xDC, 3},
+    {65536, 0xDD, 5},
     {100000, 0xDD, 5},
   }}};
 
@@ -483,10 +478,10 @@ TEST_CASE("nexenne::serialization::msgpack map header forms round trip across bo
 
   auto const cases{std::array<case_t, 6>{{
     {0, 0x80, 1},
-    {15, 0x8F, 1},     // fixmap max
-    {16, 0xDE, 3},     // first map16
-    {65535, 0xDE, 3},  // map16 max
-    {65536, 0xDF, 5},  // first map32
+    {15, 0x8F, 1},
+    {16, 0xDE, 3},
+    {65535, 0xDE, 3},
+    {65536, 0xDF, 5},
     {100000, 0xDF, 5},
   }}};
 
@@ -547,7 +542,6 @@ TEST_CASE("nexenne::serialization::msgpack float64 specials round trip bit-exact
     == -std::numeric_limits<double>::infinity()
   );
 
-  // -0.0 must survive bit-exact: equal to 0.0 by ==, but 1/-0.0 is -inf.
   auto const neg_zero{roundtrip64(-0.0)};
   CHECK(neg_zero == 0.0);
   CHECK(std::signbit(neg_zero));
@@ -562,7 +556,7 @@ TEST_CASE("nexenne::serialization::msgpack float32 specials round trip bit-exact
     auto w{msgpack::writer{buf}};
     REQUIRE(w.write_float32(v).has_value());
     auto r{msgpack::reader{w.written()}};
-    auto const got{r.read_float()};  // widened to double
+    auto const got{r.read_float()};
     REQUIRE(got.has_value());
     return *got;
   }};
@@ -583,7 +577,6 @@ TEST_CASE("nexenne::serialization::msgpack float32 specials round trip bit-exact
 TEST_CASE("nexenne::serialization::msgpack nested document round trip") {
   auto buf{std::array<std::byte, 256>{}};
   auto w{msgpack::writer{buf}};
-  // {"id": 42, "tags": ["a", "b"], "meta": {"ok": true, "v": nil}}
   REQUIRE(w.write_map_header(3).has_value());
   REQUIRE(w.write_string("id").has_value());
   REQUIRE(w.write_int(42).has_value());
@@ -622,19 +615,17 @@ TEST_CASE("nexenne::serialization::msgpack peek_type classifies every prefix") {
   };
 
   auto const cases{std::array<case_t, 22>{{
-    {0x00, msgpack::type::integer},                                       // positive fixint
-    {0x7F, msgpack::type::integer},      {0xE0, msgpack::type::integer},  // negative fixint
-    {0xFF, msgpack::type::integer},      {0xC0, msgpack::type::nil},
-    {0xC2, msgpack::type::boolean},      {0xC3, msgpack::type::boolean},
-    {0xCA, msgpack::type::floating},     {0xCB, msgpack::type::floating},
-    {0xCC, msgpack::type::integer},      {0xCD, msgpack::type::integer},
-    {0xCE, msgpack::type::integer},      {0xCF, msgpack::type::integer},
-    {0xD0, msgpack::type::integer},      {0xD1, msgpack::type::integer},
-    {0xD2, msgpack::type::integer},      {0xD3, msgpack::type::integer},
-    {0xA0, msgpack::type::string},  // fixstr
+    {0x00, msgpack::type::integer},      {0x7F, msgpack::type::integer},
+    {0xE0, msgpack::type::integer},      {0xFF, msgpack::type::integer},
+    {0xC0, msgpack::type::nil},          {0xC2, msgpack::type::boolean},
+    {0xC3, msgpack::type::boolean},      {0xCA, msgpack::type::floating},
+    {0xCB, msgpack::type::floating},     {0xCC, msgpack::type::integer},
+    {0xCD, msgpack::type::integer},      {0xCE, msgpack::type::integer},
+    {0xCF, msgpack::type::integer},      {0xD0, msgpack::type::integer},
+    {0xD1, msgpack::type::integer},      {0xD2, msgpack::type::integer},
+    {0xD3, msgpack::type::integer},      {0xA0, msgpack::type::string},
     {0xD9, msgpack::type::string},       {0xC4, msgpack::type::binary},
-    {0x90, msgpack::type::array_header},  // fixarray
-    {0x80, msgpack::type::map_header},    // fixmap
+    {0x90, msgpack::type::array_header}, {0x80, msgpack::type::map_header},
   }}};
 
   for (auto const& c : cases) {
@@ -643,7 +634,7 @@ TEST_CASE("nexenne::serialization::msgpack peek_type classifies every prefix") {
     auto const t{r.peek_type()};
     REQUIRE(t.has_value());
     CHECK(*t == c.kind);
-    CHECK(r.bytes_read() == 0);  // peek does not consume
+    CHECK(r.bytes_read() == 0);
   }
 }
 
@@ -656,7 +647,6 @@ TEST_CASE("nexenne::serialization::msgpack peek_type rejects reserved 0xc1 with 
 }
 
 TEST_CASE("nexenne::serialization::msgpack peek_type rejects unsupported ext prefixes") {
-  // ext family 0xC7..0xC9 and fixext 0xD4..0xD8 are not supported.
   for (int b : {0xC7, 0xC8, 0xC9, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8}) {
     auto const v{bytes({b})};
     auto r{msgpack::reader{as_span(v)}};
@@ -668,7 +658,7 @@ TEST_CASE("nexenne::serialization::msgpack peek_type rejects unsupported ext pre
 
 TEST_CASE("nexenne::serialization::msgpack reads reject mismatched types cleanly") {
   SUBCASE("read_nil on non-nil yields type_mismatch and does not advance") {
-    auto const v{bytes({0xC3})};  // true
+    auto const v{bytes({0xC3})};
     auto r{msgpack::reader{as_span(v)}};
     auto const e{r.read_nil()};
     CHECK(!e.has_value());
@@ -676,19 +666,19 @@ TEST_CASE("nexenne::serialization::msgpack reads reject mismatched types cleanly
     CHECK(r.bytes_read() == 0);
   }
   SUBCASE("read_bool on non-bool yields type_mismatch") {
-    auto const v{bytes({0xC0})};  // nil
+    auto const v{bytes({0xC0})};
     auto r{msgpack::reader{as_span(v)}};
     auto const e{r.read_bool()};
     CHECK(!e.has_value());
     CHECK(e.error() == error::type_mismatch);
   }
   SUBCASE("read_int on a string yields type_mismatch and rewinds") {
-    auto const v{bytes({0xA1, 0x78})};  // "x"
+    auto const v{bytes({0xA1, 0x78})};
     auto r{msgpack::reader{as_span(v)}};
     auto const e{r.read_int()};
     CHECK(!e.has_value());
     CHECK(e.error() == error::type_mismatch);
-    CHECK(r.bytes_read() == 0);  // rewound to before prefix
+    CHECK(r.bytes_read() == 0);
   }
   SUBCASE("read_float on an integer yields type_mismatch") {
     auto const v{bytes({0x05})};
@@ -698,7 +688,7 @@ TEST_CASE("nexenne::serialization::msgpack reads reject mismatched types cleanly
     CHECK(e.error() == error::type_mismatch);
   }
   SUBCASE("read_string on an array header yields type_mismatch and rewinds") {
-    auto const v{bytes({0x91})};  // fixarray of 1
+    auto const v{bytes({0x91})};
     auto r{msgpack::reader{as_span(v)}};
     auto const e{r.read_string()};
     CHECK(!e.has_value());
@@ -706,7 +696,7 @@ TEST_CASE("nexenne::serialization::msgpack reads reject mismatched types cleanly
     CHECK(r.bytes_read() == 0);
   }
   SUBCASE("read_binary on a string yields type_mismatch and rewinds") {
-    auto const v{bytes({0xA0})};  // empty string
+    auto const v{bytes({0xA0})};
     auto r{msgpack::reader{as_span(v)}};
     auto const e{r.read_binary()};
     CHECK(!e.has_value());
@@ -714,7 +704,7 @@ TEST_CASE("nexenne::serialization::msgpack reads reject mismatched types cleanly
     CHECK(r.bytes_read() == 0);
   }
   SUBCASE("read_array_header on a map header yields type_mismatch and rewinds") {
-    auto const v{bytes({0x81})};  // fixmap of 1
+    auto const v{bytes({0x81})};
     auto r{msgpack::reader{as_span(v)}};
     auto const e{r.read_array_header()};
     CHECK(!e.has_value());
@@ -722,7 +712,7 @@ TEST_CASE("nexenne::serialization::msgpack reads reject mismatched types cleanly
     CHECK(r.bytes_read() == 0);
   }
   SUBCASE("read_map_header on an array header yields type_mismatch and rewinds") {
-    auto const v{bytes({0x91})};  // fixarray of 1
+    auto const v{bytes({0x91})};
     auto r{msgpack::reader{as_span(v)}};
     auto const e{r.read_map_header()};
     CHECK(!e.has_value());
@@ -741,7 +731,7 @@ TEST_CASE("nexenne::serialization::msgpack readers on empty input never read OOB
   }
   {
     auto r{msgpack::reader{empty}};
-    CHECK(r.read_nil().error() == error::type_mismatch);  // !has(1) path
+    CHECK(r.read_nil().error() == error::type_mismatch);
   }
   {
     auto r{msgpack::reader{empty}};
@@ -774,28 +764,23 @@ TEST_CASE("nexenne::serialization::msgpack readers on empty input never read OOB
 }
 
 TEST_CASE("nexenne::serialization::msgpack every prefix of a full document errors cleanly") {
-  // Build one document covering many wire forms, then feed every proper
-  // prefix to a decoder that walks it. No prefix may read past its span.
   auto buf{std::array<std::byte, 256>{}};
   auto w{msgpack::writer{buf}};
-  // 7 elements: uint, int, float64, float32, string, binary, map (the map's
-  // key+value are the map's content, not extra array elements).
   REQUIRE(w.write_array_header(7).has_value());
-  REQUIRE(w.write_uint(0x123456789ABCDEFULL).has_value());  // uint64
-  REQUIRE(w.write_int(-30000).has_value());                 // int16
-  REQUIRE(w.write_float64(2.5).has_value());                // float64
-  REQUIRE(w.write_float32(1.25F).has_value());              // float32
-  REQUIRE(w.write_string("hello world").has_value());       // fixstr
+  REQUIRE(w.write_uint(0x123456789ABCDEFULL).has_value());
+  REQUIRE(w.write_int(-30000).has_value());
+  REQUIRE(w.write_float64(2.5).has_value());
+  REQUIRE(w.write_float32(1.25F).has_value());
+  REQUIRE(w.write_string("hello world").has_value());
   auto const blob{std::array<std::byte, 3>{std::byte{1}, std::byte{2}, std::byte{3}}};
-  REQUIRE(w.write_binary(std::span<std::byte const>{blob}).has_value());  // bin8
+  REQUIRE(w.write_binary(std::span<std::byte const>{blob}).has_value());
   REQUIRE(w.write_map_header(1).has_value());
   REQUIRE(w.write_string("k").has_value());
   REQUIRE(w.write_bool(true).has_value());
 
   auto const full{std::vector<std::byte>(w.written().begin(), w.written().end())};
 
-  // A walker that drains the document structurally. It must either succeed
-  // (only on the full buffer) or fail with a bounds error - never crash.
+  // Drains the document structurally; true only when it decodes to the end.
   auto walk{[](std::span<std::byte const> const data) -> bool {
     auto r{msgpack::reader{data}};
     auto const n{r.read_array_header()};
@@ -834,7 +819,6 @@ TEST_CASE("nexenne::serialization::msgpack every prefix of a full document error
           auto const m{r.read_map_header()};
           if (!m)
             return false;
-          // each pair: key string + bool value (matches the doc above)
           for (std::uint32_t j{0}; j < *m; ++j) {
             if (!r.read_string())
               return false;
@@ -854,7 +838,6 @@ TEST_CASE("nexenne::serialization::msgpack every prefix of a full document error
     return r.at_end();
   }};
 
-  // Every strict prefix must fail to fully walk; only the full doc succeeds.
   for (std::size_t len{0}; len < full.size(); ++len) {
     auto const prefix{std::span<std::byte const>{full.data(), len}};
     CHECK(walk(prefix) == false);
@@ -864,7 +847,7 @@ TEST_CASE("nexenne::serialization::msgpack every prefix of a full document error
 
 TEST_CASE("nexenne::serialization::msgpack truncated multi-byte headers report underrun") {
   SUBCASE("uint16 prefix with only one trailing byte") {
-    auto const v{bytes({0xCD, 0x01})};  // claims 2 bytes, 1 present
+    auto const v{bytes({0xCD, 0x01})};
     auto r{msgpack::reader{as_span(v)}};
     auto const e{r.read_int()};
     CHECK(!e.has_value());
@@ -876,12 +859,12 @@ TEST_CASE("nexenne::serialization::msgpack truncated multi-byte headers report u
     CHECK(r.read_int().error() == error::buffer_underrun);
   }
   SUBCASE("int32 prefix truncated") {
-    auto const v{bytes({0xD2, 0x00, 0x00})};  // claims 4, 2 present
+    auto const v{bytes({0xD2, 0x00, 0x00})};
     auto r{msgpack::reader{as_span(v)}};
     CHECK(r.read_int().error() == error::buffer_underrun);
   }
   SUBCASE("float32 prefix truncated") {
-    auto const v{bytes({0xCA, 0x3F, 0x80})};  // claims 4, 2 present
+    auto const v{bytes({0xCA, 0x3F, 0x80})};
     auto r{msgpack::reader{as_span(v)}};
     CHECK(r.read_float().error() == error::buffer_underrun);
   }
@@ -919,14 +902,14 @@ TEST_CASE("nexenne::serialization::msgpack truncated multi-byte headers report u
 
 TEST_CASE("nexenne::serialization::msgpack oversized length claims are rejected, no OOB") {
   SUBCASE("fixstr claiming 5 bytes with body absent") {
-    auto const v{bytes({0xA5})};  // fixstr length 5, zero body bytes
+    auto const v{bytes({0xA5})};
     auto r{msgpack::reader{as_span(v)}};
     auto const e{r.read_string()};
     CHECK(!e.has_value());
     CHECK(e.error() == error::buffer_underrun);
   }
   SUBCASE("fixstr claiming more than present") {
-    auto const v{bytes({0xA5, 0x61, 0x62})};  // wants 5, has 2
+    auto const v{bytes({0xA5, 0x61, 0x62})};
     auto r{msgpack::reader{as_span(v)}};
     CHECK(r.read_string().error() == error::buffer_underrun);
   }
@@ -958,15 +941,12 @@ TEST_CASE("nexenne::serialization::msgpack oversized length claims are rejected,
 }
 
 TEST_CASE("nexenne::serialization::msgpack huge container counts do not over-read the header") {
-  // A header may legitimately claim a huge element count; only the header
-  // bytes are consumed. The danger is reading the count itself out of bounds,
-  // which take() guards. The reader returns the count without touching bodies.
   SUBCASE("array32 with max count, header present") {
     auto const v{bytes({0xDD, 0xFF, 0xFF, 0xFF, 0xFF})};
     auto r{msgpack::reader{as_span(v)}};
     auto const n{r.read_array_header()};
     REQUIRE(n.has_value());
-    CHECK(*n == 0xFFFFFFFFu);  // count returned; elements are the caller's job
+    CHECK(*n == 0xFFFFFFFFu);
     CHECK(r.at_end());
   }
   SUBCASE("map32 with max count, header present") {
@@ -979,13 +959,12 @@ TEST_CASE("nexenne::serialization::msgpack huge container counts do not over-rea
 }
 
 TEST_CASE("nexenne::serialization::msgpack deeply nested arrays decode iteratively") {
-  // 1000 nested single-element fixarrays followed by a final integer.
   constexpr int depth{1000};
   auto data{std::vector<std::byte>{}};
   data.reserve(depth + 1);
   for (int i{0}; i < depth; ++i)
-    data.push_back(static_cast<std::byte>(0x91));  // fixarray of 1
-  data.push_back(static_cast<std::byte>(0x2A));    // integer 42
+    data.push_back(static_cast<std::byte>(0x91));
+  data.push_back(static_cast<std::byte>(0x2A));
 
   auto r{msgpack::reader{as_span(data)}};
   for (int i{0}; i < depth; ++i) {
@@ -998,8 +977,6 @@ TEST_CASE("nexenne::serialization::msgpack deeply nested arrays decode iterative
 }
 
 TEST_CASE("nexenne::serialization::msgpack deeply nested fixarray headers truncated mid-way") {
-  // All array headers, no leaf value: walking consumes every header then
-  // underruns cleanly - no crash, no infinite loop.
   constexpr int depth{500};
   auto data{std::vector<std::byte>(depth, static_cast<std::byte>(0x91))};
 
@@ -1007,7 +984,6 @@ TEST_CASE("nexenne::serialization::msgpack deeply nested fixarray headers trunca
   for (int i{0}; i < depth; ++i)
     REQUIRE(r.read_array_header().has_value());
   CHECK(r.at_end());
-  // The next element does not exist.
   CHECK(r.peek_type().error() == error::buffer_underrun);
 }
 
@@ -1034,7 +1010,7 @@ TEST_CASE("nexenne::serialization::msgpack writer reports buffer_full without mo
     CHECK(w.bytes_written() == 0);
   }
   SUBCASE("string header fits but body does not") {
-    auto buf{std::array<std::byte, 3>{}};  // header 1 + want 5
+    auto buf{std::array<std::byte, 3>{}};
     auto w{msgpack::writer{buf}};
     CHECK(w.write_string("hello").error() == error::buffer_full);
     CHECK(w.bytes_written() == 0);
@@ -1047,13 +1023,13 @@ TEST_CASE("nexenne::serialization::msgpack writer reports buffer_full without mo
     CHECK(w.bytes_written() == 0);
   }
   SUBCASE("array16 header does not fit") {
-    auto buf{std::array<std::byte, 2>{}};  // needs 3
+    auto buf{std::array<std::byte, 2>{}};
     auto w{msgpack::writer{buf}};
     CHECK(w.write_array_header(100).error() == error::buffer_full);
     CHECK(w.bytes_written() == 0);
   }
   SUBCASE("map32 header does not fit") {
-    auto buf{std::array<std::byte, 4>{}};  // needs 5
+    auto buf{std::array<std::byte, 4>{}};
     auto w{msgpack::writer{buf}};
     CHECK(w.write_map_header(100000).error() == error::buffer_full);
     CHECK(w.bytes_written() == 0);
@@ -1064,7 +1040,7 @@ TEST_CASE("nexenne::serialization::msgpack writer bookkeeping: remaining, writte
   auto buf{std::array<std::byte, 16>{}};
   auto w{msgpack::writer{buf}};
   CHECK(w.bytes_remaining() == 16);
-  REQUIRE(w.write_uint(0x100).has_value());  // 3 bytes
+  REQUIRE(w.write_uint(0x100).has_value());
   CHECK(w.bytes_written() == 3);
   CHECK(w.bytes_remaining() == 13);
   CHECK(w.written().size() == 3);
@@ -1079,9 +1055,9 @@ TEST_CASE("nexenne::serialization::msgpack writer bookkeeping: remaining, writte
 TEST_CASE("nexenne::serialization::msgpack reader bookkeeping tracks the cursor") {
   auto buf{std::array<std::byte, 32>{}};
   auto w{msgpack::writer{buf}};
-  REQUIRE(w.write_int(1).has_value());        // 1 byte
-  REQUIRE(w.write_uint(0x100).has_value());   // 3 bytes
-  REQUIRE(w.write_string("hi").has_value());  // 1 + 2 = 3 bytes
+  REQUIRE(w.write_int(1).has_value());
+  REQUIRE(w.write_uint(0x100).has_value());
+  REQUIRE(w.write_string("hi").has_value());
 
   auto r{msgpack::reader{w.written()}};
   auto const total{w.bytes_written()};
@@ -1091,7 +1067,7 @@ TEST_CASE("nexenne::serialization::msgpack reader bookkeeping tracks the cursor"
 
   REQUIRE(r.read_int().has_value());
   CHECK(r.bytes_read() == 1);
-  REQUIRE(r.read_int().has_value());  // reads the uint16
+  REQUIRE(r.read_int().has_value());
   CHECK(r.bytes_read() == 4);
   CHECK(*r.read_string() == "hi");
   CHECK(r.bytes_read() == total);
@@ -1104,7 +1080,7 @@ TEST_CASE("nexenne::serialization::msgpack large string and array round trip") {
     auto buf{std::vector<std::byte>(s.size() + 8)};
     auto w{msgpack::writer{std::span<std::byte>{buf}}};
     REQUIRE(w.write_string(s).has_value());
-    CHECK(static_cast<std::uint8_t>(w.written()[0]) == 0xDA);  // str16
+    CHECK(static_cast<std::uint8_t>(w.written()[0]) == 0xDA);
 
     auto r{msgpack::reader{w.written()}};
     auto const out{r.read_string()};
@@ -1128,15 +1104,14 @@ TEST_CASE("nexenne::serialization::msgpack large string and array round trip") {
 }
 
 TEST_CASE("nexenne::serialization::msgpack read_int accepts non-canonical wide encodings of 1") {
-  // The value 1 in every integer width the reader supports.
   auto const cases{std::array<std::vector<std::byte>, 7>{{
-    bytes({0x01}),                             // positive fixint
-    bytes({0xCC, 0x01}),                       // uint8
-    bytes({0xCD, 0x00, 0x01}),                 // uint16
-    bytes({0xCE, 0x00, 0x00, 0x00, 0x01}),     // uint32
-    bytes({0xCF, 0, 0, 0, 0, 0, 0, 0, 0x01}),  // uint64
-    bytes({0xD0, 0x01}),                       // int8
-    bytes({0xD3, 0, 0, 0, 0, 0, 0, 0, 0x01}),  // int64
+    bytes({0x01}),
+    bytes({0xCC, 0x01}),
+    bytes({0xCD, 0x00, 0x01}),
+    bytes({0xCE, 0x00, 0x00, 0x00, 0x01}),
+    bytes({0xCF, 0, 0, 0, 0, 0, 0, 0, 0x01}),
+    bytes({0xD0, 0x01}),
+    bytes({0xD3, 0, 0, 0, 0, 0, 0, 0, 0x01}),
   }}};
   for (auto const& wire : cases) {
     auto r{msgpack::reader{as_span(wire)}};
@@ -1149,11 +1124,11 @@ TEST_CASE("nexenne::serialization::msgpack read_int accepts non-canonical wide e
 
 TEST_CASE("nexenne::serialization::msgpack read_int sign-extends wide negative encodings of -1") {
   auto const cases{std::array<std::vector<std::byte>, 5>{{
-    bytes({0xFF}),                                                  // negative fixint
-    bytes({0xD0, 0xFF}),                                            // int8
-    bytes({0xD1, 0xFF, 0xFF}),                                      // int16
-    bytes({0xD2, 0xFF, 0xFF, 0xFF, 0xFF}),                          // int32
-    bytes({0xD3, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}),  // int64
+    bytes({0xFF}),
+    bytes({0xD0, 0xFF}),
+    bytes({0xD1, 0xFF, 0xFF}),
+    bytes({0xD2, 0xFF, 0xFF, 0xFF, 0xFF}),
+    bytes({0xD3, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}),
   }}};
   for (auto const& wire : cases) {
     auto r{msgpack::reader{as_span(wire)}};
@@ -1192,7 +1167,6 @@ TEST_CASE("nexenne::serialization::msgpack read_uint round-trips 2^64-1 and reje
   auto r{msgpack::reader{w.written()}};
   CHECK(*r.read_uint() == big);
 
-  // A negative fixint and an int8 are not unsigned forms: read_uint refuses them.
   for (auto const& wire :
        {bytes({0xFF}), bytes({0xD0, 0xFF}), bytes({0xD3, 0, 0, 0, 0, 0, 0, 0, 0x01})}) {
     auto rr{msgpack::reader{as_span(wire)}};
@@ -1205,11 +1179,11 @@ TEST_CASE("nexenne::serialization::msgpack read_uint round-trips 2^64-1 and reje
 TEST_CASE("nexenne::serialization::msgpack skip_value consumes one complete item") {
   SUBCASE("scalars and strings") {
     for (auto const& wire :
-         {bytes({0x2A}),                          // fixint 42
-          bytes({0xCF, 0, 0, 0, 0, 0, 0, 0, 1}),  // uint64
-          bytes({0xCB, 0, 0, 0, 0, 0, 0, 0, 0}),  // float64
-          bytes({0xA3, 'f', 'o', 'o'}),           // fixstr "foo"
-          bytes({0xC4, 0x02, 0x11, 0x22})}) {     // bin8 of 2
+         {bytes({0x2A}),
+          bytes({0xCF, 0, 0, 0, 0, 0, 0, 0, 1}),
+          bytes({0xCB, 0, 0, 0, 0, 0, 0, 0, 0}),
+          bytes({0xA3, 'f', 'o', 'o'}),
+          bytes({0xC4, 0x02, 0x11, 0x22})}) {
       auto r{msgpack::reader{as_span(wire)}};
       REQUIRE(r.skip_value().has_value());
       CHECK(r.at_end());
@@ -1223,7 +1197,6 @@ TEST_CASE("nexenne::serialization::msgpack skip_value consumes one complete item
     REQUIRE(w.write_map_header(1).has_value());
     REQUIRE(w.write_string("k").has_value());
     REQUIRE(w.write_string("v").has_value());
-    // A trailing sentinel proves skip stops exactly after the array.
     REQUIRE(w.write_int(99).has_value());
 
     auto r{msgpack::reader{w.written()}};
@@ -1232,14 +1205,14 @@ TEST_CASE("nexenne::serialization::msgpack skip_value consumes one complete item
     CHECK(r.at_end());
   }
   SUBCASE("truncated item reports underrun") {
-    auto const wire{bytes({0xA3, 'a'})};  // fixstr claims 3 bytes, only 1 present
+    auto const wire{bytes({0xA3, 'a'})};
     auto r{msgpack::reader{as_span(wire)}};
     auto const got{r.skip_value()};
     REQUIRE_FALSE(got.has_value());
     CHECK(got.error() == error::buffer_underrun);
   }
   SUBCASE("ext prefix is rejected") {
-    auto const wire{bytes({0xD4, 0x00, 0x00})};  // fixext1
+    auto const wire{bytes({0xD4, 0x00, 0x00})};
     auto r{msgpack::reader{as_span(wire)}};
     auto const got{r.skip_value()};
     REQUIRE_FALSE(got.has_value());

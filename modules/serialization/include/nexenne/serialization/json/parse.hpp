@@ -397,7 +397,7 @@ private:
     if (depth >= m_opts.max_depth) {
       return std::unexpected{make_error(error::depth_limit_exceeded)};
     }
-    advance();  // '{'
+    advance();
     auto members{std::vector<member>{}};
     skip_ws();
     if (!m_cursor.exhausted() && m_cursor.data()[0] == '}') {

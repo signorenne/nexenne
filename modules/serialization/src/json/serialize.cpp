@@ -61,12 +61,6 @@ auto write_escaped_string(std::string& out, std::string_view const s, bool const
       continue;
     }
     if (ascii_only && c >= 0x80) {
-      // Decode one UTF-8 sequence to a code point, then re-emit as \uXXXX. A
-      // malformed or truncated sequence (bad lead byte, a continuation byte not
-      // in 0x80..0xBF, too few bytes, an overlong encoding, a surrogate, or a
-      // code point past U+10FFFF) becomes U+FFFD, so the output stays valid
-      // ASCII (and reparses) instead of echoing raw bytes, misreading the next
-      // one, or emitting an unpaired or out-of-range surrogate escape.
       auto cp{std::uint32_t{0}};
       auto extra{0};
       if ((c & 0xE0) == 0xC0) {
@@ -79,7 +73,7 @@ auto write_escaped_string(std::string& out, std::string_view const s, bool const
         cp = c & 0x07;
         extra = 3;
       } else {
-        extra = -1;  // stray continuation byte or invalid lead
+        extra = -1;
       }
       auto valid{extra >= 1};
       for (auto k{0}; valid && k < extra; ++k) {
@@ -96,9 +90,6 @@ auto write_escaped_string(std::string& out, std::string_view const s, bool const
         cp = (cp << 6) | (cont & 0x3Fu);
       }
       if (valid) {
-        // Reject overlong encodings (a code point below the minimum the
-        // sequence length can carry), UTF-16 surrogates, and code points past
-        // U+10FFFF: none is a valid Unicode scalar, so none may be escaped.
         auto const min_cp{
           extra == 1 ? std::uint32_t{0x80}
                      : (extra == 2 ? std::uint32_t{0x800} : std::uint32_t{0x10000})
@@ -108,7 +99,7 @@ auto write_escaped_string(std::string& out, std::string_view const s, bool const
         }
       }
       if (!valid) {
-        cp = 0xFFFD;  // Unicode replacement character
+        cp = 0xFFFD;
       }
       if (cp >= 0x10000) {
         auto const adj{cp - 0x10000};
@@ -126,15 +117,13 @@ auto write_escaped_string(std::string& out, std::string_view const s, bool const
 
 auto write_number(std::string& out, double const d) -> void {
   if (std::isnan(d) || std::isinf(d)) {
-    out += "null";  // JSON has no NaN/Infinity; null is the closest legal value.
+    out += "null";
     return;
   }
   auto buf{std::array<char, 32>{}};
   auto const r{std::to_chars(buf.data(), buf.data() + buf.size(), d)};
   std::string_view const num{buf.data(), static_cast<std::size_t>(r.ptr - buf.data())};
   out.append(num);
-  // Keep it a JSON float: to_chars can render a large magnitude in pure integer
-  // form, which would reparse as an integer and overflow. Append ".0".
   if (num.find('.') == std::string_view::npos && num.find('e') == std::string_view::npos
       && num.find('E') == std::string_view::npos) {
     out += ".0";
@@ -200,8 +189,7 @@ auto write_value(
           out += "[]";
           break;
         }
-        // Push the tail first: a LIFO stack replays the pushes in reverse, so
-        // the closing bracket lands last and element 0 first.
+        // LIFO: push in reverse, so "[" pops first and "]" last.
         stack.push_back({.op = emit_op::text, .node = nullptr, .text = "]", .depth = 0});
         stack.push_back({.op = emit_op::indent, .node = nullptr, .text = {}, .depth = depth});
         for (auto j{arr.size()}; j-- > 0;) {
@@ -234,7 +222,6 @@ auto write_value(
           stack.push_back(
             {.op = emit_op::render, .node = &entry.second, .text = {}, .depth = depth + 1}
           );
-          // The colon (and a space when pretty) sits between key and value.
           stack.push_back(
             {.op = emit_op::text, .node = nullptr, .text = pretty ? ": " : ":", .depth = 0}
           );

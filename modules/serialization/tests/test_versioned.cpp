@@ -122,7 +122,6 @@ TEST_CASE(
   REQUIRE(write_header(w, magic, 7).has_value());
   REQUIRE(w.write(std::uint32_t{42}).has_value());
 
-  // Header is exactly 8 bytes; payload follows immediately.
   CHECK(w.bytes_written() == versioned_header_size + sizeof(std::uint32_t));
 
   binary::reader r{w.written()};
@@ -130,7 +129,7 @@ TEST_CASE(
   REQUIRE(h.has_value());
   CHECK(h->magic == magic);
   CHECK(h->version == 7u);
-  CHECK(r.position() == versioned_header_size);  // cursor left at the body
+  CHECK(r.position() == versioned_header_size);
   CHECK(*r.read<std::uint32_t>() == 42u);
   CHECK(r.at_end());
 }
@@ -139,7 +138,7 @@ TEST_CASE("nexenne::serialization::versioned - read_header surfaces the parsed v
   constexpr std::uint32_t magic{0x4E455835};
   std::array<std::byte, 32> buf{};
   binary::writer w{buf};
-  REQUIRE(write_header(w, magic, 513).has_value());  // 0x0201 exercises both bytes
+  REQUIRE(write_header(w, magic, 513).has_value());
 
   binary::reader r{w.written()};
   auto const h{read_header(r, magic)};
@@ -199,32 +198,27 @@ TEST_CASE(
 
   auto const raw{w.written()};
   REQUIRE(raw.size() == versioned_header_size);
-  // magic, little-endian.
   CHECK(raw[0] == std::byte{0x11});
   CHECK(raw[1] == std::byte{0x22});
   CHECK(raw[2] == std::byte{0x33});
   CHECK(raw[3] == std::byte{0x44});
-  // version, little-endian.
   CHECK(raw[4] == std::byte{0x55});
   CHECK(raw[5] == std::byte{0x66});
-  // reserved is zeroed.
   CHECK(raw[6] == std::byte{0});
   CHECK(raw[7] == std::byte{0});
 }
 
 TEST_CASE("nexenne::serialization::versioned - read_header tolerates a non-zero reserved field") {
-  // The reserved field is not surfaced and must not be validated, so a frame
-  // with reserved bytes set still parses (forward-compatibility contract).
   constexpr std::uint32_t magic{0x01020304};
   std::array<std::byte, versioned_header_size> hdr{
     std::byte{0x04},
     std::byte{0x03},
     std::byte{0x02},
-    std::byte{0x01},  // magic LE
+    std::byte{0x01},
     std::byte{0x09},
-    std::byte{0x00},  // version = 9
+    std::byte{0x00},
     std::byte{0xAB},
-    std::byte{0xCD}  // reserved (non-zero)
+    std::byte{0xCD}
   };
   binary::reader r{std::span<std::byte const>{hdr}};
   auto const h{read_header(r, magic)};
@@ -252,7 +246,7 @@ TEST_CASE("nexenne::serialization::versioned - a single-bit magic difference is 
   REQUIRE(write_header(w, magic, 1).has_value());
 
   binary::reader r{w.written()};
-  auto const h{read_header(r, 0x00000001)};  // one bit off
+  auto const h{read_header(r, 0x00000001)};
   CHECK(!h.has_value());
   CHECK(h.error() == error::invalid_input);
 }
@@ -261,7 +255,6 @@ TEST_CASE(
   "nexenne::serialization::versioned - read_header reports buffer_underrun on a short envelope"
 ) {
   constexpr std::uint32_t magic{0x4E455834};
-  // Every length below the 8-byte header must be rejected, never read OOB.
   for (std::size_t n{0}; n < versioned_header_size; ++n) {
     std::vector<std::byte> buf(n);
     binary::reader r{std::span<std::byte const>{buf.data(), buf.size()}};
@@ -276,15 +269,14 @@ TEST_CASE(
   "the body read"
 ) {
   constexpr std::uint32_t magic{0x4E455845};
-  // A full header but only 2 of the 4 payload bytes present.
   std::array<std::byte, versioned_header_size + 2> buf{};
   binary::writer w{buf};
   REQUIRE(write_header(w, magic, 1).has_value());
-  REQUIRE(w.write(std::uint16_t{0xBEEF}).has_value());  // only half the u32 the codec wants
+  REQUIRE(w.write(std::uint16_t{0xBEEF}).has_value());
 
   binary::reader r{w.written()};
   auto const h{read_header(r, magic)};
-  REQUIRE(h.has_value());  // header itself is intact
+  REQUIRE(h.has_value());
   auto const v{r.read<std::uint32_t>()};
   REQUIRE_FALSE(v.has_value());
   CHECK(v.error() == error::buffer_underrun);
@@ -299,9 +291,8 @@ TEST_CASE(
     auto const r{write_header(w, 0x11223344, 5)};
     REQUIRE_FALSE(r.has_value());
     CHECK(r.error() == error::buffer_full);
-    CHECK(w.bytes_written() == 0);  // failed write leaves the cursor untouched
+    CHECK(w.bytes_written() == 0);
   }
-  // Exactly 8 bytes is enough.
   std::array<std::byte, versioned_header_size> exact{};
   binary::writer w{exact};
   CHECK(write_header(w, 0x11223344, 5).has_value());
@@ -326,14 +317,14 @@ TEST_CASE("nexenne::serialization::versioned - decode_with dispatches to the v2 
   std::array<std::byte, 32> buf{};
   binary::writer w{buf};
   REQUIRE(write_header(w, magic, 2).has_value());
-  REQUIRE(w.write(std::uint16_t{0xBABE}).has_value());  // lo
-  REQUIRE(w.write(std::uint16_t{0xCAFE}).has_value());  // hi
+  REQUIRE(w.write(std::uint16_t{0xBABE}).has_value());
+  REQUIRE(w.write(std::uint16_t{0xCAFE}).has_value());
 
   binary::reader r{w.written()};
   auto const out{decode_with(r, magic, sample_codec{})};
   REQUIRE(out.has_value());
   CHECK(out->version == 2u);
-  CHECK(out->payload == 0xCAFEBABEu);  // hi << 16 | lo
+  CHECK(out->payload == 0xCAFEBABEu);
 }
 
 TEST_CASE(
@@ -348,7 +339,7 @@ TEST_CASE(
   binary::reader r{w.written()};
   auto const out{decode_with(r, magic, sample_codec{})};
   CHECK(!out.has_value());
-  CHECK(out.error() == error::invalid_input);  // codec rejected version 99
+  CHECK(out.error() == error::invalid_input);
 }
 
 TEST_CASE(
@@ -363,9 +354,7 @@ TEST_CASE(
   binary::reader r{w.written()};
   auto const out{decode_with(r, 0x99998888, sample_codec{})};
   CHECK(!out.has_value());
-  CHECK(out.error() == error::invalid_input);  // magic mismatch repackaged
-  // The header is read to inspect the magic, so the cursor sits just past it;
-  // the codec never ran, so the 4-byte payload after the header is untouched.
+  CHECK(out.error() == error::invalid_input);
   CHECK(r.position() == versioned_header_size);
 }
 
@@ -373,7 +362,6 @@ TEST_CASE(
   "nexenne::serialization::versioned - decode_with reports buffer_underrun on a truncated envelope"
 ) {
   constexpr std::uint32_t magic{0x4E455834};
-  // Only 4 bytes available - smaller than the 8-byte header.
   std::array<std::byte, 4> buf{};
   binary::reader r{std::span<std::byte const>{buf}};
   auto const out{decode_with(r, magic, sample_codec{})};
@@ -385,7 +373,6 @@ TEST_CASE(
   "nexenne::serialization::versioned - decode_with propagates a truncated body through the codec"
 ) {
   constexpr std::uint32_t magic{0x4E455836};
-  // Valid v1 header, but the u32 body is one byte short.
   std::array<std::byte, versioned_header_size + 3> buf{};
   binary::writer w{buf};
   REQUIRE(write_header(w, magic, 1).has_value());
@@ -394,7 +381,7 @@ TEST_CASE(
   binary::reader r{w.written()};
   auto const out{decode_with(r, magic, sample_codec{})};
   CHECK(!out.has_value());
-  CHECK(out.error() == error::buffer_underrun);  // codec's read<u32> ran out
+  CHECK(out.error() == error::buffer_underrun);
 }
 
 }  // namespace

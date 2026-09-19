@@ -140,13 +140,10 @@ auto save(game_state const& gs, std::span<std::byte> const buf)
   -> std::expected<std::size_t, ser::error> {
   auto w{ser::binary::writer{buf}};
 
-  // 1. The envelope first, so the loader knows the version before the body.
   if (auto const r{ser::write_header(w, save_magic, save_version)}; !r) {
     return std::unexpected{r.error()};
   }
 
-  // 2. Scalars. write() picks the encoding from the type: a string gets a
-  // varint length prefix, an int32 / double get fixed little-endian bytes.
   if (auto const r{w.write(std::string_view{gs.player})}; !r) {
     return std::unexpected{r.error()};
   }
@@ -157,8 +154,6 @@ auto save(game_state const& gs, std::span<std::byte> const buf)
     return std::unexpected{r.error()};
   }
 
-  // 3. The inventory vector: a varint count, then each element's fields in
-  // order. No per-element tag, the reader knows an item is {string, uint16}.
   if (auto const r{w.write_varint(gs.inventory.size())}; !r) {
     return std::unexpected{r.error()};
   }
@@ -171,10 +166,6 @@ auto save(game_state const& gs, std::span<std::byte> const buf)
     }
   }
 
-  // 4. The stats map: same count-then-pairs shape. std::map iterates in key
-  // order, so two saves of equal data produce byte-identical buffers, which is
-  // exactly what you want for a content hash or a diff. The signed values are
-  // zigzag-packed: a stat near zero costs one byte whether it is +3 or -3.
   if (auto const r{w.write_varint(gs.stats.size())}; !r) {
     return std::unexpected{r.error()};
   }
@@ -217,7 +208,7 @@ struct save_codec {
   [[nodiscard]] auto decode(ser::binary::reader& r, std::uint16_t const version) const
     -> std::expected<game_state, ser::error> {
     if (version != save_version) {
-      return std::unexpected{ser::error::invalid_input};  // unknown future version
+      return std::unexpected{ser::error::invalid_input};
     }
     return decode_v1(r);
   }
@@ -339,8 +330,6 @@ auto main() -> int {
     .stats = {{"gold", 240}, {"karma", -15}, {"renown", 8}},
   }};
 
-  // 1. Save. A fixed-size stack buffer, no heap: the writer reports buffer_full
-  // rather than overrunning, so we never need to guess generously.
   std::println("== 1. Save ==");
   auto buf{std::array<std::byte, 256>{}};
   auto const written{save(original, buf)};
@@ -353,9 +342,6 @@ auto main() -> int {
   );
   std::println("  (header 8 + body {} = the whole save)", *written - ser::versioned_header_size);
 
-  // 2. Load. decode_with reads the envelope, checks the magic, and routes the
-  // body to save_codec::decode for the stored version. One call covers the
-  // version handshake and the body decode.
   std::println("== 2. Load and verify ==");
   auto reader{ser::binary::reader{std::span<std::byte const>{buf.data(), *written}}};
   auto const loaded{ser::decode_with(reader, save_magic, save_codec{})};
@@ -371,14 +357,11 @@ auto main() -> int {
   );
   std::println("  round-trip exact: {}", states_equal(original, *loaded));
 
-  // 3. Wrong magic. Point the loader at a buffer carrying a different tag and
-  // it refuses before decoding a single body byte. This is the guard that keeps
-  // a config blob from being parsed as a save.
   std::println("== 3. Error path: wrong magic ==");
   auto other{std::array<std::byte, 16>{}};
   {
     auto w{ser::binary::writer{other}};
-    nexenne::utility::ignore(ser::write_header(w, 0x434F4E46, save_version));  // 'CONF'
+    nexenne::utility::ignore(ser::write_header(w, 0x434F4E46, save_version));
   }
   auto bad_reader{ser::binary::reader{other}};
   auto const rejected{ser::decode_with(bad_reader, save_magic, save_codec{})};
@@ -386,10 +369,6 @@ auto main() -> int {
     "  decode rejected: {} (error={})", !rejected.has_value(), ser::to_string(rejected.error())
   );
 
-  // 4. Truncated input. Hand the loader only the first 20 bytes of a good save.
-  // The header and the first fields decode, then a read runs off the end and
-  // returns buffer_underrun instead of reading uninitialised memory. A loader
-  // built on this reader can never be tricked into an over-read.
   std::println("== 4. Error path: truncated save ==");
   auto const cut{std::size_t{20}};
   auto trunc_reader{ser::binary::reader{std::span<std::byte const>{buf.data(), cut}}};
@@ -402,11 +381,8 @@ auto main() -> int {
     ser::to_string(partial.error())
   );
 
-  // 5. Capacity check. Saving into a buffer too small to hold the payload fails
-  // with buffer_full at the first write that does not fit, and the partial
-  // write is harmless because the cursor only advances on success.
   std::println("== 5. Error path: buffer too small ==");
-  auto tiny{std::array<std::byte, 12>{}};  // room for the header, not the body
+  auto tiny{std::array<std::byte, 12>{}};
   auto const overflow{save(original, tiny)};
   std::println(
     "  save into {} bytes failed: {} (error={})",

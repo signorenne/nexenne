@@ -208,12 +208,8 @@ inline auto half_to_double(std::uint16_t const h) noexcept -> double {
   auto const sign{static_cast<std::uint32_t>((h >> 15) & 1)};
   std::uint32_t f{sign << 31};
   if (exp == 0) {
-    if (mant == 0) {
-      // signed zero
-    } else {
-      // subnormal, renormalise into single-precision. The counter starts at -1
-      // so the synthesized exponent (127 - 15 - e) lands on the correct power of
-      // two; starting at 1 decoded every subnormal to a quarter of its value.
+    if (mant != 0) {
+      // Subnormal: renormalise; e starts at -1 so 127 - 15 - e is the right power of two.
       auto m{mant};
       int e{-1};
       while ((m & 0x400) == 0) {
@@ -503,14 +499,11 @@ public:
    */
   [[nodiscard]] auto write_bytes(std::span<byte_type const> const data) noexcept
     -> std::expected<void, error> {
-    // Pre-check head plus body so a failure leaves the cursor untouched rather
-    // than dangling a written header (all-or-nothing, like the other writers).
     if (!fits_prefixed(head_size(data.size()), data.size()))
       return std::unexpected{error::buffer_full};
     if (auto const r{write_head(2, data.size())}; !r) [[unlikely]]
-      return r;  // unreachable after the pre-check, kept for defensiveness
-    // memcpy with a null pointer is UB even for size 0; an empty span's data()
-    // may be null.
+      return r;
+    // memcpy with a null pointer is UB even for size 0.
     if (data.size() != 0) {
       std::memcpy(m_cursor.data(), data.data(), data.size());
     }
@@ -536,12 +529,10 @@ public:
    *         does not fit.
    */
   [[nodiscard]] auto write_string(std::string_view const s) noexcept -> std::expected<void, error> {
-    // Pre-check head plus body so a failure leaves the cursor untouched rather
-    // than dangling a written header (all-or-nothing, like the other writers).
     if (!fits_prefixed(head_size(s.size()), s.size()))
       return std::unexpected{error::buffer_full};
     if (auto const r{write_head(3, s.size())}; !r) [[unlikely]]
-      return r;  // unreachable after the pre-check, kept for defensiveness
+      return r;
     // memcpy with a null pointer is UB even for size 0.
     if (!s.empty()) {
       std::memcpy(m_cursor.data(), s.data(), s.size());
@@ -1182,8 +1173,7 @@ public:
           auto const arg{read_argument(ai)};
           if (!arg)
             return std::unexpected{arg.error()};
-          // A count the buffer cannot hold (each item needs a byte) is an
-          // underrun; overflow of the counter means the same, so treat it so.
+          // A counter overflow means more items than bytes: report an underrun.
           if (*arg > std::numeric_limits<std::uint64_t>::max() - pending)
             return std::unexpected{error::buffer_underrun};
           pending += *arg;
@@ -1260,7 +1250,7 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if (b == 0xF9) {  // half precision
+    if (b == 0xF9) {
       if (!m_cursor.has(3))
         return std::unexpected{error::buffer_underrun};
       m_cursor.advance(1);

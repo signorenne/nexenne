@@ -259,10 +259,7 @@ public:
     if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
     if constexpr (std::is_same_v<T, bool>) {
-      // Decode a bool through std::uint8_t: a memcpy of an attacker-controlled
-      // byte outside {0, 1} into a bool object forms an invalid value whose
-      // first load is undefined behaviour. Reject strictly rather than
-      // normalize, matching the module's hostile-input contract.
+      // Through std::uint8_t: a byte outside {0, 1} copied into a bool is UB on load.
       auto const raw{static_cast<std::uint8_t>(m_cursor.data()[0])};
       if (raw > 1u) [[unlikely]]
         return std::unexpected{error::invalid_input};
@@ -273,7 +270,6 @@ public:
       if constexpr (std::endian::native == std::endian::little) {
         std::memcpy(&value, m_cursor.data(), sizeof(T));
       } else {
-        // Cold path, every supported MCU target is little-endian.
         auto bytes{std::array<byte_type, sizeof(T)>{}};
         for (size_type i{0}; i < sizeof(T); ++i) {
           bytes[sizeof(T) - 1 - i] = m_cursor.data()[i];
@@ -308,7 +304,7 @@ public:
     if (!m_cursor.has(sizeof(T))) [[unlikely]]
       return std::unexpected{error::buffer_underrun};
     if constexpr (std::is_same_v<T, bool>) {
-      // See read<bool>: a wire byte outside {0, 1} would form an invalid bool.
+      // Through std::uint8_t: a byte outside {0, 1} copied into a bool is UB on load.
       auto const raw{static_cast<std::uint8_t>(m_cursor.data()[0])};
       if (raw > 1u) [[unlikely]]
         return std::unexpected{error::invalid_input};
@@ -378,17 +374,13 @@ public:
    */
   template <fixed_width_scalar T>
   [[nodiscard]] auto read_array(std::span<T> const out) noexcept -> std::expected<void, error> {
-    // Compare counts, not byte totals: out.size() * sizeof(T) could overflow
-    // size_t and wrap to a small value that passes a bounds check, then memcpy
-    // would over-write the destination span.
+    // Compare counts, not byte totals: out.size() * sizeof(T) can wrap size_t.
     if (out.size() > m_cursor.remaining() / sizeof(T)) [[unlikely]] {
       return std::unexpected{error::buffer_underrun};
     }
     auto const n{out.size() * sizeof(T)};
     if constexpr (std::is_same_v<T, bool>) {
-      // A bulk memcpy of hostile bytes into a span<bool> forms invalid bool
-      // objects (UB on load), so validate each wire byte and only advance once
-      // the whole run is known good, keeping the cursor unchanged on failure.
+      // Byte by byte, never memcpy: a hostile byte copied into a bool is UB on load.
       auto const* const p{m_cursor.data()};
       for (size_type i{0}; i < n; ++i) {
         auto const raw{static_cast<std::uint8_t>(p[i])};
@@ -398,7 +390,7 @@ public:
       }
       m_cursor.advance(n);
     } else if constexpr (std::endian::native == std::endian::little || sizeof(T) == 1) {
-      if (n != 0) {  // memcpy with a null/empty destination is UB even for size 0
+      if (n != 0) {  // memcpy with a null pointer is UB even for size 0
         std::memcpy(out.data(), m_cursor.data(), n);
       }
       m_cursor.advance(n);
@@ -431,13 +423,11 @@ public:
   [[nodiscard]] auto read_varint() noexcept -> std::expected<std::uint64_t, error> {
     auto value{std::uint64_t{0}};
     auto shift{0};
-    // Max 10 bytes for a 64-bit value.
     for (auto i{0}; i < 10; ++i) {
       if (!m_cursor.has(1)) [[unlikely]]
         return std::unexpected{error::buffer_underrun};
       auto const b{static_cast<std::uint8_t>(m_cursor.next())};
-      // The 10th byte holds only bit 63, so its value bits beyond bit 0 would
-      // overflow uint64: reject a non-canonical / over-wide encoding.
+      // The 10th byte carries only bit 63: any higher value bit overflows uint64.
       if (i == 9 && (b & 0x7F) > 0x01u) [[unlikely]] {
         return std::unexpected{error::invalid_input};
       }

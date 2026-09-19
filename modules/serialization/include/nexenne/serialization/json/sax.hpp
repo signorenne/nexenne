@@ -324,7 +324,7 @@ private:
    *         escape.
    */
   [[nodiscard]] auto validate_u_escape() noexcept -> std::expected<void, error> {
-    m_cursor.advance(2);  // consume the "\u"; the caller confirmed has(2)
+    m_cursor.advance(2);
     auto hi{std::uint32_t{0}};
     if (auto const r{read_hex4(hi)}; !r)
       return r;
@@ -338,7 +338,7 @@ private:
       if (lo < 0xDC00 || lo > 0xDFFF)
         return std::unexpected{error::invalid_escape};
     } else if (hi >= 0xDC00 && hi <= 0xDFFF) {
-      return std::unexpected{error::invalid_escape};  // lone low surrogate
+      return std::unexpected{error::invalid_escape};
     }
     return {};
   }
@@ -574,8 +574,8 @@ private:
       ipart = sig.substr(0, dot);
       fpart = sig.substr(dot + 1);
     }
-    // A nonzero integer part (JSON forbids leading zeros) puts the leading digit
-    // at power ipart.size() - 1; otherwise it is the first nonzero fraction digit.
+    // Leading digit's order before exp10: ipart.size() - 1 (JSON forbids leading
+    // zeros), or -(k + 1) when ipart is "0" and k fraction zeros precede it.
     if (ipart != "0") {
       return static_cast<std::int64_t>(ipart.size()) - 1 + exp10 >= 0;
     }
@@ -616,7 +616,7 @@ private:
       return std::unexpected{error::invalid_number};
     if (m_cursor.data()[0] == '0') {
       m_cursor.advance(1);
-      if (is_digit())  // a leading zero like "01"
+      if (is_digit())
         return std::unexpected{error::invalid_number};
     } else {
       while (is_digit())
@@ -626,7 +626,7 @@ private:
     if (!m_cursor.exhausted() && m_cursor.data()[0] == '.') {
       is_float = true;
       m_cursor.advance(1);
-      if (!is_digit())  // a fraction needs at least one digit
+      if (!is_digit())
         return std::unexpected{error::invalid_number};
       while (is_digit())
         m_cursor.advance(1);
@@ -636,7 +636,7 @@ private:
       m_cursor.advance(1);
       if (!m_cursor.exhausted() && (m_cursor.data()[0] == '+' || m_cursor.data()[0] == '-'))
         m_cursor.advance(1);
-      if (!is_digit())  // an exponent needs at least one digit
+      if (!is_digit())
         return std::unexpected{error::invalid_number};
       while (is_digit())
         m_cursor.advance(1);
@@ -648,10 +648,6 @@ private:
       auto out{0.0};
       auto const r{std::from_chars(text.data(), text.data() + text.size(), out)};
       if (r.ec == std::errc::result_out_of_range) {
-        // A grammatically valid number outside double's range: a magnitude too
-        // small to represent underflows to a signed zero (still a valid JSON
-        // value), while one too large to represent is rejected rather than
-        // delivered as infinity. Matches the DOM parser.
         if (number_overflows(text)) {
           return std::unexpected{error::invalid_number};
         }
@@ -669,8 +665,6 @@ private:
     auto out{std::int64_t{0}};
     auto const r{std::from_chars(text.data(), text.data() + text.size(), out)};
     if (r.ec == std::errc::result_out_of_range) {
-      // An integer literal beyond int64 range is still a valid JSON number;
-      // widen it to double rather than rejecting it.
       auto wide{0.0};
       auto const fr{std::from_chars(text.data(), text.data() + text.size(), wide)};
       if (fr.ec != std::errc{} || fr.ptr != text.data() + text.size()) {
@@ -706,7 +700,7 @@ private:
     if (m_depth >= MaxDepth)
       return std::unexpected{error::depth_limit_exceeded};
     ++m_depth;
-    m_cursor.advance(1);  // '['
+    m_cursor.advance(1);
     if (!v.on_begin_array())
       return std::unexpected{error::invalid_input};
     skip_ws();
@@ -757,7 +751,7 @@ private:
     if (m_depth >= MaxDepth)
       return std::unexpected{error::depth_limit_exceeded};
     ++m_depth;
-    m_cursor.advance(1);  // '{'
+    m_cursor.advance(1);
     if (!v.on_begin_object())
       return std::unexpected{error::invalid_input};
     skip_ws();

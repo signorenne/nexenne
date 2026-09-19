@@ -80,8 +80,6 @@ auto parser::skip_ws() noexcept -> void {
           advance();
           advance();
         } else {
-          // Unterminated block comment: consume the rest and flag it so the
-          // top-level parse rejects the input instead of silently accepting.
           m_cursor.seek(m_cursor.size());
           m_bad_comment = true;
         }
@@ -143,8 +141,8 @@ auto parser::number_overflows(std::string_view text) noexcept -> bool {
     ipart = sig.substr(0, dot);
     fpart = sig.substr(dot + 1);
   }
-  // A nonzero integer part (JSON forbids leading zeros) puts the leading digit
-  // at power ipart.size() - 1; otherwise it is the first nonzero fraction digit.
+  // Leading digit's order before exp10: ipart.size() - 1 (JSON forbids leading
+  // zeros), or -(k + 1) when ipart is "0" and k fraction zeros precede it.
   if (ipart != "0") {
     return static_cast<std::int64_t>(ipart.size()) - 1 + exp10 >= 0;
   }
@@ -168,7 +166,7 @@ auto parser::parse_number() -> std::expected<value, parse_error> {
   }
   if (m_cursor.data()[0] == '0') {
     advance();
-    if (is_digit()) {  // a leading zero like "01"
+    if (is_digit()) {
       return std::unexpected{make_error(error::invalid_number)};
     }
   } else {
@@ -179,7 +177,7 @@ auto parser::parse_number() -> std::expected<value, parse_error> {
   if (!m_cursor.exhausted() && m_cursor.data()[0] == '.') {
     is_float = true;
     advance();
-    if (!is_digit()) {  // a fraction needs at least one digit, e.g. "1." is invalid
+    if (!is_digit()) {
       return std::unexpected{make_error(error::invalid_number)};
     }
     while (is_digit())
@@ -191,7 +189,7 @@ auto parser::parse_number() -> std::expected<value, parse_error> {
     if (!m_cursor.exhausted() && (m_cursor.data()[0] == '+' || m_cursor.data()[0] == '-')) {
       advance();
     }
-    if (!is_digit()) {  // an exponent needs at least one digit, e.g. "1e" is invalid
+    if (!is_digit()) {
       return std::unexpected{make_error(error::invalid_number)};
     }
     while (is_digit())
@@ -202,10 +200,6 @@ auto parser::parse_number() -> std::expected<value, parse_error> {
     auto out{0.0};
     auto const r{std::from_chars(text.data(), text.data() + text.size(), out)};
     if (r.ec == std::errc::result_out_of_range) {
-      // A grammatically valid number outside double's range: a magnitude too
-      // small to represent underflows to a signed zero (still a valid JSON
-      // value), while one too large to represent is rejected rather than
-      // stored as infinity.
       if (number_overflows(text)) {
         return std::unexpected{make_error(error::invalid_number)};
       }
@@ -219,8 +213,6 @@ auto parser::parse_number() -> std::expected<value, parse_error> {
   auto out{std::int64_t{0}};
   auto const r{std::from_chars(text.data(), text.data() + text.size(), out)};
   if (r.ec == std::errc::result_out_of_range) {
-    // An integer literal beyond int64 range is still a valid JSON number;
-    // widen it to double rather than rejecting it.
     auto wide{0.0};
     auto const fr{std::from_chars(text.data(), text.data() + text.size(), wide)};
     if (fr.ec != std::errc{} || fr.ptr != text.data() + text.size()) {
@@ -294,7 +286,6 @@ auto parser::parse_string() -> std::expected<std::string, parse_error> {
             else
               return std::unexpected{make_error(error::invalid_escape)};
           }
-          // Surrogate-pair handling for non-BMP code points.
           if (cp >= 0xD800 && cp <= 0xDBFF) {
             if (!m_cursor.has(6) || m_cursor.data()[0] != '\\' || m_cursor.data()[1] != 'u') {
               return std::unexpected{make_error(error::invalid_escape)};
@@ -314,17 +305,14 @@ auto parser::parse_string() -> std::expected<std::string, parse_error> {
               else
                 return std::unexpected{make_error(error::invalid_escape)};
             }
-            // The second escape must be a low surrogate; otherwise the
-            // pair is invalid (and (low, 0xDC00) would underflow below).
+            // The low half must lie in DC00..DFFF, or low - 0xDC00 below underflows.
             if (low < 0xDC00 || low > 0xDFFF) {
               return std::unexpected{make_error(error::invalid_escape)};
             }
             cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
           } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
-            // A lone low surrogate is not a valid scalar value.
             return std::unexpected{make_error(error::invalid_escape)};
           }
-          // Encode as UTF-8.
           if (cp < 0x80) {
             out.push_back(static_cast<char>(cp));
           } else if (cp < 0x800) {
@@ -359,7 +347,7 @@ auto parser::parse_array(std::size_t const depth) -> std::expected<value, parse_
   if (depth >= m_opts.max_depth) {
     return std::unexpected{make_error(error::depth_limit_exceeded)};
   }
-  advance();  // '['
+  advance();
   array arr{};
   skip_ws();
   if (!m_cursor.exhausted() && m_cursor.data()[0] == ']') {

@@ -267,7 +267,6 @@ public:
     if constexpr (std::endian::native == std::endian::little) {
       std::memcpy(m_cursor.data(), &value, sizeof(T));
     } else {
-      // Cold path, every supported MCU target is little-endian.
       auto bytes{std::array<byte_type, sizeof(T)>{}};
       std::memcpy(bytes.data(), &value, sizeof(T));
       for (size_type i{0}; i < sizeof(T); ++i) {
@@ -299,8 +298,7 @@ public:
     -> std::expected<void, error> {
     if (!m_cursor.has(data.size())) [[unlikely]]
       return std::unexpected{error::buffer_full};
-    // Guard the copy: memcpy with a null pointer is undefined even for size 0,
-    // and an empty span's data() may be null.
+    // memcpy with a null pointer is UB even for size 0.
     if (!data.empty()) {
       std::memcpy(m_cursor.data(), data.data(), data.size());
     }
@@ -330,15 +328,13 @@ public:
   template <fixed_width_scalar T>
   [[nodiscard]] auto write_array(std::span<T const> const xs) noexcept
     -> std::expected<void, error> {
-    // Compare counts, not byte totals: xs.size() * sizeof(T) could overflow
-    // size_t and wrap to a small value that passes a bounds check, then memcpy
-    // would over-read the source span.
+    // Compare counts, not byte totals: xs.size() * sizeof(T) can wrap size_t.
     if (xs.size() > m_cursor.remaining() / sizeof(T)) [[unlikely]] {
       return std::unexpected{error::buffer_full};
     }
     auto const n{xs.size() * sizeof(T)};
     if constexpr (std::endian::native == std::endian::little || sizeof(T) == 1) {
-      if (n != 0) {  // memcpy with a null/empty source is UB even for size 0
+      if (n != 0) {  // memcpy with a null pointer is UB even for size 0
         std::memcpy(m_cursor.data(), xs.data(), n);
       }
       m_cursor.advance(n);
@@ -400,8 +396,7 @@ public:
    *         does not fit in the remaining space.
    */
   [[nodiscard]] auto write_zigzag(std::int64_t const value) noexcept -> std::expected<void, error> {
-    // Zig-zag in the unsigned domain: a signed left shift of a negative value
-    // is undefined behaviour. (value >> 63 is an arithmetic shift, 0 or all-ones.)
+    // Unsigned domain: shifting a negative value left is UB; value >> 63 is 0 or all-ones.
     auto const u{
       (static_cast<std::uint64_t>(value) << 1) ^ static_cast<std::uint64_t>(value >> 63)
     };
