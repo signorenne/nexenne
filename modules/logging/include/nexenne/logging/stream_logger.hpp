@@ -81,6 +81,9 @@ struct file_writer {
  *      \c std::span<char const>.
  * @post None.
  *
+ * @note Neither copyable nor movable: the atomic minimum level cannot move, so
+ *       construct the logger where it lives.
+ *
  * @warning A user-supplied argument formatter must not throw either: it runs
  *          inside the \c noexcept \c log frame, so a throw terminates.
  */
@@ -88,8 +91,8 @@ template <typename Writer = file_writer, std::size_t BufferSize = 256>
   requires(BufferSize >= 32) && std::is_nothrow_invocable_v<Writer&, std::span<char const>>
 class basic_stream_logger {
 public:
-  using size_type = std::size_t;
-  static constexpr size_type buffer_size = BufferSize;
+  using size_type = std::size_t;                        ///< Unsigned type of \c buffer_size.
+  static constexpr size_type buffer_size = BufferSize;  ///< Per-call stack buffer size in bytes.
 
 private:
   /**
@@ -230,8 +233,9 @@ public:
    *
    * Drops the call when \p lvl is below \c min_level(); otherwise formats into
    * the stack buffer and hands the bytes to the writer in one call. Overlong
-   * messages are truncated and marked with "...". Allocation-free, so
-   * \c noexcept (the writer is required to be \c noexcept).
+   * messages are truncated and marked with "...". Even a truncated line ends in
+   * a newline, so consecutive truncated lines never merge into one.
+   * Allocation-free, so \c noexcept (the writer is required to be \c noexcept).
    *
    * @tparam Args Argument types matching \p fmt.
    * @param lvl Severity of the record.

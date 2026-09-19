@@ -1,20 +1,45 @@
 /**
  * @file
- * @brief A guided tour of nexenne::logging through one realistic task: serving a
- *        handful of requests in a tiny "API gateway" and logging every step.
+ * @brief A guided tour of nexenne::logging through one realistic task.
  *
- * The program does not open a socket - it walks fixed request scenarios through
- * a few subsystems and logs structured events the way a real service would, so
- * you can see how the module's pieces fit together in context:
+ * The task is serving a handful of requests in a tiny "API gateway" and logging
+ * every step. The program does not open a socket: it walks fixed request
+ * scenarios through a few subsystems and logs structured events the way a real
+ * service would, so you can see how the module's pieces fit together in context:
  *
- *   1. Wire the manager   -> add a console sink and a crash-diagnostics ring.
- *   2. Subsystem loggers  -> one named basic_logger per area, each level-gated.
- *   3. Serve requests     -> emit trace/debug/info/warn/error from the handlers.
- *   4. A custom sink       -> a metrics counter that consumes records, not text.
- *   5. Structured JSON     -> the same records rendered as one JSON object/line.
- *   6. Pattern formatting  -> a hand-shaped console line via pattern_formatter.
- *   7. The embedded path   -> the heap-free stream_logger straight to a stream.
- *   8. Crash dump          -> replay the ring sink's retained tail.
+ *   1. Wire the manager: a console sink, a crash-diagnostics ring and a metrics
+ *      sink on the default manager. The default config is async, so the log
+ *      calls hand work to a backend thread and the tour flushes before reading
+ *      any sink back. The console sink is stdout_only here (auto_split would
+ *      route warn and up to stderr); the ring keeps the last 16 lines.
+ *   2. Subsystem loggers: one named basic_logger per area. The name is interned
+ *      once, so every record borrows it with no per-call allocation. Each logger
+ *      carries its own runtime minimum: db is chatty (debug and up), net and
+ *      auth stay at info, and cache is quieted to warn to show a gate at work.
+ *   3. Serve requests: each handler logs structured fields through the format
+ *      string (method, path, ids, counts) rather than a concatenated sentence,
+ *      so a downstream parser can pull them back out. An auth denial is a warn,
+ *      not an error: expected traffic, but worth surfacing. The cache.debug and
+ *      db.trace calls fall below their loggers' minimums, so each is dropped
+ *      with a single relaxed load and never formatted. A flush then blocks until
+ *      the backend has dispatched everything and flushed each sink.
+ *   4. A custom sink: metrics_sink tallies records by severity instead of
+ *      writing text. That is why a sink consumes a record and not a rendered
+ *      string: it routes on the structured fields without paying to format.
+ *   5. Structured JSON: a json_sink on an unowned stdout (so it does not close
+ *      the stream) replaces the manager's sinks, and a fresh logger replays one
+ *      request as NDJSON, one object per line, the shape a log shipper ingests.
+ *   6. Pattern formatting: a pattern_formatter reshapes the human-readable line
+ *      ("HH:MM:SS.mmm [L] logger | msg") without writing a sink, fed a record
+ *      built by hand (the same struct the queue carries).
+ *   7. The embedded path: stream_logger has the same call surface but no
+ *      manager, queue, thread or std::string; each call formats into a stack
+ *      buffer and hands the bytes to a compile-time Writer (file_writer here, a
+ *      UART or RTT writer on an MCU). A below-minimum call returns before it
+ *      touches the buffer, and an overlong message is truncated with "..."
+ *      rather than allocating.
+ *   8. Crash dump: the ring retained the run's last lines in memory with no
+ *      file; on a fault you would dump exactly this snapshot, oldest first.
  *
  * Read it top to bottom. The recurring theme is *where the cost goes*: a log
  * call that is gated out (by level) costs at most one relaxed atomic load and no
@@ -73,7 +98,7 @@ struct request {
   std::string_view path;
   int user_id;
   bool authorized;
-  int db_rows;  // rows a backing query would return; <0 means the query failed
+  int db_rows;  ///< Rows a backing query would return; negative means the query failed.
 };
 
 auto main() -> int {

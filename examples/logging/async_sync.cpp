@@ -7,7 +7,7 @@
  *
  *   - async (the default): a lock-free queue plus a backend thread. push()
  *     returns immediately; the thread fans each record out to the sinks. A full
- *     queue drops the record and bumps dropped_count - logging never blocks the
+ *     queue drops the record and bumps dropped_count, so logging never blocks the
  *     hot path. Records may be dispatched slightly after the producer moves on,
  *     so you flush() before reading a sink back.
  *   - sync: no thread, no queue. Every push dispatches on the calling thread, in
@@ -15,8 +15,25 @@
  *     that need deterministic ordering.
  *
  * Each distinct Config has its own manager and default_logger singletons, so the
- * sync world here is fully independent of the default async one. This tour wires
- * both, shows ordering, the LOG_*_TO macros, and the async drop counter.
+ * sync world here is fully independent of the default async one. The tour, in
+ * order:
+ *
+ *   1. Synchronous: sync_config (async false, so its queue_size is ignored)
+ *      dispatches inline on this thread, in program order, so no flush is
+ *      needed and lines cannot interleave. is_async is a static constexpr on the
+ *      backend, queryable without an instance.
+ *   2. The default async backend: push returns at once and the backend thread
+ *      writes, so flush() before trusting that everything landed. The LOG_*_TO
+ *      macros target a supplied logger and add the compile-time
+ *      NEXENNE_LOG_MIN_LEVEL gate on top of the logger's runtime gate.
+ *   3. Overflow: tiny_async_config has a 2-slot queue (a power of two, as async
+ *      mode requires). Pouring records in faster than the backend drains it makes
+ *      push drop them and bump dropped_count instead of stalling the producer.
+ *      The exact count is timing-dependent; the point is that overflow is
+ *      observable, not fatal.
+ *   4. Explicit shutdown: drains the queue, joins the backend thread, and flushes
+ *      the sinks one final time. A guard does this at program exit anyway;
+ *      calling it is handy before a hard restart.
  */
 
 #include <cstdio>

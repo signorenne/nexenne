@@ -20,7 +20,18 @@ namespace {
 
 namespace lg = nexenne::logging;
 
-// Checks that the formatter, to_string and operator<< all print the name.
+/**
+ * @brief Reports whether \c std::format, \c to_string and \c operator<< all print \p name.
+ *
+ * @tparam E Enumeration type under test.
+ * @param value Value to print.
+ * @param name Expected text.
+ *
+ * @return \c true when all three layers print \p name.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename E>
 auto names_agree(E const value, std::string_view const name) -> bool {
   auto os{std::ostringstream{}};

@@ -65,7 +65,7 @@ namespace nexenne::logging {
  */
 class pattern_formatter {
 public:
-  /// Default pattern: [time] [level-char] [logger] message (file:line).
+  /// @brief Default pattern: [time] [level-char] [logger] message (file:line).
   static constexpr std::string_view default_pattern{"[%T] [%L] [%n] %m (%f:%#)"};
 
 private:

@@ -5,6 +5,16 @@
  * Shows the normal front end (a named basic_logger fanning out through the
  * manager to a console sink and an in-memory ring), the LOG_* macros on the
  * default logger, and the heap-free stream_logger for an embedded-style path.
+ * The tour, in order:
+ *
+ *   1. Wire a console sink and a crash-diagnostics ring onto the default manager.
+ *   2. Log through a named logger on the default config (async backend thread).
+ *   3. Log through a LOG_* macro, which targets the default logger and gates on
+ *      NEXENNE_LOG_MIN_LEVEL.
+ *   4. Flush to drain the async queue, then read the ring back.
+ *   5. Log on the heap-free path: no manager, no allocation, straight to stderr
+ *      through a compile-time writer (file_writer here). An MCU plugs in a UART
+ *      or RTT writer instead, with zero call overhead and no FILE*.
  */
 
 #include <cstdio>

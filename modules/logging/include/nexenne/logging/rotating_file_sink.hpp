@@ -166,8 +166,10 @@ protected:
    *
    * Formats the record, rotates when the running size plus the line would cross
    * \c max_bytes (so a record is never split), then appends the line and bumps
-   * the running counter. A null handle or a failed re-open after rotation makes
-   * the call a no-op.
+   * the running counter. A single record larger than \c max_bytes lands whole
+   * in a fresh file instead of rotating forever. A null handle is reopened
+   * first, so the sink recovers once the path is writable again; when that open
+   * or the re-open after rotation fails, the call is a no-op.
    *
    * @param r Record to write.
    *
@@ -235,8 +237,7 @@ private:
    */
   auto rotate() noexcept -> void;
 
-  // Guards m_file and m_current_size against a force_rotate from another thread
-  // racing the backend's write_out/flush_out, per the sink cross-thread contract.
+  /// @brief Guards the file and size against a force_rotate racing the backend's writes.
   mutable std::mutex m_mutex;
   std::string m_base_path;
   std::size_t m_max_bytes;

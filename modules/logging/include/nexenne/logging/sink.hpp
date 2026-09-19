@@ -47,7 +47,8 @@ namespace nexenne::logging {
  *
  * Derive and implement \c write_out and \c flush_out; optionally reuse or
  * replace \c default_format. The base owns a per-sink minimum-level filter
- * applied by \c write.
+ * applied by \c write. Neither copyable nor movable: the atomic filter cannot
+ * move, and a sink is always owned through a \c shared_ptr, never by value.
  *
  * @pre None.
  * @post A default-constructed sink has a minimum level of \c level::trace.
@@ -213,6 +214,9 @@ protected:
   /**
    * @brief Formats \p r and writes it to the stream chosen for its severity.
    *
+   * The line goes out in a single \c fwrite, which glibc serialises per stream,
+   * so lines from concurrent writers do not interleave.
+   *
    * @param r Record to write.
    *
    * @pre None.
@@ -254,7 +258,8 @@ private:
  * Opens the file in append mode at construction (via \c std::fopen rather than
  * the C++ \c fstream stream classes, to stay light and embedded-portable) and
  * closes it on destruction. Not copyable or movable: the sink is always owned
- * through a \c shared_ptr, matching the base \c sink.
+ * through a \c shared_ptr, matching the base \c sink. A hand-written move would
+ * default-construct the base and silently reset its level filter to trace.
  *
  * @pre None.
  * @post None.
@@ -417,9 +422,7 @@ protected:
   auto flush_out() noexcept -> void override {}
 
 private:
-  // Covers concurrent access between the backend's single-threaded write and
-  // snapshot/size calls from arbitrary threads.
-  mutable std::mutex m_mutex;
+  mutable std::mutex m_mutex;  ///< Guards the ring against concurrent snapshot and size calls.
   nexenne::container::ring_buffer<std::string, N> m_buf{};
 };
 

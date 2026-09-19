@@ -5,16 +5,28 @@
  * A sink owns a destination; the library owns the transport. This tour builds
  * the sink side directly (without a manager) so each piece is easy to read:
  *
- *   1. A custom sink             -> derive, override write_out/flush_out.
- *   2. multi_sink                -> fan one record out to several children, each
- *                                   with its own per-sink level filter.
- *   3. async_sink                -> a decorator that offloads a slow sink's
- *                                   writes to a background thread.
- *   4. rotating_file_sink         -> size-based rotation with bounded backups.
+ *   1. A custom sink: derive and override write_out and flush_out. summary_sink
+ *      keeps only a running count and the worst severity seen, a cheap health
+ *      summary for a status endpoint; it consumes the structured record, so it
+ *      never pays to format a line. write() applies the sink's own level filter
+ *      (trace by default) before calling write_out.
+ *   2. multi_sink: fan one record out to several children, in insertion order,
+ *      each with its own per-sink level filter. A console child (warn and up)
+ *      and a ring child (everything) split the same stream.
+ *   3. async_sink: a decorator that offloads a slow sink's writes to a
+ *      background thread. Producers enqueue and return; the overflow policy
+ *      (block, drop_oldest, drop_newest) decides what a full queue does, and the
+ *      destructor drains gracefully, so a normal teardown loses no queued record.
+ *   4. rotating_file_sink: size-based rotation with bounded backups. A tiny cap
+ *      makes a handful of lines force a rotation; the check runs before any write
+ *      that would cross the limit, so a record is never split across two files.
+ *      The tour removes the files it wrote so reruns start clean.
  *
  * We drive the sinks by handing them records straight through sink::write (the
  * public entry the backend itself uses), so there is no manager or logger in the
- * way of seeing what each sink does.
+ * way of seeing what each sink does. make() builds each record by hand; its
+ * logger name is a string literal, so it outlives the record as the record's
+ * borrow rule requires.
  */
 
 #include <cstddef>

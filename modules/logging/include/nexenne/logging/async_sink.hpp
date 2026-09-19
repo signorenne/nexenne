@@ -97,7 +97,7 @@ struct async_sink_config {
  */
 class async_sink final : public sink {
 public:
-  /// Alias for \c async_sink_config.
+  /// @brief Alias for \c async_sink_config.
   using config = async_sink_config;
 
   /**

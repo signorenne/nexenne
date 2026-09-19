@@ -9,12 +9,26 @@
  * stack buffer of compile-time size; an overlong message is truncated at the
  * buffer boundary and marked with "...".
  *
- * The destination is a compile-time Writer - a callable handed the formatted
+ * The destination is a compile-time Writer: a callable handed the formatted
  * bytes as a std::span<char const>. It defaults to file_writer (a FILE*), but a
  * real MCU plugs in a UART or an RTT channel instead, with zero indirection
- * (the writer inlines) and no FILE* anywhere. This tour shows both: the default
- * FILE* writer, a buffer size small enough to force truncation, and a custom
- * writer that captures the bytes (standing in for a UART register).
+ * (the writer inlines) and no FILE* anywhere. The tour, in order:
+ *
+ *   1. The default FILE* writer with the default 256-byte buffer. No call
+ *      allocates, and a call below the minimum level (the debug line) returns
+ *      before it touches the buffer.
+ *   2. Retargeting: file_writer holds a public FILE*, so writer().stream can be
+ *      swapped at runtime, the way a device moves its logs from a boot UART to
+ *      the application's channel once that is up.
+ *   3. Truncation: a 48-byte buffer (the type enforces at least 32, barely more
+ *      than the prefix) stops format_to_n at the boundary, and the logger
+ *      overwrites the last three bytes with "..." so a clipped line reads as
+ *      clipped rather than silently losing its tail.
+ *   4. A custom Writer, capture_writer, standing in for a hardware transport: it
+ *      must be noexcept-invocable with std::span<char const>, and here appends
+ *      the bytes to a string so the tour can print what went out the wire. On
+ *      real hardware its operator() would push each byte into a peripheral
+ *      register.
  */
 
 #include <array>

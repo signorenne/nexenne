@@ -4,13 +4,14 @@
 
 * Purpose
 
-=stream_logger= (=basic_stream_logger<Writer, BufferSize>=) is the heap-averse sibling of
-=basic_logger=: the same call surface and the same =format_string= source-location
-capture, but with no =manager=, no backend thread, no queue, no mutex, and no
-=std::string= allocation. Each call formats with =std::format_to_n= into a stack
-buffer of compile-time size =BufferSize= and writes it with a single =fwrite= to a
-=FILE*=. An overlong message is truncated at the buffer boundary and marked with
-"...". Because nothing allocates, the level calls are =noexcept=.
+=stream_logger= (=basic_stream_logger<Writer, BufferSize>=) is the heap-averse
+sibling of =basic_logger=: the same call surface and the same =format_string=
+source-location capture, but with no =manager=, no backend thread, no queue, no
+mutex, and no =std::string= allocation. Each call formats with
+=std::format_to_n= into a stack buffer of compile-time size =BufferSize= and
+writes it with a single =fwrite= to a =FILE*=. An overlong message is truncated
+at the buffer boundary and marked with "...". Because nothing allocates, the
+level calls are =noexcept=.
 
 It is the right logger for an MCU / Cortex-M / ESP32, or anywhere the heap is
 forbidden for logging but levels, formatting, and source location are still

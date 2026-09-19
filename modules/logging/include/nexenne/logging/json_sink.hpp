@@ -58,7 +58,8 @@ namespace nexenne::logging {
  * Each record is serialised as a single-line JSON object terminated with a
  * newline. String fields are JSON-escaped. The destination is either a path
  * opened in append mode (owned and closed by the sink) or an externally-owned
- * FILE* (the caller retains ownership).
+ * FILE* (the caller retains ownership). Not copyable or movable: a sink is always
+ * owned through a \c shared_ptr, never moved by value.
  *
  * @pre None.
  * @post None.
@@ -122,8 +123,9 @@ protected:
   /**
    * @brief Serialises \p r as one JSON line and writes it to the file.
    *
-   * Escapes every string field and terminates the object with a newline. A null
-   * file handle makes the call a no-op.
+   * Escapes every string field and terminates the object with a newline. The
+   * thread id is quoted and escaped too, since its platform-defined text may not
+   * be a bare integer. A null file handle makes the call a no-op.
    *
    * @param r Record to serialise.
    *

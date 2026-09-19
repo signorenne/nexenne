@@ -47,19 +47,21 @@ namespace nexenne::logging {
  */
 template <std::size_t QueueSize, bool Async>
 struct config {
-  /// Async queue capacity; a power of two in async mode, ignored otherwise.
+  /// @brief Async queue capacity; a power of two in async mode, ignored otherwise.
   static constexpr std::size_t queue_size = QueueSize;
-  /// Whether the manager runs a backend thread and lock-free queue.
+  /// @brief Whether the manager runs a backend thread and lock-free queue.
   static constexpr bool async = Async;
 };
 
 }  // namespace nexenne::logging
 
 #ifndef NEXENNE_LOG_QUEUE_SIZE
+/// @brief Record capacity of \c default_config's async queue; predefine it to override.
 #define NEXENNE_LOG_QUEUE_SIZE 1024
 #endif
 
 #ifndef NEXENNE_LOG_ASYNC
+/// @brief Whether \c default_config dispatches on a backend thread; predefine it to override.
 #define NEXENNE_LOG_ASYNC true
 #endif
 

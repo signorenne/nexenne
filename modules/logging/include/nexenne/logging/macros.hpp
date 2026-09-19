@@ -29,6 +29,12 @@
 /**
  * @def NEXENNE_LOG_IF_ENABLED_
  * @brief Internal: emit to the default logger when the compile-time gate passes.
+ *
+ * @param level_ Constant severity compared against \c NEXENNE_LOG_MIN_LEVEL.
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
  */
 #define NEXENNE_LOG_IF_ENABLED_(level_, ...)                                                       \
   do {                                                                                             \
@@ -40,6 +46,13 @@
 /**
  * @def NEXENNE_LOG_TO_IF_ENABLED_
  * @brief Internal: emit to a supplied logger when the compile-time gate passes.
+ *
+ * @param level_ Constant severity compared against \c NEXENNE_LOG_MIN_LEVEL.
+ * @param logger_ Logger the record is emitted through.
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
  */
 #define NEXENNE_LOG_TO_IF_ENABLED_(level_, logger_, ...)                                           \
   do {                                                                                             \

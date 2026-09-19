@@ -72,6 +72,9 @@ inline constexpr std::string_view overflow_logger_name{"(names full)"};
  * memory through it.
  *
  * @tparam Capacity Most distinct names the table holds, at least one.
+ *
+ * @pre \p Capacity is at least one.
+ * @post A default-constructed table holds no names.
  */
 template <std::size_t Capacity>
   requires(Capacity > 0)
@@ -169,8 +172,8 @@ public:
 template <config_like Config = default_config>
 class basic_logger {
 public:
-  using config_type = Config;
-  using manager_type = basic_manager<Config>;
+  using config_type = Config;                  ///< Configuration policy shared with the manager.
+  using manager_type = basic_manager<Config>;  ///< Backend every record is submitted to.
 
 private:
   std::string_view m_name;  ///< Interned (process-lifetime) name; never reallocated.

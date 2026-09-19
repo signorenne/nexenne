@@ -57,10 +57,12 @@ template <config_like Config>
           && ((Config::queue_size & (Config::queue_size - 1)) == 0 && Config::queue_size >= 2)
 class basic_async_manager {
 public:
-  using config_type = Config;
-  using size_type = std::size_t;
+  using config_type = Config;     ///< Configuration policy this manager is built from.
+  using size_type = std::size_t;  ///< Unsigned type of the sink and dropped-record counts.
 
+  /// @brief Capacity of the record queue, in records, taken from \c Config.
   static constexpr size_type queue_size = Config::queue_size;
+  /// @brief Always \c true: records are dispatched on the backend thread.
   static constexpr bool is_async = true;
 
 private:
@@ -93,8 +95,9 @@ private:
    * @brief Backend thread loop: drains the queue and parks until signalled.
    *
    * Wakes on a producer's or shutdown's signal, drains every queued record to
-   * the sinks, then blocks on the atomic wait. A final drain runs after a stop
-   * is observed so a graceful shutdown loses no record.
+   * the sinks, then blocks on the atomic wait. An idle backend blocks with no
+   * poll, so the CPU can reach deep sleep on an embedded target. A final drain
+   * runs after a stop is observed so a graceful shutdown loses no record.
    *
    * @pre None.
    * @post The queue has been drained and a stop was observed.
@@ -156,19 +159,12 @@ private:
   std::atomic<size_type> m_dropped{0};
   std::atomic<bool> m_stop{false};
   std::atomic<bool> m_dispatching{false};
-  // Flush tickets: m_reserved counts pushes before they enqueue (a failed push
-  // takes its count back) and m_dispatched counts records written. A record
-  // counted after a flusher reads m_reserved was enqueued after the flusher's
-  // own records, so the queue's FIFO order dispatches those first.
+  /// @brief Flush ticket source: pushes counted before they enqueue, a failed one taken back.
   std::atomic<std::uint64_t> m_reserved{0};
-  std::atomic<std::uint64_t> m_dispatched{0};
-  // Monotonic wakeup token: bumped on every successful push and on shutdown so
-  // the backend's atomic wait returns. Pairs with m_signal.notify_one().
+  std::atomic<std::uint64_t> m_dispatched{0};  ///< Records written to the sinks so far.
+  /// @brief Wakeup token, bumped on every successful push and on shutdown; see \c wake_backend.
   std::atomic<std::uint32_t> m_signal{0};
-  // Monotonic progress token: bumped whenever something a flusher or a blocked
-  // pusher waits for may have changed (a record dispatched, a batch finished, a
-  // counted push taken back, a shutdown), so both park on an atomic wait
-  // instead of spinning. Pairs with m_progress.notify_all().
+  /// @brief Progress token a flusher or blocked pusher parks on; see \c announce_progress.
   std::atomic<std::uint32_t> m_progress{0};
   std::thread m_backend;
 
@@ -328,7 +324,11 @@ public:
    * window), then flushes each sink. Records pushed during the call do not
    * extend the wait. Guaranteed for records pushed by the calling thread before
    * this call; a record pushed concurrently by another thread is best-effort.
-   * The caller parks on an atomic wait between checks instead of spinning.
+   * The ticket is sound because the queue is FIFO: a push counted after the
+   * call read its ticket enqueued after the caller's own records, so those are
+   * dispatched first. The caller parks on an atomic wait between checks instead
+   * of spinning. After a shutdown no backend remains, so the call itself writes
+   * whatever a racing push left queued.
    *
    * @pre None.
    * @post Every record the calling thread enqueued before this call has been
@@ -432,6 +432,9 @@ private:
   /**
    * @brief Bumps the progress token and wakes every thread parked on it.
    *
+   * Called whenever something a flusher or a blocked pusher waits for may have
+   * changed (a record dispatched, a batch finished, a counted push taken back, a
+   * shutdown), so both park on an atomic wait instead of spinning.
    * \c notify_all skips the kernel wake when no thread is waiting, so a
    * dispatch with no flusher or blocked pusher costs only the atomic bump.
    *
@@ -461,14 +464,31 @@ template <config_like Config>
   requires(!Config::async)
 class basic_sync_manager {
 public:
-  using config_type = Config;
-  using size_type = std::size_t;
+  using config_type = Config;     ///< Configuration policy this manager is built from.
+  using size_type = std::size_t;  ///< Unsigned type of the sink and dropped-record counts.
 
+  /// @brief Always zero: there is no record queue.
   static constexpr size_type queue_size = 0;
+  /// @brief Always \c false: records are dispatched on the calling thread.
   static constexpr bool is_async = false;
 
 private:
+  /**
+   * @brief Constructs the manager with no sinks.
+   *
+   * Private: the singleton is reached only through \c instance().
+   *
+   * @pre None.
+   * @post \c sink_count() is zero.
+   */
   basic_sync_manager() noexcept = default;
+
+  /**
+   * @brief Private destructor; the \c instance() singleton is never destroyed.
+   *
+   * @pre None.
+   * @post None.
+   */
   ~basic_sync_manager() noexcept = default;
 
   /**
@@ -619,19 +639,38 @@ public:
 /// @cond INTERNAL
 namespace detail {
 
-// A class-level requires clause is checked when the template-id is FORMED, not
-// only when the class template is instantiated. Naming both
-// basic_async_manager<Config> and basic_sync_manager<Config> (as std::conditional
-// would) would fail the non-matching branch's constraint at formation, so this
-// selector forms only the selected specialisation's template-id.
+/**
+ * @brief Picks the manager class for \p Config; this primary handles async configs.
+ *
+ * A class-level requires clause is checked when the template-id is formed, not
+ * only when the class template is instantiated. Naming both
+ * \c basic_async_manager and \c basic_sync_manager for one \p Config (as
+ * \c std::conditional would) fails the non-matching branch's constraint at
+ * formation, so this selector forms only the selected specialisation's
+ * template-id.
+ *
+ * @tparam Config Configuration policy satisfying \c config_like.
+ * @tparam Async Dispatch mode, defaulted from \c Config::async.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <config_like Config, bool Async = Config::async>
 struct manager_selector {
-  using type = basic_async_manager<Config>;
+  using type = basic_async_manager<Config>;  ///< The asynchronous backend.
 };
 
+/**
+ * @brief Synchronous branch of \c manager_selector, chosen when \c Config::async is false.
+ *
+ * @tparam Config Configuration policy satisfying \c config_like.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <config_like Config>
 struct manager_selector<Config, false> {
-  using type = basic_sync_manager<Config>;
+  using type = basic_sync_manager<Config>;  ///< The synchronous backend.
 };
 
 }  // namespace detail

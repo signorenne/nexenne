@@ -12,9 +12,20 @@
  *   3. Per sink, at runtime: a sink drops records below its own min_level, so
  *      two sinks on one logger can keep different amounts of detail.
  *
- * This tour shows the names, then layers (2) and (3) without a manager so the
- * decisions are easy to read. Layer (1) is shown in the embedded and async
- * tours where the LOG_* macros appear.
+ * This tour shows the names, then layer (2) on a stream_logger with no manager
+ * so the decisions are easy to read. Layer (1) is shown in the async tour where
+ * the LOG_* macros appear, and layer (3) in the sinks tour. The tour, in order:
+ *
+ *   1. The full ladder, most verbose first: to_string pads each name to five
+ *      characters so columns line up, to_char gives the one-letter tag, and the
+ *      numeric value is the ordering key the filters compare. The
+ *      std::formatter from format.hpp prints the same name.
+ *   2. The per-logger gate at min WARN: the debug and info calls drop at the
+ *      logger and never reach the buffer or the writer.
+ *   3. enabled() answers the gate without logging, so an expensive-to-build
+ *      message can be skipped entirely.
+ *   4. set_min_level raises verbosity at runtime with a single relaxed store.
+ *   5. level::off silences a logger without removing its call sites.
  */
 
 #include <cstdio>
