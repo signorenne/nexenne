@@ -140,4 +140,11 @@ TEST_CASE("nexenne::logging::console_sink constructs with each routing policy") 
   CHECK(true);
 }
 
+TEST_CASE("nexenne::logging::sink drops a record at level::off") {
+  capture_sink s;
+  s.set_min_level(lg::level::off);
+  s.write(make_record(lg::level::off, "o"));
+  CHECK(s.lines.empty());
+}
+
 }  // namespace

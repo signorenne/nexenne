@@ -112,16 +112,17 @@ public:
   /**
    * @brief Writes \p r through this sink, applying the level filter.
    *
-   * Records below the sink's minimum level are dropped silently.
+   * Records below the sink's minimum level, and records at \c level::off, are
+   * dropped silently.
    *
    * @param r Record to write.
    *
    * @pre None.
    * @post \c write_out was invoked exactly when \p r's severity is at or above
-   *       \c min_level().
+   *       \c min_level() and is not \c level::off.
    */
   auto write(record const& r) noexcept -> void {
-    if (r.severity < m_min_level.load(std::memory_order_relaxed)) {
+    if (r.severity == level::off || r.severity < m_min_level.load(std::memory_order_relaxed)) {
       return;
     }
     write_out(r);

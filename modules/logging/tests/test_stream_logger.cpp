@@ -166,4 +166,9 @@ TEST_CASE("nexenne::logging the umbrella header builds with or without the host 
   CHECK(lg::to_token(lg::level::info) == "INFO");
 }
 
+TEST_CASE("nexenne::logging::stream_logger never enables level::off") {
+  lg::stream_logger const log{"dev", lg::level::off, lg::file_writer{nullptr}};
+  CHECK_FALSE(log.enabled(lg::level::off));
+}
+
 }  // namespace

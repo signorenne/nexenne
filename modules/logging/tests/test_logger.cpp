@@ -163,4 +163,11 @@ TEST_CASE("nexenne::logging LOG_* macros emit through the default async manager"
   mgr.clear_sinks();
 }
 
+TEST_CASE("nexenne::logging::basic_logger never enables level::off") {
+  lg::basic_logger<sync_cfg> log{"app"};
+  log.set_min_level(lg::level::off);
+  CHECK_FALSE(log.enabled(lg::level::off));
+  CHECK_FALSE(log.enabled(lg::level::critical));
+}
+
 }  // namespace

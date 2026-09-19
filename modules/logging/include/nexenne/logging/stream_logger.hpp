@@ -191,13 +191,14 @@ public:
    *
    * @param l Candidate severity.
    *
-   * @return \c true if \p l is at or above \c min_level().
+   * @return \c true if \p l is at or above \c min_level() and is not
+   *         \c level::off.
    *
    * @pre None.
    * @post None.
    */
   [[nodiscard]] auto enabled(level const l) const noexcept -> bool {
-    return l >= min_level();
+    return l != level::off && l >= min_level();
   }
 
   /**
