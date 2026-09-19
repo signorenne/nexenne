@@ -38,10 +38,16 @@ enum class level : std::uint8_t {
   off = 6,       ///< Silence the logger or sink entirely.
 };
 
+/// @cond INTERNAL
+namespace detail {
+
 /**
  * @brief Fixed-width upper-case name of a severity level.
  *
  * The name is padded to five characters so messages align in a fixed column.
+ * The sinks and \c stream_logger print it on the hot path; the public
+ * \c to_string in \c format.hpp forwards here, so neither needs the
+ * \c format header.
  *
  * @param l Level to name.
  *
@@ -52,7 +58,7 @@ enum class level : std::uint8_t {
  *
  * @complexity \c O(1).
  */
-[[nodiscard]] constexpr auto to_string(level const l) noexcept -> std::string_view {
+[[nodiscard]] constexpr auto padded_name(level const l) noexcept -> std::string_view {
   switch (l) {
     case level::trace:
       return "TRACE";
@@ -72,13 +78,18 @@ enum class level : std::uint8_t {
   return "?????";
 }
 
+}  // namespace detail
+
+/// @endcond
+
 /**
  * @brief Canonical unpadded upper-case token of a severity level.
  *
- * Unlike \c to_string, which pads to a fixed width for column-aligned lines,
- * this returns the bare upper-case name with no trailing spaces. It is the one
- * canonical vocabulary shared by \c json_sink and \c pattern_formatter, so a
- * given severity spells the same across every structured emitter.
+ * Unlike \c to_string (in \c format.hpp), which pads to a fixed width for
+ * column-aligned lines, this returns the bare upper-case name with no trailing
+ * spaces. It is the one canonical vocabulary shared by \c json_sink and
+ * \c pattern_formatter, so a given severity spells the same across every
+ * structured emitter.
  *
  * @param l Level to name.
  *

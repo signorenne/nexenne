@@ -32,7 +32,7 @@ auto sink::default_format(record const& r) -> std::string {
     tp_sec,
     ms_part,
     r.logger_name,
-    to_string(r.severity),
+    detail::padded_name(r.severity),
     file,
     r.location.line(),
     r.message

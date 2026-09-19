@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <string_view>
 
+#include <nexenne/logging/format.hpp>
 #include <nexenne/logging/level.hpp>
 
 namespace {

@@ -25,6 +25,7 @@
 #include <utility>
 
 #include <nexenne/logging/async_sink.hpp>
+#include <nexenne/logging/format.hpp>
 #include <nexenne/logging/multi_sink.hpp>
 #include <nexenne/logging/rotating_file_sink.hpp>
 #include <nexenne/logging/sink.hpp>

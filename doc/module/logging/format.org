@@ -1,0 +1,51 @@
+#+TITLE: format
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=format.hpp= holds the three formatting layers for the logging enums: a
+=std::formatter= specialisation, so =std::format("{}", x)= and =std::print=
+accept them, and a =to_string= and an =operator<<= that give the same text. It
+is separate from =level.hpp= by the library rule that keeps every layer in the
+module's =format.hpp=; the sinks and =stream_logger= name a level through an
+internal helper on the hot path, so they never need it. (The =%=-token log line
+formatter is a different thing: see [[file:formatters.org][formatters]].)
+
+* What it provides
+
+| type                   | output                                      | format spec          |
+|------------------------+---------------------------------------------+----------------------|
+| =level=                | the five-character name, =INFO = or =CRIT = | string, e.g. ={:>6}= |
+| =overflow_action=      | the enumerator name                         | string               |
+| =console_sink::stream= | the enumerator name                         | string               |
+
+=to_string= returns a =constexpr= =std::string_view= for all three, and
+=operator<<= streams it. =level= keeps its other names in =level.hpp=:
+=to_token= (unpadded, as =json_sink= writes it) and =to_char= (one letter).
+
+=overflow_action= and =console_sink::stream= belong to the host sinks, so a
+build configured with =NEXENNE_LOGGING_HOST_SINKS=OFF= gets the =level= layers
+alone.
+
+* Usage
+
+#+BEGIN_SRC cpp
+#include <format>
+#include <nexenne/logging/format.hpp>
+
+namespace lg = nexenne::logging;
+
+auto const line{std::format("[{}] ready", lg::level::info)};
+// line == "[INFO ] ready"
+#+END_SRC
+
+* Gotchas
+
+- *The level name is padded.* =to_string(level::info)= is ="INFO "=, with a
+  trailing space, so log columns align; use =to_token= for the bare name.
+- *Include it where you print.* =to_string(level)= moved here from =level.hpp=;
+  code that only includes =level.hpp= and calls it now fails to compile, and
+  the fix is to include =format.hpp=.
+
+Runnable: [[file:../../../examples/logging/levels.cpp][examples/logging/levels.cpp]]

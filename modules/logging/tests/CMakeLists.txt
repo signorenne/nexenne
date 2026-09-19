@@ -1,8 +1,9 @@
-# The freestanding half of the module is level, record, config, and the
+# The freestanding half of the module is level, record, config, format and the
 # header-only stream_logger; everything else reaches sink.hpp, directly or
 # through a sink it derives from, and only exists when the host sinks do.
 set(_logging_test_sources
     test_config.cpp
+    test_format.cpp
     test_level.cpp
     test_record.cpp
     test_stream_logger.cpp

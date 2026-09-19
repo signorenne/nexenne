@@ -10,10 +10,12 @@
  * what you need. The ESP-IDF sink (\c esp_log_sink.hpp) is intentionally
  * excluded; include it explicitly on an ESP-IDF build. A build configured with
  * \c NEXENNE_LOGGING_HOST_SINKS=OFF gets only the freestanding headers: levels,
- * records, the config, the format string and \c stream_logger.
+ * records, the config, the format string, the level formatting layers and
+ * \c stream_logger.
  */
 
 #include <nexenne/logging/config.hpp>
+#include <nexenne/logging/format.hpp>
 #include <nexenne/logging/format_string.hpp>
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/record.hpp>

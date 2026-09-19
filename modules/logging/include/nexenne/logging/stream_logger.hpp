@@ -266,7 +266,7 @@ public:
       out_it,
       static_cast<std::ptrdiff_t>(end_it - out_it),
       "[{}] [{}] {}:{} -- ",
-      to_string(lvl),
+      detail::padded_name(lvl),
       m_name,
       short_filename(fmt.loc.file_name()),
       fmt.loc.line()

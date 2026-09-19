@@ -25,7 +25,8 @@ integer comparison.
 * Naming
 
 - =to_string(level)= returns a fixed five-character upper-case name (=INFO =,
-  =CRIT =) so log columns align.
+  =CRIT =) so log columns align. It lives in [[file:format.org][format.hpp]] with the
+  level's =operator<<= and =std::formatter=, which print the same text.
 - =to_char(level)= returns a one-character tag (=I=, =C=) for compact lines.
 - =to_token(level)= returns the unpadded name (=INFO=, =CRITICAL=) that
   =json_sink= and =pattern_formatter= emit.

@@ -18,7 +18,9 @@
  */
 
 #include <cstdio>
+#include <format>
 
+#include <nexenne/logging/format.hpp>
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/stream_logger.hpp>
 
@@ -44,6 +46,7 @@ auto main() -> int {
       static_cast<unsigned>(l)
     );
   }
+  std::puts(std::format("  formatted: [{}] [{:>6}]", lg::level::warn, lg::level::info).c_str());
 
   // Layer 2: the per-logger runtime gate. A stream_logger writing to stdout lets
   // us see exactly which calls survive. Setting min to warn drops trace/debug/
