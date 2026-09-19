@@ -122,9 +122,12 @@ private:
    * @post The queue was empty at the moment the loop last observed it.
    */
   auto drain_queue() noexcept -> void {
-    m_dispatching.store(true, std::memory_order_release);
+    m_dispatching.store(true, std::memory_order_relaxed);
+    // Pairs with the acquire fence in drained(): a flusher that sees a pop sees the flag.
+    std::atomic_thread_fence(std::memory_order_release);
     while (auto popped{m_queue.try_pop()}) {
       dispatch(*popped);
+      m_dispatched.fetch_add(1, std::memory_order_seq_cst);
     }
     m_dispatching.store(false, std::memory_order_release);
   }
@@ -148,6 +151,12 @@ private:
   std::atomic<size_type> m_dropped{0};
   std::atomic<bool> m_stop{false};
   std::atomic<bool> m_dispatching{false};
+  // Flush tickets: m_reserved counts pushes before they enqueue (a failed push
+  // takes its count back) and m_dispatched counts records written. A record
+  // counted after a flusher reads m_reserved was enqueued after the flusher's
+  // own records, so the queue's FIFO order dispatches those first.
+  std::atomic<std::uint64_t> m_reserved{0};
+  std::atomic<std::uint64_t> m_dispatched{0};
   // Monotonic wakeup token: bumped on every successful push and on shutdown so
   // the backend's atomic wait returns. Pairs with m_signal.notify_one().
   std::atomic<std::uint32_t> m_signal{0};
@@ -245,10 +254,12 @@ public:
       dispatch(r);
       return {};
     }
+    m_reserved.fetch_add(1, std::memory_order_seq_cst);
     auto result{m_queue.push(std::move(r))};
     if (result.has_value()) {
       after_enqueue();
     } else {
+      m_reserved.fetch_sub(1, std::memory_order_seq_cst);
       m_dropped.fetch_add(1, std::memory_order_relaxed);
     }
     return result;
@@ -267,6 +278,7 @@ public:
    *       \c shutdown.
    */
   auto push_blocking(record r) noexcept -> void {
+    m_reserved.fetch_add(1, std::memory_order_seq_cst);
     while (!m_stop.load(std::memory_order_acquire)) {
       if (m_queue.push(std::move(r)).has_value()) {
         after_enqueue();
@@ -274,6 +286,7 @@ public:
       }
       std::this_thread::yield();
     }
+    m_reserved.fetch_sub(1, std::memory_order_seq_cst);
     dispatch(r);
   }
 
@@ -292,19 +305,21 @@ public:
   /**
    * @brief Blocks until queued records are dispatched, then flushes sinks.
    *
-   * Waits for the queue to drain and for the backend to finish dispatching its
+   * Waits until as many records have been dispatched as had been pushed when
+   * the call began, or until the queue has drained and the backend finished its
    * current batch (the \c m_dispatching flag closes the pop-but-not-yet-written
-   * window) before flushing each sink. Guaranteed for records pushed by the
-   * calling thread before this call; a record pushed concurrently by another
-   * thread is best-effort (the queue's emptiness check is relaxed).
+   * window), then flushes each sink. Records pushed during the call do not
+   * extend the wait. Guaranteed for records pushed by the calling thread before
+   * this call; a record pushed concurrently by another thread is best-effort.
    *
    * @pre None.
    * @post Every record the calling thread enqueued before this call has been
    *       dispatched and every sink has been flushed.
    */
   auto flush() noexcept -> void {
+    auto const ticket{m_reserved.load(std::memory_order_seq_cst)};
     while (!m_stop.load(std::memory_order_acquire)
-           && (!m_queue.empty_approx() || m_dispatching.load(std::memory_order_acquire))) {
+           && m_dispatched.load(std::memory_order_seq_cst) < ticket && !drained()) {
       std::this_thread::yield();
     }
     if (m_stop.load(std::memory_order_acquire)) {
@@ -340,6 +355,23 @@ public:
   }
 
 private:
+  /**
+   * @brief Reports whether the queue is empty and no popped record is unwritten.
+   *
+   * @return \c true when every enqueued record has been dispatched.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto drained() const noexcept -> bool {
+    if (!m_queue.empty_approx()) {
+      return false;
+    }
+    // Pairs with the release fence in drain_queue: having seen a pop, see the flag.
+    std::atomic_thread_fence(std::memory_order_acquire);
+    return !m_dispatching.load(std::memory_order_relaxed);
+  }
+
   /**
    * @brief Hands a just-enqueued record to the backend, or drains it after a stop.
    *
