@@ -27,8 +27,10 @@ integer comparison.
 - =to_string(level)= returns a fixed five-character upper-case name (=INFO =,
   =CRIT =) so log columns align.
 - =to_char(level)= returns a one-character tag (=I=, =C=) for compact lines.
+- =to_token(level)= returns the unpadded name (=INFO=, =CRITICAL=) that
+  =json_sink= and =pattern_formatter= emit.
 
-Both are =constexpr= and =noexcept=, and both name an out-of-range value rather
+All three are =constexpr= and =noexcept=, and both name an out-of-range value rather
 than invoking undefined behaviour (=?????= / =?=).
 
 * Compile-time gating

@@ -66,11 +66,10 @@ TEST_CASE("nexenne::logging::record is movable and carries every field") {
   CHECK(b.timestamp == stamp);
 }
 
-TEST_CASE("nexenne::logging::record a short logger name uses small-string storage") {
-  // Sanity: a short name does not force a heap allocation (SSO), so the common
-  // case of a brief logger name is allocation-free for that field.
-  auto const r{lg::record{lg::level::debug, std::source_location::current(), "ui", std::string{}}};
-  CHECK(r.logger_name == "ui");
+TEST_CASE("nexenne::logging::record borrows the logger name") {
+  auto const name{std::string_view{"ui"}};
+  auto const r{lg::record{lg::level::debug, std::source_location::current(), name, std::string{}}};
+  CHECK(r.logger_name.data() == name.data());
   CHECK(r.message.empty());
 }
 

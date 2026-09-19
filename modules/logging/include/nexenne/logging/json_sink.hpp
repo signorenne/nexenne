@@ -16,7 +16,7 @@
  *   "ts":     "2026-05-26T12:34:56.789Z",
  *   "level":  "INFO",
  *   "logger": "net",
- *   "file":   "foo.cpp",
+ *   "file":   "/src/app/foo.cpp",
  *   "line":   42,
  *   "tid":    "140245123",
  *   "msg":    "connect failed: timeout"

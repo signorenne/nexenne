@@ -20,9 +20,9 @@
  * so a project can switch defaults without touching source.
  *
  * Footprint note: the async queue reserves \c queue_size slots statically, each
- * \c sizeof(record) bytes (~80 on a 64-bit host). The default of 1024 is ~80 KiB
- * (embedded-sane); a high-throughput server may raise it (e.g. 8192), and a tiny
- * MCU may lower it (e.g. 256) via \c NEXENNE_LOG_QUEUE_SIZE.
+ * \c sizeof(record) bytes (80 on a 64-bit host) plus a sequence counter. The
+ * default async manager of 1024 slots measures 88 KiB (embedded-sane); a high-throughput server may
+ * raise it (e.g. 8192), and a tiny MCU may lower it (e.g. 256) via \c NEXENNE_LOG_QUEUE_SIZE.
  *
  * @code
  * using my_cfg = nexenne::logging::config<256, true>;

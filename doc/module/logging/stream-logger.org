@@ -4,7 +4,7 @@
 
 * Purpose
 
-=stream_logger= (=basic_stream_logger<BufferSize>=) is the heap-averse sibling of
+=stream_logger= (=basic_stream_logger<Writer, BufferSize>=) is the heap-averse sibling of
 =basic_logger=: the same call surface and the same =format_string= source-location
 capture, but with no =manager=, no backend thread, no queue, no mutex, and no
 =std::string= allocation. Each call formats with =std::format_to_n= into a stack

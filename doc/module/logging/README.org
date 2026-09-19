@@ -2,7 +2,7 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-Header-only C++23 structured logging built on [[file:../container/README.org][nexenne::container]]: a
+C++23 structured logging, a compiled library, built on [[file:../container/README.org][nexenne::container]]: a
 small spdlog/quill-style stack of severity *levels*, a formatted *record*,
 pluggable *sinks*, a *logger*, a global *manager*, and compile-time-gated
 =LOG_*= macros.
