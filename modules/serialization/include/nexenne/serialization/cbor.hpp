@@ -254,6 +254,65 @@ template <std::unsigned_integral SizeT>
   return static_cast<SizeT>(len);
 }
 
+/**
+ * @brief The CBOR major types, the top three bits of a head byte (RFC 8949 section 3.1).
+ */
+namespace major {
+
+inline constexpr std::uint8_t unsigned_integer{0};  ///< Major type 0: an unsigned integer.
+inline constexpr std::uint8_t negative_integer{1};  ///< Major type 1: minus one minus the argument.
+inline constexpr std::uint8_t byte_string{2};       ///< Major type 2: a byte string.
+inline constexpr std::uint8_t text_string{3};       ///< Major type 3: a UTF-8 text string.
+inline constexpr std::uint8_t array{4};             ///< Major type 4: an array of items.
+inline constexpr std::uint8_t map{5};               ///< Major type 5: a map of item pairs.
+inline constexpr std::uint8_t tag{6};               ///< Major type 6: a tagged item, unsupported.
+inline constexpr std::uint8_t simple{7};            ///< Major type 7: simple values and floats.
+
+}  // namespace major
+
+/**
+ * @brief The additional-information values that size an argument (RFC 8949 section 3).
+ */
+namespace info {
+
+inline constexpr std::uint8_t direct_max{23};   ///< Largest argument held in the head byte itself.
+inline constexpr std::uint8_t one_byte{24};     ///< A one-byte argument follows.
+inline constexpr std::uint8_t two_bytes{25};    ///< A two-byte argument follows.
+inline constexpr std::uint8_t four_bytes{26};   ///< A four-byte argument follows.
+inline constexpr std::uint8_t eight_bytes{27};  ///< An eight-byte argument follows.
+
+}  // namespace info
+
+/**
+ * @brief The major type 7 values this codec reads and writes (RFC 8949 section 3.3).
+ */
+namespace simple {
+
+inline constexpr std::uint8_t false_value{20};   ///< Boolean false.
+inline constexpr std::uint8_t true_value{21};    ///< Boolean true.
+inline constexpr std::uint8_t null{22};          ///< The null value.
+inline constexpr std::uint8_t undefined{23};     ///< The undefined value.
+inline constexpr std::uint8_t one_byte{24};      ///< A simple value in the following byte.
+inline constexpr std::uint8_t half_float{25};    ///< IEEE 754 half precision.
+inline constexpr std::uint8_t single_float{26};  ///< IEEE 754 single precision.
+inline constexpr std::uint8_t double_float{27};  ///< IEEE 754 double precision.
+
+}  // namespace simple
+
+/**
+ * @brief The head byte of a major type 7 value.
+ *
+ * @param value One of the \c simple values.
+ *
+ * @return The byte that carries major type 7 and \p value.
+ *
+ * @pre \p value is below 32.
+ * @post None.
+ */
+[[nodiscard]] constexpr auto simple_head(std::uint8_t const value) noexcept -> std::uint8_t {
+  return static_cast<std::uint8_t>((major::simple << 5) | value);
+}
+
 }  // namespace detail
 
 /// @endcond
@@ -312,7 +371,7 @@ private:
    * @post None.
    */
   [[nodiscard]] static constexpr auto head_size(std::uint64_t const v) noexcept -> size_type {
-    if (v <= 23)
+    if (v <= detail::info::direct_max)
       return 1;
     if (v <= 0xFF)
       return 2;
@@ -343,7 +402,7 @@ private:
   [[nodiscard]] auto write_head(std::uint8_t const major, std::uint64_t const v) noexcept
     -> std::expected<void, error> {
     auto const m{static_cast<std::uint8_t>(major << 5)};
-    if (v <= 23) {
+    if (v <= detail::info::direct_max) {
       if (!m_cursor.has(1))
         return std::unexpected{error::buffer_full};
       m_cursor.put(static_cast<byte_type>(m | static_cast<std::uint8_t>(v)));
@@ -352,14 +411,14 @@ private:
     if (v <= 0xFF) {
       if (!m_cursor.has(2))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(m | 24));
+      m_cursor.put(static_cast<byte_type>(m | detail::info::one_byte));
       m_cursor.put(static_cast<byte_type>(v));
       return {};
     }
     if (v <= 0xFFFF) {
       if (!m_cursor.has(3))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(m | 25));
+      m_cursor.put(static_cast<byte_type>(m | detail::info::two_bytes));
       detail::store_be16(m_cursor.data(), static_cast<std::uint16_t>(v));
       m_cursor.advance(2);
       return {};
@@ -367,14 +426,14 @@ private:
     if (v <= 0xFFFFFFFFu) {
       if (!m_cursor.has(5))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(m | 26));
+      m_cursor.put(static_cast<byte_type>(m | detail::info::four_bytes));
       detail::store_be32(m_cursor.data(), static_cast<std::uint32_t>(v));
       m_cursor.advance(4);
       return {};
     }
     if (!m_cursor.has(9))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(m | 27));
+    m_cursor.put(static_cast<byte_type>(m | detail::info::eight_bytes));
     detail::store_be64(m_cursor.data(), v);
     m_cursor.advance(8);
     return {};
@@ -454,7 +513,7 @@ public:
    *         not fit.
    */
   [[nodiscard]] auto write_uint(std::uint64_t const v) noexcept -> std::expected<void, error> {
-    return write_head(0, v);
+    return write_head(detail::major::unsigned_integer, v);
   }
 
   /**
@@ -477,8 +536,8 @@ public:
    */
   [[nodiscard]] auto write_int(std::int64_t const v) noexcept -> std::expected<void, error> {
     if (v >= 0)
-      return write_head(0, static_cast<std::uint64_t>(v));
-    return write_head(1, static_cast<std::uint64_t>(-(v + 1)));
+      return write_head(detail::major::unsigned_integer, static_cast<std::uint64_t>(v));
+    return write_head(detail::major::negative_integer, static_cast<std::uint64_t>(-(v + 1)));
   }
 
   /**
@@ -501,7 +560,7 @@ public:
     -> std::expected<void, error> {
     if (!fits_prefixed(head_size(data.size()), data.size()))
       return std::unexpected{error::buffer_full};
-    if (auto const r{write_head(2, data.size())}; !r) [[unlikely]]
+    if (auto const r{write_head(detail::major::byte_string, data.size())}; !r) [[unlikely]]
       return r;
     // memcpy with a null pointer is UB even for size 0.
     if (data.size() != 0) {
@@ -531,7 +590,7 @@ public:
   [[nodiscard]] auto write_string(std::string_view const s) noexcept -> std::expected<void, error> {
     if (!fits_prefixed(head_size(s.size()), s.size()))
       return std::unexpected{error::buffer_full};
-    if (auto const r{write_head(3, s.size())}; !r) [[unlikely]]
+    if (auto const r{write_head(detail::major::text_string, s.size())}; !r) [[unlikely]]
       return r;
     // memcpy with a null pointer is UB even for size 0.
     if (!s.empty()) {
@@ -559,7 +618,7 @@ public:
    */
   [[nodiscard]] auto write_array_header(std::uint64_t const n) noexcept
     -> std::expected<void, error> {
-    return write_head(4, n);
+    return write_head(detail::major::array, n);
   }
 
   /**
@@ -580,7 +639,7 @@ public:
    */
   [[nodiscard]] auto write_map_header(std::uint64_t const n) noexcept
     -> std::expected<void, error> {
-    return write_head(5, n);
+    return write_head(detail::major::map, n);
   }
 
   /**
@@ -600,7 +659,12 @@ public:
   [[nodiscard]] auto write_bool(bool const v) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(v ? 0xF5 : 0xF4));
+    m_cursor.put(
+      static_cast<byte_type>(
+        v ? detail::simple_head(detail::simple::true_value)
+          : detail::simple_head(detail::simple::false_value)
+      )
+    );
     return {};
   }
 
@@ -618,7 +682,7 @@ public:
   [[nodiscard]] auto write_null() noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(0xF6));
+    m_cursor.put(static_cast<byte_type>(detail::simple_head(detail::simple::null)));
     return {};
   }
 
@@ -636,7 +700,7 @@ public:
   [[nodiscard]] auto write_undefined() noexcept -> std::expected<void, error> {
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(0xF7));
+    m_cursor.put(static_cast<byte_type>(detail::simple_head(detail::simple::undefined)));
     return {};
   }
 
@@ -657,7 +721,7 @@ public:
   [[nodiscard]] auto write_float32(float const v) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(5))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(0xFA));
+    m_cursor.put(static_cast<byte_type>(detail::simple_head(detail::simple::single_float)));
     detail::store_be32(m_cursor.data(), std::bit_cast<std::uint32_t>(v));
     m_cursor.advance(4);
     return {};
@@ -680,7 +744,7 @@ public:
   [[nodiscard]] auto write_float64(double const v) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(9))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(0xFB));
+    m_cursor.put(static_cast<byte_type>(detail::simple_head(detail::simple::double_float)));
     detail::store_be64(m_cursor.data(), std::bit_cast<std::uint64_t>(v));
     m_cursor.advance(8);
     return {};
@@ -723,14 +787,14 @@ private:
    */
   [[nodiscard]] auto read_argument(std::uint8_t const ai) noexcept
     -> std::expected<std::uint64_t, error> {
-    if (ai < 24)
+    if (ai <= detail::info::direct_max)
       return ai;
     switch (ai) {
-      case 24:
+      case detail::info::one_byte:
         if (!m_cursor.has(1))
           return std::unexpected{error::buffer_underrun};
         return static_cast<std::uint64_t>(static_cast<std::uint8_t>(m_cursor.next()));
-      case 25:
+      case detail::info::two_bytes:
         if (!m_cursor.has(2))
           return std::unexpected{error::buffer_underrun};
         {
@@ -738,7 +802,7 @@ private:
           m_cursor.advance(2);
           return static_cast<std::uint64_t>(v);
         }
-      case 26:
+      case detail::info::four_bytes:
         if (!m_cursor.has(4))
           return std::unexpected{error::buffer_underrun};
         {
@@ -746,7 +810,7 @@ private:
           m_cursor.advance(4);
           return static_cast<std::uint64_t>(v);
         }
-      case 27:
+      case detail::info::eight_bytes:
         if (!m_cursor.has(8))
           return std::unexpected{error::buffer_underrun};
         {
@@ -826,32 +890,32 @@ public:
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     switch (b >> 5) {
-      case 0:
+      case detail::major::unsigned_integer:
         return type::unsigned_int;
-      case 1:
+      case detail::major::negative_integer:
         return type::negative_int;
-      case 2:
+      case detail::major::byte_string:
         return type::byte_string;
-      case 3:
+      case detail::major::text_string:
         return type::text_string;
-      case 4:
+      case detail::major::array:
         return type::array_header;
-      case 5:
+      case detail::major::map:
         return type::map_header;
-      case 6:
-        return std::unexpected{error::invalid_input};  // tags not supported
-      case 7:
+      case detail::major::tag:
+        return std::unexpected{error::invalid_input};
+      case detail::major::simple:
         switch (b & 0x1F) {
-          case 20:
-          case 21:
+          case detail::simple::false_value:
+          case detail::simple::true_value:
             return type::boolean;
-          case 22:
+          case detail::simple::null:
             return type::null;
-          case 23:
+          case detail::simple::undefined:
             return type::undefined;
-          case 25:
-          case 26:
-          case 27:
+          case detail::simple::half_float:
+          case detail::simple::single_float:
+          case detail::simple::double_float:
             return type::floating;
           default:
             return std::unexpected{error::invalid_input};
@@ -878,7 +942,7 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if ((b >> 5) != 0)
+    if ((b >> 5) != detail::major::unsigned_integer)
       return std::unexpected{error::type_mismatch};
     m_cursor.advance(1);
     return read_argument(b & 0x1F);
@@ -904,13 +968,13 @@ public:
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
     auto const mt{static_cast<std::uint8_t>(b >> 5)};
-    if (mt != 0 && mt != 1)
+    if (mt != detail::major::unsigned_integer && mt != detail::major::negative_integer)
       return std::unexpected{error::type_mismatch};
     m_cursor.advance(1);
     auto arg{read_argument(b & 0x1F)};
     if (!arg)
       return std::unexpected{arg.error()};
-    if (mt == 0) {
+    if (mt == detail::major::unsigned_integer) {
       if (*arg > static_cast<std::uint64_t>(0x7FFFFFFFFFFFFFFFLL)) {
         return std::unexpected{error::type_mismatch};
       }
@@ -944,7 +1008,7 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if ((b >> 5) != 3)
+    if ((b >> 5) != detail::major::text_string)
       return std::unexpected{error::type_mismatch};
     m_cursor.advance(1);
     auto const n{read_argument(b & 0x1F)};
@@ -982,7 +1046,7 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if ((b >> 5) != 2)
+    if ((b >> 5) != detail::major::byte_string)
       return std::unexpected{error::type_mismatch};
     m_cursor.advance(1);
     auto const n{read_argument(b & 0x1F)};
@@ -1016,7 +1080,7 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if ((b >> 5) != 4)
+    if ((b >> 5) != detail::major::array)
       return std::unexpected{error::type_mismatch};
     m_cursor.advance(1);
     return read_argument(b & 0x1F);
@@ -1041,7 +1105,7 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if ((b >> 5) != 5)
+    if ((b >> 5) != detail::major::map)
       return std::unexpected{error::type_mismatch};
     m_cursor.advance(1);
     return read_argument(b & 0x1F);
@@ -1064,11 +1128,11 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if (b == 0xF4) {
+    if (b == detail::simple_head(detail::simple::false_value)) {
       m_cursor.advance(1);
       return false;
     }
-    if (b == 0xF5) {
+    if (b == detail::simple_head(detail::simple::true_value)) {
       m_cursor.advance(1);
       return true;
     }
@@ -1088,7 +1152,9 @@ public:
    *         not 0xF6 (also returned at end of input).
    */
   [[nodiscard]] auto read_null() noexcept -> std::expected<void, error> {
-    if (!m_cursor.has(1) || static_cast<std::uint8_t>(m_cursor.data()[0]) != 0xF6) {
+    if (!m_cursor.has(1)
+        || static_cast<std::uint8_t>(m_cursor.data()[0])
+             != detail::simple_head(detail::simple::null)) {
       return std::unexpected{error::type_mismatch};
     }
     m_cursor.advance(1);
@@ -1112,7 +1178,9 @@ public:
    *         not 0xF7 (also returned at end of input).
    */
   [[nodiscard]] auto read_undefined() noexcept -> std::expected<void, error> {
-    if (!m_cursor.has(1) || static_cast<std::uint8_t>(m_cursor.data()[0]) != 0xF7) {
+    if (!m_cursor.has(1)
+        || static_cast<std::uint8_t>(m_cursor.data()[0])
+             != detail::simple_head(detail::simple::undefined)) {
       return std::unexpected{error::type_mismatch};
     }
     m_cursor.advance(1);
@@ -1150,14 +1218,14 @@ public:
       m_cursor.advance(1);
       --pending;
       switch (mt) {
-        case 0:
-        case 1: {  // unsigned / negative integer: argument only
+        case detail::major::unsigned_integer:
+        case detail::major::negative_integer: {
           if (auto const arg{read_argument(ai)}; !arg)
             return std::unexpected{arg.error()};
           break;
         }
-        case 2:
-        case 3: {  // byte string / text string: argument bytes of body follow
+        case detail::major::byte_string:
+        case detail::major::text_string: {
           auto const arg{read_argument(ai)};
           if (!arg)
             return std::unexpected{arg.error()};
@@ -1169,7 +1237,7 @@ public:
           m_cursor.advance(*len);
           break;
         }
-        case 4: {  // array: argument elements follow
+        case detail::major::array: {
           auto const arg{read_argument(ai)};
           if (!arg)
             return std::unexpected{arg.error()};
@@ -1179,7 +1247,7 @@ public:
           pending += *arg;
           break;
         }
-        case 5: {  // map: argument key/value pairs, i.e. 2 items each, follow
+        case detail::major::map: {
           auto const arg{read_argument(ai)};
           if (!arg)
             return std::unexpected{arg.error()};
@@ -1191,29 +1259,29 @@ public:
           pending += items;
           break;
         }
-        case 7: {  // simple values and floats
+        case detail::major::simple: {
           switch (ai) {
-            case 20:  // false
-            case 21:  // true
-            case 22:  // null
-            case 23:  // undefined
+            case detail::simple::false_value:
+            case detail::simple::true_value:
+            case detail::simple::null:
+            case detail::simple::undefined:
               break;
-            case 24:  // simple value with a following byte
+            case detail::simple::one_byte:
               if (!m_cursor.has(1))
                 return std::unexpected{error::buffer_underrun};
               m_cursor.advance(1);
               break;
-            case 25:  // half float
+            case detail::simple::half_float:
               if (!m_cursor.has(2))
                 return std::unexpected{error::buffer_underrun};
               m_cursor.advance(2);
               break;
-            case 26:  // single float
+            case detail::simple::single_float:
               if (!m_cursor.has(4))
                 return std::unexpected{error::buffer_underrun};
               m_cursor.advance(4);
               break;
-            case 27:  // double float
+            case detail::simple::double_float:
               if (!m_cursor.has(8))
                 return std::unexpected{error::buffer_underrun};
               m_cursor.advance(8);
@@ -1223,7 +1291,7 @@ public:
           }
           break;
         }
-        default:  // major 6 tags are unsupported
+        default:
           return std::unexpected{error::invalid_input};
       }
     }
@@ -1250,7 +1318,7 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if (b == 0xF9) {
+    if (b == detail::simple_head(detail::simple::half_float)) {
       if (!m_cursor.has(3))
         return std::unexpected{error::buffer_underrun};
       m_cursor.advance(1);
@@ -1258,7 +1326,7 @@ public:
       m_cursor.advance(2);
       return detail::half_to_double(h);
     }
-    if (b == 0xFA) {
+    if (b == detail::simple_head(detail::simple::single_float)) {
       if (!m_cursor.has(5))
         return std::unexpected{error::buffer_underrun};
       m_cursor.advance(1);
@@ -1266,7 +1334,7 @@ public:
       m_cursor.advance(4);
       return static_cast<double>(std::bit_cast<float>(u));
     }
-    if (b == 0xFB) {
+    if (b == detail::simple_head(detail::simple::double_float)) {
       if (!m_cursor.has(9))
         return std::unexpected{error::buffer_underrun};
       m_cursor.advance(1);

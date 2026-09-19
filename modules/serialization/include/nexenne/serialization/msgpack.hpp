@@ -79,6 +79,45 @@ enum class type : std::uint8_t {
 namespace detail {
 
 /**
+ * @brief The MessagePack format markers, named as the specification names them.
+ *
+ * Every head byte the codec reads or writes is spelled through one of these, so
+ * a marker can be checked against the MessagePack specification by its name.
+ */
+namespace marker {
+
+inline constexpr std::uint8_t positive_fixint_max{0x7F};  ///< Largest positive fixint.
+inline constexpr std::uint8_t fixmap{0x80};               ///< fixmap; the low nibble is the count.
+inline constexpr std::uint8_t fixarray{0x90};         ///< fixarray; the low nibble is the count.
+inline constexpr std::uint8_t fixstr{0xA0};           ///< fixstr; the low five bits are the length.
+inline constexpr std::uint8_t nil{0xC0};              ///< The nil value.
+inline constexpr std::uint8_t false_value{0xC2};      ///< Boolean false.
+inline constexpr std::uint8_t true_value{0xC3};       ///< Boolean true.
+inline constexpr std::uint8_t bin8{0xC4};             ///< Binary with an 8-bit length.
+inline constexpr std::uint8_t bin16{0xC5};            ///< Binary with a 16-bit length.
+inline constexpr std::uint8_t bin32{0xC6};            ///< Binary with a 32-bit length.
+inline constexpr std::uint8_t float32{0xCA};          ///< IEEE 754 single precision.
+inline constexpr std::uint8_t float64{0xCB};          ///< IEEE 754 double precision.
+inline constexpr std::uint8_t uint8{0xCC};            ///< Unsigned 8-bit integer.
+inline constexpr std::uint8_t uint16{0xCD};           ///< Unsigned 16-bit integer.
+inline constexpr std::uint8_t uint32{0xCE};           ///< Unsigned 32-bit integer.
+inline constexpr std::uint8_t uint64{0xCF};           ///< Unsigned 64-bit integer.
+inline constexpr std::uint8_t int8{0xD0};             ///< Signed 8-bit integer.
+inline constexpr std::uint8_t int16{0xD1};            ///< Signed 16-bit integer.
+inline constexpr std::uint8_t int32{0xD2};            ///< Signed 32-bit integer.
+inline constexpr std::uint8_t int64{0xD3};            ///< Signed 64-bit integer.
+inline constexpr std::uint8_t str8{0xD9};             ///< String with an 8-bit length.
+inline constexpr std::uint8_t str16{0xDA};            ///< String with a 16-bit length.
+inline constexpr std::uint8_t str32{0xDB};            ///< String with a 32-bit length.
+inline constexpr std::uint8_t array16{0xDC};          ///< Array with a 16-bit count.
+inline constexpr std::uint8_t array32{0xDD};          ///< Array with a 32-bit count.
+inline constexpr std::uint8_t map16{0xDE};            ///< Map with a 16-bit count.
+inline constexpr std::uint8_t map32{0xDF};            ///< Map with a 32-bit count.
+inline constexpr std::uint8_t negative_fixint{0xE0};  ///< Smallest negative fixint byte.
+
+}  // namespace marker
+
+/**
  * @brief Store an unsigned value big-endian at \p dst.
  *
  * The byte order is handled by \c nexenne::utility, which writes the bytes
@@ -327,7 +366,7 @@ public:
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
   [[nodiscard]] auto write_nil() noexcept -> std::expected<void, error> {
-    return put1(0xC0);
+    return put1(detail::marker::nil);
   }
 
   /**
@@ -344,7 +383,7 @@ public:
    * @throws None. Returns \c error::buffer_full when no byte remains.
    */
   [[nodiscard]] auto write_bool(bool const v) noexcept -> std::expected<void, error> {
-    return put1(v ? 0xC3 : 0xC2);
+    return put1(v ? detail::marker::true_value : detail::marker::false_value);
   }
 
   /**
@@ -368,19 +407,19 @@ public:
     if (v >= 0)
       return write_uint(static_cast<std::uint64_t>(v));
     if (v >= -32) {
-      return put1(static_cast<std::uint8_t>(v));  // negative fixint 0xE0..0xFF
+      return put1(static_cast<std::uint8_t>(v));
     }
     if (v >= -128) {
       if (!m_cursor.has(2))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xD0));
+      m_cursor.put(static_cast<byte_type>(detail::marker::int8));
       m_cursor.put(static_cast<byte_type>(static_cast<std::int8_t>(v)));
       return {};
     }
     if (v >= -32768) {
       if (!m_cursor.has(3))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xD1));
+      m_cursor.put(static_cast<byte_type>(detail::marker::int16));
       detail::store_be16(m_cursor.data(), static_cast<std::uint16_t>(static_cast<std::int16_t>(v)));
       m_cursor.advance(2);
       return {};
@@ -388,14 +427,14 @@ public:
     if (v >= -2147483648LL) {
       if (!m_cursor.has(5))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xD2));
+      m_cursor.put(static_cast<byte_type>(detail::marker::int32));
       detail::store_be32(m_cursor.data(), static_cast<std::uint32_t>(static_cast<std::int32_t>(v)));
       m_cursor.advance(4);
       return {};
     }
     if (!m_cursor.has(9))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(0xD3));
+    m_cursor.put(static_cast<byte_type>(detail::marker::int64));
     detail::store_be64(m_cursor.data(), static_cast<std::uint64_t>(v));
     m_cursor.advance(8);
     return {};
@@ -418,19 +457,19 @@ public:
    *         not fit.
    */
   [[nodiscard]] auto write_uint(std::uint64_t const v) noexcept -> std::expected<void, error> {
-    if (v <= 0x7F)
-      return put1(static_cast<std::uint8_t>(v));  // positive fixint
+    if (v <= detail::marker::positive_fixint_max)
+      return put1(static_cast<std::uint8_t>(v));
     if (v <= 0xFF) {
       if (!m_cursor.has(2))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xCC));
+      m_cursor.put(static_cast<byte_type>(detail::marker::uint8));
       m_cursor.put(static_cast<byte_type>(v));
       return {};
     }
     if (v <= 0xFFFF) {
       if (!m_cursor.has(3))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xCD));
+      m_cursor.put(static_cast<byte_type>(detail::marker::uint16));
       detail::store_be16(m_cursor.data(), static_cast<std::uint16_t>(v));
       m_cursor.advance(2);
       return {};
@@ -438,14 +477,14 @@ public:
     if (v <= 0xFFFFFFFFu) {
       if (!m_cursor.has(5))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xCE));
+      m_cursor.put(static_cast<byte_type>(detail::marker::uint32));
       detail::store_be32(m_cursor.data(), static_cast<std::uint32_t>(v));
       m_cursor.advance(4);
       return {};
     }
     if (!m_cursor.has(9))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(0xCF));
+    m_cursor.put(static_cast<byte_type>(detail::marker::uint64));
     detail::store_be64(m_cursor.data(), v);
     m_cursor.advance(8);
     return {};
@@ -468,7 +507,7 @@ public:
   [[nodiscard]] auto write_float32(float const v) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(5))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(0xCA));
+    m_cursor.put(static_cast<byte_type>(detail::marker::float32));
     detail::store_be32(m_cursor.data(), std::bit_cast<std::uint32_t>(v));
     m_cursor.advance(4);
     return {};
@@ -491,7 +530,7 @@ public:
   [[nodiscard]] auto write_float64(double const v) noexcept -> std::expected<void, error> {
     if (!m_cursor.has(9))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(0xCB));
+    m_cursor.put(static_cast<byte_type>(detail::marker::float64));
     detail::store_be64(m_cursor.data(), std::bit_cast<std::uint64_t>(v));
     m_cursor.advance(8);
     return {};
@@ -522,22 +561,22 @@ public:
     if (n <= 31) {
       if (!fits_prefixed(1, n))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xA0 | n));
+      m_cursor.put(static_cast<byte_type>(detail::marker::fixstr | n));
     } else if (n <= 0xFF) {
       if (!fits_prefixed(2, n))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xD9));
+      m_cursor.put(static_cast<byte_type>(detail::marker::str8));
       m_cursor.put(static_cast<byte_type>(n));
     } else if (n <= 0xFFFF) {
       if (!fits_prefixed(3, n))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xDA));
+      m_cursor.put(static_cast<byte_type>(detail::marker::str16));
       detail::store_be16(m_cursor.data(), static_cast<std::uint16_t>(n));
       m_cursor.advance(2);
     } else {
       if (!fits_prefixed(5, n))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xDB));
+      m_cursor.put(static_cast<byte_type>(detail::marker::str32));
       detail::store_be32(m_cursor.data(), static_cast<std::uint32_t>(n));
       m_cursor.advance(4);
     }
@@ -574,18 +613,18 @@ public:
     if (n <= 0xFF) {
       if (!fits_prefixed(2, n))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xC4));
+      m_cursor.put(static_cast<byte_type>(detail::marker::bin8));
       m_cursor.put(static_cast<byte_type>(n));
     } else if (n <= 0xFFFF) {
       if (!fits_prefixed(3, n))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xC5));
+      m_cursor.put(static_cast<byte_type>(detail::marker::bin16));
       detail::store_be16(m_cursor.data(), static_cast<std::uint16_t>(n));
       m_cursor.advance(2);
     } else {
       if (!fits_prefixed(5, n))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xC6));
+      m_cursor.put(static_cast<byte_type>(detail::marker::bin32));
       detail::store_be32(m_cursor.data(), static_cast<std::uint32_t>(n));
       m_cursor.advance(4);
     }
@@ -617,18 +656,18 @@ public:
   [[nodiscard]] auto write_array_header(std::uint32_t const n) noexcept
     -> std::expected<void, error> {
     if (n <= 15)
-      return put1(static_cast<std::uint8_t>(0x90 | n));
+      return put1(static_cast<std::uint8_t>(detail::marker::fixarray | n));
     if (n <= 0xFFFF) {
       if (!m_cursor.has(3))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xDC));
+      m_cursor.put(static_cast<byte_type>(detail::marker::array16));
       detail::store_be16(m_cursor.data(), static_cast<std::uint16_t>(n));
       m_cursor.advance(2);
       return {};
     }
     if (!m_cursor.has(5))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(0xDD));
+    m_cursor.put(static_cast<byte_type>(detail::marker::array32));
     detail::store_be32(m_cursor.data(), n);
     m_cursor.advance(4);
     return {};
@@ -654,18 +693,18 @@ public:
   [[nodiscard]] auto write_map_header(std::uint32_t const n) noexcept
     -> std::expected<void, error> {
     if (n <= 15)
-      return put1(static_cast<std::uint8_t>(0x80 | n));
+      return put1(static_cast<std::uint8_t>(detail::marker::fixmap | n));
     if (n <= 0xFFFF) {
       if (!m_cursor.has(3))
         return std::unexpected{error::buffer_full};
-      m_cursor.put(static_cast<byte_type>(0xDE));
+      m_cursor.put(static_cast<byte_type>(detail::marker::map16));
       detail::store_be16(m_cursor.data(), static_cast<std::uint16_t>(n));
       m_cursor.advance(2);
       return {};
     }
     if (!m_cursor.has(5))
       return std::unexpected{error::buffer_full};
-    m_cursor.put(static_cast<byte_type>(0xDF));
+    m_cursor.put(static_cast<byte_type>(detail::marker::map32));
     detail::store_be32(m_cursor.data(), n);
     m_cursor.advance(4);
     return {};
@@ -844,44 +883,44 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if (b == 0xC0)
+    if (b == detail::marker::nil)
       return type::nil;
-    if (b == 0xC2 || b == 0xC3)
+    if (b == detail::marker::false_value || b == detail::marker::true_value)
       return type::boolean;
-    if (b <= 0x7F || b >= 0xE0)
-      return type::integer;  // fixint
-    if ((b & 0xE0) == 0xA0)
-      return type::string;  // fixstr
-    if ((b & 0xF0) == 0x90)
-      return type::array_header;  // fixarray
-    if ((b & 0xF0) == 0x80)
-      return type::map_header;  // fixmap
+    if (b <= detail::marker::positive_fixint_max || b >= detail::marker::negative_fixint)
+      return type::integer;
+    if ((b & 0xE0) == detail::marker::fixstr)
+      return type::string;
+    if ((b & 0xF0) == detail::marker::fixarray)
+      return type::array_header;
+    if ((b & 0xF0) == detail::marker::fixmap)
+      return type::map_header;
     switch (b) {
-      case 0xCA:
-      case 0xCB:
+      case detail::marker::float32:
+      case detail::marker::float64:
         return type::floating;
-      case 0xCC:
-      case 0xCD:
-      case 0xCE:
-      case 0xCF:
-      case 0xD0:
-      case 0xD1:
-      case 0xD2:
-      case 0xD3:
+      case detail::marker::uint8:
+      case detail::marker::uint16:
+      case detail::marker::uint32:
+      case detail::marker::uint64:
+      case detail::marker::int8:
+      case detail::marker::int16:
+      case detail::marker::int32:
+      case detail::marker::int64:
         return type::integer;
-      case 0xD9:
-      case 0xDA:
-      case 0xDB:
+      case detail::marker::str8:
+      case detail::marker::str16:
+      case detail::marker::str32:
         return type::string;
-      case 0xC4:
-      case 0xC5:
-      case 0xC6:
+      case detail::marker::bin8:
+      case detail::marker::bin16:
+      case detail::marker::bin32:
         return type::binary;
-      case 0xDC:
-      case 0xDD:
+      case detail::marker::array16:
+      case detail::marker::array32:
         return type::array_header;
-      case 0xDE:
-      case 0xDF:
+      case detail::marker::map16:
+      case detail::marker::map32:
         return type::map_header;
       default:
         return std::unexpected{error::invalid_input};
@@ -901,7 +940,7 @@ public:
    *         not 0xC0 (also returned at end of input).
    */
   [[nodiscard]] auto read_nil() noexcept -> std::expected<void, error> {
-    if (!m_cursor.has(1) || static_cast<std::uint8_t>(m_cursor.data()[0]) != 0xC0) {
+    if (!m_cursor.has(1) || static_cast<std::uint8_t>(m_cursor.data()[0]) != detail::marker::nil) {
       return std::unexpected{error::type_mismatch};
     }
     m_cursor.advance(1);
@@ -924,11 +963,11 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if (b == 0xC2) {
+    if (b == detail::marker::false_value) {
       m_cursor.advance(1);
       return false;
     }
-    if (b == 0xC3) {
+    if (b == detail::marker::true_value) {
       m_cursor.advance(1);
       return true;
     }
@@ -959,35 +998,35 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if (b <= 0x7F) {
+    if (b <= detail::marker::positive_fixint_max) {
       m_cursor.advance(1);
       return static_cast<std::int64_t>(b);
     }
-    if (b >= 0xE0) {
+    if (b >= detail::marker::negative_fixint) {
       m_cursor.advance(1);
       return static_cast<std::int64_t>(static_cast<std::int8_t>(b));
     }
     m_cursor.advance(1);
     switch (b) {
-      case 0xCC: {
+      case detail::marker::uint8: {
         auto p{take(1)};
         if (!p)
           return std::unexpected{p.error()};
         return static_cast<std::int64_t>(static_cast<std::uint8_t>((*p)[0]));
       }
-      case 0xCD: {
+      case detail::marker::uint16: {
         auto p{take(2)};
         if (!p)
           return std::unexpected{p.error()};
         return static_cast<std::int64_t>(detail::load_be16(p->data()));
       }
-      case 0xCE: {
+      case detail::marker::uint32: {
         auto p{take(4)};
         if (!p)
           return std::unexpected{p.error()};
         return static_cast<std::int64_t>(detail::load_be32(p->data()));
       }
-      case 0xCF: {
+      case detail::marker::uint64: {
         auto p{take(8)};
         if (!p)
           return std::unexpected{p.error()};
@@ -996,7 +1035,7 @@ public:
           return std::unexpected{error::type_mismatch};
         return static_cast<std::int64_t>(v);
       }
-      case 0xD0: {
+      case detail::marker::int8: {
         auto p{take(1)};
         if (!p)
           return std::unexpected{p.error()};
@@ -1004,19 +1043,19 @@ public:
           static_cast<std::int8_t>(static_cast<std::uint8_t>((*p)[0]))
         );
       }
-      case 0xD1: {
+      case detail::marker::int16: {
         auto p{take(2)};
         if (!p)
           return std::unexpected{p.error()};
         return static_cast<std::int64_t>(static_cast<std::int16_t>(detail::load_be16(p->data())));
       }
-      case 0xD2: {
+      case detail::marker::int32: {
         auto p{take(4)};
         if (!p)
           return std::unexpected{p.error()};
         return static_cast<std::int64_t>(static_cast<std::int32_t>(detail::load_be32(p->data())));
       }
-      case 0xD3: {
+      case detail::marker::int64: {
         auto p{take(8)};
         if (!p)
           return std::unexpected{p.error()};
@@ -1053,31 +1092,31 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if (b <= 0x7F) {  // positive fixint
+    if (b <= detail::marker::positive_fixint_max) {
       m_cursor.advance(1);
       return static_cast<std::uint64_t>(b);
     }
     m_cursor.advance(1);
     switch (b) {
-      case 0xCC: {
+      case detail::marker::uint8: {
         auto p{take(1)};
         if (!p)
           return std::unexpected{p.error()};
         return static_cast<std::uint64_t>(static_cast<std::uint8_t>((*p)[0]));
       }
-      case 0xCD: {
+      case detail::marker::uint16: {
         auto p{take(2)};
         if (!p)
           return std::unexpected{p.error()};
         return static_cast<std::uint64_t>(detail::load_be16(p->data()));
       }
-      case 0xCE: {
+      case detail::marker::uint32: {
         auto p{take(4)};
         if (!p)
           return std::unexpected{p.error()};
         return static_cast<std::uint64_t>(detail::load_be32(p->data()));
       }
-      case 0xCF: {
+      case detail::marker::uint64: {
         auto p{take(8)};
         if (!p)
           return std::unexpected{p.error()};
@@ -1109,14 +1148,14 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.data()[0])};
-    if (b == 0xCA) {
+    if (b == detail::marker::float32) {
       m_cursor.advance(1);
       auto p{take(4)};
       if (!p)
         return std::unexpected{p.error()};
       return static_cast<double>(std::bit_cast<float>(detail::load_be32(p->data())));
     }
-    if (b == 0xCB) {
+    if (b == detail::marker::float64) {
       m_cursor.advance(1);
       auto p{take(8)};
       if (!p)
@@ -1149,19 +1188,19 @@ public:
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.next())};
     std::size_t n{0};
-    if ((b & 0xE0) == 0xA0) {
+    if ((b & 0xE0) == detail::marker::fixstr) {
       n = b & 0x1F;
-    } else if (b == 0xD9) {
+    } else if (b == detail::marker::str8) {
       auto p{take(1)};
       if (!p)
         return std::unexpected{p.error()};
       n = static_cast<std::uint8_t>((*p)[0]);
-    } else if (b == 0xDA) {
+    } else if (b == detail::marker::str16) {
       auto p{take(2)};
       if (!p)
         return std::unexpected{p.error()};
       n = detail::load_be16(p->data());
-    } else if (b == 0xDB) {
+    } else if (b == detail::marker::str32) {
       auto p{take(4)};
       if (!p)
         return std::unexpected{p.error()};
@@ -1200,17 +1239,17 @@ public:
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.next())};
     std::size_t n{0};
-    if (b == 0xC4) {
+    if (b == detail::marker::bin8) {
       auto p{take(1)};
       if (!p)
         return std::unexpected{p.error()};
       n = static_cast<std::uint8_t>((*p)[0]);
-    } else if (b == 0xC5) {
+    } else if (b == detail::marker::bin16) {
       auto p{take(2)};
       if (!p)
         return std::unexpected{p.error()};
       n = detail::load_be16(p->data());
-    } else if (b == 0xC6) {
+    } else if (b == detail::marker::bin32) {
       auto p{take(4)};
       if (!p)
         return std::unexpected{p.error()};
@@ -1242,15 +1281,15 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.next())};
-    if ((b & 0xF0) == 0x90)
+    if ((b & 0xF0) == detail::marker::fixarray)
       return static_cast<std::uint32_t>(b & 0x0F);
-    if (b == 0xDC) {
+    if (b == detail::marker::array16) {
       auto p{take(2)};
       if (!p)
         return std::unexpected{p.error()};
       return detail::load_be16(p->data());
     }
-    if (b == 0xDD) {
+    if (b == detail::marker::array32) {
       auto p{take(4)};
       if (!p)
         return std::unexpected{p.error()};
@@ -1280,15 +1319,15 @@ public:
     if (!m_cursor.has(1))
       return std::unexpected{error::buffer_underrun};
     auto const b{static_cast<std::uint8_t>(m_cursor.next())};
-    if ((b & 0xF0) == 0x80)
+    if ((b & 0xF0) == detail::marker::fixmap)
       return static_cast<std::uint32_t>(b & 0x0F);
-    if (b == 0xDE) {
+    if (b == detail::marker::map16) {
       auto p{take(2)};
       if (!p)
         return std::unexpected{p.error()};
       return detail::load_be16(p->data());
     }
-    if (b == 0xDF) {
+    if (b == detail::marker::map32) {
       auto p{take(4)};
       if (!p)
         return std::unexpected{p.error()};
@@ -1326,57 +1365,53 @@ public:
       auto const b{static_cast<std::uint8_t>(m_cursor.next())};
       --pending;
 
-      // Positive or negative fixint: the whole value lives in the head byte.
-      if (b <= 0x7F || b >= 0xE0)
+      if (b <= detail::marker::positive_fixint_max || b >= detail::marker::negative_fixint)
         continue;
-      // fixstr: the low 5 bits are the body length.
-      if ((b & 0xE0) == 0xA0) {
+      if ((b & 0xE0) == detail::marker::fixstr) {
         if (!skip_fixed(static_cast<size_type>(b & 0x1F)))
           return std::unexpected{error::buffer_underrun};
         continue;
       }
-      // fixarray: the low 4 bits are the element count.
-      if ((b & 0xF0) == 0x90) {
+      if ((b & 0xF0) == detail::marker::fixarray) {
         if (!add_pending(pending, static_cast<std::uint64_t>(b & 0x0F)))
           return std::unexpected{error::buffer_underrun};
         continue;
       }
-      // fixmap: the low 4 bits are the pair count (two items each).
-      if ((b & 0xF0) == 0x80) {
+      if ((b & 0xF0) == detail::marker::fixmap) {
         if (!add_pending(pending, static_cast<std::uint64_t>(b & 0x0F) * 2))
           return std::unexpected{error::buffer_underrun};
         continue;
       }
 
       switch (b) {
-        case 0xC0:  // nil
-        case 0xC2:  // false
-        case 0xC3:  // true
+        case detail::marker::nil:
+        case detail::marker::false_value:
+        case detail::marker::true_value:
           break;
-        case 0xCC:  // uint8
-        case 0xD0:  // int8
+        case detail::marker::uint8:
+        case detail::marker::int8:
           if (!skip_fixed(1))
             return std::unexpected{error::buffer_underrun};
           break;
-        case 0xCD:  // uint16
-        case 0xD1:  // int16
+        case detail::marker::uint16:
+        case detail::marker::int16:
           if (!skip_fixed(2))
             return std::unexpected{error::buffer_underrun};
           break;
-        case 0xCA:  // float32
-        case 0xCE:  // uint32
-        case 0xD2:  // int32
+        case detail::marker::float32:
+        case detail::marker::uint32:
+        case detail::marker::int32:
           if (!skip_fixed(4))
             return std::unexpected{error::buffer_underrun};
           break;
-        case 0xCB:  // float64
-        case 0xCF:  // uint64
-        case 0xD3:  // int64
+        case detail::marker::float64:
+        case detail::marker::uint64:
+        case detail::marker::int64:
           if (!skip_fixed(8))
             return std::unexpected{error::buffer_underrun};
           break;
-        case 0xD9:    // str8
-        case 0xC4: {  // bin8
+        case detail::marker::str8:
+        case detail::marker::bin8: {
           auto const n{read_len(1)};
           if (!n)
             return std::unexpected{n.error()};
@@ -1384,8 +1419,8 @@ public:
             return std::unexpected{error::buffer_underrun};
           break;
         }
-        case 0xDA:    // str16
-        case 0xC5: {  // bin16
+        case detail::marker::str16:
+        case detail::marker::bin16: {
           auto const n{read_len(2)};
           if (!n)
             return std::unexpected{n.error()};
@@ -1393,8 +1428,8 @@ public:
             return std::unexpected{error::buffer_underrun};
           break;
         }
-        case 0xDB:    // str32
-        case 0xC6: {  // bin32
+        case detail::marker::str32:
+        case detail::marker::bin32: {
           auto const n{read_len(4)};
           if (!n)
             return std::unexpected{n.error()};
@@ -1402,7 +1437,7 @@ public:
             return std::unexpected{error::buffer_underrun};
           break;
         }
-        case 0xDC: {  // array16
+        case detail::marker::array16: {
           auto const cnt{read_len(2)};
           if (!cnt)
             return std::unexpected{cnt.error()};
@@ -1410,7 +1445,7 @@ public:
             return std::unexpected{error::buffer_underrun};
           break;
         }
-        case 0xDD: {  // array32
+        case detail::marker::array32: {
           auto const cnt{read_len(4)};
           if (!cnt)
             return std::unexpected{cnt.error()};
@@ -1418,7 +1453,7 @@ public:
             return std::unexpected{error::buffer_underrun};
           break;
         }
-        case 0xDE: {  // map16
+        case detail::marker::map16: {
           auto const cnt{read_len(2)};
           if (!cnt)
             return std::unexpected{cnt.error()};
@@ -1427,7 +1462,7 @@ public:
             return std::unexpected{error::buffer_underrun};
           break;
         }
-        case 0xDF: {  // map32
+        case detail::marker::map32: {
           auto const cnt{read_len(4)};
           if (!cnt)
             return std::unexpected{cnt.error()};
@@ -1436,7 +1471,7 @@ public:
             return std::unexpected{error::buffer_underrun};
           break;
         }
-        default:  // 0xC1 reserved, ext / fixext, timestamp: unsupported
+        default:
           return std::unexpected{error::invalid_input};
       }
     }
