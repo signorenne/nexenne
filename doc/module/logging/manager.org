@@ -24,10 +24,13 @@ unused branch's constraints are never checked). =manager= is the alias for
 
 Each =Config= has one process-wide singleton reached through =instance()=. The
 async backend thread starts on first use and stops at process exit (=shutdown=
-is idempotent and runs from the destructor). =flush()= blocks until every
-already-queued record has been dispatched and every sink flushed; a
-=m_dispatching= flag closes the pop-but-not-yet-written window so =flush= never
-returns early.
+is idempotent and runs from a static guard). The manager itself is never
+destroyed, so an object destroyed at exit can still log from its destructor:
+after =shutdown=, =push=, =push_blocking= and =flush= write on the calling
+thread. =flush()= blocks until as many records have been dispatched as had been
+pushed when it began, or until the queue has drained, then flushes every sink;
+records pushed during the call do not extend the wait, and a =m_dispatching=
+flag closes the pop-but-not-yet-written window.
 
 #+BEGIN_SRC cpp
 auto& mgr = nexenne::logging::manager::instance();
