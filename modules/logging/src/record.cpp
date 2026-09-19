@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the log record.
+ */
+
 #include <string>
 #include <thread>
 #include <version>

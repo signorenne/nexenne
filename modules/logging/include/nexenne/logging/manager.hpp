@@ -580,6 +580,7 @@ public:
   }
 };
 
+/// @cond INTERNAL
 namespace detail {
 
 // A class-level requires clause is checked when the template-id is FORMED, not
@@ -598,6 +599,8 @@ struct manager_selector<Config, false> {
 };
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Selector alias picking the concrete manager from \p Config.

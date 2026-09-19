@@ -25,6 +25,7 @@
 #include <nexenne/logging/level.hpp>
 #include <nexenne/logging/logger.hpp>
 
+/// @cond INTERNAL
 /**
  * @def NEXENNE_LOG_IF_ENABLED_
  * @brief Internal: emit to the default logger when the compile-time gate passes.
@@ -46,35 +47,150 @@
       (logger_).log((level_), __VA_ARGS__);                                                        \
     }                                                                                              \
   } while (false)
+/// @endcond
 
-/** @brief Logs to the default logger at \c level::trace. */
+/**
+ * @brief Logs to the default logger at \c level::trace.
+ *
+ * Compiled out entirely when \c level::trace is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_TRACE(...) NEXENNE_LOG_IF_ENABLED_(::nexenne::logging::level::trace, __VA_ARGS__)
-/** @brief Logs to the default logger at \c level::debug. */
+/**
+ * @brief Logs to the default logger at \c level::debug.
+ *
+ * Compiled out entirely when \c level::debug is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_DEBUG(...) NEXENNE_LOG_IF_ENABLED_(::nexenne::logging::level::debug, __VA_ARGS__)
-/** @brief Logs to the default logger at \c level::info. */
+/**
+ * @brief Logs to the default logger at \c level::info.
+ *
+ * Compiled out entirely when \c level::info is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_INFO(...) NEXENNE_LOG_IF_ENABLED_(::nexenne::logging::level::info, __VA_ARGS__)
-/** @brief Logs to the default logger at \c level::warn. */
+/**
+ * @brief Logs to the default logger at \c level::warn.
+ *
+ * Compiled out entirely when \c level::warn is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_WARN(...) NEXENNE_LOG_IF_ENABLED_(::nexenne::logging::level::warn, __VA_ARGS__)
-/** @brief Logs to the default logger at \c level::error. */
+/**
+ * @brief Logs to the default logger at \c level::error.
+ *
+ * Compiled out entirely when \c level::error is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_ERROR(...) NEXENNE_LOG_IF_ENABLED_(::nexenne::logging::level::error, __VA_ARGS__)
-/** @brief Logs to the default logger at \c level::critical. */
+/**
+ * @brief Logs to the default logger at \c level::critical.
+ *
+ * Compiled out entirely when \c level::critical is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_CRITICAL(...) NEXENNE_LOG_IF_ENABLED_(::nexenne::logging::level::critical, __VA_ARGS__)
 
-/** @brief Logs to \p logger_ at \c level::trace. */
+/**
+ * @brief Logs to \p logger_ at \c level::trace.
+ *
+ * Compiled out entirely when \c level::trace is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param logger_ Logger to write through.
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_TRACE_TO(logger_, ...)                                                                 \
   NEXENNE_LOG_TO_IF_ENABLED_(::nexenne::logging::level::trace, (logger_), __VA_ARGS__)
-/** @brief Logs to \p logger_ at \c level::debug. */
+/**
+ * @brief Logs to \p logger_ at \c level::debug.
+ *
+ * Compiled out entirely when \c level::debug is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param logger_ Logger to write through.
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_DEBUG_TO(logger_, ...)                                                                 \
   NEXENNE_LOG_TO_IF_ENABLED_(::nexenne::logging::level::debug, (logger_), __VA_ARGS__)
-/** @brief Logs to \p logger_ at \c level::info. */
+/**
+ * @brief Logs to \p logger_ at \c level::info.
+ *
+ * Compiled out entirely when \c level::info is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param logger_ Logger to write through.
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_INFO_TO(logger_, ...)                                                                  \
   NEXENNE_LOG_TO_IF_ENABLED_(::nexenne::logging::level::info, (logger_), __VA_ARGS__)
-/** @brief Logs to \p logger_ at \c level::warn. */
+/**
+ * @brief Logs to \p logger_ at \c level::warn.
+ *
+ * Compiled out entirely when \c level::warn is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param logger_ Logger to write through.
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_WARN_TO(logger_, ...)                                                                  \
   NEXENNE_LOG_TO_IF_ENABLED_(::nexenne::logging::level::warn, (logger_), __VA_ARGS__)
-/** @brief Logs to \p logger_ at \c level::error. */
+/**
+ * @brief Logs to \p logger_ at \c level::error.
+ *
+ * Compiled out entirely when \c level::error is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param logger_ Logger to write through.
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_ERROR_TO(logger_, ...)                                                                 \
   NEXENNE_LOG_TO_IF_ENABLED_(::nexenne::logging::level::error, (logger_), __VA_ARGS__)
-/** @brief Logs to \p logger_ at \c level::critical. */
+/**
+ * @brief Logs to \p logger_ at \c level::critical.
+ *
+ * Compiled out entirely when \c level::critical is below \c NEXENNE_LOG_MIN_LEVEL.
+ *
+ * @param logger_ Logger to write through.
+ * @param ... Format string followed by its arguments.
+ *
+ * @pre As for \c basic_logger::log.
+ * @post As for \c basic_logger::log when the gate passes; nothing otherwise.
+ */
 #define LOG_CRITICAL_TO(logger_, ...)                                                              \
   NEXENNE_LOG_TO_IF_ENABLED_(::nexenne::logging::level::critical, (logger_), __VA_ARGS__)

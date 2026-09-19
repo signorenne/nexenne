@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the pattern formatter.
+ */
+
 #include <chrono>
 #include <cstddef>
 #include <ctime>

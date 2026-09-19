@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the JSON-lines sink.
+ */
+
 #include <chrono>
 #include <cstdio>
 #include <format>

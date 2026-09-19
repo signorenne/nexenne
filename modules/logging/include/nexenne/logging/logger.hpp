@@ -34,6 +34,7 @@
 
 namespace nexenne::logging {
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -66,6 +67,8 @@ namespace detail {
 }
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Named log emitter parameterised on a \c config.

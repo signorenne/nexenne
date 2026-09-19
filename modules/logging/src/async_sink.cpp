@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the background-thread decorator sink.
+ */
+
 #include <cassert>
 #include <memory>
 #include <mutex>

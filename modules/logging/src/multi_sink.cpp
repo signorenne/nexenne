@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the fan-out sink.
+ */
+
 #include <cstddef>
 #include <memory>
 #include <utility>

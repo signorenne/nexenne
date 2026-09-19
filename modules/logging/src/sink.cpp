@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the sink base and the bundled sinks.
+ */
+
 #include <chrono>
 #include <cstdio>
 #include <format>

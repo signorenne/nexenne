@@ -101,12 +101,16 @@ private:
   std::atomic<level> m_min_level{level::trace};
 
 public:
+  /// @brief Constructs a sink that accepts every level.
   sink() noexcept = default;
+  /// @brief Deleted copy constructor; a sink is shared by pointer, never copied.
   sink(sink const&) = delete;
+  /// @brief Deleted copy assignment; a sink is shared by pointer, never copied.
   auto operator=(sink const&) -> sink& = delete;
   // Move operations are intentionally not declared: the atomic m_min_level is
   // not movable, and a sink is always owned through a shared_ptr, never moved
   // by value.
+  /// @brief Destroys the sink.
   virtual ~sink() noexcept = default;
 
   /**

@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the size-based rotating file sink.
+ */
+
 #include <cstddef>
 #include <cstdio>
 #include <format>

@@ -31,6 +31,7 @@
 
 namespace nexenne::logging {
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -54,6 +55,8 @@ namespace detail {
 [[nodiscard]] auto thread_id_to_string(std::thread::id id) -> std::string;
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief A single formatted-and-stamped log event awaiting dispatch.
