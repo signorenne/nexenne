@@ -130,7 +130,8 @@ public:
    * driving writes: it will not race the backend's \c write_out or \c flush_out.
    *
    * @pre None.
-   * @post A new active file has been opened and the previous file archived.
+   * @post The previous file has been archived and a new active file opened;
+   *       if that open failed, the next write retries it.
    *
    * @warning Do not call from an actual signal handler: it runs \c stdio and
    *          allocation, which are not async-signal-safe. A SIGHUP handler should
@@ -208,7 +209,8 @@ private:
    * truncated rather than archived.
    *
    * @pre None.
-   * @post A fresh active file is open and the previous generations have shifted.
+   * @post The previous generations have shifted and a fresh active file is
+   *       open, unless the open failed.
    */
   auto rotate() noexcept -> void;
 

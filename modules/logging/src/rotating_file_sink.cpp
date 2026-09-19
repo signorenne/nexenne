@@ -44,7 +44,10 @@ auto rotating_file_sink::force_rotate() noexcept -> void {
 auto rotating_file_sink::write_out(record const& r) noexcept -> void {
   auto const guard{std::lock_guard{m_mutex}};
   if (m_file == nullptr) {
-    return;
+    open_current();
+    if (m_file == nullptr) {
+      return;
+    }
   }
   auto const line{default_format(r)};
   // Rotate before the write that would cross the limit, so a record is never

@@ -222,4 +222,25 @@ TEST_CASE("nexenne::logging::rotating_file_sink seeds its size from a pre-existi
   cleanup(base);
 }
 
+TEST_CASE("nexenne::logging::rotating_file_sink reopens after a failed rotation") {
+  // logging-07: a rotation whose reopen failed left the sink closed for good.
+  auto const dir{std::filesystem::temp_directory_path() / "nexenne_rfs_reopen"};
+  std::filesystem::remove_all(dir);
+  std::filesystem::create_directory(dir);
+  auto const base{dir / "app.log"};
+  lg::rotating_file_sink s{base.string(), 100'000, 2};
+  REQUIRE(s.is_open());
+
+  std::filesystem::remove_all(dir);
+  s.force_rotate();
+  CHECK_FALSE(s.is_open());
+
+  std::filesystem::create_directory(dir);
+  s.write(make_record(lg::level::info, "back"));
+  s.flush();
+  CHECK(s.is_open());
+  CHECK(read_file(base).find("-- back") != std::string::npos);
+  std::filesystem::remove_all(dir);
+}
+
 }  // namespace
