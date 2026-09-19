@@ -180,6 +180,7 @@ private:
   std::unique_ptr<sink> m_inner;
   config m_cfg;
   mutable std::mutex m_mu;
+  std::mutex m_inner_mu;                ///< Serialises the inner sink's write and flush.
   std::condition_variable m_not_empty;  ///< Worker waits here for records.
   std::condition_variable m_not_full;   ///< Blocking producers wait here for space.
   std::condition_variable m_drained;    ///< Flush waiters wait here for an empty queue.

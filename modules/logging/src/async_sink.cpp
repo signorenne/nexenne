@@ -69,6 +69,7 @@ auto async_sink::flush_out() noexcept -> void {
     m_drained.wait(lk, [this] { return (m_queue.empty() && !m_processing) || m_stop; });
   }
   if (m_inner) {
+    auto const inner_lk{std::scoped_lock{m_inner_mu}};
     m_inner->flush();
   }
 }
@@ -91,6 +92,7 @@ auto async_sink::run() noexcept -> void {
     // A slot just freed up; release a producer parked on the block policy.
     m_not_full.notify_one();
     if (m_inner) {
+      auto const inner_lk{std::scoped_lock{m_inner_mu}};
       m_inner->write(r);
     }
     {

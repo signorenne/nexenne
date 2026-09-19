@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -237,6 +238,54 @@ TEST_CASE("nexenne::logging::async_sink accepts records from many producer threa
     }
   }
   CHECK(state.count.load() == producers * per_producer);  // block drops nothing
+}
+
+struct overlap_state {
+  std::atomic<int> inside{0};
+  std::atomic<bool> overlapped{false};
+};
+
+class overlap_sink final : public lg::sink {
+public:
+  explicit overlap_sink(overlap_state& st) noexcept : m_st{st} {}
+
+protected:
+  auto write_out(lg::record const&) noexcept -> void override {
+    busy(std::chrono::microseconds{20});
+  }
+
+  auto flush_out() noexcept -> void override {
+    busy(std::chrono::microseconds{500});
+  }
+
+private:
+  auto busy(std::chrono::microseconds const hold) noexcept -> void {
+    if (m_st.inside.fetch_add(1, std::memory_order_acq_rel) != 0) {
+      m_st.overlapped.store(true, std::memory_order_relaxed);
+    }
+    std::this_thread::sleep_for(hold);
+    m_st.inside.fetch_sub(1, std::memory_order_acq_rel);
+  }
+
+  overlap_state& m_st;
+};
+
+TEST_CASE("nexenne::logging::async_sink never flushes the inner sink during a write") {
+  auto st{overlap_state{}};
+  {
+    lg::async_sink s{std::make_unique<overlap_sink>(st)};
+    auto producer{std::thread{[&s] {
+      for (auto i{0}; i < 2000; ++i) {
+        s.write(make_record("x"));
+        std::this_thread::sleep_for(std::chrono::microseconds{10});
+      }
+    }}};
+    for (auto i{0}; i < 100; ++i) {
+      s.flush();
+    }
+    producer.join();
+  }
+  CHECK_FALSE(st.overlapped.load());
 }
 
 }  // namespace
