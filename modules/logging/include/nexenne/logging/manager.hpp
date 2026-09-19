@@ -131,8 +131,10 @@ private:
     while (auto popped{m_queue.try_pop()}) {
       dispatch(*popped);
       m_dispatched.fetch_add(1, std::memory_order_seq_cst);
+      announce_progress();
     }
     m_dispatching.store(false, std::memory_order_release);
+    announce_progress();
   }
 
   /**
@@ -163,6 +165,11 @@ private:
   // Monotonic wakeup token: bumped on every successful push and on shutdown so
   // the backend's atomic wait returns. Pairs with m_signal.notify_one().
   std::atomic<std::uint32_t> m_signal{0};
+  // Monotonic progress token: bumped whenever something a flusher or a blocked
+  // pusher waits for may have changed (a record dispatched, a batch finished, a
+  // counted push taken back, a shutdown), so both park on an atomic wait
+  // instead of spinning. Pairs with m_progress.notify_all().
+  std::atomic<std::uint32_t> m_progress{0};
   std::thread m_backend;
 
   mutable std::mutex m_sinks_mutex;
@@ -264,15 +271,20 @@ public:
     } else {
       m_reserved.fetch_sub(1, std::memory_order_seq_cst);
       m_dropped.fetch_add(1, std::memory_order_relaxed);
+      // A flusher whose ticket counted this push may now be done.
+      announce_progress();
     }
     return result;
   }
 
   /**
-   * @brief Enqueues a record, spinning until there is room.
+   * @brief Enqueues a record, waiting until there is room.
    *
-   * Yields between attempts; never drops the record. After \c shutdown the
-   * record is written to the sinks on the calling thread instead.
+   * On a full queue the caller parks on an atomic wait until the backend
+   * dispatches a record or a shutdown begins, rather than spinning, so a
+   * lower-priority backend task gets the CPU on a priority scheduler. Never
+   * drops the record. After \c shutdown the record is written to the sinks on
+   * the calling thread instead.
    *
    * @param r Record to enqueue, moved in.
    *
@@ -283,11 +295,13 @@ public:
   auto push_blocking(record r) noexcept -> void {
     m_reserved.fetch_add(1, std::memory_order_seq_cst);
     while (!m_stop.load(std::memory_order_acquire)) {
+      // Token before the try: a pop before the wait changes it, so no wakeup is lost.
+      auto const seen{m_progress.load(std::memory_order_acquire)};
       if (m_queue.push(std::move(r)).has_value()) {
         after_enqueue();
         return;
       }
-      std::this_thread::yield();
+      m_progress.wait(seen, std::memory_order_acquire);
     }
     m_reserved.fetch_sub(1, std::memory_order_seq_cst);
     dispatch(r);
@@ -314,6 +328,7 @@ public:
    * window), then flushes each sink. Records pushed during the call do not
    * extend the wait. Guaranteed for records pushed by the calling thread before
    * this call; a record pushed concurrently by another thread is best-effort.
+   * The caller parks on an atomic wait between checks instead of spinning.
    *
    * @pre None.
    * @post Every record the calling thread enqueued before this call has been
@@ -321,9 +336,14 @@ public:
    */
   auto flush() noexcept -> void {
     auto const ticket{m_reserved.load(std::memory_order_seq_cst)};
-    while (!m_stop.load(std::memory_order_acquire)
-           && m_dispatched.load(std::memory_order_seq_cst) < ticket && !drained()) {
-      std::this_thread::yield();
+    for (;;) {
+      // Token before the check: progress before the wait changes it, so none is lost.
+      auto const seen{m_progress.load(std::memory_order_acquire)};
+      if (m_stop.load(std::memory_order_acquire)
+          || m_dispatched.load(std::memory_order_seq_cst) >= ticket || drained()) {
+        break;
+      }
+      m_progress.wait(seen, std::memory_order_acquire);
     }
     if (m_stop.load(std::memory_order_acquire)) {
       drain_queue();
@@ -349,6 +369,7 @@ public:
     // Pairs with the fence in after_enqueue: a racing push is drained below or drains itself.
     std::atomic_thread_fence(std::memory_order_seq_cst);
     wake_backend();
+    announce_progress();
     if (m_backend.joinable()) {
       m_backend.join();
     }
@@ -406,6 +427,21 @@ private:
   auto wake_backend() noexcept -> void {
     m_signal.fetch_add(1, std::memory_order_release);
     m_signal.notify_one();
+  }
+
+  /**
+   * @brief Bumps the progress token and wakes every thread parked on it.
+   *
+   * \c notify_all skips the kernel wake when no thread is waiting, so a
+   * dispatch with no flusher or blocked pusher costs only the atomic bump.
+   *
+   * @pre None.
+   * @post The progress token has advanced and every thread parked on it, if
+   *       any, has been released to re-check its condition.
+   */
+  auto announce_progress() noexcept -> void {
+    m_progress.fetch_add(1, std::memory_order_release);
+    m_progress.notify_all();
   }
 };
 

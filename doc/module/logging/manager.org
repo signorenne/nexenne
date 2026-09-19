@@ -55,6 +55,12 @@ allocation-free and =noexcept=.
   dispatched immediately with no lost-wakeup window. =notify= is skipped by the
   runtime when the backend is busy draining, so a push under load costs only the
   atomic bump.
+- *Waiters park too.* =flush= and a =push_blocking= that meets a full queue
+  wait on a second atomic token, bumped whenever a record is dispatched, a batch
+  ends, a counted push is taken back or a shutdown begins, instead of spinning
+  on =yield=. On a priority scheduler (an RTOS, or a thread at a higher
+  priority than the backend) a spin would keep the lower-priority backend from
+  ever running; a parked waiter gives it the CPU.
 - *One allocation per log call.* The message is formatted into an owned
   =std::string= (the one unavoidable heap op for format-on-producer); the logger
   name is interned once and thereafter borrowed by every record as a

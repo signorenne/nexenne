@@ -6,7 +6,9 @@
 #include <doctest/doctest.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
+#include <ctime>
 #include <memory>
 #include <mutex>
 #include <source_location>
@@ -179,5 +181,78 @@ TEST_CASE("nexenne::logging async manager writes on the calling thread after shu
 
   mgr.clear_sinks();
 }
+
+#if defined(CLOCK_THREAD_CPUTIME_ID)
+
+class slow_sink final : public lg::sink {
+public:
+  [[nodiscard]] auto count() const noexcept -> std::size_t {
+    return m_count.load(std::memory_order_acquire);
+  }
+
+protected:
+  auto write_out(lg::record const&) noexcept -> void override {
+    std::this_thread::sleep_for(std::chrono::milliseconds{25});
+    m_count.fetch_add(1, std::memory_order_release);
+  }
+
+  auto flush_out() noexcept -> void override {}
+
+private:
+  std::atomic<std::size_t> m_count{0};
+};
+
+[[nodiscard]] auto thread_cpu_time() -> std::chrono::nanoseconds {
+  auto ts{timespec{}};
+  nexenne::utility::ignore(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts));
+  return std::chrono::seconds{ts.tv_sec} + std::chrono::nanoseconds{ts.tv_nsec};
+}
+
+template <typename Fn>
+[[nodiscard]] auto waits_without_spinning(Fn&& fn) -> bool {
+  auto const wall_start{std::chrono::steady_clock::now()};
+  auto const cpu_start{thread_cpu_time()};
+  fn();
+  auto const cpu{thread_cpu_time() - cpu_start};
+  auto const wall{std::chrono::steady_clock::now() - wall_start};
+  return wall >= std::chrono::milliseconds{50} && cpu * 4 < wall;
+}
+
+TEST_CASE("nexenne::logging async manager flush parks while a slow sink drains") {
+  using slow_cfg = lg::config<8, true>;
+  auto& mgr{lg::basic_manager<slow_cfg>::instance()};
+  mgr.clear_sinks();
+  auto slow{std::make_shared<slow_sink>()};
+  mgr.add_sink(slow);
+
+  for (std::size_t i{0}; i < 6; ++i) {
+    nexenne::utility::ignore(mgr.push(rec("slow")));
+  }
+  CHECK(waits_without_spinning([&mgr] { mgr.flush(); }));
+  CHECK(slow->count() == 6);
+
+  mgr.clear_sinks();
+}
+
+TEST_CASE("nexenne::logging async manager push_blocking parks on a full queue") {
+  using tiny_cfg = lg::config<2, true>;
+  auto& mgr{lg::basic_manager<tiny_cfg>::instance()};
+  mgr.clear_sinks();
+  auto slow{std::make_shared<slow_sink>()};
+  mgr.add_sink(slow);
+
+  CHECK(waits_without_spinning([&mgr] {
+    for (std::size_t i{0}; i < 8; ++i) {
+      mgr.push_blocking(rec("blocked"));
+    }
+  }));
+  mgr.flush();
+  CHECK(slow->count() == 8);
+  CHECK(mgr.dropped_count() == 0);
+
+  mgr.clear_sinks();
+}
+
+#endif
 
 }  // namespace
