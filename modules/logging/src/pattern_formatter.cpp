@@ -47,9 +47,7 @@ auto pattern_formatter::level_short(level const l) noexcept -> char {
 auto pattern_formatter::append_time(
   std::string& out, std::chrono::system_clock::time_point const t, bool const include_date
 ) -> void {
-  // floor (not to_time_t / duration_cast, which truncate toward zero) so the
-  // seconds and the millisecond remainder agree and stay non-negative for
-  // pre-epoch timestamps.
+  // floor, not to_time_t or duration_cast: truncation toward zero breaks pre-epoch times.
   auto const secs{std::chrono::floor<std::chrono::seconds>(t)};
   auto const tt{std::chrono::system_clock::to_time_t(secs)};
   std::tm tm{};

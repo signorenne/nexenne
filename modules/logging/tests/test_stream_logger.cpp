@@ -23,7 +23,6 @@ namespace {
 
 namespace lg = nexenne::logging;
 
-// Opens a fresh temp file for writing; the caller closes it.
 [[nodiscard]] auto open_temp(std::filesystem::path const& path) -> std::FILE* {
   std::filesystem::remove(path);
   return std::fopen(path.string().c_str(), "wb");
@@ -35,7 +34,9 @@ namespace lg = nexenne::logging;
 }
 
 TEST_CASE("nexenne::logging::stream_logger writes a formatted line to a FILE*") {
-  auto const path{std::filesystem::temp_directory_path() / "nexenne_stream_logger_basic.log"};
+  auto const path{
+    std::filesystem::path{NEXENNE_LOGGING_TEST_DIR} / "nexenne_stream_logger_basic.log"
+  };
   auto* const f{open_temp(path)};
   REQUIRE(f != nullptr);
   {
@@ -48,14 +49,16 @@ TEST_CASE("nexenne::logging::stream_logger writes a formatted line to a FILE*") 
   CHECK(s.find("[INFO ]") != std::string::npos);
   CHECK(s.find("[dev]") != std::string::npos);
   CHECK(s.find("-- value=7") != std::string::npos);
-  CHECK(s.find("test_stream_logger.cpp:") != std::string::npos);  // file:line prefix
+  CHECK(s.find("test_stream_logger.cpp:") != std::string::npos);
   CHECK(!s.empty());
   CHECK(s.back() == '\n');
   std::filesystem::remove(path);
 }
 
 TEST_CASE("nexenne::logging::stream_logger truncates an overlong message with an ellipsis") {
-  auto const path{std::filesystem::temp_directory_path() / "nexenne_stream_logger_trunc.log"};
+  auto const path{
+    std::filesystem::path{NEXENNE_LOGGING_TEST_DIR} / "nexenne_stream_logger_trunc.log"
+  };
   auto* const f{open_temp(path)};
   REQUIRE(f != nullptr);
   {
@@ -65,15 +68,12 @@ TEST_CASE("nexenne::logging::stream_logger truncates an overlong message with an
   nexenne::utility::ignore(std::fclose(f));
 
   auto const s{read_all(path)};
-  CHECK(s.size() <= 64);                      // never exceeds the stack buffer
-  CHECK(s.find("...") != std::string::npos);  // truncation marker
+  CHECK(s.size() <= 64);
+  CHECK(s.find("...") != std::string::npos);
   std::filesystem::remove(path);
 }
 
 TEST_CASE("nexenne::logging::stream_logger terminates a truncated line, so two do not merge") {
-  // Regression for M2: a truncated line used to drop its trailing newline (the
-  // reserved last byte was guarded by out_it < end_it, which is false exactly on
-  // truncation), so two truncated messages concatenated into a single line.
   struct buffer_writer {
     std::string* out;
 
@@ -89,15 +89,16 @@ TEST_CASE("nexenne::logging::stream_logger terminates a truncated line, so two d
     log.info("{}", std::string(200, 'B'));
   }
 
-  // Two truncated messages must yield two newline-terminated lines, not one.
   CHECK(std::ranges::count(captured, '\n') == 2);
   CHECK(captured.back() == '\n');
-  CHECK(captured.find("...") != std::string::npos);     // truncation still marked
-  CHECK(captured.find("A...\n") != std::string::npos);  // the first line closes
+  CHECK(captured.find("...") != std::string::npos);
+  CHECK(captured.find("A...\n") != std::string::npos);
 }
 
 TEST_CASE("nexenne::logging::stream_logger respects the runtime level filter") {
-  auto const path{std::filesystem::temp_directory_path() / "nexenne_stream_logger_filter.log"};
+  auto const path{
+    std::filesystem::path{NEXENNE_LOGGING_TEST_DIR} / "nexenne_stream_logger_filter.log"
+  };
   auto* const f{open_temp(path)};
   REQUIRE(f != nullptr);
   {
@@ -120,14 +121,12 @@ TEST_CASE(
   lg::stream_logger log{"x", lg::level::trace, lg::file_writer{nullptr}};
   log.info("nothing");
   log.error("still nothing");
-  log.writer().stream = nullptr;  // retarget via the writer accessor
+  log.writer().stream = nullptr;
   log.warn("ignored");
   CHECK(true);
 }
 
 TEST_CASE("nexenne::logging::stream_logger drives a custom (non-FILE*) writer") {
-  // The embedded use case: a writer with no FILE*, e.g. a UART or RTT channel.
-  // Here it appends the formatted bytes to a test-owned string.
   struct buffer_writer {
     std::string* out;
 

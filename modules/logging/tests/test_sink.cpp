@@ -23,7 +23,6 @@ namespace {
 
 namespace lg = nexenne::logging;
 
-// A test sink that records every line that passes the base-class level filter.
 class capture_sink final : public lg::sink {
 public:
   std::vector<std::string> lines;
@@ -42,14 +41,14 @@ protected:
 
 TEST_CASE("nexenne::logging::sink filters records below its minimum level") {
   capture_sink s;
-  CHECK(s.min_level() == lg::level::trace);  // default
+  CHECK(s.min_level() == lg::level::trace);
   s.set_min_level(lg::level::warn);
   CHECK(s.min_level() == lg::level::warn);
 
-  s.write(make_record(lg::level::trace, "t"));  // dropped
-  s.write(make_record(lg::level::info, "i"));   // dropped
-  s.write(make_record(lg::level::warn, "w"));   // kept
-  s.write(make_record(lg::level::error, "e"));  // kept
+  s.write(make_record(lg::level::trace, "t"));
+  s.write(make_record(lg::level::info, "i"));
+  s.write(make_record(lg::level::warn, "w"));
+  s.write(make_record(lg::level::error, "e"));
   REQUIRE(s.lines.size() == 2);
   CHECK(s.lines[0].find("-- w") != std::string::npos);
   CHECK(s.lines[1].find("-- e") != std::string::npos);
@@ -60,19 +59,17 @@ TEST_CASE("nexenne::logging default_format renders every field in order") {
   s.write(make_record(lg::level::warn, "down"));
   REQUIRE(s.lines.size() == 1);
   auto const& line{s.lines[0]};
-  CHECK(line.find("[net]") != std::string::npos);     // logger name
-  CHECK(line.find("[WARN ]") != std::string::npos);   // level
-  CHECK(line.find(" -- down") != std::string::npos);  // message
-  CHECK(line.starts_with("["));                       // timestamp opens the line
-  CHECK(line.back() == '\n');                         // newline-terminated
+  CHECK(line.find("[net]") != std::string::npos);
+  CHECK(line.find("[WARN ]") != std::string::npos);
+  CHECK(line.find(" -- down") != std::string::npos);
+  CHECK(line.starts_with("["));
+  CHECK(line.back() == '\n');
 
-  // The leading "[YYYY-MM-DD HH:MM:SS.mmm]" must carry exactly one fractional
-  // separator with three millisecond digits (no duplicated sub-second part).
   auto const ts{line.substr(0, line.find(']'))};
   auto const dot{ts.find('.')};
   REQUIRE(dot != std::string::npos);
-  CHECK(ts.find('.', dot + 1) == std::string::npos);  // only one '.'
-  CHECK(ts.size() - dot - 1 == 3);                    // exactly three ms digits
+  CHECK(ts.find('.', dot + 1) == std::string::npos);
+  CHECK(ts.size() - dot - 1 == 3);
 }
 
 TEST_CASE("nexenne::logging::ring_sink retains the most recent N lines, oldest first") {
@@ -80,23 +77,25 @@ TEST_CASE("nexenne::logging::ring_sink retains the most recent N lines, oldest f
   CHECK(rs.size() == 0);
   rs.write(make_record(lg::level::info, "a"));
   rs.write(make_record(lg::level::info, "b"));
-  rs.write(make_record(lg::level::info, "c"));  // evicts "a"
+  rs.write(make_record(lg::level::info, "c"));
   CHECK(rs.size() == 2);
   auto const snap{rs.snapshot()};
   REQUIRE(snap.size() == 2);
-  CHECK(snap[0].find("-- b") != std::string::npos);  // oldest retained
-  CHECK(snap[1].find("-- c") != std::string::npos);  // newest
+  CHECK(snap[0].find("-- b") != std::string::npos);
+  CHECK(snap[1].find("-- c") != std::string::npos);
 }
 
 TEST_CASE("nexenne::logging::file_sink appends formatted lines and round-trips") {
-  auto const path{std::filesystem::temp_directory_path() / "nexenne_logging_file_sink_test.log"};
+  auto const path{
+    std::filesystem::path{NEXENNE_LOGGING_TEST_DIR} / "nexenne_logging_file_sink_test.log"
+  };
   std::filesystem::remove(path);
   {
     lg::file_sink f{path.string()};
     REQUIRE(f.is_open());
     f.write(make_record(lg::level::error, "boom"));
     f.flush();
-  }  // closed by destructor
+  }
   auto in{std::ifstream{path}};
   REQUIRE(in.is_open());
   auto const contents{std::string{std::istreambuf_iterator<char>{in}, {}}};
@@ -106,34 +105,28 @@ TEST_CASE("nexenne::logging::file_sink appends formatted lines and round-trips")
   std::filesystem::remove(path);
 }
 
-TEST_CASE("nexenne::logging::file_sink reports a failed open") {
-  // A path that cannot be opened for append (a directory) reports not-open.
-  lg::file_sink bad{std::filesystem::temp_directory_path().string()};
+TEST_CASE("nexenne::logging::file_sink reports a failed open of a directory path") {
+  lg::file_sink bad{std::string_view{NEXENNE_LOGGING_TEST_DIR}};
   CHECK_FALSE(bad.is_open());
 }
 
-// Regression for M1: file_sink used to define move operations that
-// default-constructed the sink base subobject and silently reset the per-sink
-// min_level filter back to trace, so a moved file_sink wrote records the user
-// had filtered out. The moves are now deleted (the sink is owned through a
-// shared_ptr, like the base), so the type is not movable and a level set on it
-// cannot be lost.
 TEST_CASE("nexenne::logging::file_sink is not movable and keeps its level filter") {
   static_assert(!std::is_move_constructible_v<lg::file_sink>);
   static_assert(!std::is_move_assignable_v<lg::file_sink>);
   static_assert(!std::is_copy_constructible_v<lg::file_sink>);
 
-  auto const path{std::filesystem::temp_directory_path() / "nexenne_logging_file_sink_level.log"};
+  auto const path{
+    std::filesystem::path{NEXENNE_LOGGING_TEST_DIR} / "nexenne_logging_file_sink_level.log"
+  };
   std::filesystem::remove(path);
   lg::file_sink f{path.string()};
   REQUIRE(f.is_open());
   f.set_min_level(lg::level::error);
-  CHECK(f.min_level() == lg::level::error);  // no move path can silently reset it
+  CHECK(f.min_level() == lg::level::error);
   std::filesystem::remove(path);
 }
 
 TEST_CASE("nexenne::logging::console_sink constructs with each routing policy") {
-  // Smoke: construction and a write must not crash (output goes to the console).
   [[maybe_unused]] lg::console_sink def{};
   [[maybe_unused]] lg::console_sink out{lg::console_sink::stream::stdout_only};
   [[maybe_unused]] lg::console_sink err{lg::console_sink::stream::stderr_only};

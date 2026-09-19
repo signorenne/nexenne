@@ -17,11 +17,7 @@
 namespace nexenne::logging {
 
 auto sink::default_format(record const& r) -> std::string {
-  // Floor to whole seconds for the date-time part, then append the
-  // milliseconds by hand: formatting %T on the full-precision time point
-  // would already print a fraction, duplicating the sub-second digits. floor
-  // (not time_point_cast, which truncates toward zero) keeps the split correct
-  // for pre-epoch timestamps.
+  // %T on whole seconds avoids a duplicate fraction; floor, unlike a cast, is right pre-epoch.
   auto const tp{r.timestamp};
   auto const tp_sec{std::chrono::floor<std::chrono::seconds>(tp)};
   auto const tp_ms{std::chrono::floor<std::chrono::milliseconds>(tp)};
@@ -48,8 +44,6 @@ auto console_sink::routing() const noexcept -> stream {
 auto console_sink::write_out(record const& r) noexcept -> void {
   auto const line{default_format(r)};
   auto* const out{pick_stream(r.severity)};
-  // fwrite is the smallest portable atomic write for FILE*; glibc serialises
-  // a full fwrite call.
   nexenne::utility::ignore(std::fwrite(line.data(), 1, line.size(), out));
 }
 

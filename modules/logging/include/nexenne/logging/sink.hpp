@@ -108,9 +108,6 @@ public:
   sink(sink const&) = delete;
   /// @brief Deleted copy assignment; a sink is shared by pointer, never copied.
   auto operator=(sink const&) -> sink& = delete;
-  // Move operations are intentionally not declared: the atomic m_min_level is
-  // not movable, and a sink is always owned through a shared_ptr, never moved
-  // by value.
   /// @brief Destroys the sink.
   virtual ~sink() noexcept = default;
 
@@ -284,11 +281,6 @@ public:
   file_sink(file_sink const&) = delete;
   auto operator=(file_sink const&) -> file_sink& = delete;
 
-  // Move operations are intentionally not declared: a sink is always owned
-  // through a shared_ptr, never moved by value, matching the base sink. Declaring
-  // moves here would default-construct the sink base subobject and silently reset
-  // the per-sink min_level filter to trace.
-
   /**
    * @brief Flushes and closes the file.
    *
@@ -406,8 +398,6 @@ protected:
    * @post The formatted line is the newest entry in the ring.
    */
   auto write_out(record const& r) noexcept -> void override {
-    // Format outside the lock so a concurrent snapshot/size only waits on the
-    // push, not on the allocation and formatting.
     auto line{default_format(r)};
     auto const guard{std::lock_guard{m_mutex}};
     m_buf.push_overwrite(std::move(line));

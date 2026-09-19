@@ -109,10 +109,7 @@ private:
       if (m_stop.load(std::memory_order_acquire)) {
         break;
       }
-      // Block until a producer (or shutdown) bumps m_signal. If one already did
-      // between the token snapshot and here, wait returns at once, so there is no
-      // lost wakeup; a genuinely idle backend blocks indefinitely with no poll,
-      // so the CPU can reach deep sleep on an embedded target.
+      // A bump since the token snapshot makes this wait return at once: no lost wakeup.
       m_signal.wait(token, std::memory_order_acquire);
     }
     drain_queue();

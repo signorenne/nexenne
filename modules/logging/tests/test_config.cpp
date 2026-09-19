@@ -13,8 +13,6 @@ namespace {
 
 namespace lg = nexenne::logging;
 
-// Namespace-scope so the static members are legal (local classes cannot have
-// static data members).
 struct missing_async {
   static constexpr std::size_t queue_size = 8;
 };

@@ -20,9 +20,6 @@ namespace {
 
 namespace lg = nexenne::logging;
 
-// A test sink that records every line that passes the base-class level filter.
-// Shares a vector with the test so captures remain observable after the sink is
-// adopted by a multi_sink.
 class capture_sink final : public lg::sink {
 public:
   explicit capture_sink(std::vector<std::string>* const out) noexcept : m_out{out} {}
@@ -67,13 +64,13 @@ TEST_CASE("nexenne::logging::multi_sink applies each child's own level filter") 
   std::vector<std::string> high;
   auto low_sink{std::make_unique<capture_sink>(&low)};
   auto high_sink{std::make_unique<capture_sink>(&high)};
-  high_sink->set_min_level(lg::level::error);  // only error-and-up reaches high
+  high_sink->set_min_level(lg::level::error);
   lg::multi_sink ms;
   ms.add(std::move(low_sink));
   ms.add(std::move(high_sink));
 
-  ms.write(make_record(lg::level::info, "i"));   // low only
-  ms.write(make_record(lg::level::error, "e"));  // both
+  ms.write(make_record(lg::level::info, "i"));
+  ms.write(make_record(lg::level::error, "e"));
 
   REQUIRE(low.size() == 2);
   REQUIRE(high.size() == 1);
@@ -83,8 +80,8 @@ TEST_CASE("nexenne::logging::multi_sink applies each child's own level filter") 
 TEST_CASE("nexenne::logging::multi_sink with no children is a write/flush no-op") {
   lg::multi_sink ms;
   CHECK(ms.child_count() == 0);
-  ms.write(make_record(lg::level::critical, "x"));  // must not crash
-  ms.flush();                                       // must not crash
+  ms.write(make_record(lg::level::critical, "x"));
+  ms.flush();
   CHECK(ms.child_count() == 0);
 }
 
@@ -108,8 +105,6 @@ TEST_CASE("nexenne::logging::multi_sink fans flush out to every child") {
 TEST_CASE("nexenne::logging::multi_sink dispatches in insertion order") {
   std::vector<std::string> order;
 
-  // Both children append to the same vector with a distinct prefix so arrival
-  // order is observable.
   class tagged_sink final : public lg::sink {
   public:
     tagged_sink(std::vector<std::string>* const out, std::string tag) noexcept
@@ -149,7 +144,7 @@ TEST_CASE("nexenne::logging::multi_sink's own level filter gates before fan-out"
   ms.add(std::make_unique<capture_sink>(&a));
   ms.set_min_level(lg::level::warn);
 
-  ms.write(make_record(lg::level::info, "dropped"));  // gated by the composite
+  ms.write(make_record(lg::level::info, "dropped"));
   ms.write(make_record(lg::level::warn, "kept"));
   REQUIRE(a.size() == 1);
   CHECK(a[0].find("-- kept") != std::string::npos);

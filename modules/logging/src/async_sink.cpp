@@ -27,11 +27,7 @@ async_sink::~async_sink() noexcept {
     auto const lk{std::scoped_lock{m_mu}};
     m_stop = true;
   }
-  // Wake the worker (it may be waiting for records), any producer parked on
-  // the block policy, and any thread parked in flush_out. The flusher matters
-  // as much as the producer: the worker's graceful-shutdown exit returns
-  // without touching m_drained, so without this a parked flusher waits
-  // forever and then has the condition variable destroyed underneath it.
+  // m_drained too: the worker's exit never notifies it, so a parked flusher would hang.
   m_not_empty.notify_all();
   m_not_full.notify_all();
   m_drained.notify_all();
@@ -90,25 +86,19 @@ auto async_sink::run() noexcept -> void {
       auto lk{std::unique_lock{m_mu}};
       m_not_empty.wait(lk, [this] { return m_stop || !m_queue.empty(); });
       if (m_queue.empty()) {
-        // The queue is empty; the predicate only also lets us through on a
-        // stop request, so this is the graceful-shutdown exit.
         return;
       }
       r = std::move(m_queue.front());
       m_queue.pop();
-      m_processing = true;  // a record is now in flight, not yet written
+      m_processing = true;
     }
-    // A slot just freed up; release a producer parked on the block policy.
     m_not_full.notify_one();
     if (m_inner) {
       auto const inner_lk{std::scoped_lock{m_inner_mu}};
       m_inner->write(r);
     }
     {
-      // The write is complete. Only now, with nothing dequeued and nothing
-      // left, is the sink truly drained, so wake flush waiters here rather
-      // than right after the pop, which would let flush return with this
-      // record still unwritten.
+      // Wake flushers only after the write: waking at the pop lets flush return early.
       auto lk{std::unique_lock{m_mu}};
       m_processing = false;
       if (m_queue.empty()) {

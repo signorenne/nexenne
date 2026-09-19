@@ -98,9 +98,6 @@ public:
   json_sink(json_sink const&) = delete;
   auto operator=(json_sink const&) -> json_sink& = delete;
 
-  // Move operations are intentionally not declared: a sink is always owned
-  // through a shared_ptr, never moved by value.
-
   /**
    * @brief Destructor: flushes and closes the file when owned.
    *

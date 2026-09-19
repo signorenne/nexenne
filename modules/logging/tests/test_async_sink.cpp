@@ -25,8 +25,7 @@ namespace {
 
 namespace lg = nexenne::logging;
 
-// The async_sink OWNS (and destroys) the wrapped sink, so the capture target is
-// kept in a test-owned state object that outlives the async_sink.
+// async_sink owns and destroys its inner sink, so captures live in this outliving state.
 struct capture_state {
   mutable std::mutex mutex;
   std::vector<std::string> messages;
@@ -57,7 +56,6 @@ private:
   capture_state& m_st;
 };
 
-// A slow inner sink that stalls until released, with test-owned counters.
 struct slow_state {
   std::atomic<bool> release{false};
   std::atomic<std::size_t> seen{0};
@@ -85,7 +83,7 @@ private:
   return lg::record{lg::level::info, std::source_location::current(), "net", std::move(msg)};
 }
 
-TEST_CASE("nexenne::logging::async_sink forwards every record to the wrapped sink") {
+TEST_CASE("nexenne::logging::async_sink forwards every record to the wrapped sink in order") {
   capture_state state;
   constexpr std::size_t total{200};
   {
@@ -93,13 +91,12 @@ TEST_CASE("nexenne::logging::async_sink forwards every record to the wrapped sin
     for (std::size_t i{0}; i < total; ++i) {
       async.write(make_record(std::to_string(i)));
     }
-    // The destructor drains the queue and joins the worker.
-  }  // async (and the capture_sink) destroyed here; state survives.
+  }
   CHECK(state.count.load() == total);
   auto const got{state.snapshot()};
   REQUIRE(got.size() == total);
   for (std::size_t i{0}; i < total; ++i) {
-    CHECK(got[i] == std::to_string(i));  // single producer/consumer preserves FIFO
+    CHECK(got[i] == std::to_string(i));
   }
 }
 
@@ -131,14 +128,11 @@ TEST_CASE("nexenne::logging::async_sink drop_newest keeps the queue bounded unde
   cfg.on_overflow = lg::overflow_action::drop_newest;
   {
     lg::async_sink async{std::make_unique<slow_sink>(state), cfg};
-    // Push far more than the queue holds while the inner sink is stalled;
-    // drop_newest must keep write non-blocking and never deadlock.
     for (std::size_t i{0}; i < 1000; ++i) {
       async.write(make_record(std::to_string(i)));
     }
     state.release.store(true, std::memory_order_release);
   }
-  // At most the in-flight record plus a queue's worth survived.
   CHECK(state.seen.load() >= 1);
   CHECK(state.seen.load() <= 6);
 }
@@ -155,7 +149,6 @@ TEST_CASE("nexenne::logging::async_sink drop_oldest neither blocks nor deadlocks
     }
     state.release.store(true, std::memory_order_release);
   }
-  // Most of the 100 were dropped; reaching here proves no deadlock.
   CHECK(state.seen.load() <= 10);
 }
 
@@ -183,17 +176,11 @@ TEST_CASE("nexenne::logging::async_sink shuts down cleanly with pending records"
     for (std::size_t i{0}; i < total; ++i) {
       async.write(make_record(std::to_string(i)));
     }
-    // No flush: the destructor must drain pending records gracefully.
   }
   CHECK(state.count.load() == total);
 }
 
 TEST_CASE("nexenne::logging::async_sink handles the queue_size_limit == 1 boundary") {
-  // Regression for M3: queue_size_limit 0 was undefined behaviour under
-  // drop_oldest (pop on an empty queue) and a permanent producer stall under
-  // block (waiting on a predicate that can never hold). The documented lower
-  // bound is 1; that minimal single-slot queue must deliver correctly and never
-  // pop an empty queue.
   SUBCASE("block delivers every record through a single-slot queue") {
     capture_state state;
     lg::async_sink::config cfg{};
@@ -206,7 +193,7 @@ TEST_CASE("nexenne::logging::async_sink handles the queue_size_limit == 1 bounda
         async.write(make_record(std::to_string(i)));
       }
     }
-    CHECK(state.count.load() == total);  // block with a 1-slot queue loses nothing
+    CHECK(state.count.load() == total);
   }
 
   SUBCASE("drop_oldest never pops an empty single-slot queue") {
@@ -221,7 +208,6 @@ TEST_CASE("nexenne::logging::async_sink handles the queue_size_limit == 1 bounda
       }
       state.release.store(true, std::memory_order_release);
     }
-    // Reaching here without a crash or hang proves the empty-pop UB is gone.
     CHECK(state.seen.load() >= 1);
   }
 }
@@ -247,7 +233,7 @@ TEST_CASE("nexenne::logging::async_sink accepts records from many producer threa
       t.join();
     }
   }
-  CHECK(state.count.load() == producers * per_producer);  // block drops nothing
+  CHECK(state.count.load() == producers * per_producer);
 }
 
 struct overlap_state {

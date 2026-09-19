@@ -45,9 +45,6 @@
 
 namespace lg = nexenne::logging;
 
-// A custom sink that keeps only a running count and the highest severity seen -
-// a cheap "health summary" you might expose on a status endpoint. It consumes
-// the structured record, so it never pays to format a line.
 class summary_sink final : public lg::sink {
 public:
   [[nodiscard]] auto count() const noexcept -> std::size_t {
@@ -73,16 +70,11 @@ private:
   lg::level m_worst{lg::level::trace};
 };
 
-// Builds a record at a given level. A real logger does this for you and fills in
-// the timestamp/thread; here we forge them so the tour needs no logger. The name
-// is a string literal (process-lifetime), satisfying the record's borrow rule.
 [[nodiscard]] auto make(lg::level const sev, std::string msg) -> lg::record {
   return lg::record{sev, std::source_location::current(), "demo", std::move(msg)};
 }
 
 auto main() -> int {
-  // 1. The custom sink on its own. write() applies the sink's own level filter
-  // (default trace, so everything passes) before calling our write_out.
   std::puts("== 1. Custom summary_sink ==");
   summary_sink summary;
   summary.write(make(lg::level::info, "started"));
@@ -94,16 +86,12 @@ auto main() -> int {
     lg::to_string(summary.worst()).data()
   );
 
-  // 2. Fan-out with per-child filters. A multi_sink owns its children and
-  // dispatches in insertion order; each child keeps its own min_level, so one
-  // record can reach some children and be dropped by others. Here a console
-  // child (warn and up) and a ring child (everything) split the same stream.
   std::puts("== 2. multi_sink fan-out with per-child filters ==");
   lg::multi_sink fan;
   auto console{std::make_unique<lg::console_sink>(lg::console_sink::stream::stdout_only)};
-  console->set_min_level(lg::level::warn);  // console only shows warn and up
+  console->set_min_level(lg::level::warn);
   auto ring{std::make_unique<lg::ring_sink<8>>()};
-  auto* const ring_ptr{ring.get()};  // borrow to read the snapshot back later
+  auto* const ring_ptr{ring.get()};
   fan.add(std::move(console));
   fan.add(std::move(ring));
   std::printf("  %s\n", lg::to_string(fan).c_str());
@@ -112,11 +100,6 @@ auto main() -> int {
   fan.flush();
   std::printf("  ring captured %zu line(s) (it kept the info too)\n", ring_ptr->size());
 
-  // 3. The async_sink decorator. It wraps a slow inner sink and inserts a
-  // background thread: producers enqueue cheaply and return, the thread drains.
-  // The overflow policy decides behaviour on a full queue (block / drop_oldest /
-  // drop_newest). The destructor drains gracefully - no queued record is lost on
-  // a normal teardown - so we scope it and read the inner summary afterward.
   std::puts("== 3. async_sink decorator (offloads writes) ==");
   summary_sink* inner_view{nullptr};
   {
@@ -130,14 +113,10 @@ auto main() -> int {
     for (int i{0}; i < 50; ++i) {
       offloaded.write(make(lg::level::info, "async record"));
     }
-    offloaded.flush();  // block until the queue drains once
-  }  // async_sink destructor joins the worker, so inner has seen every record now
+    offloaded.flush();
+  }
   std::printf("  inner summary_sink saw %zu records after the drain\n", inner_view->count());
 
-  // 4. rotating_file_sink: cap each file at max_bytes and keep max_files
-  // backups. We set a tiny cap so a handful of lines forces a rotation, then
-  // report where the bytes are. The rotation check runs before any write that
-  // would cross the limit, so a record is never split across two files.
   std::puts("== 4. rotating_file_sink (size-based rotation) ==");
   auto const base{std::string{"showcase_rotate.log"}};
   {
@@ -152,7 +131,6 @@ auto main() -> int {
       std::puts("  could not open the rotating log file (skipping)");
     }
   }
-  // Tidy up the files this tour wrote so reruns start clean.
   nexenne::utility::ignore(std::remove(base.c_str()));
   nexenne::utility::ignore(std::remove((base + ".1").c_str()));
   nexenne::utility::ignore(std::remove((base + ".2").c_str()));

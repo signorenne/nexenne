@@ -150,9 +150,6 @@ public:
   basic_stream_logger(basic_stream_logger const&) = delete;
   auto operator=(basic_stream_logger const&) -> basic_stream_logger& = delete;
 
-  // Move operations are intentionally not declared: the atomic m_min_level is
-  // not movable, and the logger is meant to be constructed where it lives.
-
   /**
    * @brief Logger name.
    *
@@ -258,14 +255,11 @@ public:
       return;
     }
 
-    // Stack buffer holding prefix plus user message; -1 leaves room for a
-    // terminating newline.
     auto buf{std::array<char, BufferSize>{}};
     auto out_it{buf.data()};
+    // The last byte is reserved for the newline; out_it is clamped to end_it below.
     auto const end_it{buf.data() + buf.size() - 1};
 
-    // Prefix "[LEVEL] [name] file:line -- ". format_to_n never allocates: it
-    // writes up to n chars to the iterator and stops.
     auto prefix_result{std::format_to_n(
       out_it,
       static_cast<std::ptrdiff_t>(end_it - out_it),
@@ -280,7 +274,6 @@ public:
       out_it = end_it;
     }
 
-    // Append the formatted user message into whatever room remains.
     auto msg_result{std::format_to_n(
       out_it, static_cast<std::ptrdiff_t>(end_it - out_it), fmt.fmt, std::forward<Args>(args)...
     )};
@@ -289,9 +282,6 @@ public:
       out_it = end_it;
     }
 
-    // Mark truncation with an ellipsis when format_to_n wanted more room than
-    // was left. out_it is pinned at end_it on truncation, so the last three
-    // written bytes are clobbered in place.
     auto const truncated{msg_result.size > (end_it - prefix_result.out)};
     if (truncated && (out_it - buf.data()) >= 3) {
       out_it[-3] = '.';
@@ -299,10 +289,6 @@ public:
       out_it[-1] = '.';
     }
 
-    // Write the newline unconditionally. out_it is clamped to at most end_it and
-    // *end_it is the byte reserved for the terminator (the buffer holds
-    // BufferSize bytes, end_it is data + size - 1), so even a truncated line ends
-    // in '\n' and consecutive truncated lines do not merge into one.
     *out_it = '\n';
     out_it += 1;
     m_writer(std::span<char const>{buf.data(), static_cast<std::size_t>(out_it - buf.data())});

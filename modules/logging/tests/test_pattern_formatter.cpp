@@ -21,8 +21,6 @@ namespace {
 
 namespace lg = nexenne::logging;
 
-// Builds a record with a fixed, known wall-clock instant so timestamp tokens
-// render deterministically: 2026-01-02T03:04:05.678 UTC.
 [[nodiscard]] auto make_record(lg::level const sev, std::string_view const name, std::string msg)
   -> lg::record {
   auto r{lg::record{sev, std::source_location::current(), name, std::move(msg)}};
@@ -43,7 +41,6 @@ TEST_CASE("nexenne::logging::pattern_formatter default pattern renders a full li
   auto const f{lg::pattern_formatter{}};
   auto const r{make_record(lg::level::warn, "net", "link down")};
   auto const out{f.format(r)};
-  // [%T] [%L] [%n] %m (%f:%#)
   CHECK(out.starts_with("[03:04:05.678] [W] [net] link down ("));
   CHECK(out.find("test_pattern_formatter.cpp:") != std::string::npos);
   CHECK(out.back() == ')');
@@ -89,19 +86,17 @@ TEST_CASE("nexenne::logging::pattern_formatter %L renders the single-char level 
 TEST_CASE("nexenne::logging::pattern_formatter %n renders the logger name") {
   auto const f{lg::pattern_formatter{std::string{"%n"}}};
   CHECK(f.format(make_record(lg::level::info, "subsystem", "m")) == "subsystem");
-  CHECK(f.format(make_record(lg::level::info, "", "m")).empty());  // empty name
+  CHECK(f.format(make_record(lg::level::info, "", "m")).empty());
 }
 
 TEST_CASE("nexenne::logging::pattern_formatter %m renders the message body") {
   auto const f{lg::pattern_formatter{std::string{"%m"}}};
   CHECK(f.format(make_record(lg::level::info, "x", "hello world")) == "hello world");
-  CHECK(f.format(make_record(lg::level::info, "x", "")).empty());  // empty message
+  CHECK(f.format(make_record(lg::level::info, "x", "")).empty());
 }
 
 TEST_CASE("nexenne::logging::pattern_formatter %f renders the file basename only") {
   auto const f{lg::pattern_formatter{std::string{"%f"}}};
-  // source_location::current() yields this file with whatever path the build
-  // used; the formatter must strip every directory component.
   auto const out{f.format(make_record(lg::level::info, "x", "m"))};
   CHECK(out == "test_pattern_formatter.cpp");
   CHECK(out.find('/') == std::string::npos);
@@ -119,20 +114,15 @@ TEST_CASE("nexenne::logging::pattern_formatter %s renders the function name") {
   auto const f{lg::pattern_formatter{std::string{"%s"}}};
   auto const r{make_record(lg::level::info, "x", "m")};
   auto const out{f.format(r)};
-  // The function name string is compiler-specific; just require it is non-empty
-  // and matches what the location reports.
   CHECK(out == std::string_view{r.location.function_name()});
   CHECK_FALSE(out.empty());
 }
 
 TEST_CASE("nexenne::logging::pattern_formatter %o renders the producing thread id") {
-  // Regression for m13: the record captured a thread id that no formatter could
-  // render; %o now emits it. make_record stamps the id on this thread.
   auto const f{lg::pattern_formatter{std::string{"%o"}}};
   auto const r{make_record(lg::level::info, "x", "m")};
   auto const out{f.format(r)};
-  // Build the expectation from the stream inserter rather than the module's own
-  // helper, so the check stays independent of how the helper renders the id.
+  // Expected from the stream inserter, not the module's helper, so the check stays independent.
   auto expected{std::ostringstream{}};
   expected << std::this_thread::get_id();
   CHECK(out == expected.str());
@@ -155,7 +145,6 @@ TEST_CASE("nexenne::logging::pattern_formatter an unknown token keeps the percen
 }
 
 TEST_CASE("nexenne::logging::pattern_formatter a trailing percent is emitted verbatim") {
-  // A '%' at the very end has no following character and is kept literally.
   auto const f{lg::pattern_formatter{std::string{"done%"}}};
   CHECK(f.format(make_record(lg::level::info, "x", "m")) == "done%");
 }
@@ -196,15 +185,10 @@ TEST_CASE("nexenne::logging::pattern_formatter combines every token in one patte
 }
 
 TEST_CASE("nexenne::logging::pattern_formatter tolerates a null source-location file name") {
-  // A default-constructed source_location may report a null file/function name
-  // on some implementations; the formatter must render "?" rather than form a
-  // string_view from a null pointer (undefined behaviour).
   auto r{lg::record{lg::level::info, std::source_location::current(), "x", std::string{"m"}}};
-  r.location = std::source_location{};  // unspecified, possibly null, name fields
+  r.location = std::source_location{};
   auto const f{lg::pattern_formatter{std::string{"%f|%s"}}};
   auto const out{f.format(r)};
-  // Either the implementation supplies a real name, or the formatter substitutes
-  // "?"; in neither case may it crash, and the separator must survive.
   CHECK(out.find('|') != std::string::npos);
 }
 

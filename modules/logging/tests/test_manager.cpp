@@ -67,7 +67,6 @@ private:
   return lg::record{lg::level::info, std::source_location::current(), "t", std::move(msg)};
 }
 
-// Distinct configs give distinct manager singletons, isolating these tests.
 using sync_cfg = lg::config<1, false>;
 using async_cfg = lg::config<1024, true>;
 
@@ -82,7 +81,7 @@ TEST_CASE("nexenne::logging sync manager dispatches inline to every registered s
 
   nexenne::utility::ignore(mgr.push(rec("a")));
   nexenne::utility::ignore(mgr.push(rec("b")));
-  CHECK(cap->count() == 2);  // synchronous: no flush needed
+  CHECK(cap->count() == 2);
   CHECK(mgr.dropped_count() == 0);
 
   mgr.flush();
@@ -123,10 +122,6 @@ TEST_CASE("nexenne::logging async manager drains every pushed record after flush
 }
 
 TEST_CASE("nexenne::logging async manager loses no record under concurrent producers") {
-  // Stresses the atomic wait/notify wakeup: many producers bump the signal while
-  // the single backend drains. A lost wakeup would stall flush() (the queue never
-  // empties); a lost record would make the count fall short. push_blocking never
-  // drops, so every record must arrive.
   auto& mgr{lg::basic_manager<async_cfg>::instance()};
   mgr.clear_sinks();
   auto cap{std::make_shared<capture_sink>()};
@@ -150,7 +145,7 @@ TEST_CASE("nexenne::logging async manager loses no record under concurrent produ
   }
   mgr.flush();
   CHECK(cap->count() == total);
-  CHECK(mgr.dropped_count() == 0);  // push_blocking never drops
+  CHECK(mgr.dropped_count() == 0);
 
   mgr.clear_sinks();
 }

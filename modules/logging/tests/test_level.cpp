@@ -16,7 +16,6 @@ namespace {
 namespace lg = nexenne::logging;
 
 TEST_CASE("nexenne::logging::level is ordered by ascending severity") {
-  // Verbosity increases as the numeric value decreases; off is the maximum.
   CHECK(static_cast<std::uint8_t>(lg::level::trace) == 0);
   CHECK(lg::level::trace < lg::level::debug);
   CHECK(lg::level::debug < lg::level::info);
@@ -34,7 +33,6 @@ TEST_CASE("nexenne::logging::to_string names every level in a fixed five-char co
   CHECK(lg::to_string(lg::level::error) == "ERROR");
   CHECK(lg::to_string(lg::level::critical) == "CRIT ");
   CHECK(lg::to_string(lg::level::off) == "OFF  ");
-  // Every name is exactly five characters wide so columns align.
   for (auto const l :
        {lg::level::trace,
         lg::level::debug,
@@ -45,7 +43,6 @@ TEST_CASE("nexenne::logging::to_string names every level in a fixed five-char co
         lg::level::off}) {
     CHECK(lg::to_string(l).size() == 5);
   }
-  // An out-of-range value is named, not undefined.
   CHECK(lg::to_string(static_cast<lg::level>(99)) == "?????");
 }
 
@@ -66,16 +63,12 @@ TEST_CASE("nexenne::logging level naming is usable in a constant expression") {
 }
 
 TEST_CASE("nexenne::logging NEXENNE_LOG_MIN_LEVEL defaults to trace and gates by comparison") {
-  // Not pre-defined in this TU, so the header's default applies: everything in.
   static_assert(NEXENNE_LOG_MIN_LEVEL == lg::level::trace);
-  // The compile-time gate is a plain ordered comparison against the threshold.
-  static_assert(lg::level::trace >= NEXENNE_LOG_MIN_LEVEL);     // trace is compiled in
-  static_assert(lg::level::critical >= NEXENNE_LOG_MIN_LEVEL);  // and so is everything above
-  // Emulate a stricter build-time threshold and confirm the gate would strip the
-  // more verbose levels while keeping the severe ones.
+  static_assert(lg::level::trace >= NEXENNE_LOG_MIN_LEVEL);
+  static_assert(lg::level::critical >= NEXENNE_LOG_MIN_LEVEL);
   constexpr auto strict{lg::level::warn};
-  static_assert(lg::level::debug < strict);   // gated out
-  static_assert(lg::level::error >= strict);  // kept
+  static_assert(lg::level::debug < strict);
+  static_assert(lg::level::error >= strict);
 }
 
 }  // namespace

@@ -36,22 +36,19 @@ TEST_CASE("nexenne::logging::record stamps fields, time, and producing thread") 
   CHECK(r.logger_name == "net");
   CHECK(r.message == "link down");
   CHECK(r.thread_id == std::this_thread::get_id());
-  // The timestamp lies within the window bracketing construction.
   CHECK(r.timestamp >= before);
   CHECK(r.timestamp <= after);
-  // The captured call site is the one we passed.
   CHECK(std::string_view{r.location.function_name()} == std::string_view{loc.function_name()});
   CHECK(r.location.line() == loc.line());
 }
 
 TEST_CASE("nexenne::logging::record moves the message in rather than copying it") {
-  // A long string spills out of SSO so the move steals the heap buffer and the
-  // data pointer is preserved end to end.
+  // Longer than any small-string buffer, so a move keeps the heap pointer.
   auto msg{std::string{"a message long enough to force a heap allocation past small-string land"}};
   auto const* const buffer{msg.data()};
   auto const r{lg::record{lg::level::info, std::source_location::current(), "x", std::move(msg)}};
   CHECK(r.message.size() == 71);
-  CHECK(r.message.data() == buffer);  // stolen, not copied
+  CHECK(r.message.data() == buffer);
 }
 
 TEST_CASE("nexenne::logging::record is movable and carries every field") {

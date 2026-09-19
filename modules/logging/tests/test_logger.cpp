@@ -58,8 +58,6 @@ private:
 
 using sync_cfg = lg::config<1, false>;
 
-// Registers a fresh capture sink on the sync manager and returns it; clears any
-// previously registered sinks so each test starts clean.
 [[nodiscard]] auto fresh_sink() -> std::shared_ptr<capture_sink> {
   auto& mgr{lg::basic_manager<sync_cfg>::instance()};
   mgr.clear_sinks();
@@ -122,7 +120,6 @@ TEST_CASE("nexenne::logging::basic_logger formats arguments and captures the cal
   auto const got{cap->records()};
   REQUIRE(got.size() == 1);
   CHECK(got[0].message == "x=1 y=2");
-  // The format_string wrapper captures this file and a positive line number.
   CHECK(
     std::string_view{got[0].location.file_name()}.find("test_logger.cpp") != std::string_view::npos
   );

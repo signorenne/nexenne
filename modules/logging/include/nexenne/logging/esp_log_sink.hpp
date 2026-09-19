@@ -59,10 +59,6 @@ protected:
    *       as the tag.
    */
   auto write_out(record const& r) noexcept -> void override {
-    // record only guarantees the name outlives the record, not that it is
-    // null-terminated, so copy it into a bounded, explicitly terminated buffer
-    // rather than handing esp_log_write a possibly-unterminated data() pointer
-    // (a non-interned view built with substr would otherwise read past its end).
     auto tag{std::array<char, 32>{}};
     auto const name{r.logger_name.empty() ? std::string_view{"log"} : r.logger_name};
     auto const n{std::min(name.size(), tag.size() - 1)};

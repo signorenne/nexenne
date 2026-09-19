@@ -22,3 +22,8 @@ if(NEXENNE_LOGGING_HOST_SINKS)
 endif()
 
 nexenne_add_module_tests(logging SOURCES ${_logging_test_sources})
+
+# Tests that write files keep them inside this build directory, never in the
+# system temp directory.
+target_compile_definitions(nexenne_logging_tests PRIVATE
+    NEXENNE_LOGGING_TEST_DIR="${CMAKE_CURRENT_BINARY_DIR}")
