@@ -39,10 +39,10 @@ namespace detail {
 /**
  * @brief Interns a logger name into process-lifetime storage, returning a view.
  *
- * Names are deduplicated and never freed, so the returned view stays valid for
- * the whole program. This lets a \c record borrow the name as a \c string_view
- * (no per-call allocation) while remaining safe even when the record outlives
- * its logger in the async queue. The \c std::deque node storage keeps existing
+ * Names are deduplicated and never freed, not even at exit, so the returned view
+ * stays valid for the whole program, destructors of static objects included. This lets a \c record
+ * borrow the name as a \c string_view (no per-call allocation) while remaining safe even when the
+ * record outlives its logger in the async queue. The \c std::deque node storage keeps existing
  * elements pinned across growth, so earlier views never dangle.
  *
  * @param name Logger name to intern.
@@ -54,8 +54,8 @@ namespace detail {
  * @throws std::bad_alloc if the table cannot grow.
  */
 [[nodiscard]] inline auto intern_name(std::string_view const name) -> std::string_view {
-  static std::mutex mutex;
-  static std::deque<std::string> storage;
+  static auto& mutex{*new std::mutex{}};
+  static auto& storage{*new std::deque<std::string>{}};
   auto const guard{std::lock_guard{mutex}};
   for (auto const& s : storage) {
     if (s == name) {

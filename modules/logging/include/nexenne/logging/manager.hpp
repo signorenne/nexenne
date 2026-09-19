@@ -32,6 +32,7 @@
 #include <nexenne/logging/config.hpp>
 #include <nexenne/logging/record.hpp>
 #include <nexenne/logging/sink.hpp>
+#include <nexenne/utility/defer.hpp>
 #include <nexenne/utility/for_each_non_null.hpp>
 
 namespace nexenne::logging {
@@ -159,15 +160,21 @@ public:
   /**
    * @brief Access the process-wide singleton for \p Config.
    *
-   * The first call constructs the manager and starts its backend thread.
+   * The first call constructs the manager and starts its backend thread. The
+   * manager is never destroyed, so an object destroyed at exit may still log
+   * from its destructor; a static guard shuts the backend down at exit instead,
+   * after which records are written on the calling thread.
    *
    * @return A reference to the shared async manager.
    *
    * @pre None.
-   * @post The backend thread is running.
+   * @post The backend thread is running, or has been shut down.
    */
   [[nodiscard]] static auto instance() noexcept -> basic_async_manager& {
-    static basic_async_manager s_instance{};
+    static auto& s_instance{*new basic_async_manager{}};
+    static auto const s_shutdown_at_exit{nexenne::utility::defer{[] noexcept {
+      s_instance.shutdown();
+    }}};
     return s_instance;
   }
 
@@ -220,7 +227,8 @@ public:
    * @brief Enqueues a record for the backend thread, non-blocking.
    *
    * Wakes the backend on success; on a full queue the record is dropped and
-   * \c dropped_count grows.
+   * \c dropped_count grows. After \c shutdown the record is written to the
+   * sinks on the calling thread instead.
    *
    * @param r Record to enqueue, moved in.
    *
@@ -233,9 +241,13 @@ public:
    * @complexity \c O(1).
    */
   auto push(record r) noexcept -> std::expected<void, container::container_error> {
+    if (m_stop.load(std::memory_order_acquire)) {
+      dispatch(r);
+      return {};
+    }
     auto result{m_queue.push(std::move(r))};
     if (result.has_value()) {
-      wake_backend();
+      after_enqueue();
     } else {
       m_dropped.fetch_add(1, std::memory_order_relaxed);
     }
@@ -245,22 +257,24 @@ public:
   /**
    * @brief Enqueues a record, spinning until there is room.
    *
-   * Yields between attempts; never drops the record.
+   * Yields between attempts; never drops the record. After \c shutdown the
+   * record is written to the sinks on the calling thread instead.
    *
    * @param r Record to enqueue, moved in.
    *
    * @pre None.
-   * @post The record has been enqueued for the backend thread.
+   * @post The record has been enqueued for the backend thread, or written after
+   *       \c shutdown.
    */
   auto push_blocking(record r) noexcept -> void {
-    while (true) {
-      auto result{m_queue.push(std::move(r))};
-      if (result.has_value()) {
-        wake_backend();
+    while (!m_stop.load(std::memory_order_acquire)) {
+      if (m_queue.push(std::move(r)).has_value()) {
+        after_enqueue();
         return;
       }
       std::this_thread::yield();
     }
+    dispatch(r);
   }
 
   /**
@@ -289,8 +303,12 @@ public:
    *       dispatched and every sink has been flushed.
    */
   auto flush() noexcept -> void {
-    while (!m_queue.empty_approx() || m_dispatching.load(std::memory_order_acquire)) {
+    while (!m_stop.load(std::memory_order_acquire)
+           && (!m_queue.empty_approx() || m_dispatching.load(std::memory_order_acquire))) {
       std::this_thread::yield();
+    }
+    if (m_stop.load(std::memory_order_acquire)) {
+      drain_queue();
     }
     auto const guard{std::lock_guard{m_sinks_mutex}};
     nexenne::utility::for_each_non_null(m_sinks, [](sink& s) { s.flush(); });
@@ -310,6 +328,8 @@ public:
     if (m_stop.exchange(true, std::memory_order_acq_rel)) {
       return;
     }
+    // Pairs with the fence in after_enqueue: a racing push is drained below or drains itself.
+    std::atomic_thread_fence(std::memory_order_seq_cst);
     wake_backend();
     if (m_backend.joinable()) {
       m_backend.join();
@@ -320,6 +340,24 @@ public:
   }
 
 private:
+  /**
+   * @brief Hands a just-enqueued record to the backend, or drains it after a stop.
+   *
+   * A \c shutdown that raced the enqueue may have finished its last drain
+   * already, so a pusher that now sees the stop drains the queue itself.
+   *
+   * @pre The calling thread has just enqueued a record.
+   * @post The record will be written by the backend, or has been written.
+   */
+  auto after_enqueue() noexcept -> void {
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    if (m_stop.load(std::memory_order_relaxed)) {
+      drain_queue();
+      return;
+    }
+    wake_backend();
+  }
+
   /**
    * @brief Bumps the wakeup token and wakes the backend if it is parked.
    *
@@ -384,13 +422,17 @@ public:
   /**
    * @brief Access the process-wide singleton for \p Config.
    *
+   * Never destroyed, so an object destroyed at exit may still log from its
+   * destructor; a static guard flushes the sinks at exit instead.
+   *
    * @return A reference to the shared sync manager.
    *
    * @pre None.
    * @post None.
    */
   [[nodiscard]] static auto instance() noexcept -> basic_sync_manager& {
-    static basic_sync_manager s_instance{};
+    static auto& s_instance{*new basic_sync_manager{}};
+    static auto const s_flush_at_exit{nexenne::utility::defer{[] noexcept { s_instance.flush(); }}};
     return s_instance;
   }
 

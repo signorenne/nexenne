@@ -162,4 +162,22 @@ TEST_CASE("nexenne::logging manager selector and aliases resolve from the config
   CHECK(true);
 }
 
+TEST_CASE("nexenne::logging async manager writes on the calling thread after shutdown") {
+  using stopped_cfg = lg::config<4, true>;
+  auto& mgr{lg::basic_manager<stopped_cfg>::instance()};
+  auto cap{std::make_shared<capture_sink>()};
+  mgr.add_sink(cap);
+  mgr.shutdown();
+
+  CHECK(mgr.push(rec("late")).has_value());
+  CHECK(cap->count() == 1);
+  mgr.push_blocking(rec("later"));
+  CHECK(cap->count() == 2);
+  mgr.flush();
+  CHECK(cap->flushes() >= 1);
+  CHECK(mgr.dropped_count() == 0);
+
+  mgr.clear_sinks();
+}
+
 }  // namespace
