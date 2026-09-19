@@ -75,6 +75,9 @@ public:
    *
    * @pre None.
    * @post \c is_open() reports whether the file was opened successfully.
+   *
+   * @note Copies \p path into a string; since this is \c noexcept, an
+   *       allocation failure terminates.
    */
   explicit json_sink(std::string_view path) noexcept;
 

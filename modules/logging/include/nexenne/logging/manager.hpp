@@ -71,6 +71,9 @@ private:
    *
    * @pre None.
    * @post The backend thread is running.
+   *
+   * @note Since this is \c noexcept, a failure to start the thread
+   *       (\c std::system_error) terminates.
    */
   basic_async_manager() noexcept {
     m_backend = std::thread{[this] { backend_loop(); }};
