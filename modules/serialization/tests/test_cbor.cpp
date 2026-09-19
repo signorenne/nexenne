@@ -16,13 +16,33 @@ namespace {
 
 using namespace nexenne::serialization;
 
-// Build an immutable byte span over an array literal of unsigned char values.
+/**
+ * @brief Builds a byte vector from integer literals.
+ *
+ * @tparam Bs Integer types of the literals.
+ * @param bs Byte values, each narrowed to \c std::uint8_t.
+ *
+ * @return The bytes, in order.
+ *
+ * @pre Every value fits in a byte.
+ * @post None.
+ */
 template <typename... Bs>
 [[nodiscard]] auto bytes_of(Bs... bs) -> std::vector<std::byte> {
   return {static_cast<std::byte>(static_cast<std::uint8_t>(bs))...};
 }
 
-// Compare a writer's emitted prefix against an expected byte sequence.
+/**
+ * @brief Whether a writer's emitted bytes equal \p expected.
+ *
+ * @param w Writer whose emitted prefix is compared.
+ * @param expected Expected byte sequence.
+ *
+ * @return \c true when the sizes and every byte match.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] auto
 written_equals(cbor::writer const& w, std::span<std::uint8_t const> const expected) -> bool {
   auto const out{w.written()};

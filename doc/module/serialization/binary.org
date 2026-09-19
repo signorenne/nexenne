@@ -62,8 +62,9 @@ prefix byte. On read, the length is bounds-checked against the remaining buffer
 *before* the bytes are consumed, so a lying or truncated length prefix returns
 =buffer_underrun= rather than over-reading. A =max_string_size= cap limits it
 further: =max_string_size()= reads it, and assigning through it on a mutable
-reader lowers it on a RAM-constrained target. A varint is rejected past 10 bytes (over-long for 64
-bits), and a non-canonical tenth byte that would overflow is rejected too.
+reader lowers it on a RAM-constrained target. A varint is rejected past 10 bytes
+(over-long for 64 bits), and a non-canonical tenth byte that would overflow is
+rejected too.
 
 #+BEGIN_EXAMPLE
   write("hi")         ->  02 'h' 'i'        (length 2 as one LEB128 byte)

@@ -26,6 +26,40 @@
  * Why no exceptions: every fallible call returns std::expected<T, error>. We
  * check each one. Nothing here throws, nothing here allocates on the hot path,
  * so the same code drops onto a microcontroller reading the blob out of flash.
+ *
+ * The wire layout save() writes, which the loader mirrors exactly:
+ *
+ *   - The envelope first, so the loader knows the version before the body.
+ *   - Scalars: write() picks the encoding from the type, a varint length
+ *     prefix for a string and fixed little-endian bytes for an int32 or a
+ *     double.
+ *   - The inventory: a varint count, then each item's fields in order, with no
+ *     per-element tag, because the reader knows an item is {string, uint16}.
+ *   - The stats map: the same count-then-pairs shape. std::map iterates in key
+ *     order, so two saves of equal data are byte-identical (good for a content
+ *     hash or a diff), and the signed values are zigzag-packed, so a stat near
+ *     zero costs one byte whether it is +3 or -3.
+ *
+ * The steps main() walks through:
+ *
+ *   1. Save into a fixed-size stack buffer, no heap: the writer reports
+ *      buffer_full rather than overrunning, so there is no need to guess
+ *      generously.
+ *   2. Load: decode_with reads the envelope, checks the magic, and routes the
+ *      body to save_codec::decode for the stored version, one call for the
+ *      version handshake and the body decode. The loaded state is compared
+ *      field by field, so the round-trip claim is checked, not assumed.
+ *   3. Wrong magic: a buffer carrying a different tag ('CONF') is refused
+ *      before a single body byte is decoded, the guard that keeps a config blob
+ *      from being parsed as a save.
+ *   4. Truncated input: given only the first 20 bytes of a good save, the
+ *      header and the first fields decode, then a read runs off the end and
+ *      returns buffer_underrun instead of reading uninitialised memory.
+ *   5. Capacity: saving into a 12-byte buffer (room for the header, not the
+ *      body) fails with buffer_full at the first write that does not fit, and
+ *      the partial write is harmless because the cursor only advances on
+ *      success.
+ *
  * Read it top to bottom.
  */
 
@@ -47,32 +81,61 @@ namespace ser = nexenne::serialization;
 
 namespace {
 
-// The application tag stamped into every save's envelope. read_header rejects a
-// blob whose magic does not match, so a config file or a stray buffer can never
-// be mistaken for a save and half-decoded.
-constexpr std::uint32_t save_magic{0x53415645};  // ASCII "SAVE" (0x53='S' .. 0x45='E')
+/**
+ * @brief Application tag stamped into every save's envelope: ASCII "SAVE".
+ *
+ * \c read_header rejects a blob whose magic does not match, so a config file
+ * or a stray buffer can never be mistaken for a save and half-decoded.
+ */
+constexpr std::uint32_t save_magic{0x53415645};
+
+/// @brief Wire version this program writes and reads.
 constexpr std::uint16_t save_version{1};
 
-// The in-memory state we want to persist. Plain data, no serialization logic on
-// it: the codec below owns the wire format, the struct stays oblivious.
+/**
+ * @brief One inventory entry.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct item {
-  std::string name{};
-  std::uint16_t quantity{0};
+  std::string name{};         ///< Display name of the item.
+  std::uint16_t quantity{0};  ///< How many the player carries.
 };
 
+/**
+ * @brief The in-memory state to persist.
+ *
+ * Plain data with no serialization logic: the codec owns the wire format and
+ * the struct stays oblivious.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct game_state {
-  std::string player{};
-  std::int32_t level{0};
-  double health{0.0};
-  std::vector<item> inventory{};
-  std::map<std::string, std::int32_t> stats{};  // ordered, so the wire order is stable
+  std::string player{};                         ///< Player name.
+  std::int32_t level{0};                        ///< Character level.
+  double health{0.0};                           ///< Remaining health points.
+  std::vector<item> inventory{};                ///< Carried items, in order.
+  std::map<std::string, std::int32_t> stats{};  ///< Named stats, in stable key order.
 };
 
-// Serialize a game_state into buf behind a version envelope. Every step is a
-// fallible binary write; we thread the std::expected through so the first
-// failure (a buffer too small) stops us and surfaces the error. There is no
-// length-prefixed "object" on the wire: a container is just its count followed
-// by that many elements, which the reader mirrors exactly.
+/**
+ * @brief Serializes \p gs into \p buf behind a version envelope.
+ *
+ * Every step is a fallible binary write, and the first failure (a buffer too
+ * small) stops the save and surfaces the error. There is no length-prefixed
+ * object on the wire: a container is just its count followed by that many
+ * elements.
+ *
+ * @param gs State to save.
+ * @param buf Destination buffer.
+ *
+ * @return The number of bytes written, or the first write error.
+ *
+ * @pre None.
+ * @post On success \p buf starts with the envelope and the body.
+ */
 auto save(game_state const& gs, std::span<std::byte> const buf)
   -> std::expected<std::size_t, ser::error> {
   auto w{ser::binary::writer{buf}};
@@ -127,11 +190,30 @@ auto save(game_state const& gs, std::span<std::byte> const buf)
   return w.bytes_written();
 }
 
-// The codec passed to decode_with. versioned.hpp validates the envelope, then
-// hands us the body reader and the parsed version so we only own the
-// version-dispatch. A real format would keep decode_v1 around forever and add
-// decode_v2 alongside it; here v1 is all there is.
+/**
+ * @brief The codec passed to \c decode_with.
+ *
+ * versioned.hpp validates the envelope, then hands over the body reader and the
+ * parsed version, so the codec owns only the version dispatch. A real format
+ * would keep decode_v1 around forever and add decode_v2 alongside it; here v1
+ * is all there is.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct save_codec {
+  /**
+   * @brief Decodes a save body written under \p version.
+   *
+   * @param r Reader positioned at the body.
+   * @param version Envelope version of the save.
+   *
+   * @return The decoded state, a read error, or \c error::invalid_input for an
+   *         unknown future version.
+   *
+   * @pre None.
+   * @post On success \p r has advanced past the body.
+   */
   [[nodiscard]] auto decode(ser::binary::reader& r, std::uint16_t const version) const
     -> std::expected<game_state, ser::error> {
     if (version != save_version) {
@@ -141,10 +223,21 @@ struct save_codec {
   }
 
 private:
-  // Read the body in the same order save() wrote it. read_string() returns a
-  // view straight into the buffer (zero copy); we materialise std::strings here
-  // because the game_state outlives the buffer. Every read is bounds-checked,
-  // so a truncated blob fails cleanly instead of reading past the end.
+  /**
+   * @brief Reads a version 1 body in the same order \c save wrote it.
+   *
+   * \c read_string returns a view straight into the buffer (zero copy); the
+   * strings are copied out because the state outlives the buffer. Every read
+   * is bounds-checked, so a truncated blob fails cleanly instead of reading
+   * past the end.
+   *
+   * @param r Reader positioned at the body.
+   *
+   * @return The decoded state, or the first read error.
+   *
+   * @pre None.
+   * @post On success \p r has advanced past the body.
+   */
   [[nodiscard]] static auto decode_v1(ser::binary::reader& r)
     -> std::expected<game_state, ser::error> {
     auto gs{game_state{}};
@@ -203,8 +296,17 @@ private:
   }
 };
 
-// Compare two states field by field so the round-trip claim is checked, not
-// asserted on faith.
+/**
+ * @brief Compares two states field by field.
+ *
+ * @param a First state.
+ * @param b Second state.
+ *
+ * @return \c true when every field matches.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto states_equal(game_state const& a, game_state const& b) -> bool {
   if (a.player != b.player || a.level != b.level || a.health != b.health) {
     return false;

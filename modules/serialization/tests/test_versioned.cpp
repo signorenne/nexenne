@@ -13,15 +13,39 @@ namespace {
 
 using namespace nexenne::serialization;
 
-// A payload struct and a version-dispatching codec used across the
-// decode_with cases. Version 1 reads a single u32; version 2 reads two u16
-// halves and recombines them; any other version is rejected by the codec.
+/**
+ * @brief Payload decoded by \c sample_codec across the \c decode_with cases.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct sample {
-  std::uint16_t version{};
-  std::uint32_t payload{};
+  std::uint16_t version{};  ///< Envelope version the payload was decoded under.
+  std::uint32_t payload{};  ///< Decoded 32-bit payload.
 };
 
+/**
+ * @brief Version-dispatching codec used across the \c decode_with cases.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct sample_codec {
+  /**
+   * @brief Decodes one \c sample body for envelope version \p v.
+   *
+   * Version 1 reads a single u32; version 2 reads two u16 halves and
+   * recombines them as \c hi << 16 | lo; any other version is rejected.
+   *
+   * @param r Reader positioned at the body.
+   * @param v Envelope version.
+   *
+   * @return The decoded sample, or the reader's error, or
+   *         \c error::invalid_input for an unknown version.
+   *
+   * @pre None.
+   * @post On success \p r has advanced past the body.
+   */
   auto decode(binary::reader& r, std::uint16_t const v) const noexcept
     -> std::expected<sample, error> {
     if (v == 1) {
@@ -43,15 +67,43 @@ struct sample_codec {
   }
 };
 
-// The concept must accept a real codec and reject decode signatures that return
-// the wrong shape (not a std::expected, or an expected with a foreign error).
+/**
+ * @brief Codec whose decode returns a plain \c int, which \c versioned_decoder rejects.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct bad_codec_plain {
+  /**
+   * @brief Returns zero without reading.
+   *
+   * @return Zero, not a \c std::expected.
+   *
+   * @pre None.
+   * @post None.
+   */
   auto decode(binary::reader&, std::uint16_t) const noexcept -> int {
     return 0;
   }
 };
 
+/**
+ * @brief Codec whose decode returns an expected with a foreign error type.
+ *
+ * \c versioned_decoder rejects it.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct bad_codec_wrong_error {
+  /**
+   * @brief Returns zero without reading.
+   *
+   * @return Zero, in an expected whose error type is \c bool.
+   *
+   * @pre None.
+   * @post None.
+   */
   auto decode(binary::reader&, std::uint16_t) const noexcept -> std::expected<int, bool> {
     return 0;
   }

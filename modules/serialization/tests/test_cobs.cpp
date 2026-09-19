@@ -11,7 +11,19 @@ namespace {
 namespace cobs = nexenne::serialization::cobs;
 using nexenne::serialization::error;
 
-// Round-trip helper: encode then decode and compare to the original.
+/**
+ * @brief Encodes \p payload, checks the frame is zero-free, and decodes it back.
+ *
+ * Also checks that the encoded form holds no zero byte, so 0x00 can delimit
+ * frames.
+ *
+ * @param payload Bytes to round-trip.
+ *
+ * @return The decoded bytes, to compare against \p payload.
+ *
+ * @pre None.
+ * @post One doctest check per encoded byte has been recorded.
+ */
 auto round_trip(std::vector<std::byte> const& payload) -> std::vector<std::byte> {
   std::vector<std::byte> encoded(cobs::max_encoded_size(payload.size()));
   auto const enc{cobs::encode(payload, encoded)};
@@ -29,7 +41,16 @@ auto round_trip(std::vector<std::byte> const& payload) -> std::vector<std::byte>
   return decoded;
 }
 
-// Encode into a max-sized buffer and return the encoded frame on its own.
+/**
+ * @brief Encodes \p payload into a max-sized buffer and trims it to the frame.
+ *
+ * @param payload Bytes to encode.
+ *
+ * @return The encoded frame on its own.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto encode_frame(std::vector<std::byte> const& payload) -> std::vector<std::byte> {
   std::vector<std::byte> encoded(cobs::max_encoded_size(payload.size()));
   auto const enc{cobs::encode(payload, encoded)};
@@ -38,6 +59,16 @@ auto encode_frame(std::vector<std::byte> const& payload) -> std::vector<std::byt
   return encoded;
 }
 
+/**
+ * @brief Builds a byte vector from integer literals.
+ *
+ * @param vs Byte values, in order.
+ *
+ * @return The bytes.
+ *
+ * @pre Every value fits in a byte.
+ * @post None.
+ */
 auto bytes(std::initializer_list<int> vs) -> std::vector<std::byte> {
   std::vector<std::byte> out;
   for (int const v : vs)
@@ -45,7 +76,16 @@ auto bytes(std::initializer_list<int> vs) -> std::vector<std::byte> {
   return out;
 }
 
-// True iff the encoded frame contains no 0x00 byte (the COBS invariant).
+/**
+ * @brief Whether \p frame holds no 0x00 byte, the COBS invariant.
+ *
+ * @param frame Encoded frame to scan.
+ *
+ * @return \c true when no byte is zero.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto zero_free(std::vector<std::byte> const& frame) -> bool {
   for (auto const b : frame)
     if (b == std::byte{0})

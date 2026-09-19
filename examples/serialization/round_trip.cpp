@@ -2,16 +2,29 @@
  * @file
  * @brief Round-trip the same data through every serialization codec.
  *
- * Shows the four flavours side by side: a JSON DOM (parse, query by JSON
- * Pointer, re-serialize), the schema-driven binary writer/reader, the CBOR
- * codec, and COBS framing that turns a payload containing 0x00 into a zero-free
- * frame. Every operation returns std::expected; the buffers are sized so the
- * calls succeed.
+ * Shows the four flavours side by side, then goes deeper. Every operation
+ * returns std::expected; the buffers are sized so the calls succeed:
  *
- * The last three tours go deeper: a CBOR nested array-of-maps decoded by
- * peeking the type of each item, building a JSON DOM in code and reading it
- * back typed, and the two error paths (a buffer too small to write into, a
- * truncated buffer to read from) showing that failures arrive as values.
+ *   1. JSON: parse, query by JSON Pointer, re-serialize.
+ *   2. Schema-driven binary: no tags, both sides walk the same order. Fields
+ *      are spelled with the fixed-width integer aliases: write and read take
+ *      only a binary::fixed_width_scalar, so the bytes cannot change with the
+ *      target.
+ *   3. CBOR: self-describing, so peek the type, then read.
+ *   4. COBS: frame a payload that itself contains 0x00, so a 0x00 can delimit
+ *      the frame.
+ *   5. CBOR nested: an array of two maps, each {"id": uint, "ok": bool}. The
+ *      reader does not need the schema: it reads the array length, then for
+ *      each element reads the map pair count and peeks each value's type
+ *      before choosing the matching read call.
+ *   6. A JSON DOM built in code (not parsed), then read back typed. operator[]
+ *      mutates in place, get<T>() returns std::optional for a safe typed read,
+ *      and the object serializes in sorted-key order for a deterministic
+ *      string.
+ *   7. Error paths arrive as values, never exceptions: a writer with no room
+ *      (a 4-byte write into 1 byte) reports buffer_full, a reader past the end
+ *      reports buffer_underrun, and a bad JSON document reports a parse_error
+ *      whose code names the failure and whose line and column point at it.
  */
 
 #include <array>

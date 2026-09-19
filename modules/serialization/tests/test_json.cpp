@@ -1473,9 +1473,23 @@ TEST_CASE("nexenne::serialization::json parse - duplicate key reported at its se
   CHECK(json::serialize(*ok) == R"({"a":1,"b":2,"c":3})");
 }
 
-// serialization-05: scan is noexcept, so a visitor must be too; a throwing
-// visitor used to satisfy sax_visitor and terminate inside scan.
+/**
+ * @brief Visitor whose \c on_int may throw, so it must not satisfy \c sax_visitor.
+ *
+ * \c scan is \c noexcept, so a visitor must be too.
+ *
+ * @pre None.
+ * @post None.
+ */
 struct throwing_visitor : json::noop_visitor {
+  /**
+   * @brief Accepts an integer event; not \c noexcept.
+   *
+   * @return \c true, to continue the scan.
+   *
+   * @pre None.
+   * @post None.
+   */
   auto on_int(std::int64_t) -> bool {
     return true;
   }

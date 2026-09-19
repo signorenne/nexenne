@@ -19,9 +19,22 @@ namespace {
 
 using namespace nexenne::serialization;
 
-// Read sizeof(T) bytes out of a byte buffer at offset off into a freshly
-// default-constructed T via memcpy. Avoids any reinterpret_cast / strict
-// aliasing games when checking the exact bytes a writer emitted.
+/**
+ * @brief Loads a \c T from the raw bytes at \p off in \p buf.
+ *
+ * Copies \c sizeof(T) bytes into a default-constructed \c T with \c memcpy,
+ * so checking the exact bytes a writer emitted needs no \c reinterpret_cast or
+ * strict-aliasing games.
+ *
+ * @tparam T Trivially copyable type to load.
+ * @param buf Buffer holding the bytes.
+ * @param off Byte offset of the value in \p buf.
+ *
+ * @return The value whose object representation is those bytes.
+ *
+ * @pre \p buf holds at least \c off + sizeof(T) bytes.
+ * @post None.
+ */
 template <typename T>
 [[nodiscard]] auto load_le(std::span<std::byte const> const buf, std::size_t const off) -> T {
   auto value{T{}};
@@ -29,8 +42,20 @@ template <typename T>
   return value;
 }
 
-// Bit-exact comparison for floating point: NaN != NaN under ==, so compare the
-// underlying object representation instead.
+/**
+ * @brief Whether \p a and \p b have the same object representation.
+ *
+ * Bit-exact comparison for floating point, where NaN != NaN under ==.
+ *
+ * @tparam T Trivially copyable type to compare.
+ * @param a First value.
+ * @param b Second value.
+ *
+ * @return \c true when every byte of \p a equals the matching byte of \p b.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename T>
 [[nodiscard]] auto bits_equal(T const a, T const b) -> bool {
   auto ba{std::array<std::byte, sizeof(T)>{}};
@@ -40,6 +65,17 @@ template <typename T>
   return ba == bb;
 }
 
+/**
+ * @brief Views a byte array sized for a \c T as a read-only byte span.
+ *
+ * @tparam T Type whose size fixes the array length.
+ * @param a Bytes to view.
+ *
+ * @return A span over \p a.
+ *
+ * @pre None.
+ * @post The span aliases \p a.
+ */
 template <typename T>
 [[nodiscard]] auto as_const_bytes(std::array<std::byte, sizeof(T)> const& a)
   -> std::span<std::byte const> {

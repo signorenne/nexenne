@@ -16,8 +16,18 @@ namespace {
 
 using namespace nexenne::serialization;
 
-// Build a byte vector from a brace-init list of integer literals so spec
-// vectors read like the wire bytes they assert.
+/**
+ * @brief Builds a byte vector from integer literals.
+ *
+ * Lets spec vectors read like the wire bytes they assert.
+ *
+ * @param xs Byte values, in order.
+ *
+ * @return The bytes.
+ *
+ * @pre Every value fits in a byte.
+ * @post None.
+ */
 [[nodiscard]] auto bytes(std::initializer_list<int> const xs) -> std::vector<std::byte> {
   auto out{std::vector<std::byte>{}};
   out.reserve(xs.size());
@@ -26,7 +36,17 @@ using namespace nexenne::serialization;
   return out;
 }
 
-// Span view over the bytes a writer emitted.
+/**
+ * @brief Whether a writer's emitted bytes equal \p expected.
+ *
+ * @param w Writer whose emitted prefix is compared.
+ * @param expected Expected byte values.
+ *
+ * @return \c true when the sizes and every byte match.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] auto
 written_equals(msgpack::writer const& w, std::initializer_list<int> const expected) -> bool {
   auto const got{w.written()};
@@ -40,6 +60,16 @@ written_equals(msgpack::writer const& w, std::initializer_list<int> const expect
   return true;
 }
 
+/**
+ * @brief Views a byte vector as a read-only span.
+ *
+ * @param v Bytes to view.
+ *
+ * @return A span over \p v.
+ *
+ * @pre None.
+ * @post The span aliases \p v.
+ */
 [[nodiscard]] auto as_span(std::vector<std::byte> const& v) -> std::span<std::byte const> {
   return std::span<std::byte const>{v.data(), v.size()};
 }
@@ -236,7 +266,7 @@ TEST_CASE("nexenne::serialization::msgpack unsigned width boundaries pick smalle
   struct case_t {
     std::uint64_t value;
     std::size_t size;
-    int prefix;  // -1 means single-byte fixint (no separate prefix)
+    int prefix;  ///< Head byte, or -1 for a single-byte fixint with no prefix.
   };
 
   auto const cases{std::array<case_t, 9>{{
@@ -273,7 +303,7 @@ TEST_CASE("nexenne::serialization::msgpack signed negative width boundaries pick
   struct case_t {
     std::int64_t value;
     std::size_t size;
-    int prefix;  // -1 = negative fixint
+    int prefix;  ///< Head byte, or -1 for a negative fixint with no prefix.
   };
 
   auto const cases{std::array<case_t, 9>{{
@@ -326,7 +356,7 @@ TEST_CASE("nexenne::serialization::msgpack int64 extremes round trip") {
 TEST_CASE("nexenne::serialization::msgpack string forms round trip across length boundaries") {
   struct case_t {
     std::size_t len;
-    int prefix;  // first byte; for fixstr it carries length in low 5 bits
+    int prefix;  ///< Head byte; a fixstr carries the length in its low 5 bits.
     std::size_t header;
   };
 

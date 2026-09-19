@@ -126,7 +126,17 @@ TEST_CASE("nexenne::serialization::header - std::format renders magic and versio
   CHECK(std::format("{}", h) == to_string(h));
 }
 
-// Checks that to_string and operator<< give exactly the formatter's text.
+/**
+ * @brief Whether \c to_string and \c operator<< give exactly the formatter's text.
+ *
+ * @tparam T Type printable through all three layers.
+ * @param value Value to print.
+ *
+ * @return \c true when all three renderings are identical.
+ *
+ * @pre None.
+ * @post None.
+ */
 template <typename T>
 auto three_layers_agree(T const& value) -> bool {
   auto os{std::ostringstream{}};

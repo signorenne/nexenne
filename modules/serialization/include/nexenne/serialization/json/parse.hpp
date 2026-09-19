@@ -290,8 +290,9 @@ private:
    * @brief Parse a JSON string literal, decoding escapes to UTF-8.
    *
    * Decodes the standard escapes and \c \\u escapes, including surrogate
-   * pairs, into UTF-8. Bytes at or above 0x20 are copied through unchecked, so
-   * raw UTF-8 validity is the caller's responsibility.
+   * pairs, into UTF-8; an unpaired surrogate escape is an
+   * \c error::invalid_escape. Bytes at or above 0x20 are copied through
+   * unchecked, so raw UTF-8 validity is the caller's responsibility.
    *
    * @return The decoded string on success, or a \c parse_error on failure.
    *

@@ -128,10 +128,20 @@ private:
 
   storage_type m_data{};
 
-  // type() casts the variant index straight to kind, so each enumerator must
-  // name the alternative at its own index. Pin that here: reordering either the
-  // enum or the variant then fails to compile instead of silently breaking
-  // every is_* query.
+  /**
+   * @brief Whether kind \p K names \p Alternative at its own variant index.
+   *
+   * \c type() casts the variant index straight to \c kind, so the
+   * static_asserts below pin each enumerator to its alternative: reordering
+   * either the enum or the variant fails to compile instead of silently
+   * breaking every \c is_* query.
+   *
+   * @tparam K Kind enumerator under test.
+   * @tparam Alternative Variant alternative expected at index \p K.
+   *
+   * @pre None.
+   * @post None.
+   */
   template <kind K, typename Alternative>
   static constexpr bool kind_matches_v{
     std::same_as<std::variant_alternative_t<static_cast<std::size_t>(K), storage_type>, Alternative>
@@ -505,7 +515,8 @@ public:
    * @post None.
    *
    * @throws None. Returns \c error::type_mismatch when the value is
-   *         neither integer nor floating.
+   *         neither integer nor floating, or is a non-finite or out-of-range
+   *         floating value (casting one to an integer is undefined behaviour).
    */
   [[nodiscard]] auto as_int() const noexcept -> std::expected<int_type, error> {
     if (auto const* p{std::get_if<int_type>(&m_data)})

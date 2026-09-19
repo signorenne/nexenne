@@ -96,7 +96,7 @@ private:
 
   nexenne::utility::buffer_cursor<char> m_cursor;
   slot m_state{slot::top};
-  std::array<bool, MaxDepth> m_is_object{};  // true = object, false = array
+  std::array<bool, MaxDepth> m_is_object{};  ///< Per open level: object (true) or array (false).
   size_type m_depth{0};
 
   /**
@@ -690,7 +690,10 @@ public:
    * @brief Emit a floating-point value.
    *
    * Formatted with \c std::to_chars. NaN and infinity are written as
-   * \c null since JSON cannot represent them.
+   * \c null since JSON cannot represent them. A magnitude that
+   * \c std::to_chars prints in pure integer form (such as
+   * 31480088169990615040) gets a trailing \c ".0", so it reparses as a float
+   * rather than overflowing an integer.
    *
    * @tparam F Floating-point type.
    * @param f Value to write.
