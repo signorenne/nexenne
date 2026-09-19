@@ -146,18 +146,6 @@ public:
   explicit pattern_formatter(std::string pattern);
 
   /**
-   * @brief Replaces the active pattern.
-   *
-   * @param pattern New pattern string; moved in.
-   *
-   * @pre None.
-   * @post \c pattern() returns \p pattern.
-   *
-   * @complexity \c O(1) amortised (a \c std::string move).
-   */
-  auto set_pattern(std::string pattern) noexcept -> void;
-
-  /**
    * @brief Current pattern string.
    *
    * @return A const reference to the active pattern.
@@ -166,6 +154,17 @@ public:
    * @post None.
    */
   [[nodiscard]] auto pattern() const noexcept -> std::string const&;
+
+  /**
+   * @brief Current pattern string, for modification.
+   *
+   * @return A mutable reference to the active pattern; assign a new pattern
+   *         through it.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto pattern() noexcept -> std::string&;
 
   /**
    * @brief Renders \p r by appending to \p out.

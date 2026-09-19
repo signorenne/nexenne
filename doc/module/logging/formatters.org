@@ -16,7 +16,7 @@ spells identically across both. A null source-location file or function name is
 rendered as =?= rather than dereferenced (the port fixed a null-pointer UB the
 reference had on the =%f= and =%s= tokens). Construction copies the pattern
 string, so the constructor is not =noexcept= (allocation may propagate);
-=set_pattern= only move-assigns.
+a new pattern is assigned through =pattern()=.
 
 #+BEGIN_SRC cpp
 nexenne::logging::pattern_formatter fmt{"%T [%L] %n: %m"};

@@ -172,9 +172,9 @@ TEST_CASE("nexenne::logging::pattern_formatter format appends without clearing o
   CHECK(out == "prefix: body");
 }
 
-TEST_CASE("nexenne::logging::pattern_formatter set_pattern swaps the active pattern") {
+TEST_CASE("nexenne::logging::pattern_formatter pattern() swaps the active pattern") {
   auto f{lg::pattern_formatter{}};
-  f.set_pattern(std::string{"%n/%m"});
+  f.pattern() = std::string{"%n/%m"};
   CHECK(f.pattern() == "%n/%m");
   CHECK(f.format(make_record(lg::level::info, "io", "boom")) == "io/boom");
 }

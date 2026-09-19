@@ -80,11 +80,11 @@ auto pattern_formatter::append_time(
 
 pattern_formatter::pattern_formatter(std::string pattern) : m_pattern{std::move(pattern)} {}
 
-auto pattern_formatter::set_pattern(std::string pattern) noexcept -> void {
-  m_pattern = std::move(pattern);
+auto pattern_formatter::pattern() const noexcept -> std::string const& {
+  return m_pattern;
 }
 
-auto pattern_formatter::pattern() const noexcept -> std::string const& {
+auto pattern_formatter::pattern() noexcept -> std::string& {
   return m_pattern;
 }
 
