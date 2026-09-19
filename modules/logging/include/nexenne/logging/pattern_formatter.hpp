@@ -32,6 +32,11 @@
  * because it renders \c off as '-' rather than the space \c to_char yields.
  */
 
+#if defined(NEXENNE_LOGGING_NO_HOST_SINKS)
+#error                                                                                             \
+  "nexenne/logging/pattern_formatter.hpp is built only with the host sinks, which this build configured out with NEXENNE_LOGGING_HOST_SINKS=OFF."
+#endif
+
 #include <chrono>
 #include <cstddef>
 #include <ctime>

@@ -12,8 +12,10 @@
 #include <iterator>
 #include <span>
 #include <string>
+#include <type_traits>
 
 #include <nexenne/logging/level.hpp>
+#include <nexenne/logging/logging.hpp>
 #include <nexenne/logging/stream_logger.hpp>
 #include <nexenne/utility/ignore.hpp>
 
@@ -157,6 +159,11 @@ TEST_CASE("nexenne::logging::stream_logger exposes name, level, and enabled acce
   CHECK_FALSE(log.enabled(lg::level::warn));
   CHECK(log.enabled(lg::level::error));
   CHECK(log.enabled(lg::level::critical));
+}
+
+TEST_CASE("nexenne::logging the umbrella header builds with or without the host sinks") {
+  static_assert(std::is_class_v<lg::stream_logger>);
+  CHECK(lg::to_token(lg::level::info) == "INFO");
 }
 
 }  // namespace
