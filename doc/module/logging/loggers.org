@@ -14,8 +14,17 @@ returns the process-wide "main" logger.
 Two filters apply: the runtime per-logger =min_level= (a below-threshold call
 costs one relaxed atomic load and returns), and the compile-time gate in the
 =LOG_*= macros. The only hot-path allocation is the formatted message; the
-logger name is interned once and borrowed by every record. The level calls are not =noexcept=: formatting allocates, and
-=std::bad_alloc= propagates per the module error policy.
+logger name is interned once and borrowed by every record. The level calls are
+not =noexcept=: formatting allocates, and =std::bad_alloc= propagates per the
+module error policy.
+
+Names intern into one process-wide, hashed table that keeps each name for the
+life of the program, so a record in the async queue can outlive its logger. The
+table holds at most =NEXENNE_LOG_MAX_NAMES= names (256 by default); a logger
+built with a new name once it is full is named =(names full)= instead, so code
+that makes loggers from unbounded input cannot grow it without limit. Define the
+macro higher before including the logging headers if a program really has more
+loggers.
 
 * format_string and source location
 

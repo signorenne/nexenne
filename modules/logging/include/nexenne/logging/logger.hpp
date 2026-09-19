@@ -16,9 +16,13 @@
  * per-logger level checked here (a below-threshold call costs one relaxed load).
  */
 
+#include <array>
 #include <atomic>
+#include <bit>
+#include <cstddef>
 #include <deque>
 #include <format>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -32,38 +36,118 @@
 #include <nexenne/logging/record.hpp>
 #include <nexenne/utility/ignore.hpp>
 
+/**
+ * @def NEXENNE_LOG_MAX_NAMES
+ * @brief Most distinct logger names the process interns.
+ *
+ * Every \c basic_logger interns its name once into a process-wide table of
+ * this many entries; a logger constructed with a new name once the table is
+ * full is named \c "(names full)" instead. Raise it for a program that really
+ * has more loggers; the table reserves two to four pointers per entry up front.
+ */
+#ifndef NEXENNE_LOG_MAX_NAMES
+#define NEXENNE_LOG_MAX_NAMES 256
+#endif
+
 namespace nexenne::logging {
 
 /// @cond INTERNAL
 namespace detail {
 
 /**
+ * @brief Name a logger gets once the intern table is full.
+ */
+inline constexpr std::string_view overflow_logger_name{"(names full)"};
+
+/**
+ * @brief Bounded, hashed table of interned logger names.
+ *
+ * Open addressing with linear probing over a power-of-two slot array at least
+ * twice \p Capacity, so a lookup hashes once and ends at an empty slot after a
+ * short probe instead of comparing against every name. The names live in a
+ * \c std::deque, whose nodes stay pinned as it grows, so a returned view never
+ * dangles. The table holds at most \p Capacity names; once full, a new name
+ * maps to \c overflow_logger_name instead of growing, so a program that builds
+ * loggers from unbounded input (a name per connection, say) cannot exhaust
+ * memory through it.
+ *
+ * @tparam Capacity Most distinct names the table holds, at least one.
+ */
+template <std::size_t Capacity>
+  requires(Capacity > 0)
+class name_table {
+  static constexpr std::size_t slot_count{std::bit_ceil(Capacity * 2)};
+
+  std::array<std::string const*, slot_count> m_slots{};
+  std::deque<std::string> m_names;
+
+public:
+  /**
+   * @brief Returns the stored copy of \p name, adding it while there is room.
+   *
+   * @param name Name to intern.
+   *
+   * @return A view of the stored name, stable for the table's lifetime, or
+   *         \c overflow_logger_name when \p name is new and the table is full.
+   *
+   * @pre None.
+   * @post \p name is stored, or the table already held \p Capacity names.
+   *
+   * @throws std::bad_alloc if the name cannot be stored.
+   *
+   * @complexity \c O(1) expected, plus the length of \p name.
+   */
+  [[nodiscard]] auto intern(std::string_view const name) -> std::string_view {
+    auto slot{std::hash<std::string_view>{}(name) & (slot_count - 1)};
+    while (m_slots[slot] != nullptr) {
+      if (*m_slots[slot] == name) {
+        return *m_slots[slot];
+      }
+      slot = (slot + 1) & (slot_count - 1);
+    }
+    if (m_names.size() == Capacity) {
+      return overflow_logger_name;
+    }
+    m_slots[slot] = &m_names.emplace_back(name);
+    return *m_slots[slot];
+  }
+
+  /**
+   * @brief Number of names stored.
+   *
+   * @return How many distinct names the table holds.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto size() const noexcept -> std::size_t {
+    return m_names.size();
+  }
+};
+
+/**
  * @brief Interns a logger name into process-lifetime storage, returning a view.
  *
- * Names are deduplicated and never freed, not even at exit, so the returned view
- * stays valid for the whole program, destructors of static objects included. This lets a \c record
- * borrow the name as a \c string_view (no per-call allocation) while remaining safe even when the
- * record outlives its logger in the async queue. The \c std::deque node storage keeps existing
- * elements pinned across growth, so earlier views never dangle.
+ * Names are deduplicated and never freed, not even at exit, so the returned
+ * view stays valid for the whole program, destructors of static objects
+ * included. This lets a \c record borrow the name as a \c string_view (no
+ * per-call allocation) while remaining safe even when the record outlives its
+ * logger in the async queue. The table holds at most \c NEXENNE_LOG_MAX_NAMES
+ * names; past that a new name becomes \c overflow_logger_name.
  *
  * @param name Logger name to intern.
  *
- * @return A stable view of the interned name.
+ * @return A stable view of the interned name, or \c overflow_logger_name.
  *
  * @pre None.
- * @post The name is present in the intern table.
- * @throws std::bad_alloc if the table cannot grow.
+ * @post The name is present in the intern table, or the table is full.
+ * @throws std::bad_alloc if the name cannot be stored.
  */
 [[nodiscard]] inline auto intern_name(std::string_view const name) -> std::string_view {
   static auto& mutex{*new std::mutex{}};
-  static auto& storage{*new std::deque<std::string>{}};
+  static auto& table{*new name_table<NEXENNE_LOG_MAX_NAMES>{}};
   auto const guard{std::lock_guard{mutex}};
-  for (auto const& s : storage) {
-    if (s == name) {
-      return s;
-    }
-  }
-  return storage.emplace_back(name);
+  return table.intern(name);
 }
 
 }  // namespace detail

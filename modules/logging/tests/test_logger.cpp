@@ -170,4 +170,24 @@ TEST_CASE("nexenne::logging::basic_logger never enables level::off") {
   CHECK_FALSE(log.enabled(lg::level::critical));
 }
 
+TEST_CASE("nexenne::logging logger names intern into a bounded hashed table") {
+  auto table{lg::detail::name_table<3>{}};
+  auto const a{table.intern("alpha")};
+  auto const b{table.intern("beta")};
+  auto const c{table.intern("gamma")};
+  CHECK(a == "alpha");
+  CHECK(b == "beta");
+  CHECK(c == "gamma");
+  CHECK(table.intern(std::string{"alpha"}).data() == a.data());
+  CHECK(table.size() == 3);
+
+  CHECK(table.intern("delta") == lg::detail::overflow_logger_name);
+  CHECK(table.size() == 3);
+  CHECK(table.intern("gamma").data() == c.data());
+
+  auto const first{lg::basic_logger<>{"intern-test"}};
+  auto const second{lg::basic_logger<>{"intern-test"}};
+  CHECK(first.name().data() == second.name().data());
+}
+
 }  // namespace
