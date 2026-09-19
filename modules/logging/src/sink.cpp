@@ -41,6 +41,10 @@ auto sink::default_format(record const& r) -> std::string {
 
 console_sink::console_sink(stream const s) noexcept : m_stream{s} {}
 
+auto console_sink::routing() const noexcept -> stream {
+  return m_stream;
+}
+
 auto console_sink::write_out(record const& r) noexcept -> void {
   auto const line{default_format(r)};
   auto* const out{pick_stream(r.severity)};

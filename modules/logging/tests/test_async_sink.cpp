@@ -103,6 +103,16 @@ TEST_CASE("nexenne::logging::async_sink forwards every record to the wrapped sin
   }
 }
 
+TEST_CASE("nexenne::logging::async_sink reports the configuration it was built with") {
+  capture_state state;
+  lg::async_sink const async{
+    std::make_unique<capture_sink>(state),
+    lg::async_sink::config{.queue_size_limit = 8, .on_overflow = lg::overflow_action::drop_oldest}
+  };
+  CHECK(async.configuration().queue_size_limit == 8);
+  CHECK(async.configuration().on_overflow == lg::overflow_action::drop_oldest);
+}
+
 TEST_CASE("nexenne::logging::async_sink flush waits for the queue to drain") {
   capture_state state;
   constexpr std::size_t total{50};

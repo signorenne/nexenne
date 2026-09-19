@@ -55,6 +55,13 @@ auto cleanup(std::filesystem::path const& base) -> void {
   }
 }
 
+TEST_CASE("nexenne::logging::rotating_file_sink reports its rotation limits") {
+  lg::rotating_file_sink const s{std::string{__FILE__} + "/unopenable.log", 4096, 3};
+  CHECK_FALSE(s.is_open());
+  CHECK(s.max_bytes() == 4096);
+  CHECK(s.max_files() == 3);
+}
+
 TEST_CASE("nexenne::logging::rotating_file_sink writes below the limit stay in one file") {
   auto const base{fresh_base("nexenne_rfs_below.log")};
   {

@@ -94,7 +94,7 @@ auto main() -> int {
   auto* const ring_ptr{ring.get()};  // borrow to read the snapshot back later
   fan.add(std::move(console));
   fan.add(std::move(ring));
-  std::printf("  fan has %zu children\n", fan.child_count());
+  std::printf("  %s\n", lg::to_string(fan).c_str());
   fan.write(make(lg::level::info, "info: ring only, not console"));
   fan.write(make(lg::level::warn, "warn: both console and ring"));
   fan.flush();
@@ -114,6 +114,7 @@ auto main() -> int {
       std::move(inner),
       lg::async_sink::config{.queue_size_limit = 64, .on_overflow = lg::overflow_action::block}
     };
+    std::printf("  %s\n", lg::to_string(offloaded).c_str());
     for (int i{0}; i < 50; ++i) {
       offloaded.write(make(lg::level::info, "async record"));
     }
@@ -134,12 +135,7 @@ auto main() -> int {
         rot.write(make(lg::level::info, "rotating line number " + std::to_string(i)));
       }
       rot.flush();
-      std::printf(
-        "  base=%.*s active file now holds %zu byte(s) after rotation\n",
-        static_cast<int>(rot.base_path().size()),
-        rot.base_path().data(),
-        rot.current_size()
-      );
+      std::printf("  after rotation: %s\n", lg::to_string(rot).c_str());
     } else {
       std::puts("  could not open the rotating log file (skipping)");
     }

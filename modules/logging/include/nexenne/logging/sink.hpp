@@ -197,6 +197,18 @@ public:
    */
   explicit console_sink(stream s = stream::auto_split) noexcept;
 
+  /**
+   * @brief Stream-routing policy the sink was constructed with.
+   *
+   * Fixed for the sink's lifetime, so it is safe to read from any thread.
+   *
+   * @return The policy that picks stdout or stderr for each record.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto routing() const noexcept -> stream;
+
 protected:
   /**
    * @brief Formats \p r and writes it to the stream chosen for its severity.

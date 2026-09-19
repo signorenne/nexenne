@@ -140,6 +140,14 @@ TEST_CASE("nexenne::logging::console_sink constructs with each routing policy") 
   CHECK(true);
 }
 
+TEST_CASE("nexenne::logging::console_sink reports the routing policy it was built with") {
+  CHECK(lg::console_sink{}.routing() == lg::console_sink::stream::auto_split);
+  CHECK(
+    lg::console_sink{lg::console_sink::stream::stderr_only}.routing()
+    == lg::console_sink::stream::stderr_only
+  );
+}
+
 TEST_CASE("nexenne::logging::sink drops a record at level::off") {
   capture_sink s;
   s.set_min_level(lg::level::off);

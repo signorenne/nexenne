@@ -21,7 +21,8 @@ carries no zone marker, so read the timestamp as UTC. =json_sink= and
 * Bundled sinks
 
 - =console_sink= : writes to stdout/stderr, with a routing policy
-  (=stdout_only=, =stderr_only=, =auto_split= sending warnings and up to stderr).
+  (=stdout_only=, =stderr_only=, =auto_split= sending warnings and up to stderr)
+  that =routing()= reads back.
 - =file_sink= : appends to a file via =std::fopen= / =std::fwrite= (not
   =<fstream>=, to stay light and embedded-portable). Not copyable or movable
   (owned through a =shared_ptr=, like the base sink); check =is_open=.
@@ -37,12 +38,18 @@ carries no zone marker, so read the timestamp as UTC. =json_sink= and
   hand-rolled string escaping (no =serialization= dependency); to a file or an
   external =FILE*=.
 - =rotating_file_sink= : a =file_sink= that rotates to a fresh file once a byte
-  limit is crossed, keeping a bounded number of numbered backups.
+  limit is crossed, keeping a bounded number of numbered backups; =max_bytes()=
+  and =max_files()= read the limits back.
 - =async_sink= : a decorator that hands records to a background thread over a
   bounded queue, with an overflow policy (=drop_newest= / =drop_oldest= /
-  =block=) and a graceful destructor drain. Keeps a mutex + condition variable
-  rather than the lock-free =mpmc_queue= because it needs a runtime-sized bound,
-  a blocking-when-full policy, and atomic drop-oldest.
+  =block=) and a graceful destructor drain; =configuration()= reads the bound and
+  the policy back. Keeps a mutex + condition variable rather than the lock-free
+  =mpmc_queue= because it needs a runtime-sized bound, a blocking-when-full
+  policy, and atomic drop-oldest.
+
+Every sink prints a one-line summary of its level and target through
+=format.hpp=, for example =multi_sink(children=2, min_level=TRACE)=; see
+[[file:format.org][format]].
 
 * ESP-IDF sink
 

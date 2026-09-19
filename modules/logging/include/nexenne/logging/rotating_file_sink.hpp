@@ -123,6 +123,27 @@ public:
   [[nodiscard]] auto base_path() const noexcept -> std::string_view;
 
   /**
+   * @brief Size limit in bytes that a single rotated file may reach.
+   *
+   * @return The \c max_bytes the sink was constructed with.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto max_bytes() const noexcept -> std::size_t;
+
+  /**
+   * @brief Number of rotated backups the sink keeps.
+   *
+   * @return The \c max_files the sink was constructed with; \c 0 means the
+   *         active file is truncated rather than archived.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto max_files() const noexcept -> std::size_t;
+
+  /**
    * @brief Forces an immediate rotation regardless of current size.
    *
    * Useful at process startup or on a SIGHUP-style external signal. Takes the

@@ -136,6 +136,18 @@ public:
    */
   ~async_sink() noexcept override;
 
+  /**
+   * @brief Queue and overflow configuration the sink was constructed with.
+   *
+   * Fixed for the sink's lifetime, so it is safe to read from any thread.
+   *
+   * @return A const reference to the configuration.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto configuration() const noexcept -> config const&;
+
 protected:
   /**
    * @brief Enqueues \p r for the background thread, applying the overflow policy.

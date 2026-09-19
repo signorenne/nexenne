@@ -43,6 +43,10 @@ async_sink::~async_sink() noexcept {
   }
 }
 
+auto async_sink::configuration() const noexcept -> config const& {
+  return m_cfg;
+}
+
 auto async_sink::write_out(record const& r) noexcept -> void {
   auto lk{std::unique_lock{m_mu}};
   if (m_queue.size() >= m_cfg.queue_size_limit) {

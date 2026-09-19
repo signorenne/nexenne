@@ -41,6 +41,14 @@ auto rotating_file_sink::base_path() const noexcept -> std::string_view {
   return m_base_path;
 }
 
+auto rotating_file_sink::max_bytes() const noexcept -> std::size_t {
+  return m_max_bytes;
+}
+
+auto rotating_file_sink::max_files() const noexcept -> std::size_t {
+  return m_max_files;
+}
+
 auto rotating_file_sink::force_rotate() noexcept -> void {
   auto const guard{std::lock_guard{m_mutex}};
   rotate();

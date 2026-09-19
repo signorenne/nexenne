@@ -4,15 +4,17 @@
 
 * Purpose
 
-=format.hpp= holds the three formatting layers for the logging enums: a
-=std::formatter= specialisation, so =std::format("{}", x)= and =std::print=
+=format.hpp= holds the three formatting layers for the logging types and enums:
+a =std::formatter= specialisation, so =std::format("{}", x)= and =std::print=
 accept them, and a =to_string= and an =operator<<= that give the same text. It
-is separate from =level.hpp= by the library rule that keeps every layer in the
-module's =format.hpp=; the sinks and =stream_logger= name a level through an
-internal helper on the hot path, so they never need it. (The =%=-token log line
-formatter is a different thing: see [[file:formatters.org][formatters]].)
+is separate from the type headers by the library rule that keeps every layer in
+the module's =format.hpp=; the sinks and =stream_logger= name a level through
+an internal helper on the hot path, so they never need it. (The =%=-token log
+line formatter is a different thing: see [[file:formatters.org][formatters]].)
 
 * What it provides
+
+The enums print a name:
 
 | type                   | output                                      | format spec          |
 |------------------------+---------------------------------------------+----------------------|
@@ -24,9 +26,40 @@ formatter is a different thing: see [[file:formatters.org][formatters]].)
 =operator<<= streams it. =level= keeps its other names in =level.hpp=:
 =to_token= (unpadded, as =json_sink= writes it) and =to_char= (one letter).
 
-=overflow_action= and =console_sink::stream= belong to the host sinks, so a
-build configured with =NEXENNE_LOGGING_HOST_SINKS=OFF= gets the =level= layers
-alone.
+Every class prints a one-line summary of its observable state, in the shape
+=type(key=value, ...)=:
+
+| type                        | summary fields                                                    |
+|-----------------------------+-------------------------------------------------------------------|
+| =record=                    | level, logger, =file:line= call site, quoted message              |
+| =config=                    | =queue_size=, =async=                                             |
+| =format_string=             | quoted spec, call site                                            |
+| =file_writer=               | =stdout=, =stderr=, =null= or the stream's address                |
+| =basic_stream_logger=       | name, level, =buffer_size=, writer when it is formattable         |
+| =async_sink_config=         | =queue_size_limit=, =on_overflow=                                 |
+| =sink= (through a base ref) | level                                                             |
+| =console_sink=              | =routing=, level                                                  |
+| =file_sink=, =json_sink=    | =open= or =closed=, level                                         |
+| =ring_sink<N>=              | buffered =size=, =capacity=, level                                |
+| =async_sink=                | =queue_size_limit=, =on_overflow=, level                          |
+| =multi_sink=                | =children=, level                                                 |
+| =rotating_file_sink=        | path, =open= or =closed=, =size=, =max_bytes=, =max_files=, level |
+| =pattern_formatter=         | quoted pattern                                                    |
+| =basic_async_manager=       | =queue_size=, =sinks=, =dropped=                                  |
+| =basic_sync_manager=        | =sinks=                                                           |
+| =basic_logger=              | name, level                                                       |
+| =esp_log_sink=              | level                                                             |
+
+Inside a summary a level is its unpadded =to_token= (=min_level=INFO=), and free
+text (a message, a pattern, a format spec) is quoted and escaped, so a newline
+in it cannot break the line. Every class formatter takes a string spec, which
+applies to the whole summary.
+
+=level=, =record=, =config=, =format_string=, =file_writer= and
+=basic_stream_logger= are freestanding. Everything else belongs to the host
+sinks, so a build configured with =NEXENNE_LOGGING_HOST_SINKS=OFF= gets the
+freestanding layers alone, and the =esp_log_sink= layers exist only where
+=esp_log.h= does.
 
 * Usage
 
@@ -38,6 +71,11 @@ namespace lg = nexenne::logging;
 
 auto const line{std::format("[{}] ready", lg::level::info)};
 // line == "[INFO ] ready"
+
+auto ring{lg::ring_sink<8>{}};
+ring.set_min_level(lg::level::warn);
+auto const state{lg::to_string(ring)};
+// state == "ring_sink(size=0, capacity=8, min_level=WARN)"
 #+END_SRC
 
 * Gotchas
@@ -47,5 +85,15 @@ auto const line{std::format("[{}] ready", lg::level::info)};
 - *Include it where you print.* =to_string(level)= moved here from =level.hpp=;
   code that only includes =level.hpp= and calls it now fails to compile, and
   the fix is to include =format.hpp=.
+- *A sink seen through =sink const&= prints the base summary.* Overloads pick
+  the static type, so a =console_sink= reached by a base reference prints
+  ~sink(min_level=...)~; a user-defined sink prints the same way when cast to
+  its base.
+- *Managers count sinks, not loggers.* A manager knows only its sinks, so that
+  is what its summary reports; a =basic_logger= summary never touches its
+  manager, so printing a logger cannot start the async backend thread.
+- *=file_sink= and =json_sink= print no path.* They keep only the open handle;
+  =rotating_file_sink= keeps its base path and prints it.
 
-Runnable: [[file:../../../examples/logging/levels.cpp][examples/logging/levels.cpp]]
+Runnable: [[file:../../../examples/logging/levels.cpp][examples/logging/levels.cpp]],
+[[file:../../../examples/logging/sinks.cpp][examples/logging/sinks.cpp]]
