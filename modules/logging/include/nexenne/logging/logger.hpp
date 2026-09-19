@@ -164,7 +164,8 @@ public:
    * arguments and pushes a record to the manager. The logger name is borrowed
    * (interned), so the only hot-path allocation is the formatted message. Not
    * \c noexcept: formatting the message may allocate and \c bad_alloc propagates
-   * per the error policy.
+   * per the error policy, as does \c std::format_error for a negative dynamic
+   * width or precision, which the compile-time format check cannot see.
    *
    * @tparam Args Argument types matching \p fmt.
    * @param lvl Severity of the record.

@@ -237,7 +237,10 @@ public:
    * @param fmt Format string with captured source location.
    * @param args Arguments to format.
    *
-   * @pre None.
+   * @pre A dynamic width or precision taken from \p args is non-negative: the
+   *      format string is checked at compile time, those values only at run
+   *      time, where \c std::format_error inside this \c noexcept frame
+   *      terminates.
    * @post The line is handed to the writer when \c enabled(lvl).
    *
    * @complexity \c O(line length).
