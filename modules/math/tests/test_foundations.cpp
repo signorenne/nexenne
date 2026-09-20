@@ -49,3 +49,12 @@ TEST_CASE("result carries either a value or an error") {
   REQUIRE_FALSE(bad.has_value());
   CHECK(bad.error() == math::math_error::invalid_input);
 }
+
+TEST_CASE("arithmetic excludes bool and the character types (math-11)") {
+  // vector<bool, 3> used to compile and negate true to true.
+  static_assert(!math::arithmetic<bool>);
+  static_assert(!math::arithmetic<char>);
+  static_assert(!math::arithmetic<char32_t>);
+  static_assert(math::arithmetic<signed char>);
+  static_assert(math::arithmetic<unsigned char>);
+}

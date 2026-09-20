@@ -18,13 +18,20 @@ namespace nexenne::math {
 /**
  * @brief Any built-in arithmetic type (integral or floating-point).
  *
- * Equivalent to \c std::is_arithmetic_v but exposed as a concept so it can be
- * used with the terse template-argument syntax.
+ * \c std::is_arithmetic_v minus \c bool and the character types (\c char,
+ * \c wchar_t, \c char8_t, \c char16_t, \c char32_t), which are not numbers:
+ * \c vector<bool, 3> would negate \c true to \c true. \c signed \c char and
+ * \c unsigned \c char, the 8-bit integers, stay admitted.
  *
  * @tparam Value Type to test.
  */
 template <typename Value>
-concept arithmetic = std::is_arithmetic_v<Value>;
+concept arithmetic =
+  std::is_arithmetic_v<Value> && !std::same_as<std::remove_cv_t<Value>, bool>
+  && !std::same_as<std::remove_cv_t<Value>, char> && !std::same_as<std::remove_cv_t<Value>, wchar_t>
+  && !std::same_as<std::remove_cv_t<Value>, char8_t>
+  && !std::same_as<std::remove_cv_t<Value>, char16_t>
+  && !std::same_as<std::remove_cv_t<Value>, char32_t>;
 
 /**
  * @brief Any signed built-in arithmetic type.

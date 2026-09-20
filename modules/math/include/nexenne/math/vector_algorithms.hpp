@@ -64,7 +64,8 @@ template <arithmetic Value, std::size_t N>
   // and the library values a deterministic result over the few saved cycles.
   auto result{Value{}};
   for (std::size_t i{0}; i < N; ++i) {
-    result += a[i] * b[i];
+    // A narrow integer promotes to int in the product; convert back explicitly.
+    result = static_cast<Value>(result + a[i] * b[i]);
   }
   return result;
 }
