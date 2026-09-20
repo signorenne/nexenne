@@ -434,8 +434,9 @@ template <std::floating_point Real>
  * @param q Quaternion to normalize.
  * @param threshold Minimum allowed squared length. Default 1e-20.
  *
- * @return The unit quaternion, or \c math_error::zero_length_vector when \p q is
- *         too short.
+ * @return The unit quaternion, \c math_error::zero_length_vector when \p q is
+ *         too short, or \c math_error::invalid_input when the squared length
+ *         overflows to infinity.
  *
  * @pre \p q has finite components.
  * @post On success the result has unit length up to rounding.
@@ -445,6 +446,11 @@ template <std::floating_point Real>
 normalize(quaternion<Real> const q, Real const threshold = static_cast<Real>(1e-20)) noexcept
   -> result<quaternion<Real>> {
   auto const len_sq{length_squared(q)};
+  // As for vector normalize: finite components can square-sum to +inf, which
+  // would scale to a zero quaternion returned as success.
+  if (!isfinite(len_sq)) {
+    return std::unexpected{math_error::invalid_input};
+  }
   if (len_sq <= threshold) {
     return std::unexpected{math_error::zero_length_vector};
   }
@@ -480,8 +486,9 @@ template <std::floating_point Real>
  * @param q Quaternion to invert.
  * @param threshold Minimum allowed squared length. Default 1e-20.
  *
- * @return The inverse quaternion, or \c math_error::zero_length_vector when \p q
- *         is too short.
+ * @return The inverse quaternion, \c math_error::zero_length_vector when \p q
+ *         is too short, or \c math_error::invalid_input when the squared length
+ *         overflows to infinity.
  *
  * @pre \p q has finite components.
  * @post On success \c q * result equals the identity up to rounding.
@@ -491,6 +498,9 @@ template <std::floating_point Real>
 inverse(quaternion<Real> const q, Real const threshold = static_cast<Real>(1e-20)) noexcept
   -> result<quaternion<Real>> {
   auto const len_sq{length_squared(q)};
+  if (!isfinite(len_sq)) {
+    return std::unexpected{math_error::invalid_input};
+  }
   if (len_sq <= threshold) {
     return std::unexpected{math_error::zero_length_vector};
   }

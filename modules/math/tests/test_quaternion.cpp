@@ -167,3 +167,15 @@ TEST_CASE("to_axis_angle keeps a small rotation's angle and unit axis (math-03)"
   CHECK(std::abs(aa.angle().value() - 1e-3f) < 1e-8f);
   CHECK(std::abs(math::length(aa.axis()) - 1.0f) < 1e-6f);
 }
+
+TEST_CASE("quaternion normalize and inverse reject an overflowing length (math-07)") {
+  // A float component of 2e19 squares past the float range; the zero quaternion
+  // this scaled to used to come back as success.
+  auto const big{math::quaternion_f{2e19f, 0.0f, 0.0f, 0.0f}};
+  auto const n{math::normalize(big)};
+  REQUIRE_FALSE(n.has_value());
+  CHECK(n.error() == math::math_error::invalid_input);
+  auto const i{math::inverse(big)};
+  REQUIRE_FALSE(i.has_value());
+  CHECK(i.error() == math::math_error::invalid_input);
+}
