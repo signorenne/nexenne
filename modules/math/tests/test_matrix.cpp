@@ -1,12 +1,33 @@
 #include <doctest/doctest.h>
 
 #include <cmath>
+#include <cstddef>
 #include <limits>
 #include <type_traits>
 
 #include <nexenne/math/matrix.hpp>
 
 namespace math = nexenne::math;
+
+namespace {
+
+/// @cond INTERNAL
+/**
+ * @brief Whether \c matrix<float, N> names a type at all.
+ *
+ * @tparam N Dimension to try.
+ */
+template <std::size_t N>
+concept nameable_matrix = requires { typename math::matrix<float, N>; };
+/// @endcond
+
+}  // namespace
+
+TEST_CASE("a zero-dimension matrix cannot be named") {
+  static_assert(!nameable_matrix<0>);
+  static_assert(nameable_matrix<1>);
+  static_assert(nameable_matrix<4>);
+}
 
 TEST_CASE("layout guarantees (column-major, contiguous, no padding)") {
   static_assert(std::is_standard_layout_v<math::matrix4_f>);

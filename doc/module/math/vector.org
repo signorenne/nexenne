@@ -12,6 +12,9 @@ lexicographic comparison. It is the base type of all the graphics and physics
 math; the algorithms (dot, cross, length, normalize) live next door in
 [[file:vector_algorithms.org][vector_algorithms]].
 
+=N= is at least one: =vector<float, 0>= does not name a type, because a vector
+with no components has no length to normalise and nothing to index.
+
 * The idea
 
 Two goals pull against each other: ergonomics (write =v.x()=, =v.xyz()=) and a

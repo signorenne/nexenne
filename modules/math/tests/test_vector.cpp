@@ -1,11 +1,32 @@
 #include <doctest/doctest.h>
 
 #include <array>
+#include <cstddef>
 #include <type_traits>
 
 #include <nexenne/math/vector.hpp>
 
 namespace math = nexenne::math;
+
+namespace {
+
+/// @cond INTERNAL
+/**
+ * @brief Whether \c vector<float, N> names a type at all.
+ *
+ * @tparam N Component count to try.
+ */
+template <std::size_t N>
+concept nameable_vector = requires { typename math::vector<float, N>; };
+/// @endcond
+
+}  // namespace
+
+TEST_CASE("a zero-component vector cannot be named") {
+  static_assert(!nameable_vector<0>);
+  static_assert(nameable_vector<1>);
+  static_assert(nameable_vector<5>);
+}
 
 TEST_CASE("layout guarantees hold (SIMD-friendly storage)") {
   static_assert(std::is_standard_layout_v<math::vector4_f>);

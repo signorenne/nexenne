@@ -54,10 +54,14 @@ namespace nexenne::math {
 /**
  * @brief Square \p N by \p N matrix of \p Value, stored column-major.
  *
+ * A zero-dimension matrix is rejected at compile time, like a zero-component
+ * \c vector: it has no determinant, inverse or element to address.
+ *
  * @tparam Value Arithmetic component type.
- * @tparam N Dimension (number of rows and columns).
+ * @tparam N Dimension (number of rows and columns), at least one.
  */
 template <arithmetic Value, std::size_t N>
+  requires(N > 0)
 class matrix {
 public:
   using value_type = Value;                         ///< The scalar component type.

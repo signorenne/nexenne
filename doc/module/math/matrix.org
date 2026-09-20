@@ -12,6 +12,8 @@ and 4. It is the workhorse of every transform; the transform builders (translate
 rotate, scale, look_at) live in [[file:transform.org][transform]] and the projection builders in
 [[file:projection.org][projection]].
 
+=N= is at least one: =matrix<float, 0>= does not name a type.
+
 * The idea
 
 A matrix has to do two jobs well: be the algebra of linear maps, and be a buffer

@@ -71,9 +71,10 @@ namespace detail {
  * standard-layout and trivially copyable.
  *
  * @tparam Value Arithmetic component type.
- * @tparam N Component count.
+ * @tparam N Component count, at least one.
  */
 template <arithmetic Value, std::size_t N>
+  requires(N > 0)
 class vector_base {
 public:
   using value_type = Value;  ///< The component type.
@@ -266,10 +267,15 @@ public:
  * \c .z() / \c .w() accessors and swizzles; this primary template carries only
  * the shared interface from \c detail::vector_base.
  *
+ * A zero-component vector is rejected at compile time: it has no length to
+ * normalise and no component to index, so every operation on it would be
+ * meaningless.
+ *
  * @tparam Value Arithmetic component type.
- * @tparam N Component count.
+ * @tparam N Component count, at least one.
  */
 template <arithmetic Value, std::size_t N>
+  requires(N > 0)
 class vector : public detail::vector_base<Value, N> {
 private:
   using base = detail::vector_base<Value, N>;
