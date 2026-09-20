@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <iterator>
 #include <ranges>
@@ -225,7 +226,8 @@ public:
    *
    * @param x Query abscissa.
    *
-   * @return The interpolated ordinate, or 0 when the table is empty.
+   * @return The interpolated ordinate, 0 when the table is empty, or NaN for a
+   *         NaN query.
    *
    * @pre The table was built from strictly increasing \c x knots.
    * @post The result lies within the surrounding knot ordinates; the
@@ -236,6 +238,10 @@ public:
   [[nodiscard]] auto operator()(T const x) const noexcept -> T {
     if (m_x.empty()) {
       return T{0};
+    }
+    // NaN fails both clamps, and the segment search would then index before the table.
+    if (std::isnan(x)) {
+      return x;
     }
     if (x <= m_x.front()) {
       return m_y.front();
@@ -350,7 +356,8 @@ public:
    *
    * @param x Query abscissa.
    *
-   * @return The interpolated ordinate, or 0 when the table is empty.
+   * @return The interpolated ordinate, 0 when the table is empty, or NaN for a
+   *         NaN query.
    *
    * @pre The spline was built from strictly increasing \c x knots.
    * @post The spline is unchanged.
@@ -360,6 +367,10 @@ public:
   [[nodiscard]] auto operator()(T const x) const noexcept -> T {
     if (m_x.empty()) {
       return T{0};
+    }
+    // NaN fails every clamp, and the segment search would then index before the table.
+    if (std::isnan(x)) {
+      return x;
     }
     if (m_x.size() < 3 || x <= m_x.front() || x >= m_x.back()) {
       if (x <= m_x.front()) {

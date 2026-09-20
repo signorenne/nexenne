@@ -524,4 +524,14 @@ TEST_CASE("nexenne::algorithm compensated sums and root finders are conditionall
   CHECK(true);  // the static_asserts above are the test
 }
 
+TEST_CASE("nexenne::algorithm interpolators return NaN for a NaN query (algorithm-02)") {
+  // NaN failed both clamps and the segment index wrapped, reading before the
+  // table (ASan reports a heap-buffer-overflow before the fix).
+  auto const xs{std::array<double, 4>{0.0, 1.0, 2.0, 3.0}};
+  auto const ys{std::array<double, 4>{0.0, 1.0, 4.0, 9.0}};
+  auto const nan{std::nan("")};
+  CHECK(std::isnan(alg::linear_interpolator<double>{xs, ys}(nan)));
+  CHECK(std::isnan(alg::cubic_spline<double>{xs, ys}(nan)));
+}
+
 }  // namespace
