@@ -698,7 +698,9 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto wrap(Real const value, Real const lo, Real const hi) noexcept -> Real {
   assert(lo < hi && "wrap requires lo < hi");
-  return lo + repeat(value - lo, hi - lo);
+  // lo + r can round up to hi when r sits just below hi - lo; that is lo again.
+  auto const wrapped{lo + repeat(value - lo, hi - lo)};
+  return wrapped < hi ? wrapped : lo;
 }
 
 /**

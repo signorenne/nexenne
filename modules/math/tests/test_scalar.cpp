@@ -172,3 +172,10 @@ TEST_CASE("trunc is a constant expression for huge long double values (M2 regres
   static_assert(math::trunc(2.7L) == 2.0L);
   static_assert(math::floor(-2.1L) == -3.0L);
 }
+
+TEST_CASE("wrap never returns the upper bound (math-05)") {
+  // lo + repeat(...) rounded up to hi for a value just below lo.
+  auto const w{math::wrap(0.99999999999999989, 1.0, 2.0)};
+  CHECK(w >= 1.0);
+  CHECK(w < 2.0);
+}
