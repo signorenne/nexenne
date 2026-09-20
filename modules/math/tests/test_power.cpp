@@ -124,3 +124,10 @@ TEST_CASE("fast_exp builds and approximates std::exp for float (math-02)") {
     CHECK(std::abs(math::fast_exp(x) - expected) <= 1e-3f * expected);
   }
 }
+
+TEST_CASE("constexpr sqrt rounds like the runtime sqrt (math-08)") {
+  // The wider-type final step double-rounded, one ulp off for this input.
+  constexpr double x{0x1.452ee3a67f5b9p-355};
+  constexpr double at_compile_time{math::sqrt(x)};
+  CHECK(at_compile_time == std::sqrt(x));
+}

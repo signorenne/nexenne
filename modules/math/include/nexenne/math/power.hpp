@@ -98,15 +98,31 @@ template <std::floating_point Real>
   for (int i{0}; i < 8; ++i) {
     y = Real{0.5} * (y + m / y);
   }
-  // One final refinement in a wider type. The fixed-iteration Heron result can
-  // land one ulp off the correctly rounded root because the m/y division rounds in
-  // Real; doing the last step in a wider type and rounding once brings the reduced
-  // root to the nearest representable value, so a compile-time sqrt matches the
-  // runtime std::sqrt. For long double there is no wider type, so this is a
-  // same-precision no-op that leaves the converged value untouched.
-  using wide = std::conditional_t<std::same_as<Real, float>, double, long double>;
-  auto const yw{static_cast<wide>(y)};
-  y = static_cast<Real>(static_cast<wide>(0.5) * (yw + static_cast<wide>(m) / yw));
+  // Round to nearest exactly. The Heron result can sit one ulp off the correctly
+  // rounded root (a wider-type final step still double-rounds), so compare in
+  // integers: with p mantissa bits, Y = y * 2^(p-1) and T = m * 2^(2p-2) are
+  // integers, and the correctly rounded root satisfies
+  // (2Y - 1)^2 <= 4T <= (2Y + 1)^2 (never with equality: an odd square is not
+  // a multiple of four). Everything fits in 128 bits for float and double; a
+  // wider long double keeps the Heron value.
+  if constexpr (std::numeric_limits<Real>::digits <= 53) {
+    // __int128 is a GCC/Clang extension.
+    __extension__ using u128 = unsigned __int128;
+    constexpr auto p{std::numeric_limits<Real>::digits};
+    auto half_scale{Real{1}};  // 2^(p-1)
+    for (int i{1}; i < p; ++i) {
+      half_scale *= Real{2};
+    }
+    auto const t{static_cast<u128>(m * half_scale) << (p - 1)};
+    auto root{static_cast<u128>(y * half_scale)};
+    while ((2 * root + 1) * (2 * root + 1) < 4 * t) {
+      ++root;
+    }
+    while ((2 * root - 1) * (2 * root - 1) > 4 * t) {
+      --root;
+    }
+    y = static_cast<Real>(root) / half_scale;
+  }
   // Scale the root back by 2^e2 (a power of two, exact in floating point).
   auto scale{Real{1}};
   for (int i{0}; i < (e2 < 0 ? -e2 : e2); ++i) {
