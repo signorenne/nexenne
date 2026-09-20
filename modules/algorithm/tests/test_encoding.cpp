@@ -647,4 +647,16 @@ TEST_CASE("nexenne::algorithm encoding round-trips on a large random buffer") {
   }
 }
 
+TEST_CASE("nexenne::algorithm base16_lower_spec decodes letters in either case (algorithm-03)") {
+  // The engine folded to upper case and then looked the letter up in the
+  // lower-case alphabet, so no letter decoded.
+  auto out{std::array<std::uint8_t, 2>{}};
+  auto const lower{alg::base_n_decode<alg::base16_lower_spec>("abcd", out)};
+  REQUIRE(lower.has_value());
+  CHECK(out == std::array<std::uint8_t, 2>{0xAB, 0xCD});
+  auto const upper{alg::base_n_decode<alg::base16_lower_spec>("ABCD", out)};
+  REQUIRE(upper.has_value());
+  CHECK(out == std::array<std::uint8_t, 2>{0xAB, 0xCD});
+}
+
 }  // namespace

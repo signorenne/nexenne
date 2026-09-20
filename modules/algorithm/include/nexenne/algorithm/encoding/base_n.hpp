@@ -207,13 +207,7 @@ base_n_decode(std::string_view const in, std::span<std::uint8_t> const out) noex
   auto o{std::size_t{0}};
   auto saw_pad{false};
 
-  for (auto const raw : in) {
-    auto ch{raw};
-    if constexpr (Spec.case_insensitive) {
-      if (ch >= 'a' && ch <= 'z') {
-        ch = static_cast<char>(ch - 'a' + 'A');
-      }
-    }
+  for (auto const ch : in) {
     if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') {
       continue;
     }
@@ -226,7 +220,14 @@ base_n_decode(std::string_view const in, std::span<std::uint8_t> const out) noex
     if (saw_pad) {
       return std::unexpected{codec_error::invalid_input};
     }
-    auto const v{Spec.alphabet.decode(ch)};
+    auto v{Spec.alphabet.decode(ch)};
+    if constexpr (Spec.case_insensitive) {
+      if (v < 0 && ch >= 'a' && ch <= 'z') {
+        v = Spec.alphabet.decode(static_cast<char>(ch - 'a' + 'A'));
+      } else if (v < 0 && ch >= 'A' && ch <= 'Z') {
+        v = Spec.alphabet.decode(static_cast<char>(ch - 'A' + 'a'));
+      }
+    }
     if (v < 0) {
       return std::unexpected{codec_error::invalid_input};
     }
