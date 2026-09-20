@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <type_traits>
+#include <utility>
 
 #include <nexenne/math/quaternion.hpp>
 
@@ -178,4 +179,26 @@ TEST_CASE("quaternion normalize and inverse reject an overflowing length (math-0
   auto const i{math::inverse(big)};
   REQUIRE_FALSE(i.has_value());
   CHECK(i.error() == math::math_error::invalid_input);
+}
+
+TEST_CASE("quaternion and axis_angle accessors follow the object's constness") {
+  auto q{math::quaternion_d{}};
+  static_assert(std::is_same_v<decltype(q.x()), double&>);
+  static_assert(std::is_same_v<decltype(std::as_const(q).x()), double const&>);
+  q.x() = 1.0;
+  q.y() = 2.0;
+  q.z() = 3.0;
+  q.w() = 4.0;
+  CHECK(std::as_const(q).x() == 1.0);
+  CHECK(std::as_const(q).y() == 2.0);
+  CHECK(std::as_const(q).z() == 3.0);
+  CHECK(std::as_const(q).w() == 4.0);
+
+  auto aa{math::axis_angle<double>{}};
+  static_assert(std::is_same_v<decltype(aa.axis()), math::vector3_d&>);
+  static_assert(std::is_same_v<decltype(std::as_const(aa).angle()), math::radians_d const&>);
+  aa.axis() = math::vector3_d{0.0, 1.0, 0.0};
+  aa.angle() = math::radians_d{0.5};
+  CHECK(vapprox(std::as_const(aa).axis(), math::vector3_d{0.0, 1.0, 0.0}));
+  CHECK(std::as_const(aa).angle().value() == 0.5);
 }

@@ -11,6 +11,11 @@ vectors (=rotate=), converts to and from axis-angle, Euler angles, two-vector
 (=nlerp=, =slerp=). The interpolation variants live in [[file:slerp_variants.org][slerp_variants]] and the
 Euler conventions in [[file:euler.org][euler]].
 
+The class keeps no unit-norm invariant, since a sum or a scaled quaternion is
+not unit, so =x()=, =y()=, =z()= and =w()= return a const reference on a const
+quaternion and a mutable one otherwise, as a vector does. After editing
+components of a rotation, call =normalize= to make it unit again.
+
 * The idea
 
 A rotation matrix works but is heavy: nine numbers with six redundant

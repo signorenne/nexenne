@@ -51,8 +51,9 @@ swapping one call for the other transposes yaw and roll. Both are flagged with a
 ** The carrier
 
 =euler_angles<Real>= is a small encapsulated class (private members, =x()= /
-=y()= / =z()= accessors, fixed at construction), not a bag of public fields, so it
-travels through the API as a real value type. Construct it positionally:
+=y()= / =z()= accessors that return a const reference on a const object and a
+mutable one otherwise), not a bag of public fields, so it travels through the
+API as a real value type. Construct it positionally:
 =euler_angles{rx, ry, rz}=, passing zero for an unused axis.
 
 * When to use it

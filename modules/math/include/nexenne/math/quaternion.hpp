@@ -23,8 +23,9 @@
  * are there for explicit code. Use \c from_axis_angle / \c from_euler /
  * \c from_two_vectors / \c look_at_rotation to build a rotation; the fallible
  * ones return \c result so an invalid input cannot silently produce a NaN-laden
- * quaternion. The components are read-only after construction (no mutable
- * accessor): build through a constructor or a factory.
+ * quaternion. The class keeps no unit-norm invariant (a sum or a scaled
+ * quaternion is not unit), so each component has a const reader and a mutable
+ * reader, like \c vector; \c normalize restores a unit rotation after an edit.
  *
  * Scalar-operator typing. The scalar \c operator* and the interpolation parameter
  * \c t of \c nlerp / \c slerp deduce their scalar from both the quaternion
@@ -102,6 +103,18 @@ public:
   }
 
   /**
+   * @brief Accesses the vector part x component for mutation.
+   *
+   * @return Mutable reference to the x component.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto x() noexcept -> value_type& {
+    return m_x;
+  }
+
+  /**
    * @brief Accesses the vector part y component.
    *
    * @return Const reference to the y component.
@@ -110,6 +123,18 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto y() const noexcept -> value_type const& {
+    return m_y;
+  }
+
+  /**
+   * @brief Accesses the vector part y component for mutation.
+   *
+   * @return Mutable reference to the y component.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto y() noexcept -> value_type& {
     return m_y;
   }
 
@@ -126,6 +151,18 @@ public:
   }
 
   /**
+   * @brief Accesses the vector part z component for mutation.
+   *
+   * @return Mutable reference to the z component.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto z() noexcept -> value_type& {
+    return m_z;
+  }
+
+  /**
    * @brief Accesses the real (scalar) part.
    *
    * @return Const reference to the w component.
@@ -134,6 +171,18 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto w() const noexcept -> value_type const& {
+    return m_w;
+  }
+
+  /**
+   * @brief Accesses the real (scalar) part for mutation.
+   *
+   * @return Mutable reference to the w component.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto w() noexcept -> value_type& {
     return m_w;
   }
 
@@ -664,7 +713,8 @@ from_two_vectors(vector<Real, 3> const from, vector<Real, 3> const to) noexcept
  * @brief An axis and an angle: the geometric form of a rotation.
  *
  * Returned by \c to_axis_angle. For the identity rotation the axis defaults to
- * +X and the angle is zero. Read-only after construction.
+ * +X and the angle is zero. The axis and the angle are independent, so each has
+ * a const reader and a mutable one; the axis is not normalised on write.
  *
  * @tparam Real Floating-point component type.
  */
@@ -713,6 +763,18 @@ public:
   }
 
   /**
+   * @brief Accesses the rotation axis for mutation.
+   *
+   * @return Mutable reference to the rotation axis.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto axis() noexcept -> axis_type& {
+    return m_axis;
+  }
+
+  /**
    * @brief Accesses the rotation angle.
    *
    * @return Const reference to the rotation angle.
@@ -721,6 +783,18 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto angle() const noexcept -> angle_type const& {
+    return m_angle;
+  }
+
+  /**
+   * @brief Accesses the rotation angle for mutation.
+   *
+   * @return Mutable reference to the rotation angle.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto angle() noexcept -> angle_type& {
     return m_angle;
   }
 };

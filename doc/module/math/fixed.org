@@ -23,8 +23,9 @@ the implementation earns its keep.
 
 ** Storage and the scale
 
-The class holds one signed integer =m_raw= and exposes the compile-time
-=scale = 1 << FractionBits=. Constructing from an integer shifts up by
+The class holds one signed integer =m_raw=, read with =raw()= (and written
+through =raw()= on a non-const value, with no shift, as =from_raw= does), and
+exposes the compile-time =scale = 1 << FractionBits=. Constructing from an integer shifts up by
 =FractionBits= (lossless); from a float, it multiplies by =scale= and truncates.
 =to_float= divides by =scale=; =to_int= arithmetic-right-shifts, which rounds
 toward negative infinity (so a stored -0.5 yields -1, not 0, documented in the

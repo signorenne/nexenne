@@ -38,8 +38,8 @@ enum class euler_order : std::uint8_t {
  *
  * Carries the three angles; pair it with an \c euler_order to give them meaning.
  * Constructed positionally as \c euler_angles{x, y, z} (pass 0 for an unused
- * axis) and read through the \c x() / \c y() / \c z() accessors; the angles are
- * fixed at construction.
+ * axis) and read and written through the \c x() / \c y() / \c z() accessors,
+ * which follow the object's constness.
  *
  * @tparam Real Floating-point component type.
  */
@@ -90,6 +90,18 @@ public:
   }
 
   /**
+   * @brief Accesses the rotation about the X axis, in radians, for mutation.
+   *
+   * @return Mutable reference to the X angle.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto x() noexcept -> value_type& {
+    return m_x;
+  }
+
+  /**
    * @brief Accesses the rotation about the Y axis, in radians.
    *
    * @return Const reference to the Y angle.
@@ -102,6 +114,18 @@ public:
   }
 
   /**
+   * @brief Accesses the rotation about the Y axis, in radians, for mutation.
+   *
+   * @return Mutable reference to the Y angle.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto y() noexcept -> value_type& {
+    return m_y;
+  }
+
+  /**
    * @brief Accesses the rotation about the Z axis, in radians.
    *
    * @return Const reference to the Z angle.
@@ -110,6 +134,18 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto z() const noexcept -> value_type const& {
+    return m_z;
+  }
+
+  /**
+   * @brief Accesses the rotation about the Z axis, in radians, for mutation.
+   *
+   * @return Mutable reference to the Z angle.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto z() noexcept -> value_type& {
     return m_z;
   }
 };

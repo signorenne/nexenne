@@ -196,6 +196,21 @@ public:
   }
 
   /**
+   * @brief Accesses the raw underlying integer representation for mutation.
+   *
+   * Writing it sets the value to \c raw / \c scale with no shift, as
+   * \c from_raw does.
+   *
+   * @return Mutable reference to the raw stored integer.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto raw() noexcept -> storage_type& {
+    return m_raw;
+  }
+
+  /**
    * @brief Returns the integer part by arithmetic right shift.
    *
    * Discards the fractional bits. Because the shift is arithmetic, negative

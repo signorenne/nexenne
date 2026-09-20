@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
+#include <utility>
 
 #include <nexenne/math/fixed.hpp>
 
@@ -126,4 +128,14 @@ TEST_CASE("multiply and divide round to nearest, symmetrically (regression)") {
   CHECK((-q::from_raw(2) / q::from_raw(3)).raw() == -43691);
   CHECK((-q{0.1} * q{0.3}).raw() == -((q{0.1} * q{0.3}).raw()));
   CHECK((-q{0.1} / q{0.3}).raw() == -((q{0.1} / q{0.3}).raw()));
+}
+
+TEST_CASE("fixed raw() writes the representation on a mutable value") {
+  using q16 = math::fixed<std::int32_t, 16>;
+  auto x{q16{}};
+  static_assert(std::is_same_v<decltype(x.raw()), std::int32_t&>);
+  static_assert(std::is_same_v<decltype(std::as_const(x).raw()), std::int32_t>);
+  x.raw() = q16::scale + q16::scale / 2;
+  CHECK(x == q16::from_raw(q16::scale + q16::scale / 2));
+  CHECK(x.to_float<float>() == 1.5F);
 }

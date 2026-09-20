@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 
 #include <cmath>
+#include <type_traits>
+#include <utility>
 
 #include <nexenne/math/euler.hpp>
 
@@ -77,4 +79,16 @@ TEST_CASE("all six orders produce unit quaternions") {
         math::euler_order::zyx}) {
     CHECK(math::length(math::to_quaternion(a, order)) == doctest::Approx(1.0));
   }
+}
+
+TEST_CASE("euler_angles accessors follow the object's constness") {
+  auto e{math::euler_angles<double>{}};
+  static_assert(std::is_same_v<decltype(e.x()), double&>);
+  static_assert(std::is_same_v<decltype(std::as_const(e).x()), double const&>);
+  e.x() = 0.25;
+  e.y() = 0.5;
+  e.z() = 0.75;
+  CHECK(std::as_const(e).x() == 0.25);
+  CHECK(std::as_const(e).y() == 0.5);
+  CHECK(std::as_const(e).z() == 0.75);
 }

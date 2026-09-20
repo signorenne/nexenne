@@ -70,5 +70,11 @@ auto main() -> int {
   auto const aa{nm::to_axis_angle(aircraft)};
   std::println("{:<28} {:.4f}", "from_ypr -> rotation axis", aa.axis());
   std::println("from_ypr -> angle = {:.4f} rad", aa.angle().value());
+
+  auto edited{aircraft};
+  edited.w() *= 2.0;
+  if (auto const unit{nm::normalize(edited)}) {
+    std::println("edited w, renormalized: {:.4f}", *unit);
+  }
   return 0;
 }
