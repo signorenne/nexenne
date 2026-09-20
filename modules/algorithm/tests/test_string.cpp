@@ -351,4 +351,16 @@ TEST_CASE("nexenne::algorithm all-match search on degenerate strings") {
   CHECK(kmp_hits == vec{0, 1, 2});  // kmp agrees with z on the periodic case
 }
 
+TEST_CASE("nexenne::algorithm::aho_corasick a second build is harmless (algorithm-01)") {
+  // The second build read the goto transitions as trie edges and never returned.
+  auto m{alg::aho_corasick{}};
+  m.add_pattern("he");
+  m.add_pattern("she");
+  m.build();
+  m.build();
+  auto hits{0};
+  m.scan("ushers", [&](std::size_t, std::size_t) { ++hits; });
+  CHECK(hits == 2);
+}
+
 }  // namespace

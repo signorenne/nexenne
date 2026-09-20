@@ -140,12 +140,16 @@ public:
    *
    * @pre All patterns intended for this matcher have been added.
    * @post The matcher is built and ready for \c scan; adding patterns
-   *       afterwards is not supported.
+   *       afterwards is not supported, and a second call does nothing (the goto
+   *       transitions it wrote would otherwise read as trie edges and loop).
    *
    * @complexity \c O(A * sum(|patterns|)) time, where \c A is the alphabet size
    *             of 256.
    */
   auto build() -> void {
+    if (m_built) {
+      return;
+    }
     auto bfs{std::queue<node_id>{}};
     for (auto c{std::size_t{0}}; c < 256; ++c) {
       auto& next{m_nodes[root_id].next[c]};
