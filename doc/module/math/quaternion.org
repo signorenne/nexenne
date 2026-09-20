@@ -48,9 +48,10 @@ hot loop should use.
 - =from_euler(roll, pitch, yaw)=: the closed-form ZYX (aerospace) product.
 - =from_two_vectors(from, to)=: the shortest rotation taking one direction onto
   another, via the half-vector method =(cross(from, h), dot(from, h))= where
-  =h = normalize(from + to)= is the unit bisector. This is stable across the whole
-  range, unlike the older =(cross(from, to), 1 + dot)= form whose =sqrt(2(1+d))=
-  normalization loses precision near 180 degrees (off by ~1e-3 in the gap band).
+  =h = normalize(from + to)= is the unit bisector. It is more accurate than the
+  older =(cross(from, to), 1 + dot)= form, whose =sqrt(2(1+d))= normalization is
+  off by about 1e-3 near 180 degrees, but for inputs a small angle =e= short of
+  opposite, =from + to= cancels and the result can miss =to= by about =e=.
   The genuinely antipodal case (=from + to= vanishes) is handled by an orthogonal
   axis.
 - =look_at_rotation(forward, up)=: builds an orthonormal basis and converts it

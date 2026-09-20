@@ -590,12 +590,13 @@ from_euler(radians<Real> const roll, radians<Real> const pitch, radians<Real> co
  *
  * The half-vector method: the unit bisector \c h = normalize(from + to) sits at
  * half the angle between the inputs, so the rotation is
- * \c (cross(from, h), dot(from, h)), already unit length. This is stable across
- * the whole range, unlike the \c (cross(from, to), 1 + dot(from, to)) form whose
- * \c sqrt(2(1+d)) normalization loses precision as the angle approaches pi (it is
- * off by ~1e-3 near 180 degrees). The genuinely antipodal case (\p from = -to,
- * where the bisector vanishes) is handled by rotating by pi about any axis
- * orthogonal to \p from.
+ * \c (cross(from, h), dot(from, h)), already unit length. It is more accurate
+ * than the \c (cross(from, to), 1 + dot(from, to)) form, whose
+ * \c sqrt(2(1+d)) normalization is off by about 1e-3 near 180 degrees, but it is
+ * not exact there either: for inputs a small angle \c e short of opposite,
+ * \c from + to cancels and the result can miss \p to by about \c e. The
+ * genuinely antipodal case (\p from = -to, where the bisector vanishes) is
+ * handled by rotating by pi about any axis orthogonal to \p from.
  *
  * @tparam Real Floating-point component type.
  * @param from Source direction. Need not be unit.
