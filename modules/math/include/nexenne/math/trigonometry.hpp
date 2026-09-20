@@ -459,7 +459,8 @@ template <std::floating_point Real>
  * @return Approximate \c atan2(y, x) as a radians strong type.
  *
  * @pre At least one of \p x or \p y is non-zero (otherwise returns 0).
- * @post Result lies in (-pi, pi].
+ * @post Result lies in [-pi, pi]; -pi only for a negative-zero \p y with a
+ *       negative \p x, as \c std::atan2 gives.
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto fast_atan2(Real const y, Real const x) noexcept -> radians<Real> {

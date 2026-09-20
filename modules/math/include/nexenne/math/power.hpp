@@ -189,7 +189,8 @@ template <std::floating_point Real>
  *
  * @return Approximation of \c 1/sqrt(value).
  *
- * @pre \p value is strictly positive and finite.
+ * @pre \p value is strictly positive, finite and normal: the bit trick assumes
+ *      a normal encoding, and a subnormal input can be off by a factor of 30.
  * @post Relative error is approximately 5e-6.
  *
  * @warning Undefined for non-positive inputs.
@@ -242,7 +243,8 @@ template <detail::ieee_float Real>
  *
  * @pre When \p exponent is negative, \p base is non-zero. \p exponent is not
  *      \c INT_MIN (its negation would overflow).
- * @post Result is finite when the precondition holds.
+ * @post The result overflows to infinity, or underflows toward zero, only when
+ *       the exact power lies outside the range of \p Real.
  *
  * @par Example
  * \code
@@ -255,7 +257,9 @@ template <std::floating_point Real>
   assert(exponent != std::numeric_limits<int>::min() && "pow_int exponent must not be INT_MIN");
   if (exponent < 0) {
     assert(base != Real{0} && "pow_int with a negative exponent requires a non-zero base");
-    return Real{1} / pow_int(base, -exponent);
+    // Invert first: 1 / base^n overflows base^n on the way to a representable
+    // result (2^-1074 would pass through 2^1074 = inf).
+    return pow_int(Real{1} / base, -exponent);
   }
   // Exponentiation by squaring: read the exponent in binary. base^exponent is
   // the product of base^(2^k) for each set bit k, so square the running base

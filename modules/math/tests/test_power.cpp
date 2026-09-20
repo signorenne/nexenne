@@ -131,3 +131,9 @@ TEST_CASE("constexpr sqrt rounds like the runtime sqrt (math-08)") {
   constexpr double at_compile_time{math::sqrt(x)};
   CHECK(at_compile_time == std::sqrt(x));
 }
+
+TEST_CASE("pow_int reaches a subnormal result with a negative exponent (math-09)") {
+  // 1 / 2^1074 overflowed the intermediate power and returned 0.
+  CHECK(math::pow_int(2.0, -1074) == std::numeric_limits<double>::denorm_min());
+  CHECK(math::pow_int(2.0, -3) == 0.125);
+}
