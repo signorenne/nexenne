@@ -416,8 +416,6 @@ template <std::floating_point Real>
   return lhs.value() / rhs.value();
 }
 
-// The same algebra for degrees.
-
 /**
  * @brief Sums two degree angles.
  *
@@ -613,8 +611,6 @@ template <std::floating_point Real>
   return degrees<Real>{r * rad_to_deg_v<Real>};
 }
 
-// The trig wrappers are not yet constexpr because std::sin/cos/tan are runtime.
-
 /**
  * @brief Sine of \p r.
  *
@@ -690,8 +686,8 @@ template <std::floating_point Real>
   // result is strictly below the period on the high end, but floating-point
   // rounding can leave it a hair below 0 (measured ~-1e-13), which after the -pi
   // shift dips just under -pi; the (wrapped < -pi) branch pulls that back into
-  // [-pi, pi). The (wrapped >= pi) branch never fires - mod's upper end is already
-  // strict, so wrapped < pi always - and is kept only as a symmetric guard.
+  // [-pi, pi). The (wrapped >= pi) branch never fires (mod's upper end is already
+  // strict, so wrapped < pi always) and is kept only as a symmetric guard.
   auto const two_pi{tau_v<Real>};
   auto wrapped{mod(r.value() + pi_v<Real>, two_pi) - pi_v<Real>};
   if (wrapped >= pi_v<Real>) {
@@ -722,8 +718,8 @@ template <std::floating_point Real>
   // scalar::mod's result is strictly below the period (it pulls a value rounding
   // up to the period back to 0), but a floating-point rounding can leave it a
   // hair below 0 (measured ~-1e-13); the (wrapped < 0) branch pulls that residue
-  // up into [0, 2pi). The (wrapped >= 2pi) branch never fires - mod's upper end is
-  // already strict - and is a symmetric backstop.
+  // up into [0, 2pi). The (wrapped >= 2pi) branch never fires (mod's upper end is
+  // already strict) and is a symmetric backstop.
   auto const two_pi{tau_v<Real>};
   auto wrapped{mod(r.value(), two_pi)};
   if (wrapped >= two_pi) {

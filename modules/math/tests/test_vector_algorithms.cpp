@@ -39,17 +39,14 @@ TEST_CASE("normalize variants") {
   CHECK(math::length(*n) == doctest::Approx(1.0));
   CHECK(n->x() == doctest::Approx(0.6));
 
-  // Zero vector fails.
   auto const z{math::normalize(math::vector3_f{0, 0, 0})};
   REQUIRE_FALSE(z.has_value());
   CHECK(z.error() == math::math_error::zero_length_vector);
 
-  // fast_normalize: unit length within fast_inv_sqrt tolerance.
   auto const fn{math::fast_normalize(v)};
   REQUIRE(fn.has_value());
   CHECK(math::length(*fn) == doctest::Approx(1.0).epsilon(1e-4));
 
-  // normalize_or returns the fallback for a zero vector.
   constexpr math::vector3_f up{0, 1, 0};
   CHECK(math::normalize_or(math::vector3_f{0, 0, 0}, up) == up);
 }
@@ -117,7 +114,7 @@ TEST_CASE("almost_equal and move_toward for vectors") {
   constexpr math::vector2_f start{0, 0};
   constexpr math::vector2_f target{10, 0};
   CHECK(math::move_toward(start, target, 3.0f) == math::vector2_f{3, 0});
-  CHECK(math::move_toward(start, target, 100.0f) == target);  // snaps
+  CHECK(math::move_toward(start, target, 100.0f) == target);
 }
 
 TEST_CASE("normalized wrapper carries the unit-length guarantee") {
@@ -127,40 +124,33 @@ TEST_CASE("normalized wrapper carries the unit-length guarantee") {
   CHECK(math::length(n->value()) == doctest::Approx(1.0));
   static_assert(std::is_same_v<math::normalized<float, 3>::vector_type, math::vector3_f>);
 
-  // The implicit conversion works in non-template contexts.
   math::vector3_f back = *n;
   CHECK(math::length(back) == doctest::Approx(1.0));
 
-  // make_unchecked trusts a known unit vector.
   constexpr auto up{math::make_unchecked(math::vector3_f{0, 1, 0})};
   CHECK(up.value().y() == 1.0f);
 
-  // A zero vector cannot be made normalized.
   CHECK_FALSE(math::make_normalized(math::vector3_f{0, 0, 0}).has_value());
 }
 
-TEST_CASE("angle_between guards each length separately (regression)") {
-  // Two genuinely-nonzero short vectors must not be rejected as zero-length: the
-  // old product-of-squared-lengths threshold wrongly flagged them.
+TEST_CASE("angle_between guards each length separately") {
+  // A product-of-squared-lengths guard would reject these nonzero short vectors.
   auto const r{math::angle_between(math::vector3_d{1e-8, 0, 0}, math::vector3_d{0, 1e-8, 0})};
   REQUIRE(r.has_value());
   CHECK(*r == doctest::Approx(math::half_pi));
 }
 
-TEST_CASE("vector move_toward does not move for a non-positive step (regression)") {
+TEST_CASE("vector move_toward does not move for a non-positive step") {
   auto const r{math::move_toward(math::vector3_d{0, 0, 0}, math::vector3_d{10, 0, 0}, -3.0)};
   CHECK(r.x() == 0.0);
   CHECK(r.y() == 0.0);
   CHECK(r.z() == 0.0);
 }
 
-TEST_CASE("normalize family reports an error when the squared length overflows (M2)") {
-  // Components are finite floats, but 2e19f squared (~4e38) already exceeds
-  // FLT_MAX, so length_squared overflows to +inf. The old code passed the
-  // short-vector guard (inf > threshold) and returned v / sqrt(inf) = zero as a
-  // "unit" success. Each variant must now flag it instead of emitting garbage.
+TEST_CASE("normalize family reports an error when the squared length overflows") {
+  // 2e19f squared (~4e38) exceeds FLT_MAX, so length_squared overflows to +inf.
   constexpr math::vector3_f huge{2e19f, 0.0f, 2e19f};
-  REQUIRE_FALSE(math::isfinite(math::length_squared(huge)));  // precondition of the test
+  REQUIRE_FALSE(math::isfinite(math::length_squared(huge)));
 
   auto const n{math::normalize(huge)};
   REQUIRE_FALSE(n.has_value());
@@ -170,7 +160,6 @@ TEST_CASE("normalize family reports an error when the squared length overflows (
   REQUIRE_FALSE(fn.has_value());
   CHECK(fn.error() == math::math_error::invalid_input);
 
-  // normalize_or cannot report, so it takes the fallback (still unit length).
   constexpr math::vector3_f up{0, 1, 0};
   CHECK(math::normalize_or(huge, up) == up);
 
@@ -183,9 +172,7 @@ TEST_CASE("normalize family reports an error when the squared length overflows (
   CHECK(rej.error() == math::math_error::invalid_input);
 }
 
-TEST_CASE("default-constructed normalized holds a unit axis, not the zero vector (M1)") {
-  // A zero default broke the whole point of the type (a zero normal makes reflect
-  // return its input unchanged); the default is now the canonical +X unit axis.
+TEST_CASE("default-constructed normalized holds a unit axis, not the zero vector") {
   constexpr math::normalized<float, 3> d3{};
   CHECK(math::length(d3.value()) == doctest::Approx(1.0));
   CHECK(d3.value() == math::vector3_f{1, 0, 0});
@@ -193,14 +180,13 @@ TEST_CASE("default-constructed normalized holds a unit axis, not the zero vector
   constexpr math::normalized<double, 2> d2{};
   CHECK(math::length(d2.value()) == doctest::Approx(1.0));
 
-  // Equality is available now (defaulted operator==), comparing wrapped vectors.
   constexpr auto same{math::make_unchecked(math::vector3_f{1, 0, 0})};
   CHECK(d3 == same);
   CHECK(d3 != math::make_unchecked(math::vector3_f{0, 1, 0}));
 }
 
-TEST_CASE("angle_between stays accurate for nearly parallel vectors (math-04)") {
-  // acos of the cosine read a float 1e-4 rad angle as 0.
+TEST_CASE("angle_between stays accurate for nearly parallel vectors") {
+  // acos of the cosine would read a float 1e-4 rad angle as 0.
   auto const a{math::vector2_f{1.0f, 0.0f}};
   auto const b{math::vector2_f{std::cos(1e-4f), std::sin(1e-4f)}};
   auto const angle{math::angle_between(a, b)};

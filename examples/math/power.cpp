@@ -15,7 +15,6 @@
 namespace nm = nexenne::math;
 
 auto main() -> int {
-  // Exact (to rounding), constexpr-capable.
   std::println("sqrt(2)        = {}", nm::sqrt(2.0));
   std::println("pow_int(2, 10) = {}", nm::pow_int(2.0, 10));
 

@@ -20,7 +20,6 @@ namespace math = nexenne::math;
 
 namespace {
 
-// Max over a dense sweep of [lo, hi] of |approx(x) - exact(x)|.
 template <typename Approx, typename Exact>
 auto max_abs_error(double lo, double hi, int samples, Approx approx, Exact exact) -> double {
   double worst{0.0};
@@ -59,7 +58,7 @@ TEST_CASE("fast_sin / fast_cos hold their ~3e-7 bound over [-pi, pi]") {
     [](double x) { return math::fast_cos(math::radians_d{x}); },
     [](double x) { return std::cos(x); }
   )};
-  CHECK(se < 3.5e-7);  // measured ~3.12e-7, NOT the formerly-claimed 1e-7
+  CHECK(se < 3.5e-7);  // measured ~3.12e-7
   CHECK(ce < 3.5e-7);
 }
 
@@ -79,9 +78,9 @@ TEST_CASE("lut_sin / lut_cos hold their ~4.7e-6 bound") {
     [](double x) { return std::cos(x); }
   )};
   // The analytic linear-interpolation bound is (1/8)(2pi/1024)^2 = 4.71e-6.
-  CHECK(se < 5.0e-6);  // measured ~4.71e-6, NOT the formerly-claimed 3e-6
+  CHECK(se < 5.0e-6);  // measured ~4.71e-6
   CHECK(ce < 5.0e-6);
-  CHECK(se > 3.0e-6);  // and it genuinely exceeds the old 3e-6 claim
+  CHECK(se > 3.0e-6);  // tight against the analytic bound, not far below it
 }
 
 TEST_CASE("fast inverse trig hold their bounds") {
@@ -131,18 +130,15 @@ TEST_CASE("power approximations hold their bounds") {
 }
 
 TEST_CASE("lerp endpoint behaviour matches the documented contract") {
-  // t=0 is exact; a normal-magnitude t=1 is exact too.
   CHECK(math::lerp(3.0, 9.0, 0.0) == 3.0);
   CHECK(math::lerp(3.0, 9.0, 1.0) == 9.0);
-  // But the fast form is NOT endpoint-exact at t=1 under large cancellation, as
-  // the doc now warns: lhs + 1*(rhs-lhs) loses rhs when |lhs| >> |rhs|.
+  // lhs + 1*(rhs-lhs) loses rhs when |lhs| >> |rhs|, so t=1 is not endpoint-exact.
   CHECK(math::lerp(1e20, 1.0, 1.0) != 1.0);
 }
 
 TEST_CASE("angle_diff respects its [-pi, pi) half-open range") {
-  // A difference of exactly pi maps to -pi (the half-open low end), which would
-  // be excluded by the formerly-claimed (-pi, pi].
+  // A difference of exactly pi maps to -pi, the half-open low end.
   auto const d{math::angle_diff(math::radians_d{std::numbers::pi}, math::radians_d{0.0}).value()};
   CHECK(d == doctest::Approx(-std::numbers::pi));
-  CHECK(d < 0.0);  // it is -pi, not +pi
+  CHECK(d < 0.0);
 }

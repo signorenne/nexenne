@@ -48,7 +48,6 @@ TEST_CASE("construction, deduction guides, and named accessors") {
   static_assert(b.w() == 4.0f);
   static_assert(b[2] == 3.0f);
 
-  // From an array.
   constexpr math::vector<float, 3> c{std::array<float, 3>{5, 6, 7}};
   static_assert(c.x() == 5.0f);
 }

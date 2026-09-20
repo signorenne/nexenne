@@ -22,12 +22,11 @@ TEST_CASE("nlerp_plain hits endpoints and stays unit length") {
 
 TEST_CASE("nlerp_short takes the shorter arc") {
   auto const a{unit_about_z(0.0)};
-  // -a represents the same orientation but is antipodal; nlerp_short must flip it
-  // so the result stays near a, not at the far end.
+  // -a is the same orientation on the antipodal side of the double cover.
   auto const b{-a};
   auto const mid{math::nlerp_short(a, b, 0.5)};
   CHECK(math::length(mid) == doctest::Approx(1.0));
-  CHECK(std::abs(math::dot(mid, a)) == doctest::Approx(1.0));  // same orientation as a
+  CHECK(std::abs(math::dot(mid, a)) == doctest::Approx(1.0));
 }
 
 TEST_CASE("slerp_short matches the canonical slerp and is unit") {

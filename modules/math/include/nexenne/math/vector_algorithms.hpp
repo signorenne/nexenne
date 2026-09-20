@@ -620,9 +620,6 @@ template <std::floating_point Real, std::size_t N>
 [[nodiscard]] constexpr auto move_toward(
   vector<Real, N> const& current, vector<Real, N> const& target, Real const max_delta
 ) noexcept -> vector<Real, N> {
-  // A non-positive step means "do not move". The squared-distance test below
-  // squares away the sign of max_delta, so without this guard a negative step
-  // would fall through and move away from the target with a negative scale.
   if (max_delta <= Real{0}) {
     return current;
   }

@@ -12,19 +12,17 @@
 
 namespace math = nexenne::math;
 
-TEST_CASE("C1, M1, M2 combined reproduction (fails before, passes after)") {
-  // C1: mod re-reduces a huge dividend into range; fast_sin no longer returns inf.
+TEST_CASE("extreme inputs to mod, fast_sin, fast_log and trunc stay in contract") {
   constexpr auto tau{math::tau_v<double>};
   auto const residue{math::mod(6.3656990270058986e60, tau)};
   CHECK(residue >= 0.0);
   CHECK(residue < tau);
   CHECK(std::abs(math::fast_sin(math::radians_d{6.3656990270058986e60})) <= 1.0);
 
-  // M1: fast_log on non-positive input returns like std::log instead of diverging.
   CHECK(math::fast_log(0.0) == -std::numeric_limits<double>::infinity());
   CHECK(std::isnan(math::fast_log(-1.0)));
 
-  // M2: constexpr trunc for a huge long double compiles (2^63 <= 9.3e18 < 2^64).
+  // 2^63 <= 9.3e18 < 2^64: beyond the long long cast, already integral.
   static_assert(math::trunc(9.3e18L) == 9.3e18L);
   CHECK(math::trunc(9.3e18L) == 9.3e18L);
 }
@@ -42,7 +40,6 @@ TEST_CASE("fast_sin and fast_cos approximate libm and are constexpr") {
     CHECK(math::fast_cos(math::radians_d{a}) == doctest::Approx(std::cos(a)).epsilon(1e-5));
   }
   static_assert(math::fast_cos(math::radians_d{0.0}) == 1.0);
-  // The paired form agrees with the singles.
   constexpr auto sc{math::fast_sincos(math::radians_d{1.0})};
   CHECK(sc.sin() == doctest::Approx(math::fast_sin(math::radians_d{1.0})));
 }
@@ -55,7 +52,6 @@ TEST_CASE("fast inverse trig approximates libm") {
   for (double x : {-5.0, -1.0, 0.0, 1.0, 5.0}) {
     CHECK(math::fast_atan(x).value() == doctest::Approx(std::atan(x)).epsilon(1e-4));
   }
-  // atan2 quadrants.
   CHECK(math::fast_atan2(1.0, 1.0).value() == doctest::Approx(std::atan2(1.0, 1.0)).epsilon(1e-4));
   CHECK(
     math::fast_atan2(1.0, -1.0).value() == doctest::Approx(std::atan2(1.0, -1.0)).epsilon(1e-4)
@@ -63,7 +59,7 @@ TEST_CASE("fast inverse trig approximates libm") {
   CHECK(
     math::fast_atan2(-1.0, -1.0).value() == doctest::Approx(std::atan2(-1.0, -1.0)).epsilon(1e-4)
   );
-  CHECK(math::fast_atan2(0.0, 0.0).value() == 0.0);  // documented zero case
+  CHECK(math::fast_atan2(0.0, 0.0).value() == 0.0);
 }
 
 TEST_CASE("lut_sin and lut_cos approximate libm") {
@@ -84,32 +80,25 @@ TEST_CASE("angle_diff and lerp_angle take the short way around") {
   CHECK(std::abs(mid) < 1e-9);
 }
 
-TEST_CASE("lut/fast trig survive extreme and out-of-domain inputs (regression)") {
-  // Huge angles must not overflow the reduction; result stays in [-1, 1].
+TEST_CASE("lut/fast trig survive extreme and out-of-domain inputs") {
   CHECK(math::lut_sin(math::radians_d{1e30}) >= -1.0);
   CHECK(math::lut_sin(math::radians_d{1e30}) <= 1.0);
-  // fast_asin/acos clamp marginally-out-of-range inputs instead of returning NaN.
   CHECK_FALSE(std::isnan(math::fast_asin(1.0000000001).value()));
   CHECK(math::fast_asin(1.0000000001).value() == doctest::Approx(math::half_pi));
   CHECK_FALSE(std::isnan(math::fast_acos(-1.0000000001).value()));
-  // fast_atan2 matches IEEE std::atan2 on a negative zero.
   CHECK(math::fast_atan2(-0.0, -1.0).value() == doctest::Approx(std::atan2(-0.0, -1.0)));
 }
 
-TEST_CASE("poly-based fast trig survives out-of-contract huge angles (regression)") {
-  // The round_nearest cast would be UB past the long long range; the guarded
-  // pre-reduction keeps fast_sin/cos defined and bounded for enormous inputs.
+TEST_CASE("poly-based fast trig survives out-of-contract huge angles") {
+  // Past the long long range the round_nearest cast would be UB without the pre-reduction.
   CHECK(math::fast_sin(math::radians_d{1e30}) >= -1.0);
   CHECK(math::fast_sin(math::radians_d{1e30}) <= 1.0);
   CHECK(math::fast_cos(math::radians_d{-1e30}) >= -1.0);
   CHECK(math::fast_cos(math::radians_d{-1e30}) <= 1.0);
 }
 
-TEST_CASE("lut_sin and fast_sin stay bounded for randomized huge angles (C1 regression)") {
-  // The old single-pass mod left a huge negative residue above |a| > tau/epsilon,
-  // so lut_sin returned garbage and fast_sin returned inf. Sweeping bit-mixed
-  // mantissas above 1e17 (round decimals reduce cleanly and hide it) both entry
-  // points must honour their [-1, 1] postcondition.
+TEST_CASE("lut_sin and fast_sin stay bounded for randomized huge angles") {
+  // Bit-mixed mantissas above 1e17: round decimals reduce cleanly and would hide a bad residue.
   std::uint64_t state{0xD1B54A32D192ED03ULL};
   auto const next{[&state]() noexcept -> std::uint64_t {
     state ^= state << 13;
@@ -130,12 +119,11 @@ TEST_CASE("lut_sin and fast_sin stay bounded for randomized huge angles (C1 regr
       CHECK(l <= 1.0);
     }
   }
-  // The exact review probe: fast_sin returned inf before the mod fix.
   CHECK(math::fast_sin(math::radians_d{6.3656990270058986e60}) >= -1.0);
   CHECK(math::fast_sin(math::radians_d{6.3656990270058986e60}) <= 1.0);
 }
 
-TEST_CASE("lut_sin and lut_cos are usable in a constant expression (m9 regression)") {
+TEST_CASE("lut_sin and lut_cos are usable in a constant expression") {
   static_assert(
     math::lut_sin(math::radians_d{0.0}) == 0.0 || math::lut_sin(math::radians_d{0.0}) != 0.0
   );
@@ -145,8 +133,7 @@ TEST_CASE("lut_sin and lut_cos are usable in a constant expression (m9 regressio
   CHECK(c == doctest::Approx(1.0).epsilon(1e-3));
 }
 
-TEST_CASE("fast inverse trig builds and approximates std for float (math-02)") {
-  // The double coefficient literals used to trip -Wfloat-conversion for float.
+TEST_CASE("fast inverse trig builds and approximates std for float") {
   for (auto const x : {-0.9f, -0.3f, 0.0f, 0.4f, 0.95f}) {
     CHECK(std::abs(math::fast_asin(x).value() - std::asin(x)) < 1e-4f);
     CHECK(std::abs(math::fast_acos(x).value() - std::acos(x)) < 1e-4f);

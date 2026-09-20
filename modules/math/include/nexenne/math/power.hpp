@@ -59,19 +59,13 @@ concept ieee_float = std::same_as<Real, float> || std::same_as<Real, double>;
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto sqrt_newton(Real const value) noexcept -> Real {
-  // Match std::sqrt at the boundary so a compile-time root agrees with the
-  // runtime one: a negative input has no real root and gives NaN (not 0, which
-  // the old guard returned), and +/-0 returns itself so the sign of zero survives.
   if (value < Real{0}) {
     return std::numeric_limits<Real>::quiet_NaN();
   }
   if (value == Real{0}) {
     return value;
   }
-  // Infinity has no finite root and, left unguarded, would spin the range-reduction
-  // loop forever (inf * 0.25 == inf never drops below 4), which at compile time is
-  // a hard error. Return it directly; sqrt(inf) is inf. (NaN falls through both
-  // loops untouched and propagates through the iteration as NaN.)
+  // Unguarded, inf spins the range reduction forever (inf * 0.25 == inf); NaN propagates.
   if (value > std::numeric_limits<Real>::max()) {
     return value;
   }
@@ -218,16 +212,16 @@ template <detail::ieee_float Real>
     auto bits{std::bit_cast<std::int32_t>(value)};
     bits = std::int32_t{0x5F37'5A86} - (bits >> 1);
     auto y{std::bit_cast<float>(bits)};
-    y = y * (Real{1.5} - half * y * y);  // first Newton step
-    y = y * (Real{1.5} - half * y * y);  // second Newton step
+    y = y * (Real{1.5} - half * y * y);
+    y = y * (Real{1.5} - half * y * y);
     return y;
   } else {
     auto const half{Real{0.5} * value};
     auto bits{std::bit_cast<std::int64_t>(value)};
     bits = std::int64_t{0x5FE6'EB50'C7B5'37A9} - (bits >> 1);
     auto y{std::bit_cast<double>(bits)};
-    y = y * (Real{1.5} - half * y * y);  // first Newton step
-    y = y * (Real{1.5} - half * y * y);  // second Newton step
+    y = y * (Real{1.5} - half * y * y);
+    y = y * (Real{1.5} - half * y * y);
     return y;
   }
 }
@@ -311,8 +305,7 @@ template <detail::ieee_float Real>
   auto const yf{y - yi};
   // 2^yf for yf in [0, 1): degree-7 Taylor of exp(yf*ln(2)) about yf=0, so the
   // coefficients are (ln 2)^k / k! for k = 0..7. This is the accurate part.
-  // Evaluated by Horner from the top coefficient down - bit-identical to the
-  // nested form, just within the column limit.
+  // Evaluated by Horner from the top coefficient down.
   auto p{static_cast<Real>(0.00001525273380405)};       // (ln2)^7/7!
   p = static_cast<Real>(0.00015403530393381) + yf * p;  // (ln2)^6/6!
   p = static_cast<Real>(0.00133335581464284) + yf * p;  // (ln2)^5/5!
@@ -362,11 +355,7 @@ template <detail::ieee_float Real>
  */
 template <detail::ieee_float Real>
 [[nodiscard]] constexpr auto fast_log(Real const x) noexcept -> Real {
-  // log is undefined for non-positive input; match std::log rather than diverge.
-  // Exactly 0 gives -infinity, a negative value gives NaN. This guard is also what
-  // keeps the subnormal rescale below terminating: 0 and every negative value stay
-  // at or below min(), so without it the recursion never bottoms out (a stack
-  // overflow at -O0, an infinite loop once the tail call is optimized).
+  // Also what ends the subnormal rescale: 0 and negatives never rise above min().
   if (x <= Real{0}) {
     return x < Real{0} ? std::numeric_limits<Real>::quiet_NaN()
                        : -std::numeric_limits<Real>::infinity();
@@ -382,8 +371,8 @@ template <detail::ieee_float Real>
   // ln(x) = e*ln(2) + ln(m) with m in [1, 2). The exponent field (8 bits for
   // float, biased by 127; 11 bits for double, biased by 1023) gives e directly.
   // Clearing that field and OR-ing in the bias pattern (0x3F80'0000 for float, the
-  // encoding of 1.0 - unbiased exponent 0, i.e. a biased exponent field of 127)
-  // leaves the original mantissa with value in [1, 2).
+  // encoding of 1.0: unbiased exponent 0, a biased exponent field of 127) leaves
+  // the original mantissa with value in [1, 2).
   Real exp_part{};
   Real m{};
   if constexpr (std::same_as<Real, float>) {
@@ -407,8 +396,7 @@ template <detail::ieee_float Real>
   // https://en.wikipedia.org/wiki/Logarithm#Power_series (area hyperbolic tangent)
   auto const u{(m - Real{1}) / (m + Real{1})};
   auto const u2{u * u};
-  // Horner in u2 from the top reciprocal (1/11) down, then scale by 2u. Within
-  // the column limit; same coefficients and order as the nested form.
+  // Horner in u2 from the top reciprocal (1/11) down, then scale by 2u.
   auto q{Real{1} / Real{11}};
   q = Real{1} / Real{9} + u2 * q;
   q = Real{1} / Real{7} + u2 * q;

@@ -473,9 +473,6 @@ using matrix3_d = matrix3<double>;
 /// @brief 4x4 \c double matrix.
 using matrix4_d = matrix4<double>;
 
-// The storage is one std::array of column vectors: contiguous, no padding, no
-// vtable, so a matrix is standard-layout and trivially copyable and data() is a
-// valid column-major upload pointer.
 static_assert(std::is_standard_layout_v<matrix<float, 2>>);
 static_assert(std::is_standard_layout_v<matrix<float, 3>>);
 static_assert(std::is_standard_layout_v<matrix<float, 4>>);
@@ -504,7 +501,7 @@ template <arithmetic Value, std::size_t N>
 operator+(matrix<Value, N> const& a, matrix<Value, N> const& b) noexcept -> matrix<Value, N> {
   auto result{matrix<Value, N>{}};
   for (std::size_t c{0}; c < N; ++c) {
-    result[c] = a[c] + b[c];  // per-column vector add (packed)
+    result[c] = a[c] + b[c];
   }
   return result;
 }
@@ -590,7 +587,7 @@ template <arithmetic Value, std::size_t N>
 [[nodiscard]] constexpr auto operator-(matrix<Value, N> const& m) noexcept -> matrix<Value, N> {
   auto result{matrix<Value, N>{}};
   for (std::size_t c{0}; c < N; ++c) {
-    result[c] = -m[c];  // per-column vector negate
+    result[c] = -m[c];
   }
   return result;
 }
@@ -731,7 +728,7 @@ operator*(matrix<Value, N> const& a, matrix<Value, N> const& b) noexcept -> matr
   for (std::size_t j{0}; j < N; ++j) {
     auto col{vector<Value, N>{}};
     for (std::size_t k{0}; k < N; ++k) {
-      col += a[k] * b(k, j);  // A's column k, scaled by B(k, j); packed mul-add
+      col += a[k] * b(k, j);  // A's column k scaled by B(k, j)
     }
     result[j] = col;
   }
@@ -783,7 +780,7 @@ template <arithmetic Value, std::size_t N>
 operator*(matrix<Value, N> const& m, vector<Value, N> const& v) noexcept -> vector<Value, N> {
   auto result{vector<Value, N>{}};
   for (std::size_t j{0}; j < N; ++j) {
-    result += m[j] * v[j];  // column j scaled by v[j]; packed mul-add
+    result += m[j] * v[j];  // column j scaled by v[j]
   }
   return result;
 }
@@ -843,7 +840,7 @@ template <arithmetic Value, std::size_t N>
   } else {
     // N == 4: Laplace-expand along the first row. Each first-row cofactor is a
     // 3x3 determinant of rows 1..3, which itself expands along row 1 into the six
-    // 2x2 minors of rows 2 and 3 - and those six are shared across all four
+    // 2x2 minors of rows 2 and 3, and those six are shared across all four
     // cofactors, so compute them once. Each t names the column pair it covers
     // (the two columns NOT struck out): t00 = cols{2,3}, t01 = {1,3}, t02 = {1,2},
     // t03 = {0,3}, t04 = {0,2}, t05 = {0,1}. The alternating +-+- on the m(0,j)
@@ -887,23 +884,20 @@ template <std::floating_point Real, std::size_t N>
   requires(N >= 2 && N <= 4)
 {
   auto const det{determinant(m)};
-  // Relative singularity threshold. A former absolute cutoff (1e-20) is
-  // unreachable under float rounding: the determinant of a matrix whose entries
-  // are bounded by M has magnitude up to N! * M^N, and the float cancellation
-  // noise in computing it is on the order of eps * M^N. For O(1) entries that
-  // noise is ~1e-4, ten trillion times 1e-20, so a genuinely rank-deficient float
-  // matrix (colinear rows, whose exact determinant is zero) sails through the
-  // absolute guard and inverts to garbage returned as success. Scale the cutoff to
-  // the input instead: reject when |det| has collapsed into the eps * M^N noise
-  // band. The band is scaled by Hadamard's bound, the product of the column
-  // lengths, which caps |det| for the given columns: a scale taken from the
-  // largest entry alone (max_abs^N) grows with a single large entry, so a float
-  // translation of 40 or a double diag(1e6, 1e-6, 1) was called singular. The
-  // extra factor N is a small slack for the terms that accumulate the noise. A
-  // matrix scaled by s scales both its determinant and this threshold by s^N, so
-  // the test tracks rank deficiency, not overall magnitude. The finiteness guard
-  // rejects a NaN det (every NaN comparison is false) and an infinite det from
-  // overflow (which would divide to a zero matrix), both bogus "successes".
+  // Relative singularity threshold. The determinant of a matrix whose entries are
+  // bounded by M has magnitude up to N! * M^N, and the cancellation noise in
+  // computing it is on the order of eps * M^N (~1e-4 in float for O(1) entries),
+  // so an absolute cutoff such as 1e-20 lets a rank-deficient float matrix
+  // (colinear rows, exact determinant zero) invert to garbage. Reject instead when
+  // |det| has collapsed into the eps * M^N noise band, scaled by Hadamard's bound,
+  // the product of the column lengths, which caps |det| for the given columns: a
+  // scale from the largest entry alone (max_abs^N) grows with a single large
+  // entry and would reject a float translation of 40 or a double
+  // diag(1e6, 1e-6, 1). The extra factor N is slack for the terms that accumulate
+  // the noise. A matrix scaled by s scales both its determinant and this threshold
+  // by s^N, so the test tracks rank deficiency, not overall magnitude. The
+  // finiteness guard rejects a NaN det (every NaN comparison is false) and an
+  // infinite det from overflow (which would divide to a zero matrix).
   auto scale{Real{1}};
   for (std::size_t c{0}; c < N; ++c) {
     auto length_sq{Real{0}};

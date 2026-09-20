@@ -20,11 +20,10 @@ auto main() -> int {
   std::println("a = {} (raw {})", a.to_float(), a.raw());
   std::println("b = {} (raw {})", b.to_float(), b.raw());
   std::println("a + b = {}", (a + b).to_float());
-  std::println("a * b = {}", (a * b).to_float());  // exact via wide intermediate
+  std::println("a * b = {}", (a * b).to_float());
   std::println("a / b = {}", (a / b).to_float());
   std::println("(a + b).to_int() = {} (floor of 3.5)", (a + b).to_int());
 
-  // Accumulate on the integer ALU, no FPU needed.
   nm::q16_16 acc{0};
   for (int i{0}; i < 4; ++i) {
     acc += nm::q16_16{0.25};

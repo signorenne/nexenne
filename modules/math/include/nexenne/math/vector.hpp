@@ -718,9 +718,6 @@ public:
   }
 };
 
-// Deduction guides: let callers write vector{1.0f, 2.0f, 3.0f} and have the size
-// deduced from the argument count. All arguments must share one arithmetic type.
-
 /// @brief Deduces \c vector<Value, 2> from two same-typed components.
 template <arithmetic Value>
 vector(Value, Value) -> vector<Value, 2>;
@@ -731,8 +728,6 @@ vector(Value, Value, Value) -> vector<Value, 3>;
 template <arithmetic Value>
 vector(Value, Value, Value, Value) -> vector<Value, 4>;
 
-// The layout guarantees the SIMD-friendly storage and the contiguous data()
-// pointer rely on: one std::array member, no padding, no vtable.
 static_assert(std::is_standard_layout_v<vector<float, 2>>);
 static_assert(std::is_standard_layout_v<vector<float, 3>>);
 static_assert(std::is_standard_layout_v<vector<float, 4>>);
@@ -773,13 +768,6 @@ using vector2_i = vector2<int>;
 using vector3_i = vector3<int>;
 /// @brief Four-component \c int vector.
 using vector4_i = vector4<int>;
-
-// The element-wise operators below are plain for loops over the fixed N. For
-// N = 2, 3, 4 the compiler unrolls them and emits one packed SIMD instruction
-// per operation (for example a vector<float,4> add becomes a single SSE addps);
-// the loop form is what the auto-vectorizer recognizes, so no intrinsics are
-// needed. Each builds a zero vector and overwrites every lane, and the dead
-// zero-initialization is elided.
 
 /**
  * @brief Element-wise vector addition.

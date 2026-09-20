@@ -13,7 +13,6 @@ namespace math = nexenne::math;
 namespace rng = nexenne::random;
 
 namespace {
-// A fixed seed keeps these statistical tests deterministic and reproducible.
 auto seeded() -> rng::pcg32 {
   return rng::pcg32{0x853c49e6748fea9bULL, 0xda3e39cb94b95bdbULL};
 }
@@ -64,9 +63,7 @@ TEST_CASE("uniform directions and disc points have a near-zero mean (no bias)") 
   CHECK(std::abs(disc_sum.y() / n) < 0.02);
 }
 
-TEST_CASE("geometric samplers are usable in a constant expression (m10)") {
-  // The engines and every callee are constexpr, so a compile-time-seeded scatter
-  // works through the samplers too. Force each into a constexpr variable.
+TEST_CASE("geometric samplers are usable in a constant expression") {
   constexpr auto disc_len2{[] {
     rng::pcg32 g{0x853c49e6748fea9bULL, 0xda3e39cb94b95bdbULL};
     auto const p{math::point_in_unit_disc<double>(g)};
@@ -95,9 +92,8 @@ TEST_CASE("geometric samplers are usable in a constant expression (m10)") {
   static_assert(ang >= -math::pi_v<double> && ang < math::pi_v<double>);
 }
 
-TEST_CASE("random_angle<float> stays strictly below pi (half-open, regression)") {
-  // The double->float narrowing in uniform_real_in must not let the upper bound
-  // be reached; random_angle<float> must stay in [-pi_f, pi_f).
+TEST_CASE("random_angle<float> stays strictly below pi (half-open)") {
+  // The double to float narrowing in uniform_real_in can round up onto the bound.
   auto g{seeded()};
   for (std::size_t i{0}; i < 200000; ++i) {
     auto const a{math::random_angle<float>(g).value()};

@@ -66,7 +66,6 @@ TEST_CASE("Hermite interpolates endpoints and matches the endpoint tangents") {
   math::vector2_d const m1{1, -2};
   CHECK(vapprox(math::hermite(p0, m0, p1, m1, 0.0), p0));
   CHECK(vapprox(math::hermite(p0, m0, p1, m1, 1.0), p1));
-  // The analytic tangent equals the prescribed tangents at the ends.
   CHECK(vapprox(math::hermite_tangent(p0, m0, p1, m1, 0.0), m0));
   CHECK(vapprox(math::hermite_tangent(p0, m0, p1, m1, 1.0), m1));
 }
@@ -108,13 +107,11 @@ TEST_CASE("easing curves are clamped, pinned at the ends, and symmetric at the m
   static_assert(math::ease_smootherstep(1.0) == 1.0);
   CHECK(math::ease_smoothstep(0.5) == doctest::Approx(0.5));
   CHECK(math::ease_smootherstep(0.5) == doctest::Approx(0.5));
-  // Out-of-range input is clamped, not extrapolated.
   CHECK(math::ease_smoothstep(-1.0) == doctest::Approx(0.0));
   CHECK(math::ease_smootherstep(2.0) == doctest::Approx(1.0));
 }
 
 TEST_CASE("curves work on a scalar point too (easing a single value)") {
-  // The affine_point concept admits the scalar parameter type itself.
   static_assert(math::affine_point<double, double>);
   CHECK(math::bezier_quadratic(0.0, 10.0, 0.0, 0.5) == doctest::Approx(5.0));
   CHECK(math::hermite(0.0, 0.0, 1.0, 0.0, 0.5) == doctest::Approx(0.5));

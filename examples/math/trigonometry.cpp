@@ -26,12 +26,10 @@ auto main() -> int {
     );
   }
 
-  // sincos shares the work when both are needed (rotation matrix row).
   auto const sc{nm::sincos(nm::radians_d{nm::quarter_pi})};
   std::println("");
   std::println("sincos(pi/4): sin={:.6f} cos={:.6f}", sc.sin(), sc.cos());
 
-  // Short-way interpolation: 350 deg to 10 deg passes through 0, not 180.
   auto const a350{nm::radians_d{nm::to_radians(350.0).value()}};
   auto const a10{nm::radians_d{nm::to_radians(10.0).value()}};
   std::println(

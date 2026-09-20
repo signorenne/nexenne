@@ -23,12 +23,10 @@ TEST_CASE("constants bind to the scalar type and to double") {
   static_assert(math::pi == std::numbers::pi);
   static_assert(math::half_pi_v<double> == std::numbers::pi / 2.0);
 
-  // Exact closed-form trig values.
   static_assert(math::sin_pi_6_v<double> == 0.5);
   static_assert(math::cos_pi_3_v<double> == 0.5);
   CHECK(math::cos_pi_4_v<double> == doctest::Approx(math::sin_pi_4_v<double>));
 
-  // Conversion factors round-trip.
   CHECK(math::deg_to_rad * 180.0 == doctest::Approx(std::numbers::pi));
   CHECK(math::rad_to_deg * std::numbers::pi == doctest::Approx(180.0));
 }
@@ -50,8 +48,7 @@ TEST_CASE("result carries either a value or an error") {
   CHECK(bad.error() == math::math_error::invalid_input);
 }
 
-TEST_CASE("arithmetic excludes bool and the character types (math-11)") {
-  // vector<bool, 3> used to compile and negate true to true.
+TEST_CASE("arithmetic excludes bool and the character types") {
   static_assert(!math::arithmetic<bool>);
   static_assert(!math::arithmetic<char>);
   static_assert(!math::arithmetic<char32_t>);

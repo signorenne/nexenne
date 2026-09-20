@@ -15,7 +15,6 @@ auto same_orientation(math::quaternion_d const& a, math::quaternion_d const& b) 
 }  // namespace
 
 TEST_CASE("single-axis euler matches from_axis_angle") {
-  // A pure X rotation must equal a from_axis_angle about +X.
   auto const ex{math::to_quaternion(
     math::euler_angles<double>{math::radians{0.7}, math::radians{0.0}, math::radians{0.0}},
     math::euler_order::xyz
@@ -45,7 +44,6 @@ TEST_CASE("from_ypr equals intrinsic zyx and quaternion::from_euler") {
   )};
   CHECK(same_orientation(ypr, zyx));
 
-  // And it matches the dedicated quaternion::from_euler (same ZYX convention).
   auto const direct{
     math::from_euler(math::radians_d{roll}, math::radians_d{pitch}, math::radians_d{yaw})
   };
@@ -53,9 +51,7 @@ TEST_CASE("from_ypr equals intrinsic zyx and quaternion::from_euler") {
 }
 
 TEST_CASE("the orders are intrinsic, not extrinsic") {
-  // Intrinsic xyz of (90 deg, 0, 90 deg) applied to (1,0,0) gives (0,0,1).
-  // Genuine extrinsic xyz would give (0,1,0); this pins the documented intrinsic
-  // convention so it cannot silently flip.
+  // Intrinsic xyz of (90 deg, 0, 90 deg) takes (1,0,0) to (0,0,1); extrinsic gives (0,1,0).
   auto const q{math::to_quaternion(
     math::euler_angles<double>{
       math::radians{math::half_pi}, math::radians{0.0}, math::radians{math::half_pi}

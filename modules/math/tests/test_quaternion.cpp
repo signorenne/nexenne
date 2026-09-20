@@ -23,7 +23,7 @@ TEST_CASE("layout, identity, deduction") {
   constexpr auto id{math::quaternion_d::identity()};
   static_assert(id.w() == 1.0 && id.x() == 0.0 && id.y() == 0.0 && id.z() == 0.0);
 
-  constexpr auto q{math::quaternion{1.0, 2.0, 3.0, 4.0}};  // deduced
+  constexpr auto q{math::quaternion{1.0, 2.0, 3.0, 4.0}};
   static_assert(std::is_same_v<decltype(q), math::quaternion<double> const>);
   static_assert(q.x() == 1.0 && q.w() == 4.0);
 }
@@ -35,7 +35,7 @@ TEST_CASE("Hamilton product, conjugate, inverse, dot, norm") {
   static_assert((i * j) == math::quaternion_d{0, 0, 1, 0});
 
   constexpr auto id{math::quaternion_d::identity()};
-  constexpr math::quaternion_d q{0.5, 0.5, 0.5, 0.5};  // unit
+  constexpr math::quaternion_d q{0.5, 0.5, 0.5, 0.5};
   static_assert(math::length_squared(q) == 1.0);
   CHECK(math::length(q) == doctest::Approx(1.0));
   CHECK(math::dot(q, q) == doctest::Approx(1.0));
@@ -58,7 +58,6 @@ TEST_CASE("from_axis_angle and rotate a vector") {
   auto const rotated{math::rotate(*q, math::vector3_d{1, 0, 0})};
   CHECK(vapprox(rotated, math::vector3_d{0, 1, 0}));
 
-  // A zero axis is rejected.
   CHECK_FALSE(math::from_axis_angle(math::vector3_d{0, 0, 0}, math::radians_d{1.0}).has_value());
 }
 
@@ -69,7 +68,6 @@ TEST_CASE("to_axis_angle inverts from_axis_angle") {
   CHECK(aa.angle().value() == doctest::Approx(1.2));
   CHECK(vapprox(aa.axis(), math::vector3_d{0, 1, 0}));
 
-  // Identity quaternion gives angle 0 and the default +X axis.
   auto const idaa{math::to_axis_angle(math::quaternion_d::identity())};
   CHECK(idaa.angle().value() == doctest::Approx(0.0));
   CHECK(vapprox(idaa.axis(), math::vector3_d{1, 0, 0}));
@@ -80,7 +78,6 @@ TEST_CASE("from_two_vectors rotates from onto to, incl. antipodal") {
   REQUIRE(q.has_value());
   CHECK(vapprox(math::rotate(*q, math::vector3_d{1, 0, 0}), math::vector3_d{0, 1, 0}));
 
-  // Antipodal: +X to -X. Result still rotates one onto the other.
   auto const anti{math::from_two_vectors(math::vector3_d{1, 0, 0}, math::vector3_d{-1, 0, 0})};
   REQUIRE(anti.has_value());
   CHECK(vapprox(math::rotate(*anti, math::vector3_d{1, 0, 0}), math::vector3_d{-1, 0, 0}, 1e-6));
@@ -95,7 +92,6 @@ TEST_CASE("to_matrix3 agrees with rotate") {
   auto const by_rotate{math::rotate(*q, v)};
   CHECK(vapprox(by_matrix, by_rotate, 1e-9));
 
-  // to_matrix4 has the same upper-left block and an identity last row/col.
   auto const m4{math::to_matrix4(*q)};
   CHECK(m4(0, 0) == doctest::Approx(m(0, 0)));
   CHECK(m4(3, 3) == doctest::Approx(1.0));
@@ -103,7 +99,6 @@ TEST_CASE("to_matrix3 agrees with rotate") {
 }
 
 TEST_CASE("look_at_rotation maps -Z onto forward (right-handed)") {
-  // The documented convention: the rotation takes the -Z axis onto forward.
   for (auto const& forward :
        {math::vector3_d{0, 0, -1}, math::vector3_d{1, 0, 0}, math::vector3_d{1, 2, 3}}) {
     auto const q{math::look_at_rotation(forward, math::vector3_d{0, 1, 0})};
@@ -112,7 +107,6 @@ TEST_CASE("look_at_rotation maps -Z onto forward (right-handed)") {
     auto const f_unit{*math::normalize(forward)};
     CHECK(vapprox(math::rotate(*q, math::vector3_d{0, 0, -1}), f_unit, 1e-9));
   }
-  // Parallel forward/up is rejected.
   CHECK_FALSE(
     math::look_at_rotation(math::vector3_d{0, 1, 0}, math::vector3_d{0, 1, 0}).has_value()
   );
@@ -135,10 +129,9 @@ TEST_CASE("nlerp and slerp endpoints and unit length") {
   CHECK(std::abs(math::dot(mid, expected)) == doctest::Approx(1.0));
 }
 
-TEST_CASE("from_two_vectors is accurate in the near-antipodal gap (regression)") {
+TEST_CASE("from_two_vectors is accurate in the near-antipodal gap") {
   math::vector3_d const from{1, 0, 0};
-  // ~179.84 degrees: inside the band where the old form snapped to an exact 180
-  // and lost ~3e-3 of accuracy; the half-vector method must be exact here.
+  // ~179.84 degrees, inside the near-antipodal band where a snap to 180 loses ~3e-3.
   double const ang{math::pi * 0.9991};
   math::vector3_d const to{std::cos(ang), std::sin(ang), 0};
   auto const q{math::from_two_vectors(from, to)};
@@ -146,9 +139,7 @@ TEST_CASE("from_two_vectors is accurate in the near-antipodal gap (regression)")
   CHECK(vapprox(math::rotate(*q, from), *math::normalize(to), 1e-9));
 }
 
-TEST_CASE("from_two_vectors and look_at_rotation are constexpr (m10)") {
-  // Every step is constant-evaluable (normalize, cross, dot, math::sqrt), so a
-  // static orientation must build at compile time.
+TEST_CASE("from_two_vectors and look_at_rotation are constexpr") {
   constexpr auto turn{math::from_two_vectors(math::vector3_f{1, 0, 0}, math::vector3_f{0, 1, 0})};
   static_assert(turn.has_value());
   static_assert(math::length_squared(*turn) > 0.9f);
@@ -158,9 +149,8 @@ TEST_CASE("from_two_vectors and look_at_rotation are constexpr (m10)") {
   static_assert(math::length_squared(*look) > 0.9f);
 }
 
-TEST_CASE("to_axis_angle keeps a small rotation's angle and unit axis (math-03)") {
-  // 2*acos(w) and sqrt(1 - w*w) cancelled: a float 1e-3 rad rotation came back
-  // as 9.77e-4 rad about an axis of length 1.024.
+TEST_CASE("to_axis_angle keeps a small rotation's angle and unit axis") {
+  // 2*acos(w) and sqrt(1 - w*w) would cancel a float 1e-3 rad rotation's digits.
   auto const axis{math::vector3_f{0.0f, 0.0f, 1.0f}};
   auto const q{math::from_axis_angle(axis, math::radians_f{1e-3f})};
   REQUIRE(q.has_value());
@@ -169,9 +159,8 @@ TEST_CASE("to_axis_angle keeps a small rotation's angle and unit axis (math-03)"
   CHECK(std::abs(math::length(aa.axis()) - 1.0f) < 1e-6f);
 }
 
-TEST_CASE("quaternion normalize and inverse reject an overflowing length (math-07)") {
-  // A float component of 2e19 squares past the float range; the zero quaternion
-  // this scaled to used to come back as success.
+TEST_CASE("quaternion normalize and inverse reject an overflowing length") {
+  // A float component of 2e19 squares past the float range.
   auto const big{math::quaternion_f{2e19f, 0.0f, 0.0f, 0.0f}};
   auto const n{math::normalize(big)};
   REQUIRE_FALSE(n.has_value());

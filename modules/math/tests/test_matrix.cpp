@@ -48,17 +48,11 @@ TEST_CASE("layout guarantees (column-major, contiguous, no padding)") {
 }
 
 TEST_CASE("row-major factory stores column-major, accessors agree") {
-  constexpr auto m{math::make_matrix2(
-    1.0f,
-    2.0f,  // row 0
-    3.0f,
-    4.0f
-  )};  // row 1
+  constexpr auto m{math::make_matrix2(1.0f, 2.0f, 3.0f, 4.0f)};
   static_assert(m(0, 0) == 1.0f);
   static_assert(m(0, 1) == 2.0f);
   static_assert(m(1, 0) == 3.0f);
   static_assert(m(1, 1) == 4.0f);
-  // Column-major: column 0 is (1, 3), and data() lays it out that way.
   static_assert(m[0] == math::vector2_f{1, 3});
   static_assert(m.data()[0] == 1.0f);
   static_assert(m.data()[1] == 3.0f);  // next contiguous scalar is row 1 of col 0
@@ -91,18 +85,15 @@ TEST_CASE("matrix-matrix multiply (column-combination, SIMD form)") {
   // [1 2][5 6] = [19 22]
   // [3 4][7 8]   [43 50]
   static_assert((a * b) == math::make_matrix2(19.0f, 22.0f, 43.0f, 50.0f));
-  // Identity is the multiplicative identity.
   static_assert((a * math::matrix2_f::identity()) == a);
   static_assert((math::matrix2_f::identity() * a) == a);
 
-  // 3x3 against a hand-checked product.
   constexpr auto id3{math::matrix3_f::identity()};
   constexpr auto t{math::make_matrix3(1.0f, 0.0f, 5.0f, 0.0f, 1.0f, 6.0f, 0.0f, 0.0f, 1.0f)};
   static_assert((t * id3) == t);
 }
 
 TEST_CASE("matrix-vector multiply transforms a column vector") {
-  // A 3x3 with a translation column applied to a homogeneous-ish point.
   constexpr auto m{math::make_matrix3(2.0f, 0.0f, 10.0f, 0.0f, 3.0f, 20.0f, 0.0f, 0.0f, 1.0f)};
   constexpr math::vector3_f p{4, 5, 1};
   // row0: 2*4 + 0 + 10*1 = 18 ; row1: 0 + 3*5 + 20*1 = 35 ; row2: 1
@@ -125,7 +116,6 @@ TEST_CASE("inverse round-trips to identity, rejects singular") {
   CHECK(prod(1, 1) == doctest::Approx(1.0));
   CHECK(prod(0, 1) == doctest::Approx(0.0));
 
-  // 4x4 round-trip.
   auto const m4{math::make_matrix4(
     1.0, 2.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 2.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0
   )};
@@ -136,15 +126,12 @@ TEST_CASE("inverse round-trips to identity, rejects singular") {
     CHECK(prod4(i, i) == doctest::Approx(1.0));
   }
 
-  // Singular matrix (zero determinant) returns an error.
   auto const singular{math::inverse(math::make_matrix2(1.0, 2.0, 2.0, 4.0))};
   REQUIRE_FALSE(singular.has_value());
   CHECK(singular.error() == math::math_error::singular_matrix);
 }
 
-TEST_CASE("inverse rejects a non-finite determinant instead of returning garbage (regression)") {
-  // A NaN entry makes det NaN; the old guard (abs(det) <= eps) let it through as a
-  // bogus success. An overflowing det (inf) likewise must report singular.
+TEST_CASE("inverse rejects a non-finite determinant instead of returning garbage") {
   auto nan_m{math::matrix3_d::identity()};
   nan_m(0, 0) = std::numeric_limits<double>::quiet_NaN();
   CHECK_FALSE(math::inverse(nan_m).has_value());
@@ -156,20 +143,15 @@ TEST_CASE("inverse rejects a non-finite determinant instead of returning garbage
   CHECK_FALSE(math::inverse(big_m).has_value());
 }
 
-TEST_CASE("float inverse rejects a rank-deficient matrix via the relative threshold (M3)") {
-  // Row 2 = 2*row0 + row1, so the exact determinant is zero and the matrix is
-  // singular. In float the determinant computes to ~-3.8e-6 (cancellation noise),
-  // ten trillion times the old absolute 1e-20 cutoff, so the matrix used to invert
-  // to garbage returned as success. The input-scaled threshold catches it.
+TEST_CASE("float inverse rejects a rank-deficient matrix via the relative threshold") {
+  // Row 2 = 2*row0 + row1 (exact det 0); float cancellation leaves det ~-3.8e-6.
   auto const singular{math::make_matrix3(0.3f, 1.7f, 2.9f, 4.1f, 0.2f, 5.3f, 4.7f, 3.6f, 11.1f)};
   auto const inv{math::inverse(singular)};
   REQUIRE_FALSE(inv.has_value());
   CHECK(inv.error() == math::math_error::singular_matrix);
 }
 
-TEST_CASE("float inverse still accepts a well-conditioned matrix (M3 no over-rejection)") {
-  // Guard against the relative threshold rejecting valid matrices: a plainly
-  // non-singular float matrix must invert and round-trip to the identity.
+TEST_CASE("float inverse still accepts a well-conditioned matrix") {
   auto const m{math::make_matrix3(2.0f, 0.0f, 1.0f, 0.0f, 3.0f, 0.0f, 1.0f, 0.0f, 4.0f)};
   auto const inv{math::inverse(m)};
   REQUIRE(inv.has_value());
@@ -181,7 +163,7 @@ TEST_CASE("float inverse still accepts a well-conditioned matrix (M3 no over-rej
   }
 }
 
-TEST_CASE("matrix unary minus, scalar division, and in-place operators (m9)") {
+TEST_CASE("matrix unary minus, scalar division, and in-place operators") {
   constexpr auto a{math::make_matrix2(1.0f, 2.0f, 3.0f, 4.0f)};
   static_assert(-a == math::make_matrix2(-1.0f, -2.0f, -3.0f, -4.0f));
   static_assert((a * 2.0f) / 2.0f == a);
@@ -203,9 +185,8 @@ TEST_CASE("matrix unary minus, scalar division, and in-place operators (m9)") {
   CHECK(d == a);
 }
 
-TEST_CASE("inverse accepts a translation and a mixed-scale matrix (math-01)") {
-  // The singularity band grew with the largest entry, so a float translation of
-  // 40 and a double diag(1e6, 1e-6, 1), both with determinant 1, were rejected.
+TEST_CASE("inverse accepts a translation and a mixed-scale matrix") {
+  // Both have determinant 1; a band scaled by the largest entry would reject them.
   auto t{math::matrix4_f::identity()};
   t(0, 3) = 40.0f;
   t(1, 3) = 40.0f;

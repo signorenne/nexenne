@@ -150,8 +150,6 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 move_toward(Real const current, Real const target, Real const max_delta) noexcept -> Real {
-  // A non-positive step means "do not move": without this guard a negative
-  // max_delta would step the wrong way (current - |max_delta|), away from target.
   if (max_delta <= Real{0}) {
     return current;
   }

@@ -48,7 +48,6 @@ TEST_CASE("rotation3 and rotation3_axis_angle agree with the quaternion") {
       CHECK(m_q(r, c) == doctest::Approx((*m_aa)(r, c)));
     }
   }
-  // A zero axis is rejected.
   CHECK_FALSE(
     math::rotation3_axis_angle(math::vector3_d{0, 0, 0}, math::radians_d{1.0}).has_value()
   );
@@ -59,15 +58,12 @@ TEST_CASE("look_at maps the eye to the origin and the view direction to -Z") {
     math::look_at(math::vector3_d{0, 0, 5}, math::vector3_d{0, 0, 0}, math::vector3_d{0, 1, 0})
   };
   REQUIRE(view.has_value());
-  // The eye lands on the origin.
   CHECK(vapprox(math::transform_point(*view, math::vector3_d{0, 0, 5}), math::vector3_d{0, 0, 0}));
-  // The target sits straight ahead on -Z, five units away.
   auto const t{math::transform_point(*view, math::vector3_d{0, 0, 0})};
   CHECK(t.x() == doctest::Approx(0.0));
   CHECK(t.y() == doctest::Approx(0.0));
   CHECK(t.z() == doctest::Approx(-5.0));
 
-  // Coincident eye/target and a parallel up are reported, not crashed on.
   CHECK_FALSE(
     math::look_at(math::vector3_d{1, 1, 1}, math::vector3_d{1, 1, 1}, math::vector3_d{0, 1, 0})
       .has_value()
@@ -85,14 +81,13 @@ TEST_CASE("transform_point applies the perspective divide; direction ignores tra
     vapprox(math::transform_point(m, math::vector3_d{2, 4, 8}), math::vector3_d{0.25, 0.5, 1.0})
   );
 
-  // A pure translation moves a point but leaves a direction untouched.
   constexpr auto t{math::translation3(math::vector3_d{10, 20, 30})};
   CHECK(vapprox(math::transform_point(t, math::vector3_d{1, 1, 1}), math::vector3_d{11, 21, 31}));
   CHECK(vapprox(math::transform_direction(t, math::vector3_d{1, 1, 1}), math::vector3_d{1, 1, 1}));
 }
 
-TEST_CASE("look_at forwards an overflow as invalid_input (math-10)") {
-  // The error was rewritten to zero_length_vector, which the inputs are not.
+TEST_CASE("look_at forwards an overflow as invalid_input") {
+  // 2e19f squares past FLT_MAX: an overflow, not a zero-length vector.
   auto const eye{math::vector3_f{0.0f, 0.0f, 0.0f}};
   auto const far{math::vector3_f{2e19f, 0.0f, 0.0f}};
   auto const up{math::vector3_f{0.0f, 1.0f, 0.0f}};

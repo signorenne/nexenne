@@ -215,7 +215,7 @@ template <std::floating_point Real>
   // about a body-fixed (already-rotated) axis post-multiplies the accumulated
   // orientation: if the frame is currently Q and we then turn about its own X by
   // qx, the new orientation is Q * qx. Starting from identity and applying
-  // intrinsic x, then y, then z gives ((I * qx) * qy) * qz = qx*qy*qz - the same
+  // intrinsic x, then y, then z gives ((I * qx) * qy) * qz = qx*qy*qz, the same
   // order as written. (Equivalently, because the Hamilton product applies to a
   // vector right-to-left, qx*qy*qz rotates a vector about the fixed WORLD z
   // first, then y, then x, which is the extrinsic zyx reading of the same

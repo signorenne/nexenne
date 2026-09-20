@@ -633,7 +633,7 @@ from_euler(radians<Real> const roll, radians<Real> const pitch, radians<Real> co
   // quaternions out and collecting terms gives the eight products below; for
   // example the scalar part w = cr*cp*cy + sr*sp*sy and the x part picks up
   // +sr*cp*cy (roll about X) minus the cross term cr*sp*sy. Each component has
-  // exactly one sign that differs from its neighbours - that sign pattern is the
+  // exactly one sign that differs from its neighbours; that sign pattern is the
   // whole content of the formula and the usual place a hand-port goes wrong, so
   // it is laid out explicitly rather than via three quaternion multiplies.
   // https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles#Euler_angles_(in_3-2-1_sequence)_to_quaternion_conversion

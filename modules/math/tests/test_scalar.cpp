@@ -28,8 +28,8 @@ TEST_CASE("clamp propagates NaN") {
 
 TEST_CASE("move_toward steps by at most max_delta") {
   static_assert(math::move_toward(0.0, 10.0, 3.0) == 3.0);
-  static_assert(math::move_toward(0.0, 2.0, 3.0) == 2.0);   // snaps to target
-  static_assert(math::move_toward(10.0, 0.0, 3.0) == 7.0);  // descends
+  static_assert(math::move_toward(0.0, 2.0, 3.0) == 2.0);
+  static_assert(math::move_toward(10.0, 0.0, 3.0) == 7.0);
 }
 
 TEST_CASE("sign and magnitude") {
@@ -52,7 +52,7 @@ TEST_CASE("interpolation: lerp, inverse_lerp, remap, smoothstep") {
   static_assert(math::remap(5.0, 0.0, 10.0, 0.0, 100.0) == 50.0);
   static_assert(math::smoothstep(0.0, 1.0, 0.0) == 0.0);
   static_assert(math::smoothstep(0.0, 1.0, 1.0) == 1.0);
-  static_assert(math::smoothstep(0.0, 1.0, 0.5) == 0.5);  // symmetric midpoint
+  static_assert(math::smoothstep(0.0, 1.0, 0.5) == 0.5);
 }
 
 TEST_CASE("equality and classification") {
@@ -75,7 +75,6 @@ TEST_CASE("rounding works at compile time and runtime") {
   static_assert(math::round(2.5) == 3.0);
   static_assert(math::round(-2.5) == -3.0);
 
-  // Runtime path dispatches to libm; results must match.
   CHECK(math::floor(2.7) == 2.0);
   CHECK(math::ceil(-2.7) == -2.0);
   CHECK(math::round(2.5) == 3.0);
@@ -90,14 +89,13 @@ TEST_CASE("floor-based modulo and wrapping") {
   CHECK(math::wrap(12.0, 10.0, 20.0) == doctest::Approx(12.0));
   CHECK(math::wrap(22.0, 10.0, 20.0) == doctest::Approx(12.0));
 
-  // ping_pong is a triangle wave bouncing in [0, length].
   CHECK(math::ping_pong(0.0, 5.0) == doctest::Approx(0.0));
   CHECK(math::ping_pong(5.0, 5.0) == doctest::Approx(5.0));
   CHECK(math::ping_pong(7.0, 5.0) == doctest::Approx(3.0));
   CHECK(math::ping_pong(10.0, 5.0) == doctest::Approx(0.0));
 }
 
-TEST_CASE("round does not double-round near 0.5 (regression)") {
+TEST_CASE("round does not double-round near 0.5") {
   // The largest double strictly below 0.5 must round to 0, not 1.
   static_assert(math::round(0.49999999999999994) == 0.0);
   static_assert(math::round(-0.49999999999999994) == 0.0);
@@ -105,14 +103,14 @@ TEST_CASE("round does not double-round near 0.5 (regression)") {
   static_assert(math::round(-0.5) == -1.0);
 }
 
-TEST_CASE("trunc does not overflow for huge consteval inputs (regression)") {
+TEST_CASE("trunc does not overflow for huge consteval inputs") {
   // Values beyond long long range are already integral; no UB cast.
   static_assert(math::trunc(1e30) == 1e30);
   static_assert(math::floor(1e30) == 1e30);
   static_assert(math::trunc(-1e30) == -1e30);
 }
 
-TEST_CASE("fract and mod respect the half-open boundary for tiny-negative input (regression)") {
+TEST_CASE("fract and mod respect the half-open boundary for tiny-negative input") {
   // value - floor(value) rounds up to exactly 1 here; must clamp back to 0.
   CHECK(math::fract(-1e-20) == 0.0);
   CHECK(math::fract(-1e-20) < 1.0);
@@ -121,18 +119,15 @@ TEST_CASE("fract and mod respect the half-open boundary for tiny-negative input 
   CHECK(math::wrap(-1e-20, 0.0, 10.0) < 10.0);
 }
 
-TEST_CASE("move_toward does not move for a non-positive step (regression)") {
-  // A negative max_delta must not step away from the target.
+TEST_CASE("move_toward does not move for a non-positive step") {
   static_assert(math::move_toward(0.0, 10.0, -3.0) == 0.0);
   static_assert(math::move_toward(0.0, 10.0, 0.0) == 0.0);
   static_assert(math::move_toward(5.0, 5.0, -1.0) == 5.0);
 }
 
-TEST_CASE("mod re-reduces a huge dividend into range (C1 regression)") {
-  // Above |a| > b/epsilon (about 2.8e16 for b = tau) a single floor reduction can
-  // leave a large negative residue instead of a value in [0, b); mod must
-  // re-reduce until it lands in range. Round decimals reduce cleanly and hide the
-  // bug, so sweep bit-mixed (randomized) mantissas across large exponents.
+TEST_CASE("mod re-reduces a huge dividend into range") {
+  // Past |a| > b/epsilon (about 2.8e16 for b = tau) one floor reduction can leave a large negative
+  // residue; round decimals reduce cleanly, so sweep bit-mixed mantissas.
   constexpr auto tau{math::tau_v<double>};
   std::uint64_t state{0x9E3779B97F4A7C15ULL};
   auto const next{[&state]() noexcept -> std::uint64_t {
@@ -150,31 +145,26 @@ TEST_CASE("mod re-reduces a huge dividend into range (C1 regression)") {
       CHECK(r < tau);
     }
   }
-  // The exact probe called out in the review: was -7.13624e44 before the fix.
   auto const probe{math::mod(6.3656990270058986e60, tau)};
   CHECK(probe >= 0.0);
   CHECK(probe < tau);
 }
 
-TEST_CASE("trunc is a constant expression for huge long double values (M2 regression)") {
-  // For x87 long double (epsilon 2^-63) the old 2/epsilon threshold was 2^64, so a
-  // value in [2^63, 2^64) fell through to a static_cast<long long> that is a hard
-  // error in constant evaluation. 9.3e18L lies in that window and must compile as
-  // already integral. Where long double aliases double the threshold is far lower,
-  // so the same values are still returned unchanged.
+TEST_CASE("trunc is a constant expression for huge long double values") {
+  // For x87 long double (epsilon 2^-63), 9.3e18L lies in [2^63, 2^64): already integral, so it must
+  // never reach the long long cast.
   static_assert(math::trunc(9.3e18L) == 9.3e18L);
   static_assert(math::floor(9.3e18L) == 9.3e18L);
   static_assert(math::ceil(9.3e18L) == 9.3e18L);
   static_assert(math::trunc(-9.3e18L) == -9.3e18L);
   static_assert(math::round(9.3e18L) == 9.3e18L);
   static_assert(math::mod(9.3e18L, 7.0L) >= 0.0L);
-  // Ordinary long double truncation still works below the threshold.
   static_assert(math::trunc(2.7L) == 2.0L);
   static_assert(math::floor(-2.1L) == -3.0L);
 }
 
-TEST_CASE("wrap never returns the upper bound (math-05)") {
-  // lo + repeat(...) rounded up to hi for a value just below lo.
+TEST_CASE("wrap never returns the upper bound") {
+  // lo + repeat(...) can round up to hi for a value just below lo.
   auto const w{math::wrap(0.99999999999999989, 1.0, 2.0)};
   CHECK(w >= 1.0);
   CHECK(w < 2.0);

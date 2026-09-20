@@ -157,8 +157,6 @@ template <std::floating_point Real>
   // after x^7 leaves a next term x^9/9!, which is ~3e-7 at the interval edge
   // x=pi/4, so the reduction to [-pi/4, pi/4] is what keeps this accurate.
   auto const x2{x * x};
-  // Horner from the highest term down; bit-identical to the nested form, within
-  // the column limit.
   auto p{Real{1} / Real{5040}};
   p = Real{1} / Real{120} - x2 * p;
   p = Real{1} / Real{6} - x2 * p;
@@ -187,8 +185,6 @@ template <std::floating_point Real>
   // dropped term is x^10/10! = (pi/4)^10/3628800 ~ 2.5e-8 at x=pi/4, so over the
   // reduced interval this is good to about 2.5e-8.
   auto const x2{x * x};
-  // Horner from the highest term down; bit-identical to the nested form, within
-  // the column limit.
   auto p{Real{1} / Real{40320}};
   p = Real{1} / Real{720} - x2 * p;
   p = Real{1} / Real{24} - x2 * p;
@@ -376,8 +372,7 @@ template <std::floating_point Real>
   // first: callers routinely pass acos(dot) where rounding nudges the dot a hair
   // past 1, which would make sqrt(1 - ax) take a negative argument and return NaN.
   auto const ax{min(abs(x), Real{1})};
-  // Horner from the highest coefficient down; bit-identical to the nested form,
-  // within the column limit.
+  // Horner from the highest coefficient down.
   auto p{static_cast<Real>(-0.0012624911)};
   p = static_cast<Real>(0.0066700901) + ax * p;
   p = static_cast<Real>(-0.0170881256) + ax * p;
@@ -436,8 +431,7 @@ template <std::floating_point Real>
   // 1.7e-6, verified by the accuracy harness) rather than the truncation error a
   // Taylor series would give. Coefficients from the vectorized-atan2 derivation at
   // https://mazzo.li/posts/vectorized-atan2.html (originally an Intel SVML fit).
-  // Horner from the highest coefficient down; bit-identical to the nested form,
-  // within the column limit.
+  // Horner from the highest coefficient down.
   auto q{static_cast<Real>(-0.01172120)};
   q = static_cast<Real>(0.05265332) + r2 * q;
   q = static_cast<Real>(-0.11643287) + r2 * q;

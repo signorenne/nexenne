@@ -32,7 +32,6 @@
 namespace nm = nexenne::math;
 
 auto main() -> int {
-  // A 90-degree rotation about +Z takes +X to +Y.
   auto const qz{nm::from_axis_angle(nm::vector3_d{0, 0, 1}, nm::radians_d{nm::half_pi})};
   if (qz) {
     std::println(
@@ -40,7 +39,6 @@ auto main() -> int {
     );
   }
 
-  // Compose: 90 about Z, then 90 about X (right to left).
   auto const qx{nm::from_axis_angle(nm::vector3_d{1, 0, 0}, nm::radians_d{nm::half_pi})};
   if (qz && qx) {
     auto const composed{*qx * *qz};
@@ -49,7 +47,6 @@ auto main() -> int {
     );
   }
 
-  // Interpolate from identity to the Z rotation.
   if (qz) {
     auto const id{nm::quaternion_d::identity()};
     for (double t : {0.0, 0.5, 1.0}) {
@@ -59,14 +56,6 @@ auto main() -> int {
     }
   }
 
-  // Compare the interpolation variants on the same endpoint pair. slerp walks the
-  // arc at constant angular velocity, so its angle is exactly linear in t (a 90
-  // degree arc gives 22.5, 45, 67.5 degrees at t = 0.25, 0.5, 0.75). nlerp_short
-  // blends the four components and renormalizes: cheaper, but the angle is not
-  // linear in t, so it lags slerp off the midpoint (the two coincide at t = 0.5 by
-  // symmetry). nlerp_plain is the same blend with no shorter-arc fix; the endpoints
-  // here already share a hemisphere, so it agrees with nlerp_short. See
-  // slerp_variants.hpp for when each one is the right pick.
   if (qz) {
     auto const id{nm::quaternion_d::identity()};
     for (double t : {0.25, 0.5, 0.75}) {
@@ -83,7 +72,6 @@ auto main() -> int {
     }
   }
 
-  // Euler angles (aerospace yaw-pitch-roll) to a quaternion and back to an axis.
   auto const aircraft{nm::from_ypr(nm::radians{0.4}, nm::radians{-0.2}, nm::radians{0.9})};
   auto const aa{nm::to_axis_angle(aircraft)};
   std::println("{:<28} {:.4f}", "from_ypr -> rotation axis", aa.axis());

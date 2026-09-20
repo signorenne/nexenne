@@ -16,7 +16,6 @@ TEST_CASE("strong angle types prevent unit confusion and convert") {
   CHECK(r.value() == doctest::Approx(math::pi));
   CHECK(math::to_degrees(r).value() == doctest::Approx(180.0));
 
-  // The raw-scalar convenience overloads.
   CHECK(math::to_radians(90.0).value() == doctest::Approx(math::half_pi));
   CHECK(math::to_degrees(math::half_pi).value() == doctest::Approx(90.0));
 }
@@ -30,11 +29,11 @@ TEST_CASE("angle algebra is constexpr") {
   static_assert((a * 2.0).value() == 2.0);
   static_assert((2.0 * a).value() == 2.0);
   static_assert((b / 2.0).value() == 1.0);
-  static_assert(b / a == 2.0);  // dimensionless ratio
+  static_assert(b / a == 2.0);
   static_assert(a < b);
 }
 
-TEST_CASE("angle compound assignment mutates in place (m4)") {
+TEST_CASE("angle compound assignment mutates in place") {
   auto heading{math::radians_d{1.0}};
   heading += math::radians_d{0.5};
   CHECK(heading.value() == doctest::Approx(1.5));
@@ -51,7 +50,6 @@ TEST_CASE("angle compound assignment mutates in place (m4)") {
   spin /= 3.0f;
   CHECK(spin.value() == doctest::Approx(45.0));
 
-  // All four are constexpr; the chosen values are exact in binary floating point.
   static_assert([] {
     auto a{math::radians_d{2.0}};
     a += math::radians_d{1.0};  // 3.0
@@ -82,16 +80,10 @@ TEST_CASE("value_type alias is exposed") {
   static_assert(std::is_same_v<math::degrees_d::value_type, double>);
 }
 
-TEST_CASE("wrap functions respect the half-open interval boundary (regression)") {
-  // wrap_unsigned must never return exactly tau (the excluded upper bound): for a
-  // sub-ulp negative input the naive value + tau rounds up to tau, which the
-  // boundary guard pulls back to 0.
+TEST_CASE("wrap functions respect the half-open interval boundary") {
+  // -1e-17 + tau rounds up to tau, the excluded upper bound.
   CHECK(math::wrap_unsigned(math::radians_d{-1e-17}).value() == 0.0);
   CHECK(math::wrap_unsigned(math::radians_d{-1e-17}).value() < math::tau);
-  // Floor-modulo reduction stays in range across magnitudes that still resolve
-  // the period (up to ~1e9; beyond ~1e15 the input has no sub-period precision
-  // left and no reduction can be meaningful). The old truncating long long cast
-  // was undefined past ~5.8e19; this path never invokes that UB.
   for (double a : {1e6, -1e6, 1e9, -1e9, 1234.567, -987.654}) {
     auto const w{math::wrap_signed(math::radians_d{a}).value()};
     CHECK(w >= -math::pi);
@@ -102,12 +94,8 @@ TEST_CASE("wrap functions respect the half-open interval boundary (regression)")
   }
 }
 
-TEST_CASE("wrap_signed and wrap_unsigned stay in range for randomized huge angles (C1)") {
-  // The reduction rides on scalar::mod, which used to leave a huge negative
-  // residue above |a| > tau/epsilon, dragging wrap_signed/wrap_unsigned far
-  // outside their documented ranges. Sweep bit-mixed mantissas above 1e17 (round
-  // decimals reduce cleanly and hide the bug). Beyond ~1e15 the residue is coarse
-  // but must still honour the half-open interval postcondition.
+TEST_CASE("wrap_signed and wrap_unsigned stay in range for randomized huge angles") {
+  // Bit-mixed mantissas: round decimals reduce cleanly and would hide a bad residue.
   std::uint64_t state{0x2545F4914F6CDD1DULL};
   auto const next{[&state]() noexcept -> std::uint64_t {
     state ^= state << 13;

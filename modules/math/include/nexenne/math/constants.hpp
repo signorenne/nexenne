@@ -87,11 +87,6 @@ inline constexpr Real inv_sqrt_two_v = Real{1} / std::numbers::sqrt2_v<Real>;
 template <std::floating_point Real>
 inline constexpr Real inv_sqrt_three_v = std::numbers::inv_sqrt3_v<Real>;
 
-//
-// Each of the following is an exact closed-form value, computed from the roots
-// above at compile time. Sign symmetries (sin is odd, cos is even) and quadrant
-// identities cover the rest of the unit circle.
-
 /// @brief sin(pi/6) = 1/2.
 template <std::floating_point Real>
 inline constexpr Real sin_pi_6_v = Real{1} / Real{2};

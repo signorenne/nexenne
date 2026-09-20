@@ -23,7 +23,7 @@ namespace math = nexenne::math;
 
 namespace {
 
-// A small deterministic generator so the sweep is reproducible (no random dep).
+// 64-bit LCG with Knuth's MMIX constants, so the sweep is reproducible.
 class lcg {
 public:
   explicit constexpr lcg(std::uint64_t seed) noexcept : m_state{seed} {}
@@ -69,7 +69,7 @@ auto run_inverse_sweep(lcg& rng, int trials) -> int {
     auto const inv{math::inverse(a)};
     REQUIRE(inv.has_value());
     CHECK(near_identity(a * *inv, 1e-9));  // right inverse
-    CHECK(near_identity(*inv * a, 1e-9));  // left inverse (never checked before)
+    CHECK(near_identity(*inv * a, 1e-9));  // left inverse
     ++tested;
   }
   return tested;
@@ -92,8 +92,6 @@ TEST_CASE("perspective maps all frustum corners onto the GL clip cube") {
   auto const p{math::perspective(math::radians{fovy}, aspect, n, f)};
 
   double const th{std::tan(fovy / 2.0)};
-  // Eight frustum corners (x, y at the near and far planes), each must land on a
-  // corner of the [-1, 1] cube after the perspective divide.
   for (double zsign : {n, f}) {
     double const half_h{zsign * th};
     double const half_w{half_h * aspect};
@@ -110,7 +108,6 @@ TEST_CASE("perspective maps all frustum corners onto the GL clip cube") {
 
 TEST_CASE("ortho maps all box corners onto the GL clip cube") {
   auto const o{math::ortho(-3.0, 5.0, -2.0, 6.0, 0.5, 40.0)};
-  // The box corners (left/right, bottom/top, near/far) map to the cube corners.
   for (double x : {-3.0, 5.0}) {
     for (double y : {-2.0, 6.0}) {
       for (double z : {0.5, 40.0}) {

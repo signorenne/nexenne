@@ -228,7 +228,7 @@ look_at(vector<Real, 3> const eye, vector<Real, 3> const target, vector<Real, 3>
   // The basis axes go in the rows (the view rotation is the transpose of the
   // world frame), and each row's last column is -dot(row_axis, eye) so the eye
   // maps to the origin. Row 2 is -forward, so its translation entry is
-  // -dot(-forward, eye) = +dot(forward, eye) - that is why this one column reads
+  // -dot(-forward, eye) = +dot(forward, eye); that is why this one column reads
   // with a plus sign while the other two read with a minus. The bottom row
   // (0, 0, 0, 1) comes from the identity.
   auto m{matrix<Real, 4>::identity()};
@@ -268,10 +268,6 @@ look_at(vector<Real, 3> const eye, vector<Real, 3> const target, vector<Real, 3>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 transform_point(matrix<Real, 4> const& m, vector<Real, 3> const p) noexcept -> vector<Real, 3> {
-  // Reuse the matrix*vector product, which combines the columns with a packed
-  // mul-add (it vectorizes; a hand-rolled row-wise dot product would stride
-  // across the column-major storage and fall back to scalar code). The 1 in the
-  // w slot picks up the translation column.
   auto const h{m * vector<Real, 4>{p.x(), p.y(), p.z(), Real{1}}};
   if (h.w() == Real{1} || h.w() == Real{0}) {
     return vector<Real, 3>{h.x(), h.y(), h.z()};
@@ -305,8 +301,6 @@ transform_point(matrix<Real, 4> const& m, vector<Real, 3> const p) noexcept -> v
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 transform_direction(matrix<Real, 4> const& m, vector<Real, 3> const d) noexcept -> vector<Real, 3> {
-  // Same packed matrix*vector product as transform_point, but the 0 in the w slot
-  // drops the translation column, so only the upper-left 3x3 block applies.
   auto const h{m * vector<Real, 4>{d.x(), d.y(), d.z(), Real{0}}};
   return vector<Real, 3>{h.x(), h.y(), h.z()};
 }

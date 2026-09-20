@@ -24,19 +24,14 @@ auto main() -> int {
   std::println("90 deg = {} rad", r.value());
   std::println("sin(90 deg) = {}", nm::sin(r));
 
-  // Algebra stays in the unit; there is no radians + degrees overload.
   constexpr auto sum{nm::degrees_d{30.0} + nm::degrees_d{15.0}};
   std::println("30 deg + 15 deg = {} deg", sum.value());
-  // auto bad = nm::radians_d{1.0} + nm::degrees_d{1.0};  // compile error
 
-  // Compound assignment accumulates a heading in place (angle-typed for +=/-=,
-  // raw-scalar for *=//=).
   auto heading{nm::radians_d{0.0}};
   heading += nm::radians_d{0.5};
   heading *= 2.0;
   std::println("heading after += 0.5 then *= 2 = {} rad", heading.value());
 
-  // Wrapping keeps a drifting heading bounded.
   std::println(
     "wrap_signed(7 rad)    = {} (in [-pi, pi))", nm::wrap_signed(nm::radians_d{7.0}).value()
   );

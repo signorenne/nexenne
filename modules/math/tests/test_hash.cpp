@@ -18,33 +18,29 @@ TEST_CASE("equal values hash equally; the types work as hash keys") {
 
   std::unordered_set<math::vector3_d> set;
   set.insert(a);
-  set.insert(b);  // duplicate of a
+  set.insert(b);
   set.insert(math::vector3_d{1, 2, 4});
   CHECK(set.size() == 2);
 
-  // Usable as a map key.
   std::unordered_map<math::vector2_i, int> grid;
   grid[math::vector2_i{3, 4}] = 7;
   CHECK(grid.at(math::vector2_i{3, 4}) == 7);
 }
 
-TEST_CASE("plus and minus zero components hash equally (m11)") {
-  // std::hash special-cases zero, so +0.0 and -0.0 (which compare equal) hash
-  // equally, as unordered-container invariants require. The old @file note wrongly
-  // claimed they hash differently.
+TEST_CASE("plus and minus zero components hash equally") {
+  // std::hash special-cases zero, so +0.0 and -0.0 (which compare equal) hash equally.
   std::hash<math::vector2_f> const h{};
   CHECK(h(math::vector2_f{0.0f, 0.0f}) == h(math::vector2_f{-0.0f, -0.0f}));
   CHECK(math::vector2_f{0.0f, 0.0f} == math::vector2_f{-0.0f, -0.0f});
 
   std::unordered_set<math::vector2_f> set;
   set.insert(math::vector2_f{0.0f, 0.0f});
-  set.insert(math::vector2_f{-0.0f, -0.0f});  // equal key, must not add a second slot
+  set.insert(math::vector2_f{-0.0f, -0.0f});
   CHECK(set.size() == 1);
 }
 
 TEST_CASE("hash is order-sensitive across components") {
   std::hash<math::vector3_d> const h{};
-  // Permuted components should (almost surely) hash differently.
   CHECK(h(math::vector3_d{1, 2, 3}) != h(math::vector3_d{3, 2, 1}));
 }
 

@@ -19,8 +19,6 @@
 namespace nm = nexenne::math;
 
 auto main() -> int {
-  // Compose a model matrix: scale, then rotate about Y, then translate
-  // (applied right to left, so scale acts first).
   auto const rot{nm::from_axis_angle(nm::vector3_d{0, 1, 0}, nm::radians_d{nm::half_pi})};
   if (rot) {
     auto const model{
@@ -28,17 +26,14 @@ auto main() -> int {
       * nm::scale3(nm::vector3_d{2, 2, 2})
     };
 
-    // A point picks up the scale, rotation, and translation.
     std::println(
       "{:<32} {:.4f}", "model * point (1,0,0)", nm::transform_point(model, nm::vector3_d{1, 0, 0})
     );
-    // A direction ignores the translation (free vector).
     std::println(
       "{:<32} {:.4f}", "model * dir (1,0,0)", nm::transform_direction(model, nm::vector3_d{1, 0, 0})
     );
   }
 
-  // A view matrix: the eye maps to the origin, the target sits on -Z.
   auto const view{
     nm::look_at(nm::vector3_d{0, 0, 5}, nm::vector3_d{0, 0, 0}, nm::vector3_d{0, 1, 0})
   };
