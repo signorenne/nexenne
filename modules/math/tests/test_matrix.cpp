@@ -29,6 +29,16 @@ TEST_CASE("a zero-dimension matrix cannot be named") {
   static_assert(nameable_matrix<4>);
 }
 
+TEST_CASE("the column constructor takes its storage by const reference") {
+  using m2 = math::matrix<float, 2>;
+  static_assert(std::is_constructible_v<m2, m2::storage_type const&>);
+  auto const cols{
+    m2::storage_type{math::vector<float, 2>{1.0F, 2.0F}, math::vector<float, 2>{3.0F, 4.0F}}
+  };
+  auto const m{m2{cols}};
+  CHECK(m(0, 1) == doctest::Approx(3.0F));
+}
+
 TEST_CASE("layout guarantees (column-major, contiguous, no padding)") {
   static_assert(std::is_standard_layout_v<math::matrix4_f>);
   static_assert(std::is_trivially_copyable_v<math::matrix4_f>);

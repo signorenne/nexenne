@@ -88,7 +88,7 @@ public:
    * @pre None.
    * @post Column \c c of the matrix equals \c cols[c].
    */
-  explicit constexpr matrix(storage_type const cols) noexcept : m_columns{cols} {}
+  explicit constexpr matrix(storage_type const& cols) noexcept : m_columns{cols} {}
 
   /**
    * @brief Element access by (row, column).
