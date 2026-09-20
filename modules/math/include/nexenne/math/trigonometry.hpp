@@ -375,14 +375,14 @@ template <std::floating_point Real>
   auto const ax{min(abs(x), Real{1})};
   // Horner from the highest coefficient down; bit-identical to the nested form,
   // within the column limit.
-  auto p{Real{-0.0012624911}};
-  p = Real{0.0066700901} + ax * p;
-  p = Real{-0.0170881256} + ax * p;
-  p = Real{0.0308918810} + ax * p;
-  p = Real{-0.0501743046} + ax * p;
-  p = Real{0.0889789874} + ax * p;
-  p = Real{-0.2145988016} + ax * p;
-  p = Real{1.5707963050} + ax * p;
+  auto p{static_cast<Real>(-0.0012624911)};
+  p = static_cast<Real>(0.0066700901) + ax * p;
+  p = static_cast<Real>(-0.0170881256) + ax * p;
+  p = static_cast<Real>(0.0308918810) + ax * p;
+  p = static_cast<Real>(-0.0501743046) + ax * p;
+  p = static_cast<Real>(0.0889789874) + ax * p;
+  p = static_cast<Real>(-0.2145988016) + ax * p;
+  p = static_cast<Real>(1.5707963050) + ax * p;
   auto const v{half_pi_v<Real> - sqrt(Real{1} - ax) * p};
   return radians<Real>{x < Real{0} ? -v : v};
 }
@@ -435,12 +435,12 @@ template <std::floating_point Real>
   // https://mazzo.li/posts/vectorized-atan2.html (originally an Intel SVML fit).
   // Horner from the highest coefficient down; bit-identical to the nested form,
   // within the column limit.
-  auto q{Real{-0.01172120}};
-  q = Real{0.05265332} + r2 * q;
-  q = Real{-0.11643287} + r2 * q;
-  q = Real{0.19354346} + r2 * q;
-  q = Real{-0.33262347} + r2 * q;
-  q = Real{0.99997726} + r2 * q;
+  auto q{static_cast<Real>(-0.01172120)};
+  q = static_cast<Real>(0.05265332) + r2 * q;
+  q = static_cast<Real>(-0.11643287) + r2 * q;
+  q = static_cast<Real>(0.19354346) + r2 * q;
+  q = static_cast<Real>(-0.33262347) + r2 * q;
+  q = static_cast<Real>(0.99997726) + r2 * q;
   auto const p{reduced * q};
   auto const folded{ax > Real{1} ? half_pi_v<Real> - p : p};
   return radians<Real>{x < Real{0} ? -folded : folded};

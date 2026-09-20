@@ -288,14 +288,14 @@ template <detail::ieee_float Real>
   // coefficients are (ln 2)^k / k! for k = 0..7. This is the accurate part.
   // Evaluated by Horner from the top coefficient down - bit-identical to the
   // nested form, just within the column limit.
-  auto p{Real{0.00001525273380405}};       // (ln2)^7/7!
-  p = Real{0.00015403530393381} + yf * p;  // (ln2)^6/6!
-  p = Real{0.00133335581464284} + yf * p;  // (ln2)^5/5!
-  p = Real{0.00961812910762848} + yf * p;  // (ln2)^4/4!
-  p = Real{0.05550410866482158} + yf * p;  // (ln2)^3/3!
-  p = Real{0.24022650695910071} + yf * p;  // (ln2)^2/2!
-  p = Real{0.69314718055994531} + yf * p;  // ln2
-  auto const two_yf{Real{1} + yf * p};     // 1
+  auto p{static_cast<Real>(0.00001525273380405)};       // (ln2)^7/7!
+  p = static_cast<Real>(0.00015403530393381) + yf * p;  // (ln2)^6/6!
+  p = static_cast<Real>(0.00133335581464284) + yf * p;  // (ln2)^5/5!
+  p = static_cast<Real>(0.00961812910762848) + yf * p;  // (ln2)^4/4!
+  p = static_cast<Real>(0.05550410866482158) + yf * p;  // (ln2)^3/3!
+  p = static_cast<Real>(0.24022650695910071) + yf * p;  // (ln2)^2/2!
+  p = static_cast<Real>(0.69314718055994531) + yf * p;  // ln2
+  auto const two_yf{Real{1} + yf * p};                  // 1
   // Multiply by 2^yi for free: in IEEE-754 the exponent field sits just above
   // the mantissa (bit 23 for float, bit 52 for double), and adding 1 there
   // multiplies the value by 2. So adding yi shifted into the exponent field

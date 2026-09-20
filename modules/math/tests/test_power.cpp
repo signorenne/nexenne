@@ -116,3 +116,11 @@ TEST_CASE("constexpr sqrt is bit-exact and consistent for the boundary (m5 regre
   static_assert(math::sqrt(0.0) == 0.0);
   static_assert(math::sqrt(-0.0) == -0.0);
 }
+
+TEST_CASE("fast_exp builds and approximates std::exp for float (math-02)") {
+  // The double coefficient literals used to trip -Wfloat-conversion for float.
+  for (auto const x : {-3.0f, -0.5f, 0.0f, 0.75f, 4.0f}) {
+    auto const expected{std::exp(x)};
+    CHECK(std::abs(math::fast_exp(x) - expected) <= 1e-3f * expected);
+  }
+}

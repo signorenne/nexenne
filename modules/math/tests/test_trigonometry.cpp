@@ -144,3 +144,13 @@ TEST_CASE("lut_sin and lut_cos are usable in a constant expression (m9 regressio
   CHECK(s >= -1.0f);
   CHECK(c == doctest::Approx(1.0).epsilon(1e-3));
 }
+
+TEST_CASE("fast inverse trig builds and approximates std for float (math-02)") {
+  // The double coefficient literals used to trip -Wfloat-conversion for float.
+  for (auto const x : {-0.9f, -0.3f, 0.0f, 0.4f, 0.95f}) {
+    CHECK(std::abs(math::fast_asin(x).value() - std::asin(x)) < 1e-4f);
+    CHECK(std::abs(math::fast_acos(x).value() - std::acos(x)) < 1e-4f);
+    CHECK(std::abs(math::fast_atan(x).value() - std::atan(x)) < 1e-4f);
+  }
+  CHECK(std::abs(math::fast_atan2(1.0f, -1.0f).value() - std::atan2(1.0f, -1.0f)) < 1e-4f);
+}
