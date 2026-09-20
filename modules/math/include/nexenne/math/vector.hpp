@@ -2,8 +2,9 @@
 
 /**
  * @file
- * @brief Fixed-size vectors with named \c .x() / \c .y() / \c .z() / \c .w()
- *        accessors for the common dimensions.
+ * @brief Fixed-size vectors with named accessors for the common dimensions.
+ *
+ * The accessors are \c .x() / \c .y() / \c .z() / \c .w().
  *
  * \c vector<Value, N> stores its components in a \c std::array. The
  * specializations for \c N = 2, 3, 4 add named accessors and swizzles for the

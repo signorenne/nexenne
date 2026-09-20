@@ -21,7 +21,8 @@
  * \c nlerp_short and \c slerp_short are the same algorithms as quaternion.hpp's
  * \c nlerp and \c slerp; they exist here under explicit names alongside the
  * no-fix \c nlerp_plain so the choice is spelled out. All inputs are assumed unit
- * quaternions; outputs are renormalized. The interpolation reuses the quaternion
+ * quaternions; the nlerp outputs are renormalized, the slerp output is unit up
+ * to rounding. The interpolation reuses the quaternion
  * operators and \c dot / \c normalize rather than re-implementing them.
  */
 

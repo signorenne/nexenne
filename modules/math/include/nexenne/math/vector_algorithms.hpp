@@ -2,8 +2,9 @@
 
 /**
  * @file
- * @brief Algorithms over \c vector<T, N>: products, norms, normalization,
- *        interpolation, projection, and reductions.
+ * @brief Algorithms over \c vector: products, norms, normalization and more.
+ *
+ * Also interpolation, projection, and reductions.
  *
  * Sections: dot, length, and distance; the cross products (a 2D scalar
  * pseudo-cross and a 3D vector cross); normalization (a checked variant, a fast

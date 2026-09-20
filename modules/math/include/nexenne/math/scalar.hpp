@@ -298,8 +298,7 @@ template <std::floating_point Real>
 }
 
 /**
- * @brief Inverse of \c lerp: given a value in [lo, hi], returns its parameter
- *        \c t in [0, 1].
+ * @brief Inverse of \c lerp: maps a value in [lo, hi] to its parameter in [0, 1].
  *
  * @tparam Real Floating-point type.
  * @param lo Lower endpoint.

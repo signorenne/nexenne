@@ -2,8 +2,9 @@
 
 /**
  * @file
- * @brief Trigonometry: paired sincos, polynomial approximations, a runtime LUT,
- *        fast inverse trig, and angle utilities.
+ * @brief Trigonometry: sincos, polynomial and table approximations, fast inverse trig.
+ *
+ * Also the angle utilities.
  *
  * Three implementation strategies are exposed, each with a clear cost profile:
  *
@@ -114,6 +115,7 @@ public:
   }
 };
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -195,8 +197,7 @@ template <std::floating_point Real>
 }
 
 /**
- * @brief Sine and cosine by range-reducing to [-pi/4, pi/4] plus quadrant
- *        identities.
+ * @brief Sine and cosine by range-reducing to [-pi/4, pi/4] plus quadrant identities.
  *
  * @tparam Real Floating-point type.
  * @param x Angle in radians.
@@ -243,6 +244,8 @@ template <std::floating_point Real>
 }
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Computes \c sin and \c cos of \p r in a single call.
@@ -493,11 +496,13 @@ template <std::floating_point Real>
 /// @brief Default LUT size: 1024 entries (about 4 KB per float table).
 inline constexpr std::size_t default_trig_lut_size = 1024;
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
- * @brief Compile-time-generated sine table of \p lut_size entries spanning
- *        [0, 2*pi). Cosine is read off the same table at an offset.
+ * @brief Compile-time-generated sine table of \p lut_size entries spanning [0, 2*pi).
+ *
+ * Cosine is read off the same table at an offset.
  *
  * @tparam Real Floating-point type.
  * @tparam lut_size Number of table entries.
@@ -541,6 +546,7 @@ public:
   }
 };
 
+/// @brief The shared compile-time sine table for \p Real and \p lut_size.
 template <std::floating_point Real, std::size_t lut_size = default_trig_lut_size>
 inline constexpr trig_lut_table<Real, lut_size> trig_lut{};
 
@@ -602,6 +608,8 @@ template <std::floating_point Real>
 }
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Lookup-table sine of \p r with linear interpolation.

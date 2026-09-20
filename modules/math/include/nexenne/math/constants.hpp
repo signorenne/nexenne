@@ -158,8 +158,7 @@ template <std::floating_point Real>
 inline constexpr Real rad_to_deg_v = Real{180} / std::numbers::pi_v<Real>;
 
 /**
- * @brief Machine epsilon: smallest representable difference between 1 and the
- *        next larger representable value.
+ * @brief Machine epsilon: the gap between 1 and the next larger representable value.
  */
 template <std::floating_point Real>
 inline constexpr Real epsilon_v = std::numeric_limits<Real>::epsilon();

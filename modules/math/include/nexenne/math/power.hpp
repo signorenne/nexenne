@@ -29,6 +29,7 @@
 
 namespace nexenne::math {
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -132,6 +133,8 @@ template <std::floating_point Real>
 }
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Square root of \p value.
@@ -278,8 +281,10 @@ template <std::floating_point Real>
 }
 
 /**
- * @brief Approximate \c exp of \p x; relative error under ~5e-6 for \c float,
- *        ~1e-6 for \c double, across the supported range.
+ * @brief Approximate \c exp of \p x.
+ *
+ * Relative error under ~5e-6 for \c float, ~1e-6 for \c double, across the
+ * supported range.
  *
  * Splits \c e^x as \c 2^(x*log2(e)) and approximates \c 2^y via IEEE-754
  * exponent injection (Schraudolph 1999) plus a 7-term Taylor expansion of

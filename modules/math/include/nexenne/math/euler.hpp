@@ -25,12 +25,12 @@ namespace nexenne::math {
 
 /// @brief Intrinsic (body-fixed) rotation order for Euler-angle composition.
 enum class euler_order : std::uint8_t {
-  xyz,
-  xzy,
-  yxz,
-  yzx,
-  zxy,
-  zyx
+  xyz,  ///< Rotate about x, then y, then z.
+  xzy,  ///< Rotate about x, then z, then y.
+  yxz,  ///< Rotate about y, then x, then z.
+  yzx,  ///< Rotate about y, then z, then x.
+  zxy,  ///< Rotate about z, then x, then y.
+  zyx   ///< Rotate about z, then y, then x.
 };
 
 /**
@@ -114,6 +114,7 @@ public:
   }
 };
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -145,6 +146,8 @@ template <std::floating_point Real>
 }
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Converts Euler angles in the chosen order to a unit quaternion.

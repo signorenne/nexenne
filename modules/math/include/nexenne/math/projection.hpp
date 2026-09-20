@@ -2,8 +2,7 @@
 
 /**
  * @file
- * @brief 4x4 projection matrix builders (perspective and orthographic) for 3D
- *        graphics pipelines.
+ * @brief 4x4 perspective and orthographic projection builders for 3D graphics.
  *
  * Conventions: a right-handed coordinate system (+X right, +Y up, +Z out of the
  * screen, so the viewer looks down -Z); a view-space to clip-space mapping; and a

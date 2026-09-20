@@ -28,7 +28,7 @@ namespace nexenne::math {
  * points weighted by the degree-2 Bernstein polynomials, which sum to 1 so the
  * curve stays in their convex hull.
  *
- * @tparam Real  Floating-point parameter type.
+ * @tparam Real Floating-point parameter type.
  * @tparam Point Affine point type (vector or scalar).
  * @param p0 Start point.
  * @param p1 Control point.
@@ -57,7 +57,7 @@ bezier_quadratic(Point const& p0, Point const& p1, Point const& p2, Real const t
  * B'(t) = 2*(1-t)*(p1-p0) + 2*t*(p2-p1): the derivative of the Bernstein form,
  * itself a linear Bezier between the two control-leg vectors.
  *
- * @tparam Real  Floating-point parameter type.
+ * @tparam Real Floating-point parameter type.
  * @tparam Point Affine point type.
  * @param p0 Start point.
  * @param p1 Control point.
@@ -84,7 +84,7 @@ bezier_quadratic_tangent(Point const& p0, Point const& p1, Point const& p2, Real
  * B(t) = (1-t)^3*p0 + 3*(1-t)^2*t*p1 + 3*(1-t)*t^2*p2 + t^3*p3, the workhorse of
  * vector graphics and animation (two endpoints, two free control handles).
  *
- * @tparam Real  Floating-point parameter type.
+ * @tparam Real Floating-point parameter type.
  * @tparam Point Affine point type.
  * @param p0 Start point.
  * @param p1 First control point.
@@ -115,7 +115,7 @@ template <std::floating_point Real, affine_point<Real> Point>
  * B'(t) = 3*(1-t)^2*(p1-p0) + 6*(1-t)*t*(p2-p1) + 3*t^2*(p3-p2): a quadratic
  * Bezier between the three control-leg vectors.
  *
- * @tparam Real  Floating-point parameter type.
+ * @tparam Real Floating-point parameter type.
  * @tparam Point Affine point type.
  * @param p0 Start point.
  * @param p1 First control point.
@@ -148,7 +148,7 @@ template <std::floating_point Real, affine_point<Real> Point>
  * closed form below is the expanded cubic in the four points:
  * 0.5*(2*p1 + (p2-p0)*t + (2*p0-5*p1+4*p2-p3)*t^2 + (-p0+3*p1-3*p2+p3)*t^3).
  *
- * @tparam Real  Floating-point parameter type.
+ * @tparam Real Floating-point parameter type.
  * @tparam Point Affine point type.
  * @param p0 Pre-segment control point.
  * @param p1 Segment start (returned at \c t=0).
@@ -179,7 +179,7 @@ template <std::floating_point Real, affine_point<Real> Point>
  * 0.5*((p2-p0) + (2*p0-5*p1+4*p2-p3)*2*t + (-p0+3*p1-3*p2+p3)*3*t^2). Useful for
  * smooth velocity along a Catmull-Rom path.
  *
- * @tparam Real  Floating-point parameter type.
+ * @tparam Real Floating-point parameter type.
  * @tparam Point Affine point type.
  * @param p0 Pre-segment control point.
  * @param p1 Segment start.
@@ -210,7 +210,7 @@ template <std::floating_point Real, affine_point<Real> Point>
  * h00 = 2t^3-3t^2+1, h10 = t^3-2t^2+t, h01 = -2t^3+3t^2, h11 = t^3-t^2. Bezier
  * and Catmull-Rom are both reparmeterizations of this basis.
  *
- * @tparam Real  Floating-point parameter type.
+ * @tparam Real Floating-point parameter type.
  * @tparam Point Affine point type.
  * @param p0 Start point.
  * @param tangent0 Tangent at \p p0.
@@ -242,7 +242,7 @@ template <std::floating_point Real, affine_point<Real> Point>
  * The derivative of \c hermite in \p t, with basis derivatives
  * h00' = 6t^2-6t, h10' = 3t^2-4t+1, h01' = -6t^2+6t, h11' = 3t^2-2t.
  *
- * @tparam Real  Floating-point parameter type.
+ * @tparam Real Floating-point parameter type.
  * @tparam Point Affine point type.
  * @param p0 Start point.
  * @param tangent0 Tangent at \p p0.

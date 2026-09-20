@@ -26,6 +26,7 @@
 
 namespace nexenne::math {
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -57,6 +58,8 @@ template <std::floating_point Real, random::rng_engine G>
 }
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Uniform random 2D unit vector.

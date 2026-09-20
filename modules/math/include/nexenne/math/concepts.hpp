@@ -52,7 +52,7 @@ concept signed_arithmetic = arithmetic<Value> && std::is_signed_v<Value>;
  * point again. Satisfied by \c vector<Real, N> and by the scalar \p Scalar
  * itself (so a single value can be eased along a curve like a position can).
  *
- * @tparam Point  Point type under test.
+ * @tparam Point Point type under test.
  * @tparam Scalar Scalar field the point is scaled by (a floating-point type).
  */
 template <typename Point, typename Scalar>

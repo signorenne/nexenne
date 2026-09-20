@@ -60,7 +60,7 @@ public:
   using value_type = Storage;    ///< The underlying stored integer type (alias of storage_type).
   using storage_type = Storage;  ///< The underlying signed integer storage type.
   static constexpr std::size_t fraction_bits = FractionBits;  ///< Number of fractional bits.
-  /// Number of integer bits (excludes the sign bit and the fraction bits).
+  /// @brief Number of integer bits (excludes the sign bit and the fraction bits).
   static constexpr std::size_t integer_bits = sizeof(Storage) * 8 - 1 - FractionBits;
   static constexpr Storage scale = Storage{1} << FractionBits;  ///< Integer-to-fixed scale factor.
 
@@ -444,19 +444,24 @@ public:
 };
 
 /**
- * @brief Q8.8: 16-bit storage, 8 fraction bits. Range [-128, +127.996],
- *        resolution 1/256 (~3.9e-3, ~2 decimal digits). Smallest footprint.
+ * @brief Q8.8: 16-bit storage, 8 fraction bits.
+ *
+ * Range [-128, +127.996], resolution 1/256 (~3.9e-3, ~2 decimal digits). Smallest
+ * footprint.
  */
 using q8_8 = fixed<std::int16_t, 8>;
 /**
- * @brief Q16.16: 32-bit storage, 16 fraction bits. Range [-32768, +32767.99998],
- *        resolution 1/65536 (~1.5e-5, ~4 decimal digits). The sensible default.
+ * @brief Q16.16: 32-bit storage, 16 fraction bits.
+ *
+ * Range [-32768, +32767.99998], resolution 1/65536 (~1.5e-5, ~4 decimal digits).
+ * The sensible default.
  */
 using q16_16 = fixed<std::int32_t, 16>;
 /**
- * @brief Q32.32: 64-bit storage, 32 fraction bits. Range about [-2.15e9, +2.15e9],
- *        resolution 1/2^32 (~2.3e-10, ~9 decimal digits). Uses the __int128
- *        multiply path. Widest range and finest resolution.
+ * @brief Q32.32: 64-bit storage, 32 fraction bits.
+ *
+ * Range about [-2.15e9, +2.15e9], resolution 1/2^32 (~2.3e-10, ~9 decimal digits).
+ * Uses the __int128 multiply path. Widest range and finest resolution.
  */
 using q32_32 = fixed<std::int64_t, 32>;
 
