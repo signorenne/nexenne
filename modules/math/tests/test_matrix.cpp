@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <cmath>
 #include <limits>
 #include <type_traits>
 
@@ -169,4 +170,23 @@ TEST_CASE("matrix unary minus, scalar division, and in-place operators (m9)") {
   auto d{math::matrix2_f::identity()};
   d *= a;
   CHECK(d == a);
+}
+
+TEST_CASE("inverse accepts a translation and a mixed-scale matrix (math-01)") {
+  // The singularity band grew with the largest entry, so a float translation of
+  // 40 and a double diag(1e6, 1e-6, 1), both with determinant 1, were rejected.
+  auto t{math::matrix4_f::identity()};
+  t(0, 3) = 40.0f;
+  t(1, 3) = 40.0f;
+  t(2, 3) = 40.0f;
+  auto const inv_t{math::inverse(t)};
+  REQUIRE(inv_t.has_value());
+  CHECK(std::abs((*inv_t)(0, 3) + 40.0f) < 1e-4f);
+
+  auto d{math::matrix3_d::identity()};
+  d(0, 0) = 1e6;
+  d(1, 1) = 1e-6;
+  auto const inv_d{math::inverse(d)};
+  REQUIRE(inv_d.has_value());
+  CHECK((*inv_d)(1, 1) == doctest::Approx(1e6));
 }

@@ -45,6 +45,7 @@
 
 #include <nexenne/math/concepts.hpp>
 #include <nexenne/math/error.hpp>
+#include <nexenne/math/power.hpp>
 #include <nexenne/math/scalar.hpp>
 #include <nexenne/math/vector.hpp>
 
@@ -888,20 +889,22 @@ template <std::floating_point Real, std::size_t N>
   // matrix (colinear rows, whose exact determinant is zero) sails through the
   // absolute guard and inverts to garbage returned as success. Scale the cutoff to
   // the input instead: reject when |det| has collapsed into the eps * M^N noise
-  // band. The extra factor N is a small slack for the N! terms that accumulate the
-  // noise. A matrix scaled by s scales both its determinant and this threshold by
-  // s^N, so the test tracks rank deficiency, not overall magnitude. The finiteness
-  // guard rejects a NaN det (every NaN comparison is false) and an infinite det
-  // from overflow (which would divide to a zero matrix), both bogus "successes".
-  auto max_abs{Real{0}};
-  for (std::size_t c{0}; c < N; ++c) {
-    for (std::size_t r{0}; r < N; ++r) {
-      max_abs = max(max_abs, abs(m(r, c)));
-    }
-  }
+  // band. The band is scaled by Hadamard's bound, the product of the column
+  // lengths, which caps |det| for the given columns: a scale taken from the
+  // largest entry alone (max_abs^N) grows with a single large entry, so a float
+  // translation of 40 or a double diag(1e6, 1e-6, 1) was called singular. The
+  // extra factor N is a small slack for the terms that accumulate the noise. A
+  // matrix scaled by s scales both its determinant and this threshold by s^N, so
+  // the test tracks rank deficiency, not overall magnitude. The finiteness guard
+  // rejects a NaN det (every NaN comparison is false) and an infinite det from
+  // overflow (which would divide to a zero matrix), both bogus "successes".
   auto scale{Real{1}};
-  for (std::size_t i{0}; i < N; ++i) {
-    scale *= max_abs;  // max_abs^N, the natural determinant magnitude scale
+  for (std::size_t c{0}; c < N; ++c) {
+    auto length_sq{Real{0}};
+    for (std::size_t r{0}; r < N; ++r) {
+      length_sq += m(r, c) * m(r, c);
+    }
+    scale *= sqrt(length_sq);  // Hadamard: |det| <= product of column lengths
   }
   auto const threshold{std::numeric_limits<Real>::epsilon() * scale * static_cast<Real>(N)};
   if (!isfinite(det) || abs(det) <= threshold) {
