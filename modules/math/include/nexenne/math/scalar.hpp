@@ -233,7 +233,8 @@ template <std::floating_point Real>
  *
  * @return The square of \p value.
  *
- * @pre None.
+ * @pre For an integral \p Value, the square is representable (a signed
+ *      overflow is undefined behaviour).
  * @post Returned value equals \p value multiplied by itself, modulo IEEE-754
  *       rounding for floats.
  */
@@ -250,7 +251,8 @@ template <arithmetic Value>
  *
  * @return The cube of \p value.
  *
- * @pre None.
+ * @pre For an integral \p Value, the cube is representable (a signed overflow
+ *      is undefined behaviour).
  * @post Returned value equals \p value times \p value times \p value, modulo
  *       IEEE-754 rounding for floats.
  *

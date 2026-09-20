@@ -90,3 +90,13 @@ TEST_CASE("transform_point applies the perspective divide; direction ignores tra
   CHECK(vapprox(math::transform_point(t, math::vector3_d{1, 1, 1}), math::vector3_d{11, 21, 31}));
   CHECK(vapprox(math::transform_direction(t, math::vector3_d{1, 1, 1}), math::vector3_d{1, 1, 1}));
 }
+
+TEST_CASE("look_at forwards an overflow as invalid_input (math-10)") {
+  // The error was rewritten to zero_length_vector, which the inputs are not.
+  auto const eye{math::vector3_f{0.0f, 0.0f, 0.0f}};
+  auto const far{math::vector3_f{2e19f, 0.0f, 0.0f}};
+  auto const up{math::vector3_f{0.0f, 1.0f, 0.0f}};
+  auto const m{math::look_at(eye, far, up)};
+  REQUIRE_FALSE(m.has_value());
+  CHECK(m.error() == math::math_error::invalid_input);
+}

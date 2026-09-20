@@ -176,8 +176,9 @@ template <std::floating_point Real, std::size_t N>
  * @param v Vector to normalize and wrap.
  * @param threshold Minimum allowed squared length. Default 1e-20.
  *
- * @return The wrapped unit vector, or \c math_error::zero_length_vector when too
- *         short.
+ * @return The wrapped unit vector, \c math_error::zero_length_vector when too
+ *         short, or \c math_error::invalid_input when its squared length
+ *         overflows.
  *
  * @pre Components of \p v are finite.
  * @post On success the wrapped vector has unit length.

@@ -521,8 +521,9 @@ inverse(quaternion<Real> const q, Real const threshold = static_cast<Real>(1e-20
  * @param angle Rotation angle.
  * @param threshold Minimum squared length of the axis to accept. Default 1e-20.
  *
- * @return The unit quaternion, or \c math_error::zero_length_vector when \p axis
- *         is too short.
+ * @return The unit quaternion, \c math_error::zero_length_vector when \p axis
+ *         is too short, or \c math_error::invalid_input when its squared length
+ *         overflows.
  *
  * @pre \c angle.value() is finite.
  * @post On success the result has unit length up to rounding.
@@ -779,8 +780,9 @@ template <std::floating_point Real>
  * @param up World-space up direction. Need not be unit.
  *
  * @return The unit orientation quaternion;
- *         \c math_error::zero_length_vector when \p forward is too short, or
- *         \c math_error::parallel_vectors when \p up is parallel to \p forward.
+ *         \c math_error::zero_length_vector when \p forward is too short,
+ *         \c math_error::parallel_vectors when \p up is parallel to \p forward,
+ *         or \c math_error::invalid_input when a squared length overflows.
  *
  * @pre \p forward and \p up have finite components and are not parallel.
  * @post On success the result has unit length and orients -Z toward \p forward.
@@ -795,7 +797,7 @@ look_at_rotation(vector<Real, 3> const forward, vector<Real, 3> const up) noexce
   -> result<quaternion<Real>> {
   auto const forward_unit{normalize(forward)};
   if (!forward_unit) {
-    return std::unexpected{math_error::zero_length_vector};
+    return std::unexpected{forward_unit.error()};
   }
   auto const f{*forward_unit};
   // Right-handed camera basis: -Z is forward, so the +Z column is -forward
@@ -804,7 +806,9 @@ look_at_rotation(vector<Real, 3> const forward, vector<Real, 3> const up) noexce
   auto const back{-f};
   auto const right{normalize(cross(up, back))};
   if (!right) {
-    return std::unexpected{math_error::parallel_vectors};
+    return std::unexpected{
+      right.error() == math_error::zero_length_vector ? math_error::parallel_vectors : right.error()
+    };
   }
   auto const r{*right};
   auto const u{cross(back, r)};

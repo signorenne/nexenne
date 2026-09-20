@@ -165,8 +165,9 @@ template <std::floating_point Real>
  * @param axis Rotation axis (need not be unit).
  * @param angle Rotation angle.
  *
- * @return The 4x4 rotation matrix, or \c math_error::zero_length_vector when
- *         \p axis is too short.
+ * @return The 4x4 rotation matrix, \c math_error::zero_length_vector when
+ *         \p axis is too short, or \c math_error::invalid_input when its squared
+ *         length overflows.
  *
  * @pre \c angle.value() is finite.
  * @post On success the upper-left 3x3 block is orthonormal.
@@ -201,7 +202,8 @@ rotation3_axis_angle(vector<Real, 3> const axis, radians<Real> const angle) noex
  * @return The 4x4 view matrix; \c math_error::zero_length_vector when \p eye and
  *         \p target coincide; \c math_error::parallel_vectors when \p up is
  *         parallel to (target - eye), which includes a zero \p up (its cross with
- *         the forward direction vanishes the same way).
+ *         the forward direction vanishes the same way); or
+ *         \c math_error::invalid_input when a squared length overflows.
  *
  * @pre \p eye and \p target are distinct, and \p up is non-zero and not parallel
  *      to (target - eye).
@@ -214,11 +216,13 @@ look_at(vector<Real, 3> const eye, vector<Real, 3> const target, vector<Real, 3>
   -> result<matrix<Real, 4>> {
   auto const forward{normalize(target - eye)};
   if (!forward) {
-    return std::unexpected{math_error::zero_length_vector};
+    return std::unexpected{forward.error()};
   }
   auto const right{normalize(cross(*forward, up))};
   if (!right) {
-    return std::unexpected{math_error::parallel_vectors};
+    return std::unexpected{
+      right.error() == math_error::zero_length_vector ? math_error::parallel_vectors : right.error()
+    };
   }
   auto const true_up{cross(*right, *forward)};
   // The basis axes go in the rows (the view rotation is the transpose of the
