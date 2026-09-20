@@ -101,10 +101,9 @@ auto main() -> int {
   std::printf("  ring captured %zu line(s) (it kept the info too)\n", ring_ptr->size());
 
   std::puts("== 3. async_sink decorator (offloads writes) ==");
-  summary_sink* inner_view{nullptr};
   {
     auto inner{std::make_unique<summary_sink>()};
-    inner_view = inner.get();
+    auto const* const inner_view{inner.get()};
     lg::async_sink offloaded{
       std::move(inner),
       lg::async_sink::config{.queue_size_limit = 64, .on_overflow = lg::overflow_action::block}
@@ -114,8 +113,8 @@ auto main() -> int {
       offloaded.write(make(lg::level::info, "async record"));
     }
     offloaded.flush();
+    std::printf("  inner summary_sink saw %zu records after the drain\n", inner_view->count());
   }
-  std::printf("  inner summary_sink saw %zu records after the drain\n", inner_view->count());
 
   std::puts("== 4. rotating_file_sink (size-based rotation) ==");
   auto const base{std::string{"showcase_rotate.log"}};
