@@ -23,7 +23,10 @@
  * \c sizeof guarantee (a \c vector<float,3> would grow to 16 bytes), cost memory
  * on the embedded targets, and buy nothing on modern hardware, where an
  * unaligned packed load (\c movups) is as fast as an aligned one. Wider SIMD
- * (AVX) needs a \c -march flag the build does not assume.
+ * (AVX) needs a \c -march flag the build does not assume. The element-wise
+ * operators are plain loops over the fixed \c N because that is the form the
+ * auto-vectorizer recognizes; each builds a zero vector and overwrites every
+ * lane, and the dead zero-initialization is elided.
  *
  * Pass-by-value is fine for these small types; the element-wise operators take
  * \c const& so a \c vector<float,4> loads its four components contiguously into
@@ -80,7 +83,7 @@ public:
   using value_type = Value;  ///< The component type.
 
 protected:
-  std::array<value_type, N> m_components{};
+  std::array<value_type, N> m_components{};  ///< The components, contiguous and unpadded.
 
 public:
   /**
@@ -281,7 +284,7 @@ private:
   using base = detail::vector_base<Value, N>;
 
 public:
-  using value_type = typename base::value_type;
+  using value_type = typename base::value_type;  ///< The component type.
   using base::base;
 };
 
@@ -296,7 +299,7 @@ private:
   using base = detail::vector_base<Value, 2>;
 
 public:
-  using value_type = typename base::value_type;
+  using value_type = typename base::value_type;  ///< The component type.
   using base::base;
 
   /**
@@ -371,7 +374,7 @@ private:
   using base = detail::vector_base<Value, 3>;
 
 public:
-  using value_type = typename base::value_type;
+  using value_type = typename base::value_type;  ///< The component type.
   using base::base;
 
   /**
@@ -507,7 +510,7 @@ private:
   using base = detail::vector_base<Value, 4>;
 
 public:
-  using value_type = typename base::value_type;
+  using value_type = typename base::value_type;  ///< The component type.
   using base::base;
 
   /**

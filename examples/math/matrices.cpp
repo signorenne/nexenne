@@ -2,6 +2,12 @@
  * @file
  * @brief Column-major matrices: construction, multiply, inverse, and a
  *        perspective projection.
+ *
+ *   1. make_matrix2 is written in reading order and stored column-major.
+ *   2. Multiply, add, transpose and determinant, then an inverse whose product
+ *      with the original is the identity up to rounding.
+ *   3. data() is a column-major upload pointer: column 0, then column 1.
+ *   4. A perspective projection with a 60 degree vertical field of view at 16:9.
  */
 
 #include <print>

@@ -1,9 +1,13 @@
-// Dense-random validation for the two places a transcription typo in matrix.hpp
-// would hide: the closed-form determinant/inverse cofactors, and the projection
-// builders. The per-function suite only exercises sparse/identity/one hand-picked
-// matrix and never checks the left inverse; this sweeps random well-conditioned
-// matrices and asserts inv(A)*A == A*inv(A) == I for 2/3/4, then maps the frustum
-// and box corners through the projections onto the clip cube.
+/**
+ * @file
+ * @brief Dense-random validation of the matrix cofactor paths and projections.
+ *
+ * The closed-form determinant and inverse cofactors and the projection builders
+ * are where a transcription typo in matrix.hpp would hide. This sweeps random
+ * well-conditioned matrices and asserts inv(A)*A == A*inv(A) == I for N = 2, 3
+ * and 4, then maps the frustum and box corners through the projections onto the
+ * clip cube.
+ */
 
 #include <doctest/doctest.h>
 

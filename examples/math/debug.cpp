@@ -1,6 +1,12 @@
 /**
  * @file
  * @brief Printing and hashing math types with the standard library.
+ *
+ *   1. std::format and std::println work directly on the math types.
+ *   2. The strong scalar types print through the same layer, and the format
+ *      spec applies to the value.
+ *   3. to_string gives the same representation wherever a string is wanted.
+ *   4. With <nexenne/math/hash.hpp> included the types double as hash-map keys.
  */
 
 #include <print>

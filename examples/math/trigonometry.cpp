@@ -1,6 +1,11 @@
 /**
  * @file
  * @brief The three trig speeds side by side, and short-way angle blending.
+ *
+ *   1. libm, fast_sin and lut_sin side by side, with the fast error.
+ *   2. sincos shares the work when both are needed, as for a rotation matrix row.
+ *   3. lerp_angle takes the short way: 350 deg to 10 deg passes through 0, not
+ *      180.
  */
 
 #include <cmath>

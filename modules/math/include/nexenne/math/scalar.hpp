@@ -143,6 +143,9 @@ template <std::floating_point Real>
  *
  * @pre \p max_delta is finite and non-negative.
  * @post Result is between \p current and \p target inclusive.
+ *
+ * @note A non-positive \p max_delta returns \p current unchanged rather than
+ *       stepping away from \p target.
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto

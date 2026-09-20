@@ -8,9 +8,11 @@
  * The element at row \c r and column \c c is \c m(r, c); whole columns are
  * \c m[c] or \c m.columns()[c]. Column-major matches OpenGL, Vulkan, and most
  * GPU APIs, so \c data() can be uploaded directly with no transpose, and it makes
- * the products vectorize (see below). The composition order for column vectors is
- * right to left: \c translate * rotate * scale * v applies scale, then rotation,
- * then translation.
+ * the products vectorize (see below). The storage is contiguous with no padding
+ * and no vtable, so a matrix is standard-layout and trivially copyable (checked by
+ * static_asserts). The composition order for column vectors is right to left:
+ * \c translate * rotate * scale * v applies scale, then rotation, then
+ * translation.
  *
  * Why column-major helps SIMD. A matrix product over column-major storage is
  * naturally a *linear combination of the left matrix's columns*: result column

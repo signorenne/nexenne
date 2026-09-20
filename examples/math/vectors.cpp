@@ -2,6 +2,14 @@
  * @file
  * @brief Fixed-size vectors: algebra, the dot/cross products, normalization, and
  *        the unit-length wrapper.
+ *
+ *   1. vector{1.0f, 2.0f, 3.0f} deduces vector<float, 3>; the element-wise
+ *      operators compile to packed SSE.
+ *   2. Cross and dot products and the length.
+ *   3. normalize returns a result, so the zero-length case is handled.
+ *   4. reflect about a known unit normal (the y axis).
+ *   5. The normalized wrapper carries the unit-length guarantee in the type.
+ *   6. angle_between returns the angle between two vectors in radians.
  */
 
 #include <print>

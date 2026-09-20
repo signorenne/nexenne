@@ -2,8 +2,9 @@
  * @file
  * @brief Roots, integer powers, and the fast bit-trick transcendentals.
  *
- * Each fast function is printed next to its libm reference so the accuracy
- * trade-off is visible.
+ * sqrt and pow_int are exact to rounding and constexpr-capable. Each fast
+ * function is printed next to its libm reference so the accuracy trade-off is
+ * visible.
  */
 
 #include <cmath>

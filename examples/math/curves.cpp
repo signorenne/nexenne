@@ -1,6 +1,10 @@
 /**
  * @file
  * @brief Parametric curves: sample a Bezier, a Catmull-Rom path, and easing.
+ *
+ *   1. A cubic Bezier arch, sampled for position and tangent at the midpoint.
+ *   2. A Catmull-Rom segment, which passes through its two inner control points.
+ *   3. Easing a single scalar: affine_point also admits a bare number.
  */
 
 #include <print>

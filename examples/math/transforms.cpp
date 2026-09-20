@@ -1,6 +1,12 @@
 /**
  * @file
  * @brief Affine transform builders: compose a model matrix, apply it, look at.
+ *
+ *   1. Compose a model matrix as translate * rotate about Y * scale; it applies
+ *      right to left, so the scale acts first.
+ *   2. A point picks up scale, rotation and translation; a direction, a free
+ *      vector, ignores the translation.
+ *   3. A view matrix maps the eye to the origin and puts the target on -Z.
  */
 
 #include <print>

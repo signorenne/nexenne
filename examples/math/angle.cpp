@@ -2,8 +2,13 @@
  * @file
  * @brief Strong angle types: typed conversions, algebra, and wrapping.
  *
- * The unit mismatch on the commented line below is a compile error, which is the
- * whole point of the strong types.
+ *   1. Convert degrees to radians and feed the result to the trig wrappers.
+ *   2. Algebra stays in one unit. There is no radians + degrees overload, so
+ *      radians_d{1.0} + degrees_d{1.0} is a compile error, which is the whole
+ *      point of the strong types.
+ *   3. Compound assignment accumulates a heading in place: angle-typed for +=
+ *      and -=, raw-scalar for *= and /=.
+ *   4. wrap_signed and wrap_unsigned keep a drifting heading bounded.
  */
 
 #include <print>

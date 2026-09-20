@@ -25,13 +25,14 @@ the implementation earns its keep.
 
 The class holds one signed integer =m_raw=, read with =raw()= (and written
 through =raw()= on a non-const value, with no shift, as =from_raw= does), and
-exposes the compile-time =scale = 1 << FractionBits=. Constructing from an integer shifts up by
-=FractionBits= (lossless); from a float, it multiplies by =scale= and truncates.
-=to_float= divides by =scale=; =to_int= arithmetic-right-shifts, which rounds
-toward negative infinity (so a stored -0.5 yields -1, not 0, documented in the
-header). Mind that these two roundings *disagree*: the float constructor
-truncates toward zero while =to_int= floors toward negative infinity, so
-=fixed{-0.5f}.to_int()= is -1, not the 0 a truncating round-trip would give.
+exposes the compile-time =scale = 1 << FractionBits=. Constructing from an
+integer shifts up by =FractionBits= (lossless); from a float, it multiplies by
+=scale= and truncates. =to_float= divides by =scale=; =to_int=
+arithmetic-right-shifts, which rounds toward negative infinity (so a stored -0.5
+yields -1, not 0, documented in the header). Mind that these two roundings
+*disagree*: the float constructor truncates toward zero while =to_int= floors
+toward negative infinity, so =fixed{-0.5f}.to_int()= is -1, not the 0 a
+truncating round-trip would give.
 
 ** What a format can represent (queryable)
 

@@ -2,8 +2,14 @@
  * @file
  * @brief Math constants at a chosen precision, conversion factors, and limits.
  *
- * Shows the two-level naming: the =_v<Real>= variable templates follow the
- * caller's type, and the unsuffixed aliases bind to double.
+ * Shows the two-level naming: the \c _v variable templates follow the caller's
+ * type, and the unsuffixed aliases bind to double.
+ *
+ *   1. Variable templates: the precision follows the type parameter.
+ *   2. deg_to_rad_v is pi/180, computed once at compile time.
+ *   3. Exact closed-form sin/cos at nice angles, with no libm call.
+ *   4. Limits forwarded under math-style names (epsilon_v, infinity_v).
+ *   5. Untemplated double aliases for callers that do not care about precision.
  */
 
 #include <print>

@@ -76,6 +76,10 @@ struct std::hash<nexenne::math::quaternion<Real>> {
 /**
  * @brief Hashes a \c matrix by folding every element in column-major order.
  *
+ * A matrix is an array of column vectors, not a flat range of scalars, so the
+ * scalar elements are folded directly rather than through \c hash_range, which
+ * would hash the column vectors instead.
+ *
  * @tparam Value Component type.
  * @tparam N Matrix dimension.
  */

@@ -1,8 +1,11 @@
-// Accuracy harness: sweeps every approximation across its documented range and
-// asserts the worst-case error stays within the bound the docs promise. This is
-// what pins the in-code accuracy claims (see the math-in-code documentation
-// standard) so an overstated number or a regression fails the build, unlike the
-// loose spot checks in the per-function suites.
+/**
+ * @file
+ * @brief Accuracy harness for the math approximations.
+ *
+ * Sweeps every approximation across its documented range and asserts the
+ * worst-case error stays within the bound its Doxygen promises, so an overstated
+ * bound or a regression fails the build.
+ */
 
 #include <doctest/doctest.h>
 

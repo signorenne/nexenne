@@ -11,6 +11,10 @@
  * Grouped sections: the pi family, common pi fractions, exact sin/cos at nice
  * angles, roots, logarithms, the golden ratio family, and limits and
  * conversion factors.
+ *
+ * The exact sin/cos values are closed forms computed from the roots at compile
+ * time. Sign symmetries (sin is odd, cos is even) and quadrant identities cover
+ * the rest of the unit circle.
  */
 
 #include <concepts>

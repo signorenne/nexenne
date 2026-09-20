@@ -611,6 +611,10 @@ template <std::floating_point Real, std::size_t N>
  *
  * @pre \p max_delta is finite and non-negative.
  * @post The result is between \p current and \p target inclusive in distance.
+ *
+ * @note A non-positive \p max_delta returns \p current unchanged. The
+ *       squared-distance test would otherwise square away its sign and step
+ *       away from \p target.
  */
 template <std::floating_point Real, std::size_t N>
 [[nodiscard]] constexpr auto move_toward(

@@ -3,17 +3,31 @@
  * @brief A guided tour of nexenne::math through one realistic task: a tiny,
  *        console-only 3D pipeline.
  *
- * This program does not draw anything - it computes everything a renderer or a
+ * This program does not draw anything: it computes everything a renderer or a
  * physics step would, and prints the numbers, so you can see how the pieces of
- * the module fit together in context:
+ * the module fit together in context. The object is a unit cube at an animation
+ * time t in [0, 1].
  *
- *   1. Build a camera    -> look_at (view matrix) + perspective (projection).
- *   2. Animate an object -> a Catmull-Rom path for position, a quaternion spin,
- *                           composed into a model matrix.
- *   3. Project vertices  -> model-view-projection, transform_point, the divide.
- *   4. Shade a face      -> normalize / dot / reflect (Lambert + a specular dir).
- *   5. Sample a sphere   -> the rng-backed geometric samplers.
- *   6. Stay deterministic-> a Q16.16 fixed-point checksum.
+ *   1. Build a camera    -> the eye flies a Catmull-Rom spline, which passes
+ *                           through its waypoints (a Bezier's inner handles only
+ *                           pull toward them). look_at returns a result because a
+ *                           degenerate setup has no view matrix; perspective
+ *                           takes the vertical field of view and keeps clip z in
+ *                           [-1, 1], the OpenGL convention.
+ *   2. Animate an object -> a gimbal-lock-free quaternion spin about an orbit
+ *                           angle wrapped to [-pi, pi), composed right to left:
+ *                           scale, then spin, then move.
+ *   3. Project vertices  -> one precomputed model-view-projection matrix;
+ *                           transform_point applies the perspective divide, so
+ *                           its result is already in NDC.
+ *   4. Shade a face      -> Lambert diffuse max(0, dot(N, L)) plus a reflect
+ *                           specular direction; transform_direction suits the
+ *                           normal because the scale is uniform.
+ *   5. Sample a sphere   -> unit_vector3 draws uniform directions by Marsaglia's
+ *                           method, with no pole bias, from a fixed-seed engine.
+ *   6. Stay deterministic-> floating-point sums are not bit-reproducible across
+ *                           compilers, so a lockstep checksum folds the projected
+ *                           x coordinates into Q16.16 fixed point.
  *
  * Note we never hand-roll a print helper: format.hpp makes the math types
  * formattable, and the spec forwards to each component, so "{:+.3f}" prints a
@@ -87,8 +101,8 @@ auto main() -> int {
   }
   std::println("  spin quaternion            {:+.3f}", *spin);
   auto const model{
-    nm::translation3(nm::vector3_d{0, 0, 0})  // sitting at the origin
-    * nm::rotation3(*spin) * nm::scale3(nm::vector3_d{1.5, 1.5, 1.5})
+    nm::translation3(nm::vector3_d{0, 0, 0}) * nm::rotation3(*spin)
+    * nm::scale3(nm::vector3_d{1.5, 1.5, 1.5})
   };
 
   // Matrix multiply is associative, so precompute one transform per object/frame.

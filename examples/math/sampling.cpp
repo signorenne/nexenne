@@ -1,6 +1,11 @@
 /**
  * @file
  * @brief Geometric random samplers: directions, points, and an angle.
+ *
+ *   1. A few uniform directions on the sphere, each of unit length.
+ *   2. A point inside the unit disc, with squared length below 1.
+ *   3. The mean of many directions is near zero: the sampler has no bias.
+ *   4. A random angle in [-pi, pi).
  */
 
 #include <cstddef>

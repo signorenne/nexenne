@@ -1,6 +1,24 @@
 /**
  * @file
  * @brief Quaternions: build, rotate, compose, interpolate, and Euler angles.
+ *
+ *   1. A 90 degree rotation about +Z takes +X to +Y.
+ *   2. Composition reads right to left: qx * qz turns 90 degrees about Z, then
+ *      90 degrees about X.
+ *   3. slerp from the identity to the Z rotation.
+ *   4. The interpolation variants on one endpoint pair. slerp walks the arc at
+ *      constant angular velocity, so its angle is exactly linear in t (a 90
+ *      degree arc gives 22.5, 45 and 67.5 degrees at t = 0.25, 0.5 and 0.75).
+ *      nlerp_short blends the four components and renormalizes: cheaper, but
+ *      the angle is not linear in t, so it lags slerp off the midpoint (the two
+ *      coincide at t = 0.5 by symmetry). nlerp_plain is the same blend with no
+ *      shorter-arc fix; these endpoints already share a hemisphere, so it agrees
+ *      with nlerp_short. See slerp_variants.hpp for when each one is the right
+ *      pick.
+ *   5. Aerospace yaw-pitch-roll Euler angles to a quaternion and back to an
+ *      axis and angle.
+ *   6. The components follow the object's constness: edit one in place, then
+ *      normalize to get a unit rotation back.
  */
 
 #include <print>

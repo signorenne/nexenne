@@ -1,6 +1,12 @@
 /**
  * @file
  * @brief Scalar utilities: clamping, interpolation, easing, and wrapping.
+ *
+ *   1. Interpolation and easing: lerp, smoothstep, remap.
+ *   2. move_toward approaches a target at a capped speed, frame-rate
+ *      independent.
+ *   3. Floor-based mod and wrap take the sign of the divisor.
+ *   4. ping_pong is a triangle wave in [0, length].
  */
 
 #include <print>

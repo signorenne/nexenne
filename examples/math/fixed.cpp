@@ -1,6 +1,10 @@
 /**
  * @file
  * @brief Q-format fixed-point: integer-ALU fractional math with exact results.
+ *
+ *   1. Q16.16 values print as a float and as their raw integer; a * b stays
+ *      exact through a wide intermediate, and to_int floors.
+ *   2. An accumulator adds on the integer ALU, with no FPU needed.
  */
 
 #include <print>
