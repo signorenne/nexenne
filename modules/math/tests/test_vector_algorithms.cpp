@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 
+#include <cmath>
+
 #include <nexenne/math/constants.hpp>
 #include <nexenne/math/normalized.hpp>
 #include <nexenne/math/vector_algorithms.hpp>
@@ -195,4 +197,13 @@ TEST_CASE("default-constructed normalized holds a unit axis, not the zero vector
   constexpr auto same{math::make_unchecked(math::vector3_f{1, 0, 0})};
   CHECK(d3 == same);
   CHECK(d3 != math::make_unchecked(math::vector3_f{0, 1, 0}));
+}
+
+TEST_CASE("angle_between stays accurate for nearly parallel vectors (math-04)") {
+  // acos of the cosine read a float 1e-4 rad angle as 0.
+  auto const a{math::vector2_f{1.0f, 0.0f}};
+  auto const b{math::vector2_f{std::cos(1e-4f), std::sin(1e-4f)}};
+  auto const angle{math::angle_between(a, b)};
+  REQUIRE(angle.has_value());
+  CHECK(std::abs(*angle - 1e-4f) < 1e-7f);
 }

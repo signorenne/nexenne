@@ -776,10 +776,10 @@ template <signed_arithmetic Value, std::size_t N>
 /**
  * @brief Unsigned angle between two vectors, in radians.
  *
- * The angle in [0, pi], computed from \c acos(dot(a, b) / (length(a)*length(b))).
- * The cosine is clamped to [-1, 1] before the \c acos: rounding can push it a
- * hair outside that range for nearly parallel inputs, which would make
- * \c std::acos return NaN, so the clamp keeps the result well-defined.
+ * The angle in [0, pi], computed from the unit vectors \c u and \c v as
+ * \c 2*atan2(length(u - v), length(u + v)). Unlike \c acos of the cosine,
+ * which loses most of its digits for nearly parallel or nearly opposite inputs,
+ * this form stays accurate across the whole range.
  *
  * @tparam Real Floating-point component type.
  * @tparam N Component count.
@@ -794,7 +794,7 @@ template <signed_arithmetic Value, std::size_t N>
  *      so per-component magnitudes well below the square root of the type's max).
  * @post On success the result lies in [0, pi].
  *
- * @note Uses libm \c std::acos, so this is not \c constexpr. Wrap the result in
+ * @note Uses libm \c std::atan2, so this is not \c constexpr. Wrap the result in
  *       \c radians at the call site if a strong angle type is wanted.
  */
 template <std::floating_point Real, std::size_t N>
@@ -812,9 +812,9 @@ template <std::floating_point Real, std::size_t N>
   if (la <= threshold || lb <= threshold) {
     return std::unexpected{math_error::zero_length_vector};
   }
-  auto const denom{sqrt(la) * sqrt(lb)};
-  auto const cos_theta{clamp(dot(a, b) / denom, Real{-1}, Real{1})};
-  return std::acos(cos_theta);
+  auto const u{a / sqrt(la)};
+  auto const v{b / sqrt(lb)};
+  return Real{2} * std::atan2(length(u - v), length(u + v));
 }
 
 }  // namespace nexenne::math
