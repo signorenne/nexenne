@@ -156,3 +156,14 @@ TEST_CASE("from_two_vectors and look_at_rotation are constexpr (m10)") {
   static_assert(look.has_value());
   static_assert(math::length_squared(*look) > 0.9f);
 }
+
+TEST_CASE("to_axis_angle keeps a small rotation's angle and unit axis (math-03)") {
+  // 2*acos(w) and sqrt(1 - w*w) cancelled: a float 1e-3 rad rotation came back
+  // as 9.77e-4 rad about an axis of length 1.024.
+  auto const axis{math::vector3_f{0.0f, 0.0f, 1.0f}};
+  auto const q{math::from_axis_angle(axis, math::radians_f{1e-3f})};
+  REQUIRE(q.has_value());
+  auto const aa{math::to_axis_angle(*q)};
+  CHECK(std::abs(aa.angle().value() - 1e-3f) < 1e-8f);
+  CHECK(std::abs(math::length(aa.axis()) - 1.0f) < 1e-6f);
+}

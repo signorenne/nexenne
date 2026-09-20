@@ -716,12 +716,12 @@ public:
 /**
  * @brief Extracts the axis-angle representation of \p q.
  *
- * Inverts \c from_axis_angle: the angle is \c 2*acos(w) and the axis is the
- * vector part divided by \c sin(theta/2). Robust for any finite input: \c w is
- * clamped to [-1, 1] before \c acos (rounding can push a unit quaternion's w just
- * outside), and near the identity (where \c sin(theta/2) is tiny and the axis is
- * geometrically arbitrary) it falls back to +X. It therefore cannot produce NaN,
- * so it returns the bare value rather than a \c result.
+ * Inverts \c from_axis_angle: the angle is \c 2*atan2(|v|, w) and the axis is
+ * the vector part \c v divided by its length. Both stay accurate for a small
+ * rotation, where \c 2*acos(w) and \c sqrt(1 - w*w) lose their digits to
+ * cancellation. When the vector part is zero (the identity, up to sign) the axis
+ * is geometrically arbitrary and +X is returned. It cannot produce NaN for a
+ * finite input, so it returns the bare value rather than a \c result.
  *
  * @tparam Real Floating-point component type.
  * @param q Quaternion (ideally unit length).
@@ -731,23 +731,19 @@ public:
  * @pre \p q has finite components.
  * @post For an identity \p q the angle is zero and the axis is +X.
  *
- * @note The angle is \c 2*acos(w) and so lies in [0, 2*pi): a quaternion with
- *       \c w < 0 yields the reflex angle about the returned axis rather than the
- *       equivalent smaller angle about the negated axis. Negate \p q first (it is
- *       the same rotation) if the [0, pi] range is wanted.
+ * @note The angle lies in [0, 2*pi]: a quaternion with \c w < 0 yields the
+ *       reflex angle about the returned axis rather than the equivalent smaller
+ *       angle about the negated axis. Negate \p q first (it is the same
+ *       rotation) if the [0, pi] range is wanted.
  */
 template <std::floating_point Real>
 [[nodiscard]] auto to_axis_angle(quaternion<Real> const q) noexcept -> axis_angle<Real> {
-  auto const w_clamped{clamp(q.w(), Real{-1}, Real{1})};
-  auto const angle{Real{2} * std::acos(w_clamped)};
-  // sin_half = sin(theta/2) = |vector part| = sqrt(1 - w^2). The axis = vector/sin_half
-  // is ill-defined only where sin_half ~ 0, i.e. w ~ +/-1 -> theta ~ 0 or 2*pi
-  // (both the identity rotation up to sign); there the axis is arbitrary, so we
-  // return +X. Note the antipodal end w ~ -1 is covered by the same test. Near
-  // theta = pi the axis is perfectly well conditioned (sin_half ~ 1), so it needs
-  // no special case despite being the "halfway" angle.
-  auto const sin_half{sqrt(Real{1} - w_clamped * w_clamped)};
-  if (sin_half < static_cast<Real>(1e-8)) {
+  // sin(theta/2) is the length of the vector part and cos(theta/2) is w, so
+  // atan2 recovers the half angle to full relative precision at any size, where
+  // acos(w) and sqrt(1 - w^2) would cancel away a small rotation's digits.
+  auto const sin_half{sqrt(q.x() * q.x() + q.y() * q.y() + q.z() * q.z())};
+  auto const angle{Real{2} * std::atan2(sin_half, q.w())};
+  if (sin_half == Real{0}) {
     return axis_angle<Real>{vector<Real, 3>{Real{1}, Real{0}, Real{0}}, radians<Real>{angle}};
   }
   auto const inv{Real{1} / sin_half};
