@@ -41,9 +41,9 @@ namespace nexenne::math {
  * @post Equals \p p0 at \c t=0 and \p p2 at \c t=1.
  */
 template <std::floating_point Real, affine_point<Real> Point>
-[[nodiscard]] constexpr auto
-bezier_quadratic(Point const& p0, Point const& p1, Point const& p2, Real const t) noexcept
-  -> Point {
+[[nodiscard]] constexpr auto bezier_quadratic(
+  Point const& p0, Point const& p1, Point const& p2, Real const t
+) noexcept(detail::nothrow_affine_point<Point, Real>) -> Point {
   auto const one_minus_t{Real{1} - t};
   auto const a{one_minus_t * one_minus_t};
   auto const b{Real{2} * one_minus_t * t};
@@ -70,9 +70,9 @@ bezier_quadratic(Point const& p0, Point const& p1, Point const& p2, Real const t
  * @post Equals the first derivative of \c bezier_quadratic at \p t.
  */
 template <std::floating_point Real, affine_point<Real> Point>
-[[nodiscard]] constexpr auto
-bezier_quadratic_tangent(Point const& p0, Point const& p1, Point const& p2, Real const t) noexcept
-  -> Point {
+[[nodiscard]] constexpr auto bezier_quadratic_tangent(
+  Point const& p0, Point const& p1, Point const& p2, Real const t
+) noexcept(detail::nothrow_affine_point<Point, Real>) -> Point {
   auto const one_minus_t{Real{1} - t};
   return (p1 - p0) * (Real{2} * one_minus_t) + (p2 - p1) * (Real{2} * t);
 }
@@ -100,7 +100,7 @@ bezier_quadratic_tangent(Point const& p0, Point const& p1, Point const& p2, Real
 template <std::floating_point Real, affine_point<Real> Point>
 [[nodiscard]] constexpr auto bezier_cubic(
   Point const& p0, Point const& p1, Point const& p2, Point const& p3, Real const t
-) noexcept -> Point {
+) noexcept(detail::nothrow_affine_point<Point, Real>) -> Point {
   auto const one_minus_t{Real{1} - t};
   auto const t2{t * t};
   auto const t3{t2 * t};
@@ -131,7 +131,7 @@ template <std::floating_point Real, affine_point<Real> Point>
 template <std::floating_point Real, affine_point<Real> Point>
 [[nodiscard]] constexpr auto bezier_cubic_tangent(
   Point const& p0, Point const& p1, Point const& p2, Point const& p3, Real const t
-) noexcept -> Point {
+) noexcept(detail::nothrow_affine_point<Point, Real>) -> Point {
   auto const one_minus_t{Real{1} - t};
   auto const o2{one_minus_t * one_minus_t};
   auto const t2{t * t};
@@ -164,7 +164,7 @@ template <std::floating_point Real, affine_point<Real> Point>
 template <std::floating_point Real, affine_point<Real> Point>
 [[nodiscard]] constexpr auto catmull_rom(
   Point const& p0, Point const& p1, Point const& p2, Point const& p3, Real const t
-) noexcept -> Point {
+) noexcept(detail::nothrow_affine_point<Point, Real>) -> Point {
   auto const t2{t * t};
   auto const t3{t2 * t};
   return (p1 * Real{2} + (p2 - p0) * t + (p0 * Real{2} - p1 * Real{5} + p2 * Real{4} - p3) * t2
@@ -195,7 +195,7 @@ template <std::floating_point Real, affine_point<Real> Point>
 template <std::floating_point Real, affine_point<Real> Point>
 [[nodiscard]] constexpr auto catmull_rom_tangent(
   Point const& p0, Point const& p1, Point const& p2, Point const& p3, Real const t
-) noexcept -> Point {
+) noexcept(detail::nothrow_affine_point<Point, Real>) -> Point {
   auto const t2{t * t};
   return ((p2 - p0) + (p0 * Real{2} - p1 * Real{5} + p2 * Real{4} - p3) * (Real{2} * t)
           + (p1 * Real{3} - p0 - p2 * Real{3} + p3) * (Real{3} * t2))
@@ -226,7 +226,7 @@ template <std::floating_point Real, affine_point<Real> Point>
 template <std::floating_point Real, affine_point<Real> Point>
 [[nodiscard]] constexpr auto hermite(
   Point const& p0, Point const& tangent0, Point const& p1, Point const& tangent1, Real const t
-) noexcept -> Point {
+) noexcept(detail::nothrow_affine_point<Point, Real>) -> Point {
   auto const t2{t * t};
   auto const t3{t2 * t};
   auto const h00{Real{2} * t3 - Real{3} * t2 + Real{1}};
@@ -258,7 +258,7 @@ template <std::floating_point Real, affine_point<Real> Point>
 template <std::floating_point Real, affine_point<Real> Point>
 [[nodiscard]] constexpr auto hermite_tangent(
   Point const& p0, Point const& tangent0, Point const& p1, Point const& tangent1, Real const t
-) noexcept -> Point {
+) noexcept(detail::nothrow_affine_point<Point, Real>) -> Point {
   auto const t2{t * t};
   auto const h00d{Real{6} * t2 - Real{6} * t};
   auto const h10d{Real{3} * t2 - Real{4} * t + Real{1}};

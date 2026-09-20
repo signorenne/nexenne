@@ -11,6 +11,22 @@ namespace {
 auto vapprox(math::vector2_d const& a, math::vector2_d const& b, double eps = 1e-9) -> bool {
   return std::abs(a.x() - b.x()) < eps && std::abs(a.y() - b.y()) < eps;
 }
+
+struct throwing_point {
+  double v{0.0};
+
+  auto operator+(throwing_point const o) const -> throwing_point {
+    return throwing_point{v + o.v};
+  }
+
+  auto operator-(throwing_point const o) const -> throwing_point {
+    return throwing_point{v - o.v};
+  }
+
+  auto operator*(double const s) const -> throwing_point {
+    return throwing_point{v * s};
+  }
+};
 }  // namespace
 
 TEST_CASE("Bezier curves interpolate their endpoints") {
@@ -102,4 +118,33 @@ TEST_CASE("curves work on a scalar point too (easing a single value)") {
   static_assert(math::affine_point<double, double>);
   CHECK(math::bezier_quadratic(0.0, 10.0, 0.0, 0.5) == doctest::Approx(5.0));
   CHECK(math::hermite(0.0, 0.0, 1.0, 0.0, 0.5) == doctest::Approx(0.5));
+}
+
+TEST_CASE("curves are noexcept exactly when the point's arithmetic is") {
+  static_assert(math::affine_point<throwing_point, double>);
+  auto const p{throwing_point{}};
+  static_assert(!noexcept(math::bezier_quadratic(p, p, p, 0.5)));
+  static_assert(!noexcept(math::bezier_quadratic_tangent(p, p, p, 0.5)));
+  static_assert(!noexcept(math::bezier_cubic(p, p, p, p, 0.5)));
+  static_assert(!noexcept(math::bezier_cubic_tangent(p, p, p, p, 0.5)));
+  static_assert(!noexcept(math::catmull_rom(p, p, p, p, 0.5)));
+  static_assert(!noexcept(math::catmull_rom_tangent(p, p, p, p, 0.5)));
+  static_assert(!noexcept(math::hermite(p, p, p, p, 0.5)));
+  static_assert(!noexcept(math::hermite_tangent(p, p, p, p, 0.5)));
+
+  auto const v{math::vector2_d{}};
+  static_assert(noexcept(math::bezier_quadratic(v, v, v, 0.5)));
+  static_assert(noexcept(math::bezier_quadratic_tangent(v, v, v, 0.5)));
+  static_assert(noexcept(math::bezier_cubic(v, v, v, v, 0.5)));
+  static_assert(noexcept(math::bezier_cubic_tangent(v, v, v, v, 0.5)));
+  static_assert(noexcept(math::catmull_rom(v, v, v, v, 0.5)));
+  static_assert(noexcept(math::catmull_rom_tangent(v, v, v, v, 0.5)));
+  static_assert(noexcept(math::hermite(v, v, v, v, 0.5)));
+  static_assert(noexcept(math::hermite_tangent(v, v, v, v, 0.5)));
+  static_assert(noexcept(math::hermite(0.0, 0.0, 1.0, 0.0, 0.5)));
+
+  auto const mid{
+    math::bezier_quadratic(throwing_point{0.0}, throwing_point{10.0}, throwing_point{0.0}, 0.5)
+  };
+  CHECK(mid.v == doctest::Approx(5.0));
 }

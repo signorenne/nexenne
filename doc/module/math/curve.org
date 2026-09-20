@@ -36,6 +36,12 @@ Point>=. The =affine_point= concept (in =concepts.hpp=) asks only for =p + p=,
 =vector<Real, N>= satisfies it (curves through space), and so does =Real= itself
 (easing one number), so no separate scalar overloads are needed.
 
+Each routine is =noexcept= exactly when the point's arithmetic is: when =p + p=,
+=p - p= and =p * s=, their conversions back to =Point=, and a copy and a move
+of =Point= are all =noexcept=. A vector or a scalar qualifies; a point type
+whose operators can throw (one that allocates, say) gets routines that let the
+exception through rather than terminate.
+
 ** Bezier
 
 =bezier_quadratic= and =bezier_cubic= evaluate the Bernstein form directly; the

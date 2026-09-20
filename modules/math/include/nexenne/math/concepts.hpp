@@ -62,4 +62,40 @@ concept affine_point = requires(Point const p, Scalar const s) {
   { p * s } -> std::convertible_to<Point>;
 };
 
+/// @cond INTERNAL
+namespace detail {
+
+/**
+ * @brief Whether \p From converts to \p To without throwing.
+ *
+ * @tparam From Source type.
+ * @tparam To Target type.
+ */
+template <typename From, typename To>
+concept nothrow_convertible_to = std::is_nothrow_convertible_v<From, To>;
+
+/**
+ * @brief Whether every operation an \c affine_point routine runs on \p Point is nothrow.
+ *
+ * The three combinations, each result's conversion back to \c Point, and a
+ * copy and a move of \c Point. A curve routine is \c noexcept exactly when
+ * this holds, so a point type whose arithmetic can throw (one that allocates,
+ * say) propagates the exception instead of terminating.
+ *
+ * @tparam Point Point type under test.
+ * @tparam Scalar Scalar field the point is scaled by.
+ */
+template <typename Point, typename Scalar>
+concept nothrow_affine_point =
+  affine_point<Point, Scalar> && std::is_nothrow_copy_constructible_v<Point>
+  && std::is_nothrow_move_constructible_v<Point> && requires(Point const p, Scalar const s) {
+       { p + p } noexcept -> nothrow_convertible_to<Point>;
+       { p - p } noexcept -> nothrow_convertible_to<Point>;
+       { p * s } noexcept -> nothrow_convertible_to<Point>;
+     };
+
+}  // namespace detail
+
+/// @endcond
+
 }  // namespace nexenne::math
