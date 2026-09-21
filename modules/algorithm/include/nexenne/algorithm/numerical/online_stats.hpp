@@ -295,7 +295,8 @@ public:
    * @brief Records one sample into the appropriate bucket.
    *
    * Samples below \c min increment the underflow bin and samples at or above
-   * \c max the overflow bin, so no data is lost.
+   * \c max the overflow bin, so no data is lost. A NaN sample counts in the
+   * overflow bin.
    *
    * @param x Sample value.
    *
@@ -310,7 +311,8 @@ public:
       ++m_underflow;
       return;
     }
-    if (x >= m_max) {
+    // NaN fails both range tests; converting it to a bucket index is undefined.
+    if (x >= m_max || std::isnan(x)) {
       ++m_overflow;
       return;
     }

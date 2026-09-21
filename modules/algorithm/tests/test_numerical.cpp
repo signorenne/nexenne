@@ -542,4 +542,13 @@ TEST_CASE("nexenne::algorithm::bisection accepts a reversed bracket (algorithm-0
   CHECK(std::abs(*root - 1.0) < 1e-8);
 }
 
+TEST_CASE("nexenne::algorithm::histogram counts a NaN sample in the overflow bin (algorithm-07)") {
+  // NaN failed both range tests and was converted to a bucket index (undefined).
+  auto h{alg::histogram<double, 4>{0.0, 4.0}};
+  h.push(std::nan(""));
+  CHECK(h.total() == 1);
+  CHECK(h.overflow() == 1);
+  CHECK(h.underflow() == 0);
+}
+
 }  // namespace
