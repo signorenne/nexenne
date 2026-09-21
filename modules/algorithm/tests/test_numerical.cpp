@@ -551,4 +551,17 @@ TEST_CASE("nexenne::algorithm::histogram counts a NaN sample in the overflow bin
   CHECK(h.underflow() == 0);
 }
 
+TEST_CASE("nexenne::algorithm::running_stats merges large means without overflow (algorithm-11)") {
+  // (n1 * m1 + n2 * m2) / n overflowed: a mean of 1e37 merged to inf.
+  auto a{alg::running_stats<float>{}};
+  auto b{alg::running_stats<float>{}};
+  for (auto i{0}; i < 100; ++i) {
+    a.push(1e37f);
+    b.push(1e37f);
+  }
+  a.merge(b);
+  CHECK(std::isfinite(a.mean()));
+  CHECK(std::abs(a.mean() - 1e37f) <= 1e31f);
+}
+
 }  // namespace

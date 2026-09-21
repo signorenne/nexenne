@@ -223,7 +223,8 @@ public:
     auto const n2{static_cast<T>(other.m_count)};
     auto const n{n1 + n2};
     auto const delta{other.m_mean - m_mean};
-    m_mean = (n1 * m_mean + n2 * other.m_mean) / n;
+    // Chan et al. pairwise update, stepping from the mean: n1*m1 + n2*m2 overflows at 1e37.
+    m_mean += delta * n2 / n;
     m_m2 += other.m_m2 + delta * delta * n1 * n2 / n;
     m_count = m_count + other.m_count;
     if (other.m_min < m_min) {
