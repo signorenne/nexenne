@@ -25,6 +25,7 @@
 
 namespace nexenne::algorithm {
 
+/// @cond INTERNAL
 namespace detail {
 
 // True when iterating \c Range (comparing begin to end, incrementing, and
@@ -39,6 +40,8 @@ inline constexpr bool nothrow_iterable_v{
 };
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Kahan-compensated sum of \p range.

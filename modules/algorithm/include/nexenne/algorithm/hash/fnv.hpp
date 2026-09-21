@@ -137,7 +137,7 @@ template <std::size_t Width>
   requires(Width == 32 || Width == 64)
 class fnv1a_ctx {
 public:
-  using value_type = fnv1a_result_t<Width>;
+  using value_type = fnv1a_result_t<Width>;  ///< Hash result type.
 
 private:
   value_type m_h{fnv1a_offset<Width>};

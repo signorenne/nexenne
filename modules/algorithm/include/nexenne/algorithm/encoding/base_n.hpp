@@ -42,13 +42,19 @@ namespace nexenne::algorithm {
  * folding.
  *
  * @tparam Symbols Number of alphabet symbols: 16, 32, or 64.
+ *
+ * @pre None.
+ * @post None.
  */
 template <std::size_t Symbols>
   requires(std::has_single_bit(Symbols) && Symbols >= 2 && Symbols <= 64)
 struct base_n_spec {
-  static constexpr std::size_t symbols{Symbols};
+  static constexpr std::size_t symbols{Symbols};  ///< Alphabet size.
+  /// @brief Bits carried by one symbol.
   static constexpr std::size_t bits{static_cast<std::size_t>(std::bit_width(Symbols)) - 1u};
+  /// @brief Bytes in one whole encoding group.
   static constexpr std::size_t group_in{std::lcm(std::size_t{8}, bits) / 8};
+  /// @brief Symbols in one whole encoding group.
   static constexpr std::size_t group_out{std::lcm(std::size_t{8}, bits) / bits};
 
   codec_alphabet<Symbols> alphabet;  ///< Symbol table (forward and reverse).
@@ -430,8 +436,7 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
 }
 
 /**
- * @brief Safe upper bound on the decoded byte count for \p n_chars Base32
- *        characters.
+ * @brief Safe upper bound on the decoded byte count for \p n_chars Base32 characters.
  *
  * @param n_chars Number of Base32 characters in the input.
  *
@@ -656,8 +661,7 @@ base32hex_decode(std::string_view const in, std::span<std::uint8_t> const out) n
 }
 
 /**
- * @brief Safe upper bound on the decoded byte count for \p n_chars Base64
- *        characters.
+ * @brief Safe upper bound on the decoded byte count for \p n_chars Base64 characters.
  *
  * @param n_chars Number of Base64 characters in the input.
  *

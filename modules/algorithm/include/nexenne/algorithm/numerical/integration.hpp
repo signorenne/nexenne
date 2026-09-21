@@ -92,6 +92,7 @@ template <std::invocable<double> F>
   return sum * h / 3.0;
 }
 
+/// @cond INTERNAL
 namespace detail {
 
 // Abscissae and weights for 5-point Gauss-Legendre on [-1, 1].
@@ -111,6 +112,8 @@ inline constexpr auto gl5_weights{std::array<double, 5>{
 }};
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Integrates \p f over \c [a, b] by 5-point Gauss-Legendre quadrature.

@@ -403,21 +403,23 @@ xxhash(std::string_view const s, xxhash_result_t<Width> const seed = 0) noexcept
 }
 
 /**
- * @brief Streaming xxHash context: feed bytes via \c update, finalize with
- *        \c value.
+ * @brief Streaming xxHash context: feed bytes via \c update, finalize with \c value.
  *
  * Buffers a single internal stripe (16 bytes at width 32, 32 at width 64) so
  * chunked input works regardless of boundary alignment. The finalized result
  * matches the one-shot \c xxhash of the concatenated input.
  *
  * @tparam Width Hash width in bits, either 32 or 64.
+ *
+ * @pre None.
+ * @post None.
  */
 template <std::size_t Width>
   requires(Width == 32 || Width == 64)
 class xxhash_ctx {
 public:
-  using value_type = xxhash_result_t<Width>;
-  static constexpr std::size_t stripe_size{Width == 32 ? 16u : 32u};
+  using value_type = xxhash_result_t<Width>;                          ///< Hash result type.
+  static constexpr std::size_t stripe_size{Width == 32 ? 16u : 32u};  ///< Bytes per stripe.
 
 private:
   value_type m_v1{};

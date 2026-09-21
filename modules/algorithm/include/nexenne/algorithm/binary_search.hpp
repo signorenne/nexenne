@@ -33,6 +33,7 @@ namespace nexenne::algorithm {
 /// @brief A search result: the zero-based index of a match, or empty on a miss.
 using found_index = std::optional<std::size_t>;
 
+/// @cond INTERNAL
 namespace detail {
 
 // True when the two-way \c < comparison between a \c R element and a \c T cannot
@@ -45,6 +46,8 @@ inline constexpr bool nothrow_ordered_v{
 };
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Index of \p value in a sorted range, or empty when absent.

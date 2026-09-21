@@ -20,8 +20,9 @@
 namespace nexenne::algorithm {
 
 /**
- * @brief A compile-time alphabet of \c N distinct characters with forward and
- *        reverse lookup tables.
+ * @brief A compile-time alphabet of \c N distinct characters.
+ *
+ * Holds forward and reverse lookup tables.
  *
  * @tparam N Number of symbols in the alphabet.
  */

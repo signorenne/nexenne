@@ -259,6 +259,9 @@ public:
  *
  * @tparam T Floating-point sample type.
  * @tparam N Number of in-range buckets (excluding under and over).
+ *
+ * @pre None.
+ * @post None.
  */
 template <std::floating_point T = double, std::size_t N = 32>
   requires(N > 0)

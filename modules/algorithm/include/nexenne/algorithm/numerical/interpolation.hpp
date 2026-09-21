@@ -277,7 +277,7 @@ public:
 private:
   std::vector<T> m_x{};
   std::vector<T> m_y{};
-  std::vector<T> m_m{};  ///< Second derivatives at each knot.
+  std::vector<T> m_m{};  ///< Half the second derivative at each knot (the c coefficients).
 
 public:
   /**

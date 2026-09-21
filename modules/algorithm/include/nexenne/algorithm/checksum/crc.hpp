@@ -103,8 +103,8 @@ inline constexpr auto crc_mask{
 template <std::size_t WidthBits>
   requires(WidthBits >= 1 && WidthBits <= 64)
 struct crc_spec {
-  using value_type = detail::crc_uint_t<WidthBits>;
-  static constexpr std::size_t width{WidthBits};
+  using value_type = detail::crc_uint_t<WidthBits>;  ///< Register type holding the CRC.
+  static constexpr std::size_t width{WidthBits};     ///< Register width in bits.
 
   value_type poly{};     ///< Polynomial without its leading 1.
   value_type init{};     ///< Initial register value.
@@ -292,8 +292,7 @@ template <crc_spec Spec>
 }
 
 /**
- * @brief Streaming CRC context: feed bytes via \c update, finalize with
- *        \c value.
+ * @brief Streaming CRC context: feed bytes via \c update, finalize with \c value.
  *
  * Use for data arriving in chunks (file streams, DMA buffers, network frames).
  * Call \c update any number of times, then \c value; \c reset reuses the
@@ -305,8 +304,8 @@ template <crc_spec Spec>
 template <crc_spec Spec>
 class crc_ctx {
 public:
-  using value_type = typename decltype(Spec)::value_type;
-  static constexpr std::size_t width{Spec.width};
+  using value_type = typename decltype(Spec)::value_type;  ///< Register type holding the CRC.
+  static constexpr std::size_t width{Spec.width};          ///< Register width in bits.
 
 private:
   static constexpr auto mask{detail::crc_mask<value_type, width>};
@@ -451,34 +450,44 @@ inline constexpr auto crc8_smbus_spec{
  * Kept for source compatibility; prefer \c crc8_smbus_spec.
  */
 inline constexpr auto crc8_ccitt_spec{crc8_smbus_spec};
+/// @brief CRC-8/ROHC: robust header compression (RFC 3095).
 inline constexpr auto crc8_rohc_spec{
   crc_spec<8>{.poly = 0x07, .init = 0xFF, .ref_in = true, .ref_out = true, .xor_out = 0x00}
 };
+/// @brief CRC-8/MAXIM-DOW: Dallas/Maxim 1-Wire devices.
 inline constexpr auto crc8_dallas_1wire_spec{
   crc_spec<8>{.poly = 0x31, .init = 0x00, .ref_in = true, .ref_out = true, .xor_out = 0x00}
 };
+/// @brief CRC-8/AUTOSAR: AUTOSAR E2E profiles.
 inline constexpr auto crc8_autosar_spec{
   crc_spec<8>{.poly = 0x2F, .init = 0xFF, .ref_in = false, .ref_out = false, .xor_out = 0xFF}
 };
+/// @brief CRC-8/SAE-J1850: SAE J1850 vehicle networks.
 inline constexpr auto crc8_j1850_spec{
   crc_spec<8>{.poly = 0x1D, .init = 0xFF, .ref_in = false, .ref_out = false, .xor_out = 0xFF}
 };
+/// @brief CRC-8/I-CODE: NXP I-CODE RFID.
 inline constexpr auto crc8_icode_spec{
   crc_spec<8>{.poly = 0x1D, .init = 0xFD, .ref_in = false, .ref_out = false, .xor_out = 0x00}
 };
 
+/// @brief CRC-16/XMODEM: the XMODEM file-transfer protocol.
 inline constexpr auto crc16_xmodem_spec{
   crc_spec<16>{.poly = 0x1021, .init = 0x0000, .ref_in = false, .ref_out = false, .xor_out = 0x0000}
 };
+/// @brief CRC-16/KERMIT: the Kermit protocol (reflected CCITT).
 inline constexpr auto crc16_kermit_spec{
   crc_spec<16>{.poly = 0x1021, .init = 0x0000, .ref_in = true, .ref_out = true, .xor_out = 0x0000}
 };
+/// @brief CRC-16/MODBUS: Modbus RTU framing.
 inline constexpr auto crc16_modbus_spec{
   crc_spec<16>{.poly = 0x8005, .init = 0xFFFF, .ref_in = true, .ref_out = true, .xor_out = 0x0000}
 };
+/// @brief CRC-16/USB: USB token and data packets.
 inline constexpr auto crc16_usb_spec{
   crc_spec<16>{.poly = 0x8005, .init = 0xFFFF, .ref_in = true, .ref_out = true, .xor_out = 0xFFFF}
 };
+/// @brief CRC-16/IBM-SDLC: X.25 and HDLC frames.
 inline constexpr auto crc16_x25_spec{
   crc_spec<16>{.poly = 0x1021, .init = 0xFFFF, .ref_in = true, .ref_out = true, .xor_out = 0xFFFF}
 };
@@ -495,9 +504,11 @@ inline constexpr auto crc32_ieee_spec{crc_spec<32>{
 inline constexpr auto crc32c_spec{crc_spec<32>{
   .poly = 0x1EDC6F41, .init = 0xFFFFFFFF, .ref_in = true, .ref_out = true, .xor_out = 0xFFFFFFFF
 }};
+/// @brief CRC-32/BZIP2: bzip2 and AAL5 (non-reflected).
 inline constexpr auto crc32_bzip2_spec{crc_spec<32>{
   .poly = 0x04C11DB7, .init = 0xFFFFFFFF, .ref_in = false, .ref_out = false, .xor_out = 0xFFFFFFFF
 }};
+/// @brief CRC-32/MPEG-2: MPEG-2 transport stream tables.
 inline constexpr auto crc32_mpeg2_spec{crc_spec<32>{
   .poly = 0x04C11DB7, .init = 0xFFFFFFFF, .ref_in = false, .ref_out = false, .xor_out = 0x00000000
 }};
