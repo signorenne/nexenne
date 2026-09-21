@@ -26,7 +26,10 @@ bucket to its tally. That is two linear passes and one =O(K)= array, no
 comparisons. The caller supplies =max_value= so the input is not scanned twice;
 a value above it would index past the count array, so that is a precondition,
 not a runtime check. For an unknown or wide range, take =std::ranges::max= first
-or reach for =radix_sort=.
+or reach for =radix_sort=. A =max_value= whose bucket count does not fit
+=std::size_t= (on a 32-bit target, a 64-bit key of 2^32 - 1 or more) falls back
+to =std::ranges::sort=; the bound is compared in =std::uintmax_t=, so a wide key
+is never truncated into a small bucket array.
 
 ** radix_sort
 

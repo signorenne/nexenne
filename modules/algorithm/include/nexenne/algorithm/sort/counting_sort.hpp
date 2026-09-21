@@ -18,6 +18,7 @@
 #include <cassert>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -31,7 +32,9 @@ namespace nexenne::algorithm {
  *
  * Tallies each value into a count array of size \c max_value + 1, then rewrites
  * the span in ascending order by expanding each bucket to its tally. Stable by
- * construction. A range of size zero or one returns immediately.
+ * construction. A range of size zero or one returns immediately. When
+ * \c max_value + 1 does not fit \c std::size_t, it falls back to
+ * \c std::ranges::sort.
  *
  * @tparam T Unsigned-integer element type.
  * @param range Span of elements to sort in place.
@@ -50,11 +53,8 @@ constexpr auto counting_sort(std::span<T> const range, T const max_value) -> voi
   if (range.size() <= 1) {
     return;
   }
-  // A bucket count of max_value + 1 overflows std::size_t only when max_value is
-  // its maximum; such a key range cannot be counting-sorted (the bucket array
-  // would be unrepresentable), so fall back to a comparison sort rather than wrap
-  // to an empty vector and write out of bounds.
-  if (static_cast<std::size_t>(max_value) == std::numeric_limits<std::size_t>::max()) {
+  // Compare in uintmax_t: a size_t cast truncates a 64-bit key on a 32-bit target.
+  if (std::uintmax_t{max_value} >= std::uintmax_t{std::numeric_limits<std::size_t>::max()}) {
     std::ranges::sort(range);
     return;
   }
