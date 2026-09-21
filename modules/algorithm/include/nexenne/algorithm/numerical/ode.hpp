@@ -12,9 +12,9 @@
  * \c verlet_step (position Verlet, symplectic, needs the previous position) and
  * \c velocity_verlet_step (the common physics-engine form, returns updated
  * position and velocity). The first-order steppers (\c euler_step, \c rk4_step)
- * use one type for both time and state, so they operate on scalar states; the
- * Verlet pair (\c verlet_step, \c velocity_verlet_step) is templated purely on
- * the state type and works for vectors as well as scalars.
+ * use one type for both time and state, and so does the Verlet pair
+ * (\c verlet_step, \c velocity_verlet_step): the step size and the constants
+ * are of the state type, so all four operate on scalar states.
  */
 
 #include <concepts>
