@@ -493,4 +493,11 @@ TEST_CASE("nexenne::algorithm::crc accepts a custom spec") {
   );
 }
 
+template <std::size_t W>
+concept crc_width_accepted = requires { typename alg::crc_spec<W>; };
+static_assert(!crc_width_accepted<0>);
+static_assert(!crc_width_accepted<65>);
+static_assert(crc_width_accepted<1>);
+static_assert(crc_width_accepted<64>);
+
 }  // namespace

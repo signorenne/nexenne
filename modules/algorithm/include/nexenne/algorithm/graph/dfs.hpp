@@ -54,7 +54,7 @@ namespace nexenne::algorithm {
  * @complexity \c O(V + E) time and \c O(V + E) auxiliary space.
  */
 template <typename E, std::unsigned_integral V, typename Visitor>
-auto dfs(nexenne::container::graph<E, V> const& g, V const source, Visitor&& visit)
+[[nodiscard]] auto dfs(nexenne::container::graph<E, V> const& g, V const source, Visitor&& visit)
   -> std::expected<void, nexenne::container::container_error> {
   if (!g.contains(source)) {
     return std::unexpected{nexenne::container::container_error::out_of_range};

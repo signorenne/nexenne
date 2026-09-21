@@ -98,9 +98,10 @@ inline constexpr auto crc_mask{
  * the template parameter; the remaining Rocksoft fields are data members so
  * a spec reads as a designated-initialiser literal.
  *
- * @tparam WidthBits Register width in bits.
+ * @tparam WidthBits Register width in bits, from 1 to 64.
  */
 template <std::size_t WidthBits>
+  requires(WidthBits >= 1 && WidthBits <= 64)
 struct crc_spec {
   using value_type = detail::crc_uint_t<WidthBits>;
   static constexpr std::size_t width{WidthBits};

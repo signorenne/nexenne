@@ -73,7 +73,7 @@ on constructed graphs with known answers.
 namespace alg = nexenne::algorithm;
 auto const dist{alg::dijkstra(g, source)};       // expected<vector<Weight>>
 auto const order{alg::topological_sort(g)};      // expected<vector<V>>, error on cycle
-alg::bfs(g, source, [](std::uint32_t v){ /* visit */ });
+auto const walked{alg::bfs(g, source, [](std::uint32_t v){ /* visit */ })};  // error on a bad source
 #+END_SRC
 
 Runnable: [[file:../../../examples/algorithm/graph.cpp][examples/algorithm/graph.cpp]]
