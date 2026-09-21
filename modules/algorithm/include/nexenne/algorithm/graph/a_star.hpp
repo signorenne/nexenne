@@ -183,6 +183,12 @@ template <
     return h_value[vi];
   }};
 
+  // g + h saturates at the sentinel: an admissible heuristic may be "infinite" at a dead end.
+  auto const f_of{[](Weight const g_cost, Weight const h_cost) noexcept -> Weight {
+    auto const cap{detail::unreachable_weight<Weight>()};
+    return h_cost > cap - g_cost ? cap : static_cast<Weight>(g_cost + h_cost);
+  }};
+
   g_score[source] = Weight{0};
   handles[source] = pq.push(entry{source, h_of(source)});
 
@@ -197,7 +203,7 @@ template <
 
     // Stale entry guard: if we popped a value that's worse than what we now
     // know, ignore.
-    if (f_u > g_score[u] + h_of(u)) {
+    if (f_u > f_of(g_score[u], h_of(u))) {
       continue;
     }
 
@@ -234,7 +240,7 @@ template <
       if (tentative < g_score[target_i]) {
         came_from[target_i] = u;
         g_score[target_i] = tentative;
-        auto const f{static_cast<Weight>(tentative + h_of(target))};
+        auto const f{f_of(tentative, h_of(target))};
         if (handles[target_i] != no_h) {
           nexenne::utility::ignore(pq.update(handles[target_i], entry{target, f}));
         } else {

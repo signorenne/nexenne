@@ -553,4 +553,18 @@ TEST_CASE(
   CHECK(r.error() == nc::container_error::not_found);
 }
 
+TEST_CASE(
+  "nexenne::algorithm::a_star tolerates an infinite heuristic on a dead end (algorithm-10)"
+) {
+  // g + h overflowed (UBSan) for an admissible INT_MAX heuristic.
+  auto g{nc::graph<int, V>{4}};
+  REQUIRE(g.add_edge(0u, 1u, 1).has_value());
+  REQUIRE(g.add_edge(0u, 2u, 1).has_value());
+  REQUIRE(g.add_edge(2u, 3u, 1).has_value());
+  auto const h{[](V const v) noexcept { return v == 1u ? std::numeric_limits<int>::max() : 0; }};
+  auto const r{alg::a_star<int, V, int>(g, 0u, 3u, h)};
+  REQUIRE(r.has_value());
+  CHECK(r->cost == 2);
+}
+
 }  // namespace
