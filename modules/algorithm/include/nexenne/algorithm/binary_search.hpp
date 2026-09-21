@@ -152,7 +152,9 @@ exponential_search(R&& range, T const& value) noexcept(detail::nothrow_ordered_v
  * scan.
  *
  * @tparam R Sorted random-access range of an arithmetic value type.
- * @tparam T Arithmetic type comparable to the range value type.
+ * @tparam T Arithmetic type comparable to the range value type; when both are
+ *         integral they share their signedness (a mixed comparison converts -1
+ *         to the largest unsigned value).
  * @param range Range sorted in ascending order with respect to \c <.
  * @param value Value to locate.
  *
@@ -168,6 +170,7 @@ exponential_search(R&& range, T const& value) noexcept(detail::nothrow_ordered_v
  */
 template <std::ranges::random_access_range R, typename T>
   requires std::is_arithmetic_v<std::ranges::range_value_t<R>> && std::is_arithmetic_v<T>
+           && (!std::integral<std::ranges::range_value_t<R>> || !std::integral<T> || std::is_signed_v<std::ranges::range_value_t<R>> == std::is_signed_v<T>)
 [[nodiscard]] constexpr auto interpolation_search(R&& range, T const& value) noexcept
   -> found_index {
   using diff_type = std::ranges::range_difference_t<R>;
@@ -192,7 +195,13 @@ template <std::ranges::random_access_range R, typename T>
     // negative to a large positive value would overflow (signed UB) otherwise.
     auto const span{static_cast<double>(hi_val) - static_cast<double>(lo_val)};
     auto const offset{static_cast<double>(value) - static_cast<double>(lo_val)};
-    auto const pos{lo + static_cast<diff_type>(offset * static_cast<double>(hi - lo) / span)};
+    // A non-finite fraction (an infinite end) is UB to convert to an index: probe the midpoint.
+    auto const fraction{offset / span};
+    auto const pos{
+      fraction >= 0.0 && fraction <= 1.0
+        ? lo + static_cast<diff_type>(fraction * static_cast<double>(hi - lo))
+        : lo + (hi - lo) / 2
+    };
     if (pos < lo || pos > hi) {
       return std::nullopt;
     }

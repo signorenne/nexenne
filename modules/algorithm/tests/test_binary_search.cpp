@@ -415,4 +415,20 @@ TEST_CASE("nexenne::algorithm searches are conditionally noexcept over the compa
   CHECK(true);  // the static_asserts above are the test
 }
 
+TEST_CASE("nexenne::algorithm::interpolation_search handles an infinite end (algorithm-06)") {
+  // offset / span was inf/inf: the probe index came from a NaN (undefined) and
+  // the element next to -inf was missed.
+  auto const inf{std::numeric_limits<double>::infinity()};
+  auto const values{std::array<double, 3>{-inf, 1.0, 2.0}};
+  CHECK(alg::interpolation_search(values, 1.0) == alg::found_index{1});
+  CHECK(alg::interpolation_search(values, 2.0) == alg::found_index{2});
+}
+
+template <typename Range, typename Value>
+concept interpolation_searchable =
+  requires(Range const& r, Value const v) { alg::interpolation_search(r, v); };
+
+static_assert(!interpolation_searchable<std::array<std::uint64_t, 2>, int>);
+static_assert(interpolation_searchable<std::array<std::uint64_t, 2>, unsigned>);
+
 }  // namespace
