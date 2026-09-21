@@ -382,4 +382,14 @@ TEST_CASE("nexenne::algorithm::fnv1a seeding and empty-input identity") {
   CHECK(alg::fnv1a<32>(std::string_view{""}) == alg::fnv1a_offset<32>);
 }
 
+TEST_CASE("nexenne::algorithm::xxhash_ctx ignores an empty update (algorithm-09)") {
+  // An empty span after buffered bytes reached memcpy with a null source (UBSan).
+  auto ctx{alg::xxhash_ctx<64>{}};
+  auto const bytes{std::array<std::uint8_t, 3>{1, 2, 3}};
+  ctx.update(bytes);
+  auto const before{ctx.value()};
+  ctx.update(std::span<std::uint8_t const>{});
+  CHECK(ctx.value() == before);
+}
+
 }  // namespace

@@ -510,6 +510,10 @@ public:
    * @complexity \c O(N) in the size \c N of \p data.
    */
   auto update(std::span<std::uint8_t const> const data) noexcept -> void {
+    // An empty span may hold a null pointer: memcpy from null is UB even for zero bytes.
+    if (data.empty()) {
+      return;
+    }
     auto p{data.data()};
     auto n{data.size()};
     m_total += n;
