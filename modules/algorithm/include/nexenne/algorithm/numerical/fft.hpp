@@ -24,6 +24,7 @@
 #include <expected>
 #include <numbers>
 #include <span>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -77,16 +78,22 @@ auto fft_inplace(std::span<std::complex<T>> const data, bool const inverse) noex
 
   // Iterative Cooley-Tukey butterflies; len doubles each stage, half is the
   // size of the lower butterfly arm.
-  auto const sign{inverse ? T{1} : T{-1}};
+  // The twiddle factor is advanced by repeated multiplication, whose rounding
+  // accumulates along a stage; for float that grew the error linearly with n
+  // (1.5e-4 at 65536 points), so float accumulates the twiddle in double.
+  using twiddle_t = std::conditional_t<std::same_as<T, float>, double, T>;
+  auto const sign{inverse ? twiddle_t{1} : twiddle_t{-1}};
   for (auto len{std::size_t{2}}; len <= n; len <<= 1u) {
     auto const half{len >> 1u};
-    auto const angle{sign * T{2} * std::numbers::pi_v<T> / static_cast<T>(len)};
-    auto const wn{std::complex<T>{std::cos(angle), std::sin(angle)}};
+    auto const angle{
+      sign * twiddle_t{2} * std::numbers::pi_v<twiddle_t> / static_cast<twiddle_t>(len)
+    };
+    auto const wn{std::complex<twiddle_t>{std::cos(angle), std::sin(angle)}};
     for (auto i{std::size_t{0}}; i < n; i += len) {
-      auto w{std::complex<T>{T{1}, T{0}}};
+      auto w{std::complex<twiddle_t>{twiddle_t{1}, twiddle_t{0}}};
       for (auto k{std::size_t{0}}; k < half; ++k) {
         auto const u{data[i + k]};
-        auto const v{data[i + k + half] * w};
+        auto const v{data[i + k + half] * std::complex<T>{w}};
         data[i + k] = u + v;
         data[i + k + half] = u - v;
         w *= wn;

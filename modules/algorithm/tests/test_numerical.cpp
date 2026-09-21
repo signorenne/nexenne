@@ -564,4 +564,28 @@ TEST_CASE("nexenne::algorithm::running_stats merges large means without overflow
   CHECK(std::abs(a.mean() - 1e37f) <= 1e31f);
 }
 
+TEST_CASE("nexenne::algorithm::fft keeps float accuracy at large sizes (algorithm-12)") {
+  // The twiddle factor was advanced in float, so the error grew with n: the RMS
+  // relative error reached 1.5e-5 at 4096 points.
+  constexpr auto n{std::size_t{4096}};
+  auto f{std::vector<std::complex<float>>(n)};
+  auto d{std::vector<std::complex<double>>(n)};
+  for (auto i{std::size_t{0}}; i < n; ++i) {
+    auto const x{
+      std::sin(static_cast<double>(i) * 0.37) + 0.25 * std::cos(static_cast<double>(i) * 1.9)
+    };
+    f[i] = std::complex<float>{static_cast<float>(x), 0.0f};
+    d[i] = std::complex<double>{static_cast<double>(static_cast<float>(x)), 0.0};
+  }
+  REQUIRE(alg::fft<float>(std::span<std::complex<float>>{f}).has_value());
+  REQUIRE(alg::fft<double>(std::span<std::complex<double>>{d}).has_value());
+  auto err{0.0};
+  auto ref{0.0};
+  for (auto i{std::size_t{0}}; i < n; ++i) {
+    err += std::norm(std::complex<double>{f[i]} - d[i]);
+    ref += std::norm(d[i]);
+  }
+  CHECK(std::sqrt(err / ref) < 1e-6);
+}
+
 }  // namespace
