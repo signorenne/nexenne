@@ -81,7 +81,8 @@ struct floyd_warshall_result {
  *         \c container_error::not_found when \p g contains a negative cycle.
  *
  * @pre \c Weight is a signed type able to hold accumulated path costs without
- *      overflow.
+ *      overflow. Around a negative cycle the costs fall without bound; the
+ *      function stops and reports the cycle before a sum would overflow.
  * @post On success, every \c result.at(i, j) is the shortest-path cost from
  *       \c i to \c j, and \c result.at(i, i) == 0. \p g is not modified.
  *
@@ -138,9 +139,18 @@ template <
         if (dkj > Weight{0} && dik > inf - dkj) {
           continue;
         }
+        // Around a negative cycle costs fall exponentially in k: an underflowing sum proves it.
+        if constexpr (std::is_integral_v<Weight>) {
+          if (dkj < Weight{0} && dik < std::numeric_limits<Weight>::lowest() - dkj) {
+            return std::unexpected{err::not_found};
+          }
+        }
         auto const cand{static_cast<Weight>(dik + dkj)};
         if (cand < d[idx(i, j)]) {
           d[idx(i, j)] = cand;
+          if (i == j && cand < Weight{0}) {
+            return std::unexpected{err::not_found};
+          }
         }
       }
     }

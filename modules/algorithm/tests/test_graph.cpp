@@ -533,4 +533,24 @@ TEST_CASE(
   CHECK(mst.size() == 199);  // a 200-vertex tree has 199 edges
 }
 
+TEST_CASE(
+  "nexenne::algorithm::floyd_warshall reports a dense negative cycle without overflowing "
+  "(algorithm-04)"
+) {
+  // Every edge -1 over 40 vertices: the costs fell exponentially and the int
+  // sum overflowed (UBSan) before the cycle was reported.
+  constexpr V n{40};
+  auto g{nc::graph<int, V>{n}};
+  for (V u{0}; u < n; ++u) {
+    for (V v{0}; v < n; ++v) {
+      if (u != v) {
+        REQUIRE(g.add_edge(u, v, -1).has_value());
+      }
+    }
+  }
+  auto const r{alg::floyd_warshall<int, V, int>(g)};
+  REQUIRE_FALSE(r.has_value());
+  CHECK(r.error() == nc::container_error::not_found);
+}
+
 }  // namespace
