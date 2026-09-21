@@ -122,6 +122,9 @@ public:
   auto build(std::span<Node const> parent, Node const root) -> void {
     m_n = parent.size();
     if (m_n == 0) {
+      m_log = 0;
+      m_depth.clear();
+      m_up.clear();
       return;
     }
     assert(
