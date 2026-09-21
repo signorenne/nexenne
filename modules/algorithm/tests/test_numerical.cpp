@@ -534,4 +534,12 @@ TEST_CASE("nexenne::algorithm interpolators return NaN for a NaN query (algorith
   CHECK(std::isnan(alg::cubic_spline<double>{xs, ys}(nan)));
 }
 
+TEST_CASE("nexenne::algorithm::bisection accepts a reversed bracket (algorithm-05)") {
+  // The width test saw a negative width and returned the first midpoint, 1.5,
+  // as a root of x - 1.
+  auto const root{alg::bisection([](double const x) noexcept { return x - 1.0; }, 3.0, 0.0)};
+  REQUIRE(root.has_value());
+  CHECK(std::abs(*root - 1.0) < 1e-8);
+}
+
 }  // namespace

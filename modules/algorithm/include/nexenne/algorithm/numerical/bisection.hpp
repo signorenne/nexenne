@@ -10,6 +10,7 @@
  * failure through \c std::expected<T, numerical_error>.
  */
 
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <expected>
@@ -40,9 +41,10 @@ namespace nexenne::algorithm {
  *         when \c f(lo) and \c f(hi) share a sign; \c numerical_error::no_convergence
  *         when \p max_iter steps run without meeting \p tol.
  *
- * @pre \p f is continuous on \c [lo, hi]; \p tol is positive.
- * @post On success the returned value lies in \c [lo, hi] and the bracket it
- *       was found in is narrower than \p tol or had a zero midpoint.
+ * @pre \p f is continuous between \p lo and \p hi (in either order); \p tol is
+ *      positive.
+ * @post On success the returned value lies between \p lo and \p hi and the
+ *       bracket it was found in is narrower than \p tol or had a zero midpoint.
  *
  * @complexity \c O(log((hi - lo) / tol)) evaluations of \p f.
  */
@@ -75,7 +77,8 @@ template <std::floating_point T, typename Fn>
   for (auto i{std::size_t{0}}; i < max_iter; ++i) {
     auto const mid{a + (b - a) / T{2}};  // numerically safer than (a + b) / 2
     auto const fm{f(mid)};
-    if (fm == T{0} || (b - a) < tol) {
+    // abs: a reversed bracket (lo > hi) has a negative width.
+    if (fm == T{0} || std::abs(b - a) < tol) {
       return mid;
     }
     if ((fa > T{0} && fm > T{0}) || (fa < T{0} && fm < T{0})) {
