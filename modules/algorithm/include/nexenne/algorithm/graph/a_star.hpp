@@ -75,8 +75,9 @@ struct a_star_entry {
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(a_star_entry const& a, a_star_entry const& b) noexcept -> bool {
+  [[nodiscard]] friend constexpr auto operator==(
+    a_star_entry const& a, a_star_entry const& b
+  ) noexcept(noexcept(a.f_score == b.f_score)) -> bool {
     return a.f_score == b.f_score;
   }
 
@@ -91,8 +92,9 @@ struct a_star_entry {
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator<=>(a_star_entry const& a, a_star_entry const& b) noexcept {
+  [[nodiscard]] friend constexpr auto operator<=>(
+    a_star_entry const& a, a_star_entry const& b
+  ) noexcept(noexcept(a.f_score <=> b.f_score)) {
     return a.f_score <=> b.f_score;
   }
 };
@@ -184,7 +186,7 @@ template <
   }};
 
   // g + h saturates at the sentinel: an admissible heuristic may be "infinite" at a dead end.
-  auto const f_of{[](Weight const g_cost, Weight const h_cost) noexcept -> Weight {
+  auto const f_of{[](Weight const g_cost, Weight const h_cost) -> Weight {
     auto const cap{detail::unreachable_weight<Weight>()};
     return h_cost > cap - g_cost ? cap : static_cast<Weight>(g_cost + h_cost);
   }};

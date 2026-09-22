@@ -73,7 +73,9 @@ struct default_weight_fn {
    * @post None.
    */
   template <typename Edge>
-  [[nodiscard]] constexpr auto operator()(Edge const& e) const noexcept -> decltype(e.data) {
+  [[nodiscard]] constexpr auto operator()(
+    Edge const& e
+  ) const noexcept(std::is_nothrow_copy_constructible_v<decltype(Edge::data)>) -> decltype(e.data) {
     return e.data;
   }
 };
@@ -103,8 +105,9 @@ struct dijkstra_entry {
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator==(dijkstra_entry const& a, dijkstra_entry const& b) noexcept -> bool {
+  [[nodiscard]] friend constexpr auto operator==(
+    dijkstra_entry const& a, dijkstra_entry const& b
+  ) noexcept(noexcept(a.distance == b.distance)) -> bool {
     return a.distance == b.distance;
   }
 
@@ -119,8 +122,9 @@ struct dijkstra_entry {
    * @pre None.
    * @post None.
    */
-  [[nodiscard]] friend constexpr auto
-  operator<=>(dijkstra_entry const& a, dijkstra_entry const& b) noexcept {
+  [[nodiscard]] friend constexpr auto operator<=>(
+    dijkstra_entry const& a, dijkstra_entry const& b
+  ) noexcept(noexcept(a.distance <=> b.distance)) {
     return a.distance <=> b.distance;
   }
 };

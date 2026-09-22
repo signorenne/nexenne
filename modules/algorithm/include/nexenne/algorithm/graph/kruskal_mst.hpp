@@ -77,9 +77,7 @@ template <typename E, std::unsigned_integral V>
   }
 
   // Sort by weight (ascending). Standard MST primitive.
-  std::ranges::sort(edges, [](auto const& a, auto const& b) noexcept {
-    return a.weight < b.weight;
-  });
+  std::ranges::sort(edges, [](auto const& a, auto const& b) { return a.weight < b.weight; });
 
   auto uf{nexenne::container::union_find<V>{n}};
   auto result{std::vector<mst_edge<E, V>>{}};

@@ -13,9 +13,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #include <nexenne/algorithm/graph/a_star.hpp>
@@ -566,5 +568,49 @@ TEST_CASE(
   REQUIRE(r.has_value());
   CHECK(r->cost == 2);
 }
+
+struct throwing_weight {
+  int v{0};
+
+  throwing_weight() = default;
+
+  throwing_weight(throwing_weight const& other) : v{other.v} {}
+
+  auto operator=(throwing_weight const&) -> throwing_weight& = default;
+
+  friend auto operator==(throwing_weight const& a, throwing_weight const& b) -> bool {
+    return a.v == b.v;
+  }
+
+  friend auto operator<=>(throwing_weight const& a, throwing_weight const& b)
+    -> std::strong_ordering {
+    return a.v <=> b.v;
+  }
+};
+
+struct throwing_edge {
+  throwing_weight data{};
+};
+
+struct plain_edge {
+  double data{};
+};
+
+template <typename Entry>
+constexpr bool nothrow_compare_v{
+  noexcept(std::declval<Entry const&>() == std::declval<Entry const&>())
+  && noexcept(std::declval<Entry const&>() <=> std::declval<Entry const&>())
+};
+
+static_assert(!nothrow_compare_v<alg::detail::dijkstra_entry<V, throwing_weight>>);
+static_assert(nothrow_compare_v<alg::detail::dijkstra_entry<V, double>>);
+static_assert(!nothrow_compare_v<alg::detail::a_star_entry<V, throwing_weight>>);
+static_assert(nothrow_compare_v<alg::detail::a_star_entry<V, double>>);
+static_assert(!noexcept(alg::detail::default_weight_fn{}(std::declval<throwing_edge const&>())));
+static_assert(noexcept(alg::detail::default_weight_fn{}(std::declval<plain_edge const&>())));
+static_assert(
+  !noexcept(std::declval<alg::floyd_warshall_result<V, throwing_weight> const&>().at(0, 0))
+);
+static_assert(noexcept(std::declval<alg::floyd_warshall_result<V, double> const&>().at(0, 0)));
 
 }  // namespace

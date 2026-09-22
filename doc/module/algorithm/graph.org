@@ -8,7 +8,11 @@ Graph algorithms over [[file:../container/graph.org][container::graph]], the dir
 take a =graph= by const reference, address vertices by their integer ID, and
 return results by value; the ones that can fail report through
 =std::expected<T, container_error>=. An edge payload (a weight) is read through
-a weight functor that defaults to the edge's =data= field.
+a weight functor that defaults to the edge's =data= field. The weight is usually
+an arithmetic type, but any type with =std::numeric_limits= and the arithmetic
+and ordering operators works; the internal helpers that copy or compare weights
+are =noexcept= only when those operations are, so a weight type that can throw
+(one that allocates, say) propagates the exception instead of terminating.
 
 - traversal : =bfs=, =dfs= (visit reachable vertices via a callback).
 - ordering : =topological_sort=, =is_acyclic= (Kahn's algorithm).
