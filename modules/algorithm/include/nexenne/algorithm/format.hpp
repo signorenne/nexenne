@@ -2,12 +2,14 @@
 
 /**
  * @file
- * @brief Opt-in \c std::format support for the algorithm error enums.
+ * @brief The three formatting layers for the algorithm error enums and graph results.
  *
  * Each algorithm error enum already carries a \c to_string; this header wires
  * those names into \c std::format so a value returned from an
  * \c std::expected<T, error> prints directly with \c std::format("{}", err),
- * with width and alignment specs for free. Keeping the formatters here (rather
+ * with width and alignment specs for free, and into \c operator<< for streams.
+ * The graph result types get a \c to_string, an \c operator<< and a
+ * \c std::formatter that all print the same text. Keeping the formatters here (rather
  * than in the core error headers) leaves those headers free of \c \<format\>:
  * callers pay for the dependency only when they include this header.
  *
@@ -92,6 +94,36 @@ struct std::formatter<nexenne::algorithm::numerical_error> : std::formatter<std:
 };
 
 namespace nexenne::algorithm {
+
+/**
+ * @brief Streams a \c codec_error by its name.
+ *
+ * @param os Output stream.
+ * @param err Error to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The name of \p err has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, codec_error const err) -> std::ostream& {
+  return os << to_string(err);
+}
+
+/**
+ * @brief Streams a \c numerical_error by its name.
+ *
+ * @param os Output stream.
+ * @param err Error to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The name of \p err has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, numerical_error const err) -> std::ostream& {
+  return os << to_string(err);
+}
 
 /// @cond INTERNAL
 

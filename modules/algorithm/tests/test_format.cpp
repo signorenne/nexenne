@@ -33,6 +33,20 @@ TEST_CASE("std::format on numerical_error matches to_string") {
   );
 }
 
+TEST_CASE("operator<< on the error enums prints the to_string name") {
+  auto os{std::ostringstream{}};
+  os << algorithm::codec_error::buffer_too_small << ' '
+     << algorithm::numerical_error::no_convergence;
+  CHECK(
+    os.str()
+    == std::format(
+      "{} {}",
+      algorithm::to_string(algorithm::codec_error::buffer_too_small),
+      algorithm::to_string(algorithm::numerical_error::no_convergence)
+    )
+  );
+}
+
 TEST_CASE("std::format on codec_error covers incomplete_input") {
   CHECK(
     std::format("{}", algorithm::codec_error::incomplete_input)
