@@ -40,6 +40,7 @@
  *    anywhere.
  */
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <print>
@@ -171,7 +172,12 @@ auto main() -> int {
   auto log = [&events](std::string msg) { events.push_overwrite(std::move(msg)); };
 
   std::println("== 5. Squad connectivity (union_find) ==");
-  cn::union_find_u32 squads{static_cast<std::uint32_t>(world.capacity())};
+  cn::union_find_u32 squads;
+  for (std::size_t slot{0}; slot < world.capacity(); ++slot) {
+    if (!squads.make_set()) {
+      return 1;
+    }
+  }
   // The hero and the boss ally; the goblin and the crate are incidental.
   nexenne::utility::ignore(squads.unite(hero.index(), boss.index()));
   std::println("  hero & boss same squad: {}", *squads.connected(hero.index(), boss.index()));

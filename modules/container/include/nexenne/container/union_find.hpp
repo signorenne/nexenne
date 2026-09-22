@@ -42,10 +42,12 @@ namespace nexenne::container {
  *
  * @tparam Index Unsigned integer node-index type; \c std::uint32_t by default. A
  *               smaller type trims memory at the cost of supporting fewer nodes:
- *               node indices must stay representable in \p Index, so the
- *               structure tracks at most \c std::numeric_limits<Index>::max()
- *               nodes; exceeding that is a checked precondition (an assert in
- *               debug builds).
+ *               like \c std::vector and its \c size_type, the structure never
+ *               tracks more nodes than \p Index counts, at most
+ *               \c std::numeric_limits<Index>::max() nodes with indices \c 0
+ *               through \c max() - 1. The structure starts empty and grows
+ *               only through \c make_set, which reports growth past that as
+ *               \c container_error::full, so every node passed that check.
  *
  * @pre None.
  * @post A default-constructed structure tracks zero nodes.
@@ -69,18 +71,6 @@ public:
    * @post \c empty() is \c true and \c count() is zero.
    */
   constexpr union_find() noexcept = default;
-
-  /**
-   * @brief Constructs a partition of \p n singleton sets numbered \c 0..n-1.
-   *
-   * @param n Initial node count.
-   *
-   * @pre None.
-   * @post \c size() and \c count() both equal \p n; each node is its own root.
-   */
-  explicit constexpr union_find(size_type const n) noexcept {
-    reset(n);
-  }
 
   /**
    * @brief Total number of nodes the structure tracks.
@@ -161,29 +151,6 @@ public:
   }
 
   /**
-   * @brief Resets the structure to \p n singleton sets.
-   *
-   * @param n New node count.
-   *
-   * @pre None.
-   * @post \c size() and \c count() both equal \p n; each node is its own root.
-   *
-   * @complexity \c O(n).
-   */
-  constexpr auto reset(size_type const n) noexcept -> void {
-    assert(
-      n <= static_cast<size_type>(std::numeric_limits<index_type>::max())
-      && "node id space exhausted"
-    );
-    m_parent.assign(n, index_type{});
-    m_set_size.assign(n, size_type{1});
-    for (size_type i{0}; i < n; ++i) {
-      m_parent[i] = static_cast<index_type>(i);
-    }
-    m_set_count = n;
-  }
-
-  /**
    * @brief Removes every node; backing storage is retained.
    *
    * @pre None.
@@ -198,19 +165,20 @@ public:
   /**
    * @brief Appends a fresh singleton set and returns its node index.
    *
-   * @return The index of the new node.
+   * @return The index of the new node, or \c container_error::full when the
+   *         structure already tracks \c std::numeric_limits<Index>::max()
+   *         nodes.
    *
    * @pre None.
-   * @post \c size() and \c count() each grew by one; the new node is its own
-   *       root.
+   * @post On success \c size() and \c count() each grew by one and the new node
+   *       is its own root; on failure the structure is unchanged.
    *
    * @complexity Amortised \c O(1).
    */
-  constexpr auto make_set() noexcept -> index_type {
-    assert(
-      m_parent.size() <= static_cast<size_type>(std::numeric_limits<index_type>::max())
-      && "node id space exhausted"
-    );
+  [[nodiscard]] constexpr auto make_set() noexcept -> result<index_type> {
+    if (m_parent.size() >= static_cast<size_type>(std::numeric_limits<index_type>::max())) {
+      return std::unexpected{container_error::full};
+    }
     auto const node{static_cast<index_type>(m_parent.size())};
     m_parent.push_back(node);
     m_set_size.push_back(1);

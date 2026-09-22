@@ -49,7 +49,12 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  cn::union_find_u32 graph{6};  // nodes 0..5, all singletons
+  cn::union_find_u32 graph;
+  for (int node{0}; node < 6; ++node) {
+    if (!graph.make_set()) {
+      return 1;
+    }
+  }
   std::println("start: nodes {}, components {}", graph.size(), graph.count());
 
   for (auto const& [a, b] : {std::pair{0u, 1u}, {1u, 2u}, {3u, 4u}, {4u, 3u}}) {
@@ -68,9 +73,13 @@ auto main() -> int {
     std::println("connected(0, 99): {}", cn::to_string(r.error()));
   }
 
-  // reset re-partitions into n fresh singletons, reusing the storage.
-  graph.reset(3);
-  std::println("after reset(3): nodes {}, components {}", graph.size(), graph.count());
+  graph.clear();
+  for (int node{0}; node < 3; ++node) {
+    if (!graph.make_set()) {
+      return 1;
+    }
+  }
+  std::println("after clear and 3 make_set: nodes {}, components {}", graph.size(), graph.count());
   // start: nodes 6, components 6
   //   unite(0, 1): merged true, components now 5
   //   unite(1, 2): merged true, components now 4
@@ -82,6 +91,6 @@ auto main() -> int {
   // root(2) == root(0): true
   // node 5 is its own root: true
   // connected(0, 99): out_of_range
-  // after reset(3): nodes 3, components 3
+  // after clear and 3 make_set: nodes 3, components 3
   return 0;
 }

@@ -29,7 +29,12 @@ namespace cn = nexenne::container;
 }  // namespace
 
 auto main() -> int {
-  cn::graph<int> roads{4};  // 4 cities, edges weighted by distance
+  cn::graph<int> roads;
+  for (int city{0}; city < 4; ++city) {
+    if (!roads.add_vertex()) {
+      return 1;
+    }
+  }
   nexenne::utility::ignore(roads.add_edge(0, 1, 5));
   nexenne::utility::ignore(roads.add_edge(0, 2, 3));
   nexenne::utility::ignore(roads.add_edge(1, 3, 2));

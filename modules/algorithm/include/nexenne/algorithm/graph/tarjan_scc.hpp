@@ -60,11 +60,7 @@ template <typename E, std::unsigned_integral V>
 [[nodiscard]] auto tarjan_scc(nexenne::container::graph<E, V> const& g) -> scc_result<V> {
   auto const n{g.vertex_count()};
 
-  // DFS indices and low-links live in std::size_t, not V: a V-typed index would
-  // reach std::numeric_limits<V>::max() for a legitimate vertex when
-  // vertex_count() == 2^bits(V), colliding with the "unvisited" sentinel and
-  // making that vertex look re-peelable. std::size_t indices cannot alias the
-  // SIZE_MAX sentinel because at most n <= 2^bits(V) < SIZE_MAX indices exist.
+  // size_t indices never alias the SIZE_MAX "unvisited" sentinel: n <= max(V) < SIZE_MAX.
   auto constexpr undef{std::numeric_limits<std::size_t>::max()};
 
   auto index{std::vector<std::size_t>(n, undef)};
@@ -87,8 +83,7 @@ template <typename E, std::unsigned_integral V>
   auto next_index{std::size_t{0}};
   auto next_comp{std::size_t{0}};
 
-  // The outer scan counter is std::size_t, cast to V only at use: a V-typed
-  // counter would wrap max -> 0 at vertex_count() == 2^bits(V) and loop forever.
+  // size_t scan counter, cast to V only at use, so it cannot wrap max(V) -> 0.
   for (auto root_i{std::size_t{0}}; root_i < n; ++root_i) {
     auto const root{static_cast<V>(root_i)};
     if (index[root] != undef) {

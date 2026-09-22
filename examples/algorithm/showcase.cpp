@@ -23,6 +23,7 @@
  */
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <print>
 #include <span>
@@ -251,7 +252,12 @@ auto main() -> int {
   // so a dependency points at everything that needs it. topological_sort then
   // lists each dependency ahead of its users, which is exactly a build order. The
   // edge weight is the dependency's byte size, the cost its users inherit.
-  nc::graph<double, std::uint32_t> deps{static_cast<std::uint32_t>(table.size())};
+  nc::graph<double, std::uint32_t> deps;
+  for (std::size_t i{0}; i < table.size(); ++i) {
+    if (!deps.add_vertex()) {
+      return 1;
+    }
+  }
   auto const link{[&](std::string_view const dep, std::string_view const user) {
     auto const d{index_of(dep)};
     auto const u{index_of(user)};

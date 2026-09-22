@@ -17,6 +17,7 @@
 
 #include <nexenne/container/graph.hpp>
 #include <nexenne/container/union_find.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::algorithm {
 
@@ -79,7 +80,12 @@ template <typename E, std::unsigned_integral V>
   // Sort by weight (ascending). Standard MST primitive.
   std::ranges::sort(edges, [](auto const& a, auto const& b) { return a.weight < b.weight; });
 
-  auto uf{nexenne::container::union_find<V>{n}};
+  // make_set cannot fail: the graph holds at most max(V) vertices, union_find's own bound.
+  auto uf{nexenne::container::union_find<V>{}};
+  uf.reserve(n);
+  for (auto i{std::size_t{0}}; i < n; ++i) {
+    nexenne::utility::ignore(uf.make_set());
+  }
   auto result{std::vector<mst_edge<E, V>>{}};
   result.reserve(n > 0 ? n - 1 : 0);
 

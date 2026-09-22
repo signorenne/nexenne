@@ -46,10 +46,16 @@ graph<int> (int = edge weight), 4 vertices:
 
 =add_vertex= returns the next id (the current vertex count) and appends an empty
 edge list; ids start at zero and never change, so a held id stays valid across
-any number of later insertions. There is no vertex removal: the dense-id scheme
-makes a true removal either =O(V)= (renumber everything) or hole-punching that
-breaks density, so the container leaves "removal" to the caller (mark a vertex
-dead in your own data). =contains(v)= is just =v < vertex_count()=.
+any number of later insertions. Like =std::vector= and its =size_type=, the
+graph never holds more vertices than =Vertex= counts: at most =max()= vertices,
+with ids =0= to =max() - 1=, so a =graph<void, std::uint8_t>= holds 255. Past
+that, =add_vertex= returns =container_error::full= and leaves the graph
+unchanged. There is no sized constructor: a graph starts empty and grows one
+checked =add_vertex= at a time, so no vertex skips that check. There is no
+vertex removal: the dense-id scheme makes a true removal either =O(V)= (renumber
+everything) or hole-punching that breaks density, so the container leaves
+"removal" to the caller (mark a vertex dead in your own data). =contains(v)= is
+just =v < vertex_count()=.
 
 ** Edges: bounds-checked add, scan-based remove and query
 
@@ -123,7 +129,10 @@ Things to keep in mind:
 * Usage
 
 #+BEGIN_SRC cpp
-nexenne::container::graph<int> g{4};   // 4 vertices, int edge payload
+nexenne::container::graph<int> g;      // int edge payload
+for (int i{0}; i < 4; ++i) {
+  if (!g.add_vertex()) { return; }     // full past max() vertices
+}
 
 nexenne::utility::ignore(g.add_edge(0, 1, 5));   // O(1), out_of_range on a bad id
 for (auto const& e : g.edges_of(0)) { visit(e.target, e.data); }  // span

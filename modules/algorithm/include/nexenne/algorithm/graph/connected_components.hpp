@@ -64,7 +64,12 @@ template <typename E, std::unsigned_integral V>
 [[nodiscard]] auto connected_components(nexenne::container::graph<E, V> const& g)
   -> components_result<E, V> {
   auto const n{g.vertex_count()};
-  auto uf{nexenne::container::union_find<V>{n}};
+  // make_set cannot fail: the graph holds at most max(V) vertices, union_find's own bound.
+  auto uf{nexenne::container::union_find<V>{}};
+  uf.reserve(n);
+  for (auto i{std::size_t{0}}; i < n; ++i) {
+    nexenne::utility::ignore(uf.make_set());
+  }
 
   for (auto const u : g.vertices()) {
     for (auto const& edge : g.edges_of(u)) {
@@ -73,10 +78,10 @@ template <typename E, std::unsigned_integral V>
   }
 
   // Renumber roots to dense [0, num_components). The label counter and the scan
-  // counter are std::size_t: a V-typed component counter wraps max -> 0 when all
-  // 2^bits(V) vertices are singletons (labels stop being unique), and a V-typed
-  // scan counter wraps and loops forever at vertex_count() == 2^bits(V). Each
-  // label is < n <= 2^bits(V), so the cast back to V at use is exact.
+  // counter are std::size_t, so neither can wrap max -> 0 (labels would stop
+  // being unique, or the scan would loop forever). The graph holds at most
+  // n <= max(V) vertices, so each label is < n and the cast back to V at use is
+  // exact.
   auto labels{std::vector<V>(n, V{0})};
   auto remap{std::vector<V>(n, V{0})};
   auto seen{std::vector<std::uint8_t>(n, 0)};  // bool-as-byte

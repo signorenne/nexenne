@@ -79,9 +79,12 @@ struct edge_eq_nothrow<void> : std::true_type {};
  *
  * @tparam E Edge payload type; \c void to omit per-edge data.
  * @tparam Vertex Unsigned integer type for vertex IDs; \c std::uint32_t by
- *         default. Vertex IDs must stay representable in \p Vertex, so the graph
- *         holds at most \c std::numeric_limits<Vertex>::max() vertices; growing
- *         past that is a checked precondition (an assert in debug builds).
+ *         default. Like \c std::vector and its \c size_type, the graph never
+ *         holds more vertices than \p Vertex counts: at most
+ *         \c std::numeric_limits<Vertex>::max() vertices, with IDs \c 0 through
+ *         \c max() - 1. A graph starts empty and grows only through
+ *         \c add_vertex, which reports growth past that as
+ *         \c container_error::full, so every vertex passed that check.
  *
  * @pre None.
  * @post A default-constructed graph has no vertices and no edges.
@@ -110,22 +113,6 @@ public:
    * @post \c vertex_count() and \c edge_count() are zero.
    */
   constexpr graph() noexcept = default;
-
-  /**
-   * @brief Constructs a graph pre-populated with \p n isolated vertices.
-   *
-   * @param n Number of isolated vertices to create.
-   *
-   * @pre None.
-   * @post \c vertex_count() equals \p n, \c edge_count() is zero, and vertex IDs
-   *       \c 0 through \c n-1 are valid.
-   */
-  explicit constexpr graph(size_type const n) noexcept : m_adjacency(n) {
-    assert(
-      n <= static_cast<size_type>(std::numeric_limits<vertex_type>::max())
-      && "vertex id space exhausted"
-    );
-  }
 
   /**
    * @brief Number of vertices in the graph.
@@ -245,17 +232,19 @@ public:
   /**
    * @brief Adds an isolated vertex and returns its ID.
    *
-   * @return The ID of the newly created vertex.
+   * @return The ID of the newly created vertex, or \c container_error::full
+   *         when the graph already holds \c std::numeric_limits<Vertex>::max()
+   *         vertices (the next ID would not be representable below \c max()).
    *
    * @pre None.
-   * @post \c vertex_count() grew by one; the returned ID is valid with no
-   *       outgoing edges, and previously issued IDs stay valid.
+   * @post On success \c vertex_count() grew by one; the returned ID is valid
+   *       with no outgoing edges, and previously issued IDs stay valid. On
+   *       failure the graph is unchanged.
    */
-  constexpr auto add_vertex() noexcept -> vertex_type {
-    assert(
-      m_adjacency.size() <= static_cast<size_type>(std::numeric_limits<vertex_type>::max())
-      && "vertex id space exhausted"
-    );
+  [[nodiscard]] constexpr auto add_vertex() noexcept -> result<vertex_type> {
+    if (m_adjacency.size() >= static_cast<size_type>(std::numeric_limits<vertex_type>::max())) {
+      return std::unexpected{container_error::full};
+    }
     auto const id{static_cast<vertex_type>(m_adjacency.size())};
     m_adjacency.emplace_back();
     return id;

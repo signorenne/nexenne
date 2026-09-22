@@ -34,7 +34,12 @@ using V = std::uint32_t;
 
 auto main() -> int {
   // A weighted DAG: 0 -> 1 -> 3, 0 -> 2 -> 3. Two paths to vertex 3, costs 3 and 5.
-  auto g{nc::graph<double, V>(4)};
+  auto g{nc::graph<double, V>{}};
+  for (auto i{0}; i < 4; ++i) {
+    if (!g.add_vertex()) {
+      return 1;
+    }
+  }
   nexenne::utility::ignore(g.add_edge(0, 1, 1.0));
   nexenne::utility::ignore(g.add_edge(0, 2, 4.0));
   nexenne::utility::ignore(g.add_edge(1, 3, 2.0));
@@ -58,7 +63,12 @@ auto main() -> int {
 
   // bellman_ford is slower (O(V*E)) but the right call when weights may be
   // negative; it also reports a negative cycle (here: none, so the result holds).
-  auto neg{nc::graph<double, V>(3)};
+  auto neg{nc::graph<double, V>{}};
+  for (auto i{0}; i < 3; ++i) {
+    if (!neg.add_vertex()) {
+      return 1;
+    }
+  }
   nexenne::utility::ignore(neg.add_edge(0, 1, 4.0));
   nexenne::utility::ignore(neg.add_edge(0, 2, 5.0));
   nexenne::utility::ignore(neg.add_edge(1, 2, -3.0));  // a negative edge dijkstra could not handle

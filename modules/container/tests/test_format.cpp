@@ -66,7 +66,9 @@ TEST_CASE("nexenne::container::format trie prints quoted keys") {
 }
 
 TEST_CASE("nexenne::container::format graph prints adjacency") {
-  cn::graph<int> g{2};
+  cn::graph<int> g;
+  REQUIRE(g.add_vertex().has_value());
+  REQUIRE(g.add_vertex().has_value());
   nexenne::utility::ignore(g.add_edge(0, 1, 9));
   CHECK(cn::to_string(g) == "graph{0:[1(9)], 1:[]}");
 }
@@ -132,7 +134,10 @@ TEST_CASE("nexenne::container::format binary_tree prints in sorted order") {
 }
 
 TEST_CASE("nexenne::container::format union_find groups members by root") {
-  cn::union_find<unsigned> uf{4};
+  cn::union_find<unsigned> uf;
+  for (int i{0}; i < 4; ++i) {
+    REQUIRE(uf.make_set().has_value());
+  }
   nexenne::utility::ignore(uf.unite(0, 1));
   auto const str{cn::to_string(uf)};
   CHECK(str.starts_with("union_find["));

@@ -28,7 +28,7 @@ Each node stores a parent; a root points at itself. =find(i)= walks parents to
 the root, and per-root sizes (kept in a second array) drive the merge choice.
 
 #+BEGIN_EXAMPLE
-union_find{5} after unite(0, 1) then unite(1, 2):  sets {0,1,2}, {3}, {4}
+5 make_set, then unite(0, 1) and unite(1, 2):  sets {0,1,2}, {3}, {4}
 
   parent:  [ 1, 1, 1, 3, 4 ]      each node points at its parent
   node:       0  1  2  3  4       a root points at itself
@@ -107,7 +107,6 @@ finds compress), and =size_of(i)= returns =m_set_size= at =i='s root.
 | find / unite / connected / size_of     | amortised O(alpha(n))  |
 | make_set                               | amortised O(1)         |
 | root_of (no compression)               | O(h), chain length h   |
-| reset                                  | O(n)                   |
 | clear / swap / parents / set_sizes     | O(1)                   |
 | same_partition                         | O(n log n)             |
 
@@ -133,20 +132,24 @@ got there.
 
 Things to keep in mind:
 
-- *It only merges.* Sets join and never split; there is no "disconnect" and no way
-  to undo a =unite=. To shrink or rebuild a partition, =reset(n)= back to
-  singletons or =clear=, then replay the edges you still want. Model node removal
-  by rebuilding from scratch.
+- *It only merges.* Sets join and never split; there is no "disconnect" and no
+  way to undo a =unite=. To shrink or rebuild a partition, =clear= it,
+  =make_set= the nodes again, then replay the edges you still want. Model node
+  removal by rebuilding from scratch.
 - *find mutates.* Path compression rewrites parent links, so =find=, =connected=,
   =size_of=, and =unite= are all non-const; do not call them on a =const= or
   shared structure expecting it to stay put. Use =root_of= for a =const= query,
   accepting its =O(h)= cost and that it leaves the tree uncompressed.
 - *Indices are raw integers in =[0, size())=.* There is no string or pointer
   keying; map your objects to dense indices yourself (=make_set= hands out the
-  next one). =find=, =connected=, =size_of=, and =unite= return
-  =container_error::out_of_range= on a bad index rather than reading out of
-  bounds, while =root_of= assumes a valid index as a precondition and does not
-  check.
+  next one). The structure never tracks more nodes than =Index= counts: at most
+  =max()= nodes with indices =0= to =max() - 1=, so a =union_find<std::uint8_t>=
+  tracks 255; past that =make_set= returns =container_error::full=. There is no
+  sized constructor: a structure starts empty and grows one checked =make_set=
+  at a time, so no node skips that check. =find=, =connected=, =size_of=, and
+  =unite= return =container_error::out_of_range= on a bad index rather than
+  reading out of bounds, while =root_of= assumes a valid index as a precondition
+  and does not check.
 - *Comparison is explicit.* There is no =operator===; =same_partition= compares
   two structures by classification in =O(n log n)= (=root_of= does not compress,
   so each of the n lookups pays the uncompressed height, bounded at =log2 n= by
@@ -159,7 +162,10 @@ Things to keep in mind:
 * Usage
 
 #+BEGIN_SRC cpp
-nexenne::container::union_find_u32 uf{node_count};
+nexenne::container::union_find_u32 uf;
+for (std::size_t i{0}; i < node_count; ++i) {
+  if (!uf.make_set()) { return; }      // full past max() nodes
+}
 
 for (auto const [a, b] : edges) {
   nexenne::utility::ignore(uf.unite(a, b));   // O(alpha(n))
