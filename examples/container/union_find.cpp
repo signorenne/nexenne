@@ -80,17 +80,5 @@ auto main() -> int {
     }
   }
   std::println("after clear and 3 make_set: nodes {}, components {}", graph.size(), graph.count());
-  // start: nodes 6, components 6
-  //   unite(0, 1): merged true, components now 5
-  //   unite(1, 2): merged true, components now 4
-  //   unite(3, 4): merged true, components now 3
-  //   unite(4, 3): merged false, components now 3
-  // 0 and 2 connected: true
-  // 0 and 3 connected: false
-  // size of 0's component: 3
-  // root(2) == root(0): true
-  // node 5 is its own root: true
-  // connected(0, 99): out_of_range
-  // after clear and 3 make_set: nodes 3, components 3
   return 0;
 }

@@ -178,7 +178,6 @@ auto main() -> int {
       return 1;
     }
   }
-  // The hero and the boss ally; the goblin and the crate are incidental.
   nexenne::utility::ignore(squads.unite(hero.index(), boss.index()));
   std::println("  hero & boss same squad: {}", *squads.connected(hero.index(), boss.index()));
   std::println("  hero & goblin same squad: {}", *squads.connected(hero.index(), goblin.index()));

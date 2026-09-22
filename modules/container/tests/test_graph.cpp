@@ -123,8 +123,8 @@ TEST_CASE("nexenne::container::graph vertices is a lazy ascending id range") {
 TEST_CASE("nexenne::container::graph self-loops and parallel edges are allowed") {
   cn::graph<> g;
   REQUIRE(add_vertices(g, 1));
-  CHECK(g.add_edge(0, 0).has_value());  // self-loop
-  CHECK(g.add_edge(0, 0).has_value());  // parallel
+  CHECK(g.add_edge(0, 0).has_value());
+  CHECK(g.add_edge(0, 0).has_value());
   CHECK(g.edge_count() == 2);
   CHECK(g.has_edge(0, 0));
   CHECK(*g.out_degree(0) == 2);
@@ -155,7 +155,7 @@ TEST_CASE("nexenne::container::graph equality compares structure and payload") {
   nexenne::utility::ignore(b.add_edge(0, 1, 5));
   cn::graph<int> c;
   REQUIRE(add_vertices(c, 2));
-  nexenne::utility::ignore(c.add_edge(0, 1, 6));  // different payload
+  nexenne::utility::ignore(c.add_edge(0, 1, 6));
   CHECK(a == b);
   CHECK(a != c);
 
@@ -165,7 +165,7 @@ TEST_CASE("nexenne::container::graph equality compares structure and payload") {
   nexenne::utility::ignore(d.add_edge(0, 1));
   cn::graph<> e;
   REQUIRE(add_vertices(e, 2));
-  CHECK(d != e);  // e has no edge
+  CHECK(d != e);
 }
 
 TEST_CASE("nexenne::container::graph the empty default-constructed graph") {
@@ -203,10 +203,10 @@ TEST_CASE(
 ) {
   cn::graph<> g;
   REQUIRE(add_vertices(g, 2));
-  nexenne::utility::ignore(g.add_edge(0, 1));  // directed 0 -> 1 only
+  nexenne::utility::ignore(g.add_edge(0, 1));
   CHECK(g.has_edge(0, 1));
-  CHECK_FALSE(g.has_edge(1, 0));                // not symmetric
-  nexenne::utility::ignore(g.add_edge(1, 0));  // add the reverse to model undirected
+  CHECK_FALSE(g.has_edge(1, 0));
+  nexenne::utility::ignore(g.add_edge(1, 0));
   CHECK(g.has_edge(1, 0));
   CHECK(g.edge_count() == 2);
   CHECK(*g.out_degree(0) == 1);
@@ -281,7 +281,7 @@ TEST_CASE("nexenne::container::graph equality is positional on per-vertex insert
   nexenne::utility::ignore(a.add_edge(0, 1, 2));
   cn::graph<int> b;
   REQUIRE(add_vertices(b, 2));
-  nexenne::utility::ignore(b.add_edge(0, 1, 2));  // reversed insertion order
+  nexenne::utility::ignore(b.add_edge(0, 1, 2));
   nexenne::utility::ignore(b.add_edge(0, 1, 1));
   CHECK(a != b);
 
@@ -303,9 +303,6 @@ TEST_CASE("nexenne::container::graph add_vertex grows an initially-sized graph")
 }
 
 TEST_CASE("nexenne::container::graph over a small Vertex type keeps ids in range") {
-  // M6: past 2^N vertices the id cast used to wrap (aliasing vertex 0). Within
-  // the representable range a small Vertex type must hand out dense, distinct
-  // ids and enumerate them correctly. Growth past the id space reports full.
   cn::graph<void, std::uint8_t> g;
   constexpr int count{200};
   for (int i{0}; i < count; ++i) {
@@ -352,9 +349,7 @@ consteval auto consteval_graph_probe() -> bool {
 
 static_assert(consteval_graph_probe());
 
-TEST_CASE("nexenne::container::graph holds at most max() vertices (container-06)") {
-  // Like std::vector and its size_type: a uint8 graph holds 255 vertices with
-  // ids 0..254, and growth past that reports full instead of handing out 255.
+TEST_CASE("nexenne::container::graph holds at most max() vertices") {
   cn::graph<void, std::uint8_t> g;
   for (int i{0}; i < 255; ++i) {
     auto const id{g.add_vertex()};

@@ -77,8 +77,8 @@ TEST_CASE("nexenne::container::union_find connected") {
 TEST_CASE("nexenne::container::union_find size_of grows on union by size") {
   uf u;
   REQUIRE(make_sets(u, 4));
-  nexenne::utility::ignore(u.unite(0, 1));  // {0, 1}
-  nexenne::utility::ignore(u.unite(2, 3));  // {2, 3}
+  nexenne::utility::ignore(u.unite(0, 1));
+  nexenne::utility::ignore(u.unite(2, 3));
   CHECK(*u.size_of(0) == 2);
   nexenne::utility::ignore(u.unite(0, 2));
   CHECK(*u.size_of(0) == 4);
@@ -143,7 +143,7 @@ TEST_CASE("nexenne::container::union_find same_partition ignores history and ord
   REQUIRE(make_sets(a, 4));
   uf b;
   REQUIRE(make_sets(b, 4));
-  CHECK(a.same_partition(b));  // both all singletons
+  CHECK(a.same_partition(b));
 
   nexenne::utility::ignore(a.unite(0, 1));
   CHECK_FALSE(a.same_partition(b));
@@ -153,7 +153,7 @@ TEST_CASE("nexenne::container::union_find same_partition ignores history and ord
   uf c;
 
   REQUIRE(make_sets(c, 5));
-  CHECK_FALSE(a.same_partition(c));  // different node count
+  CHECK_FALSE(a.same_partition(c));
 }
 
 TEST_CASE("nexenne::container::union_find works with 16-bit indices") {
@@ -179,10 +179,8 @@ TEST_CASE("nexenne::container::union_find uniting a node with itself is a no-op"
 TEST_CASE("nexenne::container::union_find union by size hangs the smaller tree under the larger") {
   uf u;
   REQUIRE(make_sets(u, 5));
-  nexenne::utility::ignore(u.unite(0, 1));  // {0, 1} size 2
-  nexenne::utility::ignore(u.unite(0, 2));  // {0, 1, 2} size 3
-  // 3 is a singleton; uniting it with the size-3 set must hang 3 under that set's
-  // root, not the reverse, so 3's root becomes the larger set's root.
+  nexenne::utility::ignore(u.unite(0, 1));
+  nexenne::utility::ignore(u.unite(0, 2));
   auto const big_root{*u.find(0)};
   nexenne::utility::ignore(u.unite(3, 0));
   CHECK(*u.find(3) == big_root);
@@ -193,15 +191,12 @@ TEST_CASE("nexenne::container::union_find union by size hangs the smaller tree u
 TEST_CASE("nexenne::container::union_find find flattens the parent chain via path halving") {
   uf u;
   REQUIRE(make_sets(u, 6));
-  // Build a deliberately deep-ish chain by uniting equal-size sets so the tree is
-  // not pre-flattened, then confirm find rewrites parents toward the root.
   nexenne::utility::ignore(u.unite(0, 1));
   nexenne::utility::ignore(u.unite(2, 3));
   nexenne::utility::ignore(u.unite(0, 2));
   nexenne::utility::ignore(u.unite(4, 5));
-  nexenne::utility::ignore(u.unite(0, 4));  // join again, deepening some chains
-  auto const root{*u.find(5)};               // a find that triggers compression
-  // Every node resolves to the one root.
+  nexenne::utility::ignore(u.unite(0, 4));
+  auto const root{*u.find(5)};
   for (std::uint32_t i{0}; i < u.size(); ++i) {
     CHECK(*u.find(i) == root);
   }
@@ -239,9 +234,9 @@ TEST_CASE("nexenne::container::union_find set_sizes records the size on the root
 TEST_CASE("nexenne::container::union_find make_set continues an existing partition") {
   uf u;
   REQUIRE(make_sets(u, 2));
-  nexenne::utility::ignore(u.unite(0, 1));  // {0, 1}
+  nexenne::utility::ignore(u.unite(0, 1));
   CHECK(u.count() == 1);
-  auto const n{u.make_set()};  // append node 2 as a singleton
+  auto const n{u.make_set()};
   CHECK(n == 2U);
   CHECK(u.size() == 3);
   CHECK(u.count() == 2);
@@ -337,11 +332,7 @@ TEST_CASE("nexenne::container::union_find works with 64-bit indices") {
 }
 
 TEST_CASE("nexenne::container::union_find over a small Index keeps node ids in range") {
-  // M7: past 2^N nodes the index cast used to wrap (aliasing low indices and
-  // breaking the partition invariants). Within the representable range a small
-  // Index type must track nodes and merge them correctly. Growth past the id
-  // space reports full.
-  cn::union_find<std::uint8_t> u;  // well inside uint8_t, no wrap
+  cn::union_find<std::uint8_t> u;
   REQUIRE(make_sets(u, 200));
   CHECK(u.size() == 200);
   CHECK(u.count() == 200);
@@ -356,16 +347,13 @@ TEST_CASE("nexenne::container::union_find over a small Index keeps node ids in r
   CHECK(*u.connected(0, 199));
   CHECK(u.parents().size() == 200);
 
-  auto const grown{u.make_set()};  // append within range
+  auto const grown{u.make_set()};
   REQUIRE(grown.has_value());
   CHECK(static_cast<int>(*grown) == 200);
   CHECK(u.size() == 201);
 }
 
-TEST_CASE("nexenne::container::union_find tracks at most max() nodes (container-06)") {
-  // Like std::vector and its size_type: a uint8 structure tracks 255 nodes
-  // with indices 0..254, and growth past that reports full instead of handing
-  // out 255.
+TEST_CASE("nexenne::container::union_find tracks at most max() nodes") {
   cn::union_find<std::uint8_t> u;
   for (int i{0}; i < 255; ++i) {
     auto const node{u.make_set()};
