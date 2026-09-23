@@ -129,7 +129,6 @@ exponential_search(R&& range, T const& value) noexcept(detail::nothrow_ordered_v
   if (n == 0) {
     return std::nullopt;
   }
-  // Two-way \c < rather than \c ==: the same comparator the range is ordered by.
   if (!(*first < value) && !(value < *first)) {
     return std::size_t{0};
   }
@@ -198,11 +197,10 @@ template <std::ranges::random_access_range R, typename T>
     }
     auto const lo_val{*(first + lo)};
     auto const hi_val{*(first + hi)};
-    if (hi_val == lo_val) {  // a flat span: avoid dividing by zero
+    if (hi_val == lo_val) {
       return *(first + lo) == value ? found_index{static_cast<std::size_t>(lo)} : std::nullopt;
     }
-    // Subtract in double, not in the element type: an integer span from a large
-    // negative to a large positive value would overflow (signed UB) otherwise.
+    // Subtract in double: an integer span can overflow the element type (signed UB).
     auto const span{static_cast<double>(hi_val) - static_cast<double>(lo_val)};
     auto const offset{static_cast<double>(value) - static_cast<double>(lo_val)};
     // A non-finite fraction (an infinite end) is UB to convert to an index: probe the midpoint.

@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#include <nexenne/algorithm/graph/dijkstra.hpp>  // re-uses detail helpers
+#include <nexenne/algorithm/graph/dijkstra.hpp>
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/graph.hpp>
 
@@ -105,12 +105,10 @@ template <
   auto d{std::vector<Weight>(n * n, inf)};
   auto const idx{[n](std::size_t i, std::size_t j) noexcept { return i * n + j; }};
 
-  // Diagonal: distance from a vertex to itself is zero.
   for (std::size_t i{0}; i < n; i += 1) {
     d[idx(i, i)] = Weight{0};
   }
 
-  // Seed with direct edges. Parallel edges keep the smallest.
   for (auto const u : g.vertices()) {
     for (auto const& edge : g.edges_of(u)) {
       auto const w{static_cast<Weight>(weight_of(edge))};
@@ -121,8 +119,7 @@ template <
     }
   }
 
-  // Classical triple loop. k is the outer index so that on iteration k,
-  // d[i][j] holds the shortest path using intermediates from {0..k-1}.
+  // k outermost (the DP invariant): after step k, d[i][j] uses intermediates {0..k} only.
   for (std::size_t k{0}; k < n; k += 1) {
     for (std::size_t i{0}; i < n; i += 1) {
       auto const dik{d[idx(i, k)]};
@@ -134,9 +131,7 @@ template <
         if (dkj == inf) {
           continue;
         }
-        // Saturating overflow guard, overflow-safe for signed Weight: only a
-        // positive dkj can push dik + dkj up to the unreachable sentinel, and
-        // inf - dkj is then representable.
+        // Saturating guard on inf - dkj, which stays representable for a signed Weight.
         if (dkj > Weight{0} && dik > inf - dkj) {
           continue;
         }
@@ -157,8 +152,6 @@ template <
     }
   }
 
-  // Negative cycle detector: a vertex on a negative cycle ends up with a path
-  // back to itself of negative weight.
   for (std::size_t i{0}; i < n; i += 1) {
     if (d[idx(i, i)] < Weight{0}) {
       return std::unexpected{err::not_found};

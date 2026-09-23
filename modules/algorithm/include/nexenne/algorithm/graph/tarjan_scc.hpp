@@ -65,13 +65,12 @@ template <typename E, std::unsigned_integral V>
 
   auto index{std::vector<std::size_t>(n, undef)};
   auto lowlink{std::vector<std::size_t>(n, std::size_t{0})};
-  auto on_stack{std::vector<std::uint8_t>(n, 0)};  // bool-as-byte
+  auto on_stack{std::vector<std::uint8_t>(n, 0)};
   auto labels{std::vector<V>(n, V{0})};
 
   auto path{std::vector<V>{}};
   path.reserve(n);
 
-  // DFS work frame: vertex + the edge index we left off at.
   struct frame {
     V u;                 ///< Vertex being explored.
     std::size_t edge_i;  ///< Index of the next edge of \c u to explore.
@@ -90,7 +89,6 @@ template <typename E, std::unsigned_integral V>
       continue;
     }
 
-    // Initialise the DFS tree rooted at root.
     index[root] = next_index;
     lowlink[root] = next_index;
     ++next_index;
@@ -102,14 +100,11 @@ template <typename E, std::unsigned_integral V>
       auto& [u, ei]{work.back()};
       auto const edges{g.edges_of(u)};
 
-      // Either finish exploring children we've already started (the previous
-      // call returned), or step into the next one.
       auto descended{false};
       while (ei < edges.size()) {
         auto const v{edges[ei].target};
         ++ei;
         if (index[v] == undef) {
-          // Tree edge: descend.
           index[v] = next_index;
           lowlink[v] = next_index;
           ++next_index;
@@ -120,20 +115,17 @@ template <typename E, std::unsigned_integral V>
           break;
         }
         if (on_stack[v]) {
-          // Back edge to an ancestor still on the path: pull the ancestor's
-          // index into our lowlink.
+          // Back edge to a vertex on the stack: Tarjan takes its index, not its low-link.
           if (index[v] < lowlink[u]) {
             lowlink[u] = index[v];
           }
         }
-        // Cross/forward edge to a settled SCC: ignore.
       }
 
       if (descended) {
         continue;
       }
 
-      // Done with u. If it's an SCC root, peel.
       if (lowlink[u] == index[u]) {
         while (true) {
           auto const w{path.back()};
@@ -150,7 +142,6 @@ template <typename E, std::unsigned_integral V>
       auto const finished_u{u};
       work.pop_back();
       if (!work.empty()) {
-        // Propagate lowlink up to the parent.
         auto& parent{work.back()};
         if (lowlink[finished_u] < lowlink[parent.u]) {
           lowlink[parent.u] = lowlink[finished_u];

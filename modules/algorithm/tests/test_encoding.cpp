@@ -57,8 +57,6 @@ struct lcg {
   return v;
 }
 
-// alphabet
-
 TEST_CASE("nexenne::algorithm::codec_alphabet forward, reverse, and distinctness") {
   static constexpr alg::codec_alphabet<4> alpha{"WXYZ"};
   static_assert(alpha.is_distinct());
@@ -66,10 +64,10 @@ TEST_CASE("nexenne::algorithm::codec_alphabet forward, reverse, and distinctness
   static_assert(alpha.encode(0) == 'W');
   static_assert(alpha.encode(3) == 'Z');
   static_assert(alpha.decode('Y') == 2);
-  static_assert(alpha.decode('?') == -1);  // not a member
-  static_assert(alpha.decode('w') == -1);  // case sensitive
+  static_assert(alpha.decode('?') == -1);
+  static_assert(alpha.decode('w') == -1);
   static_assert(alg::codec_alphabet{"WXYZ"}.is_distinct());
-  static_assert(!alg::codec_alphabet{"WXYW"}.is_distinct());  // duplicate detected
+  static_assert(!alg::codec_alphabet{"WXYW"}.is_distinct());
   CHECK(alpha.encode(1) == 'X');
   CHECK(alpha.decode('Z') == 3);
 }
@@ -80,10 +78,7 @@ TEST_CASE("nexenne::algorithm::to_string names every codec_error") {
   CHECK(alg::to_string(codec_error::incomplete_input) == "incomplete_input");
 }
 
-// generic base_n engine (the shared core behind hex/base32/base64)
-
 TEST_CASE("nexenne::algorithm::base_n is usable directly and at compile time") {
-  // base64 of "f" computed entirely at compile time through the generic engine.
   static constexpr auto enc4{[] {
     auto out{std::array<char, 4>{}};
     auto const in{std::array<std::uint8_t, 1>{std::uint8_t{'f'}}};
@@ -94,7 +89,7 @@ TEST_CASE("nexenne::algorithm::base_n is usable directly and at compile time") {
   }()};
   static_assert(enc4[0] == 'Z' && enc4[1] == 'g' && enc4[2] == '=' && enc4[3] == '=');
 
-  // The generic decode matches the named wrapper on an RFC vector.
+  // RFC 4648 section 10 test vector.
   auto buf{std::array<std::uint8_t, 8>{}};
   auto const r{
     alg::base_n_decode<alg::base32_std_spec>("MZXW6YTBOI======", std::span<std::uint8_t>{buf})
@@ -105,7 +100,6 @@ TEST_CASE("nexenne::algorithm::base_n is usable directly and at compile time") {
     == vbytes("foobar")
   );
 
-  // The derived bit width and group sizes are correct for each member.
   static_assert(
     alg::base64_std_spec.bits == 6 && alg::base64_std_spec.group_in == 3
     && alg::base64_std_spec.group_out == 4
@@ -119,8 +113,6 @@ TEST_CASE("nexenne::algorithm::base_n is usable directly and at compile time") {
     && alg::base16_lower_spec.group_out == 2
   );
 }
-
-// hex
 
 TEST_CASE("nexenne::algorithm::hex RFC 4648 base16 vectors") {
   CHECK(alg::hex_encode(bytes_of("")) == "");
@@ -137,8 +129,8 @@ TEST_CASE("nexenne::algorithm::hex decode is liberal: whitespace and mixed case"
 }
 
 TEST_CASE("nexenne::algorithm::hex decode error paths") {
-  CHECK(alg::hex_decode("12345").error() == codec_error::incomplete_input);  // odd nibble
-  CHECK(alg::hex_decode("12zz").error() == codec_error::invalid_input);      // non-hex
+  CHECK(alg::hex_decode("12345").error() == codec_error::incomplete_input);
+  CHECK(alg::hex_decode("12zz").error() == codec_error::invalid_input);
   auto small{std::array<std::uint8_t, 1>{}};
   CHECK(
     alg::hex_decode("AABB", std::span<std::uint8_t>{small}).error() == codec_error::buffer_too_small
@@ -153,15 +145,13 @@ TEST_CASE("nexenne::algorithm::hex buffered encode sizing") {
   );
 }
 
-// url
-
 TEST_CASE("nexenne::algorithm::url strict percent-encoding vectors") {
   CHECK(alg::url_encode("hello world") == "hello%20world");
   CHECK(alg::url_encode("a+b=c&d/e") == "a%2Bb%3Dc%26d%2Fe");
-  CHECK(alg::url_encode("AZaz09-._~") == "AZaz09-._~");  // unreserved, unchanged
+  CHECK(alg::url_encode("AZaz09-._~") == "AZaz09-._~");
   CHECK(*alg::url_decode("hello%20world") == "hello world");
   CHECK(*alg::url_decode("a%2Bb") == "a+b");
-  CHECK(*alg::url_decode("a+b") == "a+b");  // strict: '+' is literal
+  CHECK(*alg::url_decode("a+b") == "a+b");
 }
 
 TEST_CASE("nexenne::algorithm::url form-urlencoded uses plus for space") {
@@ -189,8 +179,6 @@ TEST_CASE("nexenne::algorithm::url round-trips every byte value") {
   }
 }
 
-// base64
-
 TEST_CASE("nexenne::algorithm::base64 RFC 4648 vectors") {
   CHECK(alg::base64_encode(bytes_of("")) == "");
   CHECK(alg::base64_encode(bytes_of("f")) == "Zg==");
@@ -207,22 +195,21 @@ TEST_CASE("nexenne::algorithm::base64url uses -_ and omits padding") {
   auto const tricky{std::array<std::uint8_t, 3>{0xFB, 0xFF, 0xBF}};
   CHECK(alg::base64_encode(std::span<std::uint8_t const>{tricky}) == "+/+/");
   CHECK(alg::base64url_encode(std::span<std::uint8_t const>{tricky}) == "-_-_");
-  CHECK(alg::base64url_encode(bytes_of("f")) == "Zg");  // no padding
+  CHECK(alg::base64url_encode(bytes_of("f")) == "Zg");
   CHECK(*alg::base64url_decode("-_-_") == std::vector<std::uint8_t>{0xFB, 0xFF, 0xBF});
-  // The URL-safe decoder rejects the standard +/ alphabet.
   CHECK(alg::base64url_decode("+/+/").error() == codec_error::invalid_input);
 }
 
 TEST_CASE("nexenne::algorithm::base64 decode tolerates whitespace and missing padding") {
   CHECK(*alg::base64_decode("Zm9v\nYmFy") == vbytes("foobar"));
-  CHECK(*alg::base64_decode("Zg") == vbytes("f"));    // padding omitted
-  CHECK(*alg::base64_decode("Zm8") == vbytes("fo"));  // padding omitted
+  CHECK(*alg::base64_decode("Zg") == vbytes("f"));
+  CHECK(*alg::base64_decode("Zm8") == vbytes("fo"));
 }
 
 TEST_CASE("nexenne::algorithm::base64 decode error paths") {
-  CHECK(alg::base64_decode("Zm9v!").error() == codec_error::invalid_input);   // non-alphabet
-  CHECK(alg::base64_decode("Z").error() == codec_error::incomplete_input);    // lone char
-  CHECK(alg::base64_decode("Zg==Zg").error() == codec_error::invalid_input);  // data after pad
+  CHECK(alg::base64_decode("Zm9v!").error() == codec_error::invalid_input);
+  CHECK(alg::base64_decode("Z").error() == codec_error::incomplete_input);
+  CHECK(alg::base64_decode("Zg==Zg").error() == codec_error::invalid_input);
   auto small{std::array<std::uint8_t, 2>{}};
   CHECK(
     alg::base64_decode("Zm9v", std::span<std::uint8_t>{small}).error()
@@ -239,8 +226,6 @@ TEST_CASE("nexenne::algorithm::base64 size helpers are exact") {
   CHECK(alg::base64url_encoded_size(2) == 3);
   CHECK(alg::base64url_encoded_size(3) == 4);
 }
-
-// base32
 
 TEST_CASE("nexenne::algorithm::base32 RFC 4648 vectors") {
   CHECK(alg::base32_encode(bytes_of("")) == "");
@@ -261,16 +246,14 @@ TEST_CASE("nexenne::algorithm::base32hex RFC 4648 vectors") {
 }
 
 TEST_CASE("nexenne::algorithm::base32 decode is case-insensitive and pad-tolerant") {
-  CHECK(*alg::base32_decode("mzxw6ytboi") == vbytes("foobar"));   // lowercase, no padding
-  CHECK(*alg::base32_decode("MZXW6YTB OI") == vbytes("foobar"));  // whitespace skipped
+  CHECK(*alg::base32_decode("mzxw6ytboi") == vbytes("foobar"));
+  CHECK(*alg::base32_decode("MZXW6YTB OI") == vbytes("foobar"));
 }
 
 TEST_CASE("nexenne::algorithm::base32 decode error paths") {
-  CHECK(alg::base32_decode("MZX").error() == codec_error::incomplete_input);  // 3-char tail invalid
-  CHECK(alg::base32_decode("0189").error() == codec_error::invalid_input);  // 0/1/8/9 not in alpha
+  CHECK(alg::base32_decode("MZX").error() == codec_error::incomplete_input);
+  CHECK(alg::base32_decode("0189").error() == codec_error::invalid_input);
 }
-
-// cobs
 
 TEST_CASE("nexenne::algorithm::cobs Cheshire-Baker reference vectors") {
   struct entry {
@@ -306,8 +289,6 @@ TEST_CASE("nexenne::algorithm::cobs Cheshire-Baker reference vectors") {
 
 TEST_CASE("nexenne::algorithm::cobs round-trips, including 254-byte run boundaries") {
   auto gen{lcg{}};
-  // Lengths around the 254-byte block boundary and well past it, plus inputs
-  // that are all zero and all non-zero.
   for (auto const len :
        {std::size_t{0},
         std::size_t{1},
@@ -317,7 +298,7 @@ TEST_CASE("nexenne::algorithm::cobs round-trips, including 254-byte run boundari
         std::size_t{300},
         std::size_t{509}}) {
     CAPTURE(len);
-    for (auto const mode : {0, 1, 2}) {  // 0: random, 1: all zero, 2: all 0xFF
+    for (auto const mode : {0, 1, 2}) {
       auto raw{std::vector<std::uint8_t>(len)};
       for (auto i{std::size_t{0}}; i < len; ++i) {
         raw[i] = (mode == 0) ? gen.byte() : (mode == 1 ? std::uint8_t{0} : std::uint8_t{0xFF});
@@ -328,7 +309,6 @@ TEST_CASE("nexenne::algorithm::cobs round-trips, including 254-byte run boundari
       };
       REQUIRE(er.has_value());
       enc.resize(*er);
-      // Encoded form is free of the 0x00 delimiter.
       for (auto const b : enc) {
         CHECK(b != 0u);
       }
@@ -345,13 +325,11 @@ TEST_CASE("nexenne::algorithm::cobs round-trips, including 254-byte run boundari
 
 TEST_CASE("nexenne::algorithm::cobs decode error paths") {
   auto out{std::array<std::uint8_t, 16>{}};
-  // A 0x00 code byte is never valid in a COBS stream.
   auto const stray{std::array<std::uint8_t, 2>{0x01, 0x00}};
   CHECK(
     alg::cobs_decode(std::span<std::uint8_t const>{stray}, std::span<std::uint8_t>{out}).error()
     == codec_error::invalid_input
   );
-  // A code byte promising more data than remains is incomplete.
   auto const truncated{std::array<std::uint8_t, 2>{0x05, 0x11}};
   CHECK(
     alg::cobs_decode(std::span<std::uint8_t const>{truncated}, std::span<std::uint8_t>{out}).error()
@@ -396,8 +374,6 @@ TEST_CASE("nexenne::algorithm encode reports buffer_too_small") {
   );
 }
 
-// Generic round-trip across the byte-to-text codecs and every group boundary.
-
 template <typename Enc, typename Dec>
 void roundtrip_text_codec(Enc enc, Dec dec) {
   auto gen{lcg{}};
@@ -441,8 +417,6 @@ TEST_CASE("nexenne::algorithm encode/decode round-trip over random inputs") {
   }
 }
 
-// The heap-free overload writes exactly what the heap overload returns.
-
 TEST_CASE("nexenne::algorithm buffered encode matches heap encode") {
   auto gen{lcg{}};
   for (auto len{std::size_t{0}}; len <= 80; ++len) {
@@ -464,9 +438,6 @@ TEST_CASE("nexenne::algorithm buffered encode matches heap encode") {
   }
 }
 
-// Exhaustive round-trip over every 1-byte input (all codecs) and every 2-byte
-// input (the codecs with non-trivial tail packing). Catches any bit-packing or
-// tail bug a random sweep might miss.
 template <typename Enc, typename Dec>
 void exhaustive_roundtrip(Enc enc, Dec dec, bool const two_byte) {
   for (auto v{0}; v < 256; ++v) {
@@ -544,16 +515,15 @@ TEST_CASE("nexenne::algorithm::url buffer limits and hex-escape case") {
   );
   auto one{std::array<char, 1>{}};
   CHECK(alg::url_decode("%41%42", std::span<char>{one}).error() == codec_error::buffer_too_small);
-  // A high byte encodes to an uppercase escape; lowercase escapes still decode.
   CHECK(alg::url_encode(std::string_view{"\xff"}) == "%FF");
   CHECK(*alg::url_decode("%2b%2F") == "+/");
 }
 
 TEST_CASE("nexenne::algorithm::base64 padding tolerance and cross-alphabet rejection") {
-  CHECK(*alg::base64_decode("Zg=") == vbytes("f"));    // single trailing pad
-  CHECK(*alg::base64_decode("Zg===") == vbytes("f"));  // surplus padding ignored
-  CHECK(alg::base64_decode("ab-_").error() == codec_error::invalid_input);     // url chars rejected
-  CHECK(alg::base64url_decode("ab+/").error() == codec_error::invalid_input);  // std chars rejected
+  CHECK(*alg::base64_decode("Zg=") == vbytes("f"));
+  CHECK(*alg::base64_decode("Zg===") == vbytes("f"));
+  CHECK(alg::base64_decode("ab-_").error() == codec_error::invalid_input);
+  CHECK(alg::base64url_decode("ab+/").error() == codec_error::invalid_input);
 }
 
 TEST_CASE("nexenne::algorithm::base32 rejects padding mid-stream; base32hex full vectors") {
@@ -564,8 +534,7 @@ TEST_CASE("nexenne::algorithm::base32 rejects padding mid-stream; base32hex full
 }
 
 TEST_CASE("nexenne::algorithm::cobs encodes a maximal 254-byte run") {
-  // A run of 254 non-zero bytes fills a block: leading 0xFF, then the 254 bytes,
-  // then a final 0x01 code byte (no implied trailing zero).
+  // 254 non-zero bytes fill one block: a 0xFF code, the 254 bytes, then a final 0x01 code.
   auto const raw{std::vector<std::uint8_t>(254, std::uint8_t{0x07})};
   auto enc{std::vector<std::uint8_t>(alg::cobs_encoded_max_size(raw.size()))};
   auto const n{alg::cobs_encode(std::span<std::uint8_t const>{raw}, std::span<std::uint8_t>{enc})};
@@ -582,11 +551,6 @@ TEST_CASE("nexenne::algorithm::cobs encodes a maximal 254-byte run") {
 }
 
 TEST_CASE("nexenne::algorithm::cobs decode rejects an embedded 0x00 data byte") {
-  // Regression for review [M1]: a conformant COBS frame is zero-free, so a 0x00
-  // in a data position is a lost delimiter or bit error and must be rejected.
-  // Previously {03 00 41} decoded "successfully" to the wrong payload {00 41},
-  // and {02 00} to {00}; both must now be invalid_input, matching
-  // nexenne::serialization::cobs::decode.
   auto out{std::array<std::uint8_t, 16>{}};
   auto const embedded{std::array<std::uint8_t, 3>{0x03, 0x00, 0x41}};
   CHECK(
@@ -601,28 +565,20 @@ TEST_CASE("nexenne::algorithm::cobs decode rejects an embedded 0x00 data byte") 
 }
 
 TEST_CASE("nexenne::algorithm::base64 decode padding leniency and canonical trailing bits") {
-  // [m1] Padding count and placement are not validated: an all-pad string, and
-  // surplus or omitted padding after the data, all decode.
   CHECK(alg::base64_decode("====")->empty());
   CHECK(*alg::base64_decode("Zg=====") == vbytes("f"));
   CHECK(*alg::base64_decode("Zg") == vbytes("f"));
-  // [m2] Non-canonical trailing bits (RFC 4648 3.5) are rejected: "Zg" and "Zh"
-  // both carry byte 0x66, but "Zh" sets the discarded low bits, so it is
-  // malleable and must be rejected rather than aliasing "Zg".
+  // RFC 4648 section 3.5: "Zh" sets the discarded low bits of 0x66, so it must not alias "Zg".
   CHECK(alg::base64_decode("Zh").error() == codec_error::invalid_input);
-  // base32 likewise rejects a non-zero sub-symbol remainder.
   CHECK(*alg::base32_decode("MY") == vbytes("f"));
   CHECK(alg::base32_decode("MZ").error() == codec_error::invalid_input);
 }
 
 TEST_CASE("nexenne::algorithm::base64url decode accepts optional padding") {
-  // [m3] RFC 4648 section 5 makes '=' optional in the URL-safe alphabet, so the
-  // decoder accepts both padded and unpadded input while the encoder stays
-  // unpadded.
+  // RFC 4648 section 5: padding is optional in the URL-safe alphabet.
   CHECK(*alg::base64url_decode("Zg==") == vbytes("f"));
   CHECK(*alg::base64url_decode("Zg") == vbytes("f"));
   CHECK(*alg::base64url_decode("-_-_") == std::vector<std::uint8_t>{0xFB, 0xFF, 0xBF});
-  // The URL-safe alphabet still rejects the standard +/ characters.
   CHECK(alg::base64url_decode("+/+/").error() == codec_error::invalid_input);
 }
 
@@ -647,9 +603,7 @@ TEST_CASE("nexenne::algorithm encoding round-trips on a large random buffer") {
   }
 }
 
-TEST_CASE("nexenne::algorithm base16_lower_spec decodes letters in either case (algorithm-03)") {
-  // The engine folded to upper case and then looked the letter up in the
-  // lower-case alphabet, so no letter decoded.
+TEST_CASE("nexenne::algorithm base16_lower_spec decodes letters in either case") {
   auto out{std::array<std::uint8_t, 2>{}};
   auto const lower{alg::base_n_decode<alg::base16_lower_spec>("abcd", out)};
   REQUIRE(lower.has_value());

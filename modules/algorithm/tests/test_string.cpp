@@ -53,8 +53,6 @@ struct lcg {
   return s;
 }
 
-// Independent references.
-
 [[nodiscard]] auto find_all_brute(std::string_view const hay, std::string_view const need)
   -> std::vector<std::size_t> {
   auto out{std::vector<std::size_t>{}};
@@ -104,23 +102,19 @@ struct lcg {
   return d[a.size()][b.size()];
 }
 
-// kmp_find / boyer_moore_find
-
 TEST_CASE("nexenne::algorithm single-pattern search known answers") {
   CHECK(alg::kmp_find("hello world", "world") == 6);
   CHECK(alg::boyer_moore_find("hello world", "world") == 6);
   CHECK(alg::kmp_find("abc", "abc") == 0);
-  CHECK(alg::kmp_find("abc", "") == 0);  // empty needle
+  CHECK(alg::kmp_find("abc", "") == 0);
   CHECK(alg::boyer_moore_find("abc", "") == 0);
-  CHECK(alg::kmp_find("abc", "abcd") == std::string_view::npos);  // needle longer
-  CHECK(alg::kmp_find("abcabc", "x") == std::string_view::npos);  // absent
-  CHECK(alg::kmp_find("aaaaaa", "aaa") == 0);                     // periodic
+  CHECK(alg::kmp_find("abc", "abcd") == std::string_view::npos);
+  CHECK(alg::kmp_find("abcabc", "x") == std::string_view::npos);
+  CHECK(alg::kmp_find("aaaaaa", "aaa") == 0);
   CHECK(alg::boyer_moore_find("aaaaaa", "aaab") == std::string_view::npos);
 }
 
 TEST_CASE("nexenne::algorithm single-pattern search handles bytes >= 0x80") {
-  // The Horspool skip table and the KMP scan index bytes via an unsigned-char
-  // cast; high bytes must search correctly (previously untested).
   auto const hay{std::string{"\x01\x93\xff\x93\xff\x02", 6}};
   auto const needle{std::string{"\x93\xff", 2}};
   CHECK(alg::boyer_moore_find(hay, needle) == 1);
@@ -135,7 +129,6 @@ TEST_CASE("nexenne::algorithm kmp_find and boyer_moore_find match std::find") {
   auto gen{lcg{}};
   for (auto trial{0}; trial < 4000; ++trial) {
     auto const hay{random_string(gen, gen.next() % 40, 3)};
-    // Half the time draw the needle as a real substring to force hits.
     auto need{std::string{}};
     if (!hay.empty() && (gen.next() & 1u)) {
       auto const start{gen.next() % hay.size()};
@@ -150,8 +143,6 @@ TEST_CASE("nexenne::algorithm kmp_find and boyer_moore_find match std::find") {
   }
 }
 
-// z_function / find_all
-
 TEST_CASE("nexenne::algorithm::z_function matches the brute-force reference") {
   auto gen{lcg{}};
   for (auto trial{0}; trial < 2000; ++trial) {
@@ -164,7 +155,7 @@ TEST_CASE("nexenne::algorithm::z_function matches the brute-force reference") {
 TEST_CASE("nexenne::algorithm all-match searches find every overlapping occurrence") {
   auto gen{lcg{}};
   for (auto trial{0}; trial < 3000; ++trial) {
-    auto const hay{random_string(gen, gen.next() % 40, 2)};  // binary alphabet: dense overlaps
+    auto const hay{random_string(gen, gen.next() % 40, 2)};
     auto need{std::string{}};
     if (!hay.empty() && (gen.next() & 1u)) {
       auto const start{gen.next() % hay.size()};
@@ -187,12 +178,10 @@ TEST_CASE("nexenne::algorithm::kmp_find_all overlapping and early termination") 
   auto hits{std::vector<std::size_t>{}};
   alg::kmp_find_all("aaaa", "aa", [&](std::size_t const p) {
     hits.push_back(p);
-    return hits.size() < 2;  // stop after two matches
+    return hits.size() < 2;
   });
   CHECK(hits == std::vector<std::size_t>{0, 1});
 }
-
-// levenshtein
 
 TEST_CASE("nexenne::algorithm::levenshtein known answers") {
   CHECK(alg::levenshtein("kitten", "sitting") == 3);
@@ -209,11 +198,9 @@ TEST_CASE("nexenne::algorithm::levenshtein matches the full-matrix reference and
     auto const b{random_string(gen, gen.next() % 18, 3)};
     auto const d{alg::levenshtein(a, b)};
     CHECK(d == levenshtein_full(a, b));
-    CHECK(d == alg::levenshtein(b, a));  // symmetric
+    CHECK(d == alg::levenshtein(b, a));
   }
 }
-
-// suffix_array / lcp
 
 TEST_CASE("nexenne::algorithm::build_suffix_array known answer (banana)") {
   auto const sa{alg::build_suffix_array("banana")};
@@ -228,7 +215,6 @@ TEST_CASE("nexenne::algorithm suffix array is a sorted permutation with a correc
     auto const n{text.size()};
     REQUIRE(sa.size() == n);
 
-    // Permutation of [0, n) and adjacent suffixes are in lexicographic order.
     auto seen{std::vector<char>(n, 0)};
     for (auto const idx : sa) {
       REQUIRE(idx >= 0);
@@ -242,7 +228,6 @@ TEST_CASE("nexenne::algorithm suffix array is a sorted permutation with a correc
       CHECK(prev <= curr);
     }
 
-    // LCP matches a brute-force common-prefix length of adjacent suffixes.
     auto const lcp{alg::build_lcp(text, std::span<std::int32_t const>{sa})};
     REQUIRE(lcp.size() == n);
     if (n > 0) {
@@ -260,8 +245,6 @@ TEST_CASE("nexenne::algorithm suffix array is a sorted permutation with a correc
   }
 }
 
-// aho_corasick
-
 TEST_CASE("nexenne::algorithm::aho_corasick classic dictionary (he/she/his/hers)") {
   auto m{alg::aho_corasick{}};
   auto const he{m.add_pattern("he")};
@@ -271,7 +254,7 @@ TEST_CASE("nexenne::algorithm::aho_corasick classic dictionary (he/she/his/hers)
   m.build();
   CHECK(m.pattern_count() == 4);
   CHECK(m.pattern_length(hers) == 4);
-  CHECK(m.pattern_length(his) == 3);  // present in the dictionary, absent from "ushers"
+  CHECK(m.pattern_length(his) == 3);
 
   auto got{std::vector<std::pair<std::size_t, std::size_t>>{}};
   m.scan("ushers", [&](std::size_t const id, std::size_t const end) { got.push_back({id, end}); });
@@ -303,7 +286,7 @@ TEST_CASE("nexenne::algorithm::aho_corasick matches brute force for many pattern
     auto const count{1 + gen.next() % 5};
     auto m{alg::aho_corasick{}};
     for (auto p{std::uint64_t{0}}; p < count; ++p) {
-      auto pat{random_string(gen, 1 + gen.next() % 4, 3)};  // non-empty
+      auto pat{random_string(gen, 1 + gen.next() % 4, 3)};
       patterns.push_back(pat);
       m.add_pattern(pat);
     }
@@ -331,7 +314,7 @@ TEST_CASE("nexenne::algorithm::aho_corasick early termination and unbuilt matche
   auto count{0};
   m.scan("aaaa", [&](std::size_t, std::size_t) {
     ++count;
-    return count < 2;  // stop after two
+    return count < 2;
   });
   CHECK(count == 2);
 
@@ -339,33 +322,32 @@ TEST_CASE("nexenne::algorithm::aho_corasick early termination and unbuilt matche
   unbuilt.add_pattern("a");
   auto reported{false};
   unbuilt.scan("aaa", [&](std::size_t, std::size_t) { reported = true; });
-  CHECK(!reported);  // never built, reports nothing
+  CHECK(!reported);
 }
 
 TEST_CASE("nexenne::algorithm::levenshtein degenerate and known distances") {
   CHECK(alg::levenshtein("", "") == 0);
-  CHECK(alg::levenshtein("abc", "") == 3);            // all deletions
-  CHECK(alg::levenshtein("", "abc") == 3);            // all insertions
-  CHECK(alg::levenshtein("abc", "abc") == 0);         // identical
-  CHECK(alg::levenshtein("a", "b") == 1);             // single substitution
-  CHECK(alg::levenshtein("kitten", "sitting") == 3);  // textbook value
+  CHECK(alg::levenshtein("abc", "") == 3);
+  CHECK(alg::levenshtein("", "abc") == 3);
+  CHECK(alg::levenshtein("abc", "abc") == 0);
+  CHECK(alg::levenshtein("a", "b") == 1);
+  CHECK(alg::levenshtein("kitten", "sitting") == 3);
   CHECK(alg::levenshtein("flaw", "lawn") == 2);
-  CHECK(alg::levenshtein("aaaaa", "aaa") == 2);  // repeated characters
+  CHECK(alg::levenshtein("aaaaa", "aaa") == 2);
 }
 
 TEST_CASE("nexenne::algorithm all-match search on degenerate strings") {
   using vec = std::vector<std::size_t>;
-  CHECK(alg::z_find_all("ab", "abc") == vec{});            // needle longer than haystack
-  CHECK(alg::z_find_all("aaaa", "a") == vec{0, 1, 2, 3});  // every position matches
-  CHECK(alg::z_find_all("aaaa", "aaaa") == vec{0});        // whole-string match
-  CHECK(alg::z_find_all("abcabc", "xyz") == vec{});        // no match
+  CHECK(alg::z_find_all("ab", "abc") == vec{});
+  CHECK(alg::z_find_all("aaaa", "a") == vec{0, 1, 2, 3});
+  CHECK(alg::z_find_all("aaaa", "aaaa") == vec{0});
+  CHECK(alg::z_find_all("abcabc", "xyz") == vec{});
   auto kmp_hits{vec{}};
   alg::kmp_find_all("aaaa", "aa", [&](std::size_t const p) { kmp_hits.push_back(p); });
-  CHECK(kmp_hits == vec{0, 1, 2});  // kmp agrees with z on the periodic case
+  CHECK(kmp_hits == vec{0, 1, 2});
 }
 
-TEST_CASE("nexenne::algorithm::aho_corasick a second build is harmless (algorithm-01)") {
-  // The second build read the goto transitions as trie edges and never returned.
+TEST_CASE("nexenne::algorithm::aho_corasick a second build is harmless") {
   auto m{alg::aho_corasick{}};
   m.add_pattern("he");
   m.add_pattern("she");

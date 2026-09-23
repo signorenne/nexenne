@@ -92,7 +92,7 @@ z_find_all(std::string_view const haystack, std::string_view const needle)
   auto combined{std::string{}};
   combined.reserve(needle.size() + 1 + haystack.size());
   combined.append(needle);
-  combined.push_back('\0');  // a separator that caps cross-boundary matches
+  combined.push_back('\0');
   combined.append(haystack);
 
   auto const z{z_function(combined)};

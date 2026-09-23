@@ -71,7 +71,7 @@ template <std::ranges::input_range Range, std::floating_point T = std::ranges::r
 [[nodiscard]] constexpr auto
 kahan_sum(Range&& range, T init = T{0}) noexcept(detail::nothrow_iterable_v<Range>) -> T {
   auto sum{init};
-  auto comp{T{0}};  // running compensation for lost low-order bits
+  auto comp{T{0}};
   for (auto const value : range) {
     auto const y{value - comp};  // partially compensated value
     auto const t{sum + y};       // new sum, may lose low-order bits of y

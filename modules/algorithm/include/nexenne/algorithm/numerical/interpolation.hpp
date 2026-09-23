@@ -334,7 +334,7 @@ public:
     );
     auto const n{m_x.size()};
     if (n < 3) {
-      return;  // degenerate; falls back to linear behaviour
+      return;
     }
 
     // Tridiagonal system for the second derivatives (Thomas algorithm).

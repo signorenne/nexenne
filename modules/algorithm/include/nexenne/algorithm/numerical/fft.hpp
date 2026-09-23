@@ -60,11 +60,7 @@ auto fft_inplace(std::span<std::complex<T>> const data, bool const inverse) noex
     return;
   }
 
-  // Bit-reverse permutation (classical Gold-Rader form). The in-place
-  // decimation-in-time butterflies below expect their inputs in bit-reversed
-  // index order, so element i is swapped with the element at the reversal of i's
-  // log2(n)-bit index; j is grown as a bit-reversed counter to avoid recomputing
-  // the reversal per index.
+  // Gold-Rader bit-reversal permutation: j runs as a bit-reversed counter of i.
   for (auto i{std::size_t{1}}, j{std::size_t{0}}; i < n; ++i) {
     auto bit{n >> 1u};
     for (; (j & bit) != 0; bit >>= 1u) {
@@ -76,11 +72,8 @@ auto fft_inplace(std::span<std::complex<T>> const data, bool const inverse) noex
     }
   }
 
-  // Iterative Cooley-Tukey butterflies; len doubles each stage, half is the
-  // size of the lower butterfly arm.
-  // The twiddle factor is advanced by repeated multiplication, whose rounding
-  // accumulates along a stage; for float that grew the error linearly with n
-  // (1.5e-4 at 65536 points), so float accumulates the twiddle in double.
+  // Iterative radix-2 Cooley-Tukey butterflies. The twiddle w *= wn rounds once per step, an
+  // error linear in n for float (1.5e-4 at 65536 points), so float accumulates it in double.
   using twiddle_t = std::conditional_t<std::same_as<T, float>, double, T>;
   auto const sign{inverse ? twiddle_t{1} : twiddle_t{-1}};
   for (auto len{std::size_t{2}}; len <= n; len <<= 1u) {
@@ -227,7 +220,6 @@ template <std::floating_point T>
     return std::unexpected{err::invalid_size};
   }
 
-  // Pack into a half-size complex working buffer and transform it.
   auto const half{n / 2};
   auto buf{std::vector<std::complex<T>>(half)};
   for (auto k{std::size_t{0}}; k < half; ++k) {

@@ -89,7 +89,7 @@ public:
    *       yet built.
    */
   aho_corasick() {
-    m_nodes.emplace_back();  // the root
+    m_nodes.emplace_back();
   }
 
   /**
@@ -117,8 +117,7 @@ public:
     for (auto const c : pattern) {
       auto const byte{static_cast<std::uint8_t>(c)};
       if (m_nodes[cur].next[byte] == no_node) {
-        // emplace_back may reallocate, so hold no reference into m_nodes across
-        // it: compute the new id, grow, then wire the edge afresh.
+        // emplace_back may reallocate: hold no reference into m_nodes across it.
         auto const child{static_cast<node_id>(m_nodes.size())};
         m_nodes.emplace_back();
         m_nodes[cur].next[byte] = child;
@@ -169,7 +168,6 @@ public:
           m_nodes[u].next[c] = m_nodes[m_nodes[u].fail].next[c];
         } else {
           m_nodes[v].fail = m_nodes[m_nodes[u].fail].next[c];
-          // Inherit dictionary-suffix matches from the failure node.
           auto const& src{m_nodes[m_nodes[v].fail].terminals};
           auto& dst{m_nodes[v].terminals};
           dst.insert(dst.end(), src.begin(), src.end());

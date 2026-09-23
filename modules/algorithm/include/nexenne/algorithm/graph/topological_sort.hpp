@@ -80,7 +80,6 @@ template <typename E, std::unsigned_integral V>
   }
 
   if (order.size() != n) {
-    // Cycle: at least one vertex never reached in-degree zero.
     return std::unexpected{nexenne::container::container_error::not_found};
   }
   return order;

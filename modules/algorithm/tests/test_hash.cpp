@@ -36,7 +36,6 @@ namespace alg = nexenne::algorithm;
   return {reinterpret_cast<std::uint8_t const*>(s.data()), s.size()};
 }
 
-// Number of differing bits between two hash results (uint or 128-bit pair).
 [[nodiscard]] auto bit_diff(std::uint32_t const a, std::uint32_t const b) -> int {
   return std::popcount(a ^ b);
 }
@@ -50,7 +49,6 @@ bit_diff(std::array<std::uint64_t, 2> const a, std::array<std::uint64_t, 2> cons
   return std::popcount(a[0] ^ b[0]) + std::popcount(a[1] ^ b[1]);
 }
 
-// A simple deterministic byte source for building test inputs.
 struct lcg {
   std::uint64_t state{0x243F6A8885A308D3ull};
 
@@ -63,8 +61,6 @@ struct lcg {
     return static_cast<std::uint8_t>(next());
   }
 };
-
-// FNV-1a: full official known-answer vectors
 
 static_assert(alg::fnv1a<32>(std::string_view{""}) == 0x811C9DC5u);
 static_assert(alg::fnv1a<64>(std::string_view{""}) == 0xCBF29CE484222325ull);
@@ -80,7 +76,6 @@ TEST_CASE("nexenne::algorithm::fnv1a official known-answer vectors (runtime)") {
   CHECK(alg::fnv1a<64>(std::string_view{"a"}) == 0xAF63DC4C8601EC8Cull);
   CHECK(alg::fnv1a<32>(std::string_view{"foobar"}) == 0xBF9CF968u);
   CHECK(alg::fnv1a<64>(std::string_view{"foobar"}) == 0x85944171F73967E8ull);
-  // The span overload agrees with the string-view overload.
   CHECK(alg::fnv1a<64>(bytes_of("foobar")) == alg::fnv1a<64>(std::string_view{"foobar"}));
 }
 
@@ -94,18 +89,13 @@ TEST_CASE("nexenne::algorithm::fnv1a_ctx streaming matches one-shot across split
     ctx.update(std::string_view{text}.substr(split));
     CHECK(ctx.value() == oneshot);
   }
-  // Default-constructed context equals the empty-input one-shot.
   CHECK(alg::fnv1a_ctx<64>{}.value() == alg::fnv1a<64>(std::string_view{""}));
-  // Seeded context honours its seed; reset restores it.
   auto ctx{alg::fnv1a_ctx<32>{0x12345678u}};
   CHECK(ctx.value() == 0x12345678u);
   ctx.update(bytes_of("x"));
   ctx.reset(0x12345678u);
   CHECK(ctx.value() == 0x12345678u);
 }
-
-// xxHash: published known-answer vectors. The empty input pins seeding and
-// finalization; "abc" and "abcd" pin the multi-byte body and tail paths.
 
 TEST_CASE("nexenne::algorithm::xxhash published known-answer vectors") {
   CHECK(alg::xxhash<32>(std::span<std::uint8_t const>{}) == 0x02CC5D05u);
@@ -116,20 +106,15 @@ TEST_CASE("nexenne::algorithm::xxhash published known-answer vectors") {
   CHECK(alg::xxhash<64>(std::string_view{"abc"}) == 0x44BC2CF5AD770999ull);
   CHECK(alg::xxhash<32>(std::string_view{"abcd"}) == 0xA3643705u);
   CHECK(alg::xxhash<64>(std::string_view{"abcd"}) == 0xDE0327B0D25D92CCull);
-  // The span overload agrees with the string-view overload.
   CHECK(alg::xxhash<64>(bytes_of("abc")) == alg::xxhash<64>(std::string_view{"abc"}));
 }
 
 TEST_CASE("nexenne::algorithm::xxhash seeded known-answer vectors") {
-  // The seed-0 vectors above never exercise the seed-offset init constants; pin a
-  // non-zero seed against reference xxHash.
   CHECK(alg::xxhash<32>(std::string_view{""}, 1u) == 0x0B2CB792u);
   CHECK(alg::xxhash<64>(std::string_view{""}, 1ull) == 0xD5AFBA1336A3BE4Bull);
-  // A non-zero seed changes the result from the default.
   CHECK(alg::xxhash<32>(std::string_view{"abc"}, 1u) != alg::xxhash<32>(std::string_view{"abc"}));
 }
 
-// MurmurHash3: SMHasher verification values
 // SMHasher hashes keys of length 0..255 (key[i] == i) each with seed 256-len,
 // stores each little-endian result end to end, then hashes that buffer with
 // seed 0; the low 32 bits are the published verification value.
@@ -169,9 +154,6 @@ TEST_CASE("nexenne::algorithm::murmur3<128> matches the SMHasher verification va
     }
   }
   auto const verification{alg::murmur3<128>(std::span<std::uint8_t const>{hashes}, 0ull)};
-  // The verification feeds all 128 bits of every hash into this final hash, so it
-  // already covers the full output; pin both 64-bit words (low 32 bits of word 0
-  // are the published SMHasher value) rather than only a 32-bit slice.
   CHECK(verification[0] == 0x63F3DE036384BA69ull);
   CHECK(verification[1] == 0x7192878CE684ED2Dull);
 }
@@ -180,23 +162,17 @@ TEST_CASE("nexenne::algorithm::murmur3<32> of empty input is zero") {
   CHECK(alg::murmur3<32>(std::span<std::uint8_t const>{}, 0u) == 0u);
 }
 
-// Behavioural properties, run against each hash
-
-// Determinism, length sensitivity, seed sensitivity, span/string equivalence.
 template <typename Fn>
 void behavioural_core(Fn hash) {
   auto gen{lcg{}};
   auto buf{std::vector<std::uint8_t>{}};
-  for (auto len{0}; len <= 130; ++len) {  // covers all stripe/tail boundaries
+  for (auto len{0}; len <= 130; ++len) {
     CAPTURE(len);
-    // Determinism: two calls agree.
     auto const span{std::span<std::uint8_t const>{buf}};
     CHECK(hash(span, 0) == hash(span, 0));
-    // Seed sensitivity: a different seed almost always changes the hash.
     if (len > 0) {
       CHECK(hash(span, 0) != hash(span, 0x9E3779B9u));
     }
-    // Appending a byte changes the hash (length + new content matters).
     auto longer{buf};
     longer.push_back(gen.byte());
     CHECK(hash(std::span<std::uint8_t const>{longer}, 0) != hash(span, 0));
@@ -204,7 +180,7 @@ void behavioural_core(Fn hash) {
   }
 }
 
-// Avalanche: flipping any one input bit flips ~half the output bits.
+// Strict avalanche criterion: flipping any one input bit flips about half the output bits.
 template <typename Fn>
 void avalanche(Fn hash, int const out_bits) {
   auto gen{lcg{}};
@@ -229,7 +205,6 @@ void avalanche(Fn hash, int const out_bits) {
   CHECK(mean_ratio < 0.6);
 }
 
-// All 256 single-byte inputs produce distinct hashes (no byte is dropped).
 template <typename Fn>
 void single_byte_distinct(Fn hash) {
   using result_type = decltype(hash(std::span<std::uint8_t const>{}));
@@ -272,9 +247,7 @@ TEST_CASE("nexenne::algorithm hashes: avalanche (~half the output bits flip)") {
   avalanche(
     [](std::span<std::uint8_t const> s, std::uint32_t) { return alg::murmur3<128>(s, 0); }, 128
   );
-  // FNV-1a is intentionally not avalanche-tested: it is a documented
-  // weak-avalanche hash (the last input byte diffuses through a single
-  // multiply), and the official KATs already validate it exactly.
+  // FNV-1a is exempt: a documented weak-avalanche hash (the last byte gets one multiply).
 }
 
 TEST_CASE("nexenne::algorithm hashes: every single-byte input is distinct") {
@@ -285,7 +258,6 @@ TEST_CASE("nexenne::algorithm hashes: every single-byte input is distinct") {
   single_byte_distinct([](std::span<std::uint8_t const> s) { return alg::fnv1a<32>(s); });
 }
 
-// Streaming xxHash must match one-shot for every input length and chunk size.
 template <std::size_t Width>
 void xxhash_streaming_matches_oneshot() {
   auto gen{lcg{}};
@@ -295,8 +267,6 @@ void xxhash_streaming_matches_oneshot() {
       buf.push_back(gen.byte());
     }
     auto const oneshot{alg::xxhash<Width>(std::span<std::uint8_t const>{buf}, 0)};
-    // Feed in chunks of every size from 1 to len (exercises buffer fills,
-    // whole-stripe consumption, and partial-stripe carryover).
     for (auto chunk{std::size_t{1}}; chunk <= len || chunk == 1; ++chunk) {
       CAPTURE(len);
       CAPTURE(chunk);
@@ -316,7 +286,6 @@ void xxhash_streaming_matches_oneshot() {
 TEST_CASE("nexenne::algorithm::xxhash_ctx streaming matches one-shot (all lengths and chunks)") {
   xxhash_streaming_matches_oneshot<32>();
   xxhash_streaming_matches_oneshot<64>();
-  // value() is repeatable and does not consume state.
   auto ctx{alg::xxhash_ctx<64>{}};
   ctx.update(bytes_of("hello world"));
   auto const v{ctx.value()};
@@ -328,7 +297,7 @@ TEST_CASE("nexenne::algorithm::xxhash_ctx streaming matches one-shot (all length
 TEST_CASE("nexenne::algorithm::xxhash_ctx honours a non-zero seed and reset") {
   auto gen{lcg{}};
   auto buf{std::vector<std::uint8_t>{}};
-  for (auto i{0}; i < 40; ++i) {  // longer than a stripe so the body path runs
+  for (auto i{0}; i < 40; ++i) {
     buf.push_back(gen.byte());
   }
   auto const span{std::span<std::uint8_t const>{buf}};
@@ -337,7 +306,6 @@ TEST_CASE("nexenne::algorithm::xxhash_ctx honours a non-zero seed and reset") {
   auto ctx{alg::xxhash_ctx<64>{seed}};
   ctx.update(span);
   CHECK(ctx.value() == oneshot);
-  // reset(seed) restores the seeded empty state and lets the context be reused.
   ctx.reset(seed);
   CHECK(ctx.value() == alg::xxhash<64>(std::span<std::uint8_t const>{}, seed));
   ctx.update(span);
@@ -345,8 +313,7 @@ TEST_CASE("nexenne::algorithm::xxhash_ctx honours a non-zero seed and reset") {
 }
 
 TEST_CASE("nexenne::algorithm hashes: distribution of low bits is roughly uniform") {
-  // Hash 0..N-1 (as 4 little-endian bytes) and bucket the low byte; a structural
-  // bias would skew the chi-square well past the threshold.
+  // Pearson chi-square goodness of fit of the low byte over 256 buckets.
   constexpr auto n{200000};
   constexpr auto buckets{256};
   auto counts{std::array<int, buckets>{}};
@@ -372,18 +339,15 @@ TEST_CASE("nexenne::algorithm hashes: distribution of low bits is roughly unifor
 
 TEST_CASE("nexenne::algorithm::fnv1a seeding and empty-input identity") {
   auto const data{std::string_view{"nexenne"}};
-  // Distinct seeds give distinct results; equal seeds are reproducible.
   CHECK(alg::fnv1a<32>(data, 0x11111111u) != alg::fnv1a<32>(data, 0x22222222u));
   CHECK(alg::fnv1a<32>(data, 0x11111111u) == alg::fnv1a<32>(data, 0x11111111u));
   CHECK(alg::fnv1a<64>(data, 1ull) != alg::fnv1a<64>(data, 2ull));
-  // An empty input returns the seed unchanged (offset basis by default).
   CHECK(alg::fnv1a<32>(std::string_view{""}, 7u) == 7u);
   CHECK(alg::fnv1a<64>(std::string_view{""}, 0x1234567890ABCDEFull) == 0x1234567890ABCDEFull);
   CHECK(alg::fnv1a<32>(std::string_view{""}) == alg::fnv1a_offset<32>);
 }
 
-TEST_CASE("nexenne::algorithm::xxhash_ctx ignores an empty update (algorithm-09)") {
-  // An empty span after buffered bytes reached memcpy with a null source (UBSan).
+TEST_CASE("nexenne::algorithm::xxhash_ctx ignores an empty update") {
   auto ctx{alg::xxhash_ctx<64>{}};
   auto const bytes{std::array<std::uint8_t, 3>{1, 2, 3}};
   ctx.update(bytes);

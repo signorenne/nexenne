@@ -34,7 +34,6 @@ auto main() -> int {
 
   std::printf("levenshtein(kitten, sitting) = %zu\n", alg::levenshtein("kitten", "sitting"));
 
-  // Aho-Corasick: many patterns in one scan.
   auto m{alg::aho_corasick{}};
   m.add_pattern("cat");
   m.add_pattern("at");
@@ -46,7 +45,6 @@ auto main() -> int {
   });
   std::printf("\n");
 
-  // Suffix array of a small string.
   auto const sa{alg::build_suffix_array("banana")};
   std::printf("suffix_array(banana)    =");
   for (auto const i : sa) {

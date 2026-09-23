@@ -56,13 +56,11 @@ constexpr auto radix_sort_pass(
   constexpr std::size_t buckets{256};
   auto counts{std::array<std::size_t, buckets>{}};
 
-  // Count occurrences of each byte value at this digit.
   for (auto const v : input) {
     auto const b{static_cast<std::uint8_t>(v >> (byte_index * 8))};
     ++counts[b];
   }
 
-  // Convert counts to starting offsets via a prefix sum.
   auto running{std::size_t{0}};
   for (auto& c : counts) {
     auto const old{c};
@@ -70,8 +68,6 @@ constexpr auto radix_sort_pass(
     running += old;
   }
 
-  // Scatter each element into its bucketed position; stable because input is
-  // walked front to back.
   for (auto const v : input) {
     auto const b{static_cast<std::uint8_t>(v >> (byte_index * 8))};
     output[counts[b]] = v;
@@ -108,8 +104,6 @@ constexpr auto radix_sort_into(std::span<T> const range, std::span<T> const scra
     radix_sort_pass(std::span<T const>{a}, b, i);
     std::swap(a, b);
   }
-  // After an even number of passes the sorted data sits in \c range; after an
-  // odd number it sits in \c scratch and is copied back.
   if constexpr (bytes % 2 == 1) {
     for (auto i{std::size_t{0}}; i < range.size(); ++i) {
       range[i] = scratch[i];
@@ -145,10 +139,7 @@ constexpr auto radix_sort(std::span<T> const range, std::span<T> const scratch) 
     return;
   }
   assert(scratch.size() >= range.size() && "radix_sort scratch must be at least range size");
-  // A short scratch makes the subspan in radix_sort_into index out of bounds, and
-  // overlapping spans corrupt the scatter. The non-overlap check compares raw
-  // pointers and is skipped in constant evaluation, where a single array backs
-  // both spans and such a comparison is not a constant expression.
+  // Unrelated-pointer comparison is not a constant expression: check overlap at run time only.
   if (!std::is_constant_evaluated()) {
     assert(
       (range.data() + range.size() <= scratch.data()

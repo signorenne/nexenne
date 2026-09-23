@@ -59,11 +59,7 @@ boyer_moore_find(std::string_view const haystack, std::string_view const needle)
     return std::string_view::npos;
   }
 
-  // Horspool table: skip[c] is the distance from the last needle position back
-  // to the rightmost earlier occurrence of byte c in the needle, or the needle
-  // length when c does not occur before the last position. The final needle byte
-  // is excluded from the table (loop stops at m - 1) so a mismatch there still
-  // shifts by at least 1.
+  // Horspool bad-character table; the last needle byte is excluded so every shift is >= 1.
   auto skip{std::array<std::size_t, 256>{}};
   skip.fill(m);
   for (auto i{std::size_t{0}}; i + 1 < m; ++i) {

@@ -199,14 +199,11 @@ dijkstra(nexenne::container::graph<E, V> const& g, V const source, WeightFn weig
     handles[u] = no_h;
 
     if (d_u > distances[u]) {
-      continue;  // stale entry obsoleted by a later update
+      continue;
     }
     for (auto const& edge : g.edges_of(u)) {
       auto const w{static_cast<Weight>(weight_of(edge))};
-      // Saturating overflow guard: a candidate d_u + w that would reach or pass
-      // the unreachable sentinel (integral overflow, and the sentinel value
-      // itself, which stays reserved for "unreached") cannot improve any real
-      // distance, so skip the edge instead of wrapping to a bogus small cost.
+      // Saturating guard: a sum reaching the sentinel (reserved for "unreached") is skipped.
       if (w > detail::unreachable_weight<Weight>() - d_u) {
         continue;
       }

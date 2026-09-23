@@ -125,6 +125,6 @@ struct codec_alphabet {
  * @post \c codec_alphabet{"abc"} deduces \c codec_alphabet<3>.
  */
 template <std::size_t M>
-codec_alphabet(char const (&)[M]) -> codec_alphabet<M - 1>;
+codec_alphabet(char const (&literal)[M]) -> codec_alphabet<M - 1>;
 
 }  // namespace nexenne::algorithm

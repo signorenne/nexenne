@@ -34,7 +34,6 @@ namespace alg = nexenne::algorithm;
   return {reinterpret_cast<std::uint8_t const*>(s.data()), s.size()};
 }
 
-// A deterministic byte source for building test inputs.
 struct lcg {
   std::uint64_t state{0x243F6A8885A308D3ull};
 
@@ -57,9 +56,6 @@ struct lcg {
   return v;
 }
 
-// Independent references, written from the algorithm definitions rather than
-// the implementation under test, so agreement is real cross-validation.
-
 [[nodiscard]] auto naive_adler32(std::span<std::uint8_t const> const bytes, std::uint32_t seed)
   -> std::uint32_t {
   auto a{(seed & 0xFFFFu) % 65521u};
@@ -71,8 +67,6 @@ struct lcg {
   return (b << 16u) | a;
 }
 
-// Per-unit-modulo modular sum, the textbook formulation, parameterised like the
-// engine: little-endian units, zero-padded final unit, modulo on every step.
 [[nodiscard]] auto naive_modular_sum(
   std::span<std::uint8_t const> const bytes,
   std::size_t const unit,
@@ -105,9 +99,7 @@ struct lcg {
   return out;
 }
 
-// Bit-serial CRC straight from the Rocksoft model: reflect each input byte when
-// RefIn, process MSB-first against the polynomial, reflect the register when
-// RefOut, XOR out. No lookup table, so it shares no code path with crc<Spec>.
+// Bit-serial CRC per the Rocksoft model: no lookup table, so no code path shared with crc<Spec>.
 template <alg::crc_spec Spec>
 [[nodiscard]] auto crc_bitwise(std::span<std::uint8_t const> const data) ->
   typename decltype(Spec)::value_type {
@@ -133,8 +125,6 @@ template <alg::crc_spec Spec>
   return static_cast<value_type>((reg ^ Spec.xor_out) & mask);
 }
 
-// Adler-32: zlib known-answer vectors.
-
 static_assert(alg::adler32(std::span<std::uint8_t const>{}) == 1u);
 
 TEST_CASE("nexenne::algorithm::adler32 known-answer vectors") {
@@ -147,8 +137,7 @@ TEST_CASE("nexenne::algorithm::adler32 known-answer vectors") {
 
 TEST_CASE("nexenne::algorithm::adler32 matches the naive per-byte reference") {
   auto gen{lcg{}};
-  // Lengths from 0 up past two NMAX blocks (5552) to exercise the deferred
-  // modulo across block boundaries, including the exact boundary.
+  // zlib's NMAX is 5552: the lengths straddle one and two deferred-modulo blocks.
   for (auto const len :
        {std::size_t{0},
         std::size_t{1},
@@ -178,16 +167,12 @@ TEST_CASE("nexenne::algorithm::adler32 seed chaining matches a single pass") {
 }
 
 TEST_CASE("nexenne::algorithm::adler32 reduces an over-range seed correctly") {
-  // The high and low 16-bit halves of the seed can exceed the modulus; both
-  // must be reduced before accumulation.
   auto const seed{std::uint32_t{0xFFFFFFFFu}};
   CHECK(alg::adler32(std::span<std::uint8_t const>{}, seed) == naive_adler32({}, seed));
   CHECK(
     alg::adler32(std::string_view{"payload"}, seed) == naive_adler32(bytes_of("payload"), seed)
   );
 }
-
-// Modular-sum family: published Fletcher vectors and the generic engine.
 
 static_assert(std::is_same_v<alg::modular_sum_result_t<8>, std::uint16_t>);
 static_assert(std::is_same_v<alg::modular_sum_result_t<16>, std::uint32_t>);
@@ -207,13 +192,10 @@ TEST_CASE("nexenne::algorithm::fletcher published known-answer vectors") {
 }
 
 TEST_CASE("nexenne::algorithm::adler32 is the prime-modulus member of the family") {
-  // The generic engine with adler32_spec equals the named wrapper.
   CHECK(alg::modular_sum<alg::adler32_spec>(std::string_view{"Wikipedia"}) == 0x11E60398u);
   CHECK(alg::modular_sum<alg::adler32_spec>(bytes_of("abc")) == alg::adler32(bytes_of("abc")));
 }
 
-// Differential: the deferred-modulo engine equals the naive per-unit reference
-// for every family member, across block boundaries and partial final units.
 template <alg::modular_sum_spec Spec>
 void modular_sum_matches_naive() {
   using value_type = alg::modular_sum_result_t<Spec.sum_bits>;
@@ -259,13 +241,10 @@ TEST_CASE("nexenne::algorithm::modular_sum matches the naive per-unit reference"
 }
 
 TEST_CASE("nexenne::algorithm::fletcher32 seed chaining over whole units") {
-  // Continuation is well-defined when the split lands on a unit boundary.
   auto const whole{alg::fletcher32(std::string_view{"abcdefgh"})};
   auto const first{alg::fletcher32(std::string_view{"abcd"})};
   CHECK(alg::modular_sum<alg::fletcher32_spec>(std::string_view{"efgh"}, first) == whole);
 }
-
-// CRC: the spec value_type maps to the smallest sufficient unsigned integer.
 
 static_assert(std::is_same_v<alg::crc_spec<8>::value_type, std::uint8_t>);
 static_assert(std::is_same_v<alg::crc_spec<16>::value_type, std::uint16_t>);
@@ -324,10 +303,7 @@ TEST_CASE("nexenne::algorithm::crc convenience wrappers match their specs") {
   CHECK(alg::crc32(bytes_of("hello")) == alg::crc<alg::crc32_ieee_spec>(bytes_of("hello")));
 }
 
-// Specs whose input and output reflection differ. No named preset has
-// ref_in != ref_out, so these are the only inputs that reach the asymmetric
-// reflect branches in crc<Spec> and crc_ctx::value(). They have no catalogue
-// check value, so they are validated against the independent references.
+// Synthetic ref_in != ref_out specs: no catalogue preset reaches the asymmetric branches.
 constexpr auto crc16_refin_only{alg::crc_spec<16>{
   .poly = 0x1021, .init = 0xABCD, .ref_in = true, .ref_out = false, .xor_out = 0x1234
 }};
@@ -335,8 +311,6 @@ constexpr auto crc16_refout_only{alg::crc_spec<16>{
   .poly = 0x8005, .init = 0x0001, .ref_in = false, .ref_out = true, .xor_out = 0xFFFF
 }};
 
-// Differential against the bit-serial reference, covering reflected and
-// non-reflected specs at every width, over random inputs of many lengths.
 template <alg::crc_spec Spec>
 void crc_matches_bitwise() {
   auto gen{lcg{}};
@@ -397,7 +371,6 @@ void ctx_matches_oneshot_every_split() {
     ctx.update(std::string_view{text}.substr(0, split));
     ctx.update(std::string_view{text}.substr(split));
     CHECK(ctx.value() == whole);
-    // value() does not mutate: a second read agrees.
     CHECK(ctx.value() == whole);
   }
 }
@@ -452,14 +425,9 @@ TEST_CASE("nexenne::algorithm::crc_ctx with random chunk boundaries matches one-
 }
 
 TEST_CASE("nexenne::algorithm::crc string_view overload is genuinely constexpr") {
-  // Regression for review [M2]: crc(string_view) reinterpret_cast'd the buffer
-  // and so was constexpr in name only; the checksum.org compile-time example did
-  // not compile. It now folds characters directly and is usable in a constant
-  // expression.
   constexpr auto fp{alg::crc<alg::crc16_modbus_spec>("ID")};
   static_assert(fp == alg::crc<alg::crc16_modbus_spec>(std::string_view{"ID"}));
   CHECK(fp == alg::crc<alg::crc16_modbus_spec>(bytes_of("ID")));
-  // Compile-time streaming through crc_ctx::update(string_view) also works now.
   constexpr auto streamed{[] {
     auto ctx{alg::crc_ctx<alg::crc16_modbus_spec>{}};
     ctx.update(std::string_view{"I"});
@@ -471,9 +439,7 @@ TEST_CASE("nexenne::algorithm::crc string_view overload is genuinely constexpr")
 }
 
 TEST_CASE("nexenne::algorithm::crc8_smbus_spec is the honest name for the CRC-8 alias") {
-  // [m6] crc8_ccitt_spec is a legacy misnomer for this parameterisation (the true
-  // CCITT CRC-8 is CRC-8/I-432-1 with xor_out 0x55); crc8_smbus_spec is the
-  // honest name and the alias equals it.
+  // The true CCITT CRC-8 is CRC-8/I-432-1 (xor_out 0x55); crc8_ccitt_spec is a legacy alias.
   constexpr auto s{std::string_view{"123456789"}};
   CHECK(alg::crc<alg::crc8_smbus_spec>(s) == 0xF4u);
   CHECK(alg::crc<alg::crc8_smbus_spec>(s) == alg::crc<alg::crc8_ccitt_spec>(s));

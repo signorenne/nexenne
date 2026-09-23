@@ -144,7 +144,6 @@ template <crc_spec Spec>
   auto table{std::array<value_type, 256>{}};
 
   if constexpr (Spec.ref_in) {
-    // Reflected (LSB-first) table: shift right with the reflected polynomial.
     auto const rev_poly{reflect_bits<value_type>(Spec.poly, width)};
     for (auto i{std::size_t{0}}; i < 256; ++i) {
       auto reg{static_cast<value_type>(i)};
@@ -155,13 +154,7 @@ template <crc_spec Spec>
       table[i] = static_cast<value_type>(reg & mask);
     }
   } else {
-    // The non-reflected (MSB-first) path shifts bytes to the top of the register
-    // and so needs width >= 8; sub-byte CRCs are only meaningful reflected (the
-    // ref_in branch above is width-safe). Reject the unsupported combination with
-    // a clear message instead of underflowing width - 8.
     static_assert(width >= 8, "non-reflected CRC requires a width of at least 8 bits");
-    // Non-reflected (MSB-first) table: shift left with the polynomial, each
-    // byte placed at the top of the register.
     constexpr auto top_bit{static_cast<value_type>(value_type{1} << (width - 1))};
     constexpr auto shift_up{width - 8};
     for (auto i{std::size_t{0}}; i < 256; ++i) {

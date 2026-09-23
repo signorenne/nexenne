@@ -23,7 +23,6 @@ namespace alg = nexenne::algorithm;
 auto main() -> int {
   constexpr std::string_view text{"the quick brown fox"};
 
-  // FNV-1a is constexpr: a compile-time string identifier.
   constexpr auto id{alg::fnv1a<64>(std::string_view{"state.idle"})};
   std::printf(
     "fnv1a<64>(\"state.idle\") = 0x%016llx  (compile time)\n", static_cast<unsigned long long>(id)
@@ -43,7 +42,6 @@ auto main() -> int {
     "xxhash<64>    = 0x%016llx\n", static_cast<unsigned long long>(alg::xxhash<64>(text))
   );
 
-  // The streaming context hashes chunked input and matches the one-shot result.
   alg::xxhash_ctx<64> ctx;
   ctx.update(std::string_view{"the quick "});
   ctx.update(std::string_view{"brown fox"});

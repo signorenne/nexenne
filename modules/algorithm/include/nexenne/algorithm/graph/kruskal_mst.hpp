@@ -68,7 +68,6 @@ template <typename E, std::unsigned_integral V>
   -> std::vector<mst_edge<E, V>> {
   auto const n{g.vertex_count()};
 
-  // Flatten directed edges to (u, v, weight) triples.
   auto edges{std::vector<mst_edge<E, V>>{}};
   edges.reserve(g.edge_count());
   for (auto const u : g.vertices()) {
@@ -77,7 +76,6 @@ template <typename E, std::unsigned_integral V>
     }
   }
 
-  // Sort by weight (ascending). Standard MST primitive.
   std::ranges::sort(edges, [](auto const& a, auto const& b) { return a.weight < b.weight; });
 
   // make_set cannot fail: the graph holds at most max(V) vertices, union_find's own bound.
@@ -92,10 +90,9 @@ template <typename E, std::unsigned_integral V>
   for (auto const& e : edges) {
     auto const united{uf.unite(e.from, e.to)};
     if (united.has_value() && *united) {
-      // Different components before this edge, add it to the MST.
       result.push_back(e);
       if (result.size() == n - 1) {
-        break;  // tree complete
+        break;
       }
     }
   }

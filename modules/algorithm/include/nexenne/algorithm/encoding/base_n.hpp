@@ -249,14 +249,10 @@ base_n_decode(std::string_view const in, std::span<std::uint8_t> const out) noex
       acc &= (std::uint32_t{1} << nbits) - 1;
     }
   }
-  // A whole symbol left over means the final group was truncated.
   if (nbits >= bits) {
     return std::unexpected{codec_error::incomplete_input};
   }
-  // Leftover bits below one symbol must be zero: a canonical encoding zero-fills
-  // the final sub-symbol remainder (RFC 4648 section 3.5). Non-zero trailing
-  // bits are a non-canonical, malleable encoding, rejected here so distinct
-  // strings never decode to the same bytes.
+  // RFC 4648 section 3.5: a canonical encoding zero-fills the sub-symbol remainder.
   if (nbits > 0 && (acc & ((std::uint32_t{1} << nbits) - 1u)) != 0u) {
     return std::unexpected{codec_error::invalid_input};
   }
@@ -305,8 +301,6 @@ static_assert(base32_hex_spec.alphabet.is_distinct());
 static_assert(base64_std_spec.alphabet.is_distinct());
 static_assert(base64_url_spec.alphabet.is_distinct());
 static_assert(base64_url_decode_spec.alphabet.is_distinct());
-
-// hex (base16)
 
 /**
  * @brief Exact output size for hex-encoding \p n_bytes raw bytes.
@@ -418,8 +412,6 @@ hex_decode(std::string_view const in, std::span<std::uint8_t> const out) noexcep
   out.resize(*r);
   return out;
 }
-
-// base32
 
 /**
  * @brief Exact output size for padded Base32 encoding of \p n_bytes bytes.
@@ -628,8 +620,6 @@ base32hex_decode(std::string_view const in, std::span<std::uint8_t> const out) n
   out.resize(*r);
   return out;
 }
-
-// base64
 
 /**
  * @brief Exact output size for standard Base64 encoding of \p n_bytes bytes.

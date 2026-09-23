@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-#include <nexenne/algorithm/graph/dijkstra.hpp>  // re-uses detail helpers
+#include <nexenne/algorithm/graph/dijkstra.hpp>
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/graph.hpp>
 
@@ -71,8 +71,6 @@ bellman_ford(nexenne::container::graph<E, V> const& g, V const source, WeightFn 
   auto distances{std::vector<Weight>(n, detail::unreachable_weight<Weight>())};
   distances[source] = Weight{0};
 
-  // V-1 relaxation passes. Early-exit when a pass changes nothing because no
-  // further relaxation can produce a shorter path.
   for (std::size_t i{0}; i + 1 < n; i += 1) {
     auto changed{false};
     for (auto const u : g.vertices()) {
@@ -81,10 +79,7 @@ bellman_ford(nexenne::container::graph<E, V> const& g, V const source, WeightFn 
       }
       for (auto const& edge : g.edges_of(u)) {
         auto const w{static_cast<Weight>(weight_of(edge))};
-        // Saturating overflow guard. Written as w > 0 && d_u > sentinel - w
-        // rather than w > sentinel - d_u so it stays overflow-safe for signed
-        // Weight with a negative d_u: only a positive w can push the sum up to
-        // the unreachable sentinel, and sentinel - w is then representable.
+        // Saturating guard on sentinel - w, since sentinel - d_u overflows for a negative d_u.
         if (w > Weight{0} && distances[u] > detail::unreachable_weight<Weight>() - w) {
           continue;
         }
@@ -101,8 +96,6 @@ bellman_ford(nexenne::container::graph<E, V> const& g, V const source, WeightFn 
     }
   }
 
-  // V-th pass: any further relaxation means a negative cycle is reachable from
-  // source.
   for (auto const u : g.vertices()) {
     if (distances[u] == detail::unreachable_weight<Weight>()) {
       continue;
@@ -110,7 +103,7 @@ bellman_ford(nexenne::container::graph<E, V> const& g, V const source, WeightFn 
     for (auto const& edge : g.edges_of(u)) {
       auto const w{static_cast<Weight>(weight_of(edge))};
       if (w > Weight{0} && distances[u] > detail::unreachable_weight<Weight>() - w) {
-        continue;  // sum would reach the sentinel, never a relaxation
+        continue;
       }
       auto const candidate{static_cast<Weight>(distances[u] + w)};
       auto const target{static_cast<std::size_t>(edge.target)};

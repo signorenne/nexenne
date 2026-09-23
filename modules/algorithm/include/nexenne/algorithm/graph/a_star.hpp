@@ -22,7 +22,7 @@
 #include <utility>
 #include <vector>
 
-#include <nexenne/algorithm/graph/dijkstra.hpp>  // re-uses detail helpers
+#include <nexenne/algorithm/graph/dijkstra.hpp>
 #include <nexenne/container/error.hpp>
 #include <nexenne/container/graph.hpp>
 #include <nexenne/container/indexed_priority_queue.hpp>
@@ -173,9 +173,6 @@ template <
   auto constexpr no_h{pq_type::invalid_handle};
   auto handles{std::vector<typename pq_type::handle_type>(n, no_h)};
 
-  // The heuristic is a pure function of the vertex, so evaluate it at most once
-  // per vertex and reuse the value; an expensive heuristic is then not recomputed
-  // on every relaxation (O(V) evaluations instead of O(E)).
   auto h_value{std::vector<Weight>(n)};
   auto h_seen{std::vector<std::uint8_t>(n, 0)};
   auto const h_of{[&](V const v) -> Weight {
@@ -205,14 +202,11 @@ template <
     auto const f_u{popped->f_score};
     handles[u] = no_h;
 
-    // Stale entry guard: if we popped a value that's worse than what we now
-    // know, ignore.
     if (f_u > f_of(g_score[u], h_of(u))) {
       continue;
     }
 
     if (u == goal) {
-      // Reconstruct path goal to source via came_from chain.
       auto path{std::vector<V>{}};
       path.reserve(16);
       auto v{goal};
@@ -234,9 +228,7 @@ template <
       auto const target{edge.target};
       auto const target_i{static_cast<std::size_t>(target)};
       auto const w{static_cast<Weight>(weight_of(edge))};
-      // Saturating overflow guard, as in dijkstra: a cost reaching the
-      // unreachable sentinel cannot improve any real path, so skip the edge
-      // rather than wrap.
+      // Saturating guard: a cost reaching the sentinel is unreachable, never wrapped.
       if (w > detail::unreachable_weight<Weight>() - g_score[u]) {
         continue;
       }

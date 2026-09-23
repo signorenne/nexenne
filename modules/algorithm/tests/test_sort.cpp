@@ -57,15 +57,13 @@ template <std::unsigned_integral T>
 
 constexpr auto lengths{std::array<std::size_t, 11>{0, 1, 2, 3, 5, 16, 64, 255, 256, 257, 1000}};
 
-// counting_sort
-
 TEST_CASE("nexenne::algorithm::counting_sort known small case and edges") {
   auto v{std::vector<std::uint8_t>{3, 1, 2, 1, 0}};
   alg::counting_sort(std::span<std::uint8_t>{v}, std::uint8_t{3});
   CHECK(v == std::vector<std::uint8_t>{0, 1, 1, 2, 3});
 
   auto empty{std::vector<std::uint32_t>{}};
-  alg::counting_sort(std::span<std::uint32_t>{empty}, 10u);  // no-op, no crash
+  alg::counting_sort(std::span<std::uint32_t>{empty}, 10u);
   CHECK(empty.empty());
 
   auto one{std::vector<std::uint32_t>{42}};
@@ -111,11 +109,11 @@ TEST_CASE("nexenne::algorithm::counting_sort handles degenerate distributions") 
     alg::counting_sort(std::span<std::uint16_t>{data}, max_value);
     CHECK(data == ref);
   }};
-  run(std::vector<std::uint16_t>(50, std::uint16_t{7}), 7);  // all equal
-  run(std::vector<std::uint16_t>(50, std::uint16_t{0}), 0);  // all zero, K=1
-  run({0, 1, 2, 3, 4, 5, 6, 7}, 7);                          // already sorted
-  run({7, 6, 5, 4, 3, 2, 1, 0}, 7);                          // reverse sorted
-  run({100, 0, 100, 0, 100}, 100);                           // two-value
+  run(std::vector<std::uint16_t>(50, std::uint16_t{7}), 7);
+  run(std::vector<std::uint16_t>(50, std::uint16_t{0}), 0);
+  run({0, 1, 2, 3, 4, 5, 6, 7}, 7);
+  run({7, 6, 5, 4, 3, 2, 1, 0}, 7);
+  run({100, 0, 100, 0, 100}, 100);
 }
 
 TEST_CASE("nexenne::algorithm::counting_sort iterator overload matches span overload") {
@@ -126,8 +124,6 @@ TEST_CASE("nexenne::algorithm::counting_sort iterator overload matches span over
   alg::counting_sort(data.begin(), data.end(), std::uint16_t{200});
   CHECK(data == by_span);
 }
-
-// radix_sort
 
 TEST_CASE("nexenne::algorithm::radix_sort known small case and edges") {
   auto v{std::vector<std::uint32_t>{5, 3, 8, 1, 9, 2}};
@@ -155,7 +151,6 @@ void radix_matches_std(lcg& gen) {
     alg::radix_sort(std::span<T>{alloc});
     CHECK(alloc == ref);
 
-    // Caller-supplied scratch produces the same result with no allocation.
     auto scratched{data};
     auto scratch{std::vector<T>(len)};
     alg::radix_sort(std::span<T>{scratched}, std::span<T>{scratch});
@@ -164,11 +159,8 @@ void radix_matches_std(lcg& gen) {
 }
 
 TEST_CASE("nexenne::algorithm::radix_sort accepts scratch larger than the range") {
-  // The scratch overload subspans scratch down to the range size, so an
-  // oversized scratch buffer is valid (a caller may reuse one big buffer for
-  // many sorts); the trimming is load-bearing and was previously untested.
   auto data{std::array<std::uint16_t, 5>{40, 10, 30, 20, 50}};
-  auto scratch{std::vector<std::uint16_t>(16, 0)};  // deliberately larger than 5
+  auto scratch{std::vector<std::uint16_t>(16, 0)};
   alg::radix_sort(std::span<std::uint16_t>{data}, std::span<std::uint16_t>{scratch});
   CHECK(data == std::array<std::uint16_t, 5>{10, 20, 30, 40, 50});
 }
@@ -196,12 +188,12 @@ TEST_CASE("nexenne::algorithm::radix_sort handles degenerate distributions") {
     alg::radix_sort(std::span<std::uint32_t>{data});
     CHECK(data == ref);
   }};
-  run(std::vector<std::uint32_t>(100, 0xDEADBEEFu));              // all equal
-  run(std::vector<std::uint32_t>(100, 0u));                       // all zero
-  run(std::vector<std::uint32_t>(100, 0xFFFFFFFFu));              // all max
-  run({0u, 1u, 2u, 3u, 4u});                                      // sorted
-  run({4u, 3u, 2u, 1u, 0u});                                      // reversed
-  run({0xFFFFFFFFu, 0u, 0x00FF00FFu, 0xFF00FF00u, 0x80000000u});  // spread across all bytes
+  run(std::vector<std::uint32_t>(100, 0xDEADBEEFu));
+  run(std::vector<std::uint32_t>(100, 0u));
+  run(std::vector<std::uint32_t>(100, 0xFFFFFFFFu));
+  run({0u, 1u, 2u, 3u, 4u});
+  run({4u, 3u, 2u, 1u, 0u});
+  run({0xFFFFFFFFu, 0u, 0x00FF00FFu, 0xFF00FF00u, 0x80000000u});
 }
 
 TEST_CASE("nexenne::algorithm::radix_sort iterator overload matches span overload") {
@@ -221,7 +213,6 @@ TEST_CASE("nexenne::algorithm sorts are constexpr-evaluable") {
   }()};
   static_assert(counted == std::array<std::uint16_t, 5>{0, 1, 1, 3, 4});
 
-  // Allocating radix at compile time (transient allocation).
   static constexpr auto radixed{[] {
     auto a{std::array<std::uint32_t, 5>{50, 40, 30, 20, 10}};
     alg::radix_sort(std::span<std::uint32_t>{a});
@@ -229,7 +220,6 @@ TEST_CASE("nexenne::algorithm sorts are constexpr-evaluable") {
   }()};
   static_assert(radixed == std::array<std::uint32_t, 5>{10, 20, 30, 40, 50});
 
-  // Heap-free scratch radix at compile time.
   static constexpr auto scratched{[] {
     auto a{std::array<std::uint8_t, 4>{200, 1, 200, 0}};
     auto s{std::array<std::uint8_t, 4>{}};
@@ -250,10 +240,7 @@ TEST_CASE("nexenne::algorithm integer sorts match std::sort on a large random bu
   alg::radix_sort(std::span<std::uint32_t>{radixed});
   CHECK(radixed == ref);
 
-  // counting_sort allocates one bucket per value in [0, hi], so it suits only
-  // small key ranges; bound the keys here, since full uint32 keys would need
-  // billions of buckets and exhaust memory. radix_sort above covers the full
-  // range.
+  // counting_sort allocates hi + 1 buckets: full uint32 keys would exhaust memory.
   auto counted{data0};
   for (auto& v : counted) {
     v %= 10'000u;
@@ -266,8 +253,6 @@ TEST_CASE("nexenne::algorithm integer sorts match std::sort on a large random bu
 }
 
 TEST_CASE("nexenne::algorithm::counting_sort falls back instead of overflowing the bucket count") {
-  // max_value at size_t's maximum makes the bucket count (max + 1) wrap to zero;
-  // the sort must fall back to a comparison sort, not write into an empty vector.
   auto data{std::vector<std::uint64_t>{5, 1, 9, 1, 0, 7, 3}};
   auto ref{data};
   std::ranges::sort(ref);

@@ -117,10 +117,7 @@ public:
    * @post The accumulator is unchanged; the result is non-negative.
    */
   [[nodiscard]] constexpr auto variance() const noexcept -> T {
-    // Clamp at zero: in exact arithmetic m_m2 is non-negative, but when a sample
-    // sits within rounding distance of the mean the two Welford deltas can round
-    // to opposite signs and leave m_m2 slightly negative, which would make
-    // stddev return NaN against the documented non-negative @post.
+    // Clamp: Welford deltas can round to opposite signs and leave m_m2 slightly negative.
     return m_count < 2 ? T{0} : std::max(m_m2, T{0}) / static_cast<T>(m_count);
   }
 
@@ -133,7 +130,6 @@ public:
    * @post The accumulator is unchanged; the result is non-negative.
    */
   [[nodiscard]] constexpr auto sample_variance() const noexcept -> T {
-    // Clamp at zero for the same rounding reason as \c variance().
     return m_count < 2 ? T{0} : std::max(m_m2, T{0}) / static_cast<T>(m_count - 1);
   }
 
@@ -408,10 +404,7 @@ public:
     if (m_total == 0) {
       return T{0};
     }
-    // Rank target: the 1-based index of the first sample whose cumulative count
-    // reaches fraction p. Using ceil (not floor) and a floor of 1 keeps the walk
-    // from stopping in an empty low bucket when p is tiny (floor would make the
-    // target 0, which every bucket trivially satisfies).
+    // Nearest rank ceil(N * p), at least 1: a floor rank of 0 stops in an empty low bucket.
     auto const target{std::max<std::uint64_t>(
       1, static_cast<std::uint64_t>(std::ceil(static_cast<double>(m_total) * p))
     )};
@@ -510,9 +503,7 @@ public:
     m_mean = m_alpha * x + (T{1} - m_alpha) * m_mean;
     auto const dx{x - m_mean};
     auto const dm{m_mean - old_mean};
-    // Finch's weighted-Welford variance update: the dm*dm term folds the shift of
-    // the running mean back into the accumulated variance so the estimate stays
-    // exact under exponential weighting (see the class @see reference).
+    // Finch's weighted Welford update: dm*dm folds the mean shift back into the variance.
     m_var = m_alpha * dx * dx + (T{1} - m_alpha) * (m_var + dm * dm);
   }
 

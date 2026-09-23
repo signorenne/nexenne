@@ -63,8 +63,7 @@ namespace nexenne::algorithm {
     rank[u] = static_cast<std::int32_t>(static_cast<unsigned char>(text[u]));
   }
 
-  // k is 64-bit so the k *= 2 doubling cannot overflow when n approaches the
-  // int32 limit (k would otherwise reach 2^31 as a signed int32).
+  // 64-bit k: doubling an int32 k overflows as n nears the int32 limit.
   for (auto k{std::int64_t{1}}; k < n; k *= 2) {
     auto const cmp{[&](std::int32_t const a, std::int32_t const b) {
       auto const ua{static_cast<std::size_t>(a)};

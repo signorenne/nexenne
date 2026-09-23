@@ -41,8 +41,6 @@ namespace nexenne::algorithm {
  * @complexity \c O(|a| * |b|) time and \c O(min(|a|, |b|)) auxiliary space.
  */
 [[nodiscard]] constexpr auto levenshtein(std::string_view a, std::string_view b) -> std::size_t {
-  // Force the shorter string onto the row axis so the rows stay at
-  // O(min(|a|, |b|)).
   if (b.size() < a.size()) {
     std::swap(a, b);
   }

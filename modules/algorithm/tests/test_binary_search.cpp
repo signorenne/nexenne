@@ -30,8 +30,6 @@ using alg::exponential_search;
 using alg::find_sorted;
 using alg::interpolation_search;
 
-// compile-time guarantees
-
 static_assert(find_sorted(std::array{1, 3, 5, 7}, 5) == std::size_t{2});
 static_assert(find_sorted(std::array{1, 3, 5, 7}, 4) == std::nullopt);
 static_assert(exponential_search(std::array{1, 3, 5, 7}, 1) == std::size_t{0});
@@ -39,8 +37,6 @@ static_assert(exponential_search(std::array{1, 3, 5, 7}, 8) == std::nullopt);
 static_assert(interpolation_search(std::array{0, 10, 20, 30, 40}, 30) == std::size_t{3});
 static_assert(interpolation_search(std::array{0, 10, 20, 30, 40}, 25) == std::nullopt);
 
-// A reference: index of the first element equal to value, by linear scan.
-// Range-based so it works for any range type (array, vector, deque, span, ...).
 template <typename R, typename T>
 [[nodiscard]] constexpr auto linear_first(R const& r, T const& value)
   -> std::optional<std::size_t> {
@@ -54,10 +50,6 @@ template <typename R, typename T>
   return std::nullopt;
 }
 
-// Cross-check all applicable searches for one (range, query) against the
-// reference: find_sorted / exponential_search must resolve to the FIRST equal
-// element; interpolation_search (arithmetic only) must report presence
-// correctly and, on a hit, land on an element that equals the query.
 template <typename R, typename T>
 void check_all(R const& v, T const& query) {
   auto const expected{linear_first(v, query)};
@@ -84,17 +76,17 @@ TEST_CASE("nexenne::algorithm::find_sorted on empty and single-element ranges") 
 
 TEST_CASE("nexenne::algorithm::find_sorted hits front, middle, back and misses around them") {
   auto const v{std::array{2, 4, 6, 8, 10}};
-  CHECK(find_sorted(v, 2) == std::size_t{0});   // front
-  CHECK(find_sorted(v, 6) == std::size_t{2});   // middle
-  CHECK(find_sorted(v, 10) == std::size_t{4});  // back
-  CHECK(find_sorted(v, 1) == std::nullopt);     // below all
-  CHECK(find_sorted(v, 5) == std::nullopt);     // between
-  CHECK(find_sorted(v, 11) == std::nullopt);    // above all
+  CHECK(find_sorted(v, 2) == std::size_t{0});
+  CHECK(find_sorted(v, 6) == std::size_t{2});
+  CHECK(find_sorted(v, 10) == std::size_t{4});
+  CHECK(find_sorted(v, 1) == std::nullopt);
+  CHECK(find_sorted(v, 5) == std::nullopt);
+  CHECK(find_sorted(v, 11) == std::nullopt);
 }
 
 TEST_CASE("nexenne::algorithm::find_sorted returns the FIRST of equal elements") {
   auto const v{std::array{1, 2, 2, 2, 3}};
-  CHECK(find_sorted(v, 2) == std::size_t{1});  // first 2, not 2 or 3
+  CHECK(find_sorted(v, 2) == std::size_t{1});
   CHECK(find_sorted(v, 1) == std::size_t{0});
   CHECK(find_sorted(v, 3) == std::size_t{4});
 }
@@ -103,7 +95,6 @@ TEST_CASE("nexenne::algorithm::find_sorted on a non-arithmetic ordered type") {
   auto const v{std::array<std::string, 4>{"alpha", "bravo", "charlie", "delta"}};
   CHECK(find_sorted(v, std::string{"charlie"}) == std::size_t{2});
   CHECK(find_sorted(v, std::string{"echo"}) == std::nullopt);
-  // Heterogeneous key (string_view against a string range).
   CHECK(find_sorted(v, std::string_view{"alpha"}) == std::size_t{0});
 }
 
@@ -119,12 +110,12 @@ TEST_CASE("nexenne::algorithm::exponential_search is strong near the front of a 
   auto big{std::vector<int>{}};
   big.reserve(100000);
   for (auto i{0}; i < 100000; ++i) {
-    big.push_back(i * 2);  // 0, 2, 4, ...
+    big.push_back(i * 2);
   }
   CHECK(exponential_search(big, 0) == std::size_t{0});
   CHECK(exponential_search(big, 6) == std::size_t{3});
-  CHECK(exponential_search(big, 199998) == std::size_t{99999});  // last
-  CHECK(exponential_search(big, 7) == std::nullopt);             // odd: absent
+  CHECK(exponential_search(big, 199998) == std::size_t{99999});
+  CHECK(exponential_search(big, 7) == std::nullopt);
   CHECK(exponential_search(big, -2) == std::nullopt);
   CHECK(exponential_search(big, 200000) == std::nullopt);
 }
@@ -143,18 +134,18 @@ TEST_CASE("nexenne::algorithm::interpolation_search on uniformly distributed dat
     CAPTURE(i);
     CHECK(interpolation_search(v, v[i]) == i);
   }
-  CHECK(interpolation_search(v, 5) == std::nullopt);   // between
-  CHECK(interpolation_search(v, -1) == std::nullopt);  // below
-  CHECK(interpolation_search(v, 91) == std::nullopt);  // above
+  CHECK(interpolation_search(v, 5) == std::nullopt);
+  CHECK(interpolation_search(v, -1) == std::nullopt);
+  CHECK(interpolation_search(v, 91) == std::nullopt);
 }
 
 TEST_CASE("nexenne::algorithm::interpolation_search edge cases") {
-  CHECK(interpolation_search(std::vector<int>{}, 1) == std::nullopt);      // empty
-  CHECK(interpolation_search(std::array{5}, 5) == std::size_t{0});         // single hit
-  CHECK(interpolation_search(std::array{5}, 6) == std::nullopt);           // single miss
-  CHECK(interpolation_search(std::array{2, 2, 2, 2}, 2) != std::nullopt);  // flat span: no div-by-0
+  CHECK(interpolation_search(std::vector<int>{}, 1) == std::nullopt);
+  CHECK(interpolation_search(std::array{5}, 5) == std::size_t{0});
+  CHECK(interpolation_search(std::array{5}, 6) == std::nullopt);
+  CHECK(interpolation_search(std::array{2, 2, 2, 2}, 2) != std::nullopt);
   CHECK(interpolation_search(std::array{2, 2, 2, 2}, 3) == std::nullopt);
-  CHECK(interpolation_search(std::array{-50, -20, 0, 25, 80}, -20) == std::size_t{1});  // negatives
+  CHECK(interpolation_search(std::array{-50, -20, 0, 25, 80}, -20) == std::size_t{1});
 }
 
 TEST_CASE("nexenne::algorithm::interpolation_search on floating point") {
@@ -165,11 +156,10 @@ TEST_CASE("nexenne::algorithm::interpolation_search on floating point") {
 }
 
 TEST_CASE("nexenne::algorithm: all three searches agree with a linear reference (differential)") {
-  // Deterministic pseudo-random sorted arrays with duplicates, every query.
   auto rng{std::uint32_t{0x1234567u}};
   auto next{[&rng] {
     rng = rng * 1103515245u + 12345u;
-    return static_cast<int>((rng >> 16) % 40);  // 0..39, dups likely
+    return static_cast<int>((rng >> 16) % 40);
   }};
   for (auto trial{0}; trial < 200; ++trial) {
     auto v{std::vector<int>{}};
@@ -180,11 +170,8 @@ TEST_CASE("nexenne::algorithm: all three searches agree with a linear reference 
     std::ranges::sort(v);
     for (auto query{-2}; query <= 41; ++query) {
       auto const expected{linear_first(v, query)};
-      // find_sorted / exponential_search resolve to the FIRST equal element.
       CHECK(find_sorted(v, query) == expected);
       CHECK(exponential_search(v, query) == expected);
-      // interpolation_search returns SOME matching index (not necessarily the
-      // first of duplicates), present iff the value is present.
       auto const ip{interpolation_search(v, query)};
       CHECK(ip.has_value() == expected.has_value());
       if (ip.has_value()) {
@@ -196,9 +183,9 @@ TEST_CASE("nexenne::algorithm: all three searches agree with a linear reference 
 
 TEST_CASE("nexenne::algorithm: all-equal ranges") {
   auto const v{std::array{7, 7, 7, 7, 7}};
-  CHECK(find_sorted(v, 7) == std::size_t{0});  // first of the run
+  CHECK(find_sorted(v, 7) == std::size_t{0});
   CHECK(exponential_search(v, 7) == std::size_t{0});
-  CHECK(interpolation_search(v, 7).has_value());  // some valid index, no div-by-zero
+  CHECK(interpolation_search(v, 7).has_value());
   CHECK(*interpolation_search(v, 7) < v.size());
   CHECK(find_sorted(v, 6) == std::nullopt);
   CHECK(exponential_search(v, 8) == std::nullopt);
@@ -226,13 +213,10 @@ TEST_CASE("nexenne::algorithm: unsigned element type") {
   CHECK(find_sorted(v, 10u) == std::nullopt);
   CHECK(exponential_search(v, 1u) == std::size_t{0});
   CHECK(interpolation_search(v, 25u) == std::size_t{4});
-  CHECK(interpolation_search(v, 0u) == std::nullopt);  // below all, no unsigned wrap
+  CHECK(interpolation_search(v, 0u) == std::nullopt);
 }
 
 TEST_CASE("nexenne::algorithm::interpolation_search survives an extreme-magnitude span") {
-  // A span from a large negative to a large positive value: subtracting in the
-  // element type would overflow (signed UB); the search must still work and,
-  // under UBSan, perform no overflowing subtraction.
   constexpr auto lo{std::numeric_limits<int>::min()};
   constexpr auto hi{std::numeric_limits<int>::max()};
   auto const v{std::array{lo, -1, 0, 1, hi}};
@@ -240,14 +224,11 @@ TEST_CASE("nexenne::algorithm::interpolation_search survives an extreme-magnitud
   CHECK(interpolation_search(v, lo) == std::size_t{0});
   CHECK(interpolation_search(v, 0) == std::size_t{2});
   CHECK(interpolation_search(v, 12345) == std::nullopt);
-  // find_sorted / exponential over the same extreme range.
   CHECK(find_sorted(v, hi) == std::size_t{4});
   CHECK(exponential_search(v, lo) == std::size_t{0});
 }
 
 TEST_CASE("nexenne::algorithm::interpolation_search on clustered (non-uniform) data") {
-  // Interpolation's guess is poor here, but it must still find every present
-  // value (degrading to more probes, never to a wrong answer).
   auto const v{std::array{1, 2, 3, 4, 1000, 1001, 1002, 1003}};
   for (auto const x : v) {
     CAPTURE(x);
@@ -255,15 +236,11 @@ TEST_CASE("nexenne::algorithm::interpolation_search on clustered (non-uniform) d
     REQUIRE(r.has_value());
     CHECK(v[*r] == x);
   }
-  CHECK(interpolation_search(v, 500) == std::nullopt);   // in the gap
-  CHECK(interpolation_search(v, 1004) == std::nullopt);  // above all
+  CHECK(interpolation_search(v, 500) == std::nullopt);
+  CHECK(interpolation_search(v, 1004) == std::nullopt);
 }
 
 TEST_CASE("nexenne::algorithm: exhaustive size x query sweep (every boundary)") {
-  // Every length 0..40 of evens {0,2,4,...}; every query from below to above,
-  // hitting present (even), absent (odd), below-all, and above-all. This
-  // covers all structural edges: galloping bracket boundaries, lower_bound
-  // ends, and interpolation index arithmetic, for all three searches at once.
   for (auto len{std::size_t{0}}; len <= 40; ++len) {
     auto v{std::vector<int>{}};
     v.reserve(len);
@@ -277,8 +254,6 @@ TEST_CASE("nexenne::algorithm: exhaustive size x query sweep (every boundary)") 
 }
 
 TEST_CASE("nexenne::algorithm: exhaustive duplicates sweep") {
-  // Runs of length 1..4 over value sets of size 1..12: find_sorted /
-  // exponential_search must return the FIRST of each run, interpolation any.
   for (auto run{1}; run <= 4; ++run) {
     for (auto distinct{std::size_t{1}}; distinct <= 12; ++distinct) {
       auto v{std::vector<int>{}};
@@ -294,7 +269,6 @@ TEST_CASE("nexenne::algorithm: exhaustive duplicates sweep") {
   }
 }
 
-// Element-type genericity: the same evens-and-gaps sweep for one element type.
 template <typename T>
 void sweep_element_type() {
   for (auto const len : {0, 1, 2, 3, 4, 7, 8, 9, 15, 16, 17, 31, 32, 33}) {
@@ -336,9 +310,6 @@ TEST_CASE("nexenne::algorithm: range-type matrix (array, vector, deque, span)") 
 }
 
 TEST_CASE("nexenne::algorithm: wide-magnitude differential (stresses interpolation arithmetic)") {
-  // 64-bit values spanning roughly [-1e9, 1e9]; element-type subtraction of the
-  // far-apart extremes would overflow, so this exercises the double-arithmetic
-  // path under the sanitizers across many random shapes.
   auto rng{std::uint64_t{0xD1CED00Du}};
   auto next{[&rng] {
     rng = rng * 6364136223846793005ull + 1442695040888963407ull;
@@ -354,9 +325,9 @@ TEST_CASE("nexenne::algorithm: wide-magnitude differential (stresses interpolati
     }
     std::ranges::sort(v);
     for (auto s{0}; s < 25; ++s) {
-      check_all(v, draw());  // mostly-absent random queries
+      check_all(v, draw());
       if (!v.empty()) {
-        check_all(v, v[next() % v.size()]);  // a guaranteed-present value
+        check_all(v, v[next() % v.size()]);
       }
     }
     if (!v.empty()) {
@@ -366,9 +337,8 @@ TEST_CASE("nexenne::algorithm: wide-magnitude differential (stresses interpolati
   }
 }
 
-namespace m4 {
+namespace probe {
 
-// A totally-ordered key whose comparison never throws.
 struct nothrow_ord {
   int v;
 
@@ -381,7 +351,6 @@ struct nothrow_ord {
   }
 };
 
-// A totally-ordered key whose comparison may throw.
 struct maythrow_ord {
   int v;
 
@@ -394,30 +363,25 @@ struct maythrow_ord {
   }
 };
 
-}  // namespace m4
+}  // namespace probe
 
-TEST_CASE("nexenne::algorithm searches are conditionally noexcept over the comparison (M4)") {
-  // Regression for M4: find_sorted and exponential_search were unconditionally
-  // noexcept, so a throwing user comparator would terminate. They are now
-  // noexcept only when the two-way \c < comparison is.
+TEST_CASE("nexenne::algorithm searches are conditionally noexcept over the comparison") {
   static_assert(noexcept(find_sorted(
-    std::declval<std::array<m4::nothrow_ord, 3>&>(), std::declval<m4::nothrow_ord const&>()
+    std::declval<std::array<probe::nothrow_ord, 3>&>(), std::declval<probe::nothrow_ord const&>()
   )));
   static_assert(!noexcept(find_sorted(
-    std::declval<std::array<m4::maythrow_ord, 3>&>(), std::declval<m4::maythrow_ord const&>()
+    std::declval<std::array<probe::maythrow_ord, 3>&>(), std::declval<probe::maythrow_ord const&>()
   )));
   static_assert(noexcept(exponential_search(
-    std::declval<std::array<m4::nothrow_ord, 3>&>(), std::declval<m4::nothrow_ord const&>()
+    std::declval<std::array<probe::nothrow_ord, 3>&>(), std::declval<probe::nothrow_ord const&>()
   )));
   static_assert(!noexcept(exponential_search(
-    std::declval<std::array<m4::maythrow_ord, 3>&>(), std::declval<m4::maythrow_ord const&>()
+    std::declval<std::array<probe::maythrow_ord, 3>&>(), std::declval<probe::maythrow_ord const&>()
   )));
-  CHECK(true);  // the static_asserts above are the test
+  CHECK(true);
 }
 
-TEST_CASE("nexenne::algorithm::interpolation_search handles an infinite end (algorithm-06)") {
-  // offset / span was inf/inf: the probe index came from a NaN (undefined) and
-  // the element next to -inf was missed.
+TEST_CASE("nexenne::algorithm::interpolation_search handles an infinite end") {
   auto const inf{std::numeric_limits<double>::infinity()};
   auto const values{std::array<double, 3>{-inf, 1.0, 2.0}};
   CHECK(alg::interpolation_search(values, 1.0) == alg::found_index{1});

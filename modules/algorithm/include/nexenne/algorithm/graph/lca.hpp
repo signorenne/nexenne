@@ -77,9 +77,6 @@ private:
    *       node \c v, with \c m_depth[root] == 0.
    */
   auto compute_depth(std::span<Node const> parent, Node root) -> void {
-    // Topological order by walking from root; child indices reachable via
-    // inverted parent. For an N-sized tree this is one pass. We use BFS to fill
-    // depth so we don't recurse (stack-safe).
     std::vector<std::vector<Node>> children(m_n);
     for (size_type i{0}; i < m_n; ++i) {
       auto const p{parent[i]};
@@ -132,7 +129,7 @@ public:
       && "lca::build requires a valid self-parented root"
     );
 
-    m_log = static_cast<size_type>(std::bit_width(m_n));  // ceil(log2(n))+1
+    m_log = static_cast<size_type>(std::bit_width(m_n));  // floor(log2(n)) + 1 rows
     if (m_log == 0) {
       m_log = 1;
     }
@@ -142,12 +139,13 @@ public:
 
     m_up.assign(m_log * m_n, root);
     for (size_type v{0}; v < m_n; ++v) {
-      m_up[v] = parent[v];  // row k == 0
+      m_up[v] = parent[v];
     }
+    // Binary lifting: up[k][v] = up[k-1][up[k-1][v]], since 2^k = 2^(k-1) + 2^(k-1).
     for (size_type k{1}; k < m_log; ++k) {
       for (size_type v{0}; v < m_n; ++v) {
-        auto const mid{m_up[(k - 1) * m_n + v]};  // 2^(k-1)-th ancestor of v
-        m_up[k * m_n + v] = up_at(k - 1, mid);    // and 2^(k-1) above that
+        auto const mid{m_up[(k - 1) * m_n + v]};
+        m_up[k * m_n + v] = up_at(k - 1, mid);
       }
     }
   }
@@ -209,7 +207,6 @@ public:
     if (m_depth[static_cast<size_type>(u)] < m_depth[static_cast<size_type>(v)]) {
       std::swap(u, v);
     }
-    // Lift u up to v's depth.
     auto diff{m_depth[static_cast<size_type>(u)] - m_depth[static_cast<size_type>(v)]};
     for (size_type k{0}; diff != 0; ++k, diff >>= 1) {
       if (diff & 1) {
@@ -219,7 +216,6 @@ public:
     if (u == v) {
       return u;
     }
-    // Binary-lift both up until just below the LCA.
     for (size_type k{m_log}; k > 0; k -= 1) {
       auto const kk{k - 1};
       if (up_at(kk, u) != up_at(kk, v)) {

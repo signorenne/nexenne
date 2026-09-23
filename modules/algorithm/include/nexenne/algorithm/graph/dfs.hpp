@@ -85,8 +85,6 @@ template <typename E, std::unsigned_integral V, typename Visitor>
       visit(u);
     }
 
-    // Push neighbours in reverse order so iteration order matches recursive DFS
-    // (first neighbour processed first).
     auto const adj{g.edges_of(u)};
     for (auto i{adj.size()}; i > 0; i -= 1) {
       auto const target{adj[i - 1].target};

@@ -38,7 +38,6 @@ auto main() -> int {
   std::printf("url        : %s\n", alg::url_encode("a b+c/d").c_str());
   std::printf("form-url   : %s\n", alg::form_url_encode("a b+c/d").c_str());
 
-  // Decode round-trips back to the original.
   auto const decoded{alg::base64_decode(alg::base64_encode(bytes_of(text)))};
   std::printf(
     "base64 round-trip ok: %s\n",
@@ -48,7 +47,6 @@ auto main() -> int {
       : "no"
   );
 
-  // COBS frames a payload containing a 0x00 so 0x00 can delimit packets.
   auto const payload{std::array<std::uint8_t, 4>{0x11, 0x00, 0x22, 0x00}};
   auto framed{std::vector<std::uint8_t>(alg::cobs_encoded_max_size(payload.size()))};
   auto const n{

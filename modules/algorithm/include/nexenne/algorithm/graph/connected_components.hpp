@@ -77,14 +77,10 @@ template <typename E, std::unsigned_integral V>
     }
   }
 
-  // Renumber roots to dense [0, num_components). The label counter and the scan
-  // counter are std::size_t, so neither can wrap max -> 0 (labels would stop
-  // being unique, or the scan would loop forever). The graph holds at most
-  // n <= max(V) vertices, so each label is < n and the cast back to V at use is
-  // exact.
+  // size_t counters cannot wrap max(V) -> 0; each label is < n <= max(V), so the cast is exact.
   auto labels{std::vector<V>(n, V{0})};
   auto remap{std::vector<V>(n, V{0})};
-  auto seen{std::vector<std::uint8_t>(n, 0)};  // bool-as-byte
+  auto seen{std::vector<std::uint8_t>(n, 0)};
   auto next{std::size_t{0}};
 
   for (auto v{std::size_t{0}}; v < n; ++v) {
