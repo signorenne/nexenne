@@ -8,6 +8,7 @@
 #include <array>
 #include <cstddef>
 #include <format>
+#include <sstream>
 #include <type_traits>
 
 #include <nexenne/can/format.hpp>
@@ -173,6 +174,10 @@ TEST_CASE("fd_flag and its flag set are formattable") {
   REQUIRE(f.has_value());
   CHECK(nc::to_string(f->flags()) == "fdf brs");
   CHECK(std::format("{}", f->flags()) == "fdf brs");
+  CHECK(std::format("{:>9}", f->flags()) == "  fdf brs");
+  auto os{std::ostringstream{}};
+  os << f->flags();
+  CHECK(os.str() == "fdf brs");
 
   CHECK(nc::to_string(nexenne::utility::flags<nc::fd_flag>{}).empty());
 }

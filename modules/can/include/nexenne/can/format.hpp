@@ -37,6 +37,7 @@
 #include <nexenne/can/registry.hpp>
 #include <nexenne/can/signal.hpp>
 #include <nexenne/can/socket_options.hpp>
+#include <nexenne/utility/format.hpp>
 
 namespace nexenne::can {
 
@@ -223,8 +224,10 @@ inline auto operator<<(std::ostream& os, fd_flag const flag) -> std::ostream& {
 /**
  * @brief Debug string for an \c fd_flag set, the space-joined names of its bits.
  *
- * Example: \c "fdf brs" for a frame that is FD with bit-rate switch. An empty set
- * renders as the empty string.
+ * Example: \c "fdf brs" for a frame that is FD with bit-rate switch; an empty
+ * set renders as the empty string. It forwards to utility's \c to_string for
+ * flag sets, which names the bits through \c to_string(fd_flag); utility's
+ * \c std::formatter and \c operator<< print the same text.
  *
  * @param flags Flag set to describe.
  *
@@ -232,33 +235,11 @@ inline auto operator<<(std::ostream& os, fd_flag const flag) -> std::ostream& {
  *
  * @pre None.
  * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
  */
 [[nodiscard]] inline auto to_string(utility::flags<fd_flag> const flags) -> std::string {
-  std::string out;
-  for (auto const bit : {fd_flag::fdf, fd_flag::brs, fd_flag::esi}) {
-    if (flags.has(bit)) {
-      if (!out.empty()) {
-        out += ' ';
-      }
-      out += to_string(bit);
-    }
-  }
-  return out;
-}
-
-/**
- * @brief Streams an \c fd_flag set via its \c to_string.
- *
- * @param os Output stream.
- * @param flags Flag set to print.
- *
- * @return Reference to \p os.
- *
- * @pre None.
- * @post The flag set has been written to \p os.
- */
-inline auto operator<<(std::ostream& os, utility::flags<fd_flag> const flags) -> std::ostream& {
-  return os << to_string(flags);
+  return utility::to_string(flags);
 }
 
 /**
@@ -1052,33 +1033,6 @@ struct std::formatter<nexenne::can::fd_flag> : std::formatter<std::string_view> 
   template <typename FormatContext>
   auto format(nexenne::can::fd_flag const flag, FormatContext& ctx) const {
     return std::formatter<std::string_view>::format(nexenne::can::to_string(flag), ctx);
-  }
-};
-
-/**
- * @brief \c std::format support for an \c fd_flag set, printing its space-joined names.
- *
- * Inherits the string formatter, so a spec (width, alignment) applies to the text.
- */
-template <>
-struct std::formatter<nexenne::utility::flags<nexenne::can::fd_flag>>
-    : std::formatter<std::string> {
-  /**
-   * @brief Formats the flag set's \c to_string through the string formatter.
-   *
-   * @tparam FormatContext Deduced output context type.
-   * @param flags Flag set to format.
-   * @param ctx Format context receiving the output.
-   *
-   * @return Iterator past the last character written.
-   *
-   * @pre None.
-   * @post The flag set has been written to \p ctx.
-   */
-  template <typename FormatContext>
-  auto
-  format(nexenne::utility::flags<nexenne::can::fd_flag> const flags, FormatContext& ctx) const {
-    return std::formatter<std::string>::format(nexenne::can::to_string(flags), ctx);
   }
 };
 
