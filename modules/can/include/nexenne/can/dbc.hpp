@@ -181,7 +181,8 @@ struct dbc_scanner {
   /**
    * @brief Reads a double-quoted string, returning its contents without the quotes.
    *
-   * Does not interpret escape sequences; a backslash is a literal character. The
+   * A backslash-escaped quote does not end the string; the escape is kept in the
+   * returned text, which is otherwise uninterpreted (and may span lines). The
    * cursor advances past the closing quote on success.
    *
    * @return The quoted contents, or \c std::nullopt when a well-formed quoted
@@ -194,10 +195,15 @@ struct dbc_scanner {
     if (!consume('"')) {
       return std::nullopt;
     }
-    auto const contents{until('"')};
-    if (!consume('"')) {
+    auto const start{pos};
+    while (pos < text.size() && text[pos] != '"') {
+      pos += text[pos] == '\\' && pos + 1 < text.size() ? std::size_t{2} : std::size_t{1};
+    }
+    if (pos >= text.size()) {
       return std::nullopt;
     }
+    auto const contents{text.substr(start, pos - start)};
+    ++pos;
     return contents;
   }
 };

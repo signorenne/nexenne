@@ -12,6 +12,35 @@
 
 namespace nexenne::can {
 
+namespace {
+
+// Whether the text leaves a double-quoted string open (an escaped quote does not
+// count).
+auto quote_open(std::string_view const record) noexcept -> bool {
+  auto open{false};
+  for (std::size_t i{0}; i < record.size(); ++i) {
+    if (record[i] == '\\' && open) {
+      ++i;
+    } else if (record[i] == '"') {
+      open = !open;
+    }
+  }
+  return open;
+}
+
+// The newline that ends the record starting at pos, or npos. A quoted string,
+// typically a CM_ comment, may span lines, and a continuation line starting with
+// BO_ or SG_ must not be read as a record of its own.
+auto record_end(std::string_view const text, std::size_t const pos) noexcept -> std::size_t {
+  auto newline{text.find('\n', pos)};
+  while (newline != std::string_view::npos && quote_open(text.substr(pos, newline - pos))) {
+    newline = text.find('\n', newline + 1);
+  }
+  return newline;
+}
+
+}  // namespace
+
 namespace detail {
 
 auto dbc_trim(std::string_view text) noexcept -> std::string_view {
@@ -325,7 +354,7 @@ auto parse_dbc(std::string_view const source) -> result<dbc_database> {
 
   std::size_t pos{0};
   while (pos <= text.size()) {
-    auto const newline{text.find('\n', pos)};
+    auto const newline{record_end(text, pos)};
     auto const line{detail::dbc_trim(
       text.substr(pos, newline == std::string_view::npos ? std::string_view::npos : newline - pos)
     )};

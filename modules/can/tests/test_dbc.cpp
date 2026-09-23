@@ -7,6 +7,7 @@
 
 #include <array>
 #include <cstddef>
+#include <string>
 #include <string_view>
 #include <type_traits>
 
@@ -201,6 +202,33 @@ TEST_CASE("dbc: names point into the retained source and survive a move") {
   auto const* const status{moved.find(nc::can_id::standard(256))};
   REQUIRE(status != nullptr);
   CHECK(status->name() == "VehicleStatus");  // view still valid after the move
+}
+
+TEST_CASE("dbc: a comment may span lines and escape its quotes (can-05)") {
+  // Records were split per line: a multi-line comment was dropped, a
+  // continuation line starting with BO_ failed the file, and an escaped quote
+  // ended the comment early.
+  constexpr std::string_view base{"BO_ 100 Engine: 8 ECU\n"
+                                  " SG_ Speed : 0|16@1+ (0.1,0) [0|0] \"km/h\" X\n"};
+  auto const id{nc::can_id::standard(100)};
+
+  auto const multi{
+    nc::parse_dbc(std::string{base} + "CM_ SG_ 100 Speed \"vehicle speed,\nsee spec\";\n")
+  };
+  REQUIRE(multi.has_value());
+  CHECK(multi->signal_comment(id, "Speed") == "vehicle speed,\nsee spec");
+
+  auto const keyword{
+    nc::parse_dbc(std::string{base} + "CM_ SG_ 100 Speed \"was\nBO_ 7 in rev A\";\n")
+  };
+  REQUIRE(keyword.has_value());
+  CHECK(keyword->message_count() == 1);
+
+  auto const escaped{
+    nc::parse_dbc(std::string{base} + "CM_ SG_ 100 Speed \"the \\\"fast\\\" one\";\n")
+  };
+  REQUIRE(escaped.has_value());
+  CHECK(escaped->signal_comment(id, "Speed") == "the \\\"fast\\\" one");
 }
 
 }  // namespace
