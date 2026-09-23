@@ -248,6 +248,10 @@ auto socketcan_bus::set_filters(std::span<filter const> const filters) -> result
   for (filter const f : filters) {
     nexenne::utility::ignore(kernel_filters.push_back(::can_filter{f.id(), f.mask()}));
   }
+  if (kernel_filters.empty()) {
+    // A zero-length CAN_RAW_FILTER disables reception; one all-zero mask accepts every frame.
+    nexenne::utility::ignore(kernel_filters.push_back(::can_filter{0, 0}));
+  }
   auto const length{static_cast<socklen_t>(kernel_filters.size() * sizeof(::can_filter))};
   if (::setsockopt(m_socket.get(), SOL_CAN_RAW, CAN_RAW_FILTER, kernel_filters.data(), length)
       < 0) {
