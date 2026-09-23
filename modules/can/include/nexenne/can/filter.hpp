@@ -8,10 +8,12 @@
  * \c (candidate & mask) == (id & mask). A mask of all ones matches one exact
  * identifier; a looser mask matches a range, which is how a node subscribes to a
  * family of messages (for example every J1939 message from one source address).
- * The same type is used for software filtering in the registry and, later, for
- * the kernel hardware filter array in the SocketCAN backend, so one definition
- * serves both. The match runs over the raw SocketCAN-layout word, so the mask can
- * include the extended-frame, remote, and error flag bits.
+ * The same type is used for software filtering in the registry and for the
+ * kernel hardware filter array in the SocketCAN backend, so one definition serves
+ * both. The match runs over the raw SocketCAN-layout word, so the mask can include
+ * the extended-frame and remote flag bits. The error flag bit is different in a
+ * kernel filter: set in the id it inverts the filter, set in the mask it selects
+ * error frames, so a filter meant for the SocketCAN backend keeps it clear.
  */
 
 #include <cassert>
@@ -65,7 +67,8 @@ public:
    */
   [[nodiscard]] static constexpr auto equals(can_id const id) noexcept -> filter {
     auto const width{id.extended() ? extended_id_mask : standard_id_mask};
-    return filter{id.raw(), extended_flag | width};
+    // Keep only compared bits: in a kernel can_filter the error flag is CAN_INV_FILTER (inverts).
+    return filter{id.raw() & (extended_flag | width), extended_flag | width};
   }
 
   /**

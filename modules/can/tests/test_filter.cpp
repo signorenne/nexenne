@@ -47,4 +47,14 @@ TEST_CASE("filter: equality and format") {
   CHECK(std::format("{}", nc::filter{0x100, 0x7FF}) == "filter(id=0x100, mask=0x7FF)");
 }
 
+TEST_CASE("filter::equals keeps the error flag out of the id (can-04)") {
+  // Bit 29 is the error flag in a can_id but CAN_INV_FILTER in a kernel filter
+  // id, so an error-frame id produced an inverted hardware filter.
+  auto id{nc::can_id::standard(0x123)};
+  id.error_frame() = true;
+  auto const f{nc::filter::equals(id)};
+  CHECK((f.id() & nc::error_flag) == 0U);
+  CHECK(f.matches(nc::can_id::standard(0x123)));
+}
+
 }  // namespace
