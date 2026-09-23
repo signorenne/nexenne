@@ -21,6 +21,7 @@
 #include <cmath>
 #include <concepts>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <type_traits>
 
@@ -291,7 +292,8 @@ decode_value(signal const& sig, packing_plan const& plan, frame const& f) noexce
  *
  * @return Empty on success, \c can_error::signal_out_of_range when the field
  *         runs past the frame's data length, or \c can_error::value_out_of_range
- *         when the rounded raw value does not fit the field.
+ *         when the rounded raw value does not fit the field (for a 32-bit float
+ *         field, when the scaled value exceeds the float range).
  *
  * @pre \p plan was compiled from \p sig. A zero \c sig.scale() is not a
  *      precondition: it makes the scaled value non-finite, which is reported as
@@ -312,9 +314,12 @@ encode(signal const& sig, packing_plan const& plan, frame& f, double const value
   if (!std::isfinite(scaled)) {
     return std::unexpected{can_error::value_out_of_range};
   }
-  // A float signal stores the IEEE-754 bit pattern directly, with no rounding or
-  // field-range check (every finite value fits its 32 or 64 bits).
+  // IEEE 754 bit pattern, unrounded; a double beyond float range cast to float is UB.
   if (sig.is_float()) {
+    if (plan.bit_length() != 64U
+        && std::abs(scaled) > static_cast<double>(std::numeric_limits<float>::max())) {
+      return std::unexpected{can_error::value_out_of_range};
+    }
     return write_bits(plan, f, detail::raw_from_float(scaled, plan.bit_length()));
   }
   // Round in the double domain and bound the result before any integer cast:

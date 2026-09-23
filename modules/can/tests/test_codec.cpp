@@ -290,4 +290,16 @@ TEST_CASE("codec: encode_strict rejects an out-of-range value instead of clampin
   CHECK(*nc::decode(sig, plan, frame) == doctest::Approx(100.0));
 }
 
+TEST_CASE("codec: a 32-bit float signal rejects a value beyond the float range (can-06)") {
+  // The double-to-float conversion of 1e300 is undefined and wrote infinity.
+  nc::signal sig32{0, 32, nc::byte_order::little_endian, false};
+  sig32.is_float() = true;
+  auto const plan32{nc::packing_plan::from_signal(sig32)};
+  std::array<std::byte, 8> bytes{};
+  auto frame{make_frame(bytes)};
+  auto const r{nc::encode(sig32, plan32, frame, 1e300)};
+  REQUIRE_FALSE(r.has_value());
+  CHECK(r.error() == nc::can_error::value_out_of_range);
+}
+
 }  // namespace
