@@ -7,6 +7,7 @@
 #include <utility>
 
 #include <nexenne/can/j1939_transport.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::can {
 
@@ -116,6 +117,7 @@ auto transport_reassembler::accept(frame const& f) -> result<std::optional<trans
       opened.destination = destination;
       opened.size = size;
       opened.packets = packets;
+      opened.buffer.reserve(static_cast<std::size_t>(packets) * j1939_tp_dt_payload);
       opened.opened_at = m_next_order++;
       opened.pgn = std::to_integer<std::uint32_t>(payload[5])
                    | (std::to_integer<std::uint32_t>(payload[6]) << 8U)
@@ -150,12 +152,9 @@ auto transport_reassembler::accept(frame const& f) -> result<std::optional<trans
     }
     ++active->received;
     if (active->received >= active->packets) {
-      container::small_vector<std::byte, 8> bytes;
-      auto const total{
-        active->size <= active->buffer.size() ? active->size : active->buffer.size()
-      };
-      for (std::size_t i{0}; i < total; ++i) {
-        bytes.push_back(active->buffer[i]);
+      auto bytes{std::move(active->buffer)};
+      while (bytes.size() > active->size) {
+        nexenne::utility::ignore(bytes.pop_back());
       }
       transport_message message{active->pgn, source, destination, std::move(bytes)};
       erase(source, destination);
