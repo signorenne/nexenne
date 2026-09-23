@@ -11,6 +11,7 @@
 #include <utility>
 
 #include <linux/can.h>
+#include <linux/can/error.h>
 #include <linux/can/raw.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
@@ -234,7 +235,9 @@ auto socketcan_bus::receive() -> result<std::optional<frame>> {
     }
   }
 
-  if (auto const report{decode_error_frame(*decoded)}) {
+  if (auto const report{decode_error_frame(*decoded)};
+      report
+      && (report->classes & (err_class_controller | err_class_bus_off | CAN_ERR_RESTARTED)) != 0U) {
     m_state = report->state;
   }
   return std::optional<frame>{*decoded};
