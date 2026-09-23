@@ -170,9 +170,10 @@ base_n_encode(std::span<std::uint8_t const> const in, std::span<char> const out)
 /**
  * @brief Generic base-N decode into a caller-provided buffer.
  *
- * Reverses \c base_n_encode. ASCII whitespace is skipped, and case is folded
- * when the spec is case-insensitive. No allocation. Size \p out with
- * \c base_n_decoded_max_size.
+ * Reverses \c base_n_encode. ASCII whitespace is skipped, and when the spec is
+ * case-insensitive a letter missing from the alphabet is retried in the other
+ * ASCII case, so an alphabet written in either case decodes both. No
+ * allocation. Size \p out with \c base_n_decoded_max_size.
  *
  * Padding is lenient: omitted trailing padding is tolerated, and once a pad
  * character is seen the decoder accepts any further pad or whitespace but

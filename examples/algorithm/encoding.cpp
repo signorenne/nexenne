@@ -2,9 +2,11 @@
  * @file
  * @brief Example: the nexenne::algorithm byte encodings.
  *
- * Shows hex, Base64 (standard and URL-safe), Base32, URL percent-encoding, and
- * the heap-free COBS framing codec. The heap-allocating overloads are used for
- * brevity; each codec also has a span-in/span-out overload for embedded use.
+ * Shows hex, Base64 (standard and URL-safe), Base32, URL percent-encoding, a
+ * Base64 decode round-trip, and the heap-free COBS framing codec, which removes
+ * every 0x00 from a payload so a lone 0x00 can delimit packets. The
+ * heap-allocating overloads are used for brevity; each codec also has a
+ * span-in/span-out overload for embedded use.
  */
 
 #include <array>

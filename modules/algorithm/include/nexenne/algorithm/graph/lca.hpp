@@ -39,7 +39,7 @@ private:
   size_type m_n{0};
   size_type m_log{0};
   std::vector<size_type> m_depth{};
-  std::vector<Node> m_up{};  // flat lift table: m_up[k * m_n + v] = 2^k-th ancestor of v
+  std::vector<Node> m_up{};  ///< Lift table: \c m_up[k * m_n + v] is the 2^k-th ancestor of v.
 
   /**
    * @brief The \c 2^k-th ancestor of node \p v from the flat lift table.

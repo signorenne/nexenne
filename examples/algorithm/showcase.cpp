@@ -1,25 +1,57 @@
 /**
  * @file
- * @brief A guided tour of nexenne::algorithm through one realistic task: a tiny
- *        asset-pack build pipeline, console-only.
+ * @brief A guided tour of nexenne::algorithm: a tiny asset-pack build pipeline.
  *
  * Pretend we are the build step of a game or an embedded firmware image. We are
  * handed a set of asset records, and we must turn them into a deterministic,
  * verifiable, query-able pack. Nothing is drawn or written to disk; every number
  * a real packer would compute is computed here and printed, so you can see how
- * the module's facilities fit together in one cohesive job:
+ * the module's facilities fit together in one cohesive job. Library calls never
+ * throw: the fallible ones return expected / optional, and we handle every one.
  *
- *   1. Ingest + sort   -> radix_sort the records by id (integer keys, no compares).
- *   2. Lookups         -> find_sorted / exponential_search / interpolation_search.
- *   3. Integrity       -> a CRC over the table plus an xxHash content fingerprint.
- *   4. Wire format     -> hex + base64url for the digest, COBS to frame a packet.
- *   5. Metadata search -> kmp_find / z_find_all / levenshtein over asset names.
- *   6. Dependencies    -> a build-order topological_sort and a dijkstra cost.
- *   7. Statistics      -> running_stats over the asset sizes, neumaier_sum total.
+ * The program walks seven steps, each with why its algorithm is the right tool
+ * and what it costs:
  *
- * Each step says WHY this algorithm is the right tool and what it costs. Read it
- * top to bottom. Library calls never throw: the fallible ones return expected /
- * optional, and we handle every one.
+ * 1. Ingest and sort. The pack table must be sorted by id so a reader can
+ *    binary-search it. The ids are sparse content handles, not array indices,
+ *    held as 32-bit unsigned keys, so radix_sort beats a comparison sort: four
+ *    stable byte passes, O(W * N), and no element compares at all. It sorts the
+ *    keys, and the seven records are then gathered in id order by a plain
+ *    selection, clearer at this size than threading a permutation.
+ * 2. Lookups. find_sorted is the general O(log N) workhorse (lower_bound plus an
+ *    equality confirm) for a key that could sit anywhere; exponential_search
+ *    gallops from the front, so its cost scales with the key's distance from
+ *    index 0 (id 9 is the first element); interpolation_search predicts the
+ *    probe from the key's position in the value range, O(log log N) on roughly
+ *    uniform numeric data. Each returns a found_index that addresses the table
+ *    directly.
+ * 3. Integrity: two jobs, two tools. CRC-32C (Castagnoli) over the id and size
+ *    columns catches accidental corruption, a flipped bit on a flash read or a
+ *    UART link: a cheap, table-driven linear checksum, not a fingerprint.
+ *    xxHash64 over the names (a stand-in for the contents) is the fingerprint:
+ *    fast and well spread, not cryptographic, fit for a cache key or a "did
+ *    this asset change?" check across builds.
+ * 4. Wire format for the 8-byte digest, the CRC then a fingerprint prefix. Hex
+ *    is the human-readable form for a log line or a file name; base64url is
+ *    about 33% denser and safe in a URL or a JSON field; COBS frames the raw
+ *    bytes for a UART or RS-485 link, removing every 0x00 so a lone 0x00 can
+ *    delimit packets, at most one extra byte per 254 and with no heap.
+ * 5. Metadata search over the joined names. kmp_find locates one fixed
+ *    substring in O(N + M) with no backtracking; z_find_all reports every
+ *    occurrence in one linear pass, here counting the ".anim" clips;
+ *    levenshtein edit distance, O(N * M), drives a "did you mean?" for a
+ *    mistyped "tilesett.png".
+ * 6. Build order. Assets reference one another (the run animation reuses the
+ *    idle skeleton, both atlases share a tileset), modelled as edges from each
+ *    dependency to its users, weighted by the dependency's byte size.
+ *    topological_sort lists every dependency ahead of its users in O(V + E) and
+ *    reports a cycle (a circular dependency is a build bug) as an error;
+ *    dijkstra, O((V + E) log V), then totals the bytes loaded along tileset,
+ *    hero_idle, hero_run.
+ * 7. Statistics. running_stats (Welford) keeps the size mean, stddev, min and
+ *    max in one numerically stable O(1)-per-sample pass, never holding the
+ *    whole list; neumaier_sum totals the sizes by compensated summation, equal
+ *    to a plain sum for a few integers, a habit that pays off at scale.
  */
 
 #include <array>
@@ -52,12 +84,11 @@ namespace nc = nexenne::container;
 
 namespace {
 
-// One asset in the pack. The id is a stable content handle; the size is the
-// uncompressed byte count we will checksum, sort, and gather statistics over.
+/// @brief One asset record in the pack.
 struct asset {
-  std::uint32_t id{};
-  std::string_view name;
-  std::uint32_t size{};
+  std::uint32_t id{};     ///< Stable content handle, sparse rather than an array index.
+  std::string_view name;  ///< File name inside the pack.
+  std::uint32_t size{};   ///< Uncompressed byte count.
 };
 
 }  // namespace

@@ -112,7 +112,18 @@ struct codec_alphabet {
   }
 };
 
-// Deduction guide: infer N from the literal so users write codec_alphabet{"..."}.
+/**
+ * @brief Deduction guide that infers \c N from a string literal.
+ *
+ * Lets a caller write \c codec_alphabet{"..."}: the literal's array extent
+ * \p M counts the null terminator, so the alphabet size is \c M - 1.
+ *
+ * @tparam M Extent of the literal array, null terminator included.
+ * @param literal String literal naming the alphabet's symbols in index order.
+ *
+ * @pre None.
+ * @post \c codec_alphabet{"abc"} deduces \c codec_alphabet<3>.
+ */
 template <std::size_t M>
 codec_alphabet(char const (&)[M]) -> codec_alphabet<M - 1>;
 

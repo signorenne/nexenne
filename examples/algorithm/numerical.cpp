@@ -6,6 +6,32 @@
  * handling, two quadrature rules, ODE stepping (euler vs rk4), online statistics
  * (running_stats with merge, a histogram with quantiles, an exponential moving
  * estimate), interpolation, and the FFT. Every fallible call is handled inline.
+ *
+ * The program walks nine steps:
+ *
+ * 1. Compensated sums of 1 + 1e16 + 1 - 1e16: a plain double sum loses both 1s,
+ *    and so does Kahan, whose correction is dropped when the next addend dwarfs
+ *    the running sum; Neumaier compares magnitudes and recovers the 2, so reach
+ *    for neumaier_sum when the summands swing widely in magnitude.
+ * 2. bisection finds sqrt(2) on [0, 2], where f changes sign, and reports
+ *    not_bracketed for x * x + 1, which has no sign change, instead of looping:
+ *    separating bad input from a real answer is the point of expected.
+ * 3. Quadrature of x^2 over [0, 1] (exactly 1/3): the trapezoidal rule is second
+ *    order and keeps a small bias at 8 panels, while Simpson's rule is fourth
+ *    order and exact for cubics.
+ * 4. One step of y' = y, y(0) = 1 to t = 1, whose exact solution is e: Euler is
+ *    first order and crude, RK4 samples the derivative four times and lands far
+ *    closer at the same step size.
+ * 5. running_stats (Welford) keeps mean, variance, min and max in one stable
+ *    O(1)-per-sample pass; two accumulators merge in closed form, as if all eight
+ *    samples went into one, the basis of a parallel reduction.
+ * 6. A 5-bucket histogram over [0, 10], with underflow and overflow bins so no
+ *    sample is lost, reads an approximate median back from the counts alone.
+ * 7. ema_stats (alpha 0.3) weights recent samples more and chases a level shift
+ *    from 10 to 20 where a plain running mean would lag.
+ * 8. Linear interpolation of y = x^2 samples: at 1.5 it sits on the chord
+ *    between (1, 1) and (2, 4), so 2.5 rather than the true 2.25.
+ * 9. An FFT followed by its inverse returns the original signal to rounding.
  */
 
 #include <array>

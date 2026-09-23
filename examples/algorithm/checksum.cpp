@@ -2,9 +2,11 @@
  * @file
  * @brief Example: the nexenne::algorithm checksums (Adler-32 and CRC).
  *
- * Shows Adler-32 (and its seed-chaining), the named CRC presets, the streaming
- * CRC context, and a custom CRC defined by a Rocksoft crc_spec literal. None of
- * these are cryptographically secure; they are integrity checks.
+ * Shows Adler-32 and its seed chaining (the first half's checksum seeds the
+ * second half and matches the whole), the named CRC presets, the streaming CRC
+ * context fed in chunks, and a custom CRC (CRC-16/CDMA2000) defined by a
+ * Rocksoft crc_spec literal, the form any of the ~100 catalogued models takes.
+ * None of these are cryptographically secure; they are integrity checks.
  */
 
 #include <cstdint>

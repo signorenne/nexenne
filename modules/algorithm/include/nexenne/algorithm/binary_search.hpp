@@ -36,9 +36,15 @@ using found_index = std::optional<std::size_t>;
 /// @cond INTERNAL
 namespace detail {
 
-// True when the two-way \c < comparison between a \c R element and a \c T cannot
-// throw, so a search ordering \c R by that comparison can be conditionally
-// noexcept rather than lying about a user comparator that may throw.
+/**
+ * @brief Whether the two-way \c < comparison between an \p R element and a \p T cannot throw.
+ *
+ * Lets a search ordering \p R by that comparison be conditionally \c noexcept
+ * rather than lying about a user comparator that may throw.
+ *
+ * @tparam R Range whose elements are compared.
+ * @tparam T Type of the searched value.
+ */
 template <typename R, typename T>
 inline constexpr bool nothrow_ordered_v{
   noexcept(std::declval<std::ranges::range_reference_t<R>>() < std::declval<T const&>())
@@ -94,7 +100,8 @@ find_sorted(R&& range, T const& value) noexcept(detail::nothrow_ordered_v<R, T>)
  * final bracket. This beats a plain binary search when the target sits near the
  * front of a very large range, because the bracket searched is proportional to
  * the distance of \p value from the front rather than to the whole range size.
- * The worst case matches a binary search.
+ * The worst case matches a binary search. Every match is confirmed with the
+ * two-way \c < test, the comparator the range is ordered by, never \c ==.
  *
  * @tparam R Sorted random-access range type.
  * @tparam T Type comparable to the range value type via \c <.

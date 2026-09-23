@@ -5,7 +5,8 @@
  * The algorithm headers stay free of <format>; format.hpp adds a
  * std::formatter, a to_string and an operator<< for every public type, all
  * printing the same text. This prints a failed decode and a failed root search
- * by name, a hand-built spanning-tree edge and shortest path, then the state of
+ * (x * x + 1 never crosses zero, so there is no bracket to bisect) by name, a
+ * hand-built spanning-tree edge and shortest path, then the state of
  * a streaming CRC and of a running statistics accumulator.
  */
 

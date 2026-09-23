@@ -73,8 +73,8 @@ template <typename E, std::unsigned_integral V>
 
   // DFS work frame: vertex + the edge index we left off at.
   struct frame {
-    V u;
-    std::size_t edge_i;
+    V u;                 ///< Vertex being explored.
+    std::size_t edge_i;  ///< Index of the next edge of \c u to explore.
   };
 
   auto work{std::vector<frame>{}};

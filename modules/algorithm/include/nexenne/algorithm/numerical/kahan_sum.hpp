@@ -28,10 +28,15 @@ namespace nexenne::algorithm {
 /// @cond INTERNAL
 namespace detail {
 
-// True when iterating \c Range (comparing begin to end, incrementing, and
-// dereferencing) cannot throw, so a compensated sum over it can be conditionally
-// noexcept rather than lying about a range whose iterator, for example a
-// transform_view over a throwing projection, may throw on dereference.
+/**
+ * @brief Whether iterating \p Range (compare, increment, dereference) cannot throw.
+ *
+ * Lets a compensated sum over it be conditionally \c noexcept rather than lying
+ * about a range whose iterator, for example a \c transform_view over a throwing
+ * projection, may throw on dereference.
+ *
+ * @tparam Range Input range to probe.
+ */
 template <std::ranges::input_range Range>
 inline constexpr bool nothrow_iterable_v{
   noexcept(std::ranges::begin(std::declval<Range&>()) != std::ranges::end(std::declval<Range&>()))

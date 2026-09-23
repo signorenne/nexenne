@@ -38,7 +38,8 @@ namespace nexenne::algorithm {
  * @param max_iter Maximum number of bisection steps.
  *
  * @return The approximate root on success; \c numerical_error::not_bracketed
- *         when \c f(lo) and \c f(hi) share a sign; \c numerical_error::no_convergence
+ *         when \c f(lo) and \c f(hi) share a sign or either is NaN;
+ *         \c numerical_error::no_convergence
  *         when \p max_iter steps run without meeting \p tol.
  *
  * @pre \p f is continuous between \p lo and \p hi (in either order); \p tol is

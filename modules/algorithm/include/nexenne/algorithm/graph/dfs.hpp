@@ -27,9 +27,10 @@ namespace nexenne::algorithm {
  * @brief Visits every vertex reachable from \p source in pre-order DFS.
  *
  * Invokes \p visit once per reachable vertex the first time it is popped from the
- * work stack, descending edges in their iteration order. A \p visit callback that
- * returns \c bool stops the traversal early when it returns \c false; a \c void
- * callback always continues.
+ * work stack, descending edges in their iteration order: neighbours are pushed
+ * in reverse, so the first edge is descended first, as in a recursive DFS. A
+ * \p visit callback that returns \c bool stops the traversal early when it
+ * returns \c false; a \c void callback always continues.
  *
  * @tparam E Edge payload type (or void).
  * @tparam V Unsigned-integer vertex ID type.

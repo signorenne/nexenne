@@ -110,7 +110,9 @@ struct a_star_entry {
  * through a parent map once \p goal is popped. With an admissible \p heuristic the
  * path found is optimal; a \p heuristic returning 0 reduces the search to
  * Dijkstra. The per-edge weight comes from \p weight_of, which defaults to
- * returning \c edge.data.
+ * returning \c edge.data. \p heuristic is evaluated at most once per vertex and
+ * cached, so it must be a pure function of the vertex (\c O(V) evaluations
+ * rather than \c O(E)).
  *
  * @tparam E Edge payload type.
  * @tparam V Unsigned-integer vertex ID type.

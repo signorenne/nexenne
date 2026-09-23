@@ -8,6 +8,30 @@
  * build order (topological_sort), a minimum spanning tree (kruskal_mst),
  * connectivity (connected_components), and strong components (tarjan_scc). Each
  * fallible call returns expected/optional, handled inline.
+ *
+ * The main graph is a weighted DAG with two routes to vertex 3: 0 -> 1 -> 3
+ * costs 1 + 2 = 3 and 0 -> 2 -> 3 costs 4 + 1 = 5. The program walks eight
+ * steps:
+ *
+ * 1. bfs visits in nondecreasing hop count and dfs goes deep before wide; both
+ *    call the visitor once per vertex in O(V + E).
+ * 2. dijkstra, the O((V + E) log V) single-source workhorse for non-negative
+ *    weights, picks the cost-3 route although the other ends on the cheaper
+ *    edge.
+ * 3. bellman_ford, O(V * E), handles a negative edge dijkstra cannot and would
+ *    report a reachable negative cycle as an error.
+ * 4. floyd_warshall builds the full all-pairs matrix in one O(V^3) pass, worth
+ *    it when every source matters; at(i, j) reads it back.
+ * 5. a_star is goal-directed: with the zero heuristic used here it equals
+ *    dijkstra, and an admissible (never overestimating) heuristic prunes the
+ *    frontier.
+ * 6. topological_sort gives a build order with every edge pointing forward and
+ *    fails on a cycle.
+ * 7. kruskal_mst treats edges as undirected weighted triples and greedily
+ *    unions their endpoints, O(E log E).
+ * 8. connected_components labels vertices via union-find, O(V + E * alpha), and
+ *    an added isolated vertex 4 forms a second component; tarjan_scc finds only
+ *    singletons, since a DAG has no cycle.
  */
 
 #include <cmath>

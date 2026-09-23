@@ -7,6 +7,21 @@
  * interpolation_search (fast on uniformly distributed numeric data), plus their
  * edge cases: a miss, an empty range, duplicate keys, and a flat span. Each
  * returns a found_index (an optional index) usable for direct array access.
+ *
+ * The program walks four steps over the primes below 30:
+ *
+ * 1. find_sorted, the general O(log N) search, hits 13 and misses 14.
+ * 2. exponential_search gallops from the front, so its cost scales with the
+ *    key's distance from index 0 rather than with N; interpolation_search
+ *    predicts the probe from the key's position in the value range, O(log log
+ *    N) on uniform data.
+ * 3. The returned index addresses the array directly, with no iterator
+ *    round-trip.
+ * 4. Edge cases: an empty range is always a miss, never a crash; with duplicate
+ *    keys find_sorted returns the first match (it is built on lower_bound), the
+ *    stable choice for an equal_range follow-up; a flat span (equal endpoints)
+ *    degrades interpolation_search to a direct equality check instead of a
+ *    division by zero.
  */
 
 #include <array>

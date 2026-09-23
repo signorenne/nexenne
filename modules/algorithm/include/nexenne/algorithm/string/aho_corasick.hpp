@@ -77,7 +77,7 @@ private:
   };
 
   std::vector<node> m_nodes{};
-  std::vector<std::size_t> m_patterns{};  // pattern id to length
+  std::vector<std::size_t> m_patterns{};  ///< Length of each pattern, indexed by pattern id.
   bool m_built{false};
 
 public:

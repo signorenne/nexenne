@@ -95,7 +95,7 @@ template <std::invocable<double> F>
 /// @cond INTERNAL
 namespace detail {
 
-// Abscissae and weights for 5-point Gauss-Legendre on [-1, 1].
+/// @brief Abscissae of 5-point Gauss-Legendre quadrature on [-1, 1].
 inline constexpr auto gl5_nodes{std::array<double, 5>{
   -0.906179845938663992797626878299,
   -0.538469310105683091036314420700,
@@ -103,6 +103,7 @@ inline constexpr auto gl5_nodes{std::array<double, 5>{
   0.538469310105683091036314420700,
   0.906179845938663992797626878299,
 }};
+/// @brief Weights of 5-point Gauss-Legendre quadrature on [-1, 1], paired with \c gl5_nodes.
 inline constexpr auto gl5_weights{std::array<double, 5>{
   0.236926885056189087514264040720,
   0.478628670499366468041291514836,

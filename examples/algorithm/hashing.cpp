@@ -2,9 +2,11 @@
  * @file
  * @brief Example: the nexenne::algorithm non-cryptographic hashes.
  *
- * Shows FNV-1a (tiny, constexpr), MurmurHash3 (high quality, 32- and 128-bit),
- * and xxHash (fast, with a streaming context). None are cryptographically
- * secure; they are for hash tables, fingerprints, and content addressing.
+ * Shows FNV-1a (tiny, constexpr, here a compile-time string identifier),
+ * MurmurHash3 (high quality, 32- and 128-bit), and xxHash (fast, with a
+ * streaming context whose chunked result matches the one-shot hash). None are
+ * cryptographically secure; they are for hash tables, fingerprints, and content
+ * addressing.
  */
 
 #include <cstdint>
