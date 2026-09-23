@@ -238,6 +238,18 @@ public:
   }
 
   /**
+   * @brief Number of trie nodes (automaton states), the root included.
+   *
+   * @return The node count; 1 for a matcher holding no pattern.
+   *
+   * @pre None.
+   * @post The matcher is unchanged.
+   */
+  [[nodiscard]] auto node_count() const noexcept -> std::size_t {
+    return m_nodes.size();
+  }
+
+  /**
    * @brief Length of the pattern with identifier \p id.
    *
    * @param id Pattern identifier returned by \c add_pattern.

@@ -47,7 +47,8 @@ best accuracy per evaluation on smooth integrands.
 The stateless eases (=lerp=, =smoothstep=, =catmull_rom=, ...) are single
 expressions. =linear_interpolator= and =cubic_spline= store knots and binary
 search for the bracketing segment; the spline solves a tridiagonal system once
-(Thomas algorithm) for C2 continuity. The ODE steppers each advance one step:
+(Thomas algorithm) for C2 continuity. Both expose the stored knots read-only
+through =xs()= and =ys()=. The ODE steppers each advance one step:
 =rk4_step= averages four derivative samples for fourth-order accuracy, while the
 Verlet integrators are symplectic and conserve energy over long runs, which
 plain Euler does not.

@@ -218,6 +218,32 @@ public:
   }
 
   /**
+   * @brief Knot abscissae, in strictly increasing order.
+   *
+   * @return A read-only view of the \c size() stored \c x knots.
+   *
+   * @pre None.
+   * @post The view is valid while the interpolator lives; the interpolator is
+   *       unchanged.
+   */
+  [[nodiscard]] auto xs() const noexcept -> std::span<T const> {
+    return std::span<T const>{m_x};
+  }
+
+  /**
+   * @brief Knot ordinates, parallel to \c xs().
+   *
+   * @return A read-only view of the \c size() stored \c y knots.
+   *
+   * @pre None.
+   * @post The view is valid while the interpolator lives; the interpolator is
+   *       unchanged.
+   */
+  [[nodiscard]] auto ys() const noexcept -> std::span<T const> {
+    return std::span<T const>{m_y};
+  }
+
+  /**
    * @brief Evaluates the interpolant at \p x.
    *
    * Locates the bracketing segment by binary search and linearly blends its
@@ -345,6 +371,30 @@ public:
    */
   [[nodiscard]] auto size() const noexcept -> std::size_t {
     return m_x.size();
+  }
+
+  /**
+   * @brief Knot abscissae, in strictly increasing order.
+   *
+   * @return A read-only view of the \c size() stored \c x knots.
+   *
+   * @pre None.
+   * @post The view is valid while the spline lives; the spline is unchanged.
+   */
+  [[nodiscard]] auto xs() const noexcept -> std::span<T const> {
+    return std::span<T const>{m_x};
+  }
+
+  /**
+   * @brief Knot ordinates, parallel to \c xs().
+   *
+   * @return A read-only view of the \c size() stored \c y knots.
+   *
+   * @pre None.
+   * @post The view is valid while the spline lives; the spline is unchanged.
+   */
+  [[nodiscard]] auto ys() const noexcept -> std::span<T const> {
+    return std::span<T const>{m_y};
   }
 
   /**

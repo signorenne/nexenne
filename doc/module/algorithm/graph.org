@@ -54,7 +54,8 @@ finds strongly connected components (mutually reachable vertices) in one
 iterative depth-first pass using discovery indices and low-links.
 =kruskal_mst= sorts edges by weight and adds each one that joins two different
 components, building a minimum spanning forest. =lca= preprocesses a tree with
-binary lifting so each lowest-common-ancestor query runs in O(log N).
+binary lifting so each lowest-common-ancestor query runs in O(log N); =size()=
+reports how many nodes the last =build= indexed.
 
 * When to use it
 

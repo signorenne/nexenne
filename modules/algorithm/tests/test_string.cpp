@@ -282,6 +282,19 @@ TEST_CASE("nexenne::algorithm::aho_corasick classic dictionary (he/she/his/hers)
   CHECK(got == want);
 }
 
+TEST_CASE("nexenne::algorithm::aho_corasick node_count counts the trie states") {
+  auto m{alg::aho_corasick{}};
+  CHECK(m.node_count() == 1);
+  m.add_pattern("he");
+  CHECK(m.node_count() == 3);
+  m.add_pattern("she");
+  m.add_pattern("his");
+  m.add_pattern("hers");
+  CHECK(m.node_count() == 10);
+  m.build();
+  CHECK(m.node_count() == 10);
+}
+
 TEST_CASE("nexenne::algorithm::aho_corasick matches brute force for many patterns") {
   auto gen{lcg{}};
   for (auto trial{0}; trial < 600; ++trial) {

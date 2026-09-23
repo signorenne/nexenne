@@ -451,6 +451,16 @@ TEST_CASE("nexenne::algorithm::lca answers ancestor queries") {
   CHECK(tree.depth_of(5) == 2);
 }
 
+TEST_CASE("nexenne::algorithm::lca size reports the indexed node count") {
+  auto tree{alg::lca<std::int32_t>{}};
+  CHECK(tree.size() == 0);
+  auto const parent{std::vector<std::int32_t>{0, 0, 0, 1, 1, 2}};
+  tree.build(std::span<std::int32_t const>{parent}, 0);
+  CHECK(tree.size() == 6);
+  tree.build(std::span<std::int32_t const>{}, 0);
+  CHECK(tree.size() == 0);
+}
+
 TEST_CASE("nexenne::algorithm::lca on degenerate trees (single node and a path)") {
   // A single-node tree: the only node is its own ancestor at depth 0.
   auto const just_root{std::vector<std::int32_t>{0}};

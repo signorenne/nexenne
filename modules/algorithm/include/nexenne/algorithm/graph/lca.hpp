@@ -153,6 +153,18 @@ public:
   }
 
   /**
+   * @brief Number of nodes in the indexed tree.
+   *
+   * @return The node count of the last \c build, or 0 before any build.
+   *
+   * @pre None.
+   * @post The index is unchanged.
+   */
+  [[nodiscard]] auto size() const noexcept -> size_type {
+    return m_n;
+  }
+
+  /**
    * @brief Depth of node \p v measured from the root.
    *
    * @param v Node whose depth is requested.

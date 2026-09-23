@@ -12,6 +12,7 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -364,6 +365,25 @@ TEST_CASE("nexenne::algorithm interpolators degrade gracefully on tiny tables") 
   auto const x2{std::array<double, 2>{0.0, 2.0}};
   auto const y2{std::array<double, 2>{0.0, 10.0}};
   CHECK(close(alg::cubic_spline<double>{x2, y2}(1.0), 5.0));
+}
+
+TEST_CASE("nexenne::algorithm interpolators expose their knot table") {
+  auto const xs{std::array<double, 3>{0.0, 1.0, 2.0}};
+  auto const ys{std::array<double, 3>{0.0, 10.0, 20.0}};
+  auto const lin{alg::linear_interpolator<double>{xs, ys}};
+  auto const spl{alg::cubic_spline<double>{xs, ys}};
+  CHECK(std::ranges::equal(lin.xs(), xs));
+  CHECK(std::ranges::equal(lin.ys(), ys));
+  CHECK(std::ranges::equal(spl.xs(), xs));
+  CHECK(std::ranges::equal(spl.ys(), ys));
+
+  auto const x4{std::array<double, 4>{0.0, 1.0, 2.0, 3.0}};
+  auto const short_lin{alg::linear_interpolator<double>{x4, ys}};
+  CHECK(short_lin.xs().size() == 3);
+  CHECK(short_lin.ys().size() == 3);
+
+  auto const none{std::span<double const>{}};
+  CHECK(alg::cubic_spline<double>{none, none}.xs().empty());
 }
 
 TEST_CASE("nexenne::algorithm::running_stats empty, single, reset, merge-with-empty") {

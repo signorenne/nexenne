@@ -57,6 +57,8 @@ on a mismatch, the scan jumps to the longest proper suffix that is still a
 prefix of some pattern. A single linear pass over the text then reports every
 occurrence of every pattern, with per-byte cost independent of the pattern
 count. Build once, scan many times. Patterns must be non-empty.
+=pattern_count()= and =node_count()= report the pattern set and the trie size
+(one automaton state per node, the root included).
 
 ** Suffix array
 

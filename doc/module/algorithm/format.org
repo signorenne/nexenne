@@ -4,12 +4,12 @@
 
 * Purpose
 
-=format.hpp= holds the three formatting layers for the algorithm types a caller
-gets back and may want to print: a =std::formatter= specialisation, so
-=std::format("{}", x)= and =std::print= accept them, and a =to_string= and an
-=operator<<= that give the same text. It is separate from the algorithm headers
-because =<format>= is heavy: code that only encodes, hashes or sorts does not pay
-for it. Include =format.hpp= where the printing happens.
+=format.hpp= holds the three formatting layers for every public algorithm type:
+a =std::formatter= specialisation, so =std::format("{}", x)= and =std::print=
+accept them, and a =to_string= and an =operator<<= that give the same text. It
+is separate from the algorithm headers because =<format>= is heavy: code that
+only encodes, hashes or sorts does not pay for it. Include =format.hpp= where
+the printing happens.
 
 * What it provides
 
@@ -22,16 +22,32 @@ for it. Include =format.hpp= where the printing happens.
 | =components_result<E, V>=     | =components_result(labels=[...], num_components=...)= | none                  |
 | =floyd_warshall_result<V, W>= | =floyd_warshall_result(n=..., distances=[...])=       | none                  |
 | =mst_edge<E, V>=              | =mst_edge(from=..., to=..., weight=...)=              | none                  |
+| =crc_spec<W>=                 | =crc_spec(width=..., poly=0x..., init=0x..., ...)=    | none                  |
+| =modular_sum_spec=            | =modular_sum_spec(unit_bytes=..., sum_bits=..., ...)= | none                  |
+| =codec_alphabet<N>=           | =codec_alphabet("...")=                               | none                  |
+| =base_n_spec<S>=              | =base_n_spec(symbols=..., alphabet="...", ...)=       | none                  |
+| =crc_ctx<Spec>=               | =crc_ctx(value=0x...)=                                | none                  |
+| =fnv1a_ctx<W>=                | =fnv1a_ctx(value=0x...)=                              | none                  |
+| =xxhash_ctx<W>=               | =xxhash_ctx(value=0x...)=                             | none                  |
+| =running_stats<T>=            | =running_stats(count=..., mean=..., stddev=..., ...)= | none                  |
+| =histogram<T, N>=             | =histogram(total=..., ..., buckets=[...])=            | none                  |
+| =ema_stats<T>=                | =ema_stats(mean=..., stddev=...)=                     | none                  |
+| =linear_interpolator<T>=      | =linear_interpolator(knots=..., domain=[lo, hi])=     | none                  |
+| =cubic_spline<T>=             | =cubic_spline(knots=..., domain=[lo, hi])=            | none                  |
+| =aho_corasick=                | =aho_corasick(patterns=..., nodes=...)=               | none                  |
+| =lca<Node>=                   | =lca(nodes=...)=                                      | none                  |
 
 The error enums keep their =constexpr= =std::string_view= =to_string= from
-their own headers; the graph results get a =std::string= =to_string= here. Either
+their own headers; every other type gets a =std::string= =to_string= here. Either
 way =operator<<= streams the same text the formatter prints.
 
-The compile-time configuration types (=crc_spec=, =modular_sum_spec=,
-=base_n_spec=, =codec_alphabet=) and the streaming engines (=crc_ctx=,
-=fnv1a_ctx=, =xxhash_ctx=) have no formatter: they are template parameters and
-accumulator state, not values to show. A computed hash or checksum is a plain
-integer and formats through the standard library.
+Specs print every parameter, register values as zero-padded hex of the spec
+width. The streaming contexts print their running digest the same way, so a
+CRC-32 context fed ="123456789"= prints =crc_ctx(value=0xcbf43926)=. The
+statistics print their count and summary values, the interpolators their knot
+count and the span of their =x= knots, and =aho_corasick= and =lca= their sizes.
+A computed hash or checksum is a plain integer and formats through the standard
+library.
 
 * Usage
 
@@ -39,6 +55,7 @@ integer and formats through the standard library.
 #include <format>
 #include <nexenne/algorithm/encoding/base_n.hpp>
 #include <nexenne/algorithm/format.hpp>
+#include <nexenne/algorithm/numerical/online_stats.hpp>
 
 namespace alg = nexenne::algorithm;
 
@@ -46,6 +63,12 @@ if (auto const bytes{alg::base64_decode("not base64!")}; !bytes) {
   auto const text{std::format("decode failed: {}", bytes.error())};
   // text == "decode failed: invalid_input"
 }
+
+auto stats{alg::running_stats<double>{}};
+stats.push(1.0);
+stats.push(3.0);
+auto const line{std::format("{}", stats)};
+// line == "running_stats(count=2, mean=2, stddev=1, min=1, max=3)"
 #+END_SRC
 
 * Gotchas
@@ -53,7 +76,8 @@ if (auto const bytes{alg::base64_decode("not base64!")}; !bytes) {
 - *Include it where you print.* Without =format.hpp= a =std::format= call or a
   stream insertion on one of these types fails to compile; nothing falls back
   to the underlying integer silently.
-- *Graph results print every element.* A large =floyd_warshall_result= renders
-  its whole =n * n= distance matrix, so print one for debugging, not in a loop.
+- *Graph results and histograms print every element.* A large
+  =floyd_warshall_result= renders its whole =n * n= distance matrix and a
+  =histogram= every bucket count, so print one for debugging, not in a loop.
 
 Runnable: [[file:../../../examples/algorithm/format.cpp][examples/algorithm/format.cpp]]

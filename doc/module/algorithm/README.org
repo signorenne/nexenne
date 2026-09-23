@@ -32,5 +32,6 @@ and differential cross-checks) and reports recoverable failures through
   =bellman_ford=, =floyd_warshall=), structure (=topological_sort=,
   =connected_components=, =tarjan_scc=, =kruskal_mst=, =lca=); these reuse
   =container::graph= and friends.
-- [[file:format.org][format]] : =std::formatter=, =to_string= and =operator<<= for the error enums
-  and the graph results.
+- [[file:format.org][format]] : =std::formatter=, =to_string= and =operator<<= for every public
+  type: error enums, graph results, specs, hash contexts, statistics,
+  interpolators, =aho_corasick= and =lca=.
