@@ -66,7 +66,10 @@ Reading the pieces:
 - The input constraint ="r,m"(value)= tells the compiler "this asm consumes
   =value=, placed in a register or in memory". To satisfy that, =value= must be
   fully computed and held live at this exact point, which is precisely what we
-  want: the computation behind it can no longer be dead.
+  want: the computation behind it can no longer be dead. On GCC a value that is
+  wider than a pointer or not trivially copyable gets the plain ="m"=
+  constraint instead: offered a register alternative, GCC copies a large
+  object onto the stack on every call.
 - The ="memory"= clobber says the asm may have touched arbitrary memory, so the
   compiler may not reorder surrounding memory accesses across it.
 

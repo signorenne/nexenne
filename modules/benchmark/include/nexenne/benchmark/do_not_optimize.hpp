@@ -78,7 +78,12 @@ namespace nexenne::benchmark {
  */
 template <typename T>
 NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T const& value) noexcept -> void {
-  asm volatile("" : : "r,m"(value) : "memory");
+  // Memory only for a large value: a register alternative made GCC copy 4 KB per call.
+  if constexpr (std::is_trivially_copyable_v<T> && sizeof(T) <= sizeof(void*)) {
+    asm volatile("" : : "r,m"(value) : "memory");
+  } else {
+    asm volatile("" : : "m"(value) : "memory");
+  }
 }
 
 /**
