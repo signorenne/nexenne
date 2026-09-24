@@ -92,6 +92,12 @@ pure compiler barrier: pending stores must be assumed visible and memory
 accesses may not move across it. Use it after writing into a buffer whose
 contents are never read back, so the stores are not store-merged into oblivion.
 
+The barrier only covers memory the compiler thinks the asm can reach. Stores
+into a local buffer whose address never escaped are still deleted: a filled
+local array followed by =clobber_memory()= compiles to nothing on GCC and Clang.
+Let the buffer escape first with =do_not_optimize(buffer.data())=, then store,
+then call =clobber_memory()=.
+
 ** Other compilers
 
 On MSVC the value's *address* is taken, laundered through a =char const volatile=
@@ -111,7 +117,8 @@ cost it is meant to protect.
 Put a =do_not_optimize= on at least one output of every benchmark body; if the
 routine returns nothing observable, protect an intermediate. Use
 =clobber_memory= when the work is a series of stores whose result is never read
-(a memset-shaped loop, filling a scratch buffer). Both are zero-instruction
+(a memset-shaped loop, filling a scratch buffer), after escaping the buffer's
+address with =do_not_optimize= as shown below. Both are zero-instruction
 markers, so they do not perturb the measurement, they only stop the optimiser
 from perturbing it for you. Forgetting them is the most common reason a
 micro-benchmark reports an impossibly fast time.
@@ -126,10 +133,11 @@ auto const r{bm::run("hash 64 bytes", [&] noexcept {
     bm::do_not_optimize(h);        // keep the hash (and so the hashing) alive
 })};
 
-bm::run("fill scratch", [&] noexcept {
+auto const f{bm::run("fill scratch", [&] noexcept {
+    bm::do_not_optimize(scratch.data());  // let the buffer escape first
     std::ranges::fill(scratch, std::byte{0});
     bm::clobber_memory();          // the stores are never read; keep them anyway
-});
+})};
 #+END_SRC
 
 Runnable: [[file:../../../examples/benchmark/compare_sorts.cpp][examples/benchmark/compare_sorts.cpp]].

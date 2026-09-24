@@ -17,8 +17,9 @@
  *   auto v{compute_something()};
  *   nexenne::benchmark::do_not_optimize(v);  // pretend we use v
  *
- *   // ... mutate memory ...
- *   nexenne::benchmark::clobber_memory();    // pretend stores escape
+ *   nexenne::benchmark::do_not_optimize(buffer.data());  // let buffer escape
+ *   // ... store into buffer ...
+ *   nexenne::benchmark::clobber_memory();    // pretend the stores are read
  * \endcode
  *
  * Mechanism (GCC and Clang):
@@ -26,8 +27,8 @@
  *     an any-operand constraint, so the compiler keeps \c value live and
  *     computed up to this point.
  *   - \c clobber_memory(): an empty asm block declares "memory" as a clobber,
- *     so the compiler flushes pending stores and may not reorder memory
- *     accesses across this point.
+ *     so the compiler flushes pending stores to memory whose address escaped
+ *     and may not reorder those accesses across this point.
  *
  * On MSVC we fall back to forcing the value into memory (take its address,
  * launder it through a \c char pointer parked in a volatile sink) followed by
@@ -122,6 +123,11 @@ NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T& value) noexcept -> void {
  * clobber, telling the optimiser that some memory may have been modified at
  * this point. This prevents store-merging across the call and reordering of
  * subsequent reads.
+ *
+ * The barrier only covers memory the asm could reach. Stores into a local buffer
+ * whose address never escaped are still deleted: a filled local array followed
+ * by \c clobber_memory compiles to nothing. Let the buffer escape first with
+ * \c do_not_optimize(buffer.data()), then store, then call \c clobber_memory.
  *
  * @pre None.
  * @post The compiler does not move memory accesses across this point; no memory
