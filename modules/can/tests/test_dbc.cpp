@@ -120,6 +120,16 @@ TEST_CASE("dbc: a [0|0] range means unbounded, not clamp-everything-to-zero") {
   CHECK(*nc::decode(entry.definition, entry.plan, frame) == doctest::Approx(1234.0));  // not 0
 }
 
+TEST_CASE("dbc: a signal that does not fit its message is rejected") {
+  auto const rejected{[](std::string_view const text) -> bool {
+    auto const r{nc::parse_dbc(text)};
+    return !r.has_value() && r.error() == nc::can_error::parse_error;
+  }};
+  CHECK(rejected("BO_ 1 M: 2 X\n SG_ S : 0|32@1+ (1,0) [0|0] \"\" X\n"));
+  CHECK(rejected("BO_ 1 M: 1 X\n SG_ S : 7|16@0+ (1,0) [0|0] \"\" X\n"));
+  CHECK(nc::parse_dbc("BO_ 1 M: 2 X\n SG_ S : 0|16@1+ (1,0) [0|0] \"\" X\n").has_value());
+}
+
 TEST_CASE("dbc: marking a float signal keeps the message and its other signals") {
   auto const parsed{nc::parse_dbc(
     "BO_ 100 Sensors: 8 ECU\n"

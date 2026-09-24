@@ -474,6 +474,14 @@ auto parse_dbc(std::string_view const source) -> result<dbc_database> {
     messages.push_back(current->build());
   }
 
+  for (message const& msg : messages) {
+    for (signal_entry const& entry : msg.signals()) {
+      if (entry.plan.required_length() > msg.byte_length()) {
+        return std::unexpected{can_error::parse_error};
+      }
+    }
+  }
+
   for (message& msg : messages) {
     auto const names_float{[&msg, &value_types](std::string_view const signal_name) -> bool {
       for (auto const& value_type : value_types) {

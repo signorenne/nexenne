@@ -44,7 +44,9 @@ if (parsed) {
 }
 #+END_SRC
 
-A malformed =BO_= or =SG_= line returns =can_error::parse_error=. See
+A malformed =BO_= or =SG_= line returns =can_error::parse_error=, and so does a
+signal whose bits run past the byte length its =BO_= line declares, since every
+encode and decode of that message would otherwise fail at run time. See
 [[file:../../../examples/can/dbc.cpp][examples/can/dbc.cpp]] for a parse-and-decode walk-through.
 
 * Descriptive metadata
