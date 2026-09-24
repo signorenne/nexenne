@@ -66,7 +66,7 @@ auto main() -> int {
   // filters; the loopback bus filters in software).
   nc::loopback_bus bus;
   std::array const filters{nc::filter::standard(0x700, 0x700)};
-  nexenne::utility::ignore(bus.set_filters(filters));
+  nexenne::utility::ignore(bus.apply_filters(filters));
 
   std::array const payload{byte_of(0x01)};
   nexenne::utility::ignore(

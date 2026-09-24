@@ -248,7 +248,7 @@ auto socketcan_bus::receive() -> result<std::optional<frame>> {
   return std::optional<frame>{*decoded};
 }
 
-auto socketcan_bus::set_filters(std::span<filter const> const filters) -> result<void> {
+auto socketcan_bus::apply_filters(std::span<filter const> const filters) -> result<void> {
   if (filters.size() > max_filters) {
     return std::unexpected{can_error::buffer_full};
   }

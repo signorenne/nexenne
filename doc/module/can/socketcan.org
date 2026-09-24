@@ -19,7 +19,7 @@ stack can be exercised without hardware.
 
 =socketcan_bus= wraps a raw =CAN_RAW= socket as a [[file:io.org][can_bus]], so any code written
 against the in-memory [[file:io.org][loopback_bus]] runs unchanged against hardware: same
-=send=, =receive=, =set_filters=, and =state=. It owns the socket (move-only,
+=send=, =receive=, =apply_filters=, and =state=. It owns the socket (move-only,
 closed by RAII) and is opened through a factory rather than a throwing
 constructor:
 
@@ -58,7 +58,7 @@ sent as 12) and the =brs= and =esi= flags carried in the kernel flag bits.
 
 * Hardware filters
 
-=set_filters= installs the filter set as the kernel's =CAN_RAW_FILTER= socket
+=apply_filters= installs the filter set as the kernel's =CAN_RAW_FILTER= socket
 option, so the kernel drops unwanted frames before they ever reach the process.
 The same [[file:database.org][filter]] type is used for software filtering in the registry and for
 this hardware array, so a node's subscription is written once. Up to

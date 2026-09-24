@@ -62,7 +62,7 @@ TEST_CASE("loopback_bus: send reports a full queue") {
 TEST_CASE("loopback_bus: filters drop unaccepted frames on receive") {
   nc::loopback_bus bus;
   std::array const filters{nc::filter::equals(nc::can_id::standard(0x200))};
-  REQUIRE(bus.set_filters(filters).has_value());
+  REQUIRE(bus.apply_filters(filters).has_value());
 
   REQUIRE(bus.send(frame_of(nc::can_id::standard(0x100))).has_value());  // dropped
   REQUIRE(bus.send(frame_of(nc::can_id::standard(0x200))).has_value());  // kept

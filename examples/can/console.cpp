@@ -286,11 +286,11 @@ auto main() -> int {
       std::println("auto heartbeat {}", auto_tx ? "on" : "off");
     } else if (cmd == "filter") {
       if (!rest.empty() && rest[0] == "clear") {
-        nu::ignore(bus->set_filters({}));
+        nu::ignore(bus->apply_filters({}));
         std::println("filters cleared");
       } else if (std::uint32_t id{0}; !rest.empty() && parse_hex_u32(rest[0], id)) {
         std::array const filters{nc::filter::equals(make_id(id, false))};
-        nu::ignore(bus->set_filters(filters));
+        nu::ignore(bus->apply_filters(filters));
         std::println("filter set to 0x{:X}", id);
       } else {
         std::println("usage: filter <id>|clear");

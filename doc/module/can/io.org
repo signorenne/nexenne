@@ -19,7 +19,7 @@ template <typename B>
 concept can_bus = requires(B bus, B const cbus, frame const& f, std::span<filter const> filters) {
   { bus.send(f) }            -> std::same_as<result<void>>;
   { bus.receive() }          -> std::same_as<result<std::optional<frame>>>;
-  { bus.set_filters(filters) }-> std::same_as<result<void>>;
+  { bus.apply_filters(filters) }-> std::same_as<result<void>>;
   { cbus.state() }           -> std::same_as<bus_state>;
 };
 #+END_SRC
@@ -70,7 +70,7 @@ decode round trip.
 * Filters
 
 A backend filters with the same [[file:database.org][filter]] type the registry uses. Pass a span of
-filters to =set_filters=; an empty span accepts everything. On the loopback bus the
+filters to =apply_filters=; an empty span accepts everything. On the loopback bus the
 filtering is done in software on receive; on the SocketCAN backend the same
 filters become the kernel's hardware filter array, so the kernel drops unwanted
 frames before they ever reach the process.

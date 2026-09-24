@@ -129,7 +129,7 @@ public:
    * @pre None.
    * @post \c receive now drops frames that match none of \p filters.
    */
-  auto set_filters(std::span<filter const> const filters) -> result<void> {
+  auto apply_filters(std::span<filter const> const filters) -> result<void> {
     m_filters.clear();
     for (filter const f : filters) {
       m_filters.push_back(f);

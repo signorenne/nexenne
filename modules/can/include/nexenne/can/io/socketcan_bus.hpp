@@ -229,7 +229,7 @@ public:
    * @post The kernel drops frames matching none of \p filters before they reach
    *       this socket.
    */
-  auto set_filters(std::span<filter const> const filters) -> result<void>;
+  auto apply_filters(std::span<filter const> const filters) -> result<void>;
 
   /**
    * @brief The controller fault-confinement state.
@@ -329,7 +329,7 @@ public:
    * @pre None.
    * @post None.
    */
-  auto set_filters([[maybe_unused]] std::span<filter const> const filters) -> result<void> {
+  auto apply_filters([[maybe_unused]] std::span<filter const> const filters) -> result<void> {
     return std::unexpected{can_error::unsupported};
   }
 

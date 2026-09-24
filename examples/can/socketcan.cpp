@@ -49,8 +49,8 @@ auto main() -> int {
 
   // Accept only standard id 0x123.
   std::array const filters{nc::filter::equals(nc::can_id::standard(0x123))};
-  if (auto const set{bus->set_filters(filters)}; !set) {
-    std::println("set_filters failed: {}", nc::to_string(set.error()));
+  if (auto const set{bus->apply_filters(filters)}; !set) {
+    std::println("apply_filters failed: {}", nc::to_string(set.error()));
     return 1;
   }
 

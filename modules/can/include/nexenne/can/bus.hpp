@@ -69,7 +69,7 @@ struct error_counters {
  * A type models \c can_bus when it offers, with these exact return types:
  * \c send(frame const&) returning \c result<void>; \c receive() returning
  * \c result<std::optional<frame>>, where \c std::nullopt means no frame is ready
- * rather than an error; \c set_filters(std::span<filter const>) returning
+ * rather than an error; \c apply_filters(std::span<filter const>) returning
  * \c result<void>; and a const \c state() returning \c bus_state.
  *
  * @tparam B Candidate backend type.
@@ -79,7 +79,7 @@ concept can_bus =
   requires(B bus, B const const_bus, frame const& f, std::span<filter const> const filters) {
     { bus.send(f) } -> std::same_as<result<void>>;
     { bus.receive() } -> std::same_as<result<std::optional<frame>>>;
-    { bus.set_filters(filters) } -> std::same_as<result<void>>;
+    { bus.apply_filters(filters) } -> std::same_as<result<void>>;
     { const_bus.state() } -> std::same_as<bus_state>;
   };
 
