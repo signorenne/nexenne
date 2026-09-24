@@ -337,8 +337,9 @@ public:
    * @brief Content equality: identifier, FD flags, length, and the valid bytes.
    *
    * The timestamp is ignored, so two frames carrying the same message compare
-   * equal regardless of when each was received. Padding past \c length() is
-   * always zero and does not affect the result.
+   * equal regardless of when each was received. Bytes past \c length() are
+   * ignored: they are not always zero, since shrinking \c length() leaves the
+   * old bytes in place.
    *
    * @param other Frame to compare against.
    *

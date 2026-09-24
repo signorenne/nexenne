@@ -9,8 +9,8 @@
  * builder, and call \c build to get the finished database. Keeping the mutable
  * accumulation here lets the database itself stay immutable.
  *
- * A text database format (DBC) is a planned future source that would feed this
- * same builder; the programmatic API is the supported path today.
+ * The DBC text format feeds this same builder: \c parse_dbc in \c dbc.hpp builds
+ * its database through it.
  */
 
 #include <utility>

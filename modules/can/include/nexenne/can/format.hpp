@@ -495,11 +495,12 @@ inline auto operator<<(std::ostream& os, filter const f) -> std::ostream& {
 /**
  * @brief Debug string for a \c message.
  *
- * Example: \c "message(status @0x100 std, 2 signals)".
+ * Example: \c "message(status @0x100 std, 8 bytes, 2 signals)".
  *
  * @param m Message to print.
  *
- * @return The debug string with the name, identifier, and signal count.
+ * @return The debug string with the name, identifier, byte length, and signal
+ *         count.
  *
  * @pre None.
  * @post None.

@@ -7,7 +7,7 @@
  * A \c can_id stores a single 32-bit word whose bit layout is the one Linux
  * SocketCAN uses for the \c can_id field of \c struct can_frame: the low 29 bits
  * hold the identifier and the top three bits are the extended-frame, remote, and
- * error flags. Mirroring that layout means a later SocketCAN backend converts a
+ * error flags. Mirroring that layout means the SocketCAN backend converts a
  * \c frame to and from the kernel struct by copying this word, not by re-packing
  * bits. The constants are plain values, so this header has no platform
  * dependency and the same layout is used on every target.
