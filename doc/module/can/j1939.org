@@ -117,15 +117,19 @@ bytes each, up to 1785 bytes. Two modes exist:
   point-to-point transfers.
 
 #+BEGIN_EXAMPLE
-  TP.CM (BAM): control=32 | size (2 bytes) | packets | 0xFF | PGN (3 bytes)
-  TP.DT      : sequence (1 byte) | 7 data bytes  (repeated, last padded with 0xFF)
+  TP.CM (BAM)  : control=32  | size (2 bytes) | packets | 0xFF | PGN (3 bytes)
+  TP.CM (abort): control=255 | reason | 0xFF 0xFF 0xFF        | PGN (3 bytes)
+  TP.DT        : sequence (1 byte) | 7 data bytes  (repeated, last padded with 0xFF)
 #+END_EXAMPLE
 
 =segment_bam= splits a payload into the BAM frames to send. A
 =transport_reassembler= consumes received frames and returns a =transport_message=
 when a transfer completes; it rebuilds BAM transfers and any CMDT data it
 observes. Generating the CMDT CTS flow control (a live-bus timing concern) is left
-to a higher layer.
+to a higher layer. A connection abort (=Conn_Abort=, control byte 255) can come
+from either end of a CMDT transfer, so the reassembler drops the session it
+names in either direction, matched on the PGN, and =accept= returns
+=can_error::transport_aborted=; an abort naming no open transfer is ignored.
 
 #+BEGIN_SRC C++
 namespace nc = nexenne::can;

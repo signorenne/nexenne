@@ -27,6 +27,7 @@ TEST_CASE("can_error: to_string names every enumerator") {
   CHECK(nc::to_string(nc::can_error::bus_off) == "bus_off");
   CHECK(nc::to_string(nc::can_error::buffer_full) == "buffer_full");
   CHECK(nc::to_string(nc::can_error::parse_error) == "parse_error");
+  CHECK(nc::to_string(nc::can_error::transport_aborted) == "transport_aborted");
 
   static_assert(nc::to_string(nc::can_error::invalid_id) == std::string_view{"invalid_id"});
 }

@@ -43,6 +43,7 @@ enum class can_error {
   bus_off,              ///< The controller is bus-off and refused the operation.
   buffer_full,          ///< A transmit or loopback queue is at capacity.
   parse_error,          ///< A text database (DBC) could not be parsed.
+  transport_aborted,    ///< A J1939 transport transfer was aborted (TP.CM Conn_Abort).
 };
 
 /**
@@ -88,6 +89,8 @@ using result = std::expected<T, can_error>;
       return "buffer_full";
     case can_error::parse_error:
       return "parse_error";
+    case can_error::transport_aborted:
+      return "transport_aborted";
   }
   return "unknown";
 }

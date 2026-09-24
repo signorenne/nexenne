@@ -60,6 +60,14 @@ inline constexpr std::uint8_t j1939_tp_bam{32};
 inline constexpr std::uint8_t j1939_tp_rts{16};
 
 /**
+ * @brief TP.CM control byte for a connection abort (Conn_Abort).
+ *
+ * Either end of a connection-mode transfer sends it: byte 1 carries the abort
+ * reason and bytes 5 to 7 the PGN of the transfer being dropped.
+ */
+inline constexpr std::uint8_t j1939_tp_abort{255};
+
+/**
  * @brief The largest payload the J1939 transport protocol can carry, in bytes.
  */
 inline constexpr std::uint16_t j1939_max_transport{1785};
@@ -239,15 +247,19 @@ public:
    *
    * A TP.CM announce frame (BAM or RTS) opens a session; each TP.DT frame appends
    * its seven data bytes; the message is returned when the last packet arrives.
-   * Frames that are not transport frames, and intermediate packets, return
-   * \c std::nullopt.
+   * A TP.CM abort (Conn_Abort) drops the session it names, whichever end sent
+   * it: the sender's abort names the receiver as its destination, the
+   * receiver's names the sender. Frames that are not transport frames, and
+   * intermediate packets, return \c std::nullopt.
    *
    * @param f Received frame.
    *
-   * @return The assembled message when a transfer completes, or \c std::nullopt.
+   * @return The assembled message when a transfer completes, \c std::nullopt
+   *         otherwise, or \c can_error::transport_aborted when an abort drops an
+   *         open session.
    *
    * @pre None.
-   * @post A completed session has been removed from the reassembler.
+   * @post A completed or aborted session has been removed from the reassembler.
    */
   [[nodiscard]] auto accept(frame const& f) -> result<std::optional<transport_message>>;
 };

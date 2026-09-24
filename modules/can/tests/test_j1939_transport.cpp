@@ -161,6 +161,53 @@ TEST_CASE("transport: a data frame contributes only its seven bytes, never overr
   CHECK((*done)->data()[7] == b(0x01));  // byte 8 is from packet 2, not the FD frame
 }
 
+TEST_CASE("transport: a TP.CM abort drops the session it names and reports it") {
+  constexpr std::uint8_t sender{0x50};
+  constexpr std::uint8_t receiver{0x60};
+  constexpr std::uint32_t pgn{0xFEF2};
+  auto const dt_id{nc::j1939_id::make(7, nc::j1939_pgn_tp_dt, sender, receiver).identifier()};
+  std::array const dt1{b(1), b(1), b(2), b(3), b(4), b(5), b(6), b(7)};
+  std::array const dt2{b(2), b(8), b(9), b(0xFF), b(0xFF), b(0xFF), b(0xFF), b(0xFF)};
+
+  SUBCASE("the receiver aborts, naming the sender as its destination") {
+    nc::transport_reassembler reassembler;
+    REQUIRE(reassembler.accept(make_cm(sender, receiver, nc::j1939_tp_rts, 9, 2, pgn)));
+    REQUIRE(reassembler.accept(*nc::frame::classic(dt_id, dt1)));
+    auto const aborted{
+      reassembler.accept(make_cm(receiver, sender, nc::j1939_tp_abort, 0xFF03, 0xFF, pgn))
+    };
+    REQUIRE_FALSE(aborted.has_value());
+    CHECK(aborted.error() == nc::can_error::transport_aborted);
+    auto const late{reassembler.accept(*nc::frame::classic(dt_id, dt2))};
+    REQUIRE(late.has_value());
+    CHECK_FALSE(late->has_value());
+  }
+
+  SUBCASE("the sender aborts its own transfer") {
+    nc::transport_reassembler reassembler;
+    REQUIRE(reassembler.accept(make_cm(sender, receiver, nc::j1939_tp_rts, 9, 2, pgn)));
+    auto const aborted{
+      reassembler.accept(make_cm(sender, receiver, nc::j1939_tp_abort, 0xFF01, 0xFF, pgn))
+    };
+    REQUIRE_FALSE(aborted.has_value());
+    CHECK(aborted.error() == nc::can_error::transport_aborted);
+  }
+
+  SUBCASE("an abort naming no open transfer is not an error") {
+    nc::transport_reassembler reassembler;
+    REQUIRE(reassembler.accept(make_cm(sender, receiver, nc::j1939_tp_rts, 9, 2, pgn)));
+    auto const other_pgn{
+      reassembler.accept(make_cm(sender, receiver, nc::j1939_tp_abort, 0xFF01, 0xFF, 0xFEF3))
+    };
+    REQUIRE(other_pgn.has_value());
+    CHECK_FALSE(other_pgn->has_value());
+    REQUIRE(reassembler.accept(*nc::frame::classic(dt_id, dt1)));
+    auto const done{reassembler.accept(*nc::frame::classic(dt_id, dt2))};
+    REQUIRE(done.has_value());
+    CHECK(done->has_value());
+  }
+}
+
 TEST_CASE("transport: a transport_message is formattable") {
   nc::transport_message const msg{0xFECA, 0x11, 0xFF, {}};
   CHECK(nc::to_string(msg).starts_with("transport(pgn=0x0FECA"));

@@ -98,6 +98,28 @@ auto transport_reassembler::accept(frame const& f) -> result<std::optional<trans
       return std::optional<transport_message>{};
     }
     auto const control{std::to_integer<std::uint8_t>(payload[0])};
+    if (control == j1939_tp_abort) {
+      // J1939-21 Conn_Abort: bytes 5 to 7 carry the aborted PGN, least significant first.
+      auto const aborted_pgn{
+        std::to_integer<std::uint32_t>(payload[5])
+        | (std::to_integer<std::uint32_t>(payload[6]) << 8U)
+        | (std::to_integer<std::uint32_t>(payload[7]) << 16U)
+      };
+      auto const drop{[this, aborted_pgn](std::uint8_t const from, std::uint8_t const to) -> bool {
+        session const* const open{find(from, to)};
+        if (open == nullptr || open->pgn != aborted_pgn) {
+          return false;
+        }
+        erase(from, to);
+        return true;
+      }};
+      bool const from_sender{drop(source, destination)};
+      bool const from_receiver{drop(destination, source)};
+      if (from_sender || from_receiver) {
+        return std::unexpected{can_error::transport_aborted};
+      }
+      return std::optional<transport_message>{};
+    }
     if (control == j1939_tp_bam || control == j1939_tp_rts) {
       auto const size{static_cast<std::uint16_t>(
         std::to_integer<unsigned>(payload[1]) | (std::to_integer<unsigned>(payload[2]) << 8U)
