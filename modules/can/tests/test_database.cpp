@@ -111,7 +111,6 @@ TEST_CASE("database: linear find matches identifier and format") {
   REQUIRE(engine != nullptr);
   CHECK(engine->name() == "engine");
 
-  // A standard id with the same value as the extended message does not match.
   CHECK(db.find(nc::can_id::standard(0x100 & 0x7FF)) != engine);
   CHECK(db.find(nc::can_id::standard(0x200)) == nullptr);
 }

@@ -43,8 +43,6 @@ constexpr auto byte_of(unsigned const v) noexcept -> std::byte {
 }  // namespace
 
 auto main() -> int {
-  // Describe the bus: one standard status message with two signals, and one
-  // extended engine message.
   auto const status{nc::message_builder{nc::can_id::standard(0x100), "status"}
                       .add(
                         nc::signal_builder{}
@@ -84,10 +82,8 @@ auto main() -> int {
   auto const db{nc::database_builder{}.add_message(status).add_message(engine).build()};
   std::println("{}", db);
 
-  // A registry indexes the database for the receive path.
   nc::registry const reg{db};
 
-  // A frame arrives: speed raw 5000 -> 50.0 km/h, oil_temp raw 130 -> 90 C.
   std::array const payload{byte_of(0x88), byte_of(0x13), byte_of(0x82)};
   auto const incoming{*nc::frame::classic(nc::can_id::standard(0x100), payload)};
   std::println("received {}", incoming);

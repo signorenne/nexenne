@@ -111,10 +111,8 @@ struct error_report {
   report.classes = f.id().raw() & extended_id_mask;
   auto const payload{f.data()};
 
-  // Per linux/can/error.h, data byte 1 carries the controller status only when the
-  // controller error class is set, and the counters in bytes 6 and 7 only when the
-  // counter class is set. Reading them otherwise would fabricate a state or counts
-  // from bytes that belong to an unrelated error class.
+  // linux/can/error.h: byte 1 is valid only with CAN_ERR_CRTL, bytes 6 and 7 only with
+  // CAN_ERR_CNT; otherwise they belong to another error class.
   std::uint8_t controller_status{0};
   if ((report.classes & err_class_controller) != 0U && payload.size() > 1) {
     controller_status = std::to_integer<std::uint8_t>(payload[1]);

@@ -23,8 +23,6 @@ namespace nc = nexenne::can;
 TEST_CASE("socket_options: the defaults match a plain CAN_RAW socket") {
   nc::socket_options const options;
   CHECK_FALSE(options.fd_enabled);
-  // CAN_RAW_RECV_OWN_MSGS is off in the kernel, so a caller that never asks for
-  // its own sends does not read them back interleaved with real bus traffic.
   CHECK_FALSE(options.receive_own_messages);
   CHECK(options.nonblocking);
   CHECK(options.read_timeout_ms == 0);
@@ -62,9 +60,7 @@ TEST_CASE("socket_options: to_string reports every option") {
   options.receive_own_messages = true;
   options.nonblocking = false;
   options.read_timeout_ms = 250;
-  CHECK(
-    nc::to_string(options) == "socket_options(fd=1, recv_own=1, nonblocking=0, timeout=250ms)"
-  );
+  CHECK(nc::to_string(options) == "socket_options(fd=1, recv_own=1, nonblocking=0, timeout=250ms)");
 }
 
 TEST_CASE("socket_options: streaming and formatting agree with to_string") {

@@ -84,7 +84,6 @@ TEST_CASE("registry: filters gate which frames are accepted") {
   CHECK(reg.accepts(nc::can_id::standard(0x100)));
   CHECK_FALSE(reg.accepts(nc::can_id::extended(0x18FEF100)));
 
-  // match honours filters; find ignores them.
   std::array const payload{b(0x88), b(0x13), b(0x82)};
   auto const accepted{*nc::frame::classic(nc::can_id::standard(0x100), payload)};
   auto const blocked{*nc::frame::classic(nc::can_id::extended(0x18FEF100), std::array{b(0x10)})};
@@ -97,7 +96,6 @@ TEST_CASE("registry: decode reports every signal of a matched frame") {
   auto const db{build_db()};
   nc::registry const reg{db};
 
-  // speed raw 5000 -> 50.0 km/h, oil_temp raw 130 -> 90 C.
   std::array const payload{b(0x88), b(0x13), b(0x82)};
   auto const f{*nc::frame::classic(nc::can_id::standard(0x100), payload)};
 
@@ -124,7 +122,6 @@ TEST_CASE("registry: decode of an unknown frame yields nothing") {
 TEST_CASE("registry: a signal past a short frame is skipped, not an error") {
   auto const db{build_db()};
   nc::registry const reg{db};
-  // Only one byte: speed needs two, oil_temp needs three; both are skipped.
   auto const f{*nc::frame::classic(nc::can_id::standard(0x100), std::array{b(0x00)})};
   auto const count{reg.decode_signals(f, [](nc::signal const&, double) {})};
   CHECK(count == 0);
@@ -139,7 +136,6 @@ TEST_CASE("registry: an empty database resolves nothing") {
 }
 
 TEST_CASE("registry: multiplexed signals decode only for the matching selector group") {
-  // Byte 0 = selector; byte 1 = group 0 signal; byte 2 = group 1 signal.
   auto const message{nc::message_builder{nc::can_id::standard(0x200), "mux"}
                        .add(
                          nc::signal_builder{}
@@ -171,7 +167,6 @@ TEST_CASE("registry: multiplexed signals decode only for the matching selector g
   auto const db{nc::database_builder{}.add_message(message).build()};
   nc::registry const reg{db};
 
-  // selector = 1 -> only sel and g1 decode.
   std::array const payload{b(0x01), b(0xAA), b(0x5A)};
   auto const f{*nc::frame::classic(nc::can_id::standard(0x200), payload)};
 
@@ -200,7 +195,6 @@ TEST_CASE("registry: a not-available signal is skipped during decode") {
   auto const db{nc::database_builder{}.add_message(message).build()};
   nc::registry const reg{db};
 
-  // byte 1 = 0xFF -> 'absent' is not available and is skipped; 'present' decodes.
   std::array const payload{b(0x2A), b(0xFF)};
   auto const f{*nc::frame::classic(nc::can_id::standard(0x250), payload)};
 

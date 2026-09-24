@@ -25,7 +25,6 @@ constexpr auto b(unsigned const v) noexcept -> std::byte {
 }
 
 TEST_CASE("intel: a byte-aligned 16-bit field is little-endian") {
-  // Intel start bit 0, width 16. Byte 0 is the least significant byte.
   nc::packing_plan const plan{0, 16, nc::byte_order::little_endian, false};
   std::array const payload{b(0x34), b(0x12)};
   CHECK(plan.extract(payload) == 0x1234);
@@ -34,8 +33,7 @@ TEST_CASE("intel: a byte-aligned 16-bit field is little-endian") {
 }
 
 TEST_CASE("motorola: a byte-aligned 16-bit field is big-endian") {
-  // Motorola start bit 7 (MSB of byte 0), width 16. Byte 0 is the most
-  // significant byte.
+  // DBC Motorola: start bit 7 is the MSB of byte 0, so byte 0 is the most significant.
   nc::packing_plan const plan{7, 16, nc::byte_order::big_endian, false};
   std::array const payload{b(0x12), b(0x34)};
   CHECK(plan.extract(payload) == 0x1234);
@@ -43,15 +41,15 @@ TEST_CASE("motorola: a byte-aligned 16-bit field is big-endian") {
 }
 
 TEST_CASE("intel: an unaligned 8-bit field straddles two bytes") {
-  // Bits 4..11: high nibble of byte 0 plus low nibble of byte 1.
+  // Bits 4 to 11: the high nibble of byte 0 and the low nibble of byte 1.
   nc::packing_plan const plan{4, 8, nc::byte_order::little_endian, false};
-  std::array const payload{b(0x30), b(0x02)};  // byte0 bits 4..7 = 0x3, byte1 bits 0..3 = 0x2
+  std::array const payload{b(0x30), b(0x02)};
   CHECK(plan.extract(payload) == 0x23);
   CHECK(plan.chunk_count() == 2);
 }
 
 TEST_CASE("motorola: a 12-bit field rounds down through the sawtooth") {
-  // Motorola start bit 7, width 12: all of byte 0 then the top nibble of byte 1.
+  // Motorola sawtooth: all of byte 0, then the top nibble of byte 1.
   nc::packing_plan const plan{7, 12, nc::byte_order::big_endian, false};
   std::array const payload{b(0xAB), b(0xC0)};
   CHECK(plan.extract(payload) == 0xABC);
@@ -59,7 +57,7 @@ TEST_CASE("motorola: a 12-bit field rounds down through the sawtooth") {
 
 TEST_CASE("a single bit is one chunk") {
   nc::packing_plan const plan{3, 1, nc::byte_order::little_endian, false};
-  std::array const set{b(0x08)};  // bit 3 set
+  std::array const set{b(0x08)};
   std::array const clear{b(0x00)};
   CHECK(plan.extract(set) == 1);
   CHECK(plan.extract(clear) == 0);
@@ -68,10 +66,9 @@ TEST_CASE("a single bit is one chunk") {
 
 TEST_CASE("insert is the inverse of extract and preserves neighbour bits") {
   nc::packing_plan const plan{4, 8, nc::byte_order::little_endian, false};
-  std::array payload{b(0xFF), b(0xFF)};  // start with all ones around the field
+  std::array payload{b(0xFF), b(0xFF)};
   plan.insert(payload, 0x23);
   CHECK(plan.extract(payload) == 0x23);
-  // The low nibble of byte 0 and the high nibble of byte 1 were not touched.
   CHECK((std::to_integer<unsigned>(payload[0]) & 0x0F) == 0x0F);
   CHECK((std::to_integer<unsigned>(payload[1]) & 0xF0) == 0xF0);
 }
@@ -98,7 +95,6 @@ TEST_CASE("a full 64-bit intel field spans eight aligned bytes") {
 }
 
 TEST_CASE("a byte-aligned 64-bit motorola field spans eight bytes via the sawtooth") {
-  // Start bit 7 (MSB of byte 0), width 64: byte 0 is the most significant byte.
   nc::packing_plan const plan{7, 64, nc::byte_order::big_endian, false};
   std::array const payload{b(0x01), b(0x23), b(0x45), b(0x67), b(0x89), b(0xAB), b(0xCD), b(0xEF)};
   CHECK(plan.extract(payload) == 0x0123'4567'89AB'CDEF);
@@ -111,8 +107,7 @@ TEST_CASE("a byte-aligned 64-bit motorola field spans eight bytes via the sawtoo
 }
 
 TEST_CASE("an unaligned 64-bit intel field genuinely spans nine bytes and round-trips") {
-  // Start bit 1, width 64: 7 bits of byte 0, all of bytes 1..7, 1 bit of byte 8.
-  // This is the nine-chunk path max_chunks{9} exists for.
+  // Bits 1 to 64: 7 bits of byte 0, all of bytes 1 to 7, and 1 bit of byte 8 (nine chunks).
   nc::packing_plan const plan{1, 64, nc::byte_order::little_endian, false};
   CHECK(plan.chunk_count() == 9);
   CHECK(plan.required_length() == 9);
@@ -121,7 +116,6 @@ TEST_CASE("an unaligned 64-bit intel field genuinely spans nine bytes and round-
   constexpr std::uint64_t value{0xFEDC'BA98'7654'3210};
   plan.insert(buffer, value);
   CHECK(plan.extract(buffer) == value);
-  // Bit 0 of byte 0 and the high 7 bits of byte 8 are outside the field: untouched.
   CHECK((std::to_integer<unsigned>(buffer[0]) & 0x01U) == 0U);
 }
 

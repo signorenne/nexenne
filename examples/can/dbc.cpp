@@ -55,7 +55,6 @@ auto main() -> int {
     }
   }
 
-  // Descriptive metadata: comments, value tables, and attributes.
   auto const status{nc::can_id::standard(256)};
   std::println("Speed comment: {}", parsed->signal_comment(status, "Speed"));
   std::println(
@@ -66,7 +65,6 @@ auto main() -> int {
     std::println("  {}", named);
   }
 
-  // Decode a frame using the imported database.
   nc::registry const reg{parsed->db()};
   std::array const payload{std::byte{0x88}, std::byte{0x13}, std::byte{0x82}};
   auto const f{*nc::frame::classic(nc::can_id::standard(256), payload)};

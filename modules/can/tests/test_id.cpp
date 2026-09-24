@@ -31,11 +31,8 @@ TEST_CASE("can_id: extended identifier sets the extended flag and keeps 29 bits"
 }
 
 TEST_CASE("can_id: raw word matches the SocketCAN layout") {
-  // Extended id with the extended flag in the top bit.
   CHECK(nc::can_id::extended(0x1).raw() == (0x1U | nc::extended_flag));
-  // Standard id is just the value, no flags.
   CHECK(nc::can_id::standard(0x7FF).raw() == 0x7FFU);
-  // from_raw round-trips the stored word verbatim.
   constexpr std::uint32_t word{0x18FE'F100U | nc::extended_flag};
   CHECK(nc::can_id::from_raw(word).raw() == word);
   CHECK(nc::can_id::from_raw(word).extended());

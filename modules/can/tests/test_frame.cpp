@@ -91,7 +91,7 @@ TEST_CASE("frame: equality ignores the timestamp but compares the bytes") {
   REQUIRE(b.has_value());
 
   b->timestamp_ns() = 123456;
-  CHECK(*a == *b);  // timestamp is not part of equality
+  CHECK(*a == *b);
 
   b->data()[0] = byte_of(0xFF);
   CHECK(*a != *b);
@@ -139,8 +139,6 @@ TEST_CASE("frame: fd_filled creates an FD frame filled with the value") {
 }
 
 TEST_CASE("frame factories accept an empty payload (RTR-style) without UB") {
-  // Regression: an empty span has data() == nullptr, and the old memcpy path
-  // passed a null pointer to memcpy, which is UB even for a zero count.
   auto const classic{nc::frame::classic(nc::can_id::standard(0x123), {})};
   REQUIRE(classic.has_value());
   CHECK(classic->length() == 0);
@@ -155,7 +153,6 @@ TEST_CASE("frame factories accept an empty payload (RTR-style) without UB") {
 }
 
 TEST_CASE("frame factories are usable at compile time") {
-  // Regression: the factories were neither constexpr nor noexcept.
   static_assert(noexcept(nc::frame::classic(nc::can_id::standard(1), {})));
   constexpr auto payload{std::array<std::byte, 2>{byte_of(0xDE), byte_of(0xAD)}};
   constexpr auto f{nc::frame::classic(nc::can_id::standard(0x123), payload)};
@@ -186,7 +183,7 @@ TEST_CASE("frame equality holds after growing the length through the accessor") 
   auto a{nc::frame::filled(nc::can_id::standard(0x1), 2, byte_of(0xAA)).value()};
   auto b{a};
   CHECK(a == b);
-  a.length() = 4;  // mutable accessor on an lvalue
+  a.length() = 4;
   a.data()[2] = byte_of(0xAA);
   a.data()[3] = byte_of(0xAA);
   CHECK_FALSE(a == b);

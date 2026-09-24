@@ -240,8 +240,8 @@ auto main() -> int {
   nc::message const* const engine{reg.find(nc::can_id::standard(engine_id))};
 
   nc::socket_options options;
-  options.fd_enabled = true;            // allow sending and receiving CAN FD frames
-  options.receive_own_messages = true;  // loop our sends back so they are displayed
+  options.fd_enabled = true;
+  options.receive_own_messages = true;
   options.nonblocking = true;
   auto bus{nc::socketcan_bus::open("vcan0", options)};
   if (!bus) {
@@ -280,7 +280,7 @@ auto main() -> int {
   std::println("nexenne CAN console on vcan0. type 'help'.");
 
   std::map<std::string, double> last_value{};
-  std::string input{};  // accumulates partial stdin between reads
+  std::string input{};
   std::uint64_t rx_count{0};
   std::uint64_t tx_count{0};
   int beats{0};
@@ -393,7 +393,7 @@ auto main() -> int {
         std::array<char, 512> buffer{};
         auto const got{::read(STDIN_FILENO, buffer.data(), buffer.size())};
         if (got <= 0) {
-          running = false;  // EOF (Ctrl-D) or error ends the session
+          running = false;
           break;
         }
         input.append(buffer.data(), static_cast<std::size_t>(got));

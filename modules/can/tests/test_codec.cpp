@@ -33,7 +33,7 @@ auto make_frame(std::span<std::byte const> const payload) -> nc::frame {
 TEST_CASE("unpack: unsigned field with a scale factor") {
   nc::signal const sig{0, 16, nc::byte_order::little_endian, false, 0.01, 0.0};
   auto const plan{nc::packing_plan::from_signal(sig)};
-  std::array const payload{b(0x88), b(0x13)};  // 0x1388 = 5000
+  std::array const payload{b(0x88), b(0x13)};
   auto const value{nc::decode(sig, plan, make_frame(payload))};
   REQUIRE(value.has_value());
   CHECK(*value == doctest::Approx(50.0));
@@ -43,7 +43,7 @@ TEST_CASE("unpack: signed field sign-extends two's complement") {
   nc::signal const sig{0, 8, nc::byte_order::little_endian, true, 1.0, 0.0};
   auto const plan{nc::packing_plan::from_signal(sig)};
   std::array const minus_one{b(0xFF)};
-  std::array const minus_full{b(0x80)};  // -128 in 8-bit two's complement
+  std::array const minus_full{b(0x80)};
   CHECK(*nc::decode(sig, plan, make_frame(minus_one)) == doctest::Approx(-1.0));
   CHECK(*nc::decode(sig, plan, make_frame(minus_full)) == doctest::Approx(-128.0));
 }
@@ -55,7 +55,7 @@ TEST_CASE("pack then unpack round-trips a scaled value") {
   auto frame{make_frame(zeros)};
 
   REQUIRE(nc::encode(sig, plan, frame, 50.0).has_value());
-  CHECK(frame.data()[0] == b(0x88));  // 5000 little-endian
+  CHECK(frame.data()[0] == b(0x88));
   CHECK(frame.data()[1] == b(0x13));
   CHECK(*nc::decode(sig, plan, frame) == doctest::Approx(50.0));
 }
@@ -88,21 +88,21 @@ TEST_CASE("encode: a value above the range is clamped, not rejected") {
 }
 
 TEST_CASE("pack: a value that overflows the field width is rejected") {
-  nc::signal const sig{0, 8, nc::byte_order::little_endian, false, 1.0, 0.0};  // unbounded range
+  nc::signal const sig{0, 8, nc::byte_order::little_endian, false, 1.0, 0.0};
   auto const plan{nc::packing_plan::from_signal(sig)};
   std::array const zero{b(0)};
   auto frame{make_frame(zero)};
 
-  auto const r{nc::encode(sig, plan, frame, 300.0)};  // 300 does not fit 8 bits
+  auto const r{nc::encode(sig, plan, frame, 300.0)};
   REQUIRE_FALSE(r.has_value());
   CHECK(r.error() == nc::can_error::value_out_of_range);
 }
 
 TEST_CASE("a field running past the frame length is out of range") {
-  nc::signal const sig{0, 16, nc::byte_order::little_endian, false};  // needs 2 bytes
+  nc::signal const sig{0, 16, nc::byte_order::little_endian, false};
   auto const plan{nc::packing_plan::from_signal(sig)};
   std::array const one_byte{b(0x00)};
-  auto frame{make_frame(one_byte)};  // only 1 byte
+  auto frame{make_frame(one_byte)};
 
   CHECK(nc::decode(sig, plan, frame).error() == nc::can_error::signal_out_of_range);
   CHECK(nc::encode(sig, plan, frame, 1.0).error() == nc::can_error::signal_out_of_range);
@@ -139,7 +139,6 @@ TEST_CASE("codec: a full 64-bit signed field round-trips the extremes") {
   REQUIRE(nc::encode(sig, plan, frame, -1.0).has_value());
   CHECK(*nc::decode(sig, plan, frame) == doctest::Approx(-1.0));
 
-  // -2^63 and 2^63 - 1 are the signed 64-bit extremes; both must fit.
   double const lowest{-9223372036854775808.0};
   REQUIRE(nc::encode(sig, plan, frame, lowest).has_value());
   CHECK(*nc::decode(sig, plan, frame) == doctest::Approx(lowest));
@@ -156,7 +155,7 @@ TEST_CASE("codec: a signed big-endian field with scale and offset round-trips") 
 }
 
 TEST_CASE("encode: a signed value out of the field range is rejected at both ends") {
-  nc::signal const sig{0, 8, nc::byte_order::little_endian, true};  // range [-128, 127]
+  nc::signal const sig{0, 8, nc::byte_order::little_endian, true};
   auto const plan{nc::packing_plan::from_signal(sig)};
   std::array const zero{b(0)};
   auto frame{make_frame(zero)};
@@ -175,7 +174,7 @@ TEST_CASE("encode: a negative clamp range pins values to the minimum") {
   std::array const zero{b(0)};
   auto frame{make_frame(zero)};
 
-  REQUIRE(nc::encode(sig, plan, frame, -100.0).has_value());  // clamped to -50
+  REQUIRE(nc::encode(sig, plan, frame, -100.0).has_value());
   CHECK(*nc::decode(sig, plan, frame) == doctest::Approx(-50.0));
 }
 
@@ -196,7 +195,7 @@ TEST_CASE("decode_value: the all-ones policy reports 0xFF as not available") {
   };
   auto const plan{nc::packing_plan::from_signal(sig)};
   CHECK_FALSE(nc::decode_value(sig, plan, make_frame(std::array{b(0xFF)}))->has_value());
-  CHECK(nc::decode_value(sig, plan, make_frame(std::array{b(0x00)}))->has_value());  // 0 is real
+  CHECK(nc::decode_value(sig, plan, make_frame(std::array{b(0x00)}))->has_value());
   CHECK(**nc::decode_value(sig, plan, make_frame(std::array{b(0x10)})) == doctest::Approx(16.0));
 }
 
@@ -221,9 +220,6 @@ TEST_CASE("decode_value: the all-zeros and both policies") {
 }
 
 TEST_CASE("encode: a finite but out-of-range value is rejected, never written as garbage") {
-  // Regression: encode checked only isfinite before llround, whose result is
-  // unspecified out of [LLONG_MIN, LLONG_MAX]. A signed 64-bit field accepted
-  // 1e30 and wrote 0x8000000000000000 (decoded as -9.22e18) with success.
   nc::signal const sig{0, 64, nc::byte_order::little_endian, true, 1.0, 0.0};
   auto const plan{nc::packing_plan::from_signal(sig)};
   std::array<std::byte, 8> bytes{};
@@ -231,26 +227,21 @@ TEST_CASE("encode: a finite but out-of-range value is rejected, never written as
 
   CHECK(nc::encode(sig, plan, frame, 1e30).error() == nc::can_error::value_out_of_range);
   CHECK(
-    nc::encode(sig, plan, frame, 9223372036854775808.0).error()  // exactly 2^63
-    == nc::can_error::value_out_of_range
+    nc::encode(sig, plan, frame, 9223372036854775808.0).error() == nc::can_error::value_out_of_range
   );
-  // The frame stays untouched by the rejected writes.
   CHECK(frame.data()[7] == b(0x00));
 }
 
 TEST_CASE("encode: an unsigned 64-bit field can reach values above INT64_MAX") {
-  // Regression: the unsigned path routed through llround -> long long, so raw
-  // values in (INT64_MAX, UINT64_MAX] were rejected although they fit the field.
   nc::signal const sig{0, 64, nc::byte_order::little_endian, false, 1.0, 0.0};
   auto const plan{nc::packing_plan::from_signal(sig)};
   std::array<std::byte, 8> bytes{};
   auto frame{make_frame(bytes)};
 
-  constexpr double big{1.2e19};  // < 2^64, above 2^63
+  constexpr double big{1.2e19};
   REQUIRE(nc::encode(sig, plan, frame, big).has_value());
   CHECK(*nc::decode(sig, plan, frame) == doctest::Approx(big));
 
-  // Just beyond the field is still rejected.
   CHECK(nc::encode(sig, plan, frame, 1.9e19).error() == nc::can_error::value_out_of_range);
 }
 
@@ -281,17 +272,14 @@ TEST_CASE("codec: encode_strict rejects an out-of-range value instead of clampin
   std::array<std::byte, 8> bytes{};
   auto frame{make_frame(bytes)};
 
-  // encode clamps 300 -> 200; encode_strict rejects it.
   REQUIRE(nc::encode(sig, plan, frame, 300.0).has_value());
   CHECK(*nc::decode(sig, plan, frame) == doctest::Approx(200.0));
   CHECK(nc::encode_strict(sig, plan, frame, 300.0).error() == nc::can_error::value_out_of_range);
-  // An in-range value goes through both.
   REQUIRE(nc::encode_strict(sig, plan, frame, 100.0).has_value());
   CHECK(*nc::decode(sig, plan, frame) == doctest::Approx(100.0));
 }
 
-TEST_CASE("codec: a 32-bit float signal rejects a value beyond the float range (can-06)") {
-  // The double-to-float conversion of 1e300 is undefined and wrote infinity.
+TEST_CASE("codec: a 32-bit float signal rejects a value beyond the float range") {
   nc::signal sig32{0, 32, nc::byte_order::little_endian, false};
   sig32.is_float() = true;
   auto const plan32{nc::packing_plan::from_signal(sig32)};

@@ -66,8 +66,8 @@ TEST_CASE("decode_error_frame: a passive controller status yields error-passive"
 
 TEST_CASE("decode_error_frame: error counters are read from data bytes 6 and 7") {
   std::array<std::byte, 8> data{};
-  data[6] = b(255);  // transmit error counter
-  data[7] = b(130);  // receive error counter
+  data[6] = b(255);
+  data[7] = b(130);
   auto const report{nc::decode_error_frame(error_frame_of(nc::err_class_counters, data))};
   REQUIRE(report.has_value());
   CHECK(report->counters == nc::error_counters{255, 130});
@@ -75,22 +75,18 @@ TEST_CASE("decode_error_frame: error counters are read from data bytes 6 and 7")
 }
 
 TEST_CASE("decode_error_frame: status and counter bytes are ignored without their class bits") {
-  // A frame that is only arbitration-lost (no controller or counter class) but
-  // happens to carry a passive status in byte 1 and counters in bytes 6/7 must
-  // not be read as error-passive or as valid counters.
   std::array<std::byte, 8> data{};
   data[1] = b(nc::err_controller_tx_passive);
   data[6] = b(0x11);
   data[7] = b(0x22);
-  // Class 0x02 is arbitration-lost (CAN_ERR_LOSTARB): neither controller nor counters.
+  // 0x02 is CAN_ERR_LOSTARB (linux/can/error.h): neither the controller nor the counter class.
   auto const report{nc::decode_error_frame(error_frame_of(std::uint32_t{0x02}, data))};
   REQUIRE(report.has_value());
-  CHECK(report->state == nc::bus_state::error_active);  // not error_passive
-  CHECK(report->counters == nc::error_counters{0, 0});  // counters class bit is clear
+  CHECK(report->state == nc::bus_state::error_active);
+  CHECK(report->counters == nc::error_counters{0, 0});
 }
 
 TEST_CASE("decode_error_frame is usable in a constant expression") {
-  // Exercises the constexpr marking (frames are constexpr-constructible now).
   constexpr auto decoded{[] {
     auto const f{
       nc::frame::classic(nc::can_id::from_raw(nc::error_flag | nc::err_class_bus_off), {})

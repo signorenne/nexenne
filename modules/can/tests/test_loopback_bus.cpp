@@ -67,14 +67,13 @@ TEST_CASE("loopback_bus: filters drop unaccepted frames on receive") {
   std::array const filters{nc::filter::equals(nc::can_id::standard(0x200))};
   REQUIRE(bus.apply_filters(filters).has_value());
 
-  REQUIRE(bus.send(frame_of(nc::can_id::standard(0x100))).has_value());  // dropped
-  REQUIRE(bus.send(frame_of(nc::can_id::standard(0x200))).has_value());  // kept
+  REQUIRE(bus.send(frame_of(nc::can_id::standard(0x100))).has_value());
+  REQUIRE(bus.send(frame_of(nc::can_id::standard(0x200))).has_value());
 
   auto const got{bus.receive()};
   REQUIRE(got.has_value());
   REQUIRE(got->has_value());
   CHECK((*got)->id() == nc::can_id::standard(0x200));
-  // The dropped frame was consumed, so the bus is now empty.
   CHECK(bus.empty());
 }
 

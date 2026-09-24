@@ -32,13 +32,12 @@ TEST_CASE("FD DLC: the full sixteen-entry table maps both directions") {
   };
   for (std::uint8_t dlc{0}; dlc < lengths.size(); ++dlc) {
     CHECK(nc::fd_dlc_to_length(dlc) == lengths[dlc]);
-    // A length that is exactly a table entry maps back to the same DLC.
     CHECK(nc::fd_length_to_dlc(lengths[dlc]) == dlc);
   }
 }
 
 TEST_CASE("FD DLC: a non-discrete length rounds up to the next size") {
-  CHECK(nc::fd_length_to_dlc(9) == 9);  // 9 -> 12 bytes -> DLC 9
+  CHECK(nc::fd_length_to_dlc(9) == 9);
   CHECK(nc::fd_padded_length(9) == 12);
   CHECK(nc::fd_padded_length(13) == 16);
   CHECK(nc::fd_padded_length(33) == 48);
@@ -66,8 +65,6 @@ TEST_CASE("FD DLC: a length above 64 saturates at DLC 15") {
 }
 
 TEST_CASE("fd_length_to_dlc via the precomputed reverse table matches the forward table") {
-  // Regression: fd_length_to_dlc now indexes a precomputed reverse table rather
-  // than scanning; every length must still round-trip to the smallest covering DLC.
   for (std::uint16_t length{0}; length <= 64U; ++length) {
     auto const len{static_cast<std::uint8_t>(length)};
     auto const dlc{nc::fd_length_to_dlc(len)};
@@ -75,7 +72,7 @@ TEST_CASE("fd_length_to_dlc via the precomputed reverse table matches the forwar
     CHECK((dlc == 0U || nc::fd_dlc_to_length(static_cast<std::uint8_t>(dlc - 1U)) < len));
   }
   CHECK(nc::fd_dlc_to_length(15) == 64);
-  static_assert(nc::fd_length_to_dlc(9) == 9);  // 9 bytes -> DLC 9 -> length 12
+  static_assert(nc::fd_length_to_dlc(9) == 9);
   static_assert(nc::fd_length_to_dlc(64) == 15);
 }
 

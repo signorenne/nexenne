@@ -101,7 +101,6 @@ auto build_database() -> nc::database {
                             .length(1)
                             .endianness(nc::byte_order::little_endian)
                             .build()};
-  // All-ones means "not available", so a 0xFF raw reading is skipped on decode.
   auto const fuel_level{nc::signal_builder{}
                           .name("fuel_level")
                           .start_bit(24)
@@ -174,7 +173,7 @@ public:
     while (true) {
       auto const received{bus.receive()};
       if (!received || !received->has_value()) {
-        break;  // an I/O error or an empty queue both end this poll
+        break;
       }
       handle(**received);
       ++processed;
@@ -278,8 +277,6 @@ auto main() -> int {
   auto const db{build_database()};
   nc::registry const reg{db};
 
-  // Swap this one line for a nc::socketcan_bus bus{"can0"} on Linux to monitor a
-  // real interface; everything below is unchanged because both satisfy can_bus.
   nc::loopback_bus<> bus;
 
   signal_monitor monitor{reg};
@@ -295,7 +292,7 @@ auto main() -> int {
                         signal_monitor::value_change const change
                       ) {
     if (change == signal_monitor::value_change::unchanged) {
-      return;  // notify only on first-seen and changed values, like a real monitor
+      return;
     }
     std::println("           {} = {:g} {} ({})", sig.name(), value, sig.unit(), change_tag(change));
   };
@@ -307,8 +304,6 @@ auto main() -> int {
     );
   };
 
-  // A few ticks of simulated ECU traffic: some values change, some hold steady,
-  // one fuel reading is not available, and one frame is from an unknown id.
   auto const engine{nc::can_id::standard(engine_id)};
   auto const chassis{nc::can_id::standard(chassis_id)};
   constexpr double not_available{std::numeric_limits<double>::quiet_NaN()};

@@ -41,7 +41,7 @@ constexpr auto byte_of(unsigned const v) noexcept -> std::byte {
 
 auto main() -> int {
   nc::socket_options options;
-  options.receive_own_messages = true;  // so a sent frame reads back on the same socket
+  options.receive_own_messages = true;
 
   auto bus{nc::socketcan_bus::open("vcan0", options)};
   if (!bus) {
@@ -51,7 +51,6 @@ auto main() -> int {
     return 0;
   }
 
-  // Accept only standard id 0x123.
   std::array const filters{nc::filter::equals(nc::can_id::standard(0x123))};
   if (auto const set{bus->apply_filters(filters)}; !set) {
     std::println("apply_filters failed: {}", nc::to_string(set.error()));

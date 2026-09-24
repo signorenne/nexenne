@@ -142,8 +142,7 @@ public:
    * @post None.
    */
   [[nodiscard]] constexpr auto required_length() const noexcept -> std::uint32_t {
-    // Computed in a wider type so a field near the 16-bit limit cannot wrap to a
-    // small value and slip past the bounds check in read_bytes / write_bytes.
+    // Widened so a field near the 16-bit limit cannot wrap past the read_bytes bounds check.
     return static_cast<std::uint32_t>(m_start_byte) + m_length;
   }
 };

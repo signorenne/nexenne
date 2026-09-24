@@ -35,7 +35,6 @@ constexpr auto byte_of(unsigned const v) noexcept -> std::byte {
 }  // namespace
 
 auto main() -> int {
-  // A Classic CAN frame: an 11-bit standard id and up to 8 data bytes
   std::array const payload{byte_of(0xDE), byte_of(0xAD), byte_of(0xBE), byte_of(0xEF)};
   auto const classic{nc::frame::classic(nc::can_id::standard(0x123), payload)};
   if (!classic) {
@@ -50,7 +49,6 @@ auto main() -> int {
     classic->length()
   );
 
-  // A CAN FD frame: a 29-bit extended id, up to 64 bytes, bit-rate switch
   std::array<std::byte, 16> fd_payload{};
   fd_payload[0] = byte_of(0x55);
   fd_payload[15] = byte_of(0xAA);
@@ -64,8 +62,6 @@ auto main() -> int {
     "  is_fd {}, brs {}, length {}", fd->is_fd(), fd->flags().has(nc::fd_flag::brs), fd->length()
   );
 
-  // The DLC mapping that CAN FD uses on the wire
-  // A 9-byte FD payload does not fit a discrete size, so a transmitter pads it.
   std::println(
     "an FD payload of 9 bytes is sent as {} bytes (DLC {})",
     nc::fd_padded_length(9),

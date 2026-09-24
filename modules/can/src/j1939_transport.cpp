@@ -121,14 +121,11 @@ auto transport_reassembler::accept(frame const& f) -> result<std::optional<trans
       return std::optional<transport_message>{};
     }
     if (control == j1939_tp_bam || control == j1939_tp_rts) {
+      // J1939-21 BAM / RTS: bytes 1 and 2 total size, byte 3 packet count, bytes 5 to 7 PGN.
       auto const size{static_cast<std::uint16_t>(
         std::to_integer<unsigned>(payload[1]) | (std::to_integer<unsigned>(payload[2]) << 8U)
       )};
       auto const packets{std::to_integer<std::uint8_t>(payload[3])};
-      // Validate the announce before trusting it: a hostile or corrupt CM can
-      // claim any size or packet count. Reject an impossible transfer instead
-      // of opening a session that would exceed the 1785-byte bound or complete
-      // with an inconsistent size.
       auto const expected{
         static_cast<std::uint16_t>((size + j1939_tp_dt_payload - 1U) / j1939_tp_dt_payload)
       };
@@ -159,16 +156,11 @@ auto transport_reassembler::accept(frame const& f) -> result<std::optional<trans
     if (active == nullptr) {
       return std::optional<transport_message>{};
     }
-    // A TP.DT frame is always 8-byte Classic CAN (a sequence byte plus seven
-    // data bytes). A short frame is a protocol error that drops the session; an
-    // oversized (mis-tagged FD) frame contributes only its seven data bytes.
+    // J1939-21 TP.DT: byte 0 is the 1-based sequence number, bytes 1 to 7 the data.
     if (payload.size() < max_classic_length) {
       erase(source, destination);
       return std::optional<transport_message>{};
     }
-    // The first data byte is the 1-based packet number. A gap or duplicate means
-    // a lost or reordered packet, so the session is dropped rather than
-    // assembling corrupt data.
     auto const sequence{std::to_integer<std::uint8_t>(payload[0])};
     if (sequence != static_cast<std::uint8_t>(active->received + 1U)) {
       erase(source, destination);

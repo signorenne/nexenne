@@ -325,11 +325,8 @@ encode(signal const& sig, packing_plan const& plan, frame& f, double const value
     }
     return write_bits(plan, f, detail::raw_from_float(scaled, plan.bit_length()));
   }
-  // Round in the double domain and bound the result before any integer cast:
-  // std::round never overflows (it returns a double), unlike std::llround, whose
-  // result is unspecified once the value leaves [LLONG_MIN, LLONG_MAX]. The
-  // exclusive upper bounds are exact powers of two, so an in-range rounded value
-  // always casts without undefined behaviour.
+  // std::round cannot overflow, unlike std::llround; the exclusive bounds are exact powers of
+  // two, so an in-range rounded value casts to an integer without undefined behaviour.
   auto const rounded{std::round(scaled)};
   auto const bits{plan.bit_length()};
   if (plan.is_signed()) {

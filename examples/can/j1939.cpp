@@ -27,7 +27,6 @@ namespace nc = nexenne::can;
 }  // namespace
 
 auto main() -> int {
-  // CCVS (Cruise Control / Vehicle Speed), PGN 0xFEF1: a PDU2 broadcast message.
   if (auto const ccvs{nc::j1939_id::decode(nc::can_id::extended(0x18FEF100))}) {
     std::println("CCVS  {}", *ccvs);
     std::println(
@@ -39,7 +38,6 @@ auto main() -> int {
     );
   }
 
-  // A Request (PGN 0xEA00): a PDU1 message addressed to one node.
   if (auto const request{nc::j1939_id::decode(nc::can_id::extended(0x18EA2101))}) {
     std::println("Request {}", *request);
     std::println(
@@ -50,7 +48,6 @@ auto main() -> int {
     );
   }
 
-  // Build an identifier from components: priority 6, PGN 0xFEF1, source 0x10.
   auto const built{nc::j1939_id::make(6, 0xFEF1, 0x10)};
   std::println("built   {} -> {}", built, built.identifier());
 

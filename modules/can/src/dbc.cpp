@@ -116,13 +116,11 @@ auto dbc_parse_message(std::string_view const line) -> result<message_builder> {
   if (name.empty() || !scanner.consume(':')) {
     return std::unexpected{can_error::parse_error};
   }
-  // The payload byte count follows the colon: "BO_ <id> <name>: <dlc> <transmitter>".
+  // "BO_ <id> <name>: <dlc> <transmitter>"
   std::uint32_t dlc{0};
   if (!dbc_parse_u32(scanner.token(), dlc) || dlc > max_fd_length) {
     return std::unexpected{can_error::parse_error};
   }
-  // Validate the identifier instead of silently masking it: a standard id above
-  // 0x7FF or an extended id above 0x1FFFFFFF (reserved bits set) is a bad record.
   bool const extended{(raw & dbc_extended_flag) != 0U};
   std::uint32_t const ident{raw & ~dbc_extended_flag};
   if (extended ? ident > extended_id_mask : ident > standard_id_mask) {
@@ -146,9 +144,7 @@ auto dbc_parse_signal(std::string_view const line) -> result<signal> {
   signal_builder builder;
   builder.name(name);
 
-  // Optional multiplexing indicator: "M" (selector), "m<N>" (multiplexed), or
-  // "m<N>M" (extended multiplexing: both). Our model has a single role, so an
-  // extended-multiplexed signal is imported as multiplexed rather than failing.
+  // Optional marker: "M" selector, "m<N>" multiplexed, "m<N>M" extended (imported as m<N>).
   auto marker{scanner.token()};
   if (marker == "M") {
     builder.mux_role(multiplex_role::selector);
@@ -169,8 +165,7 @@ auto dbc_parse_signal(std::string_view const line) -> result<signal> {
     return std::unexpected{can_error::parse_error};
   }
 
-  // Bit layout: "<start>|<length>@<order><sign>", e.g. "24|16@1+". The order
-  // character is at at+1 and the sign character at at+2, so both must be present.
+  // "<start>|<length>@<order><sign>", for example "24|16@1+"
   auto const layout{scanner.token()};
   auto const bar{layout.find('|')};
   auto const at{layout.find('@')};
@@ -184,9 +179,7 @@ auto dbc_parse_signal(std::string_view const line) -> result<signal> {
       || !dbc_parse_u32(layout.substr(bar + 1, at - bar - 1), length)) {
     return std::unexpected{can_error::parse_error};
   }
-  // Validate the raw numeric ranges before narrowing: an out-of-range length
-  // would overflow the packing plan's chunk array, and a start bit above 16 bits
-  // would truncate to a fabricated layout.
+  // Check before narrowing: a longer field overflows the plan's chunks, a wider start truncates.
   if (length < 1U || length > 64U || start > 0xFFFFU) {
     return std::unexpected{can_error::parse_error};
   }
@@ -199,7 +192,7 @@ auto dbc_parse_signal(std::string_view const line) -> result<signal> {
   builder.endianness(order_char == '1' ? byte_order::little_endian : byte_order::big_endian);
   builder.is_signed(sign_char == '-');
 
-  // Scaling: "(<factor>,<offset>)".
+  // "(<factor>,<offset>)"
   if (!scanner.consume('(')) {
     return std::unexpected{can_error::parse_error};
   }
@@ -217,10 +210,7 @@ auto dbc_parse_signal(std::string_view const line) -> result<signal> {
   }
   builder.scale(factor).offset(offset);
 
-  // Range: "[<min>|<max>]". By the DBC convention (and cantools), "[0|0]" means
-  // no range was specified, so the signal is left unbounded rather than clamped
-  // to zero. A degenerate range where maximum is not above minimum is treated the
-  // same way.
+  // "[<min>|<max>]"; "[0|0]" or max <= min means no range (DBC and cantools convention).
   if (scanner.consume('[')) {
     auto const min_text{scanner.until('|')};
     double minimum{0.0};
@@ -233,7 +223,7 @@ auto dbc_parse_signal(std::string_view const line) -> result<signal> {
     }
   }
 
-  // Unit: "<unit>" in quotes.
+  // "<unit>", quotes included
   if (scanner.consume('"')) {
     auto const unit{scanner.until('"')};
     if (scanner.consume('"')) {
@@ -359,8 +349,6 @@ auto parse_dbc(std::string_view const source) -> result<dbc_database> {
   std::vector<message> messages;
   std::optional<message_builder> current;
 
-  // SIG_VALTYPE_ lines can follow all the messages, so they are collected here
-  // and applied in a second pass once every message and signal exists.
   struct pending_value_type {
     std::uint32_t raw_id{0};
     std::string_view signal{};
@@ -370,8 +358,7 @@ auto parse_dbc(std::string_view const source) -> result<dbc_database> {
   std::vector<pending_value_type> value_types;
   detail::dbc_metadata metadata;
 
-  // Reads a BA_ attribute value up to the terminating ';', stripping the quotes
-  // from a string value so the caller sees the text either way.
+  // A BA_ value up to ';', with a string value's quotes stripped.
   auto read_attribute_value{[](detail::dbc_scanner& scanner) -> std::string_view {
     auto value{detail::dbc_trim(scanner.until(';'))};
     if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
@@ -407,8 +394,7 @@ auto parse_dbc(std::string_view const source) -> result<dbc_database> {
       }
       current->add(*parsed);
     } else if (line.starts_with("SIG_VALTYPE_ ")) {
-      // "SIG_VALTYPE_ <msgid> <signal> : <kind>;": kind 1 is a 32-bit float and 2
-      // a 64-bit double. Collected here and applied after every signal exists.
+      // "SIG_VALTYPE_ <msgid> <signal> : <kind>;", kind 1 float32 and 2 float64
       detail::dbc_scanner value_type{line};
       [[maybe_unused]] auto const keyword{value_type.token()};
       auto const message_id{value_type.token()};
@@ -421,7 +407,7 @@ auto parse_dbc(std::string_view const source) -> result<dbc_database> {
         }
       }
     } else if (line.starts_with("VAL_ ")) {
-      // "VAL_ <msgid> <signal> <value> "<label>" ... ;": a signal's value table.
+      // "VAL_ <msgid> <signal> <value> "<label>" ... ;"
       detail::dbc_scanner scanner{line};
       [[maybe_unused]] auto const keyword{scanner.token()};
       std::uint32_t raw_id{0};
@@ -443,7 +429,7 @@ auto parse_dbc(std::string_view const source) -> result<dbc_database> {
         }
       }
     } else if (line.starts_with("CM_ ")) {
-      // "CM_ [SG_ <msgid> <signal> | BO_ <msgid>] "<text>";": a comment.
+      // "CM_ [SG_ <msgid> <signal> | BO_ <msgid>] "<text>";"
       detail::dbc_scanner scanner{line};
       [[maybe_unused]] auto const keyword{scanner.token()};
       if (auto const database_text{scanner.read_quoted()}) {
@@ -463,7 +449,7 @@ auto parse_dbc(std::string_view const source) -> result<dbc_database> {
         }
       }
     } else if (line.starts_with("BA_ ")) {
-      // "BA_ "<name>" [SG_ <msgid> <signal> | BO_ <msgid>] <value>;": an attribute.
+      // "BA_ "<name>" [SG_ <msgid> <signal> | BO_ <msgid>] <value>;"
       detail::dbc_scanner scanner{line};
       [[maybe_unused]] auto const keyword{scanner.token()};
       if (auto const name{scanner.read_quoted()}) {

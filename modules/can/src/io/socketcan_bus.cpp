@@ -36,9 +36,7 @@ auto socket_closer::operator()(int const fd) const noexcept -> void {
 auto to_can_frame(frame const& f) noexcept -> ::can_frame {
   ::can_frame out{};
   out.can_id = f.id().raw();
-  // Bounded by the destination, not by the caller's promise: the length is
-  // reachable through frame's mutable length() accessor, so an assert would
-  // be both a contract nobody is forced to keep and gone under NDEBUG.
+  // Clamp, not assert: length() is mutable, and an assert vanishes under NDEBUG.
   auto const payload{f.data()};
   auto const copied{std::min<std::size_t>(payload.size(), max_classic_length)};
   out.can_dlc = static_cast<std::uint8_t>(copied);
@@ -65,8 +63,7 @@ auto to_canfd_frame(frame const& f) noexcept -> ::canfd_frame {
 
 auto from_can_frame(::can_frame const& cf) -> result<frame> {
   std::array<std::byte, max_classic_length> bytes{};
-  // A Classic CAN DLC of 9..15 means 8 data bytes, per the standard; clamp it
-  // rather than rejecting it.
+  // ISO 11898-1: a Classic DLC of 9 to 15 still means 8 data bytes, so clamp, not reject.
   auto const length{static_cast<std::size_t>(classic_dlc_to_length(cf.can_dlc & 0x0FU))};
   std::memcpy(bytes.data(), static_cast<void const*>(cf.data), length);
   return frame::classic(can_id::from_raw(cf.can_id), std::span{bytes}.first(length));
@@ -113,14 +110,10 @@ auto socketcan_bus::open(std::string_view const interface, socket_options const&
     }
   }
   {
-    // Best-effort receive timestamps; a backend without them just leaves the
-    // frame timestamp at zero.
     int const stamp{1};
     utility::ignore(::setsockopt(raw, SOL_SOCKET, SO_TIMESTAMPNS, &stamp, sizeof(stamp)));
   }
   {
-    // Subscribe to error frames; without this filter the kernel never delivers
-    // one, so the receive-side error decode and state() reporting would be dead.
     can_err_mask_t const error_mask{CAN_ERR_MASK};
     if (::setsockopt(raw, SOL_CAN_RAW, CAN_RAW_ERR_FILTER, &error_mask, sizeof(error_mask)) < 0) {
       return std::unexpected{can_error::io_error};
@@ -128,8 +121,7 @@ auto socketcan_bus::open(std::string_view const interface, socket_options const&
   }
 
   ifreq ifr{};
-  // A string_view is not null-terminated, so copy exactly its bytes (bounded by
-  // the field) rather than strncpy, which would read past the view.
+  // A string_view is not null-terminated: copy its bytes, never strncpy past the view.
   if (interface.size() >= sizeof(ifr.ifr_name)) {
     return std::unexpected{can_error::io_error};
   }
@@ -151,7 +143,6 @@ auto socketcan_bus::open(std::string_view const interface, socket_options const&
       return std::unexpected{can_error::io_error};
     }
   } else if (options.read_timeout_ms != 0) {
-    // A blocking read otherwise waits forever; honour the requested timeout.
     ::timeval timeout{};
     timeout.tv_sec = options.read_timeout_ms / 1000;
     timeout.tv_usec = static_cast<::suseconds_t>((options.read_timeout_ms % 1000) * 1000);
@@ -164,9 +155,6 @@ auto socketcan_bus::open(std::string_view const interface, socket_options const&
 }
 
 auto socketcan_bus::send(frame const& f) -> result<void> {
-  // to_can_frame and to_canfd_frame bound their copies, so an over-long frame
-  // cannot corrupt memory; refusing here means it cannot silently go on the
-  // wire truncated either.
   if (f.length() > (f.is_fd() ? max_fd_length : max_classic_length)) {
     return std::unexpected{can_error::payload_too_large};
   }
@@ -201,8 +189,7 @@ auto socketcan_bus::receive() -> result<std::optional<frame>> {
 
   ssize_t const got{::recvmsg(m_socket.get(), &message, 0)};
   if (got < 0) {
-    // EAGAIN and EWOULDBLOCK are the same value on Linux; the guard avoids a
-    // "logical or of equal expressions" warning while staying portable.
+    // EAGAIN == EWOULDBLOCK on Linux; the guard avoids an equal-operands warning.
     auto const code{errno};
     if (
       code == EAGAIN
@@ -229,7 +216,6 @@ auto socketcan_bus::receive() -> result<std::optional<frame>> {
     return std::unexpected{decoded.error()};
   }
 
-  // Extract the kernel receive timestamp from the control message, if present.
   for (::cmsghdr* header{CMSG_FIRSTHDR(&message)}; header != nullptr;
        header = CMSG_NXTHDR(&message, header)) {
     if (header->cmsg_level == SOL_SOCKET && header->cmsg_type == SO_TIMESTAMPNS) {
@@ -273,8 +259,7 @@ auto socketcan_bus::state() const noexcept -> bus_state {
 }
 
 auto socketcan_bus::native_handle() const noexcept -> native_handle_type {
-  // Moving an int copies it, so a moved-from bus still stores the descriptor
-  // another bus now owns; only the ownership flag distinguishes them.
+  // A moved-from handle still stores the int another bus owns; only owns() tells them apart.
   return m_socket.owns() ? m_socket.get() : -1;
 }
 

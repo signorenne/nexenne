@@ -29,13 +29,11 @@ namespace nc = nexenne::can;
 }  // namespace
 
 auto main() -> int {
-  // A 20-byte payload: too large for one frame, so it needs the transport protocol.
   std::array<std::byte, 20> payload{};
   for (std::size_t i{0}; i < payload.size(); ++i) {
     payload[i] = std::byte{static_cast<unsigned char>(0x10 + i)};
   }
 
-  // Segment it for broadcast (BAM): priority 7, PGN 0xFECA, source address 0x11.
   auto const frames{nc::segment_bam(7, 0xFECA, 0x11, payload)};
   if (!frames) {
     std::println("segmentation failed: {}", nc::to_string(frames.error()));
@@ -46,7 +44,6 @@ auto main() -> int {
     std::println("  {}", f);
   }
 
-  // A receiver feeds each frame to a reassembler until the message completes.
   nc::transport_reassembler reassembler;
   for (nc::frame const& f : *frames) {
     auto const message{reassembler.accept(f)};

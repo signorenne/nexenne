@@ -221,8 +221,6 @@ public:
       return 0;
     }
 
-    // Read the multiplexor selector first, so multiplexed signals from the wrong
-    // group are skipped. A message without a selector decodes everything.
     std::optional<std::uint64_t> selector;
     for (signal_entry const& entry : msg->signals()) {
       if (entry.definition.mux_role() == multiplex_role::selector) {
@@ -239,8 +237,6 @@ public:
           && (!selector || *selector != entry.definition.mux_value())) {
         continue;
       }
-      // decode_value honours the signal's invalid-value policy, so a field that
-      // reads as "not available" yields no value and is skipped.
       if (auto const value{nexenne::can::decode_value(entry.definition, entry.plan, f)};
           value && value->has_value()) {
         fn(entry.definition, **value);

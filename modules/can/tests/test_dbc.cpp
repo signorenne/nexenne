@@ -28,7 +28,7 @@ constexpr std::string_view kDbc{
   " SG_ Speed : 0|16@1+ (0.01,0) [0|655.35] \"km/h\" Dash\n"
   " SG_ OilTemp : 16|8@1+ (1,-40) [-40|215] \"degC\" Dash\n"
   "\n"
-  "BO_ 2566844672 EngineData: 8 ECU\n"  // 0x98FEF100: extended (top bit set)
+  "BO_ 2566844672 EngineData: 8 ECU\n"  // 0x98FEF100: bit 31 set marks an extended id
   " SG_ Rpm : 0|16@1+ (0.125,0) [0|8031] \"rpm\" Dash\n"
 };
 
@@ -72,7 +72,7 @@ TEST_CASE("dbc: a parsed database decodes a frame end to end") {
   REQUIRE(parsed.has_value());
   nc::registry const reg{parsed->db()};
 
-  std::array const payload{std::byte{0x88}, std::byte{0x13}, std::byte{0x82}};  // 50.0 km/h, 90 C
+  std::array const payload{std::byte{0x88}, std::byte{0x13}, std::byte{0x82}};
   auto const f{*nc::frame::classic(nc::can_id::standard(256), payload)};
   std::size_t decoded{0};
   reg.decode_signals(f, [&decoded](nc::signal const&, double) { ++decoded; });
@@ -80,7 +80,7 @@ TEST_CASE("dbc: a parsed database decodes a frame end to end") {
 }
 
 TEST_CASE("dbc: a malformed signal line is a parse error") {
-  // Bind and check has_value() first: calling .error() on a valued expected is UB.
+  // REQUIRE_FALSE first: .error() on a valued expected is UB.
   auto const parsed{nc::parse_dbc("BO_ 1 M: 8 X\n SG_ Broken : not_a_layout\n")};
   REQUIRE_FALSE(parsed.has_value());
   CHECK(parsed.error() == nc::can_error::parse_error);
@@ -91,25 +91,16 @@ TEST_CASE("dbc: hostile numeric fields are rejected, never imported") {
     auto const r{nc::parse_dbc(text)};
     return !r.has_value() && r.error() == nc::can_error::parse_error;
   };
-  // Out-of-range signal length (would overflow the packing-plan chunk array).
   CHECK(rejected("BO_ 1 M: 8 X\n SG_ S : 0|200@1+ (1,0) [0|0] \"\" X\n"));
-  // Length zero with a sign flag (would reach a shift-by-minus-one in decode).
   CHECK(rejected("BO_ 1 M: 8 X\n SG_ S : 0|0@1- (1,0) [0|0] \"\" X\n"));
-  // Standard id above 0x7FF (would be silently masked to a different id).
   CHECK(rejected("BO_ 2049 M: 8 X\n SG_ S : 0|8@1+ (1,0) [0|0] \"\" X\n"));
-  // Start bit above 16 bits (would truncate to a fabricated layout).
   CHECK(rejected("BO_ 1 M: 8 X\n SG_ S : 70000|8@1+ (1,0) [0|0] \"\" X\n"));
-  // Non-finite scale.
   CHECK(rejected("BO_ 1 M: 8 X\n SG_ S : 0|8@1+ (inf,0) [0|0] \"\" X\n"));
-  // Invalid byte-order character.
   CHECK(rejected("BO_ 1 M: 8 X\n SG_ S : 0|8@7+ (1,0) [0|0] \"\" X\n"));
-  // A float value type on a signal whose width is not 32 or 64 bits is malformed.
   CHECK(rejected("BO_ 1 M: 8 X\n SG_ S : 0|8@1+ (1,0) [0|0] \"\" X\nSIG_VALTYPE_ 1 S : 1;\n"));
 }
 
 TEST_CASE("dbc: a [0|0] range means unbounded, not clamp-everything-to-zero") {
-  // Regression: [0|0] is the DBC spelling for "no range specified". Treating it
-  // as min=max=0 clamped every encoded value to 0.
   auto const parsed{nc::parse_dbc("BO_ 100 M: 8 X\n SG_ S : 0|16@1+ (1,0) [0|0] \"\" X\n")};
   REQUIRE(parsed.has_value());
   auto const* const msg{parsed->db().find(nc::can_id::standard(100))};
@@ -117,7 +108,7 @@ TEST_CASE("dbc: a [0|0] range means unbounded, not clamp-everything-to-zero") {
   auto const& entry{msg->signals()[0]};
   auto frame{*nc::frame::classic(nc::can_id::standard(100), std::array<std::byte, 8>{})};
   REQUIRE(nc::encode(entry.definition, entry.plan, frame, 1234.0).has_value());
-  CHECK(*nc::decode(entry.definition, entry.plan, frame) == doctest::Approx(1234.0));  // not 0
+  CHECK(*nc::decode(entry.definition, entry.plan, frame) == doctest::Approx(1234.0));
 }
 
 TEST_CASE("dbc: a signal that does not fit its message is rejected") {
@@ -162,7 +153,6 @@ TEST_CASE("dbc: a float value type marks the signal, and float signals round-tri
   auto const& entry{msg->signals()[0]};
   CHECK(entry.definition.is_float());
 
-  // Encode a float physical value and decode it back through the marked signal.
   auto frame{*nc::frame::classic(nc::can_id::standard(100), std::array<std::byte, 8>{})};
   REQUIRE(nc::encode(entry.definition, entry.plan, frame, 21.5).has_value());
   CHECK(*nc::decode(entry.definition, entry.plan, frame) == doctest::Approx(21.5));
@@ -175,8 +165,8 @@ TEST_CASE("dbc: the message byte length and extended multiplexing marker are imp
   REQUIRE(parsed.has_value());
   auto const* const msg{parsed->db().find(nc::can_id::standard(100))};
   REQUIRE(msg != nullptr);
-  CHECK(msg->byte_length() == 6);     // the BO_ dlc is now retained
-  REQUIRE(msg->signal_count() == 1);  // m2M no longer fails the whole file
+  CHECK(msg->byte_length() == 6);
+  REQUIRE(msg->signal_count() == 1);
   CHECK(msg->signals()[0].definition.mux_role() == nc::multiplex_role::multiplexed);
 }
 
@@ -207,7 +197,7 @@ TEST_CASE("dbc: value tables, comments, and attributes are parsed and queryable"
   REQUIRE(parsed->value_table(id, "Gear").size() == 3);
   CHECK(parsed->value_name(id, "Gear", 1) == "drive");
   CHECK(parsed->value_name(id, "Gear", 2) == "reverse");
-  CHECK_FALSE(parsed->value_name(id, "Gear", 9).has_value());  // unnamed value
+  CHECK_FALSE(parsed->value_name(id, "Gear", 9).has_value());
 
   CHECK(parsed->message_attribute(id, "GenMsgCycleTime") == "100");
   CHECK(parsed->signal_attribute(id, "Gear", "GenSigStartValue") == "0");
@@ -221,23 +211,20 @@ TEST_CASE("dbc: metadata views survive a move of the dbc_database") {
     "VAL_ 256 Gear 1 \"drive\" ;\n"
   )};
   REQUIRE(parsed.has_value());
-  auto const moved{std::move(*parsed)};  // move the dbc_database and its metadata
+  auto const moved{std::move(*parsed)};
   CHECK(moved.value_name(nc::can_id::standard(256), "Gear", 1) == "drive");
 }
 
 TEST_CASE("dbc: names point into the retained source and survive a move") {
   auto parsed{nc::parse_dbc(kDbc)};
   REQUIRE(parsed.has_value());
-  auto moved{std::move(*parsed)};  // move the dbc_database
+  auto moved{std::move(*parsed)};
   auto const* const status{moved.find(nc::can_id::standard(256))};
   REQUIRE(status != nullptr);
-  CHECK(status->name() == "VehicleStatus");  // view still valid after the move
+  CHECK(status->name() == "VehicleStatus");
 }
 
-TEST_CASE("dbc: a comment may span lines and escape its quotes (can-05)") {
-  // Records were split per line: a multi-line comment was dropped, a
-  // continuation line starting with BO_ failed the file, and an escaped quote
-  // ended the comment early.
+TEST_CASE("dbc: a comment may span lines and escape its quotes") {
   constexpr std::string_view base{"BO_ 100 Engine: 8 ECU\n"
                                   " SG_ Speed : 0|16@1+ (0.1,0) [0|0] \"km/h\" X\n"};
   auto const id{nc::can_id::standard(100)};

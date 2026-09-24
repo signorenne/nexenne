@@ -39,9 +39,6 @@ namespace nc = nexenne::can;
 }  // namespace
 
 auto main() -> int {
-  // Two signals sharing one 8-byte frame:
-  //   speed: bits 0..15, Intel, 0.01 km/h per count.
-  //   oil temperature: bits 16..23, Intel, 1 C per count with a -40 C offset.
   auto const speed{nc::signal_builder{}
                      .name("speed")
                      .start_bit(0)
@@ -65,12 +62,10 @@ auto main() -> int {
   std::array<std::byte, 8> zeros{};
   auto frame{*nc::frame::classic(nc::can_id::standard(0x100), zeros)};
 
-  // Encode the physical values; the codec inverts the scaling and packs the bits.
   nexenne::utility::ignore(nc::encode(speed, speed_plan, frame, 87.5));
   nexenne::utility::ignore(nc::encode(oil_temp, oil_plan, frame, 90.0));
   std::println("encoded: {}", frame);
 
-  // Decode them back out.
   std::println(
     "speed    = {} {}", nc::decode(speed, speed_plan, frame).value_or(0.0), speed.unit()
   );
@@ -78,8 +73,6 @@ auto main() -> int {
     "oil_temp = {} {}", nc::decode(oil_temp, oil_plan, frame).value_or(0.0), oil_temp.unit()
   );
 
-  // The same 16-bit value packed Intel and Motorola lands in opposite byte order.
-  // Intel starts at the LSB (bit 0); Motorola starts at the MSB (bit 7 of byte 0).
   nc::signal const big{7, 16, nc::byte_order::big_endian, false};
   auto const big_plan{nc::packing_plan::from_signal(big)};
   std::array<std::byte, 2> intel_bytes{};

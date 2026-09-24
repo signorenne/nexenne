@@ -87,9 +87,6 @@ private:
    * @post The chunk is appended and the required frame length covers its byte.
    */
   constexpr auto push_chunk(plan_chunk chunk) noexcept -> void {
-    // Precompute the width mask once so extract / insert avoid rebuilding it per
-    // chunk on every frame at bus rate. A chunk lies within one byte, so
-    // num_bits is at most 8 and the mask fits a byte.
     chunk.mask = static_cast<std::uint8_t>((1U << chunk.num_bits) - 1U);
     m_chunks[m_count] = chunk;
     ++m_count;
@@ -113,8 +110,7 @@ private:
    */
   constexpr auto build_little_endian(std::uint16_t const start_bit) noexcept -> void {
     auto remaining{m_bit_length};
-    // Advance the bit cursor in a wider type so a field near the 16-bit start-bit
-    // limit cannot wrap and alias byte 0.
+    // Widened so a field near the 16-bit start-bit limit cannot wrap and alias byte 0.
     std::uint32_t global{start_bit};
     std::uint8_t dest{0};
     while (remaining != 0) {
@@ -144,7 +140,7 @@ private:
   constexpr auto build_big_endian(std::uint16_t const start_bit) noexcept -> void {
     auto remaining{m_bit_length};
     auto byte{static_cast<std::uint16_t>(start_bit / 8U)};
-    auto msb{static_cast<std::uint8_t>(start_bit % 8U)};  // bit position of the MSB in this byte
+    auto msb{static_cast<std::uint8_t>(start_bit % 8U)};
     while (remaining != 0) {
       auto const take{static_cast<std::uint8_t>(std::min<std::uint16_t>(msb + 1U, remaining))};
       auto const lsb{static_cast<std::uint8_t>(msb + 1U - take)};
@@ -152,7 +148,7 @@ private:
       push_chunk(plan_chunk{byte, lsb, take, dest});
       remaining = static_cast<std::uint8_t>(remaining - take);
       byte = static_cast<std::uint16_t>(byte + 1U);
-      msb = 7U;  // every following byte starts its run at bit 7
+      msb = 7U;
     }
   }
 

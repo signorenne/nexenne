@@ -164,7 +164,7 @@ auto main() -> int {
 
   nc::socket_options options;
   options.nonblocking = true;
-  options.receive_own_messages = true;  // so our own periodic sends are shown too
+  options.receive_own_messages = true;
   auto bus{nc::socketcan_bus::open("vcan0", options)};
   if (!bus) {
     std::println(
@@ -173,18 +173,13 @@ auto main() -> int {
     return 0;
   }
 
-  // Deliver SIGINT/SIGTERM through a descriptor instead of an async handler, so
-  // shutdown is just another readable fd in the same loop. Block their default
-  // disposition first, otherwise Ctrl-C would still terminate the process.
+  // Block first, or Ctrl-C still kills the process before the signalfd sees it.
   sigset_t mask{};
   sigemptyset(&mask);
   sigaddset(&mask, SIGINT);
   sigaddset(&mask, SIGTERM);
   nu::ignore(::sigprocmask(SIG_BLOCK, &mask, nullptr));
 
-  // RAII descriptors: unique_resource closes each on every exit path, including
-  // the early returns below. make_unique_resource_checked skips the deleter on
-  // failure (the -1 sentinel an open syscall returns).
   auto const closer{[](int fd) { nu::ignore(::close(fd)); }};
   auto epoll{nu::make_unique_resource_checked(::epoll_create1(EPOLL_CLOEXEC), -1, closer)};
   auto timer{nu::make_unique_resource_checked(
@@ -198,15 +193,12 @@ auto main() -> int {
     return 1;
   }
 
-  // Fire the timer every heartbeat_ms; this is the application's periodic work.
   itimerspec const period{
     .it_interval = {.tv_sec = 0, .tv_nsec = heartbeat_ms * 1'000'000},
     .it_value = {.tv_sec = 0, .tv_nsec = heartbeat_ms * 1'000'000},
   };
   nu::ignore(::timerfd_settime(timer.get(), 0, &period, nullptr));
 
-  // Register the CAN socket, the timer, and the signal fd; a real app adds its
-  // other descriptors here too.
   auto const watch{[&](int fd) {
     epoll_event ev{};
     ev.events = EPOLLIN;
@@ -221,7 +213,7 @@ auto main() -> int {
   std::println("reactor running on vcan0 (Ctrl-C to stop)");
   std::println("inject from another terminal, e.g. cansend vcan0 200#0102030405060708");
 
-  std::map<std::string, double> last_value{};  // for new-or-changed notifications
+  std::map<std::string, double> last_value{};
   int beats{0};
   bool running{true};
   std::array<epoll_event, 8> events{};
@@ -249,7 +241,6 @@ auto main() -> int {
         nu::ignore(::read(fd, &expirations, sizeof(expirations)));
         ++beats;
         if (engine != nullptr) {
-          // rpm and temperature cycle so the values keep changing within range.
           transmit(
             *bus,
             *engine,
@@ -259,7 +250,6 @@ auto main() -> int {
           );
         }
       } else if (fd == bus->native_handle()) {
-        // Drain every frame the socket has buffered from this one wakeup.
         while (true) {
           auto const received{bus->receive()};
           if (!received) {
