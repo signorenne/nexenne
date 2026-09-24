@@ -133,10 +133,12 @@ struct calibration {
  *
  * Repeatedly invokes \p run_batch with a geometrically increasing iteration
  * count, starting at one, until a batch takes at least \c calibration_min_ns or
- * the count reaches \c calibration_max_iters. Deriving the per-call cost from
- * the returned hot, amortised reading (rather than a single cold call) fixes
- * both the cold-call skew and the coarse-clock zero-reading trap: a body too
- * fast for the clock simply grows until it is measurable.
+ * the count reaches \c calibration_max_iters. One call runs and is discarded
+ * first, so a slow first call (lazy initialisation, first-touch page faults)
+ * cannot pass for the per-call cost on its own. Deriving the per-call cost from
+ * the returned hot, amortised reading then also avoids the coarse-clock
+ * zero-reading trap: a body too fast for the clock simply grows until it is
+ * measurable.
  *
  * @tparam Batch Invocable taking the iteration count and returning the batch
  *         wall time in nanoseconds.
@@ -149,11 +151,12 @@ struct calibration {
  * @post The returned iteration count is at least one and at most
  *       \c calibration_max_iters.
  *
- * @complexity Runs the body about \c 1.1 times the returned iteration count in
- *             total across the growth passes.
+ * @complexity Runs the body once for the discarded call, then about \c 1.1
+ *             times the returned iteration count across the growth passes.
  */
 template <std::invocable<std::size_t> Batch>
 [[nodiscard]] auto grow_until_measurable(Batch&& run_batch) -> calibration {
+  [[maybe_unused]] auto const cold_ns{run_batch(std::size_t{1})};
   auto iters{std::size_t{1}};
   while (true) {
     auto const elapsed_ns{run_batch(iters)};

@@ -26,10 +26,12 @@ third to you via =do_not_optimize=.
 
 The runner does not ask you how many times to call =fn=; it measures. Rather
 than trust a single cold call (which reads high from cold caches and reads zero
-on a coarse clock), calibration *grows* the batch until one batch is long enough
-to time reliably, then scales from that hot, amortised reading:
+on a coarse clock), calibration runs and discards one call, then *grows* the
+batch until one batch is long enough to time reliably, and scales from that hot,
+amortised reading:
 
 #+BEGIN_EXAMPLE
+  fn()                                            // discarded: may be slow
   n = 1
   repeat:
       t0 = clock::now();  repeat n times: fn();  t1 = clock::now()

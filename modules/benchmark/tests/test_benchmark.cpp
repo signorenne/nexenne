@@ -781,4 +781,27 @@ TEST_CASE("nexenne::benchmark::do_not_optimize keeps a large or non-trivial muta
   CHECK(text == "kept");
 }
 
+TEST_CASE("nexenne::benchmark::run discards a slow first call before calibrating (benchmark-03)") {
+  // Only the first call is slow; trusting it would size every batch for a 5 ms
+  // body and time a single iteration against the 1 ms budget.
+  auto calls{std::size_t{0}};
+  auto const cfg{bm::config{
+    .target_duration = std::chrono::milliseconds{1},
+    .sample_count = 1,
+    .min_iterations = 1,
+    .warmup = false,
+  }};
+  auto const r{bm::run(
+    "slow-first",
+    [&calls] {
+      if (calls++ == 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{5});
+      }
+      bm::do_not_optimize(calls);
+    },
+    cfg
+  )};
+  CHECK(r.total_iterations() > 100);
+}
+
 }  // namespace
