@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include <nexenne/can/format.hpp>
@@ -93,6 +94,12 @@ TEST_CASE("transport: a non-transport frame yields nothing") {
 TEST_CASE("transport: a payload over 1785 bytes is rejected") {
   std::vector<std::byte> big(1786);
   CHECK(nc::segment_bam(7, 0xFEF1, 0x00, big).error() == nc::can_error::payload_too_large);
+}
+
+TEST_CASE("transport: an empty payload is rejected") {
+  auto const frames{nc::segment_bam(7, 0xFEF1, 0x00, std::span<std::byte const>{})};
+  REQUIRE_FALSE(frames.has_value());
+  CHECK(frames.error() == nc::can_error::invalid_dlc);
 }
 
 // Builds a raw TP.CM announce frame with explicit fields (for hostile-input tests).

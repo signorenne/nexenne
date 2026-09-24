@@ -122,7 +122,9 @@ bytes each, up to 1785 bytes. Two modes exist:
   TP.DT        : sequence (1 byte) | 7 data bytes  (repeated, last padded with 0xFF)
 #+END_EXAMPLE
 
-=segment_bam= splits a payload into the BAM frames to send. A
+=segment_bam= splits a payload into the BAM frames to send; an empty payload
+returns =can_error::invalid_dlc= (a transfer cannot announce a size of zero) and
+one over 1785 bytes =can_error::payload_too_large=. A
 =transport_reassembler= consumes received frames and returns a =transport_message=
 when a transfer completes; it rebuilds BAM transfers and any CMDT data it
 observes. Generating the CMDT CTS flow control (a live-bus timing concern) is left

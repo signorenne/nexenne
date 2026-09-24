@@ -22,7 +22,6 @@
  */
 
 #include <array>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -274,14 +273,17 @@ public:
  * @param priority Message priority for the transport frames.
  * @param pgn Parameter Group Number of the message being sent.
  * @param source Source address of the sender.
- * @param data Payload to broadcast; at most 1785 bytes.
+ * @param data Payload to broadcast; 1 to 1785 bytes.
  *
- * @return The frames to send in order, or \c can_error::payload_too_large when
- *         \p data exceeds 1785 bytes.
+ * @return The frames to send in order, \c can_error::invalid_dlc when \p data
+ *         is empty (a transfer cannot announce a size of zero), or
+ *         \c can_error::payload_too_large when \p data exceeds 1785 bytes.
  *
- * @pre \p data is non-empty; a payload that already fits one frame does not need
- *      the transport protocol.
+ * @pre None.
  * @post On success the first frame is TP.CM and the rest are TP.DT.
+ *
+ * @note A payload that already fits one frame does not need the transport
+ *       protocol; it is still segmented if passed here.
  */
 [[nodiscard]] inline auto segment_bam(
   std::uint8_t const priority,
@@ -289,7 +291,9 @@ public:
   std::uint8_t const source,
   std::span<std::byte const> const data
 ) -> result<container::small_vector<frame, 4>> {
-  assert(!data.empty() && "segment_bam: payload must be non-empty");
+  if (data.empty()) {
+    return std::unexpected{can_error::invalid_dlc};
+  }
   if (data.size() > j1939_max_transport) {
     return std::unexpected{can_error::payload_too_large};
   }
