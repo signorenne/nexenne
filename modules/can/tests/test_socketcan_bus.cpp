@@ -8,7 +8,8 @@
  *
  * For the same reason the moved-from native_handle() guard is uncovered: the
  * constructor is private, so only open() can build a bus, and that needs a real
- * interface. The non-Linux branch below covers the invalid-descriptor result.
+ * interface. The non-Linux branch below covers the invalid-descriptor result and
+ * the closed-bus formatting; on Linux the formatter is checked at compile time.
  */
 
 #include <doctest/doctest.h>
@@ -16,9 +17,14 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <format>
+#include <ostream>
+#include <sstream>
+#include <string>
 
 #include <nexenne/can/bus.hpp>
 #include <nexenne/can/error.hpp>
+#include <nexenne/can/format.hpp>
 #include <nexenne/can/frame.hpp>
 #include <nexenne/can/id.hpp>
 #include <nexenne/can/io/socketcan_bus.hpp>
@@ -39,6 +45,14 @@ TEST_CASE("socketcan_bus satisfies the can_bus concept on every platform") {
 TEST_CASE("socketcan_bus exposes native_handle() on every platform") {
   static_assert(requires(nc::socketcan_bus const& bus) {
     { bus.native_handle() } noexcept -> std::same_as<nc::socketcan_bus::native_handle_type>;
+  });
+}
+
+TEST_CASE("socketcan_bus ships all three formatting layers on every platform") {
+  static_assert(std::formattable<nc::socketcan_bus, char>);
+  static_assert(requires(nc::socketcan_bus const& bus, std::ostream& os) {
+    { nc::to_string(bus) } -> std::same_as<std::string>;
+    { os << bus } -> std::same_as<std::ostream&>;
   });
 }
 
@@ -124,6 +138,15 @@ TEST_CASE("socketcan_bus: opening a missing interface fails cleanly") {
 TEST_CASE("socketcan_bus: the stub reports an invalid descriptor") {
   nc::socketcan_bus const bus;
   CHECK(bus.native_handle() == -1);
+}
+
+TEST_CASE("socketcan_bus: the stub formats as a closed, bus-off bus") {
+  nc::socketcan_bus const bus;
+  CHECK(std::format("{}", bus) == "socketcan_bus(closed, state=bus_off)");
+
+  std::ostringstream os{};
+  os << bus;
+  CHECK(os.str() == nc::to_string(bus));
 }
 
 #endif  // __linux__

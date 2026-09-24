@@ -12,6 +12,10 @@
  * error.hpp and the value-type headers stay free of it. Each \c std::formatter inherits
  * \c std::formatter<std::string_view>, so a width or alignment spec applies to
  * the whole rendered string.
+ *
+ * Stateful types print a one-line summary of what their accessors expose: a
+ * builder prints what it has accumulated so far, a bus its queue or socket
+ * state and controller state, and the J1939 reassembler its open session count.
  */
 
 #include <cstddef>
@@ -24,18 +28,23 @@
 #include <nexenne/can/byte_field.hpp>
 #include <nexenne/can/byte_order.hpp>
 #include <nexenne/can/database.hpp>
+#include <nexenne/can/database_builder.hpp>
 #include <nexenne/can/dbc.hpp>
 #include <nexenne/can/error.hpp>
 #include <nexenne/can/error_frame.hpp>
 #include <nexenne/can/filter.hpp>
 #include <nexenne/can/frame.hpp>
 #include <nexenne/can/id.hpp>
+#include <nexenne/can/io/loopback_bus.hpp>
+#include <nexenne/can/io/socketcan_bus.hpp>
 #include <nexenne/can/j1939_id.hpp>
 #include <nexenne/can/j1939_transport.hpp>
 #include <nexenne/can/message.hpp>
+#include <nexenne/can/message_builder.hpp>
 #include <nexenne/can/packing_plan.hpp>
 #include <nexenne/can/registry.hpp>
 #include <nexenne/can/signal.hpp>
+#include <nexenne/can/signal_builder.hpp>
 #include <nexenne/can/socket_options.hpp>
 #include <nexenne/utility/format.hpp>
 
@@ -907,6 +916,252 @@ inline auto operator<<(std::ostream& os, transport_message const& message) -> st
   return os << to_string(message);
 }
 
+/**
+ * @brief The value of a \c can_id::flag_reference: \c "true" or \c "false".
+ *
+ * Lets a mutable flag accessor such as \c id.extended() print like the
+ * \c bool it reads as, the way the standard formats a
+ * \c std::vector<bool>::reference.
+ *
+ * @param flag Flag reference to read.
+ *
+ * @return A static string view, \c "true" when the flag is set.
+ *
+ * @pre The identifier \p flag refers to is alive.
+ * @post The returned view refers to a string with program lifetime.
+ */
+[[nodiscard]] constexpr auto to_string(can_id::flag_reference const& flag) noexcept
+  -> std::string_view {
+  return static_cast<bool>(flag) ? "true" : "false";
+}
+
+/**
+ * @brief Streams a \c can_id::flag_reference via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param flag Flag reference to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre The identifier \p flag refers to is alive.
+ * @post \c "true" or \c "false" has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, can_id::flag_reference const& flag) -> std::ostream& {
+  return os << to_string(flag);
+}
+
+/**
+ * @brief Debug string for a \c signal_builder: the signal it would build.
+ *
+ * Example: \c "signal_builder(signal(speed @0:16 little_endian unsigned *0.01+0 km/h))".
+ *
+ * @param builder Builder to print.
+ *
+ * @return The debug string wrapping the \c to_string of \c builder.build().
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(signal_builder const& builder) -> std::string {
+  return std::format("signal_builder({})", to_string(builder.build()));
+}
+
+/**
+ * @brief Streams a \c signal_builder via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param builder Builder to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted builder has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, signal_builder const& builder) -> std::ostream& {
+  return os << to_string(builder);
+}
+
+/**
+ * @brief Debug string for a \c message_builder: the message it would build.
+ *
+ * Example: \c "message_builder(message(status @0x100 std, 8 bytes, 2 signals))".
+ *
+ * @param builder Builder to print.
+ *
+ * @return The debug string wrapping the \c to_string of \c builder.build().
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(message_builder const& builder) -> std::string {
+  return std::format("message_builder({})", to_string(builder.build()));
+}
+
+/**
+ * @brief Streams a \c message_builder via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param builder Builder to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted builder has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, message_builder const& builder) -> std::ostream& {
+  return os << to_string(builder);
+}
+
+/**
+ * @brief Debug string for a \c database_builder listing the messages added so far.
+ *
+ * Example: \c "database_builder(2 messages: [message(...), message(...)])".
+ *
+ * @param builder Builder to print.
+ *
+ * @return The debug string with the count and each accumulated message.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(database_builder const& builder) -> std::string {
+  std::string body;
+  auto const messages{builder.messages()};
+  for (std::size_t i{0}; i < messages.size(); ++i) {
+    if (i != 0) {
+      body += ", ";
+    }
+    body += to_string(messages[i]);
+  }
+  return std::format("database_builder({} messages: [{}])", messages.size(), body);
+}
+
+/**
+ * @brief Streams a \c database_builder via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param builder Builder to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted builder has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, database_builder const& builder) -> std::ostream& {
+  return os << to_string(builder);
+}
+
+/**
+ * @brief Debug string for a \c transport_reassembler, its open session count.
+ *
+ * Example: \c "transport_reassembler(sessions=1)" while one transfer is in flight.
+ *
+ * @param reassembler Reassembler to print.
+ *
+ * @return The debug string with the number of transfers being reassembled.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(transport_reassembler const& reassembler) -> std::string {
+  return std::format("transport_reassembler(sessions={})", reassembler.session_count());
+}
+
+/**
+ * @brief Streams a \c transport_reassembler via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param reassembler Reassembler to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted reassembler has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, transport_reassembler const& reassembler)
+  -> std::ostream& {
+  return os << to_string(reassembler);
+}
+
+/**
+ * @brief Debug string for a \c loopback_bus, its queue fill and controller state.
+ *
+ * Example: \c "loopback_bus(pending=2, capacity=64, state=error_active)".
+ *
+ * @tparam Capacity Number of frames the queue holds.
+ * @param bus Bus to print.
+ *
+ * @return The debug string with the queued frame count, the queue capacity, and
+ *         the controller state.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::size_t Capacity>
+[[nodiscard]] auto to_string(loopback_bus<Capacity> const& bus) -> std::string {
+  return std::format(
+    "loopback_bus(pending={}, capacity={}, state={})",
+    bus.pending(),
+    Capacity,
+    to_string(bus.state())
+  );
+}
+
+/**
+ * @brief Streams a \c loopback_bus via its \c to_string.
+ *
+ * @tparam Capacity Number of frames the queue holds.
+ * @param os Output stream.
+ * @param bus Bus to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted bus has been written to \p os.
+ */
+template <std::size_t Capacity>
+auto operator<<(std::ostream& os, loopback_bus<Capacity> const& bus) -> std::ostream& {
+  return os << to_string(bus);
+}
+
+/**
+ * @brief Debug string for a \c socketcan_bus, its socket and controller state.
+ *
+ * Examples: \c "socketcan_bus(open, fd=5, state=error_active)" for a bus that
+ * owns a socket, and \c "socketcan_bus(closed, state=bus_off)" for one that owns
+ * none (a moved-from bus, or the non-Linux stub).
+ *
+ * @param bus Bus to print.
+ *
+ * @return The debug string with \c open and the descriptor, or \c closed, then
+ *         the controller state.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(socketcan_bus const& bus) -> std::string {
+  auto const fd{bus.native_handle()};
+  if (fd < 0) {
+    return std::format("socketcan_bus(closed, state={})", to_string(bus.state()));
+  }
+  return std::format("socketcan_bus(open, fd={}, state={})", fd, to_string(bus.state()));
+}
+
+/**
+ * @brief Streams a \c socketcan_bus via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param bus Bus to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted bus has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, socketcan_bus const& bus) -> std::ostream& {
+  return os << to_string(bus);
+}
+
 }  // namespace nexenne::can
 
 /**
@@ -1508,5 +1763,203 @@ struct std::formatter<nexenne::can::byte_field> : std::formatter<std::string_vie
   template <typename FormatContext>
   auto format(nexenne::can::byte_field const& field, FormatContext& ctx) const {
     return std::formatter<std::string_view>::format(nexenne::can::to_string(field), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c can_id::flag_reference, printing its \c to_string form.
+ *
+ * Inherits the string formatter, so a spec (width, alignment) applies to the text.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::can::can_id::flag_reference> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the flag's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param flag Flag reference to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted flag has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::can::can_id::flag_reference const& flag, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::can::to_string(flag), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c signal_builder, printing its \c to_string form.
+ *
+ * Inherits the string formatter, so a spec (width, alignment) applies to the text.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::can::signal_builder> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the builder's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param builder Builder to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted builder has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::can::signal_builder const& builder, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::can::to_string(builder), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c message_builder, printing its \c to_string form.
+ *
+ * Inherits the string formatter, so a spec (width, alignment) applies to the text.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::can::message_builder> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the builder's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param builder Builder to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted builder has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::can::message_builder const& builder, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::can::to_string(builder), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c database_builder, printing its \c to_string form.
+ *
+ * Inherits the string formatter, so a spec (width, alignment) applies to the text.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::can::database_builder> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the builder's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param builder Builder to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted builder has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::can::database_builder const& builder, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::can::to_string(builder), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c transport_reassembler, printing its \c to_string form.
+ *
+ * Inherits the string formatter, so a spec (width, alignment) applies to the text.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::can::transport_reassembler> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the reassembler's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param reassembler Reassembler to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted reassembler has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::can::transport_reassembler const& reassembler, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::can::to_string(reassembler), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c loopback_bus, printing its \c to_string form.
+ *
+ * Inherits the string formatter, so a spec (width, alignment) applies to the text.
+ *
+ * @tparam Capacity Number of frames the queue holds.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::size_t Capacity>
+struct std::formatter<nexenne::can::loopback_bus<Capacity>> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the bus's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param bus Bus to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted bus has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::can::loopback_bus<Capacity> const& bus, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::can::to_string(bus), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c socketcan_bus, printing its \c to_string form.
+ *
+ * Inherits the string formatter, so a spec (width, alignment) applies to the text.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::can::socketcan_bus> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the bus's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param bus Bus to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted bus has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::can::socketcan_bus const& bus, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::can::to_string(bus), ctx);
   }
 };

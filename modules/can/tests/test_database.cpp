@@ -7,12 +7,15 @@
 
 #include <concepts>
 #include <cstddef>
+#include <format>
 #include <span>
+#include <sstream>
 #include <utility>
 
 #include <nexenne/can/byte_order.hpp>
 #include <nexenne/can/database.hpp>
 #include <nexenne/can/database_builder.hpp>
+#include <nexenne/can/format.hpp>
 #include <nexenne/can/id.hpp>
 #include <nexenne/can/message.hpp>
 #include <nexenne/can/message_builder.hpp>
@@ -122,5 +125,60 @@ TEST_CASE("database: a default database is empty") {
 static_assert(
   std::same_as<decltype(std::declval<nc::message&>().signals()), std::span<nc::signal_entry const>>
 );
+
+TEST_CASE("signal_builder: formats the signal it would build") {
+  auto const builder{nc::signal_builder{}
+                       .name("speed")
+                       .start_bit(0)
+                       .length(16)
+                       .endianness(nc::byte_order::little_endian)
+                       .scale(0.01)
+                       .unit("km/h")};
+  CHECK(
+    std::format("{}", builder)
+    == "signal_builder(signal(speed @0:16 little_endian unsigned *0.01+0 km/h))"
+  );
+
+  std::ostringstream os{};
+  os << builder;
+  CHECK(os.str() == nc::to_string(builder));
+}
+
+TEST_CASE("message_builder: formats the message it would build") {
+  auto builder{nc::message_builder{nc::can_id::standard(0x100), "status"}};
+  builder.add(nc::signal_builder{}.name("speed").length(16).build());
+  CHECK(
+    std::format("{}", builder) == "message_builder(message(status @0x100 std, 8 bytes, 1 signals))"
+  );
+
+  std::ostringstream os{};
+  os << builder;
+  CHECK(os.str() == nc::to_string(builder));
+}
+
+TEST_CASE("database_builder: exposes and formats the messages added so far") {
+  nc::database_builder builder;
+  CHECK(builder.messages().empty());
+  CHECK(std::format("{}", builder) == "database_builder(0 messages: [])");
+
+  builder.add_message(nc::message_builder{nc::can_id::standard(0x100), "status"}.build());
+  builder.add_message(nc::message_builder{nc::can_id::extended(0x18FEF100), "engine"}.build());
+  REQUIRE(builder.messages().size() == 2);
+  CHECK(builder.messages()[0].name() == "status");
+  CHECK(builder.messages()[1].name() == "engine");
+  CHECK(
+    std::format("{}", builder)
+    == "database_builder(2 messages: [message(status @0x100 std, 8 bytes, 0 signals), "
+       "message(engine @0x18FEF100 ext, 8 bytes, 0 signals)])"
+  );
+
+  std::ostringstream os{};
+  os << builder;
+  CHECK(os.str() == nc::to_string(builder));
+
+  auto const db{builder.build()};
+  CHECK(db.message_count() == 2);
+  CHECK(builder.messages().empty());
+}
 
 }  // namespace

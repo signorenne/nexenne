@@ -132,6 +132,9 @@ to a higher layer. A connection abort (=Conn_Abort=, control byte 255) can come
 from either end of a CMDT transfer, so the reassembler drops the session it
 names in either direction, matched on the PGN, and =accept= returns
 =can_error::transport_aborted=; an abort naming no open transfer is ignored.
+=session_count()= reports how many transfers are in flight (at most
+=max_sessions=), which is also what the reassembler prints:
+=transport_reassembler(sessions=1)=.
 
 #+BEGIN_SRC C++
 namespace nc = nexenne::can;

@@ -57,7 +57,9 @@ auto const db{builder.build()};
 #+END_SRC
 
 Keeping the mutable accumulation in the builder lets the database stay a
-read-only artifact that many readers, and the registry, can share safely.
+read-only artifact that many readers, and the registry, can share safely. Before
+=build=, =messages()= shows what the builder holds so far, and the builder
+prints it the way a database does: =database_builder(2 messages: [...])=.
 
 * Filters and masks
 

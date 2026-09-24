@@ -261,6 +261,18 @@ public:
    * @post A completed or aborted session has been removed from the reassembler.
    */
   [[nodiscard]] auto accept(frame const& f) -> result<std::optional<transport_message>>;
+
+  /**
+   * @brief The number of transfers currently being reassembled.
+   *
+   * @return The open session count, at most \c max_sessions.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto session_count() const noexcept -> std::size_t {
+    return m_sessions.size();
+  }
 };
 
 /**

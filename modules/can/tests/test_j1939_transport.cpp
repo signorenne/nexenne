@@ -8,8 +8,10 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <optional>
 #include <span>
+#include <sstream>
 #include <vector>
 
 #include <nexenne/can/format.hpp>
@@ -218,6 +220,31 @@ TEST_CASE("transport: a TP.CM abort drops the session it names and reports it") 
 TEST_CASE("transport: a transport_message is formattable") {
   nc::transport_message const msg{0xFECA, 0x11, 0xFF, {}};
   CHECK(nc::to_string(msg).starts_with("transport(pgn=0x0FECA"));
+}
+
+TEST_CASE("transport: the reassembler counts and formats its open sessions") {
+  std::vector<std::byte> payload;
+  for (unsigned i{0}; i < 20; ++i) {
+    payload.push_back(b(i));
+  }
+  auto const frames{*nc::segment_bam(7, 0xFECA, 0x11, payload)};
+
+  nc::transport_reassembler reassembler;
+  CHECK(reassembler.session_count() == 0);
+  CHECK(std::format("{}", reassembler) == "transport_reassembler(sessions=0)");
+
+  REQUIRE(reassembler.accept(frames[0]).has_value());
+  CHECK(reassembler.session_count() == 1);
+  CHECK(std::format("{}", reassembler) == "transport_reassembler(sessions=1)");
+
+  for (std::size_t i{1}; i < frames.size(); ++i) {
+    REQUIRE(reassembler.accept(frames[i]).has_value());
+  }
+  CHECK(reassembler.session_count() == 0);
+
+  std::ostringstream os{};
+  os << reassembler;
+  CHECK(os.str() == nc::to_string(reassembler));
 }
 
 }  // namespace

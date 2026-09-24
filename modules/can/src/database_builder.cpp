@@ -20,6 +20,10 @@ auto database_builder::add_message(message msg) -> database_builder& {
   return *this;
 }
 
+auto database_builder::messages() const noexcept -> std::span<message const> {
+  return std::span<message const>{m_messages.data(), m_messages.size()};
+}
+
 auto database_builder::build() noexcept -> database {
   return database{std::move(m_messages)};
 }

@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <format>
+#include <sstream>
 
 #include <nexenne/can/format.hpp>
 #include <nexenne/can/id.hpp>
@@ -64,6 +65,18 @@ TEST_CASE("can_id: format prints the value, width, and flags") {
   auto rtr{nc::can_id::standard(0x7E0)};
   rtr.remote() = true;
   CHECK(std::format("{}", rtr) == "0x7E0 std rtr");
+}
+
+TEST_CASE("can_id: a settable flag reference formats as the bool it reads as") {
+  auto id{nc::can_id::standard(0x123)};
+  CHECK(std::format("{}", id.remote()) == "false");
+  id.remote() = true;
+  CHECK(std::format("{}", id.remote()) == "true");
+  CHECK(nc::to_string(id.remote()) == "true");
+
+  std::ostringstream os{};
+  os << id.remote();
+  CHECK(os.str() == "true");
 }
 
 }  // namespace

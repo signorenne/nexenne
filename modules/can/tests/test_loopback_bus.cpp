@@ -7,9 +7,12 @@
 
 #include <array>
 #include <cstddef>
+#include <format>
+#include <sstream>
 
 #include <nexenne/can/bus.hpp>
 #include <nexenne/can/filter.hpp>
+#include <nexenne/can/format.hpp>
 #include <nexenne/can/frame.hpp>
 #include <nexenne/can/id.hpp>
 #include <nexenne/can/io/loopback_bus.hpp>
@@ -81,6 +84,18 @@ TEST_CASE("loopback_bus: state is always error-active and clear empties the queu
   REQUIRE(bus.send(frame_of(nc::can_id::standard(0x1))).has_value());
   bus.clear();
   CHECK(bus.empty());
+}
+
+TEST_CASE("loopback_bus: formats its queue fill, capacity, and state") {
+  nc::loopback_bus<4> bus;
+  CHECK(std::format("{}", bus) == "loopback_bus(pending=0, capacity=4, state=error_active)");
+  REQUIRE(bus.send(frame_of(nc::can_id::standard(0x123))).has_value());
+  REQUIRE(bus.send(frame_of(nc::can_id::standard(0x124))).has_value());
+  CHECK(std::format("{}", bus) == "loopback_bus(pending=2, capacity=4, state=error_active)");
+
+  std::ostringstream os{};
+  os << bus;
+  CHECK(os.str() == nc::to_string(bus));
 }
 
 }  // namespace

@@ -13,6 +13,7 @@
  * its database through it.
  */
 
+#include <span>
 #include <utility>
 
 #include <nexenne/can/database.hpp>
@@ -53,6 +54,16 @@ public:
    * @post The message is appended in order.
    */
   auto add_message(message msg) -> database_builder&;
+
+  /**
+   * @brief Read-only view of the messages added so far.
+   *
+   * @return A span of the accumulated messages, in the order they were added.
+   *
+   * @pre None.
+   * @post None. The span is invalidated by the next \c add_message or \c build.
+   */
+  [[nodiscard]] auto messages() const noexcept -> std::span<message const>;
 
   /**
    * @brief Builds the database, moving the accumulated messages into it.
