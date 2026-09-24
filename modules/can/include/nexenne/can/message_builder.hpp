@@ -27,7 +27,7 @@ namespace nexenne::can {
  */
 class message_builder {
 public:
-  using value_type = message;
+  using value_type = message;  ///< Type the builder produces.
 
 private:
   message m_message{};

@@ -28,7 +28,7 @@ namespace nexenne::can {
  */
 class signal_builder {
 public:
-  using value_type = signal;
+  using value_type = signal;  ///< Type the builder produces.
 
 private:
   signal m_signal{};

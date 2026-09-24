@@ -11,6 +11,10 @@
  *
  * If the interface is missing (or this is not Linux), the example reports the
  * error and exits cleanly, so it is always safe to run.
+ *
+ * The socket opens with \c receive_own_messages, so the frame it sends reads
+ * back on the same socket; the filter accepts only standard id 0x123, the id the
+ * example sends.
  */
 
 #include <array>

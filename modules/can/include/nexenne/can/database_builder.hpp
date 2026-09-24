@@ -29,7 +29,7 @@ namespace nexenne::can {
  */
 class database_builder {
 public:
-  using value_type = message;
+  using value_type = message;  ///< Element type: one accumulated message.
 
 private:
   message_list m_messages{};

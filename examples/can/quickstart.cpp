@@ -8,6 +8,24 @@
  * not-available conventions, read and write text fields, decode a multiplexed
  * message, do a hardware-free send and receive round trip, and decode a J1939 id.
  * Each focused example file drills into one of these; here they sit side by side.
+ *
+ * The sections, numbered as the program prints them:
+ *
+ * 1. Build a signal with the builder, one named setter per field: a 16-bit
+ *    little-endian speed scaled by 0.01 km/h and clamped to a physical range,
+ *    and an oil temperature whose raw 0xFF means not available.
+ * 2. Group signals into a message, and messages into a database.
+ * 3. Encode physical values into a frame filled with 0xFF, so any byte left
+ *    unset reads back as not available.
+ * 4. Decode: the registry calls back per signal with its physical value and
+ *    skips a signal whose field reads as not available.
+ * 5. CAN FD: up to 64 data bytes, with the bit-rate switch flag.
+ * 6. Filters: an id and a mask, where a mask bit of 0 is "don't care"; id 0x700
+ *    with mask 0x700 accepts 0x700 to 0x7FF.
+ * 7. Text fields: a named byte range read and written as a string.
+ * 8. Multiplexing: a selector byte picks which signals are present.
+ * 9. Send and receive over an in-memory bus; a \c socketcan_bus drops in on Linux.
+ * 10. J1939: decode a 29-bit id into priority, PGN, and addresses.
  */
 
 #include <array>

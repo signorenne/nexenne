@@ -55,7 +55,7 @@ inline constexpr std::uint32_t error_flag{0x2000'0000U};
  */
 class can_id {
 public:
-  using value_type = std::uint32_t;
+  using value_type = std::uint32_t;  ///< Raw SocketCAN word: the id bits plus the frame flags.
 
   /**
    * @brief A settable reference to one masked flag bit of a \c can_id.

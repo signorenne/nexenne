@@ -49,6 +49,12 @@ signal whose bits run past the byte length its =BO_= line declares, since every
 encode and decode of that message would otherwise fail at run time. See
 [[file:../../../examples/can/dbc.cpp][examples/can/dbc.cpp]] for a parse-and-decode walk-through.
 
+Two DBC conventions shape the import. A range of =[0|0]= (or any range whose
+maximum is not above its minimum) means no range was given, as in =cantools=, so
+the signal is left unbounded rather than clamped to zero. An extended-multiplexing
+marker =m<N>M= imports as a plain multiplexed signal, since the model carries one
+multiplex role per signal.
+
 * Descriptive metadata
 
 Beyond the wire layout, a DBC file carries descriptive metadata that a tool

@@ -7,6 +7,18 @@
  * mask bit of 0 means "don't care". This example shows the three filter factories
  * and how a mask accepts a whole family of ids, both as a standalone test and as
  * the receive filter on a loopback bus.
+ *
+ * The program walks four steps:
+ *
+ * 1. Exact match: \c equals accepts standard id 0x100 in its format and nothing
+ *    else.
+ * 2. Family match: id 0x700 with mask 0x700 requires the top three id bits to be
+ *    0x7 and ignores the low byte, so it accepts 0x700 to 0x7FF.
+ * 3. Extended match: the extended-frame flag is part of the mask, so an extended
+ *    filter rejects a standard id of the same value.
+ * 4. On a bus, frames that fail every filter are dropped on receive; the
+ *    SocketCAN backend installs the filters in the kernel, the loopback bus
+ *    applies them in software. Of 0x123 and 0x7AB only 0x7AB gets through.
  */
 
 #include <array>

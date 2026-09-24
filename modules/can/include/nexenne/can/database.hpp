@@ -36,7 +36,7 @@ using message_list = container::small_vector<message, 8>;
  */
 class database {
 public:
-  using value_type = message;
+  using value_type = message;  ///< Element type: one message of the set.
 
 private:
   message_list m_messages{};

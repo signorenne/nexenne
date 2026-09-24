@@ -10,8 +10,13 @@
  *
  * The monitor here is a self-contained reusable piece: it works with any backend
  * that satisfies the \c can_bus concept. This example drives it with the
- * hardware-free \c loopback_bus, but swapping in the Linux \c socketcan_bus (see
- * the note in \c main) turns it into a live bus monitor with no other changes.
+ * hardware-free \c loopback_bus, but swapping in the Linux \c socketcan_bus
+ * (opened on "can0" in place of the \c loopback_bus line in \c main) turns it
+ * into a live bus monitor with no other changes, since both satisfy \c can_bus.
+ *
+ * Three ticks of simulated ECU traffic follow: some values change, some hold
+ * steady, the fuel sensor drops out (its not-available reading is skipped), and
+ * a node the database does not know speaks once.
  */
 
 #include <array>
@@ -43,13 +48,21 @@ namespace {
 
 namespace nc = nexenne::can;
 
-// Identifiers the simulated ECUs transmit on.
-constexpr std::uint16_t engine_id{0x100};
-constexpr std::uint16_t chassis_id{0x200};
-constexpr std::uint16_t unknown_id{0x400};  // deliberately absent from the database
+constexpr std::uint16_t engine_id{0x100};   ///< Identifier the engine ECU transmits on.
+constexpr std::uint16_t chassis_id{0x200};  ///< Identifier the chassis ECU transmits on.
+constexpr std::uint16_t unknown_id{0x400};  ///< Deliberately absent from the database.
 
-// Builds the vehicle database the monitor decodes against: two messages, each
-// with a few signals, including a boolean flag and a not-available fuel reading.
+/**
+ * @brief Builds the vehicle database the monitor decodes against.
+ *
+ * Two messages, each with a few signals, including a boolean flag and a fuel
+ * level whose all-ones raw reading (0xFF) means not available, so decode skips it.
+ *
+ * @return The engine and chassis database.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto build_database() -> nc::database {
   auto const engine_rpm{nc::signal_builder{}
                           .name("engine_rpm")
@@ -148,6 +161,8 @@ public:
   /**
    * @brief Drains every frame waiting on \p bus, firing the callbacks.
    *
+   * An empty queue or an I/O error ends the poll.
+   *
    * @tparam Bus A type satisfying the \c can_bus concept.
    * @param bus Bus to receive from until it has no frame ready.
    *
@@ -169,7 +184,7 @@ public:
 
 private:
   nc::registry const* m_registry;
-  std::map<std::string, double> m_last_value;  // "message::signal" -> last decoded value
+  std::map<std::string, double> m_last_value;  ///< Last decoded value per "message::signal".
 
   auto handle(nc::frame const& f) -> void {
     nc::message const* const msg{m_registry->match(f)};
@@ -198,8 +213,20 @@ private:
   }
 };
 
-// Encodes named physical values into a frame and sends it, the way an ECU would
-// publish a message. A NaN value writes the signal's not-available sentinel.
+/**
+ * @brief Encodes named physical values into a frame and sends it, as an ECU would.
+ *
+ * A NaN value writes the signal's not-available sentinel instead.
+ *
+ * @param bus Bus to send on.
+ * @param reg Registry holding the message definition.
+ * @param id Identifier of the message to publish.
+ * @param values Signal names and physical values to encode.
+ * @param timestamp_ns Timestamp stamped on the frame, in nanoseconds.
+ *
+ * @pre None.
+ * @post When \p id names a known message, one frame has been sent on \p bus.
+ */
 auto publish(
   nc::loopback_bus<>& bus,
   nc::registry const& reg,

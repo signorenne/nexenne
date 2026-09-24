@@ -22,6 +22,8 @@
  *   ./nexenne_example_can_console
  *
  * Then type "help". External tools interoperate too: candump vcan0, cansend vcan0.
+ * Typing quit, or end of input (Ctrl-D), ends the session; stdin is buffered
+ * across reads so a command split over two reads still runs once whole.
  */
 
 #if defined(__linux__)
@@ -89,7 +91,16 @@ auto build_database() -> nc::database {
     .build();
 }
 
-// Splits a line into whitespace-separated tokens.
+/**
+ * @brief Splits a line into whitespace-separated tokens.
+ *
+ * @param line Command line to split.
+ *
+ * @return Views of each token, in order.
+ *
+ * @pre None.
+ * @post The views point into \p line.
+ */
 auto tokenize(std::string_view line) -> std::vector<std::string_view> {
   std::vector<std::string_view> out{};
   std::size_t i{0};
@@ -117,7 +128,16 @@ auto parse_hex_u32(std::string_view text, std::uint32_t& out) -> bool {
   return ec == std::errc{} && ptr == end;
 }
 
-// Parses a run of hex bytes ("11 22 33" or "112233") into a byte vector.
+/**
+ * @brief Parses a run of hex bytes, such as "11 22 33" or "112233".
+ *
+ * @param tokens Tokens holding the hex digits, concatenated before parsing.
+ *
+ * @return The bytes, or an empty vector when a pair is not valid hex.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto parse_payload(std::span<std::string_view const> const tokens) -> std::vector<std::byte> {
   std::string hex{};
   for (std::string_view const token : tokens) {
@@ -156,8 +176,19 @@ auto print_menu() -> void {
   std::println("  state | stats | help | quit");
 }
 
-// Renders a received frame: kind, scope, flags, length, bytes, then decoded
-// signals for frames the database knows, marking first-seen and changed values.
+/**
+ * @brief Prints a received frame, then its decoded signals when the database knows it.
+ *
+ * The frame line shows kind, scope, flags, length, and bytes; a decoded signal
+ * is printed only when it is first seen or its value changed.
+ *
+ * @param f Received frame.
+ * @param reg Registry to decode against.
+ * @param last_value Last value per signal name, updated in place.
+ *
+ * @pre None.
+ * @post \p last_value holds the value of every signal decoded from \p f.
+ */
 auto show_frame(
   nc::frame const& f, nc::registry const& reg, std::map<std::string, double>& last_value
 ) -> void {

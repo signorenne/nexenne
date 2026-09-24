@@ -62,7 +62,7 @@ struct plan_chunk {
  */
 class packing_plan {
 public:
-  using value_type = std::uint64_t;
+  using value_type = std::uint64_t;  ///< Raw field value moved in and out of a payload.
 
   /// @brief Largest number of byte chunks a 64-bit field can produce.
   static constexpr std::size_t max_chunks{9};
@@ -76,6 +76,10 @@ private:
 
   /**
    * @brief Appends \p chunk to the plan, filling in its mask.
+   *
+   * The width mask is computed once here so \c extract and \c insert do not
+   * rebuild it per chunk on every frame. A chunk lies within one byte, so its
+   * width is at most 8 and the mask fits a byte.
    *
    * @param chunk Chunk to append; its mask is computed here.
    *

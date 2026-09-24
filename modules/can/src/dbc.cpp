@@ -19,8 +19,18 @@ namespace nexenne::can {
 
 namespace {
 
-// Whether the text leaves a double-quoted string open (an escaped quote does not
-// count).
+/**
+ * @brief Whether \p record leaves a double-quoted string open.
+ *
+ * An escaped quote inside a string does not close it.
+ *
+ * @param record Text to scan from its start.
+ *
+ * @return \c true when an odd number of unescaped quotes was seen.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto quote_open(std::string_view const record) noexcept -> bool {
   auto open{false};
   for (std::size_t i{0}; i < record.size(); ++i) {
@@ -33,9 +43,22 @@ auto quote_open(std::string_view const record) noexcept -> bool {
   return open;
 }
 
-// The newline that ends the record starting at pos, or npos. A quoted string,
-// typically a CM_ comment, may span lines, and a continuation line starting with
-// BO_ or SG_ must not be read as a record of its own.
+/**
+ * @brief The newline that ends the record starting at \p pos.
+ *
+ * A quoted string, typically a \c CM_ comment, may span lines, so a newline
+ * inside an open string does not end the record; a continuation line that
+ * starts with \c BO_ or \c SG_ is therefore never read as a record of its own.
+ *
+ * @param text Whole DBC text.
+ * @param pos Offset of the record's first character.
+ *
+ * @return Offset of the ending newline, or \c std::string_view::npos when the
+ *         record runs to the end of \p text.
+ *
+ * @pre \p pos is at most \c text.size().
+ * @post None.
+ */
 auto record_end(std::string_view const text, std::size_t const pos) noexcept -> std::size_t {
   auto newline{text.find('\n', pos)};
   while (newline != std::string_view::npos && quote_open(text.substr(pos, newline - pos))) {

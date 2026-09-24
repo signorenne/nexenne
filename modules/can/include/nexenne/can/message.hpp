@@ -46,7 +46,7 @@ struct signal_entry {
  */
 class message {
 public:
-  using value_type = signal_entry;
+  using value_type = signal_entry;  ///< Element type: one signal with its compiled packing plan.
 
   /// @brief Inline signal capacity before the storage spills to the heap.
   static constexpr std::size_t inline_signals{4};

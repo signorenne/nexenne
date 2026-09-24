@@ -6,6 +6,12 @@
  * one TP.CM announce frame then several TP.DT data frames. This example segments a
  * 20-byte payload into BAM frames, then feeds those frames back through a
  * reassembler to recover the original message, exactly as a receiving node would.
+ *
+ * The program walks three steps:
+ *
+ * 1. Build a 20-byte payload, too large for one frame.
+ * 2. Segment it for broadcast (BAM) at priority 7, PGN 0xFECA, source 0x11.
+ * 3. Feed each frame to a reassembler until the message completes.
  */
 
 #include <array>

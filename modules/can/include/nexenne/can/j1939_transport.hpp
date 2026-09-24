@@ -81,7 +81,7 @@ inline constexpr std::uint8_t j1939_tp_dt_payload{7};
  */
 class transport_message {
 public:
-  using value_type = std::byte;
+  using value_type = std::byte;  ///< Payload byte type of the reassembled message.
 
 private:
   std::uint32_t m_pgn{0};
@@ -179,7 +179,7 @@ public:
  */
 class transport_reassembler {
 public:
-  using value_type = transport_message;
+  using value_type = transport_message;  ///< Type of the message it reassembles.
 
   /// @brief Number of concurrent transfers tracked before the oldest is dropped.
   static constexpr std::size_t max_sessions{8};
@@ -250,6 +250,14 @@ public:
    * it: the sender's abort names the receiver as its destination, the
    * receiver's names the sender. Frames that are not transport frames, and
    * intermediate packets, return \c std::nullopt.
+   *
+   * An announce is validated before a session opens: a size of zero or above
+   * 1785 bytes, or a packet count that does not match the size, is ignored. A
+   * TP.DT frame shorter than eight bytes, or one whose sequence number is not
+   * the next expected (a lost or reordered packet), drops the session rather
+   * than assembling corrupt data; an oversized frame contributes only its seven
+   * data bytes. The session buffer is reserved once for the announced transfer
+   * and handed to the message, trimmed of the last packet's padding.
    *
    * @param f Received frame.
    *

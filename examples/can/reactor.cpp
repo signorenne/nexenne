@@ -26,6 +26,19 @@
  * the epoll, timer, and signal descriptors with RAII so they are always closed.
  * If the interface is missing (or this is not Linux) it reports why and exits
  * cleanly, so it is always safe to run.
+ *
+ * Details worth copying from main():
+ *
+ * - SIGINT and SIGTERM are blocked, then delivered through a \c signalfd, so
+ *   shutdown is one more readable descriptor in the loop rather than an async
+ *   handler.
+ * - \c make_unique_resource_checked owns each descriptor and closes it on every
+ *   exit path, skipping the deleter on the -1 sentinel a failed call returns.
+ * - The timer fires every \c heartbeat_ms to send an engine frame whose rpm and
+ *   temperature cycle, so values keep changing; \c receive_own_messages makes
+ *   those sends show up in the receive path too.
+ * - Each socket wakeup drains every buffered frame, and a decoded signal is
+ *   printed only when it is new or its value changed.
  */
 
 #if defined(__linux__)
@@ -65,10 +78,17 @@ namespace {
 namespace nc = nexenne::can;
 namespace nu = nexenne::utility;
 
-constexpr std::uint16_t engine_id{0x100};
-constexpr int heartbeat_ms{1000};  // period of the simulated engine ECU
+constexpr std::uint16_t engine_id{0x100};  ///< Identifier of the engine message.
+constexpr int heartbeat_ms{1000};          ///< Period of the simulated engine ECU, in ms.
 
-// The database the reactor decodes received frames against.
+/**
+ * @brief Builds the database the reactor decodes received frames against.
+ *
+ * @return A database holding the engine message.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto build_database() -> nc::database {
   auto const rpm{nc::signal_builder{}
                    .name("engine_rpm")
@@ -103,7 +123,16 @@ auto build_database() -> nc::database {
     .build();
 }
 
-// Encodes named values into a frame and sends it, the way a periodic ECU would.
+/**
+ * @brief Encodes named values into a frame and sends it, the way a periodic ECU would.
+ *
+ * @param bus Bus to send on.
+ * @param msg Message whose signals the values name.
+ * @param values Signal names and physical values to encode.
+ *
+ * @pre None.
+ * @post One frame has been sent, or the failure has been printed.
+ */
 auto transmit(
   nc::socketcan_bus& bus,
   nc::message const& msg,

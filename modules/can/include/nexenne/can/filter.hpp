@@ -28,7 +28,7 @@ namespace nexenne::can {
  */
 class filter {
 public:
-  using value_type = std::uint32_t;
+  using value_type = std::uint32_t;  ///< Raw identifier word compared under the mask.
 
 private:
   value_type m_id{0};

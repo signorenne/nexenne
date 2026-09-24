@@ -7,6 +7,17 @@
  * available" convention), the per-signal not-available sentinel, byte and text
  * fields for raw blobs and strings, and a multiplexed message whose selector
  * chooses which signals are present.
+ *
+ * The program walks four steps:
+ *
+ * 1. Start a frame as all 0xFF (the J1939 unused bytes), then pack one 8-bit
+ *    temperature signal into byte 0.
+ * 2. The untouched bytes are still 0xFF, so a second 8-bit field in byte 1 reads
+ *    as the all-ones "not available" sentinel.
+ * 3. Write and read a named text field.
+ * 4. Decode a multiplexed message: byte 0 selects the page, page 0 carries a
+ *    signal in byte 1 and page 1 one in byte 2; with the selector at 1 only the
+ *    page 1 signal decodes.
  */
 
 #include <array>

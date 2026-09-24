@@ -212,6 +212,9 @@ struct dbc_scanner {
 /**
  * @brief Parses a DBC \c BO_ message line into a builder.
  *
+ * An identifier with reserved bits set (a standard id above \c 0x7FF or an
+ * extended id above \c 0x1FFFFFFF) is rejected rather than silently masked.
+ *
  * @param line The \c BO_ line.
  *
  * @return A message builder for the message, or \c can_error::parse_error.
@@ -343,7 +346,7 @@ struct dbc_metadata {
  */
 class dbc_database {
 public:
-  using value_type = message;
+  using value_type = message;  ///< Element type: one parsed message.
 
 private:
   std::unique_ptr<std::string> m_source;
@@ -570,6 +573,10 @@ private:
  *
  * Reads the \c BO_ message and \c SG_ signal records and ignores the rest. A
  * message id with the high bit set is treated as extended, per the DBC convention.
+ * \c SIG_VALTYPE_ lines may follow every message, so the float signals they name
+ * are marked in a second pass once all signals exist; a float value type on a
+ * signal that is not 32 or 64 bits wide, or a signal whose bits run past its
+ * message's declared byte length, is a parse error.
  *
  * @param source DBC file contents.
  *

@@ -5,6 +5,13 @@
  * DBC is the standard text format for a CAN database. This example parses a small
  * DBC string into a database, prints what it found, and decodes a frame through a
  * registry built from it, the way a tool would load a vehicle's .dbc file.
+ *
+ * The program walks three steps:
+ *
+ * 1. Parse the DBC text and list the messages and signals it defines.
+ * 2. Read the descriptive metadata: a signal comment, a message attribute, and a
+ *    value table naming the Gear values.
+ * 3. Build a registry from the imported database and decode a frame with it.
  */
 
 #include <array>

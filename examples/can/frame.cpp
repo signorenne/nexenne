@@ -6,6 +6,14 @@
  * the payload bytes, and the CAN FD flags. One trivially copyable type covers
  * both Classic CAN (up to 8 bytes) and CAN FD (up to 64 bytes). This tour builds
  * one of each, shows the identifier helpers, and prints them with std::format.
+ *
+ * The program walks three steps:
+ *
+ * 1. A Classic CAN frame: an 11-bit standard id and up to 8 data bytes.
+ * 2. A CAN FD frame: a 29-bit extended id, up to 64 bytes, and the bit-rate
+ *    switch flag.
+ * 3. The CAN FD length mapping on the wire: a 9-byte payload fits no discrete
+ *    size, so a transmitter pads it to the next one.
  */
 
 #include <array>

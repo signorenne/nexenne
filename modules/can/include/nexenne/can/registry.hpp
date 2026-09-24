@@ -34,7 +34,7 @@ namespace nexenne::can {
  */
 class registry {
 public:
-  using value_type = message;
+  using value_type = message;  ///< Element type: one indexed message.
 
 private:
   /// @brief One lookup entry: a frame key and the message it resolves to.
@@ -197,7 +197,11 @@ public:
    * Looks up the frame's message (honouring filters), then calls
    * \c fn(signal const&, double) once per signal that fits the frame. Signals
    * that run past the frame's data length are skipped, which suits short or
-   * multiplexed frames. Nothing is allocated; the callback receives each value.
+   * multiplexed frames. The multiplexor selector is read first, and a
+   * multiplexed signal is decoded only when that selector was read and equals
+   * its multiplexer value. A signal whose field reads as not available under
+   * its invalid-value policy yields no value and is skipped too. Nothing is
+   * allocated; the callback receives each value.
    *
    * @tparam F Callable invocable as \c fn(signal const&, double).
    * @param f Frame to decode.

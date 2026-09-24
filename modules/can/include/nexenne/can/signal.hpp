@@ -68,7 +68,7 @@ enum class invalid_value : std::uint8_t {
  */
 class signal {
 public:
-  using value_type = double;
+  using value_type = double;  ///< Physical value type after scaling.
 
 private:
   std::uint16_t m_start_bit{0};

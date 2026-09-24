@@ -55,7 +55,7 @@ enum class fd_flag : std::uint8_t {
  */
 class frame {
 public:
-  using value_type = std::byte;
+  using value_type = std::byte;  ///< Payload byte type.
 
 private:
   can_id m_id{};

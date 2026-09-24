@@ -22,8 +22,17 @@ constexpr auto b(unsigned const v) noexcept -> std::byte {
   return std::byte{static_cast<unsigned char>(v)};
 }
 
-// Builds an error frame: an identifier with the error flag and the given class
-// bits, plus an 8-byte payload.
+/**
+ * @brief Builds an error frame with the given class bits and an 8-byte payload.
+ *
+ * @param classes Error class bits ORed into an identifier carrying the error flag.
+ * @param data Payload bytes.
+ *
+ * @return The error frame.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto error_frame_of(std::uint32_t const classes, std::array<std::byte, 8> const& data)
   -> nc::frame {
   auto const id{nc::can_id::from_raw(nc::error_flag | classes)};

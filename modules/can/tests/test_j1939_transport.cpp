@@ -104,7 +104,21 @@ TEST_CASE("transport: an empty payload is rejected") {
   CHECK(frames.error() == nc::can_error::invalid_dlc);
 }
 
-// Builds a raw TP.CM announce frame with explicit fields (for hostile-input tests).
+/**
+ * @brief Builds a raw TP.CM frame with explicit fields, for hostile-input tests.
+ *
+ * @param source Sender address.
+ * @param destination Receiver address.
+ * @param control TP.CM control byte (BAM, RTS, or abort).
+ * @param size Announced total size, written to bytes 1 and 2.
+ * @param packets Announced packet count, written to byte 3.
+ * @param pgn Transported PGN, written to bytes 5 to 7.
+ *
+ * @return The TP.CM frame.
+ *
+ * @pre None.
+ * @post None.
+ */
 auto make_cm(
   std::uint8_t const source,
   std::uint8_t const destination,

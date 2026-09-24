@@ -45,7 +45,7 @@ inline constexpr std::uint8_t j1939_global_address{0xFF};
  */
 class j1939_id {
 public:
-  using value_type = std::uint32_t;
+  using value_type = std::uint32_t;  ///< Raw 29-bit extended identifier word.
 
 private:
   can_id m_id{};

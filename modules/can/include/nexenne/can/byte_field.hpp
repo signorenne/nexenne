@@ -29,7 +29,7 @@ namespace nexenne::can {
  */
 class byte_field {
 public:
-  using value_type = std::byte;
+  using value_type = std::byte;  ///< Byte type of the payload region the field names.
 
 private:
   std::uint16_t m_start_byte{0};

@@ -7,6 +7,13 @@
  * it back, and decodes its signals through a registry. It is the path a real
  * application follows, with the SocketCAN backend swapped for the loopback bus so
  * the example runs anywhere.
+ *
+ * The program walks four steps:
+ *
+ * 1. Describe the bus: one status message with a speed and an oil temperature.
+ * 2. Encode a frame to transmit.
+ * 3. Send it over the loopback bus.
+ * 4. Receive it and decode its signals through the registry.
  */
 
 #include <array>

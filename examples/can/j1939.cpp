@@ -6,6 +6,12 @@
  * Group Number naming the message, and source and destination addresses. This
  * tour decodes two real messages, a broadcast and a destination-specific one, and
  * rebuilds an identifier from its components.
+ *
+ * The program walks three steps:
+ *
+ * 1. Decode CCVS (Cruise Control / Vehicle Speed, PGN 0xFEF1), a PDU2 broadcast.
+ * 2. Decode a Request (PGN 0xEA00), a PDU1 message addressed to one node.
+ * 3. Build an identifier from priority 6, PGN 0xFEF1, and source 0x10.
  */
 
 #include <print>

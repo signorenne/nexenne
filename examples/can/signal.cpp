@@ -7,6 +7,16 @@
  * The packing_plan compiles that layout once, and pack/unpack move values in and
  * out of a frame. This tour encodes a vehicle speed and an oil temperature into
  * one frame, then decodes them, and shows the Intel versus Motorola difference.
+ *
+ * The program walks three steps:
+ *
+ * 1. Two signals share one 8-byte frame: speed in bits 0 to 15, Intel, 0.01 km/h
+ *    per count, and oil temperature in bits 16 to 23, Intel, 1 C per count with
+ *    a -40 C offset. Encoding inverts the scaling and packs the bits.
+ * 2. Decoding reads them back out as physical values.
+ * 3. The same 16-bit value packed Intel and Motorola lands in opposite byte
+ *    order: Intel starts at the LSB (bit 0), Motorola at the MSB (bit 7 of
+ *    byte 0).
  */
 
 #include <array>

@@ -146,7 +146,7 @@ struct socket_closer {
  */
 class socketcan_bus {
 public:
-  using value_type = frame;
+  using value_type = frame;  ///< Frame type the bus sends and receives.
   /// The pollable socket file descriptor type.
   using native_handle_type = int;
 
@@ -174,6 +174,11 @@ private:
 public:
   /**
    * @brief Opens a SocketCAN socket bound to a CAN interface.
+   *
+   * Kernel receive timestamps are requested best effort (without them a frame's
+   * timestamp stays zero), and error frames are subscribed with
+   * \c CAN_RAW_ERR_FILTER, without which the kernel delivers none and
+   * \c state() could never change.
    *
    * @param interface Interface name, such as \c "can0" or \c "vcan0".
    * @param options Socket options (CAN FD, receive own messages, non-blocking).
@@ -206,7 +211,10 @@ public:
   /**
    * @brief Receives the next frame, if one is ready.
    *
-   * Updates the cached controller state when an error frame arrives.
+   * Updates the cached controller state when an error frame arrives. Only a
+   * controller, bus-off, or restart report changes it: a protocol, bus, or
+   * arbitration error frame decodes as error-active and must not clear a
+   * passive or bus-off state.
    *
    * @return The next frame, \c std::nullopt when none is ready on a non-blocking
    *         socket, or \c can_error::io_error on a read failure.
@@ -271,7 +279,7 @@ namespace nexenne::can {
  */
 class socketcan_bus {
 public:
-  using value_type = frame;
+  using value_type = frame;  ///< Frame type the bus sends and receives.
   /// The pollable handle type; always \c -1 here.
   using native_handle_type = int;
 

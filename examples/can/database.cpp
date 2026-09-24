@@ -7,6 +7,14 @@
  * and decodes a whole frame's signals through a callback. This tour builds a two
  * message database, then decodes an incoming frame into named physical values,
  * the way a receiver turns raw bytes into engineering units.
+ *
+ * The program walks three steps:
+ *
+ * 1. Describe the bus: a standard status message with a speed and an oil
+ *    temperature signal, and an extended engine message with an rpm signal.
+ * 2. Index the database with a registry, the receive path's lookup.
+ * 3. Decode an incoming status frame: speed raw 5000 becomes 50.0 km/h and
+ *    oil_temp raw 130 becomes 90 C.
  */
 
 #include <array>

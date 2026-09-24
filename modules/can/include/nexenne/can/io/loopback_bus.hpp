@@ -36,7 +36,7 @@ namespace nexenne::can {
 template <std::size_t Capacity = 64>
 class loopback_bus {
 public:
-  using value_type = frame;
+  using value_type = frame;  ///< Frame type the bus sends and receives.
 
   /// @brief Inline capacity for the filter set before it spills to the heap.
   static constexpr std::size_t inline_filters{4};
