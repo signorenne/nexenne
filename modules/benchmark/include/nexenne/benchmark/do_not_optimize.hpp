@@ -37,6 +37,8 @@
  * still defeats dead-code elimination.
  */
 
+#include <type_traits>
+
 #if defined(_MSC_VER)
 #include <intrin.h>
 #pragma intrinsic(_ReadWriteBarrier)
@@ -99,7 +101,12 @@ NEXENNE_BENCHMARK_FORCE_INLINE auto do_not_optimize(T& value) noexcept -> void {
 #if defined(__clang__)
   asm volatile("" : "+r,m"(value) : : "memory");
 #else
-  asm volatile("" : "+m,r"(value) : : "memory");
+  // One alternative per case: with "+m,r", GCC 15 at -O2 loses the value stored just before.
+  if constexpr (std::is_trivially_copyable_v<T> && sizeof(T) <= sizeof(void*)) {
+    asm volatile("" : "+r"(value) : : "memory");
+  } else {
+    asm volatile("" : "+m"(value) : : "memory");
+  }
 #endif
 }
 

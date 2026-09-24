@@ -71,9 +71,11 @@ Reading the pieces:
   compiler may not reorder surrounding memory accesses across it.
 
 The mutable overload =do_not_optimize(T& value)= uses a read-write constraint
-(="+r,m"= on Clang, ="+m,r"= on GCC, the two compilers prefer the operands
-listed in opposite order) so the compiler treats =value= as both read *and*
-written, the right model for a routine that mutates in place. Non-const lvalues
+so the compiler treats =value= as both read *and* written, the right model for
+a routine that mutates in place. Clang takes ="+r,m"=. GCC gets one alternative
+per case, ="+r"= for a trivially copyable value no wider than a pointer and
+="+m"= otherwise: given ="+m,r"=, GCC 15 at =-O2= loses the value stored just
+before the call, so a scalar set to 7 reads back as garbage. Non-const lvalues
 pick this overload; everything else binds the const-reference read-only form.
 
 ** clobber_memory() on GCC and Clang

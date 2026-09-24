@@ -5,6 +5,7 @@
 
 #include <doctest/doctest.h>
 
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -767,6 +768,17 @@ TEST_CASE("nexenne::benchmark::comparison is formattable via std::format") {
   auto const s{std::format("{}", c)};
   CHECK(s == c.to_string());
   CHECK(s.find("faster") != std::string::npos);
+}
+
+TEST_CASE("nexenne::benchmark::do_not_optimize keeps a large or non-trivial mutable value") {
+  auto block{std::array<int, 64>{}};
+  block[5] = 7;
+  bm::do_not_optimize(block);
+  CHECK(block[5] == 7);
+
+  auto text{std::string{"kept"}};
+  bm::do_not_optimize(text);
+  CHECK(text == "kept");
 }
 
 }  // namespace
