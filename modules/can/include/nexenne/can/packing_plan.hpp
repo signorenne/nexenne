@@ -74,6 +74,14 @@ private:
   bool m_is_signed{false};
   std::uint16_t m_required_length{0};
 
+  /**
+   * @brief Appends \p chunk to the plan, filling in its mask.
+   *
+   * @param chunk Chunk to append; its mask is computed here.
+   *
+   * @pre The plan has room for another chunk.
+   * @post The chunk is appended and the required frame length covers its byte.
+   */
   constexpr auto push_chunk(plan_chunk chunk) noexcept -> void {
     // Precompute the width mask once so extract / insert avoid rebuilding it per
     // chunk on every frame at bus rate. A chunk lies within one byte, so
@@ -87,9 +95,18 @@ private:
     }
   }
 
-  // Little-endian (Intel): the start bit is the value's LSB and the field grows toward higher
-  // DBC bit numbers, so the bits are contiguous. Walk byte by byte, taking as
-  // many bits as the current byte still has above the running offset.
+  /**
+   * @brief Plans a little-endian (Intel) field.
+   *
+   * The start bit is the value's LSB and the field grows toward higher DBC bit
+   * numbers, so the bits are contiguous. Walk byte by byte, taking as many bits
+   * as the current byte still has above the running offset.
+   *
+   * @param start_bit DBC start bit of the field.
+   *
+   * @pre \c m_bit_length is set and the plan is empty.
+   * @post The chunks cover the field.
+   */
   constexpr auto build_little_endian(std::uint16_t const start_bit) noexcept -> void {
     auto remaining{m_bit_length};
     // Advance the bit cursor in a wider type so a field near the 16-bit start-bit
@@ -107,10 +124,19 @@ private:
     }
   }
 
-  // Big-endian (Motorola): the start bit is the value's MSB. Moving to less significant bits
-  // decreases the bit position within a byte and, at a byte boundary, jumps to
-  // bit 7 of the next byte (the sawtooth). Each byte contributes a contiguous
-  // run whose lowest bit maps to value position remaining - take.
+  /**
+   * @brief Plans a big-endian (Motorola) field.
+   *
+   * The start bit is the value's MSB. Moving to less significant bits decreases
+   * the bit position within a byte and, at a byte boundary, jumps to bit 7 of the
+   * next byte (the sawtooth). Each byte contributes a contiguous run whose lowest
+   * bit maps to value position remaining - take.
+   *
+   * @param start_bit DBC start bit of the field.
+   *
+   * @pre \c m_bit_length is set and the plan is empty.
+   * @post The chunks cover the field.
+   */
   constexpr auto build_big_endian(std::uint16_t const start_bit) noexcept -> void {
     auto remaining{m_bit_length};
     auto byte{static_cast<std::uint16_t>(start_bit / 8U)};

@@ -45,6 +45,16 @@ private:
   container::ring_buffer<frame, Capacity> m_queue{};
   container::small_vector<filter, inline_filters> m_filters{};
 
+  /**
+   * @brief Whether the installed filters let \p id through.
+   *
+   * @param id Identifier of a received frame.
+   *
+   * @return \c true when no filter is installed or one matches.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto accepts(can_id const id) const noexcept -> bool {
     if (m_filters.empty()) {
       return true;

@@ -14,6 +14,7 @@
  */
 
 #include <algorithm>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -36,20 +37,32 @@ public:
   using value_type = message;
 
 private:
+  /// @brief One lookup entry: a frame key and the message it resolves to.
   struct index_entry {
-    std::uint32_t key;
-    std::uint32_t message_index;
+    std::uint32_t key;            ///< Key from \c key_of.
+    std::uint32_t message_index;  ///< Index of the message in the database.
   };
 
   database const* m_database{nullptr};
   container::small_vector<index_entry, 8> m_index{};
   container::small_vector<filter, 4> m_filters{};
 
-  // The lookup key ignores the remote and error flags, so a data frame and the
-  // matching remote request resolve to the same message. It masks the identifier
-  // to the width the extended-frame flag selects, matching can_id::identifier(),
-  // so a standard id carrying junk in bits 11..28 keys the same way database::find
-  // would look it up.
+  /**
+   * @brief The lookup key of \p id.
+   *
+   * Ignores the remote and error flags, so a data frame and the matching remote
+   * request resolve to the same message, and masks the identifier to the width
+   * the extended-frame flag selects, matching \c can_id::identifier(), so a
+   * standard id carrying junk in bits 11 to 28 keys the way \c database::find
+   * looks it up.
+   *
+   * @param id Identifier to key.
+   *
+   * @return The key.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto key_of(can_id const id) noexcept -> std::uint32_t {
     auto const width_mask{(id.raw() & extended_flag) != 0U ? extended_id_mask : standard_id_mask};
     return id.raw() & (extended_flag | width_mask);
@@ -197,6 +210,7 @@ public:
    *       that fits \p f.
    */
   template <typename F>
+    requires std::invocable<F&, signal const&, double>
   auto decode_signals(frame const& f, F&& fn) const -> std::size_t {
     message const* const msg{match(f)};
     if (msg == nullptr) {

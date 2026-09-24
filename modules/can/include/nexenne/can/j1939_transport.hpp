@@ -178,31 +178,59 @@ public:
   static constexpr std::size_t max_sessions{8};
 
 private:
+  /// @brief One transfer being reassembled.
   struct session {
-    std::uint8_t source{0};
-    std::uint8_t destination{j1939_global_address};
-    std::uint32_t pgn{0};
-    std::uint16_t size{0};
-    std::uint8_t packets{0};
-    std::uint8_t received{0};
+    std::uint8_t source{0};                          ///< Sender address.
+    std::uint8_t destination{j1939_global_address};  ///< Receiver address, or global for BAM.
+    std::uint32_t pgn{0};                            ///< PGN of the transferred message.
+    std::uint16_t size{0};                           ///< Announced byte count.
+    std::uint8_t packets{0};                         ///< Announced packet count.
+    std::uint8_t received{0};                        ///< Packets received so far.
     std::uint32_t opened_at{0};  ///< Monotonic open order, used to evict the oldest.
-    container::small_vector<std::byte, 8> buffer{};
+    container::small_vector<std::byte, 8> buffer{};  ///< Bytes received so far.
   };
 
   container::small_vector<session, max_sessions> m_sessions{};
   std::uint32_t m_next_order{0};
 
-  // Drops the least-recently-opened session. erase() swaps with the last element,
-  // so m_sessions is not insertion-ordered; the open order is tracked explicitly.
+  /**
+   * @brief Drops the least-recently-opened session.
+   *
+   * \c erase swaps with the last element, so the sessions are not in open order;
+   * the order is tracked explicitly.
+   *
+   * @pre At least one session is open.
+   * @post The oldest session is gone.
+   */
   auto evict_oldest() noexcept -> void;
 
-  // Sessions are keyed by the (source, destination) pair, not the source alone,
-  // so one node can run a broadcast (BAM) and a destination-specific transfer at
-  // once, and a TP.DT frame only advances the session that shares its own
-  // destination address.
+  /**
+   * @brief Finds the session of a (source, destination) pair.
+   *
+   * Keyed by the pair, not the source alone, so one node can run a broadcast
+   * (BAM) and a destination-specific transfer at once, and a TP.DT frame only
+   * advances the session that shares its destination address.
+   *
+   * @param source Sender address.
+   * @param destination Receiver address.
+   *
+   * @return The session, or \c nullptr when none is open.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto find(std::uint8_t const source, std::uint8_t const destination) noexcept
     -> session*;
 
+  /**
+   * @brief Closes the session of a (source, destination) pair, if open.
+   *
+   * @param source Sender address.
+   * @param destination Receiver address.
+   *
+   * @pre None.
+   * @post No session is open for the pair.
+   */
   auto erase(std::uint8_t const source, std::uint8_t const destination) noexcept -> void;
 
 public:

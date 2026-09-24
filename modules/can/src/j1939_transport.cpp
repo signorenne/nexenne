@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the J1939 transport protocol.
+ */
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>

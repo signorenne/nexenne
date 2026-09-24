@@ -284,8 +284,7 @@ inline auto operator<<(std::ostream& os, signal const& sig) -> std::ostream& {
 }
 
 /**
- * @brief The name of a \c multiplex_role: \c "none", \c "selector", or
- *        \c "multiplexed".
+ * @brief The name of a \c multiplex_role: \c "none", \c "selector" or \c "multiplexed".
  *
  * @param role Multiplex role to name.
  *

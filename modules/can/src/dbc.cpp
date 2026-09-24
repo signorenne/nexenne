@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief The DBC parser.
+ */
+
 #include <algorithm>
 #include <charconv>
 #include <cstdint>

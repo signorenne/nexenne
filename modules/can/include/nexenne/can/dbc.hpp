@@ -46,6 +46,7 @@
 
 namespace nexenne::can {
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -234,6 +235,8 @@ struct dbc_scanner {
 
 }  // namespace detail
 
+/// @endcond
+
 /**
  * @brief One raw-value-to-name mapping from a DBC \c VAL_ value table.
  *
@@ -260,6 +263,7 @@ struct dbc_enum_value {
   operator==(dbc_enum_value const& lhs, dbc_enum_value const& rhs) noexcept -> bool = default;
 };
 
+/// @cond INTERNAL
 /// @cond INTERNAL
 namespace detail {
 
@@ -321,6 +325,8 @@ struct dbc_metadata {
 [[nodiscard]] auto dbc_raw_id(can_id const id) noexcept -> std::uint32_t;
 
 }  // namespace detail
+
+/// @endcond
 
 /// @endcond
 
@@ -522,10 +528,35 @@ public:
     -> std::optional<std::string_view>;
 
 private:
+  /**
+   * @brief The comment on one database, message or signal.
+   *
+   * @param scope What the comment is attached to.
+   * @param raw Raw identifier of the message, or 0 for the database.
+   * @param signal Signal name, or empty.
+   *
+   * @return The comment text, or empty when there is none.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto comment_of(
     detail::dbc_scope const scope, std::uint32_t const raw, std::string_view const signal
   ) const noexcept -> std::string_view;
 
+  /**
+   * @brief The value of one attribute on a database, message or signal.
+   *
+   * @param scope What the attribute is attached to.
+   * @param raw Raw identifier of the message, or 0 for the database.
+   * @param signal Signal name, or empty.
+   * @param name Attribute name.
+   *
+   * @return The value text, or \c std::nullopt when the attribute is absent.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto attribute_of(
     detail::dbc_scope const scope,
     std::uint32_t const raw,

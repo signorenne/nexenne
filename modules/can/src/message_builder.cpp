@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Out-of-line parts of the message builder.
+ */
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>

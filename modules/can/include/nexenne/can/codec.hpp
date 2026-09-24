@@ -32,6 +32,7 @@
 
 namespace nexenne::can {
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -164,6 +165,8 @@ is_dont_care(invalid_value const policy, std::uint64_t const raw, std::uint8_t c
 }
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Reads the raw bit field of a plan from a frame.

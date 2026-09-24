@@ -57,6 +57,7 @@
 
 namespace nexenne::can {
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -76,6 +77,8 @@ struct socket_closer {
 
 }  // namespace detail
 
+/// @endcond
+
 /**
  * @brief Converts a frame to a Classic CAN kernel struct.
  *
@@ -86,6 +89,7 @@ struct socket_closer {
  *         \c socketcan_bus::send to have an over-long frame refused rather
  *         than truncated.
  *
+ * @pre None.
  * @post The result's \c can_id equals \c f.id().raw(), and its \c can_dlc is
  *       the number of bytes actually copied.
  */
@@ -102,6 +106,7 @@ struct socket_closer {
  * @return A \c canfd_frame holding the identifier, padded length, FD flags, and
  *         payload of \p f, truncated to the 64 bytes the FD struct holds.
  *
+ * @pre None.
  * @post The result's \c can_id equals \c f.id().raw(), and its \c len is the
  *       padded length of the bytes actually copied.
  */
@@ -155,6 +160,15 @@ private:
   bool m_fd_enabled{false};
   bus_state m_state{bus_state::error_active};
 
+  /**
+   * @brief Adopts an open, bound socket.
+   *
+   * @param socket The socket; ownership moves in.
+   * @param fd_enabled Whether CAN FD frames were enabled on it.
+   *
+   * @pre \p socket is bound to a CAN interface.
+   * @post The bus owns \p socket.
+   */
   socketcan_bus(socket_handle&& socket, bool const fd_enabled) noexcept;
 
 public:

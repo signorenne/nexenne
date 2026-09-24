@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief The SocketCAN bus backend.
+ */
+
 #include <nexenne/can/io/socketcan_bus.hpp>
 
 #ifdef __linux__
