@@ -115,10 +115,13 @@ struct socket_closer {
 /**
  * @brief Converts a Classic CAN kernel struct to a frame.
  *
+ * A Classic DLC of 9 to 15 still means 8 data bytes (ISO 11898-1), so it is
+ * clamped rather than rejected and the conversion always succeeds; the
+ * \c result return matches \c from_canfd_frame.
+ *
  * @param cf Kernel frame to convert.
  *
- * @return The equivalent \c frame, or \c can_error::invalid_dlc when the kernel
- *         length exceeds 8.
+ * @return The equivalent \c frame.
  *
  * @pre None.
  * @post On success \c is_fd() of the result is \c false.

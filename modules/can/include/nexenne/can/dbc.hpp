@@ -571,8 +571,10 @@ private:
 /**
  * @brief Parses DBC text into a database, retaining the source for its names.
  *
- * Reads the \c BO_ message and \c SG_ signal records and ignores the rest. A
- * message id with the high bit set is treated as extended, per the DBC convention.
+ * Reads the \c BO_ message and \c SG_ signal records, the \c SIG_VALTYPE_ float
+ * markers, and the \c VAL_, \c CM_ and \c BA_ metadata, and skips the sections it
+ * does not model. A message id with the high bit set is treated as extended, per
+ * the DBC convention.
  * \c SIG_VALTYPE_ lines may follow every message, so the float signals they name
  * are marked in a second pass once all signals exist; a float value type on a
  * signal that is not 32 or 64 bits wide, or a signal whose bits run past its
@@ -581,7 +583,7 @@ private:
  * @param source DBC file contents.
  *
  * @return The parsed \c dbc_database, or \c can_error::parse_error on a malformed
- *         \c BO_ or \c SG_ line.
+ *         record or a signal the rules above reject.
  *
  * @pre None.
  * @post On success every message and signal name and unit points into the
