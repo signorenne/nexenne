@@ -49,10 +49,6 @@ auto message::byte_length() const noexcept -> std::uint8_t const& {
   return m_byte_length;
 }
 
-auto message::signals() noexcept -> std::span<signal_entry> {
-  return std::span<signal_entry>{m_signals.data(), m_signals.size()};
-}
-
 auto message::signals() const noexcept -> std::span<signal_entry const> {
   return std::span<signal_entry const>{m_signals.data(), m_signals.size()};
 }

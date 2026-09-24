@@ -29,7 +29,9 @@ identifier, a name, and a small list of signals, each kept together with its
 compiled [[file:signals.org][packing plan]] as a =signal_entry= so that decoding never rebuilds the
 plan. The signal list is inline for the first few signals and spills to the heap
 only for an unusually busy frame, and only when the database is built, never
-while decoding.
+while decoding. =signals()= is read-only even on a mutable message: editing a
+definition in place would leave its plan describing the old layout, so a changed
+signal goes through a new =message_builder=.
 
 #+BEGIN_SRC C++
 namespace nc = nexenne::can;

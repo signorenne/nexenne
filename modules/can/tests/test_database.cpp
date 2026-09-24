@@ -5,7 +5,10 @@
 
 #include <doctest/doctest.h>
 
+#include <concepts>
 #include <cstddef>
+#include <span>
+#include <utility>
 
 #include <nexenne/can/byte_order.hpp>
 #include <nexenne/can/database.hpp>
@@ -115,5 +118,9 @@ TEST_CASE("database: a default database is empty") {
   CHECK(db.message_count() == 0);
   CHECK(db.find(nc::can_id::standard(0x1)) == nullptr);
 }
+
+static_assert(
+  std::same_as<decltype(std::declval<nc::message&>().signals()), std::span<nc::signal_entry const>>
+);
 
 }  // namespace

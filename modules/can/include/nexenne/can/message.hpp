@@ -159,17 +159,12 @@ public:
   [[nodiscard]] auto byte_length() const noexcept -> std::uint8_t const&;
 
   /**
-   * @brief Mutable view of the signal entries.
-   *
-   * @return A span of the message's \c signal_entry values.
-   *
-   * @pre None.
-   * @post None.
-   */
-  [[nodiscard]] auto signals() noexcept -> std::span<signal_entry>;
-
-  /**
    * @brief Read-only view of the signal entries.
+   *
+   * Only a const view: each entry pairs a signal with the plan compiled from
+   * it, so editing a definition in place would leave the plan describing the
+   * old layout. To change a signal, build a new message with
+   * \c message_builder.
    *
    * @return A span of the message's \c signal_entry values.
    *

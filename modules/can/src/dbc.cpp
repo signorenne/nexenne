@@ -474,25 +474,37 @@ auto parse_dbc(std::string_view const source) -> result<dbc_database> {
     messages.push_back(current->build());
   }
 
-  // Second pass: mark the float signals named by the SIG_VALTYPE_ lines. A float
-  // value type on a signal whose width is not 32 or 64 bits is a malformed file.
-  for (auto const& value_type : value_types) {
-    bool const extended{(value_type.raw_id & detail::dbc_extended_flag) != 0U};
-    std::uint32_t const ident{value_type.raw_id & ~detail::dbc_extended_flag};
-    for (message& msg : messages) {
-      if (msg.id().extended() != extended || msg.id().identifier() != ident) {
-        continue;
+  for (message& msg : messages) {
+    auto const names_float{[&msg, &value_types](std::string_view const signal_name) -> bool {
+      for (auto const& value_type : value_types) {
+        bool const extended{(value_type.raw_id & detail::dbc_extended_flag) != 0U};
+        std::uint32_t const ident{value_type.raw_id & ~detail::dbc_extended_flag};
+        if (msg.id().extended() == extended && msg.id().identifier() == ident
+            && value_type.signal == signal_name) {
+          return true;
+        }
       }
-      auto const index{msg.find_signal(value_type.signal)};
-      if (!index) {
-        continue;
-      }
-      auto& definition{msg.signals()[*index].definition};
-      if (definition.length() != 32U && definition.length() != 64U) {
-        return std::unexpected{can_error::parse_error};
-      }
-      definition.is_float() = true;
+      return false;
+    }};
+    auto const signals{msg.signals()};
+    if (std::ranges::none_of(signals, [&names_float](signal_entry const& entry) -> bool {
+          return names_float(entry.definition.name());
+        })) {
+      continue;
     }
+    message_builder rebuilt{msg.id(), msg.name()};
+    rebuilt.byte_length(msg.byte_length());
+    for (signal_entry const& entry : signals) {
+      auto definition{entry.definition};
+      if (names_float(definition.name())) {
+        if (definition.length() != 32U && definition.length() != 64U) {
+          return std::unexpected{can_error::parse_error};
+        }
+        definition.is_float() = true;
+      }
+      rebuilt.add(definition);
+    }
+    msg = rebuilt.build();
   }
 
   database_builder builder;

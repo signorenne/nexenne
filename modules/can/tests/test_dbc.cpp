@@ -120,6 +120,26 @@ TEST_CASE("dbc: a [0|0] range means unbounded, not clamp-everything-to-zero") {
   CHECK(*nc::decode(entry.definition, entry.plan, frame) == doctest::Approx(1234.0));  // not 0
 }
 
+TEST_CASE("dbc: marking a float signal keeps the message and its other signals") {
+  auto const parsed{nc::parse_dbc(
+    "BO_ 100 Sensors: 8 ECU\n"
+    " SG_ Count : 0|16@1+ (1,0) [0|0] \"\" ECU\n"
+    " SG_ Temperature : 32|32@1- (1,0) [-100|100] \"degC\" ECU\n"
+    "SIG_VALTYPE_ 100 Temperature : 1;\n"
+  )};
+  REQUIRE(parsed.has_value());
+  auto const* const msg{parsed->db().find(nc::can_id::standard(100))};
+  REQUIRE(msg != nullptr);
+  CHECK(msg->name() == "Sensors");
+  CHECK(msg->byte_length() == 8);
+  REQUIRE(msg->signal_count() == 2);
+  CHECK(msg->signals()[0].definition.name() == "Count");
+  CHECK_FALSE(msg->signals()[0].definition.is_float());
+  CHECK(msg->signals()[1].definition.name() == "Temperature");
+  CHECK(msg->signals()[1].definition.is_float());
+  CHECK(msg->signals()[1].plan.required_length() == 8);
+}
+
 TEST_CASE("dbc: a float value type marks the signal, and float signals round-trip") {
   auto const parsed{nc::parse_dbc(
     "BO_ 100 Sensors: 8 ECU\n SG_ Temperature : 0|32@1- (1,0) [-100|100] \"degC\" ECU\n"
