@@ -230,7 +230,9 @@ public:
    *        iteration, one entry per sample batch.
    * @param total_iterations Total iterations summed across every batch.
    *
-   * @pre None.
+   * @pre Every sample is finite and non-negative, as for \c from_samples; the
+   *      statistics are meaningless otherwise (a negative sample gives a
+   *      negative mean and coefficient of variation).
    * @post \c name() equals \p name, \c samples() views the moved-in data, and
    *       \c total_iterations() equals \p total_iterations.
    */
@@ -239,7 +241,14 @@ public:
   ) noexcept
       : m_name{std::move(name)}
       , m_sample_means_ns{std::move(sample_means_ns)}
-      , m_total_iterations{total_iterations} {}
+      , m_total_iterations{total_iterations} {
+    assert(
+      std::ranges::all_of(
+        m_sample_means_ns, [](double const s) noexcept { return std::isfinite(s) && s >= 0.0; }
+      )
+      && "benchmark::result requires finite, non-negative samples"
+    );
+  }
 
   /**
    * @brief Label identifying this benchmark.
