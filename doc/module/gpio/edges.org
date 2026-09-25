@@ -47,10 +47,10 @@ settled result.
 - Userspace: =event_debounce= wraps =filter::timed_debounce= over the event
   stream. It works everywhere, its period can change at runtime without
   reopening the request, and its semantics are explicit: a settled change is
-  forwarded once with the edge REPLACED by the settled transition's
-  direction, and the first acceptance after construction or =reset= carries
-  =edge_kind::none= because there was no prior settled level to transition
-  from.
+  forwarded once, as the raw event that began the settled level with the
+  edge REPLACED by the settled transition's direction, and the first
+  acceptance after construction or =reset= carries =edge_kind::none= because
+  there was no prior settled level to transition from.
 
 =event_debounce::stable()= is the diagnostic view: what the filter believes
 the line holds right now, independent of what the last =feed= forwarded. A
@@ -60,18 +60,35 @@ edge)= is the predicate that asks whether a delivered edge falls under a
 consumer's =edge_detection= subscription.
 
 Feed it raw events in timestamp order; it answers =std::nullopt= while the
-line bounces and the settled event once it holds:
+line bounces. A held level brings no further edge (the next event is the
+opposite one), so the loop also settles by the clock: =deadline()= is when
+the pending level will have held for the period, the wait sleeps no longer
+than that, and =expire(now)= reports the level once it is due. Here =now()=
+stands for the current time on the clock the line stamps its events with
+(=CLOCK_MONOTONIC= on Linux unless the line asked for another), as an
+=event_time=; =event_clock= has no =now()= of its own. Without =expire= a
+press is reported only when the release arrives. Subscribe both edges: the
+settle test follows the level, so a single-edge stream never changes it.
 
 #+BEGIN_SRC C++
 ng::event_debounce debounce{5ms};
 ng::sequence_tracker tracker{};
-while (auto const raw{backend.wait_event(0ms)}) {
-  if (!raw->has_value()) { break; }
+while (true) {
+  // Sleep until the next edge, or until a pending level is due to settle.
+  auto const due{debounce.deadline()};
+  auto const raw{backend.wait_event(due ? std::max(*due - now(), 0ns) : idle)};
+  if (!raw.has_value()) { break; }            // backend error
+  if (!raw->has_value()) {                    // timed out: settle by the clock
+    if (auto const settled{debounce.expire(now())}) {
+      handle(ng::decode(spec, *settled));
+    }
+    continue;
+  }
   if (auto const lost{tracker.feed((**raw).sequence)}; lost > 0) {
     log_overflow(lost);                       // observed, not fatal
   }
   if (auto const settled{debounce.feed(**raw)}) {
-    handle(ng::decode(spec, *settled));       // logical, exactly once per press
+    handle(ng::decode(spec, *settled));       // logical, exactly once per change
   }
 }
 #+END_SRC

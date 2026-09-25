@@ -104,8 +104,7 @@ auto main() -> int {
   nexenne::utility::ignore(backend.inject(raw(1, 0ms, true)));    // idle high (released)
   nexenne::utility::ignore(backend.inject(raw(2, 20ms, false)));  // press: bounce...
   nexenne::utility::ignore(backend.inject(raw(3, 21ms, true)));   // ...bounce...
-  nexenne::utility::ignore(backend.inject(raw(5, 22ms, false)));  // ...settles (4 lost)
-  nexenne::utility::ignore(backend.inject(raw(6, 40ms, false)));
+  nexenne::utility::ignore(backend.inject(raw(5, 22ms, false)));  // ...holds (4 lost)
 
   // The production shape: pump everything ready into a lock-free ring in
   // one call, then consume from the ring at the application's own pace.
@@ -121,6 +120,9 @@ auto main() -> int {
     if (auto const settled{debounce.feed(*drained)}) {
       std::println("settled: {}", ng::decode(specs[0], *settled));
     }
+  }
+  if (auto const settled{debounce.expire(ng::event_time{40ms})}) {
+    std::println("settled: {}", ng::decode(specs[0], *settled));
   }
   std::println("events dropped upstream: {}", tracker.dropped());
 

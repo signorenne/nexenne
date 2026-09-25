@@ -58,7 +58,6 @@ TEST_CASE("gpio: raw bounces become one settled, polarity-correct press") {
   REQUIRE(backend.inject(raw(2, 20ms, false)));
   REQUIRE(backend.inject(raw(3, 21ms, true)));
   REQUIRE(backend.inject(raw(5, 22ms, false)));
-  REQUIRE(backend.inject(raw(6, 40ms, false)));
 
   ng::event_debounce debounce{5ms};
   ng::sequence_tracker tracker{};
@@ -81,6 +80,9 @@ TEST_CASE("gpio: raw bounces become one settled, polarity-correct press") {
       REQUIRE(sink.push(*settled));
     }
   }
+  if (auto const settled{debounce.expire(ng::event_time{40ms})}) {
+    REQUIRE(sink.push(*settled));
+  }
 
   // One dropped event was detected between 3 and 5.
   CHECK(tracker.dropped() == 1);
@@ -94,7 +96,7 @@ TEST_CASE("gpio: raw bounces become one settled, polarity-correct press") {
 
   CHECK(presses[1].logical() == true);  // settled: wire low => pressed
   CHECK(presses[1].edge() == ng::edge_kind::rising);
-  CHECK(presses[1].sequence() == ng::event_sequence{6});
+  CHECK(presses[1].sequence() == ng::event_sequence{5});
 }
 
 }  // namespace

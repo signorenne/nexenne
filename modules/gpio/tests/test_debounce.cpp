@@ -107,4 +107,74 @@ TEST_CASE("event_debounce: a zero period passes transitions straight through") {
   CHECK(passed->edge == ng::edge_kind::rising);
 }
 
+TEST_CASE("event_debounce: an overdue level settles on the next opposite edge (gpio-01)") {
+  // A kernel edge stream alternates, so a held level never sees a repeat: the
+  // press settles when the release arrives, reporting the press's own edge.
+  ng::event_debounce debounce{5ms};
+  REQUIRE(debounce.feed(event_at(0ms, false, ng::edge_kind::falling)).has_value());
+
+  CHECK_FALSE(debounce.feed(event_at(10ms, true, ng::edge_kind::rising)).has_value());
+  auto const press{debounce.feed(event_at(100ms, false, ng::edge_kind::falling))};
+  REQUIRE(press.has_value());
+  CHECK(press->physical == true);
+  CHECK(press->edge == ng::edge_kind::rising);
+  CHECK(press->timestamp == ng::event_time{10ms});
+  CHECK(*debounce.stable() == true);
+}
+
+TEST_CASE("event_debounce: expire settles a held level at its deadline") {
+  ng::event_debounce debounce{5ms};
+  CHECK_FALSE(debounce.deadline().has_value());
+  REQUIRE(debounce.feed(event_at(0ms, true, ng::edge_kind::rising)).has_value());
+  CHECK_FALSE(debounce.deadline().has_value());
+
+  CHECK_FALSE(debounce.feed(event_at(100ms, false, ng::edge_kind::falling)).has_value());
+  CHECK_FALSE(debounce.feed(event_at(101ms, true, ng::edge_kind::rising)).has_value());
+  CHECK_FALSE(debounce.deadline().has_value());
+  CHECK_FALSE(debounce.feed(event_at(102ms, false, ng::edge_kind::falling)).has_value());
+  REQUIRE(debounce.deadline().has_value());
+  CHECK(*debounce.deadline() == ng::event_time{107ms});
+
+  CHECK_FALSE(debounce.expire(ng::event_time{106ms}).has_value());
+  auto const press{debounce.expire(ng::event_time{107ms})};
+  REQUIRE(press.has_value());
+  CHECK(press->physical == false);
+  CHECK(press->edge == ng::edge_kind::falling);
+  CHECK(press->timestamp == ng::event_time{102ms});
+  CHECK_FALSE(debounce.deadline().has_value());
+  CHECK_FALSE(debounce.expire(ng::event_time{200ms}).has_value());
+
+  CHECK_FALSE(debounce.feed(event_at(500ms, true, ng::edge_kind::rising)).has_value());
+  auto const release{debounce.expire(ng::event_time{600ms})};
+  REQUIRE(release.has_value());
+  CHECK(release->edge == ng::edge_kind::rising);
+
+  CHECK_FALSE(debounce.feed(event_at(700ms, false, ng::edge_kind::falling)).has_value());
+  debounce.reset();
+  CHECK_FALSE(debounce.deadline().has_value());
+}
+
+TEST_CASE("event_debounce: clean presses each settle once over a kernel-shaped stream") {
+  ng::event_debounce debounce{5ms};
+  auto forwarded{0};
+  auto const deliver{[&](std::chrono::milliseconds const at, bool const physical) {
+    if (debounce.expire(ng::event_time{at}).has_value()) {
+      ++forwarded;
+    }
+    auto const edge{physical ? ng::edge_kind::rising : ng::edge_kind::falling};
+    if (debounce.feed(event_at(at, physical, edge)).has_value()) {
+      ++forwarded;
+    }
+  }};
+  deliver(0ms, true);
+  for (auto const at : {1000ms, 2000ms, 3000ms}) {
+    deliver(at, false);
+    deliver(at + 300ms, true);
+  }
+  if (debounce.expire(ng::event_time{4000ms}).has_value()) {
+    ++forwarded;
+  }
+  CHECK(forwarded == 7);
+}
+
 }  // namespace
