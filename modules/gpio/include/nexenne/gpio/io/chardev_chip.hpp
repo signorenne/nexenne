@@ -121,6 +121,33 @@ struct fd_closer {
   }
 }
 
+/**
+ * @brief Widens the kernel's 32-bit event sequence onto the 64-bit count.
+ *
+ * The kernel numbers a request's events with a 32-bit counter that wraps,
+ * while \c event_sequence is 64-bit so a drop count survives the wrap. The
+ * result keeps \p seqno as its low half and takes the high half from
+ * \p previous, plus one when \p seqno fell below the low half of
+ * \p previous (the counter wrapped).
+ *
+ * @param previous Widened sequence of the request's previous event, or zero
+ *        before the first.
+ * @param seqno Kernel sequence number of the new event.
+ *
+ * @return The widened sequence of the new event.
+ *
+ * @pre Fewer than \c 2^32 events separate the two, so at most one wrap lies
+ *      between them.
+ * @post The low 32 bits of the result equal \p seqno, and the result is not
+ *       below \p previous.
+ */
+[[nodiscard]] constexpr auto
+widen_sequence(std::uint64_t const previous, std::uint32_t const seqno) noexcept -> std::uint64_t {
+  constexpr std::uint64_t wrap{std::uint64_t{1} << 32U};
+  auto const widened{(previous & ~(wrap - 1)) | seqno};
+  return widened < previous ? widened + wrap : widened;
+}
+
 }  // namespace detail
 
 /**
@@ -154,6 +181,9 @@ private:
   std::size_t m_consumer_size{0};
   std::uint32_t m_event_buffer_size{0};
   fd_handle m_request{};
+  // Widened sequence of the request's last event; the kernel restarts its
+  // 32-bit counter with each request.
+  std::uint64_t m_last_sequence{0};
   container::static_vector<line_offset, max_lines> m_offsets{};
 
   [[nodiscard]] auto index_of(line_offset const offset) const noexcept

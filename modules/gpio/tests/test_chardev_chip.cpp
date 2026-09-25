@@ -151,6 +151,19 @@ TEST_CASE("chardev_chip: an invalid debounce is rejected before device access") 
   CHECK(opened.error() == ng::gpio_error::invalid_argument);
 }
 
+TEST_CASE("chardev_chip: the kernel sequence widens across the 32-bit wrap") {
+  namespace detail = ng::detail;
+  CHECK(detail::widen_sequence(0, 1) == 1);
+  CHECK(detail::widen_sequence(1, 2) == 2);
+  CHECK(detail::widen_sequence(0xFFFF'FFF0, 0xFFFF'FFFF) == 0xFFFF'FFFF);
+
+  CHECK(detail::widen_sequence(0xFFFF'FFFF, 0) == 0x1'0000'0000);
+  CHECK(detail::widen_sequence(0x1'0000'0000, 1) == 0x1'0000'0001);
+  CHECK(detail::widen_sequence(0xFFFF'FFF0, 1000) - 0xFFFF'FFF0 == 1016);
+
+  CHECK(detail::widen_sequence(0x2'0000'0005, 5) == 0x2'0000'0005);
+}
+
 #else
 
 TEST_CASE("chardev_chip: every operation reports unsupported off Linux") {

@@ -254,6 +254,7 @@ auto chardev_chip::is_open() const noexcept -> bool {
 
 auto chardev_chip::close() noexcept -> void {
   m_request.reset();
+  m_last_sequence = 0;
   m_offsets.clear();
 }
 
@@ -459,7 +460,8 @@ auto chardev_chip::wait_event(std::chrono::nanoseconds const timeout)
   line_event event{};
   event.chip = m_chip;
   event.offset = line_offset{kernel_event.offset};
-  event.sequence = event_sequence{kernel_event.seqno};
+  m_last_sequence = detail::widen_sequence(m_last_sequence, kernel_event.seqno);
+  event.sequence = event_sequence{m_last_sequence};
   event.timestamp =
     event_time{std::chrono::nanoseconds{static_cast<std::int64_t>(kernel_event.timestamp_ns)}};
   event.edge =
