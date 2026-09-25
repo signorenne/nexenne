@@ -23,9 +23,13 @@ namespace {
 namespace ng = nexenne::gpio;
 using namespace std::chrono_literals;
 
+// No system has 4000 GPIO chips, so a request that got past validation fails
+// at the device open instead of driving a real line.
+constexpr ng::chip_id absent_chip{4000};
+
 std::array const specs{
-  ng::line_spec::input("in", ng::chip_id{0}, ng::line_offset{0}),
-  ng::line_spec::output("out", ng::chip_id{0}, ng::line_offset{1}),
+  ng::line_spec::input("in", absent_chip, ng::line_offset{0}),
+  ng::line_spec::output("out", absent_chip, ng::line_offset{1}),
 };
 std::array const configs{ng::line_config{ng::edge_detection::both}, ng::line_config{}};
 
@@ -61,7 +65,7 @@ TEST_CASE("chardev_chip: the consumer label is copied, not borrowed") {
     // Past the small-string buffer, so the storage is heap and its release is
     // unambiguous, and under the 32 bytes the kernel field holds.
     std::string label{"nexenne-gpio-consumer-probe"};
-    return ng::chardev_chip{ng::chip_id{0}, label};
+    return ng::chardev_chip{absent_chip, label};
   }()};
 
   // open() copies the label into the request struct before it touches a
@@ -99,7 +103,7 @@ TEST_CASE("chardev_chip: read_lines refuses more offsets than a request can hold
 #ifdef __linux__
 
 TEST_CASE("chardev_chip: open validates the request before touching a device") {
-  ng::chardev_chip backend{ng::chip_id{0}};
+  ng::chardev_chip backend{absent_chip};
 
   // Mismatched, empty, and oversized tables.
   CHECK(
@@ -117,7 +121,7 @@ TEST_CASE("chardev_chip: open validates the request before touching a device") {
 
   // A consumer label the kernel field cannot hold.
   ng::chardev_chip labeled{
-    ng::chip_id{0}, "a-consumer-label-well-beyond-the-31-bytes-the-kernel-allows"
+    absent_chip, "a-consumer-label-well-beyond-the-31-bytes-the-kernel-allows"
   };
   CHECK(labeled.open(specs, configs).error() == ng::gpio_error::invalid_argument);
 }
