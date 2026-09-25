@@ -136,8 +136,10 @@ public:
    *
    * @pre \p specs and \p configs describe the same lines element by element,
    *      and the storage behind \p specs outlives this chip's request set.
-   * @post On success \c specs() views \p specs; on failure the chip keeps
-   *       its previous request set.
+   * @post On success \c specs() views \p specs. On failure \c specs() is
+   *       unchanged while the backend is still open, and empty once the
+   *       backend has closed (\c chardev_chip releases the old request
+   *       before asking for the new one).
    */
   [[nodiscard]] auto
   open(std::span<line_spec const> const specs, std::span<line_config const> const configs)
@@ -150,6 +152,9 @@ public:
     }
     auto const opened{m_backend->open(specs, configs)};
     if (!opened.has_value()) {
+      if (!m_backend->is_open()) {
+        m_specs = {};
+      }
       return std::unexpected{opened.error()};
     }
     m_specs = specs;

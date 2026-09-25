@@ -306,8 +306,9 @@ public:
    *         \c gpio_error::permission_denied on device permissions).
    *
    * @pre \p specs and \p configs describe the same lines element by element.
-   * @post On success \c is_open() is \c true; on failure the backend is
-   *       closed.
+   * @post On success \c is_open() is \c true. A request refused by the
+   *       checks above leaves the backend as it was; any later failure leaves
+   *       it closed, the previous request released.
    */
   [[nodiscard]] auto
   open(std::span<line_spec const> const specs, std::span<line_config const> const configs)

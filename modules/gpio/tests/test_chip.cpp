@@ -169,4 +169,53 @@ TEST_CASE("chip: open refuses an offset named twice as a permanent error") {
   CHECK_FALSE(chip.is_open());
 }
 
+struct releasing_backend {
+  mock inner{};
+  bool fail_next{false};
+
+  auto open(std::span<ng::line_spec const> const s, std::span<ng::line_config const> const c)
+    -> ng::result<void> {
+    if (!fail_next) {
+      return inner.open(s, c);
+    }
+    inner.close();
+    return std::unexpected{ng::gpio_error::busy};
+  }
+
+  auto close() noexcept -> void {
+    inner.close();
+  }
+
+  [[nodiscard]] auto is_open() const noexcept -> bool {
+    return inner.is_open();
+  }
+
+  [[nodiscard]] auto read(ng::line_offset const o) const -> ng::result<bool> {
+    return inner.read(o);
+  }
+
+  auto write(ng::line_offset const o, bool const v) -> ng::result<void> {
+    return inner.write(o, v);
+  }
+};
+
+TEST_CASE("chip: a failed reopen that closed the backend drops the spec view") {
+  static_assert(ng::gpio_backend<releasing_backend>);
+  releasing_backend backend{};
+  ng::chip<releasing_backend> chip{backend};
+  REQUIRE(chip.open(specs, configs).has_value());
+
+  backend.fail_next = true;
+  auto const reopened{chip.open(specs, configs)};
+  REQUIRE_FALSE(reopened.has_value());
+  CHECK_FALSE(chip.is_open());
+  CHECK(chip.specs().empty());
+  CHECK_FALSE(chip.spec("button").has_value());
+
+  backend.fail_next = false;
+  REQUIRE(chip.open(specs, configs).has_value());
+  CHECK(chip.open({}, {}).error() == ng::gpio_error::invalid_argument);
+  CHECK(chip.specs().size() == specs.size());
+}
+
 }  // namespace
