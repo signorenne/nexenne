@@ -275,7 +275,7 @@ public:
    * @param configs Per-line open-time config, parallel to \p specs.
    *
    * @return Nothing on success; \c gpio_error::invalid_argument when the
-   *         tables are malformed, name a different chip, exceed
+   *         tables are malformed, name an offset twice or a different chip, exceed
    *         \c max_lines, need more than ten attribute groups, or carry a
    *         debounce period beyond the kernel's microsecond range;
    *         otherwise the errno-mapped kernel error (notably

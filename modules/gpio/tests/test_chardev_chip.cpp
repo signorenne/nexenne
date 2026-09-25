@@ -164,6 +164,20 @@ TEST_CASE("chardev_chip: the kernel sequence widens across the 32-bit wrap") {
   CHECK(detail::widen_sequence(0x2'0000'0005, 5) == 0x2'0000'0005);
 }
 
+TEST_CASE("chardev_chip: open refuses an offset named twice before the ioctl (gpio-03)") {
+  // A chip id no system has: skipping the check would reach the device open
+  // and report not_found instead.
+  ng::chardev_chip backend{ng::chip_id{65535}};
+  std::array const twice{
+    ng::line_spec::input("a", ng::chip_id{65535}, ng::line_offset{3}),
+    ng::line_spec::input("b", ng::chip_id{65535}, ng::line_offset{3}),
+  };
+  std::array const two_configs{ng::line_config{}, ng::line_config{}};
+  auto const opened{backend.open(twice, two_configs)};
+  REQUIRE_FALSE(opened.has_value());
+  CHECK(opened.error() == ng::gpio_error::invalid_argument);
+}
+
 #else
 
 TEST_CASE("chardev_chip: every operation reports unsupported off Linux") {

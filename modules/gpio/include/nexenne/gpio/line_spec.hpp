@@ -19,6 +19,8 @@
  * trivially copyable and allocation-free.
  */
 
+#include <cstddef>
+#include <span>
 #include <string_view>
 
 #include <nexenne/gpio/line_types.hpp>
@@ -356,5 +358,41 @@ public:
   [[nodiscard]] friend constexpr auto
   operator==(line_spec const& lhs, line_spec const& rhs) noexcept -> bool = default;
 };
+
+namespace detail {
+
+/// @cond INTERNAL
+
+/**
+ * @brief Whether two specs of one request address the same line offset.
+ *
+ * A request naming a line twice is malformed: the kernel refuses it with
+ * \c EBUSY, which would read as a retryable \c gpio_error::busy. An index
+ * loop, since the backends call it from \c constexpr code over tens of lines.
+ *
+ * @param specs Specs of one request.
+ *
+ * @return \c true when any two entries share an offset.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @complexity \c O(n^2) in the number of specs.
+ */
+[[nodiscard]] constexpr auto has_duplicate_offset(std::span<line_spec const> const specs) noexcept
+  -> bool {
+  for (std::size_t i{0}; i < specs.size(); ++i) {
+    for (std::size_t j{i + 1}; j < specs.size(); ++j) {
+      if (specs[i].offset() == specs[j].offset()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/// @endcond
+
+}  // namespace detail
 
 }  // namespace nexenne::gpio

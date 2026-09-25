@@ -90,7 +90,8 @@ public:
    * @param configs Per-line open-time config, parallel to \p specs.
    *
    * @return Nothing on success; \c gpio_error::invalid_argument when the
-   *         spans differ in length, are empty, or exceed the capacity.
+   *         spans differ in length, are empty, exceed the capacity, or name
+   *         an offset twice.
    *
    * @pre None.
    * @post On success \c is_open() is \c true and pending events are cleared.
@@ -98,7 +99,8 @@ public:
   constexpr auto
   open(std::span<line_spec const> const specs, std::span<line_config const> const configs)
     -> result<void> {
-    if (specs.size() != configs.size() || specs.empty() || specs.size() > Capacity) {
+    if (specs.size() != configs.size() || specs.empty() || specs.size() > Capacity
+        || detail::has_duplicate_offset(specs)) {
       return std::unexpected{gpio_error::invalid_argument};
     }
     close();

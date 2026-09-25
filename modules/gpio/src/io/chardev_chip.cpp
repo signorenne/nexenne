@@ -261,7 +261,8 @@ auto chardev_chip::close() noexcept -> void {
 auto chardev_chip::open(
   std::span<line_spec const> const specs, std::span<line_config const> const configs
 ) -> result<void> {
-  if (specs.size() != configs.size() || specs.empty() || specs.size() > max_lines) {
+  if (specs.size() != configs.size() || specs.empty() || specs.size() > max_lines
+      || detail::has_duplicate_offset(specs)) {
     return std::unexpected{gpio_error::invalid_argument};
   }
   if (m_consumer_size >= GPIO_MAX_NAME_SIZE) {

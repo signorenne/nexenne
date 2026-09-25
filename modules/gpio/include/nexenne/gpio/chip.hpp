@@ -121,7 +121,8 @@ public:
    * @brief Opens the backend with parallel spec and config tables.
    *
    * Validates the request once for every backend: the tables must be the
-   * same length and non-empty. On success the chip keeps a view over
+   * same length and non-empty, and no offset may appear twice. On success the chip keeps a view
+   * over
    * \p specs for name lookup; the caller's array must stay alive and
    * unchanged until \c close.
    *
@@ -129,8 +130,9 @@ public:
    * @param configs Per-line open-time config, parallel to \p specs.
    *
    * @return Nothing on success; \c gpio_error::not_open when unbound,
-   *         \c gpio_error::invalid_argument when the tables differ in length
-   *         or are empty, otherwise the backend's open error.
+   *         \c gpio_error::invalid_argument when the tables differ in length,
+   *         are empty, or name an offset twice, otherwise the backend's open
+   *         error.
    *
    * @pre \p specs and \p configs describe the same lines element by element,
    *      and the storage behind \p specs outlives this chip's request set.
@@ -142,7 +144,7 @@ public:
     if (m_backend == nullptr) {
       return std::unexpected{gpio_error::not_open};
     }
-    if (specs.size() != configs.size() || specs.empty()) {
+    if (specs.size() != configs.size() || specs.empty() || detail::has_duplicate_offset(specs)) {
       return std::unexpected{gpio_error::invalid_argument};
     }
     auto const opened{m_backend->open(specs, configs)};

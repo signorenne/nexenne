@@ -154,4 +154,19 @@ TEST_CASE("chip: line_for mints a bound handle sharing the backend") {
   CHECK_FALSE(chip.line_for("missing").has_value());
 }
 
+TEST_CASE("chip: open refuses an offset named twice as a permanent error") {
+  std::array const twice{
+    ng::line_spec::input("a", ng::chip_id{0}, ng::line_offset{17}),
+    ng::line_spec::output("b", ng::chip_id{0}, ng::line_offset{17}),
+  };
+  std::array const two_configs{ng::line_config{}, ng::line_config{}};
+  mock backend{};
+  ng::chip<mock> chip{backend};
+  auto const opened{chip.open(twice, two_configs)};
+  REQUIRE_FALSE(opened.has_value());
+  CHECK(opened.error() == ng::gpio_error::invalid_argument);
+  CHECK_FALSE(ng::is_transient(opened.error()));
+  CHECK_FALSE(chip.is_open());
+}
+
 }  // namespace

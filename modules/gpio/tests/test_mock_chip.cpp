@@ -156,4 +156,17 @@ TEST_CASE("mock_chip: native handle is the documented -1 placeholder") {
   CHECK(opened_mock().native_handle() == -1);
 }
 
+TEST_CASE("mock_chip: open refuses an offset named twice") {
+  std::array const twice{
+    ng::line_spec::input("a", ng::chip_id{0}, ng::line_offset{17}),
+    ng::line_spec::input("b", ng::chip_id{0}, ng::line_offset{17}),
+  };
+  std::array const two_configs{ng::line_config{}, ng::line_config{}};
+  mock chip{};
+  auto const opened{chip.open(twice, two_configs)};
+  REQUIRE_FALSE(opened.has_value());
+  CHECK(opened.error() == ng::gpio_error::invalid_argument);
+  CHECK_FALSE(chip.is_open());
+}
+
 }  // namespace
