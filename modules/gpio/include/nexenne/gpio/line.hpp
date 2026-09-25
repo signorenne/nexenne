@@ -137,7 +137,7 @@ public:
    * @pre The bound backend, if any, is open.
    * @post On success the line holds the physical level matching \p logical.
    */
-  auto write(bool const logical) -> result<void> {
+  [[nodiscard]] auto write(bool const logical) -> result<void> {
     if (m_backend == nullptr) {
       return std::unexpected{gpio_error::not_open};
     }
@@ -155,7 +155,7 @@ public:
    * @pre The bound backend, if any, is open.
    * @post On success the line is logically high.
    */
-  auto set() -> result<void> {
+  [[nodiscard]] auto set() -> result<void> {
     return write(true);
   }
 
@@ -167,7 +167,7 @@ public:
    * @pre The bound backend, if any, is open.
    * @post On success the line is logically low.
    */
-  auto clear() -> result<void> {
+  [[nodiscard]] auto clear() -> result<void> {
     return write(false);
   }
 
@@ -184,7 +184,7 @@ public:
    * @post On success the line holds the complement of the level the read
    *       observed.
    */
-  auto toggle() -> result<void> {
+  [[nodiscard]] auto toggle() -> result<void> {
     auto const current{read()};
     if (!current.has_value()) {
       return std::unexpected{current.error()};

@@ -68,7 +68,7 @@ struct drain_report {
  *       draining stopped.
  */
 template <edge_source Source, edge_sink Sink>
-auto drain_events(Source& source, Sink& sink) -> result<drain_report> {
+[[nodiscard]] auto drain_events(Source& source, Sink& sink) -> result<drain_report> {
   drain_report report{};
   while (true) {
     auto const event{source.wait_event(std::chrono::nanoseconds{0})};

@@ -96,7 +96,7 @@ public:
    * @pre None.
    * @post On success \c is_open() is \c true and pending events are cleared.
    */
-  constexpr auto
+  [[nodiscard]] constexpr auto
   open(std::span<line_spec const> const specs, std::span<line_config const> const configs)
     -> result<void> {
     if (specs.size() != configs.size() || specs.empty() || specs.size() > Capacity
@@ -183,7 +183,8 @@ public:
    * @pre None.
    * @post On success \c physical(offset) observes \p physical.
    */
-  constexpr auto write(line_offset const offset, bool const physical) -> result<void> {
+  [[nodiscard]] constexpr auto write(line_offset const offset, bool const physical)
+    -> result<void> {
     if (!m_open) {
       return std::unexpected{gpio_error::not_open};
     }
@@ -218,7 +219,7 @@ public:
    * @post On success the stored specs and configs are replaced; on failure
    *       nothing changed.
    */
-  constexpr auto
+  [[nodiscard]] constexpr auto
   reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
     -> result<void> {
     if (!m_open) {
@@ -255,7 +256,7 @@ public:
    * @pre None.
    * @post On success \p levels_out holds the level of each offset.
    */
-  constexpr auto
+  [[nodiscard]] constexpr auto
   read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out) const
     -> result<void> {
     if (offsets.size() != levels_out.size()) {
@@ -283,7 +284,7 @@ public:
    * @pre None.
    * @post On success every named line holds its requested level.
    */
-  constexpr auto
+  [[nodiscard]] constexpr auto
   write_lines(std::span<line_offset const> const offsets, std::span<bool const> const levels_in)
     -> result<void> {
     if (offsets.size() != levels_in.size()) {
@@ -313,7 +314,7 @@ public:
    * @pre None.
    * @post On a value result the event is consumed from the queue.
    */
-  auto wait_event([[maybe_unused]] std::chrono::nanoseconds const timeout)
+  [[nodiscard]] auto wait_event([[maybe_unused]] std::chrono::nanoseconds const timeout)
     -> result<std::optional<line_event>> {
     if (!m_open) {
       return std::unexpected{gpio_error::not_open};
@@ -352,7 +353,8 @@ public:
    * @pre None.
    * @post On success \c read(offset) returns \p physical.
    */
-  constexpr auto set_physical(line_offset const offset, bool const physical) -> result<void> {
+  [[nodiscard]] constexpr auto set_physical(line_offset const offset, bool const physical)
+    -> result<void> {
     if (!m_open) {
       return std::unexpected{gpio_error::not_open};
     }

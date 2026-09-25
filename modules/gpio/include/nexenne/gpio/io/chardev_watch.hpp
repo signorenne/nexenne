@@ -150,7 +150,7 @@ public:
    * @post On success \c is_open() is \c true; on failure the watcher is
    *       closed.
    */
-  auto watch(std::span<line_offset const> const offsets) -> result<void>;
+  [[nodiscard]] auto watch(std::span<line_offset const> const offsets) -> result<void>;
 
   /**
    * @brief Waits for and reads one change record.
@@ -169,7 +169,8 @@ public:
    * @pre \c watch succeeded.
    * @post On a value result one kernel change record was consumed.
    */
-  auto wait_change(std::chrono::nanoseconds const timeout) -> result<std::optional<line_change>>;
+  [[nodiscard]] auto wait_change(std::chrono::nanoseconds const timeout)
+    -> result<std::optional<line_change>>;
 
   /**
    * @brief The pollable chip descriptor for event-loop integration.
@@ -263,7 +264,8 @@ public:
    * @pre None.
    * @post None.
    */
-  auto watch([[maybe_unused]] std::span<line_offset const> const offsets) -> result<void> {
+  [[nodiscard]] auto watch([[maybe_unused]] std::span<line_offset const> const offsets)
+    -> result<void> {
     return std::unexpected{gpio_error::unsupported};
   }
 
@@ -277,7 +279,7 @@ public:
    * @pre None.
    * @post None.
    */
-  auto wait_change([[maybe_unused]] std::chrono::nanoseconds const timeout)
+  [[nodiscard]] auto wait_change([[maybe_unused]] std::chrono::nanoseconds const timeout)
     -> result<std::optional<line_change>> {
     return std::unexpected{gpio_error::unsupported};
   }

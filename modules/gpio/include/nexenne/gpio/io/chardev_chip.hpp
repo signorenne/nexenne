@@ -309,7 +309,8 @@ public:
    * @post On success \c is_open() is \c true; on failure the backend is
    *       closed.
    */
-  auto open(std::span<line_spec const> const specs, std::span<line_config const> const configs)
+  [[nodiscard]] auto
+  open(std::span<line_spec const> const specs, std::span<line_config const> const configs)
     -> result<void>;
 
   /**
@@ -335,7 +336,7 @@ public:
    * @post On success the new behaviour is live; on failure the previous
    *       configuration is untouched.
    */
-  auto
+  [[nodiscard]] auto
   reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
     -> result<void>;
 
@@ -367,7 +368,7 @@ public:
    * @pre None.
    * @post On success the line is driven to \p physical.
    */
-  auto write(line_offset const offset, bool const physical) -> result<void>;
+  [[nodiscard]] auto write(line_offset const offset, bool const physical) -> result<void>;
 
   /**
    * @brief Reads several requested lines in one kernel call.
@@ -385,7 +386,7 @@ public:
    * @post On success \p levels_out holds the level of each offset, observed
    *       atomically by one ioctl.
    */
-  auto
+  [[nodiscard]] auto
   read_lines(std::span<line_offset const> const offsets, std::span<bool> const levels_out) const
     -> result<void>;
 
@@ -402,7 +403,7 @@ public:
    * @pre None.
    * @post On success every named line is driven, atomically by one ioctl.
    */
-  auto
+  [[nodiscard]] auto
   write_lines(std::span<line_offset const> const offsets, std::span<bool const> const levels_in)
     -> result<void>;
 
@@ -426,7 +427,8 @@ public:
    * @pre Edge detection was requested for at least one line.
    * @post On a value result one kernel event record was consumed.
    */
-  auto wait_event(std::chrono::nanoseconds const timeout) -> result<std::optional<line_event>>;
+  [[nodiscard]] auto wait_event(std::chrono::nanoseconds const timeout)
+    -> result<std::optional<line_event>>;
 
   /**
    * @brief The pollable request descriptor for event-loop integration.
@@ -515,7 +517,7 @@ public:
    * @pre None.
    * @post None.
    */
-  auto open(
+  [[nodiscard]] auto open(
     [[maybe_unused]] std::span<line_spec const> const specs,
     [[maybe_unused]] std::span<line_config const> const configs
   ) -> result<void> {
@@ -567,7 +569,8 @@ public:
    * @pre None.
    * @post None.
    */
-  auto write([[maybe_unused]] line_offset const offset, [[maybe_unused]] bool const physical)
+  [[nodiscard]] auto
+  write([[maybe_unused]] line_offset const offset, [[maybe_unused]] bool const physical)
     -> result<void> {
     return std::unexpected{gpio_error::unsupported};
   }
@@ -583,7 +586,7 @@ public:
    * @pre None.
    * @post None.
    */
-  auto read_lines(
+  [[nodiscard]] auto read_lines(
     [[maybe_unused]] std::span<line_offset const> const offsets,
     [[maybe_unused]] std::span<bool> const levels_out
   ) const -> result<void> {
@@ -601,7 +604,7 @@ public:
    * @pre None.
    * @post None.
    */
-  auto write_lines(
+  [[nodiscard]] auto write_lines(
     [[maybe_unused]] std::span<line_offset const> const offsets,
     [[maybe_unused]] std::span<bool const> const levels_in
   ) -> result<void> {
@@ -619,7 +622,7 @@ public:
    * @pre None.
    * @post None.
    */
-  auto reconfigure(
+  [[nodiscard]] auto reconfigure(
     [[maybe_unused]] std::span<line_spec const> const specs,
     [[maybe_unused]] std::span<line_config const> const configs
   ) -> result<void> {
@@ -636,7 +639,7 @@ public:
    * @pre None.
    * @post None.
    */
-  auto wait_event([[maybe_unused]] std::chrono::nanoseconds const timeout)
+  [[nodiscard]] auto wait_event([[maybe_unused]] std::chrono::nanoseconds const timeout)
     -> result<std::optional<line_event>> {
     return std::unexpected{gpio_error::unsupported};
   }

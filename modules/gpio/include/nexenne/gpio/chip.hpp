@@ -139,7 +139,8 @@ public:
    * @post On success \c specs() views \p specs; on failure the chip keeps
    *       its previous request set.
    */
-  auto open(std::span<line_spec const> const specs, std::span<line_config const> const configs)
+  [[nodiscard]] auto
+  open(std::span<line_spec const> const specs, std::span<line_config const> const configs)
     -> result<void> {
     if (m_backend == nullptr) {
       return std::unexpected{gpio_error::not_open};
@@ -176,7 +177,7 @@ public:
    * @post On success \c specs() views \p specs; on failure the previous
    *       view and configuration are untouched.
    */
-  auto
+  [[nodiscard]] auto
   reconfigure(std::span<line_spec const> const specs, std::span<line_config const> const configs)
     -> result<void>
     requires reconfigurable_gpio_backend<backend_type>
@@ -275,7 +276,7 @@ public:
    * @post \p deliver was invoked once per input line preceding any failure.
    */
   template <std::invocable<line_value const&> Deliver>
-  auto snapshot(Deliver&& deliver) const -> result<void> {
+  [[nodiscard]] auto snapshot(Deliver&& deliver) const -> result<void> {
     if (m_backend == nullptr) {
       return std::unexpected{gpio_error::not_open};
     }
@@ -340,7 +341,7 @@ public:
    * @post On success the named line holds the physical level matching
    *       \p logical.
    */
-  auto write(std::string_view const name, bool const logical) -> result<void> {
+  [[nodiscard]] auto write(std::string_view const name, bool const logical) -> result<void> {
     if (m_backend == nullptr) {
       return std::unexpected{gpio_error::not_open};
     }
