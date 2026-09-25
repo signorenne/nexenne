@@ -150,6 +150,25 @@ widen_sequence(std::uint64_t const previous, std::uint32_t const seqno) noexcept
   return widened < previous ? widened + wrap : widened;
 }
 
+/**
+ * @brief The kernel debounce period for \p period, in whole microseconds.
+ *
+ * The kernel attribute counts microseconds. Rounding up keeps a
+ * sub-microsecond period enabled, and periods that round alike share one of
+ * the ten attribute slots.
+ *
+ * @param period Requested debounce period.
+ *
+ * @return \p period rounded up to whole microseconds.
+ *
+ * @pre None.
+ * @post The result is not shorter than \p period.
+ */
+[[nodiscard]] constexpr auto debounce_microseconds(std::chrono::nanoseconds const period) noexcept
+  -> std::chrono::microseconds {
+  return std::chrono::ceil<std::chrono::microseconds>(period);
+}
+
 /// @endcond
 
 }  // namespace detail
@@ -271,9 +290,9 @@ public:
    * Renders each spec and config into kernel flag words. The most common
    * behaviour becomes the request's base flags; lines that differ are
    * grouped into per-group attribute overrides, and initial output levels
-   * and per-line debounce periods become further attributes. The kernel
-   * caps a request at ten attributes, so a request needs at most ten
-   * distinct line behaviours beyond the base.
+   * and per-line debounce periods (rounded up to whole microseconds) become
+   * further attributes. The kernel caps a request at ten attributes, so a
+   * request needs at most ten distinct line behaviours beyond the base.
    *
    * @param specs Specs to request, one per line, all on this chip.
    * @param configs Per-line open-time config, parallel to \p specs.

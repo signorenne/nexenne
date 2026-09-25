@@ -181,15 +181,15 @@ auto chardev_chip::build_line_config(
     }
   }
 
-  // One DEBOUNCE attribute per distinct non-zero period.
+  // Grouped by the whole microseconds the kernel sees: periods that round alike share a slot.
   for (std::size_t i{0}; i < specs.size(); ++i) {
-    auto const period{configs[i].debounce_period()};
+    auto const period{detail::debounce_microseconds(configs[i].debounce_period())};
     if (period.count() <= 0) {
       continue;
     }
     bool grouped{false};
     for (std::size_t j{0}; j < i; ++j) {
-      if (configs[j].debounce_period() == period) {
+      if (detail::debounce_microseconds(configs[j].debounce_period()) == period) {
         grouped = true;
         break;
       }
@@ -197,13 +197,13 @@ auto chardev_chip::build_line_config(
     if (grouped) {
       continue;
     }
-    auto const microseconds{std::chrono::duration_cast<std::chrono::microseconds>(period).count()};
+    auto const microseconds{period.count()};
     if (microseconds > std::int64_t{std::numeric_limits<std::uint32_t>::max()}) {
       return std::unexpected{gpio_error::invalid_argument};
     }
     std::uint64_t mask{0};
     for (std::size_t j{i}; j < specs.size(); ++j) {
-      if (configs[j].debounce_period() == period) {
+      if (detail::debounce_microseconds(configs[j].debounce_period()) == period) {
         mask |= std::uint64_t{1} << j;
       }
     }

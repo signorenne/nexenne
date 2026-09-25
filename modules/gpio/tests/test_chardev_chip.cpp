@@ -182,6 +182,16 @@ TEST_CASE("chardev_chip: open refuses an offset named twice before the ioctl (gp
   CHECK(opened.error() == ng::gpio_error::invalid_argument);
 }
 
+TEST_CASE("chardev_chip: a kernel debounce rounds up to whole microseconds") {
+  using std::chrono::microseconds;
+  CHECK(ng::detail::debounce_microseconds(0ns) == microseconds{0});
+  CHECK(ng::detail::debounce_microseconds(500ns) == microseconds{1});
+  CHECK(ng::detail::debounce_microseconds(1500ns) == microseconds{2});
+  CHECK(ng::detail::debounce_microseconds(1999ns) == microseconds{2});
+  CHECK(ng::detail::debounce_microseconds(2000ns) == microseconds{2});
+  CHECK(ng::detail::debounce_microseconds(5ms) == microseconds{5000});
+}
+
 #else
 
 TEST_CASE("chardev_chip: every operation reports unsupported off Linux") {
