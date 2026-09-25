@@ -7,6 +7,8 @@
 
 #include <array>
 #include <chrono>
+#include <cstdint>
+#include <span>
 
 #include <nexenne/gpio/backend.hpp>
 #include <nexenne/gpio/io/mock_chip.hpp>
@@ -167,6 +169,33 @@ TEST_CASE("mock_chip: open refuses an offset named twice") {
   REQUIRE_FALSE(opened.has_value());
   CHECK(opened.error() == ng::gpio_error::invalid_argument);
   CHECK_FALSE(chip.is_open());
+}
+
+TEST_CASE("mock_chip: inject reuses slots already delivered") {
+  ng::mock_chip<4> chip{};
+  REQUIRE(chip.open(std::span{specs}.first(1), std::span{configs}.first(1)).has_value());
+
+  auto const event{[](std::uint64_t const seq) {
+    ng::line_event e{};
+    e.offset = ng::line_offset{17};
+    e.sequence = ng::event_sequence{seq};
+    return e;
+  }};
+  for (std::uint64_t seq{1}; seq <= 4; ++seq) {
+    REQUIRE(chip.inject(event(seq)));
+  }
+  CHECK_FALSE(chip.inject(event(99)));
+
+  REQUIRE((*chip.wait_event(0ns))->sequence == ng::event_sequence{1});
+  CHECK(chip.inject(event(5)));
+  CHECK_FALSE(chip.inject(event(99)));
+  for (std::uint64_t seq{2}; seq <= 5; ++seq) {
+    auto const got{chip.wait_event(0ns)};
+    REQUIRE(got.has_value());
+    REQUIRE(got->has_value());
+    CHECK((**got).sequence == ng::event_sequence{seq});
+  }
+  CHECK_FALSE(chip.wait_event(0ns)->has_value());
 }
 
 }  // namespace

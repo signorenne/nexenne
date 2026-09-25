@@ -401,13 +401,28 @@ public:
    *
    * @param event Event to queue.
    *
-   * @return \c true when queued, \c false when closed or the queue is full.
+   * @return \c true when queued, \c false when closed or \c Capacity
+   *         events are still waiting for delivery.
    *
    * @pre None.
    * @post On \c true the event is delivered after all earlier injected ones.
    */
   constexpr auto inject(line_event const& event) noexcept -> bool {
-    if (!m_open || m_events.size() >= Capacity) {
+    if (!m_open) {
+      return false;
+    }
+    if (m_events.size() >= Capacity && m_next_event > 0) {
+      // Delivered slots are free but not yet compacted; wait_event compacts lazily.
+      auto const pending{m_events.size() - m_next_event};
+      for (std::size_t i{0}; i < pending; ++i) {
+        m_events[i] = m_events[m_next_event + i];
+      }
+      while (m_events.size() > pending) {
+        utility::ignore(m_events.pop_back());
+      }
+      m_next_event = 0;
+    }
+    if (m_events.size() >= Capacity) {
       return false;
     }
     // The size check above guarantees the push cannot fail.
