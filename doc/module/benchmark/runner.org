@@ -69,8 +69,9 @@ resolution is amortised across all =iters= calls:
 #+END_EXAMPLE
 
 The =result= holds the vector of per-batch means (=samples()=) and computes mean,
-median (sorted copy, untouched data), Bessel-corrected =stddev= (the =n-1=
-unbiased estimator), =min=, =max=, and the coefficient of variation
+median and =percentile(p)= (each on a sorted copy, untouched data),
+Bessel-corrected =stddev= (the =n-1= unbiased estimator), =min=, =max=, and the
+coefficient of variation
 =cv = stddev / mean=. The =cv= is the honest noise gauge: below roughly 5% the
 measurement is reliable; above roughly 10% background noise dominates and you
 should distrust the number. An optional warmup batch runs first and is discarded,
@@ -124,7 +125,7 @@ out of scope; collect your own timings and hand them to =from_samples= instead.
 |-------------------+---------------------------------------------------|
 | run               | sample_count x iters calls to fn, plus calibration |
 | run_with_setup    | adds one setup call and one clock pair per iter   |
-| result statistics | O(n) per stat, O(n log n) for the median, n = samples |
+| result statistics | O(n) per stat, O(n log n) for median and percentile, n = samples |
 | compare           | O(1), reads two means                             |
 
 * When to use it

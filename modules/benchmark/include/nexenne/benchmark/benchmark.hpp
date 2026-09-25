@@ -114,14 +114,15 @@ namespace detail {
 }
 
 /// @brief Batch time a calibration must reach before its reading is trusted.
-inline constexpr double calibration_min_ns{1'000'000.0};  // 1 ms, far above any clock tick
+inline constexpr double calibration_min_ns{1'000'000.0};  // 1 ms; a coarser tick quantises it
 
 /// @brief Ceiling on the calibration iteration count so growth always terminates.
 inline constexpr std::size_t calibration_max_iters{100'000'000};  // 1e8
 
 /**
- * @brief Outcome of a calibration growth loop: the batch size reached and its
- *        measured wall time.
+ * @brief Outcome of a calibration growth loop.
+ *
+ * Carries the batch size reached and its measured wall time.
  */
 struct calibration {
   std::size_t iterations{1};  ///< Iterations the final calibration batch ran.
@@ -179,13 +180,13 @@ template <std::invocable<std::size_t> Batch>
  * turnaround.
  */
 struct config {
-  /// Wall-clock budget per sample batch; the runner fills it with repeated calls.
+  /// @brief Wall-clock budget per sample batch, filled with repeated calls.
   std::chrono::nanoseconds target_duration{std::chrono::milliseconds{100}};
-  /// Number of independent sample batches; statistics are computed across their means.
+  /// @brief Number of independent sample batches the statistics span.
   std::size_t sample_count{10};
-  /// Minimum iterations per batch regardless of timing, a baseline statistical floor.
+  /// @brief Minimum iterations per batch regardless of timing.
   std::size_t min_iterations{1};
-  /// When true, one extra batch runs and is discarded so caches and CPU frequency settle.
+  /// @brief Whether one extra batch runs first, discarded, so caches settle.
   bool warmup{true};
 };
 
@@ -532,6 +533,7 @@ public:
    * @post The result is unchanged and one summary line has been written to
    *       \p os.
    *
+   * @throws std::bad_alloc if formatting the summary string fails.
    * @throws std::ios_base::failure if \p os is configured to throw on a write
    *         failure.
    */
@@ -596,12 +598,6 @@ public:
    * min, and max in nanoseconds, the coefficient of variation, and the full
    * array of per-sample means. No trailing newline is added.
    *
-   * @note The object is built with the \c serialization module's streaming JSON
-   *       writer, which escapes string contents and renders the numbers, so this
-   *       reuses one audited encoder rather than a bespoke format string. The
-   *       writer is heap-free and pulls in no container, so it stays usable on an
-   *       embedded target.
-   *
    * @param os Destination stream.
    *
    * @pre None.
@@ -611,6 +607,14 @@ public:
    * @throws std::bad_alloc if allocating the output buffer fails.
    * @throws std::ios_base::failure if \p os is configured to throw on a write
    *         failure.
+   *
+   * @note The object is built with the \c serialization module's streaming JSON
+   *       writer, which escapes the quote, the backslash, and control bytes and
+   *       renders the numbers, so this reuses one encoder rather than a bespoke
+   *       format string. Other bytes of the name pass through unvalidated, so a
+   *       name that is not valid UTF-8 yields invalid JSON. The writer itself is
+   *       heap-free, but the output is staged in a \c std::string that grows on
+   *       overflow.
    */
   auto to_json(std::ostream& os) const -> void {
     // Emit into a buffer that grows on overflow, then hand the bytes to the
@@ -799,6 +803,7 @@ public:
    * @post The comparison and both referenced results are unchanged and the text
    *       has been written to \p os.
    *
+   * @throws std::bad_alloc if formatting the comparison string fails.
    * @throws std::ios_base::failure if \p os is configured to throw on a write
    *         failure.
    */
@@ -920,12 +925,12 @@ auto compare(result const&& baseline, result const&& candidate) -> comparison = 
 }
 
 /**
- * @brief Runs \p fn enough times to fill the time budget per sample, repeats
- *        for \c sample_count samples, and returns the statistics.
+ * @brief Runs \p fn in timed sample batches and returns their statistics.
  *
- * \p fn is invoked with no arguments. Use lambda captures for any state you
- * need, and call \c do_not_optimize on at least one output so the compiler
- * cannot fold the call away.
+ * Each batch calls \p fn enough times to fill the time budget, and
+ * \c sample_count batches are taken. \p fn is invoked with no arguments.
+ * Use lambda captures for any state you need, and call \c do_not_optimize
+ * on at least one output so the compiler cannot fold the call away.
  *
  * A calibration pass grows the batch size until one batch is long enough to
  * time reliably, then derives the iteration count from that hot reading; an
@@ -1007,8 +1012,7 @@ template <typename Fn>
 }
 
 /**
- * @brief Runs \p fn enough times to fill the budget, calling \p setup before
- *        each iteration. Only \p fn is timed.
+ * @brief Like \c run, but calls \p setup untimed before each call to \p fn.
  *
  * Use for benchmarks needing fresh state per iteration, e.g. "insert into an
  * empty container". Plain \c run with lambda captures would let the container
@@ -1058,7 +1062,9 @@ run_with_setup(std::string_view const name, Setup&& setup, Fn&& fn, config const
   // enough to time reliably, accumulating fn alone (fn_timer) for the reported
   // cost and the whole iteration (iter_timer) for the cap, so an expensive setup
   // cannot make a run unbounded. Growing (rather than a single cold call) keeps
-  // the estimate honest on cold caches and coarse clocks alike.
+  // the cap honest on cold caches and coarse clocks, but fn is still timed one
+  // call at a time, so on a clock coarser than one call its reading quantises,
+  // possibly to zero, and the fallback below then reuses the grown count.
   auto fn_accumulated_ns{0.0};
   auto const cal{detail::grow_until_measurable([&](std::size_t const n) -> double {
     fn_accumulated_ns = 0.0;

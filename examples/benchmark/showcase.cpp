@@ -11,8 +11,9 @@
  *
  * What the runner does for us, and why each part matters:
  *
- *   - Auto-tuning: a calibration call measures the single-call cost, then the
- *     runner picks an iteration count that fills a time budget (default 100 ms).
+ *   - Auto-tuning: calibration grows a batch until it is long enough to time and
+ *     derives the per-call cost, then the runner picks an iteration count that
+ *     fills a time budget (default 100 ms).
  *     A single lookup is a handful of nanoseconds, far below the clock's
  *     resolution, so timing one call is meaningless; timing a million and
  *     dividing is not.
