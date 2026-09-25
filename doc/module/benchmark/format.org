@@ -5,9 +5,10 @@
 * Purpose
 
 =format.hpp= holds the formatting layers for the runner's types, as every
-module keeps them in its =format.hpp=. =benchmark.hpp= is also the module
-umbrella and includes it last, so a program that includes only the runner can
-still pass a result to =std::format= or =std::print=.
+module keeps them in its =format.hpp=. Include it where a =result=,
+=comparison= or =config= meets =std::format= or =std::print=; =benchmark.hpp=
+does not pull it in. The members =result::print= and =comparison::print=, and
+their friend =operator<<=, need no extra header.
 
 * What it provides
 
@@ -28,6 +29,7 @@ formatter accepts an empty spec only.
 #+BEGIN_SRC cpp
 #include <iostream>
 #include <nexenne/benchmark/benchmark.hpp>
+#include <nexenne/benchmark/format.hpp>
 
 namespace bm = nexenne::benchmark;
 

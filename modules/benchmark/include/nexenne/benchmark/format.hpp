@@ -9,8 +9,8 @@
  * \c result and \c comparison carry their \c to_string as a member and
  * stream through a friend \c operator<<, which ends the text with a newline
  * so a result prints as a line. Every formatter accepts an empty spec only.
- * \c benchmark.hpp includes this header, so its types format wherever the
- * runner is used.
+ * Include this header where the runner's types meet \c std::format; the
+ * runner header does not pull it in.
  */
 
 #include <format>

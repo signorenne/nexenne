@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <nexenne/benchmark/benchmark.hpp>
+#include <nexenne/benchmark/format.hpp>
 
 namespace {
 

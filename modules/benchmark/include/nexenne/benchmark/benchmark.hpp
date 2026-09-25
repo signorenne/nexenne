@@ -51,6 +51,12 @@
  *   - No threading models, runs single-threaded.
  *   - No registration macros, explicit \c run("name", fn) calls.
  *   - No statistical p-values, the cv tells you if it is noisy.
+ *
+ * Printing: \c result and \c comparison print and stream through their own
+ * members. The \c std::formatter specializations for \c result, \c comparison
+ * and \c config, and \c config's \c to_string and \c operator<<, live in
+ * format.hpp, as in every module; include it where those types meet
+ * \c std::format.
  */
 
 #include <algorithm>
@@ -1156,8 +1162,3 @@ run_with_setup(std::string_view const name, Setup&& setup, Fn&& fn, config const
 }
 
 }  // namespace nexenne::benchmark
-
-// The formatting layers live in format.hpp, as in every module. This header is
-// also the module umbrella, so it pulls them in last: a program that includes
-// only the runner keeps std::format support for its results.
-#include <nexenne/benchmark/format.hpp>

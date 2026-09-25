@@ -17,6 +17,7 @@
 
 #include <nexenne/benchmark/benchmark.hpp>
 #include <nexenne/benchmark/do_not_optimize.hpp>
+#include <nexenne/benchmark/format.hpp>
 #include <nexenne/chrono/manual_clock.hpp>
 #include <nexenne/serialization/json/parse.hpp>
 
