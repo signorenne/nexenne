@@ -73,6 +73,8 @@ namespace nexenne::gpio {
 
 namespace detail {
 
+/// @cond INTERNAL
+
 /**
  * @brief Closes a file descriptor; the deleter for the descriptor handles.
  */
@@ -147,6 +149,8 @@ widen_sequence(std::uint64_t const previous, std::uint32_t const seqno) noexcept
   auto const widened{(previous & ~(wrap - 1)) | seqno};
   return widened < previous ? widened + wrap : widened;
 }
+
+/// @endcond
 
 }  // namespace detail
 
