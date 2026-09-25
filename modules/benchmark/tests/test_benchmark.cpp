@@ -556,6 +556,15 @@ TEST_CASE("nexenne::benchmark::config is formattable via std::format") {
   CHECK(s.find("warmup: on") != std::string::npos);
 }
 
+TEST_CASE("nexenne::benchmark::config prints the same text through every layer") {
+  auto const cfg{bm::config{.target_duration = std::chrono::milliseconds{5}, .sample_count = 3}};
+  auto os{std::ostringstream{}};
+  os << cfg;
+  CHECK(bm::to_string(cfg) == std::format("{}", cfg));
+  CHECK(os.str() == bm::to_string(cfg));
+  CHECK(bm::to_string(cfg).find("sample_count: 3") != std::string::npos);
+}
+
 TEST_CASE("nexenne::benchmark::run honours min_iterations exactly with no warmup") {
   // A sleeping body keeps the calibrated count at the min_iterations floor (the
   // target budget admits only one iteration), so total_iterations is exact.

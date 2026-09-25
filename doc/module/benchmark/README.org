@@ -20,6 +20,11 @@ captures for state and external tools (perf, valgrind) for everything else.
   and =comparison= objects. Covers how calibration picks the iteration count, how
   the sample batches produce the statistics, and how =compare= reports a speedup.
 
+* Printing
+
+- [[file:format.org][format]] : =std::formatter= for =result=, =comparison= and =config=, and
+  =config='s =to_string= and =operator<<=.
+
 * Keeping the compiler honest
 
 - [[file:anti-dce.org][anti-DCE primitives]] : =do_not_optimize= and =clobber_memory=, the standard

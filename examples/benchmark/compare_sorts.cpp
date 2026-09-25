@@ -88,6 +88,7 @@ auto main() -> int {
     .min_iterations = 1,
     .warmup = false,
   }};
+  std::cout << "quick config: " << quick_cfg << '\n';
   auto const quick{bm::run(
     "sum: hand loop (quick cfg)",
     [&] noexcept {

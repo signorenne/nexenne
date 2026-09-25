@@ -1,0 +1,40 @@
+#+TITLE: format
+#+OPTIONS: toc:nil num:nil ^:nil
+#+STARTUP: showall
+
+* Purpose
+
+=format.hpp= holds the formatting layers for the runner's types, as every
+module keeps them in its =format.hpp=. =benchmark.hpp= is also the module
+umbrella and includes it last, so a program that includes only the runner can
+still pass a result to =std::format= or =std::print=.
+
+* What it provides
+
+| type         | =to_string=           | =operator<<=                 | =std::formatter= |
+|--------------+-----------------------+------------------------------+------------------|
+| =result=     | member, one line      | friend, the line plus =\n=   | the line         |
+| =comparison= | member, several lines | friend, the text plus =\n=   | the text         |
+| =config=     | free, one line        | free, the same line          | the same line    |
+
+=result= and =comparison= stream a trailing newline so =std::cout << r= prints
+a line; their =std::formatter= and =to_string= give the text without it.
+=config= renders its four knobs, with the target duration auto-scaled:
+={target: 100.00 ms, sample_count: 10, min_iterations: 1, warmup: on}=. Every
+formatter accepts an empty spec only.
+
+* Usage
+
+#+BEGIN_SRC cpp
+#include <iostream>
+#include <nexenne/benchmark/benchmark.hpp>
+
+namespace bm = nexenne::benchmark;
+
+auto const cfg{bm::config{.sample_count = 5}};
+std::cout << cfg << '\n';                    // log the knobs a run used
+auto const r{bm::run("noop", [] noexcept {}, cfg)};
+std::cout << r;                              // one summary line
+#+END_SRC
+
+Runnable: [[file:../../../examples/benchmark/compare_sorts.cpp][examples/benchmark/compare_sorts.cpp]]
