@@ -17,6 +17,7 @@
  * and exactly one consumer context calls \c try_pop.
  */
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -44,7 +45,9 @@ public:
 
 private:
   container::spsc_queue<line_event, N> m_queue{};
-  std::uint64_t m_dropped{0};
+  // Written by the producer and read from either side, so atomic; the ring's
+  // own index width, which stays lock-free on 32-bit targets.
+  std::atomic<std::size_t> m_dropped{0};
 
 public:
   /**
@@ -73,25 +76,28 @@ public:
     if (m_queue.push(event).has_value()) {
       return true;
     }
-    m_dropped += 1;
+    m_dropped.fetch_add(1, std::memory_order_relaxed);
     return false;
   }
 
   /**
-   * @brief Events rejected because the ring was full; producer side.
+   * @brief Events rejected because the ring was full.
    *
    * The count lives where the drops happen, so a supervisor reads one
    * number instead of every producer keeping its own tally. It pairs with
    * \c sequence_tracker.hpp, which detects drops UPSTREAM of the sink from
-   * sequence gaps; this counter owns the drops AT the sink.
+   * sequence gaps; this counter owns the drops AT the sink. Any context may
+   * read it; the read is relaxed, so it orders no other memory access. It
+   * counts in a \c std::size_t, which on a 32-bit target wraps after
+   * \c 2^32 drops.
    *
    * @return The number of rejected pushes since construction.
    *
-   * @pre Read from the producer context, like \c push.
+   * @pre None.
    * @post None.
    */
   [[nodiscard]] auto dropped() const noexcept -> std::uint64_t {
-    return m_dropped;
+    return m_dropped.load(std::memory_order_relaxed);
   }
 
   /**

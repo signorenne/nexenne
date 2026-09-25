@@ -5,11 +5,15 @@
 
 #include <doctest/doctest.h>
 
+#include <atomic>
+#include <cstdint>
+#include <thread>
 #include <vector>
 
 #include <nexenne/gpio/io/callback_sink.hpp>
 #include <nexenne/gpio/io/queue_sink.hpp>
 #include <nexenne/gpio/sink.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace {
 
@@ -71,6 +75,36 @@ TEST_CASE("queue_sink: FIFO order, drop on full, drain to empty") {
   // Space freed by draining is reusable.
   CHECK(sink.push(numbered_event(5)));
   CHECK(sink.try_pop()->sequence == ng::event_sequence{5});
+}
+
+TEST_CASE("queue_sink: the consumer may read dropped while the producer pushes (gpio-06)") {
+  // A supervisor on the consumer side reads the drop count; every push is
+  // then either popped or counted. Run under TSan this is race-free.
+  ng::queue_sink<4> sink{};
+  constexpr std::uint64_t pushes{20'000};
+  std::atomic<bool> done{false};
+  std::thread producer{[&sink, &done] {
+    for (std::uint64_t i{1}; i <= pushes; ++i) {
+      ng::line_event event{};
+      event.sequence = ng::event_sequence{i};
+      nexenne::utility::ignore(sink.push(event));
+    }
+    done.store(true, std::memory_order_release);
+  }};
+  std::uint64_t popped{0};
+  std::uint64_t seen{0};
+  bool monotonic{true};
+  while (!done.load(std::memory_order_acquire) || !sink.empty()) {
+    if (sink.try_pop().has_value()) {
+      ++popped;
+    }
+    auto const now{sink.dropped()};
+    monotonic = monotonic && now >= seen;
+    seen = now;
+  }
+  producer.join();
+  CHECK(monotonic);
+  CHECK(popped + sink.dropped() == pushes);
 }
 
 }  // namespace
