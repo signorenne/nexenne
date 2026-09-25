@@ -100,9 +100,6 @@ auto make_keys(std::size_t const n, std::uint32_t seed) -> std::vector<std::uint
 }  // namespace
 
 auto main() -> int {
-  // Build the shared dataset once. Every container holds the same key -> value
-  // mapping; the probe list is a fixed set of keys we know are present, so each
-  // benchmark does identical work and only the container differs.
   auto const keys{make_keys(key_count, 0x9e3779b9u)};
   auto const probes{make_keys(probe_count, 0x12345678u)};
 
@@ -116,13 +113,8 @@ auto main() -> int {
     hash.emplace(k, val);
     flat.emplace_back(k, val);
   }
-  // The flat map must be sorted by key for the binary search below to be valid.
   std::ranges::sort(flat, {}, &std::pair<std::uint32_t, std::uint32_t>::first);
 
-  // The probe keys we actually look up. A random 32-bit probe almost never hits a
-  // 256-key set, so in practice this falls back to a known-present key for nearly
-  // every lookup; the point is only that every lookup finds something, keeping the
-  // work uniform and non-trivial across the three implementations.
   auto lookups{std::vector<std::uint32_t>{}};
   for (auto const p : probes) {
     lookups.push_back(tree.contains(p) ? p : keys[p % keys.size()]);
@@ -130,10 +122,6 @@ auto main() -> int {
 
   std::println("== Lookup of {} keys in a {}-entry container ==", lookups.size(), key_count);
 
-  // Benchmark 1: std::map. Each lookup walks the red-black tree, O(log n) with a
-  // pointer chase per level, so cache misses dominate at this size. We fold every
-  // found value into a running sum and hand the sum to do_not_optimize, so the
-  // optimiser must perform every lookup.
   auto const r_tree{bench::run("std::map (rb-tree)", [&] noexcept {
     auto sum{std::uint32_t{0}};
     for (auto const k : lookups) {
@@ -144,8 +132,6 @@ auto main() -> int {
     bench::do_not_optimize(sum);
   })};
 
-  // Benchmark 2: std::unordered_map. O(1) average, one hash plus a bucket walk,
-  // but the buckets are heap nodes so a miss in the cache still hurts.
   auto const r_hash{bench::run("std::unordered_map (hash)", [&] noexcept {
     auto sum{std::uint32_t{0}};
     for (auto const k : lookups) {
@@ -156,11 +142,6 @@ auto main() -> int {
     bench::do_not_optimize(sum);
   })};
 
-  // Benchmark 3: flat map. A binary search over one contiguous array: O(log n)
-  // comparisons, but the probes stay in a single cache-friendly block, which can
-  // make a flat map competitive at small sizes despite the same big-O as the
-  // tree. Whether it actually wins depends on the data and the machine - read the
-  // measured verdict below rather than assuming.
   auto const r_flat{bench::run("flat map (sorted vector)", [&] noexcept {
     auto sum{std::uint32_t{0}};
     for (auto const k : lookups) {
@@ -174,24 +155,16 @@ auto main() -> int {
     bench::do_not_optimize(sum);
   })};
 
-  // The summaries: median and mean +/- stddev, the cv as a noise gauge, and the
-  // min-max range, each auto-scaled to ns / us / ms.
   std::println("== Per-implementation timing ==");
   r_tree.print();
   r_hash.print();
   r_flat.print();
 
-  // Throughput is often the clearer number: lookups per second derived from the
-  // mean, given probe_count lookups per timed iteration.
   std::println("== Throughput (lookups/sec, from the mean) ==");
   std::println("  std::map           {:>14.3e}", r_tree.items_per_second(probe_count));
   std::println("  std::unordered_map {:>14.3e}", r_hash.items_per_second(probe_count));
   std::println("  flat map           {:>14.3e}", r_flat.items_per_second(probe_count));
 
-  // Percentiles of the per-sample means: p50 (the median) and p99 (the tail).
-  // Any result exposes them, so a distribution-shaped report needs no hand-rolled
-  // statistics. from_samples builds the same result from timings you collected
-  // yourself, for example a frame loop that already owns its per-frame numbers.
   std::println("== Distribution of the flat-map samples (ns/iter) ==");
   std::println(
     "  p50 {:.1f}   p99 {:.1f}   max {:.1f}",
@@ -202,9 +175,6 @@ auto main() -> int {
   auto const ingested{bench::from_samples("ingested frame times", {16.6, 16.7, 33.2, 16.5}, 4)};
   std::println("  from_samples p50 {:.1f} ns/iter over its own samples", ingested.percentile(50.0));
 
-  // compare() reports the candidate against a baseline as a speedup factor.
-  // There is no statistical test, so we read the cv first: above ~10% the run
-  // was too noisy to trust and the verdict is meaningless.
   std::println("== Verdict (flat map vs the trees) ==");
   bench::compare(r_tree, r_flat).print();
   bench::compare(r_hash, r_flat).print();

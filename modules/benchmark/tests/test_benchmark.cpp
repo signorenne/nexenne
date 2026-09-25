@@ -48,7 +48,7 @@ TEST_CASE("nexenne::benchmark::do_not_optimize keeps an unused value from being 
 
 TEST_CASE("nexenne::benchmark::clobber_memory is callable") {
   bm::clobber_memory();
-  CHECK(true);  // smoke test: compiles and executes
+  CHECK(true);
 }
 
 TEST_CASE("nexenne::benchmark::run produces the requested number of samples") {
@@ -124,9 +124,9 @@ TEST_CASE("nexenne::benchmark::compare reports the speedup direction correctly")
   auto const slow{
     bm::run("slow", [] { std::this_thread::sleep_for(std::chrono::microseconds{50}); }, cfg)
   };
-  auto const c{bm::compare(slow, fast)};  // baseline = slow, candidate = fast
-  CHECK(c.speedup() > 1.0);               // candidate is faster
-  CHECK(c.ratio() < 1.0);                 // candidate / baseline < 1
+  auto const c{bm::compare(slow, fast)};
+  CHECK(c.speedup() > 1.0);
+  CHECK(c.ratio() < 1.0);
 }
 
 TEST_CASE("nexenne::benchmark::result print produces non-empty labelled output") {
@@ -205,9 +205,6 @@ TEST_CASE("nexenne::benchmark::run honours an explicit min_iterations") {
 }
 
 TEST_CASE("nexenne::benchmark::run with min_iterations 0 still yields finite timings") {
-  // Regression: a zero min_iterations with a target shorter than a single call
-  // could leave iters_per_sample at 0, making each per-batch mean NaN. The
-  // runner clamps the divisor to at least one.
   auto cfg{fast_cfg};
   cfg.min_iterations = 0;
   auto const r{bm::run(
@@ -285,35 +282,30 @@ TEST_CASE("nexenne::benchmark::run_with_setup calls setup before each timed iter
     },
     cfg
   )};
-  CHECK(setup_count == bench_count);  // one setup per timed call, calibration included
+  CHECK(setup_count == bench_count);
   CHECK(r.samples().size() == 2);
 }
 
 TEST_CASE("nexenne::benchmark::result to_json escapes special characters in the name") {
-  // A name with a quote, backslash, and newline must stay valid JSON: the
-  // specials are escaped and no raw control char leaks into the output.
   auto const r{bm::result{std::string{"a\"b\\c\nd"}, std::vector<double>{1.0, 2.0}, 2}};
   auto ss{std::stringstream{}};
   r.to_json(ss);
   auto const s{ss.str()};
   CHECK(s.front() == '{');
   CHECK(s.back() == '}');
-  CHECK(s.find('\n') == std::string::npos);    // the name's newline was escaped, not literal
-  CHECK(s.find("\\\"") != std::string::npos);  // escaped quote
-  CHECK(s.find("\\\\") != std::string::npos);  // escaped backslash
-  CHECK(s.find("\\n") != std::string::npos);   // escaped newline
+  CHECK(s.find('\n') == std::string::npos);
+  CHECK(s.find("\\\"") != std::string::npos);
+  CHECK(s.find("\\\\") != std::string::npos);
+  CHECK(s.find("\\n") != std::string::npos);
 }
 
 TEST_CASE("nexenne::benchmark::run tolerates a negative target_duration without UB") {
-  // Regression: target_ns / single_ns is negative here; the old code cast that
-  // straight to size_t (UB). The runner now floors it to the min_iterations.
   auto cfg{bm::config{
     .target_duration = std::chrono::nanoseconds{-1000},
     .sample_count = 2,
     .min_iterations = 1,
     .warmup = false,
   }};
-  // A measurable body so calibration records single_ns > 0 and the ratio path runs.
   auto const r{bm::run(
     "negative target", [] { std::this_thread::sleep_for(std::chrono::microseconds{20}); }, cfg
   )};
@@ -322,7 +314,7 @@ TEST_CASE("nexenne::benchmark::run tolerates a negative target_duration without 
 }
 
 TEST_CASE("nexenne::benchmark::comparison reports speedup unavailable for a zero-mean result") {
-  auto const empty{bm::result{}};  // mean() == 0
+  auto const empty{bm::result{}};
   auto const real{bm::run(
     "real",
     [] noexcept {
@@ -332,10 +324,10 @@ TEST_CASE("nexenne::benchmark::comparison reports speedup unavailable for a zero
     fast_cfg
   )};
   auto ss{std::stringstream{}};
-  bm::compare(empty, real).print(ss);  // zero baseline mean -> no finite speedup
+  bm::compare(empty, real).print(ss);
   auto const s{ss.str()};
   CHECK(s.find("unavailable") != std::string::npos);
-  CHECK(s.find("inf") == std::string::npos);  // never prints inf
+  CHECK(s.find("inf") == std::string::npos);
 }
 
 TEST_CASE("nexenne::benchmark::run_with_setup excludes the setup cost from the timing") {
@@ -354,25 +346,22 @@ TEST_CASE("nexenne::benchmark::run_with_setup excludes the setup cost from the t
     },
     cfg
   )};
-  CHECK(r.mean() < 1e5);  // far below the 1 ms (1e6 ns) setup cost
+  CHECK(r.mean() < 1e5);
 }
 
 TEST_CASE("nexenne::benchmark::result computes exact statistics for a known sample set") {
-  // Samples 2, 4, 4, 4, 5, 5, 7, 9: mean 5, population stddev 2, sum of squared
-  // deviations 32, so the Bessel-corrected sample stddev is sqrt(32 / 7).
+  // Mean 5; squared deviations sum to 32, so the Bessel-corrected stddev is sqrt(32 / 7).
   auto const r{
     bm::result{std::string{"known"}, std::vector<double>{2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0}, 8}
   };
   CHECK(r.mean() == doctest::Approx{5.0});
   CHECK(r.min() == doctest::Approx{2.0});
   CHECK(r.max() == doctest::Approx{9.0});
-  CHECK(r.median() == doctest::Approx{4.5});  // even count: (4 + 5) / 2
-  // Bessel-corrected (n-1) sample stddev: sqrt(32 / 7).
+  CHECK(r.median() == doctest::Approx{4.5});
   CHECK(r.stddev() == doctest::Approx{std::sqrt(32.0 / 7.0)});
   CHECK(r.cv() == doctest::Approx{std::sqrt(32.0 / 7.0) / 5.0});
   CHECK(r.name() == "known");
   CHECK(r.total_iterations() == 8);
-  // The defining relationships hold for any non-empty sample set.
   CHECK(r.min() <= r.mean());
   CHECK(r.mean() <= r.max());
   CHECK(r.min() <= r.median());
@@ -381,15 +370,13 @@ TEST_CASE("nexenne::benchmark::result computes exact statistics for a known samp
 
 TEST_CASE("nexenne::benchmark::result median picks the middle of an odd sample count") {
   auto const r{bm::result{std::string{"odd"}, std::vector<double>{9.0, 1.0, 5.0}, 3}};
-  CHECK(r.median() == doctest::Approx{5.0});  // sorted: 1, 5, 9
+  CHECK(r.median() == doctest::Approx{5.0});
   CHECK(r.mean() == doctest::Approx{5.0});
   CHECK(r.min() == doctest::Approx{1.0});
   CHECK(r.max() == doctest::Approx{9.0});
 }
 
 TEST_CASE("nexenne::benchmark::result with a single sample has zero spread") {
-  // stddev/cv use (n - 1) normalisation, so a lone sample reports zero spread,
-  // and min == median == mean == max == that one value.
   auto const r{bm::result{std::string{"one"}, std::vector<double>{42.0}, 1}};
   CHECK(r.mean() == doctest::Approx{42.0});
   CHECK(r.median() == doctest::Approx{42.0});
@@ -411,36 +398,30 @@ TEST_CASE("nexenne::benchmark::run with a single sample yields exactly one mean"
     cfg
   )};
   CHECK(r.samples().size() == 1);
-  CHECK(r.stddev() == 0.0);             // one sample -> no spread
-  CHECK(r.mean() == r.samples()[0]);    // mean of one is the sample itself
-  CHECK(r.median() == r.samples()[0]);  // median of one likewise
+  CHECK(r.stddev() == 0.0);
+  CHECK(r.mean() == r.samples()[0]);
+  CHECK(r.median() == r.samples()[0]);
 }
 
 TEST_CASE("nexenne::benchmark::run handles a no-op body with a positive iteration count") {
   auto const r{bm::run("empty body", [] noexcept {}, fast_cfg)};
   CHECK(r.samples().size() == fast_cfg.sample_count);
-  CHECK(r.total_iterations() > 0);  // calibration chose a sensible count
+  CHECK(r.total_iterations() > 0);
   CHECK(std::isfinite(r.mean()));
   CHECK(r.mean() >= 0.0);
 }
 
 TEST_CASE("nexenne::benchmark::run grows to a large iteration count for an unmeasurable body") {
-  // An empty body times as ~0 ns, so calibration grows the batch (up to its
-  // ceiling) rather than locking a fixed fallback constant; either way the timed
-  // batches run a large, budget-filling count instead of a token few.
   auto cfg{fast_cfg};
   cfg.sample_count = 1;
   cfg.min_iterations = 1;
   cfg.warmup = false;
   auto const r{bm::run("unmeasurable", [] noexcept {}, cfg)};
-  CHECK(r.total_iterations() >= 1024);  // far more than a handful
+  CHECK(r.total_iterations() >= 1024);
   CHECK(std::isfinite(r.mean()));
 }
 
 TEST_CASE("nexenne::benchmark::run calibration converges to a sensible count for fast work") {
-  // M1: a cheap but non-elided body must calibrate to many iterations per batch
-  // (filling the target budget from a hot, amortised reading), not to a fixed
-  // fallback constant, and the per-sample means stay finite and positive.
   auto cfg{bm::config{
     .target_duration = std::chrono::milliseconds{5},
     .sample_count = 4,
@@ -457,15 +438,12 @@ TEST_CASE("nexenne::benchmark::run calibration converges to a sensible count for
     cfg
   )};
   CHECK(r.samples().size() == 4);
-  CHECK(r.total_iterations() > 4u * 1024u);  // a sub-ns body fills far more than the old 1024
+  CHECK(r.total_iterations() > 4u * 1024u);
   CHECK(std::isfinite(r.mean()));
   CHECK(r.mean() > 0.0);
 }
 
 TEST_CASE("nexenne::benchmark::do_not_optimize makes protected work outweigh an empty body") {
-  // M1/M2: at -O2 an empty body is elided to nothing, while a real computation
-  // whose output is fed to do_not_optimize cannot be, so it must time strictly
-  // higher. This is the measurement-validity check the DCE primitives exist for.
   auto cfg{bm::config{
     .target_duration = std::chrono::milliseconds{5},
     .sample_count = 5,
@@ -494,9 +472,6 @@ TEST_CASE("nexenne::benchmark::do_not_optimize makes protected work outweigh an 
 }
 
 TEST_CASE("nexenne::benchmark::result median is not noexcept because it allocates a sorted copy") {
-  // M4: median copies the sample vector before sorting, so allocation failure
-  // must propagate as bad_alloc rather than terminate; it cannot be noexcept.
-  // percentile allocates likewise.
   auto const r{bm::result{std::string{"m"}, std::vector<double>{1.0, 2.0}, 2}};
   static_assert(!noexcept(r.median()));
   static_assert(!noexcept(r.percentile(50.0)));
@@ -504,13 +479,12 @@ TEST_CASE("nexenne::benchmark::result median is not noexcept because it allocate
 }
 
 TEST_CASE("nexenne::benchmark::from_samples builds a result from externally collected samples") {
-  // m8: ingestion point for workloads that own their samples already.
   auto const r{bm::from_samples("frames", std::vector<double>{10.0, 20.0, 30.0, 40.0}, 4)};
   CHECK(r.name() == "frames");
   CHECK(r.samples().size() == 4);
   CHECK(r.total_iterations() == 4);
   CHECK(r.mean() == doctest::Approx{25.0});
-  CHECK(r.median() == doctest::Approx{25.0});  // (20 + 30) / 2
+  CHECK(r.median() == doctest::Approx{25.0});
   CHECK(r.min() == doctest::Approx{10.0});
   CHECK(r.max() == doctest::Approx{40.0});
 }
@@ -519,11 +493,11 @@ TEST_CASE(
   "nexenne::benchmark::result percentile interpolates and agrees with the edges and median"
 ) {
   auto const r{bm::from_samples("p", std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0}, 5)};
-  CHECK(r.percentile(0.0) == doctest::Approx{1.0});    // min
-  CHECK(r.percentile(100.0) == doctest::Approx{5.0});  // max
-  CHECK(r.percentile(50.0) == doctest::Approx{3.0});   // median of an odd count
+  CHECK(r.percentile(0.0) == doctest::Approx{1.0});
+  CHECK(r.percentile(100.0) == doctest::Approx{5.0});
+  CHECK(r.percentile(50.0) == doctest::Approx{3.0});
   CHECK(r.percentile(50.0) == doctest::Approx{r.median()});
-  CHECK(r.percentile(25.0) == doctest::Approx{2.0});  // rank 1.0 -> element index 1
+  CHECK(r.percentile(25.0) == doctest::Approx{2.0});
   CHECK(r.percentile(10.0) == doctest::Approx{1.4});  // rank 0.4 -> 1 + 0.4 * (2 - 1)
 }
 
@@ -531,7 +505,7 @@ TEST_CASE("nexenne::benchmark::result percentile matches median on an even sampl
   auto const r{
     bm::from_samples("even", std::vector<double>{2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0}, 8)
   };
-  CHECK(r.percentile(50.0) == doctest::Approx{r.median()});  // 4.5
+  CHECK(r.percentile(50.0) == doctest::Approx{r.median()});
   CHECK(r.percentile(0.0) == doctest::Approx{2.0});
   CHECK(r.percentile(100.0) == doctest::Approx{9.0});
 }
@@ -543,7 +517,6 @@ TEST_CASE("nexenne::benchmark::result percentile returns zero on an empty result
 }
 
 TEST_CASE("nexenne::benchmark::config is formattable via std::format") {
-  // m3: a harness can log the knobs a result was produced with.
   auto const cfg{bm::config{
     .target_duration = std::chrono::milliseconds{100},
     .sample_count = 10,
@@ -567,8 +540,6 @@ TEST_CASE("nexenne::benchmark::config prints the same text through every layer")
 }
 
 TEST_CASE("nexenne::benchmark::run honours min_iterations exactly with no warmup") {
-  // A sleeping body keeps the calibrated count at the min_iterations floor (the
-  // target budget admits only one iteration), so total_iterations is exact.
   auto cfg{bm::config{
     .target_duration = std::chrono::nanoseconds{1},
     .sample_count = 2,
@@ -578,7 +549,7 @@ TEST_CASE("nexenne::benchmark::run honours min_iterations exactly with no warmup
   auto const r{
     bm::run("exact-floor", [] { std::this_thread::sleep_for(std::chrono::microseconds{20}); }, cfg)
   };
-  CHECK(r.total_iterations() == 3 * 2);  // min_iterations * sample_count, no warmup
+  CHECK(r.total_iterations() == 3 * 2);
 }
 
 TEST_CASE("nexenne::benchmark::do_not_optimize leaves the value unchanged for many types") {
@@ -606,7 +577,6 @@ TEST_CASE("nexenne::benchmark::do_not_optimize leaves the value unchanged for ma
   CHECK(ptr == &target);
   CHECK(*ptr == 99);
 
-  // The const overload accepts an rvalue / read-only value too.
   bm::do_not_optimize(int{123});
   bm::do_not_optimize(point{.x = 4, .y = 5.0});
 }
@@ -614,7 +584,7 @@ TEST_CASE("nexenne::benchmark::do_not_optimize leaves the value unchanged for ma
 TEST_CASE("nexenne::benchmark::clobber_memory does not disturb surrounding state") {
   auto buffer{std::vector<int>{1, 2, 3}};
   buffer[1] = 20;
-  bm::clobber_memory();  // pretend the store escaped
+  bm::clobber_memory();
   CHECK(buffer[0] == 1);
   CHECK(buffer[1] == 20);
   CHECK(buffer[2] == 3);
@@ -628,17 +598,17 @@ TEST_CASE("nexenne::benchmark::run_with_setup makes the setup's effect visible t
   cfg.min_iterations = 4;
   auto const r{bm::run_with_setup(
     "fresh state",
-    [&] noexcept { state = 0; },  // reset before every timed call
+    [&] noexcept { state = 0; },
     [&] noexcept {
       if (state != 0) {
-        observed_zero_each_time = false;  // the body always sees the reset state
+        observed_zero_each_time = false;
       }
-      ++state;  // body mutates; setup must undo it next time
+      ++state;
       bm::do_not_optimize(state);
     },
     cfg
   )};
-  CHECK(observed_zero_each_time);  // setup reset was visible on every iteration
+  CHECK(observed_zero_each_time);
   CHECK(r.samples().size() == 2);
 }
 
@@ -653,8 +623,8 @@ TEST_CASE("nexenne::benchmark::comparison ratio and speedup are reciprocals") {
   auto const baseline{bm::result{std::string{"base"}, std::vector<double>{100.0}, 1}};
   auto const candidate{bm::result{std::string{"cand"}, std::vector<double>{25.0}, 1}};
   auto const c{bm::compare(baseline, candidate)};
-  CHECK(c.ratio() == doctest::Approx{0.25});   // candidate / baseline
-  CHECK(c.speedup() == doctest::Approx{4.0});  // baseline / candidate
+  CHECK(c.ratio() == doctest::Approx{0.25});
+  CHECK(c.speedup() == doctest::Approx{4.0});
   CHECK(c.ratio() * c.speedup() == doctest::Approx{1.0});
   CHECK(c.speedup() > 0.0);
   CHECK(std::isfinite(c.speedup()));
@@ -668,7 +638,7 @@ TEST_CASE("nexenne::benchmark::comparison print preserves both labels and names 
   auto const s{ss.str()};
   CHECK(s.find("alpha-label") != std::string::npos);
   CHECK(s.find("beta-label") != std::string::npos);
-  CHECK(s.find("2.00x faster") != std::string::npos);  // candidate is twice as fast
+  CHECK(s.find("2.00x faster") != std::string::npos);
 }
 
 TEST_CASE(
@@ -686,7 +656,6 @@ TEST_CASE("nexenne::benchmark::result to_json emits every documented key in a fi
   auto ss{std::stringstream{}};
   r.to_json(ss);
   auto const s{ss.str()};
-  // Keys appear in the documented, stable order.
   auto const i_name{s.find("\"name\"")};
   auto const i_mean{s.find("\"mean_ns\"")};
   auto const i_median{s.find("\"median_ns\"")};
@@ -720,12 +689,11 @@ TEST_CASE("nexenne::benchmark::result to_json round-trips through the JSON parse
 
   auto const& obj{*parsed};
   CHECK(obj["name"].as_string().value() == "round trip");
-  CHECK(obj["mean_ns"].as_float().value() == doctest::Approx{4.0});  // (2+4+6)/3
+  CHECK(obj["mean_ns"].as_float().value() == doctest::Approx{4.0});
   CHECK(obj["median_ns"].as_float().value() == doctest::Approx{4.0});
   CHECK(obj["min_ns"].as_float().value() == doctest::Approx{2.0});
   CHECK(obj["max_ns"].as_float().value() == doctest::Approx{6.0});
 
-  // The samples array reflects the values in insertion order.
   auto const arr{obj["samples"].as_array()};
   REQUIRE(arr.has_value());
   auto const& samples{arr->get()};
@@ -737,8 +705,6 @@ TEST_CASE("nexenne::benchmark::result to_json round-trips through the JSON parse
 
 TEST_CASE("nexenne::benchmark::result to_json preserves full numeric precision") {
   namespace json = nexenne::serialization::json;
-  // A value the default 6-digit float formatting would round; the writer must
-  // round-trip it back to the same double.
   auto const value{0.123456789012345};
   auto const r{bm::result{std::string{"precise"}, std::vector<double>{value}, 1}};
   auto ss{std::stringstream{}};
@@ -760,13 +726,13 @@ TEST_CASE("nexenne::benchmark::result to_json escaping round-trips back to the o
   r.to_json(ss);
   auto const parsed{json::parse(ss.str())};
   REQUIRE(parsed.has_value());
-  CHECK((*parsed)["name"].as_string().value() == name);  // decoded back verbatim
+  CHECK((*parsed)["name"].as_string().value() == name);
 }
 
 TEST_CASE("nexenne::benchmark::result is formattable via std::format") {
   auto const r{bm::result{std::string{"fmt-name"}, std::vector<double>{5.0, 7.0}, 2}};
   auto const s{std::format("{}", r)};
-  CHECK(s == r.to_string());  // formatter delegates to to_string
+  CHECK(s == r.to_string());
   CHECK(s.find("fmt-name") != std::string::npos);
   CHECK(s.find("median:") != std::string::npos);
 }
@@ -791,9 +757,7 @@ TEST_CASE("nexenne::benchmark::do_not_optimize keeps a large or non-trivial muta
   CHECK(text == "kept");
 }
 
-TEST_CASE("nexenne::benchmark::run discards a slow first call before calibrating (benchmark-03)") {
-  // Only the first call is slow; trusting it would size every batch for a 5 ms
-  // body and time a single iteration against the 1 ms budget.
+TEST_CASE("nexenne::benchmark::run discards a slow first call before calibrating") {
   auto calls{std::size_t{0}};
   auto const cfg{bm::config{
     .target_duration = std::chrono::milliseconds{1},

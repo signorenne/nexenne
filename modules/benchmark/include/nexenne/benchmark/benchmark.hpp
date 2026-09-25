@@ -108,10 +108,7 @@ namespace detail {
   if (!std::isfinite(ratio) || ratio <= 0.0) {
     return 0;
   }
-  // Bound the loop and keep the double->size_t cast in range (out-of-range is
-  // UB). The 2^40 figure is width-independent; on a 32-bit size_t (an MCU
-  // target) it exceeds SIZE_MAX, so clamp to SIZE_MAX there as well.
-  constexpr double cap{1'099'511'627'776.0};  // 2^40, ample headroom
+  constexpr double cap{1'099'511'627'776.0};  // 2^40; exceeds SIZE_MAX on a 32-bit size_t
   auto const bounded{ratio < cap ? ratio : cap};
   constexpr auto size_max{static_cast<double>(std::numeric_limits<std::size_t>::max())};
   if (bounded >= size_max) {
@@ -144,7 +141,7 @@ inline constexpr double calibration_min_ns{1'000'000.0};
 }
 
 /// @brief Ceiling on the calibration iteration count so growth always terminates.
-inline constexpr std::size_t calibration_max_iters{100'000'000};  // 1e8
+inline constexpr std::size_t calibration_max_iters{100'000'000};
 
 /**
  * @brief Outcome of a calibration growth loop.
@@ -414,9 +411,7 @@ public:
     if (n == 1) {
       return sorted.front();
     }
-    // Linear interpolation between the two ranks straddling the position, the
-    // numpy default: rank runs 0 at p=0 to n-1 at p=100, so endpoints are exact
-    // and the midpoint reproduces the median.
+    // Linear interpolation (numpy default): rank 0 at p=0 to n-1 at p=100, exact endpoints.
     auto const rank{(p / 100.0) * static_cast<double>(n - 1)};
     auto const lo{static_cast<std::size_t>(std::floor(rank))};
     auto const hi{static_cast<std::size_t>(std::ceil(rank))};
@@ -654,9 +649,6 @@ public:
    *       overflow.
    */
   auto to_json(std::ostream& os) const -> void {
-    // Emit into a buffer that grows on overflow, then hand the bytes to the
-    // stream. The writer reports buffer_full instead of overrunning, so a single
-    // doubling retry covers any name length or sample count.
     auto buf{std::string(256 + (m_sample_means_ns.size() * 24), '\0')};
     while (true) {
       auto w{serialization::json::writer{std::span<char>{buf.data(), buf.size()}}};
@@ -664,9 +656,7 @@ public:
         os.write(buf.data(), static_cast<std::streamsize>(w.bytes_written()));
         return;
       } else if (r.error() != serialization::error::buffer_full) {
-        // The emit sequence is well-formed and only two levels deep, so
-        // buffer_full is the sole reachable writer error; anything else is a
-        // logic error rather than a sizing problem, and growing cannot help.
+        // buffer_full is the only reachable writer error; anything else is a logic bug.
         assert(false && "benchmark::result::to_json: unexpected writer error");
         return;
       }
@@ -750,8 +740,6 @@ private:
    * @post None.
    */
   [[nodiscard]] static auto format_time(double const ns) -> std::string {
-    // Reuse chrono's auto-scaling SI formatter (ns / us / ms / s), which keeps
-    // the sub-millisecond resolution micro-timing needs.
     return chrono::format_scaled(std::chrono::duration<double, std::nano>{ns});
   }
 };
@@ -788,10 +776,6 @@ public:
       : m_baseline{&baseline}, m_candidate{&candidate} {}
 
   /// @cond INTERNAL
-  // A comparison only stores pointers, so binding a temporary result would
-  // dangle the moment the full expression ends. Delete every overload that
-  // would bind an rvalue so the mistake is a compile error, not a silent
-  // use-after-free.
   comparison(result const&& baseline, result const& candidate) = delete;
   comparison(result const& baseline, result const&& candidate) = delete;
   comparison(result const&& baseline, result const&& candidate) = delete;
@@ -873,8 +857,6 @@ public:
    */
   [[nodiscard]] auto to_string() const -> std::string {
     auto const s{speedup()};
-    // A zero mean on either side makes the speedup zero or non-finite, so the
-    // reciprocal would be inf/NaN; report the factor as unavailable instead.
     if (!std::isfinite(s) || s <= 0.0) {
       return std::format(
         "{}\n{}\n  -> speedup unavailable (a result has a zero mean)",
@@ -936,9 +918,6 @@ public:
 }
 
 /// @cond INTERNAL
-// The returned comparison stores pointers, so a temporary result argument would
-// dangle immediately. Delete the rvalue overloads to reject compare(run(...),
-// run(...)) at compile time.
 auto compare(result const&& baseline, result const& candidate) -> comparison = delete;
 auto compare(result const& baseline, result const&& candidate) -> comparison = delete;
 auto compare(result const&& baseline, result const&& candidate) -> comparison = delete;
@@ -1012,10 +991,6 @@ template <chrono::steady_clock_like Clock = std::chrono::steady_clock, typename 
   using ns_d = std::chrono::duration<double, std::nano>;
   auto timer{chrono::stopwatch<Clock>{}};
 
-  // Calibration: grow the batch until it is long enough to time reliably, then
-  // derive the iteration count from that hot, amortised reading. A single cold
-  // call reads high from cold caches and reads zero on a coarse clock, either of
-  // which skews the per-batch budget.
   auto const floor_ns{detail::calibration_floor_ns(cfg.target_duration)};
   auto const cal{detail::grow_until_measurable(floor_ns, [&](std::size_t const n) -> double {
     timer.restart();
@@ -1032,15 +1007,11 @@ template <chrono::steady_clock_like Clock = std::chrono::steady_clock, typename 
     auto const estimated{detail::iters_from_ratio(target_ns / per_call_ns)};
     iters_per_sample = std::max(iters_per_sample, estimated);
   } else {
-    // Body too fast to measure even at the calibration ceiling; reuse that
-    // grown count so the timed batches still attempt real work.
     iters_per_sample = std::max(iters_per_sample, cal.iterations);
   }
-  // Never let the per-batch divisor reach zero (e.g. min_iterations set to 0
-  // with a target shorter than a single call), which would yield NaN timings.
+  // min_iterations may be 0: a zero per-batch divisor would yield NaN timings.
   iters_per_sample = std::max(iters_per_sample, std::size_t{1});
 
-  // Optional warmup batch (discarded).
   if (cfg.warmup) {
     for (auto i{std::size_t{0}}; i < iters_per_sample; ++i) {
       fn();
@@ -1116,13 +1087,6 @@ run_with_setup(std::string_view const name, Setup&& setup, Fn&& fn, config const
   auto fn_timer{chrono::stopwatch<Clock>{}};
   auto iter_timer{chrono::stopwatch<Clock>{}};
 
-  // Calibration: grow the batch until the whole setup-plus-fn wall time is long
-  // enough to time reliably, accumulating fn alone (fn_timer) for the reported
-  // cost and the whole iteration (iter_timer) for the cap, so an expensive setup
-  // cannot make a run unbounded. Growing (rather than a single cold call) keeps
-  // the cap honest on cold caches and coarse clocks, but fn is still timed one
-  // call at a time, so on a clock coarser than one call its reading quantises,
-  // possibly to zero, and the fallback below then reuses the grown count.
   auto fn_accumulated_ns{0.0};
   auto const floor_ns{detail::calibration_floor_ns(cfg.target_duration)};
   auto const cal{detail::grow_until_measurable(floor_ns, [&](std::size_t const n) -> double {
@@ -1155,7 +1119,7 @@ run_with_setup(std::string_view const name, Setup&& setup, Fn&& fn, config const
     iters_per_sample = std::min(iters_per_sample, wall_limited);
     iters_per_sample = std::max(iters_per_sample, cfg.min_iterations);
   }
-  // Guard against a zero divisor in the per-batch mean below.
+  // min_iterations may be 0: a zero per-batch divisor would yield NaN timings.
   iters_per_sample = std::max(iters_per_sample, std::size_t{1});
 
   if (cfg.warmup) {
@@ -1172,7 +1136,7 @@ run_with_setup(std::string_view const name, Setup&& setup, Fn&& fn, config const
   for (auto s{std::size_t{0}}; s < cfg.sample_count; ++s) {
     auto accumulated_ns{0.0};
     for (auto i{std::size_t{0}}; i < iters_per_sample; ++i) {
-      setup();  // not timed
+      setup();
       fn_timer.restart();
       fn();
       accumulated_ns += fn_timer.template elapsed<ns_d>().count();

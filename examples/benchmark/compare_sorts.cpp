@@ -65,9 +65,6 @@ auto make_data(std::size_t const n) -> std::vector<std::uint32_t> {
 auto main() -> int {
   auto const data{make_data(4096)};
 
-  // Two ways to sum the same data: a hand loop versus std::accumulate. Each is a
-  // pure repeatable routine, so plain run fits; do_not_optimize keeps the sum
-  // (and therefore the summing) from being optimised away.
   auto const hand{bm::run("sum: hand loop", [&] noexcept {
     auto total{std::uint64_t{0}};
     for (auto const x : data) {
@@ -85,8 +82,6 @@ auto main() -> int {
   stdlib.print();
   bm::compare(hand, stdlib).print();
 
-  // Sorting mutates its input, so each iteration must start from a fresh copy.
-  // run_with_setup restores the copy (untimed) before each timed sort.
   auto scratch{std::vector<std::uint32_t>{}};
   auto const sorted{bm::run_with_setup(
     "sort 4k (fresh each call)",
@@ -98,11 +93,6 @@ auto main() -> int {
   )};
   sorted.print();
 
-  // A custom config: fewer, shorter sample batches and no warmup for a quick,
-  // lower-confidence reading. Use this when you want a fast turnaround during
-  // development; keep the defaults for numbers you will quote. We also turn the
-  // result into a throughput figure: the hand sum touches data.size() 4-byte
-  // elements per call, so bytes_per_second reports the achieved memory rate.
   auto const quick_cfg{bm::config{
     .target_duration = std::chrono::milliseconds{20},
     .sample_count = 3,
@@ -125,8 +115,6 @@ auto main() -> int {
   auto const bytes_per_iter{data.size() * sizeof(std::uint32_t)};
   std::cout << "  -> " << quick.bytes_per_second(bytes_per_iter) / 1e9 << " GB/s scanned\n";
 
-  // For CI: dump the result as a JSON object (name, the timing fields, and the
-  // raw per-sample means) so a dashboard can ingest it without scraping text.
   std::cout << "json: ";
   quick.to_json(std::cout);
   std::cout << '\n';
