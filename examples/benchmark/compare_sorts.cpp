@@ -8,9 +8,20 @@
  * deleted by the optimiser. Timings are machine-dependent, so this prints the
  * measured summaries rather than asserting fixed numbers.
  *
- * The last two tours go further: a custom config to trade accuracy for a faster
- * run, a throughput figure derived from the result, and the JSON dump used to
- * feed a result into CI.
+ * The program walks five steps:
+ *
+ * 1. Sum the same data two ways, a hand loop versus std::accumulate. Each is a
+ *    pure repeatable routine, so plain run fits; do_not_optimize on the sum keeps
+ *    the summing from being optimised away. compare reports the speedup.
+ * 2. Sorting mutates its input, so each iteration must start from a fresh copy:
+ *    run_with_setup restores the copy, untimed, before each timed sort.
+ * 3. A custom config trades accuracy for turnaround: fewer, shorter sample
+ *    batches and no warmup. Use it during development and keep the defaults for
+ *    numbers you will quote; the config streams through format.hpp.
+ * 4. A throughput figure: the hand sum touches data.size() 4-byte elements per
+ *    call, so bytes_per_second reports the achieved memory rate.
+ * 5. For CI, to_json dumps the result (name, the timing fields, and the raw
+ *    per-sample means) so a dashboard can ingest it without scraping text.
  */
 
 #include <algorithm>
@@ -28,7 +39,16 @@ namespace {
 
 namespace bm = nexenne::benchmark;
 
-// A fixed pseudo-random vector to work over (no RNG dependency needed here).
+/**
+ * @brief A fixed pseudo-random vector to work over, with no RNG dependency.
+ *
+ * @param n Number of elements.
+ *
+ * @return \p n values from a deterministic linear congruential sequence.
+ *
+ * @pre None.
+ * @post The result holds \p n elements.
+ */
 auto make_data(std::size_t const n) -> std::vector<std::uint32_t> {
   auto v{std::vector<std::uint32_t>{}};
   v.reserve(n);

@@ -120,8 +120,8 @@ namespace detail {
   return static_cast<std::size_t>(bounded);
 }
 
-/// @brief Longest batch time a calibration waits for before trusting its reading.
-inline constexpr double calibration_min_ns{1'000'000.0};  // 1 ms; a coarser tick quantises it
+/// @brief Longest batch time, 1 ms, a calibration waits for before trusting its reading.
+inline constexpr double calibration_min_ns{1'000'000.0};
 
 /**
  * @brief Batch time a calibration must reach for a run aiming at \p target.
@@ -150,6 +150,9 @@ inline constexpr std::size_t calibration_max_iters{100'000'000};  // 1e8
  * @brief Outcome of a calibration growth loop.
  *
  * Carries the batch size reached and its measured wall time.
+ *
+ * @pre None.
+ * @post None.
  */
 struct calibration {
   std::size_t iterations{1};  ///< Iterations the final calibration batch ran.
@@ -206,6 +209,9 @@ template <std::invocable<std::size_t> Batch>
  * Defaults are calibrated for typical micro-benchmarks (nanosecond to
  * millisecond range). Tweak when measurements are noisy or you want faster
  * turnaround.
+ *
+ * @pre None.
+ * @post None.
  */
 struct config {
   /// @brief Wall-clock budget per sample batch, filled with repeated calls.
@@ -224,6 +230,9 @@ struct config {
  * The samples themselves are exposed so callers can do their own analysis (for
  * example dump a CDF or fit a model). The default \c print shows the
  * common-case summary.
+ *
+ * @pre None.
+ * @post A default-constructed result holds no samples.
  */
 class result {
 public:
@@ -749,6 +758,13 @@ private:
 
 /**
  * @brief Side-by-side comparison of two benchmark results.
+ *
+ * Stores only pointers to the two results, so binding a temporary would dangle
+ * the moment the full expression ends; every constructor overload taking an
+ * rvalue \c result is deleted, which makes that mistake a compile error.
+ *
+ * @pre None.
+ * @post None.
  */
 class comparison {
 private:
@@ -845,7 +861,8 @@ public:
    * Renders the baseline summary, the candidate summary, and a final line
    * stating how many times faster or slower the candidate is. The factor is
    * normalised so it always reads at least 1, with the direction named
-   * explicitly.
+   * explicitly. When either mean is zero the factor is undefined, and the final
+   * line reports the speedup as unavailable instead.
    *
    * @return The formatted comparison text, without a trailing newline.
    *
@@ -909,6 +926,9 @@ public:
  *
  * @pre \p baseline and \p candidate outlive the returned comparison.
  * @post Both results are unchanged.
+ *
+ * @note The rvalue overloads are deleted, so \c compare(run(...), run(...))
+ *       is rejected at compile time instead of dangling.
  */
 [[nodiscard]] inline auto compare(result const& baseline, result const& candidate) noexcept
   -> comparison {
@@ -1059,6 +1079,9 @@ template <chrono::steady_clock_like Clock = std::chrono::steady_clock, typename 
  * Calibration grows the batch to a reliably timeable size, deriving \p fn alone
  * for the reported timing but capping the iteration count by the combined
  * setup-plus-fn wall cost, so an expensive \p setup cannot make a run unbounded.
+ * Because \p fn is still timed one call at a time, on a clock coarser than one
+ * call its calibration reading quantises, possibly to zero; the iteration count
+ * then falls back to the grown batch size.
  *
  * @tparam Clock Steady clock the calls are timed with, \c steady_clock by
  *         default.

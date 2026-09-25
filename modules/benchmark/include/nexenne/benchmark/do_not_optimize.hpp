@@ -45,9 +45,16 @@
 #pragma intrinsic(_ReadWriteBarrier)
 #endif
 
-// Force-inline marker: these primitives must never become a real function call,
-// which would dwarf the benchmarked cost. Undefined at end of file so it does
-// not leak to includers.
+/// @cond INTERNAL
+
+/**
+ * @def NEXENNE_BENCHMARK_FORCE_INLINE
+ * @brief Force-inline marker for the anti-DCE primitives in this file.
+ *
+ * The primitives must never become a real function call, which would dwarf the
+ * benchmarked cost. Undefined at the end of this file so it does not leak to
+ * includers.
+ */
 #if defined(__GNUC__) || defined(__clang__)
 #define NEXENNE_BENCHMARK_FORCE_INLINE [[gnu::always_inline]] inline
 #elif defined(_MSC_VER)
@@ -55,6 +62,8 @@
 #else
 #define NEXENNE_BENCHMARK_FORCE_INLINE inline
 #endif
+
+/// @endcond
 
 namespace nexenne::benchmark {
 

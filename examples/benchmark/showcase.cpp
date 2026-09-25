@@ -29,8 +29,34 @@
  *     it the benchmark would time an empty loop and report a fiction.
  *
  * Timings are machine-dependent, so this prints the measured summaries and a
- * data-driven verdict rather than asserting fixed numbers. Read it top to
- * bottom.
+ * data-driven verdict rather than asserting fixed numbers.
+ *
+ * The program walks seven steps:
+ *
+ * 1. Build the shared dataset once: every container holds the same key to value
+ *    mapping, and the flat map is sorted by key so its binary search is valid. A
+ *    random 32-bit probe almost never hits the 256-key set, so each probe falls
+ *    back to a known-present key; every lookup finds something, keeping the work
+ *    uniform across the three implementations.
+ * 2. std::map: each lookup walks the red-black tree, O(log n) with a pointer
+ *    chase per level, so cache misses dominate at this size. Every found value
+ *    folds into a sum handed to do_not_optimize, so the optimiser must perform
+ *    every lookup.
+ * 3. std::unordered_map: O(1) average, one hash plus a bucket walk, but the
+ *    buckets are heap nodes, so a cache miss still hurts.
+ * 4. The flat map: a binary search over one contiguous array, the same O(log n)
+ *    as the tree but in a single cache-friendly block, which can make it
+ *    competitive at small sizes. Whether it wins depends on the data and the
+ *    machine; read the measured verdict rather than assuming.
+ * 5. The summaries (median, mean +/- stddev, the cv as a noise gauge, and the
+ *    min-max range, auto-scaled) and the throughput: lookups per second from the
+ *    mean, given probe_count lookups per timed iteration.
+ * 6. Percentiles of the per-sample means, p50 (the median) and p99 (the tail),
+ *    need no hand-rolled statistics; from_samples builds the same result from
+ *    timings you collected yourself, such as a frame loop's per-frame numbers.
+ * 7. compare() reports each tree against the flat map as a speedup factor. There
+ *    is no statistical test, so the cv is read first: above about 10% the run was
+ *    too noisy to trust and the verdict is meaningless.
  */
 
 #include <algorithm>
@@ -47,11 +73,20 @@ namespace bench = nexenne::benchmark;
 
 namespace {
 
-constexpr std::size_t key_count{256};   // entries in each container
-constexpr std::size_t probe_count{64};  // lookups timed per benchmark iteration
+constexpr std::size_t key_count{256};   ///< Entries in each container.
+constexpr std::size_t probe_count{64};  ///< Lookups timed per benchmark iteration.
 
-// A tiny LCG so the keys and probes are varied but reproducible, no RNG
-// dependency and the same data every run.
+/**
+ * @brief Varied but reproducible keys from a tiny LCG, with no RNG dependency.
+ *
+ * @param n Number of keys.
+ * @param seed Starting state of the generator.
+ *
+ * @return \p n keys, the same for the same \p seed on every run.
+ *
+ * @pre None.
+ * @post The result holds \p n elements.
+ */
 auto make_keys(std::size_t const n, std::uint32_t seed) -> std::vector<std::uint32_t> {
   auto v{std::vector<std::uint32_t>{}};
   v.reserve(n);

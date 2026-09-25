@@ -25,8 +25,7 @@ namespace {
 
 namespace bm = nexenne::benchmark;
 
-// A fast config for the suite: we do not want each case to spend hundreds of ms
-// calibrating and sampling.
+/// @brief Fast config, so no case spends hundreds of ms calibrating and sampling.
 constexpr auto fast_cfg{bm::config{
   .target_duration = std::chrono::microseconds{500},
   .sample_count = 3,

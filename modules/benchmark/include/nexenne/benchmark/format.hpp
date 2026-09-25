@@ -70,6 +70,9 @@ inline auto operator<<(std::ostream& os, config const& cfg) -> std::ostream& {
  *
  * Makes \c std::format("{}", r) emit the single-line summary produced by
  * \c result::to_string. Accepts an empty format spec only.
+ *
+ * @pre None.
+ * @post None.
  */
 template <>
 struct std::formatter<nexenne::benchmark::result> {
@@ -115,6 +118,9 @@ struct std::formatter<nexenne::benchmark::result> {
  *
  * Makes \c std::format("{}", c) emit the multi-line text produced by
  * \c comparison::to_string. Accepts an empty format spec only.
+ *
+ * @pre None.
+ * @post None.
  */
 template <>
 struct std::formatter<nexenne::benchmark::comparison> {
@@ -160,6 +166,9 @@ struct std::formatter<nexenne::benchmark::comparison> {
  * Makes \c std::format("{}", cfg) render the four knobs a result was produced
  * with, so a harness can log its settings. The target duration is auto-scaled
  * through \c chrono::format_scaled. Accepts an empty format spec only.
+ *
+ * @pre None.
+ * @post None.
  */
 template <>
 struct std::formatter<nexenne::benchmark::config> {
