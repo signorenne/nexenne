@@ -17,6 +17,7 @@
 
 #include <nexenne/benchmark/benchmark.hpp>
 #include <nexenne/benchmark/do_not_optimize.hpp>
+#include <nexenne/chrono/manual_clock.hpp>
 #include <nexenne/serialization/json/parse.hpp>
 
 namespace {
@@ -811,6 +812,34 @@ TEST_CASE("nexenne::benchmark::run discards a slow first call before calibrating
     cfg
   )};
   CHECK(r.total_iterations() > 100);
+}
+
+TEST_CASE("nexenne::benchmark::run calibrates to a tenth of a short target on any clock") {
+  using clk = nexenne::chrono::basic_manual_clock<struct calibration_tag>;
+  clk::reset();
+  auto calls{std::size_t{0}};
+  auto const tick{[&calls] noexcept {
+    ++calls;
+    clk::advance(std::chrono::microseconds{1});
+  }};
+  auto const cfg{bm::config{
+    .target_duration = std::chrono::milliseconds{1},
+    .sample_count = 1,
+    .min_iterations = 1,
+    .warmup = false,
+  }};
+  auto const r{bm::run<clk>("tick", tick, cfg)};
+
+  // 1 discarded call, batches of 1, 10, 100 (100 us, a tenth of the target), then 1000.
+  CHECK(calls == 1 + 1 + 10 + 100 + 1000);
+  CHECK(r.total_iterations() == 1000);
+  CHECK(r.mean() == doctest::Approx(1000.0));
+
+  calls = 0;
+  clk::reset();
+  auto const s{bm::run_with_setup<clk>("tick with setup", [] noexcept {}, tick, cfg)};
+  CHECK(calls == 1 + 1 + 10 + 100 + 1000);
+  CHECK(s.total_iterations() == 1000);
 }
 
 }  // namespace

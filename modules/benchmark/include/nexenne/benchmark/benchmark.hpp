@@ -71,6 +71,7 @@
 #include <vector>
 
 #include <nexenne/benchmark/do_not_optimize.hpp>
+#include <nexenne/chrono/concepts.hpp>
 #include <nexenne/chrono/duration_parts.hpp>
 #include <nexenne/chrono/stopwatch.hpp>
 #include <nexenne/serialization/json/writer.hpp>
@@ -113,8 +114,28 @@ namespace detail {
   return static_cast<std::size_t>(bounded);
 }
 
-/// @brief Batch time a calibration must reach before its reading is trusted.
+/// @brief Longest batch time a calibration waits for before trusting its reading.
 inline constexpr double calibration_min_ns{1'000'000.0};  // 1 ms; a coarser tick quantises it
+
+/**
+ * @brief Batch time a calibration must reach for a run aiming at \p target.
+ *
+ * The 1 ms \c calibration_min_ns, lowered to a tenth of the target for a short
+ * run: calibrating to 1 ms costs more than a whole run that aims at 100 us
+ * would, and a tenth of the target is still long enough to estimate how many
+ * calls fill it.
+ *
+ * @param target The run's per-batch time budget.
+ *
+ * @return The calibration floor in nanoseconds.
+ *
+ * @pre None.
+ * @post The result is at most \c calibration_min_ns.
+ */
+[[nodiscard]] constexpr auto calibration_floor_ns(std::chrono::nanoseconds const target) noexcept
+  -> double {
+  return std::min(calibration_min_ns, static_cast<double>(target.count()) / 10.0);
+}
 
 /// @brief Ceiling on the calibration iteration count so growth always terminates.
 inline constexpr std::size_t calibration_max_iters{100'000'000};  // 1e8
@@ -133,8 +154,8 @@ struct calibration {
  * @brief Grows the batch size until one batch is long enough to time reliably.
  *
  * Repeatedly invokes \p run_batch with a geometrically increasing iteration
- * count, starting at one, until a batch takes at least \c calibration_min_ns or
- * the count reaches \c calibration_max_iters. One call runs and is discarded
+ * count, starting at one, until a batch takes at least \p floor_ns or the count
+ * reaches \c calibration_max_iters. One call runs and is discarded
  * first, so a slow first call (lazy initialisation, first-touch page faults)
  * cannot pass for the per-call cost on its own. Deriving the per-call cost from
  * the returned hot, amortised reading then also avoids the coarse-clock
@@ -143,6 +164,7 @@ struct calibration {
  *
  * @tparam Batch Invocable taking the iteration count and returning the batch
  *         wall time in nanoseconds.
+ * @param floor_ns Batch time to reach, from \c calibration_floor_ns.
  * @param run_batch Callable that runs the body \p n times and returns the
  *        elapsed nanoseconds.
  *
@@ -156,12 +178,12 @@ struct calibration {
  *             times the returned iteration count across the growth passes.
  */
 template <std::invocable<std::size_t> Batch>
-[[nodiscard]] auto grow_until_measurable(Batch&& run_batch) -> calibration {
+[[nodiscard]] auto grow_until_measurable(double const floor_ns, Batch&& run_batch) -> calibration {
   [[maybe_unused]] auto const cold_ns{run_batch(std::size_t{1})};
   auto iters{std::size_t{1}};
   while (true) {
     auto const elapsed_ns{run_batch(iters)};
-    if (elapsed_ns >= calibration_min_ns || iters >= calibration_max_iters) {
+    if (elapsed_ns >= floor_ns || iters >= calibration_max_iters) {
       return calibration{.iterations = iters, .elapsed_ns = elapsed_ns};
     }
     iters = iters <= calibration_max_iters / 10 ? iters * 10 : calibration_max_iters;
@@ -933,9 +955,13 @@ auto compare(result const&& baseline, result const&& candidate) -> comparison = 
  * on at least one output so the compiler cannot fold the call away.
  *
  * A calibration pass grows the batch size until one batch is long enough to
- * time reliably, then derives the iteration count from that hot reading; an
+ * time reliably (1 ms, or a tenth of \c cfg.target_duration when that is
+ * shorter), then derives the iteration count from that hot reading; an
  * optional warmup batch is then discarded before the timed batches.
  *
+ * @tparam Clock Steady clock the batches are timed with, \c steady_clock by
+ *         default; pass a manual or a tick clock to time against another
+ *         source.
  * @tparam Fn Callable invocable as an lvalue with no arguments, matching how
  *         the body invokes it.
  * @param name Label for the result, shown in \c print output.
@@ -954,22 +980,23 @@ auto compare(result const&& baseline, result const&& candidate) -> comparison = 
  * @complexity Runs \p fn roughly \c cfg.sample_count times the per-batch
  *             iteration count, plus calibration and optional warmup.
  */
-template <typename Fn>
+template <chrono::steady_clock_like Clock = std::chrono::steady_clock, typename Fn>
   requires std::invocable<Fn&>
 [[nodiscard]] auto run(std::string_view const name, Fn&& fn, config const cfg = {}) -> result {
   using ns_d = std::chrono::duration<double, std::nano>;
-  auto timer{chrono::stopwatch{}};
+  auto timer{chrono::stopwatch<Clock>{}};
 
   // Calibration: grow the batch until it is long enough to time reliably, then
   // derive the iteration count from that hot, amortised reading. A single cold
   // call reads high from cold caches and reads zero on a coarse clock, either of
   // which skews the per-batch budget.
-  auto const cal{detail::grow_until_measurable([&](std::size_t const n) -> double {
+  auto const floor_ns{detail::calibration_floor_ns(cfg.target_duration)};
+  auto const cal{detail::grow_until_measurable(floor_ns, [&](std::size_t const n) -> double {
     timer.restart();
     for (auto i{std::size_t{0}}; i < n; ++i) {
       fn();
     }
-    return timer.elapsed<ns_d>().count();
+    return timer.template elapsed<ns_d>().count();
   })};
   auto const per_call_ns{cal.elapsed_ns / static_cast<double>(cal.iterations)};
 
@@ -1003,7 +1030,7 @@ template <typename Fn>
     for (auto i{std::size_t{0}}; i < iters_per_sample; ++i) {
       fn();
     }
-    auto const elapsed_ns{timer.elapsed<ns_d>().count()};
+    auto const elapsed_ns{timer.template elapsed<ns_d>().count()};
     sample_means_ns.push_back(elapsed_ns / static_cast<double>(iters_per_sample));
     total_iters += iters_per_sample;
   }
@@ -1027,6 +1054,8 @@ template <typename Fn>
  * for the reported timing but capping the iteration count by the combined
  * setup-plus-fn wall cost, so an expensive \p setup cannot make a run unbounded.
  *
+ * @tparam Clock Steady clock the calls are timed with, \c steady_clock by
+ *         default.
  * @tparam Setup Callable invocable as an lvalue with no arguments, run before
  *         each timed call.
  * @tparam Fn Callable invocable as an lvalue with no arguments whose cost is
@@ -1049,14 +1078,14 @@ template <typename Fn>
  * @complexity Runs \p setup and \p fn together roughly \c cfg.sample_count
  *             times the per-batch iteration count, plus calibration and warmup.
  */
-template <typename Setup, typename Fn>
+template <chrono::steady_clock_like Clock = std::chrono::steady_clock, typename Setup, typename Fn>
   requires std::invocable<Setup&> && std::invocable<Fn&>
 [[nodiscard]] auto
 run_with_setup(std::string_view const name, Setup&& setup, Fn&& fn, config const cfg = {})
   -> result {
   using ns_d = std::chrono::duration<double, std::nano>;
-  auto fn_timer{chrono::stopwatch{}};
-  auto iter_timer{chrono::stopwatch{}};
+  auto fn_timer{chrono::stopwatch<Clock>{}};
+  auto iter_timer{chrono::stopwatch<Clock>{}};
 
   // Calibration: grow the batch until the whole setup-plus-fn wall time is long
   // enough to time reliably, accumulating fn alone (fn_timer) for the reported
@@ -1066,16 +1095,17 @@ run_with_setup(std::string_view const name, Setup&& setup, Fn&& fn, config const
   // call at a time, so on a clock coarser than one call its reading quantises,
   // possibly to zero, and the fallback below then reuses the grown count.
   auto fn_accumulated_ns{0.0};
-  auto const cal{detail::grow_until_measurable([&](std::size_t const n) -> double {
+  auto const floor_ns{detail::calibration_floor_ns(cfg.target_duration)};
+  auto const cal{detail::grow_until_measurable(floor_ns, [&](std::size_t const n) -> double {
     fn_accumulated_ns = 0.0;
     iter_timer.restart();
     for (auto i{std::size_t{0}}; i < n; ++i) {
       setup();
       fn_timer.restart();
       fn();
-      fn_accumulated_ns += fn_timer.elapsed<ns_d>().count();
+      fn_accumulated_ns += fn_timer.template elapsed<ns_d>().count();
     }
-    return iter_timer.elapsed<ns_d>().count();
+    return iter_timer.template elapsed<ns_d>().count();
   })};
   auto const iters_d{static_cast<double>(cal.iterations)};
   auto const single_ns{fn_accumulated_ns / iters_d};
@@ -1116,7 +1146,7 @@ run_with_setup(std::string_view const name, Setup&& setup, Fn&& fn, config const
       setup();  // not timed
       fn_timer.restart();
       fn();
-      accumulated_ns += fn_timer.elapsed<ns_d>().count();
+      accumulated_ns += fn_timer.template elapsed<ns_d>().count();
     }
     sample_means_ns.push_back(accumulated_ns / static_cast<double>(iters_per_sample));
     total_iters += iters_per_sample;

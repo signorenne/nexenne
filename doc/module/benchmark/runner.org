@@ -36,23 +36,37 @@ amortised reading:
   repeat:
       t0 = clock::now();  repeat n times: fn();  t1 = clock::now()
       batch_ns = t1 - t0
-      if batch_ns >= 1 ms or n >= 1e8: break     // measurable, or the ceiling
+      if batch_ns >= floor or n >= 1e8: break    // measurable, or the ceiling
       n *= 10                                     // too fast, grow and retry
   per_call_ns = batch_ns / n                      // hot cost of one call
   iters = target_duration / per_call_ns           // calls that fit the budget
+
+  floor = min(1 ms, target_duration / 10)
 #+END_EXAMPLE
+
+The floor is 1 ms, lowered to a tenth of =target_duration= for a short run:
+calibrating to 1 ms would cost more than a whole run that aims at 100 us, and a
+tenth of the budget is still long enough to estimate how many calls fill it.
 
 So a 10 ns routine against the default 100 ms budget runs about 10 million times
 per sample; a 1 ms routine runs about 100 times. Each sample batch then aims to
 take =target_duration=, regardless of how fast =fn= is. The growth loop is what
 makes this honest: a body below the clock's resolution simply grows until it
-crosses the 1 ms floor, so there is no fixed fallback count that could miss the
+crosses the floor, so there is no fixed fallback count that could miss the
 budget by an integer factor. Two floors still apply: =min_iterations= sets a hard
 minimum so a batch always runs at least that many calls, and the count is finally
 clamped to at least one, so even a zero =min_iterations= against a tiny budget
 cannot produce a divide-by-zero in the per-batch mean. Only a body the clock
 still cannot see at the growth ceiling (a fully elided no-op) falls back to that
 ceiling count.
+
+** The clock is a template parameter
+
+=run= and =run_with_setup= time against =std::chrono::steady_clock= unless you
+name another steady clock first: =run<my_clock>("name", fn, cfg)=. A
+=chrono::tick_clock= over a steady hardware counter or RTOS tick times a body on
+a microcontroller, and a =chrono::basic_manual_clock= makes a test of the
+runner's own logic exact, since time then moves only when the body says so.
 
 ** Sample batches produce the statistics
 
