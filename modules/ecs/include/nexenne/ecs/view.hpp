@@ -261,6 +261,8 @@ public:
     // Slot count captured at construction. Bounding advance by this fixed
     // value (rather than a live re-read) keeps a slot appended during
     // iteration out of range, so the iterator still terminates at \c end().
+    // Reaching it is what makes an iterator the end, so it also compares equal
+    // to an \c end() re-read after the driver grew.
     std::size_t m_count{0};
 
     /**
@@ -280,6 +282,18 @@ public:
       ) {
         ++m_pos;
       }
+    }
+
+    /**
+     * @brief Whether the cursor has reached the captured slot count.
+     *
+     * @return \c true when the position is at or past \c m_count.
+     *
+     * @pre None.
+     * @post The iterator is unchanged.
+     */
+    [[nodiscard]] constexpr auto at_end() const noexcept -> bool {
+      return m_pos >= m_count;
     }
 
   public:
@@ -360,19 +374,26 @@ public:
     }
 
     /**
-     * @brief Equality: same view and same driver position.
+     * @brief Equality: same view and same driver position, or both at the end.
+     *
+     * An iterator is at the end once its position reaches the slot count it
+     * captured, so a loop that re-reads \c end() after a slot was appended
+     * still stops where the walk that \c begin() started ends.
      *
      * @param a  Left operand.
      * @param b  Right operand.
      *
-     * @return \c true iff both iterators name the same position in
-     *         the same view.
+     * @return \c true iff both iterators are at the end of the same view, or
+     *         name the same position in the same view.
      *
      * @pre  None.
      * @post None.
      */
     [[nodiscard]] friend constexpr auto operator==(iterator const& a, iterator const& b) noexcept
       -> bool {
+      if (a.at_end() || b.at_end()) {
+        return a.at_end() && b.at_end() && a.m_view == b.m_view;
+      }
       return a.m_pos == b.m_pos && a.m_view == b.m_view;
     }
   };

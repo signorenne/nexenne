@@ -50,7 +50,9 @@ binds the driver cursor to that storage and from then on iterates its slots:
 indices =[0, slot_count())=, reading each live slot's entity index and skipping
 the tombstones. The slot count is captured at the start of a walk, so a slot
 appended mid-iteration (by code that adds a component) falls beyond it and is not
-visited.
+visited. That holds for a hand-written loop that re-reads =end()= on every step
+too: an iterator equals =end()= once it reaches the count it captured, and the
+same goes for the iterators of =storage<T>().values()=.
 
 ** The membership test per candidate
 

@@ -364,6 +364,8 @@ public:
     // (rather than a live re-read) keeps a slot appended during iteration out of
     // range, so the cursor can never pass the end() position and null-deref a
     // freshly tombstoned slot. This mirrors basic_view::iterator's m_count.
+    // Reaching it is what makes an iterator the end, so it also compares equal
+    // to an end() re-read after the pool grew.
     size_type m_count{0};
 
     /// @brief Advances the cursor to the next live slot, or to the captured count.
@@ -371,6 +373,18 @@ public:
       while (m_slot < m_count && !m_pool->is_live(m_slot)) {
         ++m_slot;
       }
+    }
+
+    /**
+     * @brief Whether the cursor has reached the captured slot count.
+     *
+     * @return \c true when the cursor is at or past \c m_count.
+     *
+     * @pre None.
+     * @post The iterator is unchanged.
+     */
+    [[nodiscard]] constexpr auto at_end() const noexcept -> bool {
+      return m_slot >= m_count;
     }
 
   public:
@@ -439,18 +453,26 @@ public:
     }
 
     /**
-     * @brief Equality: same pool and same slot cursor.
+     * @brief Equality: same pool and same slot cursor, or both at the end.
+     *
+     * An iterator is at the end once its cursor reaches the slot count it
+     * captured, so a loop that re-reads \c end() after a slot was appended
+     * still stops where the walk that \c begin() started ends.
      *
      * @param a Left operand.
      * @param b Right operand.
      *
-     * @return \c true iff both iterators name the same slot in the same pool.
+     * @return \c true iff both iterators are at the end of the same pool, or
+     *         name the same slot in the same pool.
      *
      * @pre None.
      * @post None.
      */
     [[nodiscard]] friend constexpr auto operator==(iterator const& a, iterator const& b) noexcept
       -> bool {
+      if (a.at_end() || b.at_end()) {
+        return a.at_end() && b.at_end() && a.m_pool == b.m_pool;
+      }
       return a.m_slot == b.m_slot && a.m_pool == b.m_pool;
     }
   };

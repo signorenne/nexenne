@@ -1672,4 +1672,40 @@ TEST_CASE("registry: clear() never hands a listener a component a nested destroy
   nexenne::utility::discard(c1, c2);
 }
 
+TEST_CASE("view: a loop that re-reads end() stops at the captured slot count") {
+  auto r{registry{}};
+  for (auto i{0}; i < 2; ++i) {
+    auto const e{r.create()};
+    nexenne::utility::discard(r.add<velocity>(e, velocity{}), r.add<position>(e, position{}));
+  }
+  auto v{r.view<velocity, position>()};
+  auto steps{0};
+  for (auto it{v.begin()}; it != v.end() && steps < 8; ++it) {
+    ++steps;
+    if (steps == 1) {
+      nexenne::utility::discard(r.add<velocity>(r.create(), velocity{}));
+    }
+  }
+  CHECK(steps == 2);
+  CHECK(v.begin() != v.end());
+  CHECK(view<position>::iterator{} == view<position>::iterator{});
+}
+
+TEST_CASE("storage: a values() loop that re-reads end() stops at the captured count") {
+  auto r{registry{}};
+  nexenne::utility::discard(r.add<health>(r.create(), health{.hp = 1}));
+  auto range{r.storage<health>().values()};
+  auto steps{0};
+  for (auto it{range.begin()}; it != range.end() && steps < 8; ++it) {
+    ++steps;
+    if (steps == 1) {
+      CHECK((*it).hp == 1);
+      auto const t{r.create()};
+      nexenne::utility::discard(r.add<health>(t, health{.hp = 99}));
+      nexenne::utility::discard(r.remove<health>(t));
+    }
+  }
+  CHECK(steps == 1);
+}
+
 }  // namespace
