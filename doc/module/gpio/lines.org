@@ -76,13 +76,31 @@ values look alike, and silently swapping them is a historically common GPIO
 bug. They are =utility::identifier= strong typedefs, comparable and nothing
 else, so the mistake is a compile error.
 
-Time splits into two deliberately distinct types. =event_time= is a point on
-=event_clock= (a monotonic nanosecond clock with unspecified epoch; on Linux
-the kernel stamps events from =CLOCK_MONOTONIC=); waits, timeouts, and
-debounce periods are plain =std::chrono= durations. Subtracting two
-timestamps yields a duration, but a timestamp can never be passed where a
-timeout is expected. =event_clock= has no =now()= because timestamps come
-from the event source, never from the consumer.
+Time splits into two deliberately distinct types. =event_time= is a point in
+time; waits, timeouts, and debounce periods are plain =std::chrono=
+durations. Subtracting two timestamps yields a duration, but a timestamp can
+never be passed where a timeout is expected.
+
+Each line picks its clock at run time through =line_clock=, and one request
+can mix clocks, so =event_time= cannot be a single =std::chrono::time_point=
+type. It is a small class holding the nanoseconds and the =line_clock= that
+stamped them:
+
+| accessor             | yields                                              |
+|----------------------+-----------------------------------------------------|
+| =clock()=            | the =line_clock= that stamped the event             |
+| =time_since_epoch()= | the raw nanoseconds since that clock's epoch        |
+| =monotonic()=        | a =monotonic_event_clock::time_point=, or =nullopt= |
+| =realtime()=         | a =realtime_event_clock::time_point=, or =nullopt=  |
+
+The typed accessors are the safe door: =monotonic_event_clock= is steady and
+=realtime_event_clock= is not, so a steady computation asks for
+=monotonic()= and gets =std::nullopt= for a wall-clock stamp instead of a
+silently wrong answer. A hardware-engine stamp (=hte=) yields neither and is
+read through =time_since_epoch()=. Neither clock has a =now()=: timestamps
+come from the event source, never from the consumer. Arithmetic and
+ordering assume both operands share a clock; the formatter prints the clock
+after the nanoseconds whenever it is not monotonic, as in =1200ns realtime=.
 
 * The four value types
 
@@ -109,11 +127,12 @@ Four types, four lifetimes, one rule each:
   levels, so a caller thinking logically converts with
   =spec.to_physical(logical)= first.
 
-- =line_event= is the 24-byte, padding-free record a backend emits per edge:
-  chip, offset, raw physical level, physical edge direction, timestamp, and
-  a sequence number for drop detection. It is laid out largest-field-first
-  because events sit inline in transport rings, where every byte scales
-  with the queue depth.
+- =line_event= is the 32-byte record a backend emits per edge: chip,
+  offset, raw physical level, physical edge direction, clock-tagged
+  timestamp, and a sequence number for drop detection. It is laid out
+  largest-field-first because events sit inline in transport rings, where
+  every byte scales with the queue depth; its only padding is the tail of
+  =event_time= after the clock tag.
 
 - =line_value= is the rich observation applications consume: the logical
   level and logical edge (polarity already applied by =decode=), the name

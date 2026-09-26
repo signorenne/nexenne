@@ -63,7 +63,7 @@ public:
    * @param logical Logical level, polarity already applied.
    * @param edge Logical edge that produced the observation.
    * @param sequence Sequence number; zero means unset.
-   * @param timestamp When the observation was made, on the event clock.
+   * @param timestamp When the observation was made, tagged with its clock.
    *
    * @pre None.
    * @post Every accessor returns the corresponding argument.
@@ -96,7 +96,7 @@ public:
    * @param logical Logical level, polarity already applied.
    * @param edge Logical edge that produced the observation.
    * @param sequence Sequence number; zero means unset.
-   * @param timestamp When the observation was made, on the event clock.
+   * @param timestamp When the observation was made, tagged with its clock.
    *
    * @pre None.
    * @post \c name(), \c chip(), and \c offset() mirror \p spec.
@@ -183,7 +183,7 @@ public:
   }
 
   /**
-   * @brief When the observation was made, on the event clock.
+   * @brief When the observation was made, tagged with its clock.
    *
    * @return The stored timestamp.
    *

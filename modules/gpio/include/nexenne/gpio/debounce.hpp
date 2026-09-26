@@ -25,6 +25,7 @@
  * passed that point.
  */
 
+#include <cassert>
 #include <chrono>
 #include <optional>
 
@@ -47,6 +48,11 @@ namespace nexenne::gpio {
  * timeout, or a press is reported only when the release arrives. A zero
  * period passes everything through.
  *
+ * Timestamps must come from the monotonic clock, the default \c line_clock:
+ * a wall clock that steps back would settle a bounce early or hold a level
+ * forever. A line requested with \c line_clock::realtime is not debounced
+ * here.
+ *
  * @note Subscribe both edges: the settle test follows the level, and a
  *       rising-only or falling-only stream never changes it.
  */
@@ -62,6 +68,23 @@ private:
   std::optional<line_event> m_pending{};
 
   /**
+   * @brief The steady offset of a timestamp, which the settle test needs.
+   *
+   * @param t Timestamp of a fed event or of \c expire.
+   *
+   * @return The offset from the monotonic epoch.
+   *
+   * @pre \p t was stamped on the monotonic clock.
+   * @post None.
+   */
+  [[nodiscard]] static constexpr auto steady(event_time const t) noexcept
+    -> std::chrono::nanoseconds {
+    auto const point{t.monotonic()};
+    assert(point.has_value() && "event_debounce needs monotonic timestamps");
+    return point.has_value() ? point->time_since_epoch() : std::chrono::nanoseconds{};
+  }
+
+  /**
    * @brief Runs one event through the engine, tracking the pending level.
    *
    * Keeps \c m_pending equal to the engine's candidate, which the engine
@@ -71,13 +94,13 @@ private:
    *
    * @return The settled event as \c feed describes it, or \c std::nullopt.
    *
-   * @pre Event timestamps are non-decreasing across calls.
+   * @pre Event timestamps are monotonic and non-decreasing across calls.
    * @post \c m_pending holds the event that began the pending level, if any.
    */
   [[nodiscard]] constexpr auto feed_raw(line_event const& event) noexcept
     -> std::optional<line_event> {
     bool const had_stable{m_filter.has_stable()};
-    auto const settled{m_filter.update(event.timestamp.time_since_epoch(), event.physical)};
+    auto const settled{m_filter.update(steady(event.timestamp), event.physical)};
     if (!settled.has_value()) {
       if (event.physical == m_filter.stable_value()) {
         m_pending.reset();
@@ -199,13 +222,13 @@ public:
    * level, with \c edge REPLACED by the direction of the settled transition;
    * its sequence and timestamp are that raw event's.
    *
-   * @param now Current time on the clock the line stamps its events with (on
-   *        Linux, \c CLOCK_MONOTONIC unless the line asked for another).
+   * @param now Current time on the monotonic clock the line stamps its events
+   *        with (on Linux, \c CLOCK_MONOTONIC).
    *
    * @return The settled event, or \c std::nullopt when no level is pending or
    *         \p now is before \c deadline().
    *
-   * @pre \p now is not earlier than the last fed event's timestamp.
+   * @pre \p now is monotonic and not earlier than the last fed event's timestamp.
    * @post On a value result the settled level is the new stable value and
    *       \c deadline() is empty.
    *
@@ -219,7 +242,7 @@ public:
     auto out{*m_pending};
     // A repeat of the candidate level after the period is what the engine
     // settles on; by now it has held that long.
-    auto const settled{m_filter.update(now.time_since_epoch(), out.physical)};
+    auto const settled{m_filter.update(steady(now), out.physical)};
     m_pending.reset();
     if (!settled.has_value()) {
       return std::nullopt;  // unreachable while m_pending mirrors the candidate
@@ -246,8 +269,8 @@ public:
    * @return The settled event, or \c std::nullopt while the line is still
    *         bouncing or unchanged.
    *
-   * @pre Event timestamps are non-decreasing across calls, including the
-   *      times passed to \c expire.
+   * @pre Event timestamps are monotonic and non-decreasing across calls,
+   *      including the times passed to \c expire.
    * @post On a value result the settled level is the new stable value.
    *
    * @complexity \c O(1).

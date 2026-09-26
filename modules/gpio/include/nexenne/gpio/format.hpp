@@ -231,6 +231,41 @@ inline auto operator<<(std::ostream& os, line_clock const clock) -> std::ostream
 }
 
 /**
+ * @brief Debug string for an \c event_time.
+ *
+ * Example: \c "1200ns" on the monotonic clock, \c "1200ns realtime" on any
+ * other.
+ *
+ * @param t Timestamp to print.
+ *
+ * @return The offset in nanoseconds, followed by the clock when not monotonic.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(event_time const t) -> std::string {
+  if (t.clock() == line_clock::monotonic) {
+    return std::format("{}ns", t.time_since_epoch().count());
+  }
+  return std::format("{}ns {}", t.time_since_epoch().count(), to_string(t.clock()));
+}
+
+/**
+ * @brief Streams an \c event_time via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param t Timestamp to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted timestamp has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, event_time const t) -> std::ostream& {
+  return os << to_string(t);
+}
+
+/**
  * @brief Name of an \c edge_kind.
  *
  * @param edge Edge direction to name.
@@ -400,13 +435,13 @@ inline auto operator<<(std::ostream& os, line_config const& config) -> std::ostr
  */
 [[nodiscard]] inline auto to_string(line_event const& event) -> std::string {
   return std::format(
-    "line_event(chip {}, line {}, {}, physical={}, seq={}, t={}ns)",
+    "line_event(chip {}, line {}, {}, physical={}, seq={}, t={})",
     event.chip.get(),
     event.offset.get(),
     to_string(event.edge),
     event.physical ? "high" : "low",
     event.sequence.get(),
-    event.timestamp.time_since_epoch().count()
+    to_string(event.timestamp)
   );
 }
 
@@ -440,14 +475,14 @@ inline auto operator<<(std::ostream& os, line_event const& event) -> std::ostrea
  */
 [[nodiscard]] inline auto to_string(line_value const& value) -> std::string {
   return std::format(
-    "line_value({}, chip {}, line {}, logical={}, {}, seq={}, t={}ns)",
+    "line_value({}, chip {}, line {}, logical={}, {}, seq={}, t={})",
     value.name().empty() ? std::string_view{"unnamed"} : value.name(),
     value.chip().get(),
     value.offset().get(),
     value.logical(),
     to_string(value.edge()),
     value.sequence().get(),
-    value.timestamp().time_since_epoch().count()
+    to_string(value.timestamp())
   );
 }
 
@@ -602,9 +637,9 @@ inline auto operator<<(std::ostream& os, line_change_kind const kind) -> std::os
  */
 [[nodiscard]] inline auto to_string(line_change const& change) -> std::string {
   return std::format(
-    "line_change({}, t={}ns, {})",
+    "line_change({}, t={}, {})",
     to_string(change.kind),
-    change.timestamp.time_since_epoch().count(),
+    to_string(change.timestamp),
     to_string(change.info)
   );
 }
@@ -808,6 +843,31 @@ struct std::formatter<nexenne::gpio::line_clock> : std::formatter<std::string_vi
   template <typename FormatContext>
   auto format(nexenne::gpio::line_clock const clock, FormatContext& ctx) const {
     return std::formatter<std::string_view>::format(nexenne::gpio::to_string(clock), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c event_time, printing its \c to_string form.
+ *
+ * Inherits the string formatter, so a spec applies to the whole timestamp.
+ */
+template <>
+struct std::formatter<nexenne::gpio::event_time> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the timestamp through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param t Timestamp to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The timestamp has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::event_time const t, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(t), ctx);
   }
 };
 

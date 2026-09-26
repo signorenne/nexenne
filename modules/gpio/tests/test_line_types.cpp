@@ -40,10 +40,45 @@ TEST_CASE("event_time: timestamps subtract to a duration and stay distinct from 
   CHECK(after - before == std::chrono::nanoseconds{3'500});
   CHECK(before < after);
 
-  // A point in time is not a span of time.
+  CHECK(before + std::chrono::nanoseconds{3'500} == after);
+
   static_assert(!std::is_convertible_v<ng::event_time, std::chrono::nanoseconds>);
-  // Realtime stamps can step back, so the clock does not claim to be steady.
-  static_assert(!ng::event_clock::is_steady);
+  static_assert(!std::is_convertible_v<std::chrono::nanoseconds, ng::event_time>);
+}
+
+TEST_CASE("event_time: the clock tag decides which typed time point it yields") {
+  ng::event_time const steady{std::chrono::nanoseconds{1'000}};
+  CHECK(steady.clock() == ng::line_clock::monotonic);
+  REQUIRE(steady.monotonic().has_value());
+  CHECK(steady.monotonic()->time_since_epoch() == std::chrono::nanoseconds{1'000});
+  CHECK_FALSE(steady.realtime().has_value());
+
+  ng::event_time const wall{std::chrono::nanoseconds{2'000}, ng::line_clock::realtime};
+  REQUIRE(wall.realtime().has_value());
+  CHECK(wall.realtime()->time_since_epoch() == std::chrono::nanoseconds{2'000});
+  CHECK_FALSE(wall.monotonic().has_value());
+
+  ng::event_time const engine{std::chrono::nanoseconds{3'000}, ng::line_clock::hte};
+  CHECK_FALSE(engine.monotonic().has_value());
+  CHECK_FALSE(engine.realtime().has_value());
+
+  CHECK(
+    ng::event_time{ng::monotonic_event_clock::time_point{std::chrono::nanoseconds{5}}}
+    == ng::event_time{std::chrono::nanoseconds{5}}
+  );
+  CHECK(
+    ng::event_time{ng::realtime_event_clock::time_point{std::chrono::nanoseconds{5}}}
+    == ng::event_time{std::chrono::nanoseconds{5}, ng::line_clock::realtime}
+  );
+  CHECK(steady != ng::event_time{std::chrono::nanoseconds{1'000}, ng::line_clock::realtime});
+  CHECK((wall + std::chrono::nanoseconds{1}).clock() == ng::line_clock::realtime);
+
+  static_assert(ng::monotonic_event_clock::is_steady);
+  static_assert(!ng::realtime_event_clock::is_steady);
+  static_assert(
+    !std::
+      is_convertible_v<ng::monotonic_event_clock::time_point, ng::realtime_event_clock::time_point>
+  );
 }
 
 TEST_CASE("apply_polarity: level and edge invert together under active_low") {

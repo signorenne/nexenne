@@ -14,13 +14,12 @@ namespace {
 
 namespace ng = nexenne::gpio;
 
-TEST_CASE("line_event: trivially copyable and padding-free") {
+TEST_CASE("line_event: trivially copyable and 32 bytes") {
   static_assert(std::is_trivially_copyable_v<ng::line_event>);
   static_assert(std::is_same_v<ng::line_event::value_type, bool>);
 
-  // Largest-field-first layout packs to 24 bytes; events sit inline in
-  // transport rings, so the size is part of the contract.
-  static_assert(sizeof(ng::line_event) == 24);
+  static_assert(sizeof(ng::event_time) == 16);
+  static_assert(sizeof(ng::line_event) == 32);
 }
 
 TEST_CASE("line_event: aggregate fields round-trip") {

@@ -11,11 +11,11 @@
  * later, in one place, when \c decode.hpp turns the event into a logical
  * \c line_value.hpp against the line's spec.
  *
- * The struct is trivially copyable and laid out largest-field-first so it
- * packs into 24 bytes with no internal padding: events are stored inline
- * many times over in transport rings, so every byte saved scales with the
- * queue depth. It is safe to pass by value across threads and through
- * lock-free queues.
+ * The struct is trivially copyable and laid out largest-field-first, 32
+ * bytes on a 64-bit target: events are stored inline many times over in
+ * transport rings, so every byte scales with the queue depth. Its only
+ * padding is the tail of \c event_time after the clock tag. It is safe to
+ * pass by value across threads and through lock-free queues.
  */
 
 #include <nexenne/gpio/line_types.hpp>
@@ -29,7 +29,7 @@ struct line_event {
   using value_type = bool;
 
   event_sequence sequence{0};       ///< Monotonic sequence number; zero means unset.
-  event_time timestamp{};           ///< When the edge fired, on the event clock.
+  event_time timestamp{};           ///< When the edge fired, tagged with its clock.
   line_offset offset{0};            ///< Zero-based line offset within \c chip.
   chip_id chip{0};                  ///< Identifier of the originating chip.
   bool physical{false};             ///< Raw physical level after the edge.

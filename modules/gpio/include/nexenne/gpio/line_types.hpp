@@ -14,13 +14,16 @@
  * turns that mistake into a compile error.
  *
  * Time is split into two deliberately distinct types: \c event_time is a
- * point on the event clock (when an edge fired), while waits and periods are
+ * tagged point on the clock that stamped an edge, while waits and periods are
  * plain \c std::chrono durations. Keeping the point and the span apart means
  * a timestamp can never be passed where a timeout is expected.
  */
 
+#include <cassert>
 #include <chrono>
+#include <compare>
 #include <cstdint>
+#include <optional>
 
 #include <nexenne/utility/strong_typedef.hpp>
 
@@ -213,32 +216,244 @@ using line_offset = utility::identifier<struct line_offset_tag, std::uint32_t>;
 using event_sequence = utility::identifier<struct event_sequence_tag, std::uint64_t>;
 
 /**
- * @brief The clock edge-event timestamps are expressed on.
+ * @brief The steady clock a line stamps events on by default.
  *
- * A nanosecond clock with an unspecified epoch: on Linux the kernel stamps
- * events with \c CLOCK_MONOTONIC by default (an embedded backend uses its
- * system tick), and a line requested with \c line_clock::realtime carries
- * the wall clock's epoch instead. The clock exists only to give timestamps
- * a distinct \c std::chrono::time_point type; it has no \c now(), because
- * timestamps come from the event source, never from the consumer.
+ * A nanosecond clock with an unspecified epoch that never steps: on Linux the
+ * kernel's \c CLOCK_MONOTONIC, on an embedded backend its system tick. It has
+ * no \c now(), because timestamps come from the event source, never from the
+ * consumer.
  */
-struct event_clock {
-  using rep = std::int64_t;                                 ///< Tick representation.
-  using period = std::nano;                                 ///< Tick period.
-  using duration = std::chrono::nanoseconds;                ///< Duration type.
-  using time_point = std::chrono::time_point<event_clock>;  ///< Timestamp type.
+struct monotonic_event_clock {
+  using rep = std::int64_t;                                           ///< Tick representation.
+  using period = std::nano;                                           ///< Tick period.
+  using duration = std::chrono::nanoseconds;                          ///< Duration type.
+  using time_point = std::chrono::time_point<monotonic_event_clock>;  ///< Timestamp type.
 
-  /// @brief Not steady: a line stamped with the realtime clock can step back.
+  /// @brief Steady: a monotonic stamp never goes backwards.
+  static constexpr bool is_steady{true};
+};
+
+/**
+ * @brief The wall clock a line requested with \c line_clock::realtime stamps on.
+ *
+ * Nanoseconds since the Unix epoch, so stamps line up with log time and with
+ * other hosts; not steady, since the wall clock steps under NTP. It has no
+ * \c now() for the same reason as \c monotonic_event_clock.
+ */
+struct realtime_event_clock {
+  using rep = std::int64_t;                                          ///< Tick representation.
+  using period = std::nano;                                          ///< Tick period.
+  using duration = std::chrono::nanoseconds;                         ///< Duration type.
+  using time_point = std::chrono::time_point<realtime_event_clock>;  ///< Timestamp type.
+
+  /// @brief Not steady: the wall clock can step back.
   static constexpr bool is_steady{false};
 };
 
 /**
- * @brief A point in time on \c event_clock: when an edge event fired.
+ * @brief When an edge event fired, tagged with the clock that stamped it.
  *
- * Subtracting two timestamps yields a \c std::chrono::nanoseconds span, and a
- * timestamp cannot be passed where a duration (a timeout or a debounce
- * period) is expected.
+ * Each line picks its clock at run time through \c line_clock, and one
+ * request can mix clocks, so a timestamp carries its clock rather than being
+ * a single \c time_point type. \c monotonic() and \c realtime() hand it out
+ * as the matching typed \c time_point, or \c std::nullopt for another clock.
+ * Arithmetic and ordering read the raw nanoseconds and assume both operands
+ * share a clock. A timestamp is not a duration, so it cannot be passed where a
+ * timeout or a debounce period is expected.
  */
-using event_time = event_clock::time_point;
+class event_time {
+public:
+  using value_type = std::chrono::nanoseconds;
+
+private:
+  line_clock m_clock{line_clock::monotonic};
+  std::chrono::nanoseconds m_since_epoch{};
+
+public:
+  /**
+   * @brief Constructs the monotonic epoch.
+   *
+   * @pre None.
+   * @post \c clock() is \c line_clock::monotonic and \c time_since_epoch() is zero.
+   */
+  constexpr event_time() noexcept = default;
+
+  /**
+   * @brief Constructs a timestamp from its offset and its clock.
+   *
+   * @param since_epoch Offset from the clock's epoch.
+   * @param clock Clock that stamped the event; monotonic by default.
+   *
+   * @pre None.
+   * @post \c time_since_epoch() equals \p since_epoch and \c clock() equals \p clock.
+   */
+  constexpr explicit event_time(
+    std::chrono::nanoseconds const since_epoch, line_clock const clock = line_clock::monotonic
+  ) noexcept
+      : m_clock{clock}, m_since_epoch{since_epoch} {}
+
+  /**
+   * @brief Constructs a monotonic timestamp from its typed time point.
+   *
+   * @param t Point on the monotonic clock.
+   *
+   * @pre None.
+   * @post \c monotonic() equals \p t.
+   */
+  constexpr explicit event_time(monotonic_event_clock::time_point const t) noexcept
+      : m_clock{line_clock::monotonic}, m_since_epoch{t.time_since_epoch()} {}
+
+  /**
+   * @brief Constructs a realtime timestamp from its typed time point.
+   *
+   * @param t Point on the wall clock.
+   *
+   * @pre None.
+   * @post \c realtime() equals \p t.
+   */
+  constexpr explicit event_time(realtime_event_clock::time_point const t) noexcept
+      : m_clock{line_clock::realtime}, m_since_epoch{t.time_since_epoch()} {}
+
+  /**
+   * @brief The clock that stamped the event.
+   *
+   * @return The clock.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto clock() const noexcept -> line_clock {
+    return m_clock;
+  }
+
+  /**
+   * @brief The clock that stamped the event, for modification.
+   *
+   * @return Mutable reference to the clock.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto clock() noexcept -> line_clock& {
+    return m_clock;
+  }
+
+  /**
+   * @brief The offset from the clock's epoch.
+   *
+   * @return The offset in nanoseconds.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto time_since_epoch() const noexcept -> std::chrono::nanoseconds {
+    return m_since_epoch;
+  }
+
+  /**
+   * @brief The offset from the clock's epoch, for modification.
+   *
+   * @return Mutable reference to the offset.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto time_since_epoch() noexcept -> std::chrono::nanoseconds& {
+    return m_since_epoch;
+  }
+
+  /**
+   * @brief The timestamp as a steady time point, when the monotonic clock stamped it.
+   *
+   * @return The monotonic time point, or \c std::nullopt for another clock.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto monotonic() const noexcept
+    -> std::optional<monotonic_event_clock::time_point> {
+    if (m_clock != line_clock::monotonic) {
+      return std::nullopt;
+    }
+    return monotonic_event_clock::time_point{m_since_epoch};
+  }
+
+  /**
+   * @brief The timestamp as a wall-clock time point, when the realtime clock stamped it.
+   *
+   * @return The realtime time point, or \c std::nullopt for another clock.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto realtime() const noexcept
+    -> std::optional<realtime_event_clock::time_point> {
+    if (m_clock != line_clock::realtime) {
+      return std::nullopt;
+    }
+    return realtime_event_clock::time_point{m_since_epoch};
+  }
+
+  /**
+   * @brief The timestamp \p d later, on the same clock.
+   *
+   * @param t Timestamp.
+   * @param d Offset to add.
+   *
+   * @return \p t moved by \p d.
+   *
+   * @pre None.
+   * @post The result has the clock of \p t.
+   */
+  [[nodiscard]] friend constexpr auto
+  operator+(event_time const t, std::chrono::nanoseconds const d) noexcept -> event_time {
+    return event_time{t.m_since_epoch + d, t.m_clock};
+  }
+
+  /**
+   * @brief The span between two timestamps.
+   *
+   * @param a Later timestamp.
+   * @param b Earlier timestamp.
+   *
+   * @return \c a - \c b in nanoseconds.
+   *
+   * @pre \p a and \p b share a clock.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto operator-(event_time const a, event_time const b) noexcept
+    -> std::chrono::nanoseconds {
+    assert(a.m_clock == b.m_clock && "event_time difference needs one clock");
+    return a.m_since_epoch - b.m_since_epoch;
+  }
+
+  /**
+   * @brief Equality of clock and offset.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return \c true when both the clock and the offset match.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto
+  operator==(event_time const& lhs, event_time const& rhs) noexcept -> bool = default;
+
+  /**
+   * @brief Orders by clock, then by offset, so timestamps on one clock sort by time.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return The three-way ordering.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto
+  operator<=>(event_time const& lhs, event_time const& rhs) noexcept = default;
+};
 
 }  // namespace nexenne::gpio

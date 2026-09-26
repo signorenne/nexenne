@@ -212,6 +212,7 @@ private:
   // 32-bit counter with each request.
   std::uint64_t m_last_sequence{0};
   container::static_vector<line_offset, max_lines> m_offsets{};
+  container::static_vector<line_clock, max_lines> m_clocks{};
   // Events decoded by the last read and not yet handed out, oldest first from
   // m_pending_next, so a burst costs one read instead of one per event.
   container::static_vector<line_event, event_batch> m_pending{};

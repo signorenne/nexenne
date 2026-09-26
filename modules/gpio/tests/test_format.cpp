@@ -56,6 +56,15 @@ TEST_CASE("format: a config renders its four knobs") {
   CHECK(std::format("{}", ng::line_clock::hte) == "hte");
 }
 
+TEST_CASE("format: a timestamp names its clock unless it is monotonic") {
+  CHECK(std::format("{}", ng::event_time{1200ns}) == "1200ns");
+  CHECK(std::format("{}", ng::event_time{1200ns, ng::line_clock::realtime}) == "1200ns realtime");
+  CHECK(ng::to_string(ng::event_time{5ns, ng::line_clock::hte}) == "5ns hte");
+  std::ostringstream os{};
+  os << ng::event_time{7ns};
+  CHECK(os.str() == "7ns");
+}
+
 TEST_CASE("format: events and observations render identity and state") {
   ng::line_event event{};
   event.chip = ng::chip_id{0};

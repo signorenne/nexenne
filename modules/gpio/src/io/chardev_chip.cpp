@@ -261,6 +261,7 @@ auto chardev_chip::close() noexcept -> void {
   m_request.reset();
   m_last_sequence = 0;
   m_offsets.clear();
+  m_clocks.clear();
   m_pending.clear();
   m_pending_next = 0;
 }
@@ -315,8 +316,9 @@ auto chardev_chip::open(
     return std::unexpected{detail::errno_to_gpio_error(errno)};
   }
   m_request.reset(request.fd);
-  for (auto const& spec : specs) {
-    utility::ignore(m_offsets.push_back(spec.offset()));
+  for (std::size_t i{0}; i < specs.size(); ++i) {
+    utility::ignore(m_offsets.push_back(specs[i].offset()));
+    utility::ignore(m_clocks.push_back(configs[i].clock()));
   }
   return {};
 }
@@ -342,6 +344,9 @@ auto chardev_chip::reconfigure(
   if (::ioctl(m_request.get(), GPIO_V2_LINE_SET_CONFIG_IOCTL, &config)
       < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
     return std::unexpected{detail::errno_to_gpio_error(errno)};
+  }
+  for (std::size_t i{0}; i < configs.size(); ++i) {
+    m_clocks[i] = configs[i].clock();
   }
   return {};
 }
@@ -487,8 +492,11 @@ auto chardev_chip::wait_event(std::chrono::nanoseconds const timeout)
     // Widened in arrival order, so the batch keeps the sequence monotonic.
     m_last_sequence = detail::widen_sequence(m_last_sequence, record.seqno);
     event.sequence = event_sequence{m_last_sequence};
-    event.timestamp =
-      event_time{std::chrono::nanoseconds{static_cast<std::int64_t>(record.timestamp_ns)}};
+    auto const index{index_of(event.offset)};
+    event.timestamp = event_time{
+      std::chrono::nanoseconds{static_cast<std::int64_t>(record.timestamp_ns)},
+      index.has_value() ? m_clocks[*index] : line_clock::monotonic
+    };
     event.edge =
       record.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? edge_kind::rising : edge_kind::falling;
     event.physical = event.edge == edge_kind::rising;
