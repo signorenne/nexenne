@@ -25,11 +25,13 @@ The uAPI in five facts, which explain every constraint the backend has:
   descriptor can be closed afterwards. Ownership is exclusive: a second
   consumer asking for a held line gets =EBUSY= (surfaced as
   =gpio_error::busy=).
-- Per-line configuration rides in a base flag word plus at most TEN
-  attribute overrides, each covering a mask of lines. The backend groups
-  identical configurations automatically; a request therefore supports at
-  most ten distinct line behaviours beyond the most common one, and a
-  request needing more fails with =invalid_argument= before any ioctl.
+- Per-line configuration rides in a base flag word (the first line's) plus
+  at most TEN attribute overrides, each covering a mask of lines. The backend
+  groups identical configurations automatically. The ten slots are shared:
+  each distinct line behaviour beyond the base takes one, the initial output
+  levels take one when any line is an output, and each distinct debounce
+  period takes one. A request needing more fails with =invalid_argument=
+  before any ioctl.
 - Values move as 64-bit bitmaps through =GPIO_V2_LINE_GET_VALUES_IOCTL= and
   =SET_VALUES=, one bit per requested line, which is what makes
   =read_lines= / =write_lines= genuinely atomic snapshots.

@@ -2,8 +2,9 @@
 #+OPTIONS: toc:nil num:nil ^:nil
 #+STARTUP: showall
 
-What this covers: =backend.hpp= (the =gpio_backend=, =bulk_gpio_backend=, and
-=edge_source= concepts) and =io/mock_chip.hpp=, plus how to write a backend
+What this covers: =backend.hpp= (the =gpio_backend=, =bulk_gpio_backend=,
+=reconfigurable_gpio_backend=, and =edge_source= concepts) and
+=io/mock_chip.hpp=, plus how to write a backend
 for hardware this repository has never seen.
 
 * The problem
@@ -60,7 +61,7 @@ timeout. The module never owns the loop.
 
 * The mock
 
-=mock_chip<Capacity>= satisfies all three tiers with fixed-capacity, in-memory
+=mock_chip<Capacity>= satisfies all four tiers with fixed-capacity, in-memory
 state, and adds the test-rig surface the concepts do not know about:
 =set_physical= drives what an input reads, =physical= observes what an output
 was driven to (which =read= on a real chip cannot always do), and =inject=
@@ -100,5 +101,5 @@ character device, the concept buys generality you may not need; using
 * Further reading
 
 - DESIGN.org, "API shape", for why the boundary is stated as a concept.
-- The =can_bus= concept in =nexenne::can= (on its feature branch), the same
-  pattern for a different transport.
+- The =can_bus= concept in =nexenne::can=, the same pattern for a different
+  transport.

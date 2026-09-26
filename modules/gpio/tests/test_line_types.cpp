@@ -42,7 +42,8 @@ TEST_CASE("event_time: timestamps subtract to a duration and stay distinct from 
 
   // A point in time is not a span of time.
   static_assert(!std::is_convertible_v<ng::event_time, std::chrono::nanoseconds>);
-  static_assert(ng::event_clock::is_steady);
+  // Realtime stamps can step back, so the clock does not claim to be steady.
+  static_assert(!ng::event_clock::is_steady);
 }
 
 TEST_CASE("apply_polarity: level and edge invert together under active_low") {

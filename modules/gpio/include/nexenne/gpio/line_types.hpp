@@ -228,8 +228,8 @@ struct event_clock {
   using duration = std::chrono::nanoseconds;                ///< Duration type.
   using time_point = std::chrono::time_point<event_clock>;  ///< Timestamp type.
 
-  /// @brief The clock never goes backwards.
-  static constexpr bool is_steady{true};
+  /// @brief Not steady: a line stamped with the realtime clock can step back.
+  static constexpr bool is_steady{false};
 };
 
 /**

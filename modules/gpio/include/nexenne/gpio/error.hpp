@@ -11,9 +11,11 @@
  *   the timeout, no line with a given name in a request set) reports the miss
  *   inside the success channel (\c std::optional inside \c result, or a plain
  *   \c std::optional), never as an error: a clean miss is an answer.
- * - Programmer precondition violations (an offset that was never requested
- *   handed to a low-level helper) are documented with a precondition tag and
- *   checked by debug asserts; they are not reported as errors.
+ * - Programmer precondition violations that a cheap check can see (an event
+ *   decoded against another line's spec, a negative debounce period) are
+ *   documented with a precondition tag and checked by debug asserts; they are
+ *   not reported as errors. An offset outside the request set is not one of
+ *   them: the backends report it as an error.
  *
  * Backends map their native failure codes (errno on Linux, a HAL status on an
  * embedded target) onto these neutral categories, so portable code can branch

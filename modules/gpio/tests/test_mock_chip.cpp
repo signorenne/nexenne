@@ -33,9 +33,10 @@ std::array const configs{
   ng::line_config{ng::edge_detection::none, 0ns, true},
 };
 
-TEST_CASE("mock_chip: models all three backend tiers") {
+TEST_CASE("mock_chip: models all four backend tiers") {
   static_assert(ng::gpio_backend<mock>);
   static_assert(ng::bulk_gpio_backend<mock>);
+  static_assert(ng::reconfigurable_gpio_backend<mock>);
   static_assert(ng::edge_source<mock>);
   CHECK(true);
 }

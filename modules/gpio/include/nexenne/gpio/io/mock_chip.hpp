@@ -6,7 +6,8 @@
  *
  * The mock models a chip the way the concepts see one: a request set of
  * lines, a physical level per line, and a FIFO of pending edge events. It
- * satisfies \c gpio_backend, \c bulk_gpio_backend, and \c edge_source, so
+ * satisfies \c gpio_backend, \c bulk_gpio_backend,
+ * \c reconfigurable_gpio_backend, and \c edge_source, so
  * code written against the concepts runs unchanged on it, and it adds a
  * test-rig surface the concepts do not know about: \c set_physical drives
  * the level an input will read, \c physical observes what an output was
