@@ -16,6 +16,7 @@
  * the userspace \c debounce.hpp path is the fallback that works everywhere.
  */
 
+#include <cassert>
 #include <chrono>
 
 #include <nexenne/gpio/line_types.hpp>
@@ -72,7 +73,9 @@ public:
       : m_edges{edges}
       , m_debounce_period{debounce_period}
       , m_clock{clock}
-      , m_initial_value{initial_value} {}
+      , m_initial_value{initial_value} {
+    assert(debounce_period.count() >= 0 && "line_config: debounce_period must be non-negative");
+  }
 
   /**
    * @brief The requested edge-event subscription.

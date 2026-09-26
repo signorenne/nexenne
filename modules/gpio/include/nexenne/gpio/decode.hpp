@@ -14,6 +14,8 @@
  * auditable: grep for \c decode and you have every crossing.
  */
 
+#include <cassert>
+
 #include <nexenne/gpio/line_event.hpp>
 #include <nexenne/gpio/line_spec.hpp>
 #include <nexenne/gpio/line_types.hpp>
@@ -43,6 +45,10 @@ namespace nexenne::gpio {
  */
 [[nodiscard]] constexpr auto decode(line_spec const& spec, line_event const& event) noexcept
   -> line_value {
+  assert(
+    event.chip == spec.chip() && event.offset == spec.offset()
+    && "decode: the event belongs to another line"
+  );
   return line_value{
     spec,
     spec.to_logical(event.physical),
