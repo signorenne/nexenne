@@ -31,7 +31,7 @@ namespace nexenne::gpio {
 template <gpio_backend Backend>
 class line {
 public:
-  using value_type = bool;
+  using value_type = bool;  ///< Logical line level type read and written.
   /// @brief The backend type this handle was instantiated with.
   using backend_type = Backend;
 

@@ -48,7 +48,7 @@ enum class line_change_kind : std::uint8_t {
  * @brief One ownership or configuration change on a watched line.
  */
 struct line_change {
-  using value_type = line_info;
+  using value_type = line_info;  ///< Line state type the change carries.
 
   line_info info{};                                    ///< The line's state after the change.
   event_time timestamp{};                              ///< When the change occurred.
@@ -72,7 +72,7 @@ namespace nexenne::gpio {
  */
 class chardev_watcher {
 public:
-  using value_type = line_change;
+  using value_type = line_change;  ///< Change record type the watcher reports.
   /// @brief The pollable chip file descriptor type.
   using native_handle_type = int;
 

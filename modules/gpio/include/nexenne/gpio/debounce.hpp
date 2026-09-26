@@ -58,14 +58,12 @@ namespace nexenne::gpio {
  */
 class event_debounce {
 public:
-  using value_type = bool;
+  using value_type = bool;  ///< Line level type the debouncer settles.
 
 private:
-  // The engine settles in the timestamp's native nanoseconds, so the
-  // comparison never truncates whatever unit the caller thinks in.
+  /// @brief Settle engine, in native nanoseconds so the comparison never truncates.
   filter::timed_debounce<std::chrono::nanoseconds> m_filter{};
-  // The raw event that began the level still waiting to settle, if any.
-  std::optional<line_event> m_pending{};
+  std::optional<line_event> m_pending{};  ///< Raw event that began the unsettled level.
 
   /**
    * @brief The steady offset of a timestamp, which the settle test needs.

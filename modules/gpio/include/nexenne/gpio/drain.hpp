@@ -25,7 +25,7 @@ namespace nexenne::gpio {
  * @brief What one \c drain_events call moved and lost.
  */
 struct drain_report {
-  using value_type = std::uint64_t;
+  using value_type = std::uint64_t;  ///< Counter type of the delivered and rejected totals.
 
   std::uint64_t delivered{0};  ///< Events the sink accepted.
   std::uint64_t rejected{0};   ///< Events the sink refused (full transport).

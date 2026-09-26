@@ -183,7 +183,7 @@ widen_sequence(std::uint64_t const previous, std::uint32_t const seqno) noexcept
  */
 class chardev_chip {
 public:
-  using value_type = bool;
+  using value_type = bool;  ///< Physical line level type read and written.
   /// @brief The pollable request file descriptor type.
   using native_handle_type = int;
 
@@ -199,24 +199,36 @@ private:
   using fd_handle = utility::unique_resource<int, detail::fd_closer>;
 
   chip_id m_chip{0};
-  // Owned, not borrowed. A string_view member dangles whenever the label is
-  // built at the call site, and the ioctl reads it much later, at open().
-  // Sized like the kernel's consumer field, which src/io/chardev_chip.cpp
-  // static_asserts against GPIO_MAX_NAME_SIZE. The requested length is kept
-  // whole so an over-long label is still refused rather than truncated.
+  /**
+   * @brief Owned copy of the consumer label, sized like the kernel's field.
+   *
+   * Owned, not borrowed: a \c string_view member dangles whenever the label
+   * is built at the call site, and the ioctl reads it much later, at \c open.
+   * src/io/chardev_chip.cpp static_asserts the size against
+   * \c GPIO_MAX_NAME_SIZE.
+   */
   std::array<char, 32> m_consumer{};
+  /**
+   * @brief Requested label length, kept whole even when the label is cut.
+   *
+   * Keeping it whole lets \c open refuse an over-long label rather than
+   * truncate it.
+   */
   std::size_t m_consumer_size{0};
   std::uint32_t m_event_buffer_size{0};
   fd_handle m_request{};
-  // Widened sequence of the request's last event; the kernel restarts its
-  // 32-bit counter with each request.
+  /// @brief Widened sequence of the last event; the kernel's 32-bit counter restarts per request.
   std::uint64_t m_last_sequence{0};
   container::static_vector<line_offset, max_lines> m_offsets{};
   container::static_vector<line_clock, max_lines> m_clocks{};
-  // Events decoded by the last read and not yet handed out, oldest first from
-  // m_pending_next, so a burst costs one read instead of one per event.
+  /**
+   * @brief Events decoded by the last read and not yet handed out.
+   *
+   * Handed out oldest first from \c m_pending_next, so a burst costs one read
+   * instead of one per event.
+   */
   container::static_vector<line_event, event_batch> m_pending{};
-  std::size_t m_pending_next{0};
+  std::size_t m_pending_next{0};  ///< Index of the next pending event to hand out.
 
   /**
    * @brief Position of \p offset in the open request.

@@ -39,15 +39,19 @@ template <std::size_t N>
   requires(N >= 2)
 class queue_sink {
 public:
-  using value_type = line_event;
+  using value_type = line_event;  ///< Event type the ring carries.
 
   /// @brief Ring slot count; the effective capacity is one less.
   static constexpr std::size_t slot_count{N};
 
 private:
   container::spsc_queue<line_event, N> m_queue{};
-  // Written by the producer and read from either side, so atomic; the ring's
-  // own index width, which stays lock-free on 32-bit targets.
+  /**
+   * @brief Count of events the full ring refused.
+   *
+   * Written by the producer and read from either side, so atomic; the ring's
+   * own index width, which stays lock-free on 32-bit targets.
+   */
   std::atomic<std::size_t> m_dropped{0};
 
 public:

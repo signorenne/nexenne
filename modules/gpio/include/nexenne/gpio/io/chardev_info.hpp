@@ -37,7 +37,7 @@ namespace nexenne::gpio {
  */
 class chip_info {
 public:
-  using value_type = std::string_view;
+  using value_type = std::string_view;  ///< Type the name and label accessors return.
 
 private:
   std::array<char, 32> m_name{};
@@ -133,7 +133,7 @@ public:
  */
 class line_info {
 public:
-  using value_type = std::string_view;
+  using value_type = std::string_view;  ///< Type the name and consumer accessors return.
 
 private:
   std::array<char, 32> m_name{};

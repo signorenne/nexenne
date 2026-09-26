@@ -3,12 +3,29 @@
  * @brief quickstart: a guided tour of nexenne::gpio, the one-file cookbook.
  *
  * Read this first. It walks the whole module hardware-free over the mock
- * backend: describe lines with specs, open a chip, take the startup
- * baseline, read and write in the logical domain, mint line handles, run
- * the full edge path (pump into a ring, drop-track, debounce, decode), and
- * retune the open request in place. Swap \c mock_chip for \c chardev_chip
- * and the same code runs on real Linux hardware; the focused examples
- * drill into that.
+ * backend. Swap \c mock_chip for \c chardev_chip and the same code runs on
+ * real Linux hardware; the focused examples drill into that.
+ *
+ *   1. Describe the lines once. The button is wired active-low behind a
+ *      pull-up, so "pressed" is a low wire; the spec records that and the
+ *      rest of the program never thinks about it again.
+ *   2. Open a backend through the name-addressed chip handle; on failure
+ *      \c is_transient tells a supervisor whether a backoff retry can help.
+ *      Then take the startup baseline: without it, an edge-driven consumer
+ *      knows nothing about a line until its first edge.
+ *   3. Read and write by name, in the logical domain.
+ *   4. Or mint a cheap line handle and keep it.
+ *   5. The edge path. The backend emits raw physical events (a press that
+ *      bounces, with sequence 4 lost on the way); \c drain_events pumps
+ *      everything ready into a lock-free ring in one call, and the consumer
+ *      drains the ring at its own pace, tracking drops, debouncing, and
+ *      decoding to logical. A held level brings no further edge, so the
+ *      clock settles it: wait until \c debounce.deadline(), then \c expire
+ *      with the time on the event clock (simulated here; on Linux,
+ *      \c CLOCK_MONOTONIC).
+ *   6. Retune the LIVE request: same lines, a new debounce and a new initial
+ *      LED level, with no close, no lost exclusivity, and no output glitch.
+ *      The spec view follows the new tables.
  */
 
 #include <array>

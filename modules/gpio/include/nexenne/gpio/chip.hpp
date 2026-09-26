@@ -41,7 +41,7 @@ namespace nexenne::gpio {
 template <gpio_backend Backend>
 class chip {
 public:
-  using value_type = bool;
+  using value_type = bool;  ///< Logical line level type read and written.
   /// @brief The backend type this chip was instantiated with.
   using backend_type = Backend;
 

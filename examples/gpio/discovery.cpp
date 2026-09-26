@@ -6,7 +6,8 @@
  * its identity and every line the kernel describes, including who holds it.
  * This is how a program resolves a device-tree line name to an offset
  * instead of hard-coding the magic number that breaks on the next board
- * revision. Safe to run anywhere; off Linux it reports unsupported.
+ * revision. A missing chip index is skipped quietly; a permission error is
+ * reported. Safe to run anywhere; off Linux it reports unsupported.
  */
 
 #include <print>

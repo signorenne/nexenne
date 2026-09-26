@@ -36,7 +36,7 @@ namespace nexenne::gpio {
  */
 class line_spec {
 public:
-  using value_type = bool;
+  using value_type = bool;  ///< Logical level type of the described line.
 
 private:
   std::string_view m_name{};

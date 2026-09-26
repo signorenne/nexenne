@@ -6,7 +6,7 @@
  * request file descriptor through \c native_handle(), the loop (here epoll,
  * in Qt a \c QSocketNotifier, in ASIO a \c posix::stream_descriptor) waits
  * for readability, and ready events are drained non-blockingly with
- * \c wait_event(0ns). A \c timerfd drives a periodic heartbeat on an output
+ * \c wait_event(0ns). A \c timerfd drives a 500 ms heartbeat on an output
  * line in the same single thread, so nothing here ever blocks or spins.
  *
  * Pass the chip index, a button offset, and a LED offset (defaults 0, 17,

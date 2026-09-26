@@ -26,7 +26,7 @@ namespace nexenne::gpio {
  * @brief One raw edge notification from a backend: physical level, no polarity.
  */
 struct line_event {
-  using value_type = bool;
+  using value_type = bool;  ///< Type of the raw physical level.
 
   event_sequence sequence{0};       ///< Monotonic sequence number; zero means unset.
   event_time timestamp{};           ///< When the edge fired, tagged with its clock.

@@ -45,7 +45,7 @@ namespace nexenne::gpio {
 template <std::size_t Capacity = 64>
 class mock_chip {
 public:
-  using value_type = bool;
+  using value_type = bool;  ///< Physical line level type read and written.
   /// @brief Pollable-handle type; the mock has no real handle and returns \c -1.
   using native_handle_type = int;
 

@@ -31,7 +31,7 @@ namespace nexenne::gpio {
  */
 class line_config {
 public:
-  using value_type = bool;
+  using value_type = bool;  ///< Type of the initial output level.
 
 private:
   edge_detection m_edges{edge_detection::none};

@@ -8,6 +8,10 @@
  * command line (default chip 0, line 17). Exits cleanly with a message when
  * the device is missing, busy, or not permitted; on a Raspberry Pi wire a
  * button between the chosen line and ground.
+ *
+ * The button is active-low behind the internal pull-up: pressing shorts the
+ * line to ground, and the spec keeps the program in "pressed = true" terms.
+ * The kernel debounces, so no userspace debouncer is needed.
  */
 
 #include <array>

@@ -27,7 +27,7 @@ namespace nexenne::gpio {
  */
 class sequence_tracker {
 public:
-  using value_type = event_sequence;
+  using value_type = event_sequence;  ///< Sequence number type the tracker consumes.
 
 private:
   event_sequence m_last{0};

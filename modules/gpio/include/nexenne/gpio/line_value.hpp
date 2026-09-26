@@ -33,7 +33,7 @@ namespace nexenne::gpio {
  */
 class line_value {
 public:
-  using value_type = bool;
+  using value_type = bool;  ///< Logical level type of the observation.
 
 private:
   std::string_view m_name{};

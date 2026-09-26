@@ -2,12 +2,12 @@
  * @file
  * @brief watch: observe who requests, releases, and reconfigures lines.
  *
- * Arms a line-info watch on every line of one chip and prints each change
- * as it happens: which line, what changed, and who holds it now. Run it in
- * one terminal and use gpioset, gpiomon, or the blink example in another
- * to see the ownership changes live. Watching is read-only and never
- * claims a line. Pass the chip index (default 0); stops after 30 seconds
- * without a change.
+ * Arms a line-info watch on every line of one chip (up to the per-watcher
+ * capacity) and prints each change as it happens: which line, what changed,
+ * and who holds it now. Run it in one terminal and use gpioset, gpiomon, or
+ * the blink example in another to see the ownership changes live. Watching
+ * is read-only and never claims a line. Pass the chip index (default 0);
+ * stops after 30 seconds without a change.
  */
 
 #include <algorithm>
