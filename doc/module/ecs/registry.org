@@ -81,7 +81,9 @@ generation >= 1 and =valid()= on it is =true=.
 
 =destroy(e)= fires the on-destroy signal for every component =e= carries (so
 listeners see a still-live value), erases those components, bumps the slot's
-generation, and pushes the index onto the free list for reuse. On generation
+generation, and pushes the index onto the free list for reuse. =e= is marked
+dead before the listeners run: each sees the component it is handed, but =get=
+and =has= on =e= fail, so =e='s other components are out of reach. On generation
 wraparound it steps over 0, because generation 0 is the invalid sentinel and a
 recycled slot must never mint it. A listener may call =clear()= mid-fire;
 =clear()= then frees every index itself, so =destroy= stops there rather than
@@ -205,8 +207,10 @@ The firing rules are precise:
 - =on_destroy<T>= fires *before* the component is erased by =remove<T>=, by
   =destroy(e)= or by =clear()=, so the listener can read the final value while
   it is still live. =destroy(e)= and =clear()= mark the entities dead before
-  they fire, so inside the listener the entity already reads as invalid and a
-  nested =destroy= of it returns =false= rather than firing again.
+  they fire, so inside the listener the entity already reads as invalid: =get=
+  and =has= on it fail, which puts its other components out of reach, and a
+  nested =destroy= of it returns =false= rather than firing again. A =remove<T>=
+  listener still sees a valid entity with its other components.
 
 ** Printing entity handles
 

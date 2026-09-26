@@ -940,6 +940,11 @@ public:
    * bumps the slot's generation so all outstanding handles to \p e
    * read as invalid, and returns the index to the free list for reuse.
    *
+   * \p e is marked dead before the fire, so every listener already sees it as
+   * invalid: it is handed the component being destroyed, but \c get, \c has,
+   * \c add, \c patch and \c remove on \p e fail, so a listener cannot reach
+   * \p e's other components through the registry.
+   *
    * @param e  Handle to destroy. May be stale or default-constructed.
    *
    * @return \c true when \p e was live and is now destroyed, \c false
@@ -947,10 +952,10 @@ public:
    *
    * @pre None. A stale or invalid \p e is handled gracefully.
    * @post On a \c true result, \c valid(e) is \c false, \c alive() has
-   *       decreased by one, and \p e carries no components. A component
-   *       attached to \p e by a listener during the on-destroy fire is
-   *       erased without its own on-destroy signal. On a \c false result the
-   *       registry is unchanged.
+   *       decreased by one, and \p e carries no components. A component a
+   *       listener attaches to \p e through \c storage<T>().insert during the
+   *       fire (\c add rejects the dead \p e) is erased without its own
+   *       on-destroy signal. On a \c false result the registry is unchanged.
    *
    * @note A listener may call \c clear(): it erases every component and frees
    *       \p e's index itself, so \c destroy then returns \c true without
@@ -1000,12 +1005,7 @@ public:
       }
       erase(data, e.index());
     }
-    // \p e is still valid during the fire above (the generation is bumped
-    // below), so an on_destroy listener could have attached a component to it,
-    // either in a storage added past storage_count or in one this loop had
-    // already passed. erase runs no user code, so one final sweep over every
-    // storage fully detaches \p e and preserves the "destroy leaves no
-    // components" invariant.
+    // A listener may have inserted a component during the fire: sweep every storage.
     for (auto i{std::size_t{0}}; i < m_storages.size(); ++i) {
       auto* const data{m_storages[i].data};
       if (data != nullptr && m_storages[i].contains_fn(data, e.index())) {

@@ -1772,4 +1772,37 @@ TEST_CASE("registry: destroy the entities a range-for collected, not inside it (
   CHECK(r.begin() == r.end());
 }
 
+TEST_CASE(
+  "registry: an on_destroy listener sees the entity dead under destroy and clear (ecs-06)"
+) {
+  auto r{registry{}};
+  auto seen_valid{false};
+  auto sibling_found{false};
+  auto conn{r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
+    seen_valid = r.valid(e);
+    sibling_found = r.get<position>(e).has_value();
+  })};
+  auto const spawn{[&r]() noexcept {
+    auto const e{r.create()};
+    nexenne::utility::discard(r.add<position>(e, position{}), r.add<health>(e, health{.hp = 1}));
+    return e;
+  }};
+
+  CHECK(r.remove<health>(spawn()));
+  CHECK(seen_valid);
+  CHECK(sibling_found);
+
+  CHECK(r.destroy(spawn()));
+  CHECK_FALSE(seen_valid);
+  CHECK_FALSE(sibling_found);
+
+  nexenne::utility::discard(spawn());
+  seen_valid = true;
+  sibling_found = true;
+  r.clear();
+  CHECK_FALSE(seen_valid);
+  CHECK_FALSE(sibling_found);
+  nexenne::utility::discard(conn);
+}
+
 }  // namespace
