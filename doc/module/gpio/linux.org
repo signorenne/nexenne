@@ -62,8 +62,10 @@ auto const opened{chip.open(specs, configs)};
 
 The consumer label ("my-app") is what =gpioinfo= and the discovery guide
 show next to a held line; name it after your program, operators will thank
-you. Failure modes worth branching on: =busy= (another consumer holds a
-line), =permission_denied= (see below), =not_found= (no such chip).
+you. =consumer()= returns it and =line_count()= the size of the held
+request, and both appear in the backend's =format.hpp= summary. Failure modes
+worth branching on: =busy= (another consumer holds a line),
+=permission_denied= (see below), =not_found= (no such chip).
 
 * Permissions and udev
 

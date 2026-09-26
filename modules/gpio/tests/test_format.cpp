@@ -124,6 +124,127 @@ TEST_CASE("format: a drain_report prints its counters through every layer") {
   CHECK(os.str() == ng::to_string(report));
 }
 
+TEST_CASE("format: a sequence_tracker prints its last sequence and drop count") {
+  ng::sequence_tracker tracker{};
+  CHECK(tracker.feed(ng::event_sequence{3}) == 0);
+  CHECK(tracker.feed(ng::event_sequence{6}) == 2);
+  CHECK(std::format("{}", tracker) == "sequence_tracker(last=6, dropped=2)");
+  CHECK(ng::to_string(ng::sequence_tracker{}) == "sequence_tracker(last=0, dropped=0)");
+  std::ostringstream os{};
+  os << tracker;
+  CHECK(os.str() == ng::to_string(tracker));
+}
+
+TEST_CASE("format: an event_debounce prints its period, settled level, and deadline") {
+  CHECK(
+    std::format("{}", ng::event_debounce{})
+    == "event_debounce(period=0ns, stable=none, deadline=none)"
+  );
+
+  ng::event_debounce debounce{5ms};
+  ng::line_event event{};
+  event.timestamp = ng::event_time{1000ns};
+  CHECK(debounce.feed(event).has_value());
+  event.physical = true;
+  event.timestamp = ng::event_time{2000ns};
+  CHECK_FALSE(debounce.feed(event).has_value());
+  CHECK(
+    std::format("{}", debounce)
+    == "event_debounce(period=5000000ns, stable=low, deadline=5002000ns)"
+  );
+  std::ostringstream os{};
+  os << debounce;
+  CHECK(os.str() == ng::to_string(debounce));
+}
+
+TEST_CASE("format: the sinks print their observable state") {
+  ng::callback_sink const direct{[](ng::line_event const&) noexcept { return true; }};
+  CHECK(std::format("{}", direct) == "callback_sink()");
+  std::ostringstream direct_os{};
+  direct_os << direct;
+  CHECK(direct_os.str() == ng::to_string(direct));
+
+  ng::queue_sink<2> queued{};
+  CHECK(std::format("{}", queued) == "queue_sink(capacity=1, empty=true, dropped=0)");
+  CHECK(queued.push(ng::line_event{}));
+  CHECK_FALSE(queued.push(ng::line_event{}));
+  CHECK(std::format("{}", queued) == "queue_sink(capacity=1, empty=false, dropped=1)");
+  std::ostringstream queued_os{};
+  queued_os << queued;
+  CHECK(queued_os.str() == ng::to_string(queued));
+}
+
+TEST_CASE("format: the handles print their binding and request set") {
+  using mock = ng::mock_chip<4>;
+  std::array const specs{
+    ng::line_spec::input(
+      "button",
+      ng::chip_id{0},
+      ng::line_offset{17},
+      ng::line_polarity::active_low,
+      ng::line_bias::pull_up
+    ),
+    ng::line_spec::output("led", ng::chip_id{0}, ng::line_offset{4}),
+  };
+  std::array const configs{ng::line_config{}, ng::line_config{}};
+
+  CHECK(
+    std::format("{}", ng::line<mock>{})
+    == "line(unbound, line_spec(unnamed, chip 0, line 0, input, active_high, as_is, push_pull))"
+  );
+  CHECK(std::format("{}", ng::chip<mock>{}) == "chip(unbound, lines={})");
+
+  mock backend{};
+  ng::chip<mock> chip{backend};
+  CHECK(std::format("{}", chip) == "chip(closed, lines={})");
+  REQUIRE(chip.open(specs, configs).has_value());
+  CHECK(std::format("{}", chip) == "chip(open, lines={button: 17, led: 4})");
+
+  auto const button{chip.line_for("button")};
+  REQUIRE(button.has_value());
+  CHECK(
+    std::format("{}", *button)
+    == "line(bound, line_spec(button, chip 0, line 17, input, active_low, pull_up, push_pull))"
+  );
+
+  std::ostringstream os{};
+  os << chip << ' ' << *button;
+  CHECK(os.str() == ng::to_string(chip) + ' ' + ng::to_string(*button));
+}
+
+TEST_CASE("format: the backends print their identity and open state") {
+  ng::mock_chip<4> mock{};
+  CHECK(std::format("{}", mock) == "mock_chip(closed, 0 lines)");
+  std::array const specs{
+    ng::line_spec::input("in", ng::chip_id{0}, ng::line_offset{1}),
+    ng::line_spec::output("out", ng::chip_id{0}, ng::line_offset{2}),
+  };
+  std::array const configs{ng::line_config{}, ng::line_config{}};
+  REQUIRE(mock.open(specs, configs).has_value());
+  CHECK(std::format("{}", mock) == "mock_chip(open, 2 lines)");
+  std::ostringstream mock_os{};
+  mock_os << mock;
+  CHECK(mock_os.str() == ng::to_string(mock));
+
+  ng::chardev_chip const chardev{};
+  CHECK(
+    std::format("{}", chardev) == "chardev_chip(chip 0, consumer=nexenne-gpio, closed, 0 lines)"
+  );
+  CHECK(
+    ng::to_string(ng::chardev_chip{ng::chip_id{3}, ""})
+    == "chardev_chip(chip 3, consumer=unlabeled, closed, 0 lines)"
+  );
+  std::ostringstream chardev_os{};
+  chardev_os << chardev;
+  CHECK(chardev_os.str() == ng::to_string(chardev));
+
+  ng::chardev_watcher const watcher{ng::chip_id{2}};
+  CHECK(std::format("{}", watcher) == "chardev_watcher(chip 2, closed)");
+  std::ostringstream watcher_os{};
+  watcher_os << watcher;
+  CHECK(watcher_os.str() == ng::to_string(watcher));
+}
+
 TEST_CASE("format: a width spec applies to the whole rendered string") {
   CHECK(std::format("{:>10}", ng::gpio_error::busy) == "      busy");
 }

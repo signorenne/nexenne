@@ -163,6 +163,18 @@ public:
   }
 
   /**
+   * @brief The number of lines in the open request set.
+   *
+   * @return The line count of the last successful \c open; zero while closed.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] constexpr auto line_count() const noexcept -> std::size_t {
+    return m_specs.size();
+  }
+
+  /**
    * @brief Reads the physical level of one requested line.
    *
    * @param offset Line offset within the chip.

@@ -228,9 +228,7 @@ struct monotonic_event_clock {
   using period = std::nano;                                           ///< Tick period.
   using duration = std::chrono::nanoseconds;                          ///< Duration type.
   using time_point = std::chrono::time_point<monotonic_event_clock>;  ///< Timestamp type.
-
-  /// @brief Steady: a monotonic stamp never goes backwards.
-  static constexpr bool is_steady{true};
+  static constexpr bool is_steady{true};  ///< Steady: a monotonic stamp never goes back.
 };
 
 /**
@@ -245,9 +243,7 @@ struct realtime_event_clock {
   using period = std::nano;                                          ///< Tick period.
   using duration = std::chrono::nanoseconds;                         ///< Duration type.
   using time_point = std::chrono::time_point<realtime_event_clock>;  ///< Timestamp type.
-
-  /// @brief Not steady: the wall clock can step back.
-  static constexpr bool is_steady{false};
+  static constexpr bool is_steady{false};  ///< Not steady: the wall clock can step back.
 };
 
 /**
@@ -263,7 +259,7 @@ struct realtime_event_clock {
  */
 class event_time {
 public:
-  using value_type = std::chrono::nanoseconds;
+  using value_type = std::chrono::nanoseconds;  ///< Representation of the offset.
 
 private:
   line_clock m_clock{line_clock::monotonic};

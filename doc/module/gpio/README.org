@@ -96,7 +96,10 @@ The runnable examples under [[file:../../../examples/gpio/][examples/gpio/]] are
   failures, =std::optional= for a legitimate miss, debug asserts for
   programmer preconditions.
 - =format.hpp= : =to_string= / =operator<<= / =std::formatter= for every
-  public type, opt-in so hot paths never pay for =<format>=.
+  public type, opt-in so hot paths never pay for =<format>=. The handles,
+  backends, sinks, debouncer, and sequence tracker print a one-line summary
+  of their state, such as =chip(open, lines={button: 17, led: 4})= or
+  =queue_sink(capacity=15, empty=true, dropped=0)=.
 
 * Design pillars
 

@@ -324,6 +324,19 @@ public:
   [[nodiscard]] auto chip() const noexcept -> chip_id;
 
   /**
+   * @brief The consumer label this backend reports to the kernel.
+   *
+   * A label too long for the kernel field (32 bytes or more) is cut to the
+   * 31 bytes the backend keeps; \c open refuses such a label anyway.
+   *
+   * @return A view of the stored label, valid while this backend lives.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto consumer() const noexcept -> std::string_view;
+
+  /**
    * @brief Whether a line request is currently held.
    *
    * @return \c true between a successful \c open and the next \c close.
@@ -332,6 +345,16 @@ public:
    * @post None.
    */
   [[nodiscard]] auto is_open() const noexcept -> bool;
+
+  /**
+   * @brief The number of lines in the held request.
+   *
+   * @return The line count of the last successful \c open; zero while closed.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto line_count() const noexcept -> std::size_t;
 
   /**
    * @brief Releases the line request.
@@ -550,13 +573,16 @@ public:
 
 private:
   chip_id m_chip{0};
+  std::array<char, 32> m_consumer{};
+  std::size_t m_consumer_size{0};
 
 public:
   /**
    * @brief Constructs the stub; nothing can be opened.
    *
    * @param chip Stored for \c chip(); otherwise unused.
-   * @param consumer Ignored.
+   * @param consumer Copied for \c consumer(), cut to 31 bytes like the Linux
+   *                 backend keeps it; otherwise unused.
    * @param event_buffer_size Ignored.
    *
    * @pre None.
@@ -564,10 +590,10 @@ public:
    */
   explicit chardev_chip(
     chip_id const chip = chip_id{0},
-    [[maybe_unused]] std::string_view const consumer = "nexenne-gpio",
+    std::string_view const consumer = "nexenne-gpio",
     [[maybe_unused]] std::uint32_t const event_buffer_size = 0
   ) noexcept
-      : m_chip{chip} {}
+      : m_chip{chip}, m_consumer_size{consumer.copy(m_consumer.data(), m_consumer.size() - 1)} {}
 
   /**
    * @brief The chip index this stub was constructed with.
@@ -579,6 +605,30 @@ public:
    */
   [[nodiscard]] auto chip() const noexcept -> chip_id {
     return m_chip;
+  }
+
+  /**
+   * @brief The consumer label this stub was constructed with.
+   *
+   * @return A view of the stored label, valid while this stub lives.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto consumer() const noexcept -> std::string_view {
+    return std::string_view{m_consumer.data(), m_consumer_size};
+  }
+
+  /**
+   * @brief Reports the empty request; the stub never holds lines.
+   *
+   * @return Always zero.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto line_count() const noexcept -> std::size_t {
+    return 0;
   }
 
   /**

@@ -156,6 +156,15 @@ TEST_CASE("mock_chip: close drops pending events; a reopen starts clean") {
   CHECK_FALSE(none->has_value());
 }
 
+TEST_CASE("mock_chip: line_count follows the request set") {
+  mock chip{};
+  CHECK(chip.line_count() == 0);
+  REQUIRE(chip.open(specs, configs).has_value());
+  CHECK(chip.line_count() == 2);
+  chip.close();
+  CHECK(chip.line_count() == 0);
+}
+
 TEST_CASE("mock_chip: native handle is the documented -1 placeholder") {
   mock const chip{};
   CHECK(chip.native_handle() == -1);

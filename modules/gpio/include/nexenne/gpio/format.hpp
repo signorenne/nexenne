@@ -11,23 +11,35 @@
  * versions. This header is the single owner of the standard format header for
  * the module, so error.hpp and the value-type headers stay free of it. Each
  * \c std::formatter inherits \c std::formatter<std::string_view>, so a width
- * or alignment spec applies to the whole rendered string.
+ * or alignment spec applies to the whole rendered string. The stateful types
+ * (the handles, the backends, the sinks, the debouncer, and the sequence
+ * tracker) print a one-line summary of what their public accessors expose.
  */
 
+#include <cstddef>
 #include <format>
 #include <ostream>
 #include <string>
 #include <string_view>
 
+#include <nexenne/gpio/backend.hpp>
+#include <nexenne/gpio/chip.hpp>
+#include <nexenne/gpio/debounce.hpp>
 #include <nexenne/gpio/drain.hpp>
 #include <nexenne/gpio/error.hpp>
+#include <nexenne/gpio/io/callback_sink.hpp>
+#include <nexenne/gpio/io/chardev_chip.hpp>
 #include <nexenne/gpio/io/chardev_info.hpp>
 #include <nexenne/gpio/io/chardev_watch.hpp>
+#include <nexenne/gpio/io/mock_chip.hpp>
+#include <nexenne/gpio/io/queue_sink.hpp>
+#include <nexenne/gpio/line.hpp>
 #include <nexenne/gpio/line_config.hpp>
 #include <nexenne/gpio/line_event.hpp>
 #include <nexenne/gpio/line_spec.hpp>
 #include <nexenne/gpio/line_types.hpp>
 #include <nexenne/gpio/line_value.hpp>
+#include <nexenne/gpio/sequence_tracker.hpp>
 
 namespace nexenne::gpio {
 
@@ -692,6 +704,354 @@ inline auto operator<<(std::ostream& os, drain_report const& report) -> std::ost
   return os << to_string(report);
 }
 
+/**
+ * @brief Debug string for a \c sequence_tracker.
+ *
+ * Example: \c "sequence_tracker(last=7, dropped=2)".
+ *
+ * @param tracker Tracker to print.
+ *
+ * @return The debug string with the last sequence and the drop count.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(sequence_tracker const& tracker) -> std::string {
+  return std::format(
+    "sequence_tracker(last={}, dropped={})", tracker.last().get(), tracker.dropped()
+  );
+}
+
+/**
+ * @brief Streams a \c sequence_tracker via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param tracker Tracker to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted tracker has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, sequence_tracker const& tracker) -> std::ostream& {
+  return os << to_string(tracker);
+}
+
+/**
+ * @brief Debug string for an \c event_debounce.
+ *
+ * Example: \c "event_debounce(period=5000000ns, stable=low,
+ * deadline=5002000ns)"; a missing settled level or deadline prints \c none.
+ *
+ * @param debounce Debouncer to print.
+ *
+ * @return The debug string with the period, settled level, and deadline.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(event_debounce const& debounce) -> std::string {
+  auto const stable{debounce.stable()};
+  auto const deadline{debounce.deadline()};
+  return std::format(
+    "event_debounce(period={}ns, stable={}, deadline={})",
+    debounce.period().count(),
+    stable.has_value() ? (*stable ? "high" : "low") : "none",
+    deadline.has_value() ? to_string(*deadline) : std::string{"none"}
+  );
+}
+
+/**
+ * @brief Streams an \c event_debounce via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param debounce Debouncer to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted debouncer has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, event_debounce const& debounce) -> std::ostream& {
+  return os << to_string(debounce);
+}
+
+/**
+ * @brief Debug string for a \c callback_sink.
+ *
+ * Always \c "callback_sink()": the sink holds only its handler, which has no
+ * printable state.
+ *
+ * @tparam Handler Callable type of the sink.
+ * @param sink Sink to print.
+ *
+ * @return The debug string naming the sink.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <typename Handler>
+[[nodiscard]] auto to_string([[maybe_unused]] callback_sink<Handler> const& sink) -> std::string {
+  return std::string{"callback_sink()"};
+}
+
+/**
+ * @brief Streams a \c callback_sink via its \c to_string.
+ *
+ * @tparam Handler Callable type of the sink.
+ * @param os Output stream.
+ * @param sink Sink to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted sink has been written to \p os.
+ */
+template <typename Handler>
+auto operator<<(std::ostream& os, callback_sink<Handler> const& sink) -> std::ostream& {
+  return os << to_string(sink);
+}
+
+/**
+ * @brief Debug string for a \c queue_sink.
+ *
+ * Example: \c "queue_sink(capacity=7, empty=false, dropped=1)". The
+ * emptiness is the best-effort observation \c empty() makes.
+ *
+ * @tparam N Ring slot count of the sink.
+ * @param sink Sink to print.
+ *
+ * @return The debug string with the capacity, emptiness, and drop count.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::size_t N>
+[[nodiscard]] auto to_string(queue_sink<N> const& sink) -> std::string {
+  return std::format(
+    "queue_sink(capacity={}, empty={}, dropped={})", sink.capacity(), sink.empty(), sink.dropped()
+  );
+}
+
+/**
+ * @brief Streams a \c queue_sink via its \c to_string.
+ *
+ * @tparam N Ring slot count of the sink.
+ * @param os Output stream.
+ * @param sink Sink to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted sink has been written to \p os.
+ */
+template <std::size_t N>
+auto operator<<(std::ostream& os, queue_sink<N> const& sink) -> std::ostream& {
+  return os << to_string(sink);
+}
+
+/**
+ * @brief Debug string for a \c line handle.
+ *
+ * Example: \c "line(bound, line_spec(button, chip 0, line 17, input,
+ * active_low, pull_up, push_pull))"; an unbound handle prints \c unbound.
+ *
+ * @tparam Backend Backend type of the handle.
+ * @param handle Handle to print.
+ *
+ * @return The debug string with the binding state and the spec.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <gpio_backend Backend>
+[[nodiscard]] auto to_string(line<Backend> const& handle) -> std::string {
+  return std::format(
+    "line({}, {})", handle.valid() ? "bound" : "unbound", to_string(handle.spec())
+  );
+}
+
+/**
+ * @brief Streams a \c line handle via its \c to_string.
+ *
+ * @tparam Backend Backend type of the handle.
+ * @param os Output stream.
+ * @param handle Handle to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted handle has been written to \p os.
+ */
+template <gpio_backend Backend>
+auto operator<<(std::ostream& os, line<Backend> const& handle) -> std::ostream& {
+  return os << to_string(handle);
+}
+
+/**
+ * @brief Debug string for a \c chip handle.
+ *
+ * Example: \c "chip(open, lines={button: 17, led: 4})", mapping each line
+ * name of the request set to its offset in spec-table order. The state is
+ * \c unbound without a backend, otherwise \c open or \c closed as the
+ * backend reports.
+ *
+ * @tparam Backend Backend type of the chip.
+ * @param handle Chip to print.
+ *
+ * @return The debug string with the state and the name-to-offset table.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <gpio_backend Backend>
+[[nodiscard]] auto to_string(chip<Backend> const& handle) -> std::string {
+  auto const state{
+    handle.backend() == nullptr ? std::string_view{"unbound"}
+    : handle.is_open()          ? std::string_view{"open"}
+                                : std::string_view{"closed"}
+  };
+  auto out{std::format("chip({}, lines={{", state)};
+  auto separator{std::string_view{}};
+  for (auto const& spec : handle.specs()) {
+    out += std::format(
+      "{}{}: {}",
+      separator,
+      spec.name().empty() ? std::string_view{"unnamed"} : spec.name(),
+      spec.offset().get()
+    );
+    separator = ", ";
+  }
+  out += "})";
+  return out;
+}
+
+/**
+ * @brief Streams a \c chip handle via its \c to_string.
+ *
+ * @tparam Backend Backend type of the chip.
+ * @param os Output stream.
+ * @param handle Chip to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted chip has been written to \p os.
+ */
+template <gpio_backend Backend>
+auto operator<<(std::ostream& os, chip<Backend> const& handle) -> std::ostream& {
+  return os << to_string(handle);
+}
+
+/**
+ * @brief Debug string for a \c mock_chip.
+ *
+ * Example: \c "mock_chip(open, 2 lines)".
+ *
+ * @tparam Capacity Line and event capacity of the mock.
+ * @param backend Mock to print.
+ *
+ * @return The debug string with the open state and the request-set size.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::size_t Capacity>
+[[nodiscard]] auto to_string(mock_chip<Capacity> const& backend) -> std::string {
+  return std::format(
+    "mock_chip({}, {} lines)", backend.is_open() ? "open" : "closed", backend.line_count()
+  );
+}
+
+/**
+ * @brief Streams a \c mock_chip via its \c to_string.
+ *
+ * @tparam Capacity Line and event capacity of the mock.
+ * @param os Output stream.
+ * @param backend Mock to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted mock has been written to \p os.
+ */
+template <std::size_t Capacity>
+auto operator<<(std::ostream& os, mock_chip<Capacity> const& backend) -> std::ostream& {
+  return os << to_string(backend);
+}
+
+/**
+ * @brief Debug string for a \c chardev_chip.
+ *
+ * Example: \c "chardev_chip(chip 0, consumer=nexenne-gpio, open, 2 lines)";
+ * an empty consumer label prints \c unlabeled.
+ *
+ * @param backend Backend to print.
+ *
+ * @return The debug string with the chip index, consumer label, open state,
+ *         and request size.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(chardev_chip const& backend) -> std::string {
+  return std::format(
+    "chardev_chip(chip {}, consumer={}, {}, {} lines)",
+    backend.chip().get(),
+    backend.consumer().empty() ? std::string_view{"unlabeled"} : backend.consumer(),
+    backend.is_open() ? "open" : "closed",
+    backend.line_count()
+  );
+}
+
+/**
+ * @brief Streams a \c chardev_chip via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param backend Backend to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted backend has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, chardev_chip const& backend) -> std::ostream& {
+  return os << to_string(backend);
+}
+
+/**
+ * @brief Debug string for a \c chardev_watcher.
+ *
+ * Example: \c "chardev_watcher(chip 0, open)".
+ *
+ * @param watcher Watcher to print.
+ *
+ * @return The debug string with the chip index and the open state.
+ *
+ * @pre None.
+ * @post None.
+ */
+[[nodiscard]] inline auto to_string(chardev_watcher const& watcher) -> std::string {
+  return std::format(
+    "chardev_watcher(chip {}, {})", watcher.chip().get(), watcher.is_open() ? "open" : "closed"
+  );
+}
+
+/**
+ * @brief Streams a \c chardev_watcher via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param watcher Watcher to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted watcher has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, chardev_watcher const& watcher) -> std::ostream& {
+  return os << to_string(watcher);
+}
+
 }  // namespace nexenne::gpio
 
 /**
@@ -1144,5 +1504,267 @@ struct std::formatter<nexenne::gpio::drain_report> : std::formatter<std::string_
   template <typename FormatContext>
   auto format(nexenne::gpio::drain_report const& report, FormatContext& ctx) const {
     return std::formatter<std::string_view>::format(nexenne::gpio::to_string(report), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c sequence_tracker, printing its \c to_string.
+ *
+ * Inherits the string formatter, so a spec applies to the whole text.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::gpio::sequence_tracker> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the tracker's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param tracker Tracker to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted tracker has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::sequence_tracker const& tracker, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(tracker), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c event_debounce, printing its \c to_string.
+ *
+ * Inherits the string formatter, so a spec applies to the whole text.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::gpio::event_debounce> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the debouncer's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param debounce Debouncer to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted debouncer has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::event_debounce const& debounce, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(debounce), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c callback_sink, printing its \c to_string.
+ *
+ * Inherits the string formatter, so a spec applies to the whole text.
+ *
+ * @tparam Handler Callable type of the sink.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <typename Handler>
+struct std::formatter<nexenne::gpio::callback_sink<Handler>> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the sink's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param sink Sink to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted sink has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::callback_sink<Handler> const& sink, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(sink), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c queue_sink, printing its \c to_string.
+ *
+ * Inherits the string formatter, so a spec applies to the whole text.
+ *
+ * @tparam N Ring slot count of the sink.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::size_t N>
+struct std::formatter<nexenne::gpio::queue_sink<N>> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the sink's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param sink Sink to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted sink has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::queue_sink<N> const& sink, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(sink), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for a \c line handle, printing its \c to_string.
+ *
+ * Inherits the string formatter, so a spec applies to the whole text.
+ *
+ * @tparam Backend Backend type of the handle.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <nexenne::gpio::gpio_backend Backend>
+struct std::formatter<nexenne::gpio::line<Backend>> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the handle's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param handle Handle to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted handle has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::line<Backend> const& handle, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(handle), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for a \c chip handle, printing its \c to_string.
+ *
+ * Inherits the string formatter, so a spec applies to the whole text.
+ *
+ * @tparam Backend Backend type of the chip.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <nexenne::gpio::gpio_backend Backend>
+struct std::formatter<nexenne::gpio::chip<Backend>> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the chip's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param handle Chip to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted chip has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::chip<Backend> const& handle, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(handle), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c mock_chip, printing its \c to_string.
+ *
+ * Inherits the string formatter, so a spec applies to the whole text.
+ *
+ * @tparam Capacity Line and event capacity of the mock.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::size_t Capacity>
+struct std::formatter<nexenne::gpio::mock_chip<Capacity>> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the mock's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param backend Mock to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted mock has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::mock_chip<Capacity> const& backend, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(backend), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c chardev_chip, printing its \c to_string.
+ *
+ * Inherits the string formatter, so a spec applies to the whole text.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::gpio::chardev_chip> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the backend's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param backend Backend to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted backend has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::chardev_chip const& backend, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(backend), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c chardev_watcher, printing its \c to_string.
+ *
+ * Inherits the string formatter, so a spec applies to the whole text.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <>
+struct std::formatter<nexenne::gpio::chardev_watcher> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the watcher's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param watcher Watcher to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted watcher has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::chardev_watcher const& watcher, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(watcher), ctx);
   }
 };

@@ -253,8 +253,16 @@ auto chardev_chip::chip() const noexcept -> chip_id {
   return m_chip;
 }
 
+auto chardev_chip::consumer() const noexcept -> std::string_view {
+  return std::string_view{m_consumer.data(), std::min(m_consumer_size, m_consumer.size() - 1)};
+}
+
 auto chardev_chip::is_open() const noexcept -> bool {
   return m_request.owns();
+}
+
+auto chardev_chip::line_count() const noexcept -> std::size_t {
+  return m_offsets.size();
 }
 
 auto chardev_chip::close() noexcept -> void {

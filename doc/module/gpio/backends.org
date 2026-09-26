@@ -70,8 +70,9 @@ timeout. The module never owns the loop.
 state, and adds the test-rig surface the concepts do not know about:
 =drive= sets what an input reads, =physical= observes what an output
 was driven to (which =read= on a real chip cannot always do), and =inject=
-queues events for =wait_event=. Because it is allocation-free, it also stands
-in for a HAL while portable code is developed off-target.
+queues events for =wait_event=. =line_count()= reports the size of the open
+request set. Because it is allocation-free, it also stands in for a HAL
+while portable code is developed off-target.
 
 #+BEGIN_SRC C++
 ng::mock_chip<8> backend{};

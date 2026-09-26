@@ -14,6 +14,7 @@
 #include <chrono>
 #include <span>
 #include <string>
+#include <string_view>
 
 #include <nexenne/gpio/backend.hpp>
 #include <nexenne/gpio/io/chardev_chip.hpp>
@@ -55,6 +56,19 @@ TEST_CASE("chardev_chip: a fresh backend is closed with no handle") {
 
   backend.close();  // safe when already closed
   CHECK_FALSE(backend.is_open());
+}
+
+TEST_CASE("chardev_chip: a closed backend reports its label and an empty request") {
+  ng::chardev_chip const fallback{};
+  CHECK(fallback.consumer() == "nexenne-gpio");
+  CHECK(fallback.line_count() == 0);
+
+  ng::chardev_chip const labelled{ng::chip_id{1}, "my-app"};
+  CHECK(labelled.consumer() == "my-app");
+
+  std::string_view const too_long{"nexenne-gpio-consumer-label-past-the-kernel-field"};
+  ng::chardev_chip const cut{ng::chip_id{1}, too_long};
+  CHECK(cut.consumer() == too_long.substr(0, 31));
 }
 
 TEST_CASE("chardev_chip: the consumer label is copied, not borrowed") {
