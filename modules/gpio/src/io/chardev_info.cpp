@@ -26,8 +26,7 @@ auto info_fd_closer::operator()(int const fd) const noexcept -> void {
 
 auto open_chip_readonly(chip_id const chip) noexcept
   -> utility::unique_resource<int, info_fd_closer> {
-  // Rendered with to_chars rather than a vararg call: type-safe, and the
-  // buffer is wide enough for the prefix plus any 16-bit index.
+  // Wide enough for the prefix plus any 16-bit chip index.
   std::array<char, 32> path{};
   constexpr std::string_view prefix{"/dev/gpiochip"};
   std::ranges::copy(prefix, path.begin());

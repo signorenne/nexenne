@@ -51,9 +51,6 @@ using namespace std::chrono_literals;
 }  // namespace
 
 auto main() -> int {
-  // 1) Describe the lines once. The button is wired active-low behind a
-  //    pull-up, so "pressed" is a low wire; the spec records that and the
-  //    rest of the program never thinks about it again.
   std::array const specs{
     ng::line_spec::input(
       "button",
@@ -69,11 +66,9 @@ auto main() -> int {
     ng::line_config{},
   };
 
-  // 2) Open a backend through the name-addressed chip handle.
   ng::mock_chip<16> backend{};
   ng::chip<ng::mock_chip<16>> chip{backend};
   if (auto const opened{chip.open(specs, configs)}; !opened.has_value()) {
-    // is_transient tells a supervisor whether a backoff retry can help.
     std::println(
       "open failed: {} ({})",
       opened.error(),
@@ -86,24 +81,18 @@ auto main() -> int {
     std::println("  {}", spec);
   }
 
-  // 2b) Take the startup baseline: without it, an edge-driven consumer
-  //     knows nothing about a line until its first edge.
   nexenne::utility::ignore(chip.snapshot([](ng::line_value const& value) {
     std::println("baseline: {}", value);
   }));
 
-  // 3) Logical-domain read and write by name.
-  nexenne::utility::ignore(backend.drive(ng::line_offset{17}, false));  // press
+  nexenne::utility::ignore(backend.drive(ng::line_offset{17}, false));
   std::println("button pressed: {}", *chip.read("button"));
   nexenne::utility::ignore(chip.write("led", true));
 
-  // 4) Or mint a cheap line handle and keep it.
   auto led{*chip.line_for("led")};
   nexenne::utility::ignore(led.toggle());
   std::println("led after toggle: {}", *led.read());
 
-  // 5) The edge path: the backend emits raw physical events; the drain loop
-  //    tracks drops, debounces the bounce burst, and decodes to logical.
   auto const raw{
     [](std::uint64_t const seq, std::chrono::nanoseconds const at, bool const physical) {
       ng::line_event event{};
@@ -116,15 +105,12 @@ auto main() -> int {
       return event;
     }
   };
-  // One statement per inject: argument evaluation order is unspecified, and
-  // the queue must receive these in chronological order.
-  nexenne::utility::ignore(backend.inject(raw(1, 0ms, true)));    // idle high (released)
-  nexenne::utility::ignore(backend.inject(raw(2, 20ms, false)));  // press: bounce...
-  nexenne::utility::ignore(backend.inject(raw(3, 21ms, true)));   // ...bounce...
-  nexenne::utility::ignore(backend.inject(raw(5, 22ms, false)));  // ...holds (4 lost)
+  // One inject per statement: argument evaluation order is unspecified.
+  nexenne::utility::ignore(backend.inject(raw(1, 0ms, true)));
+  nexenne::utility::ignore(backend.inject(raw(2, 20ms, false)));
+  nexenne::utility::ignore(backend.inject(raw(3, 21ms, true)));
+  nexenne::utility::ignore(backend.inject(raw(5, 22ms, false)));
 
-  // The production shape: pump everything ready into a lock-free ring in
-  // one call, then consume from the ring at the application's own pace.
   ng::queue_sink<16> ring{};
   if (auto const pumped{ng::drain_events(backend, ring)}; pumped.has_value()) {
     std::println("pumped {} events ({} rejected by the ring)", pumped->delivered, pumped->rejected);
@@ -144,9 +130,6 @@ auto main() -> int {
   }
   std::println("events dropped upstream: {}", tracker.dropped());
 
-  // 6) Change behaviour on the LIVE request: same lines, a new debounce and
-  //    a new initial LED level, with no close, no lost exclusivity, and no
-  //    output glitch. The spec view follows the new tables.
   std::array const retuned_configs{
     ng::line_config{ng::edge_detection::both, 20ms},
     ng::line_config{ng::edge_detection::none, 0ms, true},

@@ -52,7 +52,6 @@ TEST_CASE("line_value: spec constructor copies the identity, not the polarity") 
     "button", ng::chip_id{1}, ng::line_offset{4}, ng::line_polarity::active_low
   )};
 
-  // The level passed in is stored verbatim: decode applies polarity, not this type.
   ng::line_value const value{spec, true, ng::edge_kind::falling};
 
   CHECK(value.name() == "button");

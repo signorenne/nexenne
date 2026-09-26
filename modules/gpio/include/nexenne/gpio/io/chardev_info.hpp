@@ -326,9 +326,8 @@ public:
 
 #include <nexenne/utility/unique_resource.hpp>
 
-// decode_line_info takes the kernel's line-info record by reference, but only
-// src/io/chardev_info.cpp ever dereferences it, so a forward declaration keeps
-// <linux/gpio.h> out of every consumer's include chain.
+// Forward-declared so <linux/gpio.h> stays out of every consumer's include
+// chain; only src/io/chardev_info.cpp dereferences the record.
 struct gpio_v2_line_info;
 
 namespace nexenne::gpio {

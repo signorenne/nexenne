@@ -37,7 +37,6 @@ TEST_CASE("chip: an unbound chip reports not_open, a bound one validates spans")
   ng::chip<mock> chip{backend};
   CHECK_FALSE(chip.is_open());
 
-  // The wrapper is the single place that rejects a malformed request.
   CHECK(chip.open({}, {}).error() == ng::gpio_error::invalid_argument);
   CHECK(
     chip.open(specs, std::span<ng::line_config const>{configs.data(), 1}).error()
@@ -70,7 +69,6 @@ TEST_CASE("chip: name-addressed read and write stay in the logical domain") {
   ng::chip<mock> chip{backend};
   REQUIRE(chip.open(specs, configs).has_value());
 
-  // Active-low button: wire low means logically pressed.
   REQUIRE(backend.drive(ng::line_offset{17}, false).has_value());
   CHECK(*chip.read("button") == true);
 
@@ -87,7 +85,6 @@ TEST_CASE("chip: snapshot delivers the logical baseline of every input") {
   ng::chip<mock> chip{backend};
   REQUIRE(chip.open(specs, configs).has_value());
 
-  // Wire low on the active-low button: logically pressed at startup.
   REQUIRE(backend.drive(ng::line_offset{17}, false).has_value());
 
   std::vector<ng::line_value> baseline{};
@@ -95,7 +92,6 @@ TEST_CASE("chip: snapshot delivers the logical baseline of every input") {
     chip.snapshot([&](ng::line_value const& value) { baseline.push_back(value); }).has_value()
   );
 
-  // Only the input is delivered; the output line is not part of the baseline.
   REQUIRE(baseline.size() == 1);
   CHECK(baseline[0].name() == "button");
   CHECK(baseline[0].logical() == true);
@@ -113,7 +109,6 @@ TEST_CASE("chip: reconfigure swaps behaviour and the spec view in place") {
   ng::chip<mock> chip{backend};
   REQUIRE(chip.open(specs, configs).has_value());
 
-  // Same lines, new behaviour: the button flips to active_high polarity.
   std::array const changed{
     ng::line_spec::input("button", ng::chip_id{0}, ng::line_offset{17}),
     ng::line_spec::output("led", ng::chip_id{0}, ng::line_offset{4}),
@@ -124,12 +119,9 @@ TEST_CASE("chip: reconfigure swaps behaviour and the spec view in place") {
   };
   REQUIRE(chip.reconfigure(changed, changed_configs).has_value());
 
-  // The spec view now reflects the new polarity, and the output took its
-  // new initial level without a close and reopen.
   CHECK(chip.spec("button")->polarity() == ng::line_polarity::active_high);
   CHECK(*backend.physical(ng::line_offset{4}) == true);
 
-  // Addressing different lines is rejected and changes nothing.
   std::array const wrong{
     ng::line_spec::input("button", ng::chip_id{0}, ng::line_offset{18}),
     ng::line_spec::output("led", ng::chip_id{0}, ng::line_offset{4}),

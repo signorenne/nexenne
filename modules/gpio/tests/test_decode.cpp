@@ -42,8 +42,6 @@ TEST_CASE("decode: active_low inverts the level and the edge together") {
   )};
   auto const value{ng::decode(spec, rising_event())};
 
-  // A physical rising edge on an active-low line is a logical release:
-  // level false, falling edge. Level and edge must agree.
   CHECK(value.logical() == false);
   CHECK(value.edge() == ng::edge_kind::falling);
 }

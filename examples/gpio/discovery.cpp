@@ -30,7 +30,6 @@ auto main() -> int {
         std::println("GPIO discovery is unsupported on this platform.");
         return 0;
       }
-      // A missing index just ends the walk; permissions end it loudly.
       if (chip.error() == ng::gpio_error::permission_denied) {
         std::println("gpiochip{}: permission denied (udev rules or group?)", index);
       }

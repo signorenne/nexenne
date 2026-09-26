@@ -54,7 +54,7 @@ TEST_CASE("chardev_chip: a fresh backend is closed with no handle") {
   CHECK_FALSE(backend.wait_event(0ns).has_value());
   CHECK_FALSE(backend.reconfigure(specs, configs).has_value());
 
-  backend.close();  // safe when already closed
+  backend.close();
   CHECK_FALSE(backend.is_open());
 }
 
@@ -72,28 +72,17 @@ TEST_CASE("chardev_chip: a closed backend reports its label and an empty request
 }
 
 TEST_CASE("chardev_chip: the consumer label is copied, not borrowed") {
-  // The label was held as a string_view and only read much later, inside
-  // open(), so a label built at the call site dangled by the time the ioctl
-  // wanted it. The backend now owns it.
   auto built{[] {
-    // Past the small-string buffer, so the storage is heap and its release is
-    // unambiguous, and under the 32 bytes the kernel field holds.
+    // Past the small-string buffer (heap, so its release is unambiguous), under 32 bytes.
     std::string label{"nexenne-gpio-consumer-probe"};
     return ng::chardev_chip{absent_chip, label};
   }()};
 
-  // open() copies the label into the request struct before it touches a
-  // device, so this reaches the read whether or not a chip exists. With a
-  // borrowed view that read is a use-after-free.
   auto const opened{built.open(specs, configs)};
   CHECK_FALSE(opened.has_value());
 }
 
-TEST_CASE("chardev_chip: read_lines refuses more offsets than a request can hold") {
-  // read_lines resolves offsets into a max_lines-wide stack table indexed by
-  // the caller's span position. A request set cannot exceed max_lines, but a
-  // caller repeating one offset can, and every repeat used to resolve and
-  // write one past the end.
+TEST_CASE("chardev_chip: read_lines refuses more than max_lines offsets, not exactly max_lines") {
   ng::chardev_chip backend{ng::chip_id{0}};
 
   std::array<ng::line_offset, ng::chardev_chip::max_lines + 1> many{};
@@ -104,8 +93,6 @@ TEST_CASE("chardev_chip: read_lines refuses more offsets than a request can hold
   REQUIRE_FALSE(refused.has_value());
   CHECK(refused.error() == ng::gpio_error::invalid_argument);
 
-  // Exactly at the bound the size is acceptable, so the closed chip is what
-  // refuses: the guard bounds the table, it does not shrink the contract.
   auto const at_bound{backend.read_lines(
     std::span{many}.first(ng::chardev_chip::max_lines),
     std::span{levels}.first(ng::chardev_chip::max_lines)
@@ -116,10 +103,7 @@ TEST_CASE("chardev_chip: read_lines refuses more offsets than a request can hold
 
 #ifdef __linux__
 
-TEST_CASE("chardev_chip: empty bulk spans succeed without a call (gpio-14)") {
-  // The kernel rejects a zero line mask, so an empty batch used to fail here
-  // while the mock succeeded. Nothing to do is success, even on a closed chip,
-  // since no call is made at all.
+TEST_CASE("chardev_chip: empty bulk spans succeed without a call") {
   ng::chardev_chip backend{ng::chip_id{0}};
   CHECK(backend.read_lines({}, {}).has_value());
   CHECK(backend.write_lines({}, {}).has_value());
@@ -130,21 +114,18 @@ TEST_CASE("chardev_chip: empty bulk spans succeed without a call (gpio-14)") {
 TEST_CASE("chardev_chip: open validates the request before touching a device") {
   ng::chardev_chip backend{absent_chip};
 
-  // Mismatched, empty, and oversized tables.
   CHECK(
     backend.open(specs, std::span<ng::line_config const>{configs.data(), 1}).error()
     == ng::gpio_error::invalid_argument
   );
   CHECK(backend.open({}, {}).error() == ng::gpio_error::invalid_argument);
 
-  // A spec naming another chip cannot be requested here.
   std::array const foreign{
     ng::line_spec::input("in", ng::chip_id{7}, ng::line_offset{0}),
   };
   std::array const one_config{ng::line_config{}};
   CHECK(backend.open(foreign, one_config).error() == ng::gpio_error::invalid_argument);
 
-  // A consumer label the kernel field cannot hold.
   ng::chardev_chip labeled{
     absent_chip, "a-consumer-label-well-beyond-the-31-bytes-the-kernel-allows"
   };
@@ -152,7 +133,6 @@ TEST_CASE("chardev_chip: open validates the request before touching a device") {
 }
 
 TEST_CASE("chardev_chip: opening a chip that does not exist maps the errno") {
-  // No system has 4000 GPIO chips; the open must fail cleanly, not crash.
   ng::chardev_chip backend{ng::chip_id{4000}};
   std::array const remote{
     ng::line_spec::input("in", ng::chip_id{4000}, ng::line_offset{0}),
@@ -168,12 +148,11 @@ TEST_CASE("chardev_chip: opening a chip that does not exist maps the errno") {
   CHECK_FALSE(backend.is_open());
 }
 
-TEST_CASE("chardev_chip: an invalid debounce is rejected before device access") {
+TEST_CASE("chardev_chip: a debounce past 32-bit microseconds is rejected before device access") {
   ng::chardev_chip backend{ng::chip_id{4000}};
   std::array const one_spec{
     ng::line_spec::input("in", ng::chip_id{4000}, ng::line_offset{0}),
   };
-  // The kernel field is 32-bit microseconds; two hours overflows it.
   std::array const huge{ng::line_config{ng::edge_detection::both, 2h}};
   auto const opened{backend.open(one_spec, huge)};
   REQUIRE_FALSE(opened.has_value());
@@ -193,9 +172,8 @@ TEST_CASE("chardev_chip: the kernel sequence widens across the 32-bit wrap") {
   CHECK(detail::widen_sequence(0x2'0000'0005, 5) == 0x2'0000'0005);
 }
 
-TEST_CASE("chardev_chip: open refuses an offset named twice before the ioctl (gpio-03)") {
-  // A chip id no system has: skipping the check would reach the device open
-  // and report not_found instead.
+TEST_CASE("chardev_chip: open refuses an offset named twice before the ioctl") {
+  // No system has this chip, so a missed check reports not_found, never a line.
   ng::chardev_chip backend{ng::chip_id{65535}};
   std::array const twice{
     ng::line_spec::input("a", ng::chip_id{65535}, ng::line_offset{3}),

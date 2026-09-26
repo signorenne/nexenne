@@ -60,8 +60,6 @@ TEST_CASE("queue_sink: FIFO order, drop on full, drain to empty") {
   CHECK(sink.push(numbered_event(2)));
   CHECK(sink.push(numbered_event(3)));
 
-  // The ring is full: the fourth event is dropped, not blocked on, and the
-  // sink itself keeps the tally.
   CHECK(sink.dropped() == 0);
   CHECK_FALSE(sink.push(numbered_event(4)));
   CHECK_FALSE(sink.push(numbered_event(5)));
@@ -73,14 +71,11 @@ TEST_CASE("queue_sink: FIFO order, drop on full, drain to empty") {
   CHECK_FALSE(sink.try_pop().has_value());
   CHECK(sink.empty());
 
-  // Space freed by draining is reusable.
   CHECK(sink.push(numbered_event(5)));
   CHECK(sink.try_pop()->sequence == ng::event_sequence{5});
 }
 
-TEST_CASE("queue_sink: the consumer may read dropped while the producer pushes (gpio-06)") {
-  // A supervisor on the consumer side reads the drop count; every push is
-  // then either popped or counted. Run under TSan this is race-free.
+TEST_CASE("queue_sink: the consumer may read dropped while the producer pushes") {
   ng::queue_sink<4> sink{};
   constexpr std::uint64_t pushes{20'000};
   std::atomic<bool> done{false};

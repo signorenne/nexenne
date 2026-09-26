@@ -238,8 +238,7 @@ public:
       return std::nullopt;
     }
     auto out{*m_pending};
-    // A repeat of the candidate level after the period is what the engine
-    // settles on; by now it has held that long.
+    // Re-feeding the candidate level after its period is what settles the engine.
     auto const settled{m_filter.update(steady(now), out.physical)};
     m_pending.reset();
     if (!settled.has_value()) {

@@ -28,13 +28,11 @@ TEST_CASE("gpio_error: to_string names every enumerator") {
 }
 
 TEST_CASE("is_transient: retryable and permanent errors split cleanly") {
-  // Worth a backoff retry: the condition can clear on its own.
   CHECK(ng::is_transient(ng::gpio_error::busy));
   CHECK(ng::is_transient(ng::gpio_error::timeout));
   CHECK(ng::is_transient(ng::gpio_error::io_error));
   CHECK(ng::is_transient(ng::gpio_error::overflow));
 
-  // Never clears without operator action: retrying is noise.
   CHECK_FALSE(ng::is_transient(ng::gpio_error::invalid_argument));
   CHECK_FALSE(ng::is_transient(ng::gpio_error::not_found));
   CHECK_FALSE(ng::is_transient(ng::gpio_error::not_open));

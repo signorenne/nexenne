@@ -33,7 +33,6 @@ TEST_CASE("sequence_tracker: a jump reports the missing count and accumulates") 
   ng::sequence_tracker tracker{};
   CHECK(tracker.feed(ng::event_sequence{1}) == 0);
 
-  // 2, 3, 4 were lost to an overflow.
   CHECK(tracker.feed(ng::event_sequence{5}) == 3);
   CHECK(tracker.dropped() == 3);
 

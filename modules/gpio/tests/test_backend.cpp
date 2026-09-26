@@ -16,7 +16,6 @@ namespace {
 
 namespace ng = nexenne::gpio;
 
-// The minimal legal backend: open/close plus per-line read and write.
 struct basic_backend {
   auto open(std::span<ng::line_spec const>, std::span<ng::line_config const>) -> ng::result<void> {
     return {};
@@ -37,7 +36,6 @@ struct basic_backend {
   }
 };
 
-// Adds the bulk tier on top of the basic one.
 struct bulk_backend : basic_backend {
   auto read_lines(std::span<ng::line_offset const>, std::span<bool>) const -> ng::result<void> {
     return {};
@@ -48,7 +46,6 @@ struct bulk_backend : basic_backend {
   }
 };
 
-// Adds the reconfigure tier on top of the basic one.
 struct reshaping_backend : basic_backend {
   auto reconfigure(std::span<ng::line_spec const>, std::span<ng::line_config const>)
     -> ng::result<void> {
@@ -56,7 +53,6 @@ struct reshaping_backend : basic_backend {
   }
 };
 
-// Adds the edge tier: events plus a pollable handle.
 struct event_backend : basic_backend {
   using native_handle_type = int;
 
@@ -69,7 +65,6 @@ struct event_backend : basic_backend {
   }
 };
 
-// A push-only sink and a drainable one.
 struct push_sink {
   auto push(ng::line_event const&) noexcept -> bool {
     return true;
@@ -82,13 +77,12 @@ struct pop_sink : push_sink {
   }
 };
 
-// Wrong signatures must not satisfy the concepts.
 struct throwing_close : basic_backend {
-  auto close() -> void {}  // not noexcept
+  auto close() -> void {}
 };
 
 struct throwing_push {
-  auto push(ng::line_event const&) -> bool {  // not noexcept
+  auto push(ng::line_event const&) -> bool {
     return true;
   }
 };
@@ -111,7 +105,7 @@ TEST_CASE("gpio_backend: each tier admits exactly the types that model it") {
   static_assert(!ng::gpio_backend<throwing_close>);
   static_assert(!ng::gpio_backend<int>);
 
-  CHECK(true);  // the assertions above are the test
+  CHECK(true);
 }
 
 TEST_CASE("edge_sink: push is required noexcept, try_pop marks the draining tier") {

@@ -78,8 +78,6 @@ auto main(int const argc, char** const argv) -> int {
   }
   auto led{*chip.line_for("led")};
 
-  // One epoll instance watches both descriptors; this is the seam a Qt
-  // QSocketNotifier or an ASIO descriptor occupies instead.
   int const epoll_fd{::epoll_create1(EPOLL_CLOEXEC)};
   if (epoll_fd < 0) {
     std::println("epoll_create1 failed");
@@ -98,7 +96,7 @@ auto main(int const argc, char** const argv) -> int {
     ::close(timer_fd);
   }}};
   ::itimerspec period{};
-  period.it_interval.tv_nsec = 500'000'000;  // 500ms heartbeat
+  period.it_interval.tv_nsec = 500'000'000;
   period.it_value = period.it_interval;
   if (::timerfd_settime(timer_fd, 0, &period, nullptr) < 0) {
     std::println("timerfd_settime failed");
@@ -135,8 +133,6 @@ auto main(int const argc, char** const argv) -> int {
         nexenne::utility::ignore(led.toggle());
         ticks += 1;
       } else {
-        // Pump every event the readiness covered straight into a handler;
-        // drain_events never blocks, which is the reactor contract.
         auto handler{[&](ng::line_event const& event) noexcept -> bool {
           std::println("{}", ng::decode(specs[0], event));
           return true;

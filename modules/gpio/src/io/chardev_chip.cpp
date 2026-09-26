@@ -96,8 +96,6 @@ auto chardev_chip::kernel_flags(line_spec const& spec, line_config const& config
       flags |= GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME;
       break;
     case line_clock::hte:
-      // The kernel rejects this on hardware without a timestamp engine,
-      // which surfaces as gpio_error::unsupported from the open.
       flags |= GPIO_V2_LINE_FLAG_EVENT_CLOCK_HTE;
       break;
     case line_clock::monotonic:
@@ -131,8 +129,6 @@ auto chardev_chip::build_line_config(
     }
   };
 
-  // Group lines whose flags differ from the base into one attribute per
-  // distinct flag word (first occurrence wins, so scan forward).
   for (std::size_t i{1}; i < specs.size(); ++i) {
     if (flags[i] == config->flags) {
       continue;
@@ -162,7 +158,6 @@ auto chardev_chip::build_line_config(
     }
   }
 
-  // Initial output levels ride in one OUTPUT_VALUES attribute.
   {
     std::uint64_t output_mask{0};
     std::uint64_t output_values{0};
@@ -244,8 +239,6 @@ chardev_chip::chardev_chip(
   chip_id const chip, std::string_view const consumer, std::uint32_t const event_buffer_size
 ) noexcept
     : m_chip{chip}, m_consumer_size{consumer.size()}, m_event_buffer_size{event_buffer_size} {
-  // Copy what fits; m_consumer_size keeps the requested length so open() can
-  // still refuse a label the kernel field cannot hold.
   std::copy_n(consumer.data(), std::min(consumer.size(), m_consumer.size() - 1), m_consumer.data());
 }
 
@@ -303,8 +296,7 @@ auto chardev_chip::open(
     return std::unexpected{built.error()};
   }
 
-  // Rendered with to_chars rather than a vararg call: type-safe, and the
-  // buffer is wide enough for the prefix plus any 16-bit index.
+  // Wide enough for the prefix plus any 16-bit chip index.
   std::array<char, 32> path{};
   constexpr std::string_view prefix{"/dev/gpiochip"};
   std::ranges::copy(prefix, path.begin());

@@ -63,10 +63,8 @@
 #include <nexenne/container/static_vector.hpp>
 #include <nexenne/utility/unique_resource.hpp>
 
-// The kernel request structures appear only behind pointers in the private
-// interface below, so a forward declaration is enough and <linux/gpio.h> stays
-// out of every consumer's include chain. The definitions live in
-// src/io/chardev_chip.cpp, which includes the real kernel header.
+// Forward-declared so <linux/gpio.h> stays out of every consumer's include
+// chain; only src/io/chardev_chip.cpp includes the real kernel header.
 struct gpio_v2_line_config;
 struct gpio_v2_line_values;
 

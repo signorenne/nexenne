@@ -47,7 +47,6 @@ TEST_CASE("drain_events: moves everything ready and stops on the clean miss") {
   CHECK(sink.try_pop()->sequence == ng::event_sequence{3});
   CHECK_FALSE(sink.try_pop().has_value());
 
-  // A second drain with nothing ready reports zeros.
   auto const empty{ng::drain_events(backend, sink)};
   REQUIRE(empty.has_value());
   CHECK(*empty == ng::drain_report{});
@@ -60,7 +59,6 @@ TEST_CASE("drain_events: a full sink is counted, the source is still emptied") {
     REQUIRE(backend.inject(numbered_event(i)));
   }
 
-  // Room for three: the last two must be rejected but still consumed.
   ng::queue_sink<4> sink{};
   auto const report{ng::drain_events(backend, sink)};
   REQUIRE(report.has_value());
@@ -70,7 +68,7 @@ TEST_CASE("drain_events: a full sink is counted, the source is still emptied") {
 
   auto const after{backend.wait_event(0ns)};
   REQUIRE(after.has_value());
-  CHECK_FALSE(after->has_value());  // the source really is empty
+  CHECK_FALSE(after->has_value());
 }
 
 TEST_CASE("drain_events: a closed source surfaces the wait error") {

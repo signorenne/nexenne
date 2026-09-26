@@ -28,7 +28,7 @@ TEST_CASE("chardev_watcher: a fresh watcher is closed with no handle") {
   CHECK(watcher.native_handle() == -1);
   CHECK_FALSE(watcher.wait_change(0ns).has_value());
 
-  watcher.close();  // safe when already closed
+  watcher.close();
   CHECK_FALSE(watcher.is_open());
 }
 
@@ -58,7 +58,6 @@ TEST_CASE("chardev_watcher: a live watch arms and is quiet") {
   CHECK(watcher.is_open());
   CHECK(watcher.native_handle() >= 0);
 
-  // Nothing has changed yet: a zero-timeout wait is a clean miss.
   auto const quiet{watcher.wait_change(0ns)};
   REQUIRE(quiet.has_value());
   CHECK_FALSE(quiet->has_value());

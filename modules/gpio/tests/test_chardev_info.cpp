@@ -36,7 +36,7 @@ TEST_CASE("chip_info: views terminate at the kernel NUL") {
   name[0] = 'g';
   name[1] = 'p';
   name[2] = '\0';
-  name[3] = 'x';  // garbage after the terminator must not leak into the view
+  name[3] = 'x';
   ng::chip_info const info{name, {}, 8};
 
   CHECK(info.name() == "gp");
@@ -56,7 +56,6 @@ TEST_CASE("discovery: a chip index that cannot exist reports not_found") {
 TEST_CASE("discovery: live chip walk when /dev/gpiochip0 is accessible") {
   auto const info{ng::read_chip_info(ng::chip_id{0})};
   if (!info.has_value()) {
-    // No chip or no permission on this host: nothing else is testable live.
     MESSAGE("skipping live discovery: ", ng::to_string(info.error()));
     return;
   }
@@ -64,7 +63,6 @@ TEST_CASE("discovery: live chip walk when /dev/gpiochip0 is accessible") {
   CHECK_FALSE(info->name().empty());
   REQUIRE(info->lines() > 0);
 
-  // Every advertised offset must be describable; one past the end must not.
   auto const first{ng::read_line_info(ng::chip_id{0}, ng::line_offset{0})};
   REQUIRE(first.has_value());
   CHECK(first->offset() == ng::line_offset{0});
@@ -72,7 +70,6 @@ TEST_CASE("discovery: live chip walk when /dev/gpiochip0 is accessible") {
   auto const past{ng::read_line_info(ng::chip_id{0}, ng::line_offset{info->lines()})};
   CHECK_FALSE(past.has_value());
 
-  // A name no board uses is a clean miss, not an error.
   auto const missing{ng::find_line(ng::chip_id{0}, "nexenne-no-such-line-name")};
   REQUIRE(missing.has_value());
   CHECK_FALSE(missing->has_value());

@@ -42,7 +42,6 @@ TEST_CASE("line: read applies polarity so the caller stays logical") {
   REQUIRE(backend.open(specs, configs).has_value());
   ng::line<mock> const button{backend, specs[0]};
 
-  // Physical low on an active-low button is logically pressed.
   REQUIRE(backend.drive(ng::line_offset{17}, false).has_value());
   CHECK(*button.read() == true);
 
@@ -56,7 +55,6 @@ TEST_CASE("line: write converts to physical and rejects inputs") {
   ng::line<mock> led{backend, specs[1]};
   ng::line<mock> button{backend, specs[0]};
 
-  // Logical on for an active-low LED drives the wire low.
   REQUIRE(led.write(true).has_value());
   CHECK(*backend.physical(ng::line_offset{4}) == false);
 

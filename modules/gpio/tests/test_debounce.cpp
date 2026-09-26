@@ -39,18 +39,15 @@ TEST_CASE("event_debounce: a bounce burst settles to one transition") {
   ng::event_debounce debounce{5ms};
   REQUIRE(debounce.feed(event_at(0ms, false, ng::edge_kind::none)).has_value());
 
-  // Contact bounce: rapid alternation well inside the settle period.
   CHECK_FALSE(debounce.feed(event_at(1ms, true, ng::edge_kind::rising)).has_value());
   CHECK_FALSE(debounce.feed(event_at(2ms, false, ng::edge_kind::falling)).has_value());
   CHECK_FALSE(debounce.feed(event_at(3ms, true, ng::edge_kind::rising)).has_value());
 
-  // The level holds high past the period: exactly one settled rising edge.
   auto const settled{debounce.feed(event_at(9ms, true, ng::edge_kind::rising))};
   REQUIRE(settled.has_value());
   CHECK(settled->physical == true);
   CHECK(settled->edge == ng::edge_kind::rising);
 
-  // Staying high produces nothing further.
   CHECK_FALSE(debounce.feed(event_at(20ms, true, ng::edge_kind::rising)).has_value());
 }
 
@@ -60,8 +57,6 @@ TEST_CASE("event_debounce: the settled edge is derived, not carried") {
 
   CHECK_FALSE(debounce.feed(event_at(1ms, false, ng::edge_kind::falling)).has_value());
 
-  // The raw event lies about its edge; the debouncer reports the settled
-  // transition it actually observed.
   auto const settled{debounce.feed(event_at(7ms, false, ng::edge_kind::rising))};
   REQUIRE(settled.has_value());
   CHECK(settled->physical == false);
@@ -71,13 +66,11 @@ TEST_CASE("event_debounce: the settled edge is derived, not carried") {
 TEST_CASE("event_debounce: stable reports the settled level, not the bounce") {
   ng::event_debounce debounce{5ms};
 
-  // Nothing has settled yet.
   CHECK_FALSE(debounce.stable().has_value());
 
   REQUIRE(debounce.feed(event_at(0ms, true, ng::edge_kind::none)).has_value());
   CHECK(*debounce.stable() == true);
 
-  // A bounce in progress does not move the settled view.
   CHECK_FALSE(debounce.feed(event_at(1ms, false, ng::edge_kind::falling)).has_value());
   CHECK(*debounce.stable() == true);
 
@@ -107,9 +100,7 @@ TEST_CASE("event_debounce: a zero period passes transitions straight through") {
   CHECK(passed->edge == ng::edge_kind::rising);
 }
 
-TEST_CASE("event_debounce: an overdue level settles on the next opposite edge (gpio-01)") {
-  // A kernel edge stream alternates, so a held level never sees a repeat: the
-  // press settles when the release arrives, reporting the press's own edge.
+TEST_CASE("event_debounce: an overdue level settles on the next opposite edge") {
   ng::event_debounce debounce{5ms};
   REQUIRE(debounce.feed(event_at(0ms, false, ng::edge_kind::falling)).has_value());
 

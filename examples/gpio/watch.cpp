@@ -38,7 +38,6 @@ auto main(int const argc, char** const argv) -> int {
     return 0;
   }
 
-  // Watch every line the chip has, up to the per-watcher capacity.
   auto const count{std::min<std::uint32_t>(info->lines(), ng::chardev_watcher::max_lines)};
   std::vector<ng::line_offset> offsets{};
   offsets.reserve(count);

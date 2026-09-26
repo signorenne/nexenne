@@ -45,7 +45,6 @@ TEST_CASE("mock_chip: open validates the spans and applies initial values") {
   mock chip{};
   CHECK_FALSE(chip.is_open());
 
-  // Mismatched and empty spans are rejected.
   CHECK(
     chip.open(specs, std::span<ng::line_config const>{configs.data(), 1}).error()
     == ng::gpio_error::invalid_argument
@@ -55,7 +54,6 @@ TEST_CASE("mock_chip: open validates the spans and applies initial values") {
   REQUIRE(chip.open(specs, configs).has_value());
   CHECK(chip.is_open());
 
-  // The output starts at its configured initial value; the input starts low.
   CHECK(*chip.read(ng::line_offset{4}) == true);
   CHECK(*chip.read(ng::line_offset{17}) == false);
 }
@@ -63,7 +61,6 @@ TEST_CASE("mock_chip: open validates the spans and applies initial values") {
 TEST_CASE("mock_chip: read and write enforce the request set and direction") {
   mock chip{};
 
-  // Everything fails while closed.
   CHECK(chip.read(ng::line_offset{17}).error() == ng::gpio_error::not_open);
   CHECK(chip.write(ng::line_offset{4}, true).error() == ng::gpio_error::not_open);
 
@@ -75,7 +72,6 @@ TEST_CASE("mock_chip: read and write enforce the request set and direction") {
   REQUIRE(chip.write(ng::line_offset{4}, false).has_value());
   CHECK(*chip.physical(ng::line_offset{4}) == false);
 
-  // The rig can drive an input; read then sees it.
   REQUIRE(chip.drive(ng::line_offset{17}, true).has_value());
   CHECK(*chip.read(ng::line_offset{17}) == true);
 }
@@ -96,7 +92,6 @@ TEST_CASE("mock_chip: bulk operations mirror the per-line ones") {
   REQUIRE(chip.write_lines(out_offsets, out_levels).has_value());
   CHECK(*chip.physical(ng::line_offset{4}) == false);
 
-  // A length mismatch is rejected before any line is touched.
   CHECK(
     chip.read_lines(offsets, std::span<bool>{levels.data(), 1}).error()
     == ng::gpio_error::invalid_argument
@@ -149,7 +144,6 @@ TEST_CASE("mock_chip: close drops pending events; a reopen starts clean") {
   CHECK_FALSE(chip.is_open());
   CHECK_FALSE(chip.inject(event));
 
-  // The reopened chip must not replay the event injected before the close.
   REQUIRE(chip.open(specs, configs).has_value());
   auto const none{chip.wait_event(0ns)};
   REQUIRE(none.has_value());
