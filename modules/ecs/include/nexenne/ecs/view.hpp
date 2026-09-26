@@ -197,7 +197,8 @@ public:
    *
    * @pre  None. Thanks to the pointer-stable storage, \p f may add or
    *       remove components and create or destroy entities during the loop
-   *       without dangling the references it holds.
+   *       without dangling the references it holds. A \c registry::clear from
+   *       \p f ends the loop.
    * @post Every entity matching the filters at the start was passed to \p f
    *       exactly once, unless \p f removed it (or a required component)
    *       before it was reached. A component added by \p f during the loop
@@ -209,9 +210,11 @@ public:
   template <typename Func>
   auto each(Func&& f) const noexcept -> void {
     // Capture the slot count once: a slot appended by \p f during the loop
-    // lies beyond it and is not visited.
+    // lies beyond it and is not visited. Bound the walk by the current count
+    // as well: a registry::clear() in \p f empties the driver, whose old slots
+    // must then not be read.
     auto const count{m_driver_slot_count(m_driver)};
-    for (auto slot{std::size_t{0}}; slot < count; ++slot) {
+    for (auto slot{std::size_t{0}}; slot < count && slot < m_driver_slot_count(m_driver); ++slot) {
       if (!m_driver_is_live(m_driver, slot)) {
         continue;
       }
@@ -270,14 +273,15 @@ public:
      *        captured slot count.
      *
      * Skips driver slots that are tombstoned or that fail the include and
-     * exclude membership tests, stopping at the first match or at \c m_count.
+     * exclude membership tests, stopping at the first match, at \c m_count, or
+     * at the driver's current slot count when a \c registry::clear emptied it.
      *
      * @pre \c m_view is non-null (the iterator is not singular).
-     * @post \c m_pos names a matching live slot or equals \c m_count.
+     * @post \c m_pos names a matching live slot, or \c at_end() is \c true.
      */
     auto advance_to_valid() noexcept -> void {
       while (
-        m_pos < m_count
+        m_pos < m_count && m_pos < m_view->driver_slot_count()
         && (!m_view->driver_is_live(m_pos) || !m_view->passes_filter(m_view->driver_key_at(m_pos)))
       ) {
         ++m_pos;
@@ -285,15 +289,18 @@ public:
     }
 
     /**
-     * @brief Whether the cursor has reached the captured slot count.
+     * @brief Whether the cursor is at the end of the walk.
      *
-     * @return \c true when the position is at or past \c m_count.
+     * The end is the slot count captured at construction, or the driver's
+     * current slot count when a \c registry::clear during the walk emptied it.
+     *
+     * @return \c true when the position is at or past either count.
      *
      * @pre None.
      * @post The iterator is unchanged.
      */
-    [[nodiscard]] constexpr auto at_end() const noexcept -> bool {
-      return m_pos >= m_count;
+    [[nodiscard]] auto at_end() const noexcept -> bool {
+      return m_pos >= m_count || m_pos >= m_view->driver_slot_count();
     }
 
   public:

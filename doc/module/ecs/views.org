@@ -170,7 +170,7 @@ reg.view<position, velocity>().each(
 The pointer-stable storage was built precisely so a view can be modified while it
 iterates. The pool never relocates a live component, so every reference the loop
 hands back stays valid even as the storage grows or tombstones slots. The loop
-body may add or remove components and create or destroy entities, with two
+body may add or remove components and create or destroy entities, with three
 well-defined edges to know about:
 
 - A component *added* during the walk may or may not be visited this pass. An
@@ -187,10 +187,14 @@ well-defined edges to know about:
   mutating the references the view hands you, including the current entity's,
   before you remove anything is always fine.
 
+- A =clear()= of the registry inside the loop ends the walk: every storage is
+  empty, so no further entity is visited, and every reference handed out before
+  it is gone.
+
 Mutating component *values* in place is, of course, the normal case: changing
 =p.x= through the reference you were handed touches no structure at all. If you
 prefer the classic ECS discipline of recording structural changes during the
-loop and applying them afterward, that still works and side-steps the two edges
+loop and applying them afterward, that still works and side-steps the edges
 above; it is no longer required for correctness.
 
 Runnable: [[file:../../../examples/ecs/simulation.cpp][examples/ecs/simulation.cpp]]

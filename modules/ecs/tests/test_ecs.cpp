@@ -1708,4 +1708,48 @@ TEST_CASE("storage: a values() loop that re-reads end() stops at the captured co
   CHECK(steps == 1);
 }
 
+TEST_CASE("view: clear() inside each ends the walk") {
+  auto r{registry{}};
+  for (auto i{0}; i < 3; ++i) {
+    nexenne::utility::discard(r.add<health>(r.create(), health{.hp = i}));
+  }
+  auto visits{0};
+  r.view<health>().each([&](health const& h) noexcept {
+    ++visits;
+    if (h.hp == 0) {
+      r.clear();
+    }
+  });
+  CHECK(visits == 1);
+  CHECK(r.alive() == 0);
+}
+
+TEST_CASE("view: clear() inside a range-for ends the walk") {
+  auto r{registry{}};
+  for (auto i{0}; i < 3; ++i) {
+    nexenne::utility::discard(r.add<health>(r.create(), health{.hp = i}));
+  }
+  auto visits{0};
+  for (auto const [e, h] : r.view<health>()) {
+    nexenne::utility::discard(e, h);
+    ++visits;
+    r.clear();
+  }
+  CHECK(visits == 1);
+}
+
+TEST_CASE("storage: clear() inside a values() loop ends the walk") {
+  auto r{registry{}};
+  for (auto i{0}; i < 3; ++i) {
+    nexenne::utility::discard(r.add<health>(r.create(), health{.hp = i}));
+  }
+  auto visits{0};
+  for (auto const& h : r.storage<health>().values()) {
+    nexenne::utility::discard(h);
+    ++visits;
+    r.clear();
+  }
+  CHECK(visits == 1);
+}
+
 }  // namespace

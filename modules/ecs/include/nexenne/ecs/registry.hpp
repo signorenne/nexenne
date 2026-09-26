@@ -521,8 +521,8 @@ public:
    * @return A forward range yielding each live component by reference.
    *
    * @pre None.
-   * @post The storage is structurally unchanged. The range is invalidated
-   *       by \c clear; pointer stability keeps individual references valid
+   * @post The storage is structurally unchanged. A \c clear during a walk
+   *       ends it; pointer stability keeps individual references valid
    *       across other inserts and erases.
    */
   [[nodiscard]] auto values() noexcept -> value_range {
@@ -536,7 +536,7 @@ public:
    *         reference.
    *
    * @pre None.
-   * @post The storage is unchanged. The range is invalidated by \c clear.
+   * @post The storage is unchanged. A \c clear during a walk ends it.
    */
   [[nodiscard]] auto values() const noexcept -> const_value_range {
     return const_value_range{m_pool};

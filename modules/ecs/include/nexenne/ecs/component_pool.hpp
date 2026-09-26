@@ -330,8 +330,8 @@ public:
  * \c component_pool<T> const for a read-only one, and the element reference
  * follows. Because the pool is pointer-stable, a reference obtained from the
  * range stays valid even if other components are added or removed, though
- * such changes alter which slots are live; the range itself is invalidated
- * only by \c clear or the pool's destruction.
+ * such changes alter which slots are live. A \c clear ends a walk in progress;
+ * only the pool's destruction invalidates the range itself.
  *
  * @tparam Pool \c component_pool<T> (mutable) or \c component_pool<T> const.
  */
@@ -370,21 +370,24 @@ public:
 
     /// @brief Advances the cursor to the next live slot, or to the captured count.
     auto advance_to_live() noexcept -> void {
-      while (m_slot < m_count && !m_pool->is_live(m_slot)) {
+      while (m_slot < m_count && m_slot < m_pool->slot_count() && !m_pool->is_live(m_slot)) {
         ++m_slot;
       }
     }
 
     /**
-     * @brief Whether the cursor has reached the captured slot count.
+     * @brief Whether the cursor is at the end of the walk.
      *
-     * @return \c true when the cursor is at or past \c m_count.
+     * The end is the slot count captured at construction, or the pool's
+     * current slot count when a \c clear during the walk emptied it.
+     *
+     * @return \c true when the cursor is at or past either count.
      *
      * @pre None.
      * @post The iterator is unchanged.
      */
-    [[nodiscard]] constexpr auto at_end() const noexcept -> bool {
-      return m_slot >= m_count;
+    [[nodiscard]] auto at_end() const noexcept -> bool {
+      return m_slot >= m_count || m_slot >= m_pool->slot_count();
     }
 
   public:
