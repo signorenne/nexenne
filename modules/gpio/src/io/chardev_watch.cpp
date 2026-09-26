@@ -35,7 +35,6 @@ auto chardev_watcher::is_open() const noexcept -> bool {
 
 auto chardev_watcher::close() noexcept -> void {
   m_fd.reset();
-  m_offsets.clear();
 }
 
 auto chardev_watcher::watch(std::span<line_offset const> const offsets) -> result<void> {
@@ -54,7 +53,6 @@ auto chardev_watcher::watch(std::span<line_offset const> const offsets) -> resul
         < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
       return std::unexpected{errno == EINVAL ? gpio_error::invalid_argument : detail::info_errno()};
     }
-    utility::discard(m_offsets.push_back(offset));
   }
   m_fd = std::move(fd);
   return {};

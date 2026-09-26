@@ -59,7 +59,6 @@ struct line_change {
 
 #ifdef __linux__
 
-#include <nexenne/container/static_vector.hpp>
 #include <nexenne/utility/unique_resource.hpp>
 
 namespace nexenne::gpio {
@@ -77,7 +76,7 @@ public:
   /// @brief The pollable chip file descriptor type.
   using native_handle_type = int;
 
-  /// @brief Watched-line bookkeeping capacity, mirroring the per-request limit.
+  /// @brief Most lines one watcher accepts, mirroring the per-request limit.
   // Spelled literally so the kernel header stays out of this file;
   // src/io/chardev_watch.cpp static_asserts it against GPIO_V2_LINES_MAX.
   static constexpr std::size_t max_lines{64};
@@ -87,7 +86,6 @@ private:
 
   chip_id m_chip{0};
   fd_handle m_fd{};
-  container::static_vector<line_offset, max_lines> m_offsets{};
 
 public:
   /**
