@@ -1752,4 +1752,24 @@ TEST_CASE("storage: clear() inside a values() loop ends the walk") {
   CHECK(visits == 1);
 }
 
+TEST_CASE("registry: destroy the entities a range-for collected, not inside it (ecs-05)") {
+  // Destroying inside the loop breaks the iterator's precondition (asserted in
+  // debug): destroy swap-pops the live set under the cursor. The supported
+  // pattern collects the handles first.
+  auto r{registry{}};
+  for (auto i{0}; i < 4; ++i) {
+    nexenne::utility::discard(r.create());
+  }
+  auto doomed{std::vector<entity_id>{}};
+  for (auto const e : r) {
+    doomed.push_back(e);
+  }
+  CHECK(doomed.size() == 4);
+  for (auto const e : doomed) {
+    CHECK(r.destroy(e));
+  }
+  CHECK(r.alive() == 0);
+  CHECK(r.begin() == r.end());
+}
+
 }  // namespace

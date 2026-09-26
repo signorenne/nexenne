@@ -98,7 +98,9 @@ The registry is itself a =std::ranges::input_range= over its live entities: its
 generation) for each live entity. Iteration order is the dense set's order
 (creation order with a swap-pop on each destroy), so it is not stable across
 destroys. The =each(f)= method is the same loop in callback form. Do not create
-or destroy entities while iterating; the loop walks the live-index set in place.
+or destroy entities while iterating; the loop walks the live-index set in place,
+and a destroy can leave the cursor past its end (a debug build asserts on it).
+Collect the handles first, then destroy them.
 
 #+BEGIN_EXAMPLE
 nexenne::ecs::registry reg;

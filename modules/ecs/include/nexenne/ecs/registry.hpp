@@ -1620,6 +1620,10 @@ public:
    *        entity. Iteration order is "creation order with swap-pop
    *        on destroy", sparse_set's dense ordering, not stable
    *        across destroys.
+   *
+   * No entity may be created or destroyed while an iteration is in progress:
+   * \c destroy swap-pops the live set under the cursor, which can then skip
+   * entities or run past the end. Collect the handles first, then destroy them.
    */
   class iterator {
   public:
@@ -1663,10 +1667,16 @@ public:
      *         for the live entity at this position.
      *
      * @pre \c *this is dereferenceable: it is bound to a registry
-     *       and does not equal \c end().
+     *       and does not equal \c end(), and no entity was created or
+     *       destroyed since the iteration began (asserted in debug for a
+     *       position past the live set).
      * @post The iterator is unchanged.
      */
     [[nodiscard]] auto operator*() const noexcept -> entity_id {
+      assert(
+        m_registry != nullptr && m_pos < m_registry->m_alive_indices.size()
+        && "registry iterator past the live set: entities destroyed while iterating?"
+      );
       auto const idx{m_registry->m_alive_indices.keys()[m_pos]};
       return entity_id{idx, m_registry->m_generations[idx]};
     }
