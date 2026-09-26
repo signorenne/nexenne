@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief The Linux character-device backend: request rendering, value ioctls and edge reads.
+ */
+
 #include <nexenne/gpio/io/chardev_chip.hpp>
 
 #ifdef __linux__

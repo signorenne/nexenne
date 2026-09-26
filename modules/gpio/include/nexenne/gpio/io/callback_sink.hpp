@@ -40,7 +40,7 @@ template <typename Handler>
 class callback_sink {
 public:
   using value_type = line_event;
-  /// The callable type events are delivered to.
+  /// @brief The callable type events are delivered to.
   using handler_type = Handler;
 
 private:

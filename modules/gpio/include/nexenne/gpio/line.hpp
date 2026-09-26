@@ -32,7 +32,7 @@ template <gpio_backend Backend>
 class line {
 public:
   using value_type = bool;
-  /// The backend type this handle was instantiated with.
+  /// @brief The backend type this handle was instantiated with.
   using backend_type = Backend;
 
 private:

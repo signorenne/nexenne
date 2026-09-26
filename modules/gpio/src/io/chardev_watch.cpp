@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief The line-info watcher over the Linux character device.
+ */
+
 #include <nexenne/gpio/io/chardev_watch.hpp>
 
 #ifdef __linux__
@@ -49,7 +54,7 @@ auto chardev_watcher::watch(std::span<line_offset const> const offsets) -> resul
         < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
       return std::unexpected{errno == EINVAL ? gpio_error::invalid_argument : detail::info_errno()};
     }
-    utility::ignore(m_offsets.push_back(offset));
+    utility::discard(m_offsets.push_back(offset));
   }
   m_fd = std::move(fd);
   return {};

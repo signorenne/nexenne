@@ -44,6 +44,16 @@ private:
   std::array<char, 32> m_label{};
   std::uint32_t m_lines{0};
 
+  /**
+   * @brief Views a null-terminated kernel name field.
+   *
+   * @param field Fixed-size field, null-terminated or full.
+   *
+   * @return The characters before the first null, or the whole field.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto to_view(std::array<char, 32> const& field) noexcept
     -> std::string_view {
     std::size_t length{0};
@@ -136,6 +146,16 @@ private:
   bool m_used{false};
   bool m_active_low{false};
 
+  /**
+   * @brief Views a null-terminated kernel name field.
+   *
+   * @param field Fixed-size field, null-terminated or full.
+   *
+   * @return The characters before the first null, or the whole field.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static constexpr auto to_view(std::array<char, 32> const& field) noexcept
     -> std::string_view {
     std::size_t length{0};
@@ -316,15 +336,57 @@ namespace nexenne::gpio {
 namespace detail {
 
 /// @cond INTERNAL
+
+/**
+ * @brief Closes a file descriptor; the deleter for the discovery handles.
+ */
 struct info_fd_closer {
+  /**
+   * @brief Closes the descriptor \p fd.
+   *
+   * @param fd Descriptor to close.
+   *
+   * @pre None.
+   * @post \p fd is closed.
+   */
   auto operator()(int fd) const noexcept -> void;
 };
 
+/**
+ * @brief Opens a chip's character device for reading its info.
+ *
+ * @param chip Chip to open.
+ *
+ * @return The owned descriptor; it owns nothing when the open failed, with
+ *         \c errno set.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] auto open_chip_readonly(chip_id const chip) noexcept
   -> utility::unique_resource<int, info_fd_closer>;
 
+/**
+ * @brief Maps the current \c errno onto the module's error categories.
+ *
+ * @return The matching \c gpio_error; unrecognised values map to
+ *         \c gpio_error::io_error.
+ *
+ * @pre A discovery call has just failed and set \c errno.
+ * @post None.
+ */
 [[nodiscard]] auto info_errno() noexcept -> gpio_error;
 
+/**
+ * @brief Converts a kernel line-info record into a \c line_info.
+ *
+ * @param raw Record filled by the line-info ioctl.
+ *
+ * @return The line's identity and state in the module's vocabulary.
+ *
+ * @pre None.
+ * @post None.
+ */
 [[nodiscard]] auto decode_line_info(::gpio_v2_line_info const& raw) -> line_info;
 
 /// @endcond

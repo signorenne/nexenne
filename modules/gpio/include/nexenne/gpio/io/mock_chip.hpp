@@ -46,10 +46,10 @@ template <std::size_t Capacity = 64>
 class mock_chip {
 public:
   using value_type = bool;
-  /// Pollable-handle type; the mock has no real handle and returns \c -1.
+  /// @brief Pollable-handle type; the mock has no real handle and returns \c -1.
   using native_handle_type = int;
 
-  /// Maximum number of requested lines and of buffered events.
+  /// @brief Maximum number of requested lines and of buffered events.
   static constexpr std::size_t capacity{Capacity};
 
 private:
@@ -60,8 +60,21 @@ private:
   std::size_t m_next_event{0};
   bool m_open{false};
 
-  // An index loop instead of std::ranges::find_if: static_vector's iterators
-  // are not constexpr, and tens of lines per chip keeps a linear scan cheap.
+  /**
+   * @brief Position of \p offset in the request set.
+   *
+   * An index loop instead of \c std::ranges::find_if: the static vector's
+   * iterators are not \c constexpr, and tens of lines per chip keep a linear
+   * scan cheap.
+   *
+   * @param offset Line offset to look up.
+   *
+   * @return The index into the per-line tables, or \c std::nullopt when
+   *         \p offset was not requested.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto index_of(line_offset const offset) const noexcept
     -> std::optional<std::size_t> {
     for (std::size_t i{0}; i < m_specs.size(); ++i) {

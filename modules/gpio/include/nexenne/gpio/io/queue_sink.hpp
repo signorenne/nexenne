@@ -36,11 +36,12 @@ namespace nexenne::gpio {
  * @tparam N Ring slot count, at least two.
  */
 template <std::size_t N>
+  requires(N >= 2)
 class queue_sink {
 public:
   using value_type = line_event;
 
-  /// Ring slot count; the effective capacity is one less.
+  /// @brief Ring slot count; the effective capacity is one less.
   static constexpr std::size_t slot_count{N};
 
 private:

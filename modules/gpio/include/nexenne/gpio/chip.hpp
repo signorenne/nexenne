@@ -42,13 +42,24 @@ template <gpio_backend Backend>
 class chip {
 public:
   using value_type = bool;
-  /// The backend type this chip was instantiated with.
+  /// @brief The backend type this chip was instantiated with.
   using backend_type = Backend;
 
 private:
   backend_type* m_backend{nullptr};
   std::span<line_spec const> m_specs{};
 
+  /**
+   * @brief The spec named \p name in the current request set.
+   *
+   * @param name Line name to look up.
+   *
+   * @return A pointer into the spec table, or \c nullptr when no spec has
+   *         that name.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] constexpr auto find(std::string_view const name) const noexcept
     -> line_spec const* {
     for (auto const& spec : m_specs) {

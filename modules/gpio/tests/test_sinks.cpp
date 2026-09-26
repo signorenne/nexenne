@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <thread>
 #include <vector>
@@ -105,6 +106,16 @@ TEST_CASE("queue_sink: the consumer may read dropped while the producer pushes (
   producer.join();
   CHECK(monotonic);
   CHECK(popped + sink.dropped() == pushes);
+}
+
+template <std::size_t N>
+concept nameable_ring = requires { typename ng::queue_sink<N>; };
+
+TEST_CASE("queue_sink: a ring needs at least two slots") {
+  static_assert(!nameable_ring<0>);
+  static_assert(!nameable_ring<1>);
+  static_assert(nameable_ring<2>);
+  CHECK(true);
 }
 
 }  // namespace

@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Chip and line discovery over the Linux character device.
+ */
+
 #include <nexenne/gpio/io/chardev_info.hpp>
 
 #ifdef __linux__

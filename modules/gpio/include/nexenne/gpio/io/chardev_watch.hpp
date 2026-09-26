@@ -74,10 +74,10 @@ namespace nexenne::gpio {
 class chardev_watcher {
 public:
   using value_type = line_change;
-  /// The pollable chip file descriptor type.
+  /// @brief The pollable chip file descriptor type.
   using native_handle_type = int;
 
-  /// Watched-line bookkeeping capacity, mirroring the per-request limit.
+  /// @brief Watched-line bookkeeping capacity, mirroring the per-request limit.
   // Spelled literally so the kernel header stays out of this file;
   // src/io/chardev_watch.cpp static_asserts it against GPIO_V2_LINES_MAX.
   static constexpr std::size_t max_lines{64};
@@ -202,10 +202,10 @@ namespace nexenne::gpio {
 class chardev_watcher {
 public:
   using value_type = line_change;
-  /// The pollable handle type; always \c -1 here.
+  /// @brief The pollable handle type; always \c -1 here.
   using native_handle_type = int;
 
-  /// Mirrors the Linux per-request line limit.
+  /// @brief Mirrors the Linux per-request line limit.
   static constexpr std::size_t max_lines{64};
 
 private:

@@ -42,6 +42,7 @@
  */
 
 #include <array>
+#include <cerrno>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -183,10 +184,10 @@ widen_sequence(std::uint64_t const previous, std::uint32_t const seqno) noexcept
 class chardev_chip {
 public:
   using value_type = bool;
-  /// The pollable request file descriptor type.
+  /// @brief The pollable request file descriptor type.
   using native_handle_type = int;
 
-  /// Largest number of lines one request can hold (a kernel limit).
+  /// @brief Largest number of lines one request can hold (a kernel limit).
   // Spelled literally so the kernel header stays out of this file;
   // src/io/chardev_chip.cpp static_asserts it against GPIO_V2_LINES_MAX.
   static constexpr std::size_t max_lines{64};
@@ -209,25 +210,75 @@ private:
   std::uint64_t m_last_sequence{0};
   container::static_vector<line_offset, max_lines> m_offsets{};
 
+  /**
+   * @brief Position of \p offset in the open request.
+   *
+   * @param offset Line offset to look up.
+   *
+   * @return The line's index in the request, or \c std::nullopt when
+   *         \p offset was not requested.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] auto index_of(line_offset const offset) const noexcept
     -> std::optional<std::size_t>;
 
-  // The neutral vocabulary rendered as kernel flag bits. ACTIVE_LOW is never
-  // set: polarity belongs to the wrapper layer, so the kernel's "active"
-  // always means the physical high level.
+  /**
+   * @brief Renders one line's spec and config as kernel flag bits.
+   *
+   * \c ACTIVE_LOW is never set: polarity belongs to the wrapper layer, so the
+   * kernel's "active" always means the physical high level.
+   *
+   * @param spec The line's spec.
+   * @param config The line's open-time config.
+   *
+   * @return The kernel line flags for the line.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] static auto kernel_flags(line_spec const& spec, line_config const& config) noexcept
     -> std::uint64_t;
 
-  // Renders the parallel tables into a kernel line config: the first line's
-  // flag word becomes the base, deviating flag words are grouped into one
-  // attribute each, and initial output levels and distinct debounce periods
-  // become further attributes, within the kernel's ten-attribute cap.
+  /**
+   * @brief Renders the parallel tables into a kernel line config.
+   *
+   * The first line's flag word becomes the base, deviating flag words are
+   * grouped into one attribute each, and initial output levels and distinct
+   * debounce periods become further attributes, within the kernel's
+   * ten-attribute cap.
+   *
+   * @param specs Specs of the request, one per line.
+   * @param configs Per-line config, parallel to \p specs.
+   * @param config Kernel line config to fill.
+   *
+   * @return Nothing on success; \c gpio_error::invalid_argument when the
+   *         request needs more than ten attributes or a debounce period
+   *         beyond the kernel's microsecond range.
+   *
+   * @pre \p config points to a zero-initialised kernel line config and
+   *      \p specs and \p configs have the same length.
+   * @post On success \p config describes every line of the request.
+   */
   [[nodiscard]] static auto build_line_config(
     std::span<line_spec const> const specs,
     std::span<line_config const> const configs,
     ::gpio_v2_line_config* const config
   ) -> result<void>;
 
+  /**
+   * @brief Issues a line-values ioctl on the open request.
+   *
+   * @param request The ioctl request code, getting or setting values.
+   * @param values Kernel values record the ioctl reads or fills.
+   *
+   * @return Nothing on success; \c gpio_error::not_open when closed,
+   *         otherwise the errno-mapped error.
+   *
+   * @pre \p values points to a record whose mask names requested lines.
+   * @post On success the kernel has read or filled \p values.
+   */
   [[nodiscard]] auto values_ioctl(unsigned long const request, ::gpio_v2_line_values* values) const
     -> result<void>;
 
@@ -470,10 +521,10 @@ namespace nexenne::gpio {
 class chardev_chip {
 public:
   using value_type = bool;
-  /// The pollable handle type; always \c -1 here.
+  /// @brief The pollable handle type; always \c -1 here.
   using native_handle_type = int;
 
-  /// Mirrors the Linux kernel per-request line limit.
+  /// @brief Mirrors the Linux kernel per-request line limit.
   static constexpr std::size_t max_lines{64};
 
 private:
