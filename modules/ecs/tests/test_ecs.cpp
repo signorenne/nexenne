@@ -1621,4 +1621,55 @@ TEST_CASE("registry: a listener calling clear() during destroy frees the index o
   nexenne::utility::discard(conn);
 }
 
+TEST_CASE("registry: clear() marks every entity dead before firing on_destroy") {
+  auto r{registry{}};
+  auto hp_fires{0};
+  auto pos_fires{0};
+  auto seen_valid{true};
+  auto nested_destroy{true};
+  auto c1{r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
+    ++hp_fires;
+    seen_valid = r.valid(e);
+    nested_destroy = r.destroy(e);
+  })};
+  auto c2{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept {
+    ++pos_fires;
+  })};
+  auto const a{r.create()};
+  nexenne::utility::discard(r.add<health>(a, health{.hp = 5}));
+  nexenne::utility::discard(r.add<position>(a, position{}));
+
+  r.clear();
+  CHECK_FALSE(seen_valid);
+  CHECK_FALSE(nested_destroy);
+  CHECK(hp_fires == 1);
+  CHECK(pos_fires == 1);
+  CHECK(r.alive() == 0);
+  nexenne::utility::discard(c1, c2);
+}
+
+struct label {
+  std::string text{};
+};
+
+TEST_CASE("registry: clear() never hands a listener a component a nested destroy erased") {
+  auto r{registry{}};
+  auto c1{r.on_destroy<label>().connect([&r](entity_id const e, label&) noexcept {
+    nexenne::utility::discard(r.destroy(e));
+  })};
+  auto fires{0};
+  auto total{std::size_t{0}};
+  auto c2{r.on_destroy<label>().connect([&](entity_id, label& l) noexcept {
+    ++fires;
+    total += l.text.size();
+  })};
+  auto const a{r.create()};
+  nexenne::utility::discard(r.add<label>(a, label{std::string(64, 'x')}));
+
+  r.clear();
+  CHECK(fires == 1);
+  CHECK(total == 64);
+  nexenne::utility::discard(c1, c2);
+}
+
 }  // namespace

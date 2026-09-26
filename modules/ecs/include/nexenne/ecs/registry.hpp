@@ -1115,11 +1115,12 @@ public:
    *       construction.
    *
    * @warning A listener invoked by the fired signal must not remove this \c T
-   *          from \p e, nor destroy \p e, while the signal is firing: that
-   *          would invalidate the very reference still being delivered. Adding
-   *          or removing components on other entities (and destroying other
-   *          entities) is safe: the pointer-stable storage keeps the delivered
-   *          reference valid even if its pool grows or tombstones a slot.
+   *          from \p e, nor destroy \p e (\c clear() destroys it too), while
+   *          the signal is firing: that would invalidate the very reference
+   *          still being delivered. Adding or removing components on other
+   *          entities (and destroying other entities) is safe: the
+   *          pointer-stable storage keeps the delivered reference valid even if
+   *          its pool grows or tombstones a slot.
    *
    * @complexity \c O(1).
    */
@@ -1159,9 +1160,11 @@ public:
    *       registry is unchanged.
    *
    * @warning A listener invoked by the fired signal must not itself remove
-   *          this \c T from \p e, nor destroy \p e: that would invalidate the
-   *          reference still being delivered to the other listeners. Structural
-   *          changes to other entities are safe; the storage is pointer-stable.
+   *          this \c T from \p e, nor destroy \p e (\c clear() destroys it
+   *          too): that would invalidate the reference still being delivered
+   *          to the other listeners, and \c clear() would fire this \c T's
+   *          on-destroy signal a second time. Structural changes to other
+   *          entities are safe; the storage is pointer-stable.
    *
    * @complexity \c O(1).
    */
@@ -1205,9 +1208,9 @@ public:
    *       registry is unchanged and \p mutator did not run.
    *
    * @warning Neither \p mutator nor a listener invoked by the fired signal may
-   *          remove this \c T from \p e or destroy \p e: that would invalidate
-   *          the reference both receive. Structural changes to other entities
-   *          are safe; the storage is pointer-stable.
+   *          remove this \c T from \p e or destroy \p e (\c clear() destroys it
+   *          too): that would invalidate the reference both receive. Structural
+   *          changes to other entities are safe; the storage is pointer-stable.
    *
    * @complexity \c O(1) plus the cost of \p mutator.
    */
@@ -1548,6 +1551,11 @@ public:
    * previously-used slot and returns all slots to the free list, so
    * any outstanding \c entity_id stays invalid forever.
    *
+   * As \c destroy does, \c clear marks the entities dead before the fire, so a
+   * listener sees every entity live at entry as invalid: \c destroy, \c remove,
+   * \c get and \c has on it fail, and a listener cannot make a component's
+   * on-destroy signal fire twice.
+   *
    * @pre None.
    * @post \c alive() is 0. Every \c entity_id obtained before this
    *       call is now invalid. One \c on_destroy fired for each component
@@ -1560,11 +1568,14 @@ public:
   auto clear() noexcept -> void {
     // Fire on_destroy for every live component before tearing the storages down,
     // so listeners observe each component exactly once (consistent with
-    // destroy). Snapshot the live indices first: a listener may create or
-    // destroy entities and mutate the alive set. A listener may also register a
-    // new component type and grow m_storages, so index the table and copy each
-    // dispatch out before firing.
+    // destroy). Snapshot the live indices, then empty the alive set before
+    // firing, as destroy marks its entity dead first: a nested destroy or
+    // remove on one of them then fails instead of firing a component's
+    // on_destroy again and erasing it under the listeners still to be handed
+    // it. A listener may also register a new component type and grow
+    // m_storages, so index the table and copy each dispatch out before firing.
     auto const live{index_vector{m_alive_indices.keys().begin(), m_alive_indices.keys().end()}};
+    m_alive_indices.clear();
     for (auto const idx : live) {
       auto const storage_count{m_storages.size()};
       for (auto i{std::size_t{0}}; i < storage_count; ++i) {
@@ -1600,6 +1611,7 @@ public:
     for (auto i{std::size_t{0}}; i < m_generations.size(); ++i) {
       m_free_indices.push_back(static_cast<index_type>(i));
     }
+    // Drops any entity a listener created during the fire.
     m_alive_indices.clear();
   }
 
