@@ -127,17 +127,15 @@ public:
   }
 
   /**
-   * @brief Replaces the settling period.
+   * @brief The current settling period, for modification.
    *
-   * @param period New settling period; a negative value is clamped to zero.
+   * @return Mutable reference to the stored value.
    *
-   * @pre None.
-   * @post \c period() is the clamped \p period; the settled level and any
-   *       in-progress candidate are unchanged, and \c deadline() moves with
-   *       the new period.
+   * @pre A value written through the reference is non-negative.
+   * @post None.
    */
-  constexpr auto period(std::chrono::nanoseconds const period) noexcept -> void {
-    m_filter.period() = period;
+  [[nodiscard]] constexpr auto period() noexcept -> std::chrono::nanoseconds& {
+    return m_filter.period();
   }
 
   /**
