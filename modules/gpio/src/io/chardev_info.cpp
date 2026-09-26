@@ -108,13 +108,21 @@ auto decode_line_info(::gpio_v2_line_info const& raw) -> line_info {
 
 }  // namespace detail
 
-auto read_chip_info(chip_id const chip) -> result<chip_info> {
-  auto const fd{detail::open_chip_readonly(chip)};
-  if (!fd.owns()) {
-    return std::unexpected{detail::info_errno()};
-  }
+namespace {
+
+/**
+ * @brief Queries the chip info through an already open chip descriptor.
+ *
+ * @param fd Open chip character-device descriptor.
+ *
+ * @return The chip's name, label and line count, or the errno-mapped error.
+ *
+ * @pre \p fd is an open chip descriptor.
+ * @post None.
+ */
+auto chip_info_through(int const fd) -> result<chip_info> {
   ::gpiochip_info raw{};
-  if (::ioctl(fd.get(), GPIO_GET_CHIPINFO_IOCTL, &raw)
+  if (::ioctl(fd, GPIO_GET_CHIPINFO_IOCTL, &raw)
       < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
     return std::unexpected{detail::info_errno()};
   }
@@ -127,28 +135,58 @@ auto read_chip_info(chip_id const chip) -> result<chip_info> {
   return chip_info{name, label, raw.lines};
 }
 
-auto read_line_info(chip_id const chip, line_offset const offset) -> result<line_info> {
-  auto const fd{detail::open_chip_readonly(chip)};
-  if (!fd.owns()) {
-    return std::unexpected{detail::info_errno()};
-  }
+/**
+ * @brief Queries one line's info through an already open chip descriptor.
+ *
+ * @param fd Open chip character-device descriptor.
+ * @param offset Line to describe.
+ *
+ * @return The decoded line info; \c gpio_error::invalid_argument for an
+ *         offset the chip does not have, otherwise the errno-mapped error.
+ *
+ * @pre \p fd is an open chip descriptor.
+ * @post None.
+ */
+auto line_info_through(int const fd, line_offset const offset) -> result<line_info> {
   ::gpio_v2_line_info raw{};
   raw.offset = static_cast<std::uint32_t>(offset.get());
-  if (::ioctl(fd.get(), GPIO_V2_GET_LINEINFO_IOCTL, &raw)
+  if (::ioctl(fd, GPIO_V2_GET_LINEINFO_IOCTL, &raw)
       < 0) {  // NOLINT(cppcoreguidelines-pro-type-vararg)
     return std::unexpected{errno == EINVAL ? gpio_error::invalid_argument : detail::info_errno()};
   }
   return detail::decode_line_info(raw);
 }
 
+}  // namespace
+
+auto read_chip_info(chip_id const chip) -> result<chip_info> {
+  auto const fd{detail::open_chip_readonly(chip)};
+  if (!fd.owns()) {
+    return std::unexpected{detail::info_errno()};
+  }
+  return chip_info_through(fd.get());
+}
+
+auto read_line_info(chip_id const chip, line_offset const offset) -> result<line_info> {
+  auto const fd{detail::open_chip_readonly(chip)};
+  if (!fd.owns()) {
+    return std::unexpected{detail::info_errno()};
+  }
+  return line_info_through(fd.get(), offset);
+}
+
 auto find_line(chip_id const chip, std::string_view const name)
   -> result<std::optional<line_offset>> {
-  auto const info{read_chip_info(chip)};
+  auto const fd{detail::open_chip_readonly(chip)};
+  if (!fd.owns()) {
+    return std::unexpected{detail::info_errno()};
+  }
+  auto const info{chip_info_through(fd.get())};
   if (!info.has_value()) {
     return std::unexpected{info.error()};
   }
   for (std::uint32_t i{0}; i < info->lines(); ++i) {
-    auto const line{read_line_info(chip, line_offset{i})};
+    auto const line{line_info_through(fd.get(), line_offset{i})};
     if (!line.has_value()) {
       return std::unexpected{line.error()};
     }

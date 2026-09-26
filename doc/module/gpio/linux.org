@@ -83,7 +83,9 @@ rule with the =gpiod= package.
 The kernel knows each line's name (from the device tree), its holder, and
 its configuration. =read_chip_info=, =read_line_info=, and =find_line= read
 that, so a program resolves "the line the board calls STATUS_LED" instead of
-baking in an offset that silently moves on the next hardware revision:
+baking in an offset that silently moves on the next hardware revision.
+=find_line= opens the chip once and queries every line through that one
+descriptor:
 
 #+BEGIN_SRC C++
 auto const offset{ng::find_line(ng::chip_id{0}, "STATUS_LED")};

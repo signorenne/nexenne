@@ -427,8 +427,9 @@ struct info_fd_closer {
 /**
  * @brief Resolves a kernel line name to its offset on one chip.
  *
- * Walks the chip's lines comparing kernel names. Line names are not
- * guaranteed unique; the first match wins, matching kernel tooling.
+ * Walks the chip's lines comparing kernel names, through one open of the
+ * chip for the whole walk. Line names are not guaranteed unique; the first
+ * match wins, matching kernel tooling.
  *
  * @param chip Index of the chip; selects \c /dev/gpiochipN.
  * @param name Kernel line name to look for.
