@@ -952,6 +952,11 @@ public:
    *       erased without its own on-destroy signal. On a \c false result the
    *       registry is unchanged.
    *
+   * @note A listener may call \c clear(): it erases every component and frees
+   *       \p e's index itself, so \c destroy then returns \c true without
+   *       freeing the index again. \c clear() also destroys the component
+   *       being delivered, so no later listener on that signal may read it.
+   *
    * @warning A listener invoked by the on-destroy fire must not destroy \p e
    *          again: \p e is marked not-alive before the fire, so a nested
    *          \c destroy(e) returns \c false rather than re-entering, but a
@@ -989,6 +994,10 @@ public:
       auto const erase{m_storages[i].erase_fn};
       // m_storages[i] must not be touched past here: fire may reallocate it.
       fire_on_destroy(data, e);
+      // A listener's clear() already freed the index; freeing it twice duplicates handles.
+      if (m_generations[e.index()] != e.generation()) {
+        return true;
+      }
       erase(data, e.index());
     }
     // \p e is still valid during the fire above (the generation is bumped

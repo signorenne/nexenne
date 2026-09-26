@@ -83,7 +83,9 @@ generation >= 1 and =valid()= on it is =true=.
 listeners see a still-live value), erases those components, bumps the slot's
 generation, and pushes the index onto the free list for reuse. On generation
 wraparound it steps over 0, because generation 0 is the invalid sentinel and a
-recycled slot must never mint it. A stale or default-constructed handle is
+recycled slot must never mint it. A listener may call =clear()= mid-fire;
+=clear()= then frees every index itself, so =destroy= stops there rather than
+freeing =e='s index twice. A stale or default-constructed handle is
 handled gracefully: =destroy= returns =false= and changes nothing.
 
 =valid(e)= is the gatekeeper. It is =true= only when the index is in range, the

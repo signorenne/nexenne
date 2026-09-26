@@ -1595,4 +1595,30 @@ TEST_CASE("type_id mints unique ids for types first-touched concurrently (M1)") 
   CHECK(std::ranges::adjacent_find(ids) == ids.end());  // all ids distinct
 }
 
+TEST_CASE("registry: a listener calling clear() during destroy frees the index once (ecs-01)") {
+  // "The player died, reset the level": the listener wipes the world while
+  // destroy(p) is still firing. clear() already frees every index, so destroy
+  // must not push p's index a second time and mint one handle twice.
+  auto r{registry{}};
+  auto conn{r.on_destroy<tag_player>().connect([&r](entity_id, tag_player&) noexcept {
+    r.clear();
+  })};
+  auto const p{r.create()};
+  nexenne::utility::discard(r.add<tag_player>(p, tag_player{}));
+  nexenne::utility::discard(r.create(), r.create());
+
+  CHECK(r.destroy(p));
+  CHECK_FALSE(r.valid(p));
+  CHECK(r.alive() == 0);
+
+  auto made{std::vector<entity_id>{}};
+  for (auto i{0}; i < 5; ++i) {
+    made.push_back(r.create());
+  }
+  CHECK(r.alive() == 5);
+  std::ranges::sort(made);
+  CHECK(std::ranges::adjacent_find(made) == made.end());
+  nexenne::utility::discard(conn);
+}
+
 }  // namespace
