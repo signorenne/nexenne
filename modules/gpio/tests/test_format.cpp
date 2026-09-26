@@ -106,6 +106,15 @@ TEST_CASE("format: discovery records render their identity") {
   CHECK(ng::to_string(unclaimed).find("unused") != std::string::npos);
 }
 
+TEST_CASE("format: a drain_report prints its counters through every layer") {
+  ng::drain_report const report{.delivered = 12, .rejected = 3};
+  auto os{std::ostringstream{}};
+  os << report;
+  CHECK(ng::to_string(report) == "drain_report(delivered=12, rejected=3)");
+  CHECK(std::format("{}", report) == ng::to_string(report));
+  CHECK(os.str() == ng::to_string(report));
+}
+
 TEST_CASE("format: a width spec applies to the whole rendered string") {
   CHECK(std::format("{:>10}", ng::gpio_error::busy) == "      busy");
 }

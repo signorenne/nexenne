@@ -111,6 +111,7 @@ auto main() -> int {
   ng::queue_sink<16> ring{};
   if (auto const pumped{ng::drain_events(backend, ring)}; pumped.has_value()) {
     std::println("pumped {} events ({} rejected by the ring)", pumped->delivered, pumped->rejected);
+    std::println("report: {}", *pumped);
   }
 
   ng::event_debounce debounce{5ms};

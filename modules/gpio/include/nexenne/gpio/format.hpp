@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 
+#include <nexenne/gpio/drain.hpp>
 #include <nexenne/gpio/error.hpp>
 #include <nexenne/gpio/io/chardev_info.hpp>
 #include <nexenne/gpio/io/chardev_watch.hpp>
@@ -623,6 +624,39 @@ inline auto operator<<(std::ostream& os, line_change const& change) -> std::ostr
   return os << to_string(change);
 }
 
+/**
+ * @brief Renders a \c drain_report's two counters.
+ *
+ * Output looks like \c "drain_report(delivered=12, rejected=0)".
+ *
+ * @param report Report to render.
+ *
+ * @return A freshly allocated debug string.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+[[nodiscard]] inline auto to_string(drain_report const& report) -> std::string {
+  return std::format("drain_report(delivered={}, rejected={})", report.delivered, report.rejected);
+}
+
+/**
+ * @brief Streams a \c drain_report via its \c to_string.
+ *
+ * @param os Output stream.
+ * @param report Report to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The description of \p report has been written to \p os.
+ */
+inline auto operator<<(std::ostream& os, drain_report const& report) -> std::ostream& {
+  return os << to_string(report);
+}
+
 }  // namespace nexenne::gpio
 
 /**
@@ -1024,5 +1058,31 @@ struct std::formatter<nexenne::gpio::line_info> : std::formatter<std::string_vie
   template <typename FormatContext>
   auto format(nexenne::gpio::line_info const& info, FormatContext& ctx) const {
     return std::formatter<std::string_view>::format(nexenne::gpio::to_string(info), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c drain_report.
+ *
+ * Prints the same text as \c to_string. Inherits the string formatter, so a
+ * spec (width, alignment) applies to the whole rendered string.
+ */
+template <>
+struct std::formatter<nexenne::gpio::drain_report> : std::formatter<std::string_view> {
+  /**
+   * @brief Formats the report's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param report Report to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted report has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::gpio::drain_report const& report, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::gpio::to_string(report), ctx);
   }
 };

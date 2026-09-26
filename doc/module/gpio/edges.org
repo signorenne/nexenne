@@ -108,7 +108,8 @@ and "we lost 3 edges at 14:02, buffer needs to grow".
 Every readiness loop repeats the same four lines: poll with a zero timeout,
 stop on the clean miss, push into the transport, count the rejections.
 =drain_events(source, sink)= is that loop written once; it never blocks and
-returns a =drain_report= with the delivered and rejected counts. A rejected
+returns a =drain_report= with the delivered and rejected counts (it prints as
+=drain_report(delivered=N, rejected=M)= through =format.hpp=). A rejected
 push does not stop the drain, because consuming the kernel's buffer is
 still right when the userspace transport is full: leaving events in the
 kernel only moves the overflow one level down.
