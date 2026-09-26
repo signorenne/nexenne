@@ -43,10 +43,10 @@ TEST_CASE("line: read applies polarity so the caller stays logical") {
   ng::line<mock> const button{backend, specs[0]};
 
   // Physical low on an active-low button is logically pressed.
-  REQUIRE(backend.set_physical(ng::line_offset{17}, false).has_value());
+  REQUIRE(backend.drive(ng::line_offset{17}, false).has_value());
   CHECK(*button.read() == true);
 
-  REQUIRE(backend.set_physical(ng::line_offset{17}, true).has_value());
+  REQUIRE(backend.drive(ng::line_offset{17}, true).has_value());
   CHECK(*button.read() == false);
 }
 

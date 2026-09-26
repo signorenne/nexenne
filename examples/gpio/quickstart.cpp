@@ -76,7 +76,7 @@ auto main() -> int {
   }));
 
   // 3) Logical-domain read and write by name.
-  nexenne::utility::ignore(backend.set_physical(ng::line_offset{17}, false));  // press
+  nexenne::utility::ignore(backend.drive(ng::line_offset{17}, false));  // press
   std::println("button pressed: {}", *chip.read("button"));
   nexenne::utility::ignore(chip.write("led", true));
 

@@ -71,7 +71,7 @@ TEST_CASE("chip: name-addressed read and write stay in the logical domain") {
   REQUIRE(chip.open(specs, configs).has_value());
 
   // Active-low button: wire low means logically pressed.
-  REQUIRE(backend.set_physical(ng::line_offset{17}, false).has_value());
+  REQUIRE(backend.drive(ng::line_offset{17}, false).has_value());
   CHECK(*chip.read("button") == true);
 
   REQUIRE(chip.write("led", true).has_value());
@@ -88,7 +88,7 @@ TEST_CASE("chip: snapshot delivers the logical baseline of every input") {
   REQUIRE(chip.open(specs, configs).has_value());
 
   // Wire low on the active-low button: logically pressed at startup.
-  REQUIRE(backend.set_physical(ng::line_offset{17}, false).has_value());
+  REQUIRE(backend.drive(ng::line_offset{17}, false).has_value());
 
   std::vector<ng::line_value> baseline{};
   REQUIRE(

@@ -9,7 +9,7 @@
  * satisfies \c gpio_backend, \c bulk_gpio_backend,
  * \c reconfigurable_gpio_backend, and \c edge_source, so
  * code written against the concepts runs unchanged on it, and it adds a
- * test-rig surface the concepts do not know about: \c set_physical drives
+ * test-rig surface the concepts do not know about: \c drive sets
  * the level an input will read, \c physical observes what an output was
  * driven to, and \c inject queues an edge event for \c wait_event to
  * deliver.
@@ -98,7 +98,7 @@ public:
    * @brief Opens a request set, adopting the given specs and configs.
    *
    * Output lines start at their config's initial value; input lines start
-   * low until \c set_physical drives them.
+   * low until \c drive sets them.
    *
    * @param specs Specs to request, one per line.
    * @param configs Per-line open-time config, parallel to \p specs.
@@ -369,7 +369,7 @@ public:
    * @pre None.
    * @post On success \c read(offset) returns \p physical.
    */
-  [[nodiscard]] constexpr auto set_physical(line_offset const offset, bool const physical)
+  [[nodiscard]] constexpr auto drive(line_offset const offset, bool const physical)
     -> result<void> {
     if (!m_open) {
       return std::unexpected{gpio_error::not_open};
@@ -413,7 +413,7 @@ public:
    *
    * The event is queued verbatim; the line's stored level is not touched, so
    * a test that wants \c read to agree with the event also calls
-   * \c set_physical.
+   * \c drive.
    *
    * @param event Event to queue.
    *

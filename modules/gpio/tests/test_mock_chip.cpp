@@ -76,14 +76,14 @@ TEST_CASE("mock_chip: read and write enforce the request set and direction") {
   CHECK(*chip.physical(ng::line_offset{4}) == false);
 
   // The rig can drive an input; read then sees it.
-  REQUIRE(chip.set_physical(ng::line_offset{17}, true).has_value());
+  REQUIRE(chip.drive(ng::line_offset{17}, true).has_value());
   CHECK(*chip.read(ng::line_offset{17}) == true);
 }
 
 TEST_CASE("mock_chip: bulk operations mirror the per-line ones") {
   mock chip{};
   REQUIRE(chip.open(specs, configs).has_value());
-  REQUIRE(chip.set_physical(ng::line_offset{17}, true).has_value());
+  REQUIRE(chip.drive(ng::line_offset{17}, true).has_value());
 
   std::array const offsets{ng::line_offset{17}, ng::line_offset{4}};
   std::array<bool, 2> levels{};

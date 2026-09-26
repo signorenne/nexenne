@@ -68,7 +68,7 @@ timeout. The module never owns the loop.
 
 =mock_chip<Capacity>= satisfies all four tiers with fixed-capacity, in-memory
 state, and adds the test-rig surface the concepts do not know about:
-=set_physical= drives what an input reads, =physical= observes what an output
+=drive= sets what an input reads, =physical= observes what an output
 was driven to (which =read= on a real chip cannot always do), and =inject=
 queues events for =wait_event=. Because it is allocation-free, it also stands
 in for a HAL while portable code is developed off-target.
@@ -76,7 +76,7 @@ in for a HAL while portable code is developed off-target.
 #+BEGIN_SRC C++
 ng::mock_chip<8> backend{};
 REQUIRE(backend.open(specs, configs).has_value());
-REQUIRE(backend.set_physical(ng::line_offset{17}, false).has_value());  // press
+REQUIRE(backend.drive(ng::line_offset{17}, false).has_value());  // press
 CHECK(*chip.read("button") == true);
 #+END_SRC
 
