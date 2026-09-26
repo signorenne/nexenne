@@ -192,6 +192,9 @@ public:
   // src/io/chardev_chip.cpp static_asserts it against GPIO_V2_LINES_MAX.
   static constexpr std::size_t max_lines{64};
 
+  /// @brief Kernel event records one \c wait_event read takes in a single call.
+  static constexpr std::size_t event_batch{16};
+
 private:
   using fd_handle = utility::unique_resource<int, detail::fd_closer>;
 
@@ -209,6 +212,10 @@ private:
   // 32-bit counter with each request.
   std::uint64_t m_last_sequence{0};
   container::static_vector<line_offset, max_lines> m_offsets{};
+  // Events decoded by the last read and not yet handed out, oldest first from
+  // m_pending_next, so a burst costs one read instead of one per event.
+  container::static_vector<line_event, event_batch> m_pending{};
+  std::size_t m_pending_next{0};
 
   /**
    * @brief Position of \p offset in the open request.
@@ -466,8 +473,11 @@ public:
   /**
    * @brief Waits for and reads one edge event.
    *
-   * Waits on the request descriptor with \c ppoll, then reads exactly one
-   * kernel event record. A zero timeout is a non-blocking poll and a
+   * Returns an event left over from the last read at once, with no call.
+   * Otherwise waits on the request descriptor with \c ppoll, then reads up to
+   * \c event_batch kernel event records in one call, returns the first and
+   * keeps the rest for the next calls, so a burst of edges costs one read
+   * rather than one per edge. A zero timeout is a non-blocking poll and a
    * negative timeout blocks until an event arrives; an interrupted wait
    * (\c EINTR) reports a clean miss so callers simply loop. The level is
    * implied by the direction the kernel reports: the v2 interface only
@@ -481,7 +491,13 @@ public:
    *         closed, otherwise the errno-mapped error.
    *
    * @pre Edge detection was requested for at least one line.
-   * @post On a value result one kernel event record was consumed.
+   * @post On a value result one event left the backend, read now or by an
+   *       earlier call.
+   *
+   * @warning Events already read and not yet returned do not make
+   *          \c native_handle readable: after a readiness signal, call this
+   *          with a zero timeout until it reports a clean miss, as
+   *          \c drain_events does.
    */
   [[nodiscard]] auto wait_event(std::chrono::nanoseconds const timeout)
     -> result<std::optional<line_event>>;
@@ -490,7 +506,9 @@ public:
    * @brief The pollable request descriptor for event-loop integration.
    *
    * Register it readable with epoll, a Qt socket notifier, or ASIO, then
-   * drain ready events with \c wait_event and a zero timeout.
+   * drain ready events with \c wait_event and a zero timeout until it reports
+   * a clean miss: events read in a batch but not yet returned are not visible
+   * to the poll.
    *
    * @return The request descriptor, or \c -1 when closed.
    *

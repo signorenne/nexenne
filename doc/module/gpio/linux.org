@@ -37,9 +37,12 @@ The uAPI in five facts, which explain every constraint the backend has:
   =read_lines= / =write_lines= genuinely atomic snapshots.
 - Edge events are fixed-size =gpio_v2_line_event= records read from the
   request descriptor, each carrying a =CLOCK_MONOTONIC= nanosecond
-  timestamp, the offset, and a sequence number. The backend reads exactly
-  one record per =wait_event= call, so there is no staging buffer that
-  could go stale across a close and reopen.
+  timestamp, the offset, and a sequence number. The backend reads up to
+  =event_batch= (16) records in one call and hands them out one per
+  =wait_event=, so a burst costs one read, not one per edge; =close= drops
+  any left over, so nothing goes stale across a close and reopen. Records
+  already read do not make the descriptor readable again, which is why every
+  integration below drains until a clean miss.
 - The kernel inverts levels itself when a line is requested =ACTIVE_LOW=.
   The backend deliberately never sets that flag: polarity belongs to the
   wrapper layer of this module, so the kernel's "active" always equals the

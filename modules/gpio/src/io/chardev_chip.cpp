@@ -261,6 +261,8 @@ auto chardev_chip::close() noexcept -> void {
   m_request.reset();
   m_last_sequence = 0;
   m_offsets.clear();
+  m_pending.clear();
+  m_pending_next = 0;
 }
 
 auto chardev_chip::open(
@@ -437,6 +439,9 @@ auto chardev_chip::wait_event(std::chrono::nanoseconds const timeout)
   if (!m_request.owns()) {
     return std::unexpected{gpio_error::not_open};
   }
+  if (m_pending_next < m_pending.size()) {
+    return std::optional<line_event>{m_pending[m_pending_next++]};
+  }
 
   ::pollfd poll_target{};
   poll_target.fd = m_request.get();
@@ -458,29 +463,38 @@ auto chardev_chip::wait_event(std::chrono::nanoseconds const timeout)
     return std::optional<line_event>{};
   }
 
-  ::gpio_v2_line_event kernel_event{};
-  ssize_t const got{::read(m_request.get(), &kernel_event, sizeof(kernel_event))};
+  // The kernel hands out whole records only: a partial size is a broken read.
+  std::array<::gpio_v2_line_event, event_batch> records{};
+  ssize_t const got{::read(m_request.get(), records.data(), sizeof(records))};
   if (got < 0) {
     if (errno == EAGAIN || errno == EINTR) {
       return std::optional<line_event>{};
     }
     return std::unexpected{detail::errno_to_gpio_error(errno)};
   }
-  if (got != static_cast<ssize_t>(sizeof(kernel_event))) {
+  auto const bytes{static_cast<std::size_t>(got)};
+  if (bytes == 0 || bytes % sizeof(::gpio_v2_line_event) != 0) {
     return std::unexpected{gpio_error::io_error};
   }
 
-  line_event event{};
-  event.chip = m_chip;
-  event.offset = line_offset{kernel_event.offset};
-  m_last_sequence = detail::widen_sequence(m_last_sequence, kernel_event.seqno);
-  event.sequence = event_sequence{m_last_sequence};
-  event.timestamp =
-    event_time{std::chrono::nanoseconds{static_cast<std::int64_t>(kernel_event.timestamp_ns)}};
-  event.edge =
-    kernel_event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? edge_kind::rising : edge_kind::falling;
-  event.physical = event.edge == edge_kind::rising;
-  return std::optional<line_event>{event};
+  m_pending.clear();
+  m_pending_next = 0;
+  for (std::size_t i{0}; i < bytes / sizeof(::gpio_v2_line_event); ++i) {
+    auto const& record{records[i]};
+    line_event event{};
+    event.chip = m_chip;
+    event.offset = line_offset{record.offset};
+    // Widened in arrival order, so the batch keeps the sequence monotonic.
+    m_last_sequence = detail::widen_sequence(m_last_sequence, record.seqno);
+    event.sequence = event_sequence{m_last_sequence};
+    event.timestamp =
+      event_time{std::chrono::nanoseconds{static_cast<std::int64_t>(record.timestamp_ns)}};
+    event.edge =
+      record.id == GPIO_V2_LINE_EVENT_RISING_EDGE ? edge_kind::rising : edge_kind::falling;
+    event.physical = event.edge == edge_kind::rising;
+    utility::ignore(m_pending.push_back(event));
+  }
+  return std::optional<line_event>{m_pending[m_pending_next++]};
 }
 
 auto chardev_chip::native_handle() const noexcept -> native_handle_type {
