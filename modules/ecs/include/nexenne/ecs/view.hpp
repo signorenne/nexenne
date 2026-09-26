@@ -101,9 +101,9 @@ inline constexpr auto tuple_contains_v<T, type_list<Us...>> = (std::same_as<T, U
  * Parameterised on two type lists: includes (entities must carry all
  * of these) and excludes (entities must carry none of these). Built
  * via the registry's \c view<...>() / \c query() helpers and chained
- * through \c .exclude<...>().
+ * through \c .exclude<...>(). Every listed type satisfies \c component.
  */
-template <typename... Includes, typename... Excludes>
+template <component... Includes, component... Excludes>
   requires(sizeof...(Includes) > 0)
 class basic_view<detail::type_list<Includes...>, detail::type_list<Excludes...>> {
 public:
@@ -175,7 +175,7 @@ public:
    *
    * @complexity \c O(sizeof...(Includes)) to construct.
    */
-  template <typename... NewExcludes>
+  template <component... NewExcludes>
   [[nodiscard]] auto exclude() const noexcept
     -> basic_view<include_list, detail::type_list<Excludes..., NewExcludes...>>
     requires((!detail::tuple_contains_v<NewExcludes, include_list> && ...))
@@ -643,7 +643,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename C>
+  template <component C>
   [[nodiscard]] auto with() const noexcept
     -> typed_query_builder<detail::type_list<Includes..., C>, exclude_list> {
     return typed_query_builder<detail::type_list<Includes..., C>, exclude_list>{*m_registry};
@@ -662,7 +662,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename C>
+  template <component C>
   [[nodiscard]] auto without() const noexcept
     -> typed_query_builder<include_list, detail::type_list<Excludes..., C>> {
     return typed_query_builder<include_list, detail::type_list<Excludes..., C>>{*m_registry};
@@ -706,7 +706,7 @@ public:
   }
 };
 
-template <typename... Includes>
+template <component... Includes>
 [[nodiscard]] inline auto registry::view() noexcept
   -> basic_view<detail::type_list<Includes...>, detail::type_list<>> {
   return basic_view<detail::type_list<Includes...>, detail::type_list<>>{*this};

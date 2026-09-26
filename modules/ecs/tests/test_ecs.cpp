@@ -1805,4 +1805,53 @@ TEST_CASE(
   nexenne::utility::discard(conn);
 }
 
+template <typename T>
+concept addable_component =
+  requires(registry& r, entity_id const e) { r.add<T>(e, std::declval<T>()); };
+
+template <typename T>
+concept lookupable_component = requires(registry const& r, entity_id const e) { r.has<T>(e); };
+
+template <typename T>
+concept fetchable_component = requires(registry& r, entity_id const e) { r.get<T>(e); };
+
+template <typename T>
+concept removable_component = requires(registry& r, entity_id const e) { r.remove<T>(e); };
+
+template <typename T>
+concept viewable_component = requires(registry& r) { r.view<T>(); };
+
+template <typename T>
+concept queryable_component = requires(registry& r) { r.query().with<T>(); };
+
+template <typename T>
+concept excludable_component = requires(registry& r) { r.query().with<health>().without<T>(); };
+
+TEST_CASE("registry: cv-qualified component types are rejected") {
+  static_assert(nexenne::ecs::component<position>);
+  static_assert(!nexenne::ecs::component<position const>);
+  static_assert(!nexenne::ecs::component<position volatile>);
+
+  static_assert(addable_component<position>);
+  static_assert(lookupable_component<position>);
+  static_assert(fetchable_component<position>);
+  static_assert(removable_component<position>);
+  static_assert(viewable_component<position>);
+  static_assert(queryable_component<position>);
+  static_assert(excludable_component<position>);
+
+  static_assert(!addable_component<position const>);
+  static_assert(!lookupable_component<position const>);
+  static_assert(!fetchable_component<position const>);
+  static_assert(!removable_component<position const>);
+  static_assert(!viewable_component<position const>);
+  static_assert(!queryable_component<position const>);
+  static_assert(!excludable_component<position const>);
+
+  auto r{registry{}};
+  auto const e{r.create()};
+  nexenne::utility::discard(r.add<position>(e, position{.x = 5.0F}));
+  CHECK(r.has<position>(e));
+}
+
 }  // namespace

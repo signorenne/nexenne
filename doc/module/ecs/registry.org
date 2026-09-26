@@ -136,6 +136,10 @@ then fires the update signal with that same reference so listeners observe the
 post-mutation value. Use it instead of =get= followed by a manual write when you
 want the on-update notification to fire.
 
+A component type must not be =const= or =volatile=: =add<position const>=,
+=view<position const>= and the rest do not compile (the =component= concept),
+since =position const= would otherwise name a second, separate storage.
+
 A component type with no data members (an empty *tag* component) works the same
 way; it carries no payload but its presence is still tracked, so =has<dead>(e)=
 and exclusion filters on tags behave as expected.

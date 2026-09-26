@@ -69,6 +69,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -94,6 +95,19 @@ template <typename... Ts>
 struct type_list {};
 
 }  // namespace detail
+
+/**
+ * @brief A type the registry stores as a component: one without cv-qualifiers.
+ *
+ * Storages are keyed by \c type_id, which tells \c position and
+ * \c position \c const apart, so a cv-qualified name would silently address a
+ * second, separate storage. The registry, \c basic_view and the query builder
+ * reject such a type at compile time instead.
+ *
+ * @tparam T Candidate component type.
+ */
+template <typename T>
+concept component = std::same_as<T, std::remove_cv_t<T>>;
 
 /**
  * @brief Forward declaration of the multi-component view, defined in
@@ -1124,7 +1138,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename T>
+  template <component T>
   auto add(entity_id const e, T value) noexcept -> bool {
     if (!valid(e)) {
       return false;
@@ -1168,7 +1182,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename T>
+  template <component T>
   auto remove(entity_id const e) noexcept -> bool {
     if (!valid(e)) {
       return false;
@@ -1214,7 +1228,7 @@ public:
    *
    * @complexity \c O(1) plus the cost of \p mutator.
    */
-  template <typename T, typename Fn>
+  template <component T, typename Fn>
     requires std::invocable<Fn&, T&>
   auto patch(entity_id const e, Fn&& mutator) noexcept -> bool {
     if (!valid(e)) {
@@ -1249,7 +1263,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename T>
+  template <component T>
   [[nodiscard]] auto on_construct() noexcept -> typename component_storage<T>::sink_type {
     return ensure_storage<T>().on_construct();
   }
@@ -1270,7 +1284,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename T>
+  template <component T>
   [[nodiscard]] auto on_update() noexcept -> typename component_storage<T>::sink_type {
     return ensure_storage<T>().on_update();
   }
@@ -1291,7 +1305,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename T>
+  template <component T>
   [[nodiscard]] auto on_destroy() noexcept -> typename component_storage<T>::sink_type {
     return ensure_storage<T>().on_destroy();
   }
@@ -1317,7 +1331,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename T>
+  template <component T>
   [[nodiscard]] auto get(entity_id const e) noexcept
     -> std::expected<std::reference_wrapper<T>, container_error> {
     if (!valid(e)) {
@@ -1348,7 +1362,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename T>
+  template <component T>
   [[nodiscard]] auto get(entity_id const e) const noexcept
     -> std::expected<std::reference_wrapper<T const>, container_error> {
     if (!valid(e)) {
@@ -1374,7 +1388,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename T>
+  template <component T>
   [[nodiscard]] auto has(entity_id const e) const noexcept -> bool {
     if (!valid(e)) {
       return false;
@@ -1399,7 +1413,7 @@ public:
    *
    * @complexity \c O(sizeof...(Cs)).
    */
-  template <typename... Cs>
+  template <component... Cs>
   [[nodiscard]] auto all_of([[maybe_unused]] entity_id const e) const noexcept -> bool {
     return (has<Cs>(e) && ...);  // empty pack: vacuously true, e then unused
   }
@@ -1420,7 +1434,7 @@ public:
    *
    * @complexity \c O(sizeof...(Cs)).
    */
-  template <typename... Cs>
+  template <component... Cs>
   [[nodiscard]] auto any_of([[maybe_unused]] entity_id const e) const noexcept -> bool {
     return (has<Cs>(e) || ...);  // empty pack: vacuously false, e then unused
   }
@@ -1468,7 +1482,7 @@ public:
    *
    * @complexity \c O(sizeof...(Includes)) to construct.
    */
-  template <typename... Includes>
+  template <component... Includes>
   [[nodiscard]] auto view() noexcept
     -> basic_view<detail::type_list<Includes...>, detail::type_list<>>;
 
@@ -1516,7 +1530,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename T>
+  template <component T>
   [[nodiscard]] auto storage() noexcept -> component_storage<T>& {
     return ensure_storage<T>();
   }
@@ -1537,7 +1551,7 @@ public:
    *
    * @complexity \c O(1).
    */
-  template <typename T>
+  template <component T>
   [[nodiscard]] auto storage() const noexcept -> component_storage<T> const* {
     return find_storage<T>();
   }
