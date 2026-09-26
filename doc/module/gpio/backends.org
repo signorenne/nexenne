@@ -52,6 +52,11 @@ one kernel call observes or drives several lines at the same instant. A
 transport with no bulk primitive simply does not model the tier, and callers
 fall back to per-line operations.
 
+An empty batch (both spans empty) is a successful no-op on every backend, with
+no call made: the Linux kernel rejects a request with no lines in its mask, so
+=chardev_chip= returns before reaching it, while the mock, which loops over the
+lines, simply has none to touch.
+
 The edge tier has two halves that together keep the module loop-agnostic:
 =wait_event(timeout)= returns =result<std::optional<line_event>>= where
 =std::nullopt= is a clean timeout miss and a zero timeout is a non-blocking

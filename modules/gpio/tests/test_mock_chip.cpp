@@ -101,6 +101,9 @@ TEST_CASE("mock_chip: bulk operations mirror the per-line ones") {
     chip.read_lines(offsets, std::span<bool>{levels.data(), 1}).error()
     == ng::gpio_error::invalid_argument
   );
+
+  CHECK(chip.read_lines({}, {}).has_value());
+  CHECK(chip.write_lines({}, {}).has_value());
 }
 
 TEST_CASE("mock_chip: injected events come back in order, then a clean miss") {

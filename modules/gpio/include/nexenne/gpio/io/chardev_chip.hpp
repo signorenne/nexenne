@@ -431,8 +431,9 @@ public:
    * @param levels_out Caller buffer filled with physical levels, parallel to
    *                   \p offsets.
    *
-   * @return Nothing on success; \c gpio_error::invalid_argument when the
-   *         spans differ in length or hold more than \c max_lines offsets,
+   * @return Nothing on success, and at once for empty spans, which make no
+   *         call; \c gpio_error::invalid_argument when the spans differ in
+   *         length or hold more than \c max_lines offsets,
    *         \c gpio_error::not_found when any offset is not in the request
    *         set, otherwise the errno-mapped error.
    *
@@ -450,9 +451,10 @@ public:
    * @param offsets Line offsets to write.
    * @param levels_in Physical levels to drive, parallel to \p offsets.
    *
-   * @return Nothing on success; \c gpio_error::invalid_argument when the
-   *         spans differ in length, \c gpio_error::not_found when any offset
-   *         is not in the request set, otherwise the errno-mapped error.
+   * @return Nothing on success, and at once for empty spans, which make no
+   *         call; \c gpio_error::invalid_argument when the spans differ in
+   *         length, \c gpio_error::not_found when any offset is not in the
+   *         request set, otherwise the errno-mapped error.
    *
    * @pre None.
    * @post On success every named line is driven, atomically by one ioctl.

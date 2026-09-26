@@ -102,6 +102,17 @@ TEST_CASE("chardev_chip: read_lines refuses more offsets than a request can hold
 
 #ifdef __linux__
 
+TEST_CASE("chardev_chip: empty bulk spans succeed without a call (gpio-14)") {
+  // The kernel rejects a zero line mask, so an empty batch used to fail here
+  // while the mock succeeded. Nothing to do is success, even on a closed chip,
+  // since no call is made at all.
+  ng::chardev_chip backend{ng::chip_id{0}};
+  CHECK(backend.read_lines({}, {}).has_value());
+  CHECK(backend.write_lines({}, {}).has_value());
+  std::array<bool, 1> one{};
+  CHECK(backend.read_lines({}, one).error() == ng::gpio_error::invalid_argument);
+}
+
 TEST_CASE("chardev_chip: open validates the request before touching a device") {
   ng::chardev_chip backend{absent_chip};
 

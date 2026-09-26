@@ -377,6 +377,10 @@ auto chardev_chip::read_lines(
   if (offsets.size() != levels_out.size()) {
     return std::unexpected{gpio_error::invalid_argument};
   }
+  // The kernel rejects a zero mask, so an empty batch makes no call.
+  if (offsets.empty()) {
+    return {};
+  }
   // The index table below is max_lines wide. A request set cannot hold more
   // than that, but nothing stops a caller repeating one offset past the
   // limit: every repeat resolves, and the writes run off the end of indices.
@@ -409,6 +413,9 @@ auto chardev_chip::write_lines(
 ) -> result<void> {
   if (offsets.size() != levels_in.size()) {
     return std::unexpected{gpio_error::invalid_argument};
+  }
+  if (offsets.empty()) {
+    return {};
   }
   ::gpio_v2_line_values values{};
   for (std::size_t i{0}; i < offsets.size(); ++i) {

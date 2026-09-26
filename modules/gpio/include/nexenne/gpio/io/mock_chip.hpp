@@ -264,8 +264,9 @@ public:
    * @param levels_out Caller buffer filled with physical levels, parallel to
    *                   \p offsets.
    *
-   * @return Nothing on success; \c gpio_error::invalid_argument when the
-   *         spans differ in length, otherwise the first per-line error.
+   * @return Nothing on success, including for empty spans, which touch no
+   *         line; \c gpio_error::invalid_argument when the spans differ in
+   *         length, otherwise the first per-line error.
    *
    * @pre None.
    * @post On success \p levels_out holds the level of each offset.
@@ -292,8 +293,9 @@ public:
    * @param offsets Line offsets to write.
    * @param levels_in Physical levels to drive, parallel to \p offsets.
    *
-   * @return Nothing on success; \c gpio_error::invalid_argument when the
-   *         spans differ in length, otherwise the first per-line error.
+   * @return Nothing on success, including for empty spans, which touch no
+   *         line; \c gpio_error::invalid_argument when the spans differ in
+   *         length, otherwise the first per-line error.
    *
    * @pre None.
    * @post On success every named line holds its requested level.
