@@ -26,7 +26,10 @@ contain at most fifty entities, so you walk velocity's fifty and ask, for each
 one, whether =position= also holds it. That membership test is an O(1) sparse
 set lookup. Driving from the larger storage would walk a million candidates to
 find the same fifty; driving from the smallest means you walk the fewest
-candidates possible and reject the misses cheaply.
+candidates possible and reject the misses cheaply. "Smallest" counts slots, live
+plus tombstones, since that is what the walk visits: a storage that once held a
+million components keeps its tombstones until inserts reuse them, so it can be
+the costliest driver while holding only one live component.
 
 Includes and excludes are both compile-time type lists. =view<C...>= is an alias
 for =basic_view<type_list<Includes...>, type_list<Excludes...>>=: includes are
@@ -34,9 +37,10 @@ the components every visited entity must carry, excludes are the components it
 must not. Because the types are known at compile time, every storage pointer is
 captured with its concrete type, so the per-candidate membership tests and the
 component lookups are typed and inline, with no virtual dispatch. The one place
-type erasure remains is the driver itself: it is whichever include storage turns
-out smallest at runtime, so its slot walk is reached through a small captured
-function-pointer cursor (slot count, liveness, key) set once at construction.
+type erasure remains is the driver itself: it is whichever include storage has
+the fewest slots at runtime, so its slot walk is reached through a small
+captured function-pointer cursor (slot count, liveness, key) set once at
+construction.
 
 * How it works
 
@@ -45,14 +49,14 @@ function-pointer cursor (slot count, liveness, key) set once at construction.
 At construction the view caches a typed pointer to each include and exclude
 storage (creating any missing storage lazily through the registry), then picks
 its driver. With a single include the driver is just that storage; with several,
-=select_driver_index= reads each include's =size()= and selects the smallest. It
-binds the driver cursor to that storage and from then on iterates its slots:
-indices =[0, slot_count())=, reading each live slot's entity index and skipping
-the tombstones. The slot count is captured at the start of a walk, so a slot
-appended mid-iteration (by code that adds a component) falls beyond it and is not
-visited. That holds for a hand-written loop that re-reads =end()= on every step
-too: an iterator equals =end()= once it reaches the count it captured, and the
-same goes for the iterators of =storage<T>().values()=.
+=select_driver_index= reads each include's =slot_count()= and selects the
+smallest. It binds the driver cursor to that storage and from then on iterates
+its slots: indices =[0, slot_count())=, reading each live slot's entity index
+and skipping the tombstones. The slot count is captured at the start of a walk,
+so a slot appended mid-iteration (by code that adds a component) falls beyond it
+and is not visited. That holds for a hand-written loop that re-reads =end()= on
+every step too: an iterator equals =end()= once it reaches the count it
+captured, and the same goes for the iterators of =storage<T>().values()=.
 
 ** The membership test per candidate
 

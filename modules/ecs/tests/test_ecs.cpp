@@ -1854,4 +1854,31 @@ TEST_CASE("registry: cv-qualified component types are rejected") {
   CHECK(r.has<position>(e));
 }
 
+TEST_CASE("view: the driver is the include with the fewest slots, not the fewest live") {
+  auto r{registry{}};
+  auto const m1{r.create()};
+  auto const m2{r.create()};
+  nexenne::utility::discard(r.add<health>(m1, health{.hp = 1}));
+  nexenne::utility::discard(r.add<health>(m2, health{.hp = 2}));
+  auto burst{std::vector<entity_id>{}};
+  for (auto i{0}; i < 3; ++i) {
+    burst.push_back(r.create());
+    nexenne::utility::discard(r.add<health>(burst.back(), health{}));
+  }
+  for (auto const e : burst) {
+    nexenne::utility::discard(r.remove<health>(e));
+  }
+  nexenne::utility::discard(r.add<position>(m2, position{}));
+  nexenne::utility::discard(r.add<position>(m1, position{}));
+  nexenne::utility::discard(r.add<position>(r.create(), position{}));
+  REQUIRE(r.storage<health>().size() < r.storage<position>().size());
+  REQUIRE(r.storage<health>().slot_count() > r.storage<position>().slot_count());
+
+  auto order{std::vector<entity_id>{}};
+  r.view<health, position>().each([&order](entity_id const e, health&, position&) noexcept {
+    order.push_back(e);
+  });
+  CHECK(order == std::vector<entity_id>{m2, m1});
+}
+
 }  // namespace

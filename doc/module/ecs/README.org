@@ -32,7 +32,7 @@ The pieces:
 * Iterating
 
 - [[file:views.org][views]] : the =view<Includes...>= over a registry, with an optional
-  =.exclude<...>()= list. Driven by the smallest matching storage, with O(1)
-  membership checks and typed, inline component lookups, and safe to modify
-  mid-iteration; usable as =.each(callback)=, as a range-for yielding a
+  =.exclude<...>()= list. Driven by the matching storage with the fewest slots,
+  with O(1) membership checks and typed, inline component lookups, and safe to
+  modify mid-iteration; usable as =.each(callback)=, as a range-for yielding a
   component tuple, or through the fluent query builder.

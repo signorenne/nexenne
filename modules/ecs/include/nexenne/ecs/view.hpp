@@ -42,7 +42,8 @@
  *
  * Iteration strategy:
  *
- *   - The view picks the smallest include storage as the driver at
+ *   - The view picks the include storage with the fewest slots (live plus
+ *     tombstones, which is what the walk costs) as the driver at
  *     construction time and walks its slots: indices \c [0, slot_count()),
  *     skipping tombstoned slots. Because the storage pool is pointer-stable,
  *     this is safe even when the loop body adds or removes components or
@@ -119,9 +120,9 @@ private:
   using includes_storage = std::tuple<component_storage<Includes>*...>;
   using excludes_storage = std::tuple<component_storage<Excludes>*...>;
   // The driver is one of the heterogeneous include storages chosen at
-  // runtime (the smallest), so its slot walk is reached through this captured
-  // function-pointer cursor rather than a typed call. Set once at
-  // construction by \c bind_driver; never null afterwards.
+  // runtime (the one with the fewest slots), so its slot walk is reached
+  // through this captured function-pointer cursor rather than a typed call.
+  // Set once at construction by \c bind_driver; never null afterwards.
   using slot_count_fn = auto (*)(void const*) noexcept -> std::size_t;
   using is_live_fn = auto (*)(void const*, std::size_t) noexcept -> bool;
   using key_at_fn = auto (*)(void const*, std::size_t) noexcept -> std::uint32_t;
@@ -142,14 +143,14 @@ public:
    * @brief Constructs a view over \p reg and selects its driver.
    *
    * Caches a pointer to each include and exclude storage (creating
-   * them lazily via \c registry::storage) and picks the smallest
-   * include storage as the iteration driver.
+   * them lazily via \c registry::storage) and picks the include storage
+   * with the fewest slots as the iteration driver.
    *
    * @param reg  Registry to view. Must outlive the view.
    *
    * @pre  \p reg outlives this view.
    * @post Storage exists for every include and exclude type. The driver
-   *       cursor is bound to the smallest include storage.
+   *       cursor is bound to the include storage with the fewest slots.
    *
    * @complexity \c O(sizeof...(Includes)).
    */
@@ -515,13 +516,16 @@ private:
   }
 
   /**
-   * @brief Index of the smallest include storage, used as the iteration driver.
+   * @brief Index of the include storage with the fewest slots, the driver.
    *
-   * With a single include the answer is trivially zero; otherwise the sizes of
-   * every include storage are compared and the position of the smallest is
-   * returned, so iteration walks the fewest slots.
+   * With a single include the answer is trivially zero; otherwise the slot
+   * counts of every include storage are compared and the position of the
+   * smallest is returned. The walk visits every slot, live or tombstone, so the
+   * slot count, not the live size, is what it costs: a pool that once held
+   * many components keeps its tombstones until inserts reuse them.
    *
-   * @return The position within the include pack of the smallest storage.
+   * @return The position within the include pack of the storage with the
+   *         fewest slots.
    *
    * @pre Every include storage pointer in \c m_includes is non-null.
    * @post The view is unchanged.
@@ -532,12 +536,12 @@ private:
     if constexpr (sizeof...(Includes) == 1) {
       return 0;
     } else {
-      using size_array = std::array<std::size_t, sizeof...(Includes)>;
-      auto const sizes{
-        std::apply([](auto*... s) noexcept { return size_array{s->size()...}; }, m_includes)
+      using count_array = std::array<std::size_t, sizeof...(Includes)>;
+      auto const counts{
+        std::apply([](auto*... s) noexcept { return count_array{s->slot_count()...}; }, m_includes)
       };
-      auto const min_it{std::min_element(sizes.begin(), sizes.end())};
-      return static_cast<std::size_t>(min_it - sizes.begin());
+      auto const min_it{std::min_element(counts.begin(), counts.end())};
+      return static_cast<std::size_t>(min_it - counts.begin());
     }
   }
 

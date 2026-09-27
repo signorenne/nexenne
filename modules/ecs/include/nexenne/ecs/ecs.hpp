@@ -14,7 +14,8 @@
  *   \c create / \c destroy, \c add / \c remove / \c get / \c has, and the
  *   on-construct / on-update / on-destroy signals.
  * - \c basic_view : visits every entity carrying a set of components (with an
- *   optional exclude list), driven by the smallest matching storage.
+ *   optional exclude list), driven by the matching storage with the fewest
+ *   slots.
  *
  * Pulls in every public header. For finer-grained build dependencies, include
  * the individual leaf headers under \c nexenne/ecs/ directly. The pool storage
