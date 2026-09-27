@@ -2,8 +2,7 @@
 
 /**
  * @file
- * @brief Compile-time-stable, runtime-cheap unique IDs per type, with
- *        no RTTI dependency.
+ * @brief Unique, runtime-cheap IDs per type, with no RTTI dependency.
  *
  * \c type_id<T>() returns a \c std::size_t that is:
  *
@@ -36,6 +35,8 @@ namespace nexenne::ecs {
 
 namespace detail {
 
+/// @cond INTERNAL
+
 /**
  * @brief Returns the next free dense ID and advances the shared counter.
  *
@@ -48,13 +49,15 @@ namespace detail {
  * @return The pre-increment value of the shared counter: \c 0 on the
  *         first call of the program, \c 1 on the second, and so on.
  *
- * @pre  None.
+ * @pre None.
  * @post The shared counter is one greater than the returned value.
  */
 [[nodiscard]] inline auto next_type_id() noexcept -> std::size_t {
   static std::atomic<std::size_t> counter{0};
   return counter.fetch_add(1, std::memory_order_relaxed);
 }
+
+/// @endcond
 
 }  // namespace detail
 
@@ -68,11 +71,11 @@ namespace detail {
  * starting at \c 0 but not stable across runs that touch types in a
  * different order.
  *
- * @tparam T  Any type. \c T need not be complete.
+ * @tparam T Any type. \c T need not be complete.
  *
  * @return Small dense \c std::size_t ID, suitable as an array index.
  *
- * @pre  None.
+ * @pre None.
  * @post The returned ID is stable for \p T for the remainder of the
  *       program, and is strictly less than the number of distinct
  *       types whose ID has been requested.

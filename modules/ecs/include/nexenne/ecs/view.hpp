@@ -2,8 +2,7 @@
 
 /**
  * @file
- * @brief Multi-component view over a registry, with iterator and
- *        range support and an optional exclude list.
+ * @brief Multi-component view over a registry, with an optional exclude list.
  *
  * \c view<C1, C2, ...> visits every entity carrying all of
  * \c C1, \c C2, ... and skips the rest. The view supports three
@@ -87,30 +86,47 @@ namespace nexenne::ecs {
 
 namespace detail {
 
+/// @cond INTERNAL
+
+/**
+ * @brief Whether \c T is one of the types of the \c type_list \c Tuple.
+ *
+ * The primary template answers \c false for anything but a \c type_list.
+ *
+ * @tparam T Type to look for.
+ * @tparam Tuple The \c type_list to search.
+ */
 template <typename T, typename Tuple>
 inline constexpr auto tuple_contains_v = false;
 
+/**
+ * @brief Whether \c T is one of \c Us.
+ *
+ * @tparam T Type to look for.
+ * @tparam Us The listed types.
+ */
 template <typename T, typename... Us>
 inline constexpr auto tuple_contains_v<T, type_list<Us...>> = (std::same_as<T, Us> || ...);
+
+/// @endcond
 
 }  // namespace detail
 
 /**
- * @brief Multi-component view of a registry. Users name it via the
- *        \c view<...> alias.
+ * @brief Multi-component view of a registry.
  *
- * Parameterised on two type lists: includes (entities must carry all
- * of these) and excludes (entities must carry none of these). Built
- * via the registry's \c view<...>() / \c query() helpers and chained
- * through \c .exclude<...>(). Every listed type satisfies \c component.
+ * Users name it via the \c view<...> alias. Parameterised on two type lists:
+ * includes (entities must carry all of these) and excludes (entities must
+ * carry none of these). Built via the registry's \c view<...>() / \c query()
+ * helpers and chained through \c .exclude<...>(). Every listed type satisfies
+ * \c component.
  */
 template <component... Includes, component... Excludes>
   requires(sizeof...(Includes) > 0)
 class basic_view<detail::type_list<Includes...>, detail::type_list<Excludes...>> {
 public:
   /**
-   * @brief Tuple-of-references yielded by the iterator: the entity
-   *        plus one reference per include type.
+   * @brief Tuple the iterator yields: the entity and a reference per include.
    */
   using value_type = std::tuple<entity_id, Includes&...>;
 
@@ -146,9 +162,9 @@ public:
    * them lazily via \c registry::storage) and picks the include storage
    * with the fewest slots as the iteration driver.
    *
-   * @param reg  Registry to view. Must outlive the view.
+   * @param reg Registry to view. Must outlive the view.
    *
-   * @pre  \p reg outlives this view.
+   * @pre \p reg outlives this view.
    * @post Storage exists for every include and exclude type. The driver
    *       cursor is bound to the include storage with the fewest slots.
    *
@@ -164,13 +180,13 @@ public:
   /**
    * @brief Returns a new view with additional exclude filters.
    *
-   * @tparam NewExcludes  Extra types to exclude. Must be DISJOINT from
-   *                      the include list (enforced by a \c requires clause).
+   * @tparam NewExcludes Extra types to exclude. Must be DISJOINT from
+   *                     the include list (enforced by a \c requires clause).
    *
    * @return A view over the same registry with the combined exclude
    *         list.
    *
-   * @pre  None beyond the disjointness checked at compile time.
+   * @pre None beyond the disjointness checked at compile time.
    * @post The original view is unchanged; the returned view re-reads
    *       the driver against the new exclude set.
    *
@@ -185,21 +201,20 @@ public:
   }
 
   /**
-   * @brief Invokes \p f for every entity that passes the include and
-   *        exclude filters.
+   * @brief Invokes \p f for every entity that passes the filters.
    *
    * Equivalent to walking the iterators, but more efficient because
    * the hot loop is wholly within one function. The callback may take
    * either \c (entity_id, Includes&...) or just \c (Includes&...);
    * the form is selected at compile time.
    *
-   * @tparam Func  Callable invocable with either accepted form.
-   * @param  f     Callback invoked once per matching entity.
+   * @tparam Func Callable invocable with either accepted form.
+   * @param f Callback invoked once per matching entity.
    *
-   * @pre  None. Thanks to the pointer-stable storage, \p f may add or
-   *       remove components and create or destroy entities during the loop
-   *       without dangling the references it holds. A \c registry::clear from
-   *       \p f ends the loop.
+   * @pre None. Thanks to the pointer-stable storage, \p f may add or
+   *      remove components and create or destroy entities during the loop
+   *      without dangling the references it holds. A \c registry::clear from
+   *      \p f ends the loop.
    * @post Every entity matching the filters at the start was passed to \p f,
    *       unless \p f removed it (or a required component) before it was
    *       reached. Each is passed once, except that a component \p f adds
@@ -253,16 +268,16 @@ public:
    */
   class iterator {
   public:
-    using value_type = basic_view::value_type;
-    using reference = value_type;
-    using difference_type = std::ptrdiff_t;
+    using value_type = basic_view::value_type;  ///< Yielded (entity, components) tuple.
+    using reference = value_type;               ///< Yielded by value: a proxy tuple.
+    using difference_type = std::ptrdiff_t;     ///< Required by the iterator concept.
     // Input-iterator: \c operator* returns a tuple by value (the
     // tuple holds component references, but the tuple itself is
     // a prvalue). True forward-iterator semantics would require
     // \c reference to be an lvalue type, which the proxy pattern
     // does not provide.
-    using iterator_category = std::input_iterator_tag;
-    using iterator_concept = std::input_iterator_tag;
+    using iterator_category = std::input_iterator_tag;  ///< Input-iterator category.
+    using iterator_concept = std::input_iterator_tag;   ///< Input-iterator concept.
 
   private:
     basic_view const* m_view{nullptr};
@@ -275,8 +290,7 @@ public:
     std::size_t m_count{0};
 
     /**
-     * @brief Advances the cursor to the next matching driver slot, or to the
-     *        captured slot count.
+     * @brief Advances the cursor to the next matching driver slot.
      *
      * Skips driver slots that are tombstoned or that fail the include and
      * exclude membership tests, stopping at the first match, at \c m_count, or
@@ -313,19 +327,20 @@ public:
     /**
      * @brief Constructs a singular iterator bound to no view.
      *
-     * @pre  None.
+     * @pre None.
      * @post Must not be dereferenced or incremented.
      */
     constexpr iterator() noexcept = default;
 
     /**
-     * @brief Constructs an iterator into \p v at driver slot \p pos, then
-     *        advances to the first matching live slot.
+     * @brief Constructs an iterator into \p v at driver slot \p pos.
      *
-     * @param v    View being iterated.
-     * @param pos  Starting driver slot, in \c [0, slot count].
+     * Then advances to the first matching live slot.
      *
-     * @pre  \p pos is no greater than the driver slot count.
+     * @param v View being iterated.
+     * @param pos Starting driver slot, in \c [0, slot count].
+     *
+     * @pre \p pos is no greater than the driver slot count.
      * @post The iterator points at the first matching entry at or
      *       after \p pos, or equals \c end() if none.
      */
@@ -340,7 +355,7 @@ public:
      * @return A \c value_type holding the entity handle and one
      *         reference per include component.
      *
-     * @pre  \c *this is dereferenceable (does not equal \c end()).
+     * @pre \c *this is dereferenceable (does not equal \c end()).
      * @post The iterator is unchanged.
      */
     [[nodiscard]] auto operator*() const noexcept -> value_type {
@@ -361,7 +376,7 @@ public:
      *
      * @return Reference to \c *this after advancing.
      *
-     * @pre  \c *this does not equal \c end().
+     * @pre \c *this does not equal \c end().
      * @post The iterator points at the next matching entry, or
      *       equals \c end().
      */
@@ -376,7 +391,7 @@ public:
      *
      * @return A copy of the iterator as it was before advancing.
      *
-     * @pre  \c *this does not equal \c end().
+     * @pre \c *this does not equal \c end().
      * @post The iterator points at the next matching entry, or
      *       equals \c end().
      */
@@ -393,13 +408,13 @@ public:
      * captured, so a loop that re-reads \c end() after a slot was appended
      * still stops where the walk that \c begin() started ends.
      *
-     * @param a  Left operand.
-     * @param b  Right operand.
+     * @param a Left operand.
+     * @param b Right operand.
      *
      * @return \c true iff both iterators are at the end of the same view, or
      *         name the same position in the same view.
      *
-     * @pre  None.
+     * @pre None.
      * @post None.
      */
     [[nodiscard]] friend constexpr auto operator==(iterator const& a, iterator const& b) noexcept
@@ -417,7 +432,7 @@ public:
    * @return An iterator advanced to the first entity passing the
    *         filters, equal to \c end() when none match.
    *
-   * @pre  None.
+   * @pre None.
    * @post The view is unchanged.
    *
    * @complexity \c O(D) in the worst case to skip to the first match.
@@ -431,7 +446,7 @@ public:
    *
    * @return An iterator one past the last driver entry.
    *
-   * @pre  None.
+   * @pre None.
    * @post The view is unchanged.
    *
    * @complexity \c O(1).
@@ -442,8 +457,7 @@ public:
 
 private:
   /**
-   * @brief Reports whether entity index \p idx satisfies every include and
-   *        exclude filter.
+   * @brief Reports whether entity index \p idx passes every filter.
    *
    * Requires that all include storages hold \p idx and, when the exclude pack
    * is non-empty, that no exclude storage holds it. Both checks are O(1)
@@ -602,7 +616,7 @@ private:
 /**
  * @brief Convenience alias for the common "includes only" case.
  *
- * @tparam Includes  Component types every visited entity must carry.
+ * @tparam Includes Component types every visited entity must carry.
  */
 template <typename... Includes>
 using view = basic_view<detail::type_list<Includes...>, detail::type_list<>>;
@@ -630,10 +644,10 @@ public:
   /**
    * @brief Constructs a builder bound to registry \p r.
    *
-   * @param r  Registry the eventual view will read. Must outlive the
-   *           builder and any view it produces.
+   * @param r Registry the eventual view will read. Must outlive the
+   *          builder and any view it produces.
    *
-   * @pre  None.
+   * @pre None.
    * @post The builder carries the current (empty or accumulated)
    *       include and exclude lists for \p r.
    */
@@ -642,13 +656,13 @@ public:
   /**
    * @brief Adds \c C to the include list.
    *
-   * @tparam C  Component type to require. Must not be in the exclude list
-   *            (enforced by a \c requires clause, as \c basic_view::exclude
-   *            does).
+   * @tparam C Component type to require. Must not be in the exclude list
+   *           (enforced by a \c requires clause, as \c basic_view::exclude
+   *           does).
    *
    * @return A new builder with \c C appended to the include pack.
    *
-   * @pre  None beyond the disjointness checked at compile time.
+   * @pre None beyond the disjointness checked at compile time.
    * @post This builder is unchanged; the include list grows in the
    *       returned builder's type.
    *
@@ -665,13 +679,13 @@ public:
   /**
    * @brief Adds \c C to the exclude list.
    *
-   * @tparam C  Component type to forbid. Must not be in the include list
-   *            (enforced by a \c requires clause, as \c basic_view::exclude
-   *            does).
+   * @tparam C Component type to forbid. Must not be in the include list
+   *           (enforced by a \c requires clause, as \c basic_view::exclude
+   *           does).
    *
    * @return A new builder with \c C appended to the exclude pack.
    *
-   * @pre  None beyond the disjointness checked at compile time.
+   * @pre None beyond the disjointness checked at compile time.
    * @post This builder is unchanged; the exclude list grows in the
    *       returned builder's type.
    *
@@ -686,13 +700,12 @@ public:
   }
 
   /**
-   * @brief Builds the view from the accumulated include and exclude
-   *        lists.
+   * @brief Builds the view from the accumulated include and exclude lists.
    *
    * @return A \c basic_view over the builder's registry.
    *
-   * @pre  At least one include type has been added (a \c requires
-   *       clause on \c basic_view enforces this).
+   * @pre At least one include type has been added (a \c requires
+   *      clause on \c basic_view enforces this).
    * @post Storage exists for every include and exclude type. The
    *       builder is unchanged.
    *
@@ -705,13 +718,13 @@ public:
   /**
    * @brief Convenience: build the view and run \c each in one call.
    *
-   * @tparam Func  Callback accepted by \c basic_view::each.
-   * @param  f     Callback invoked once per matching entity.
+   * @tparam Func Callback accepted by \c basic_view::each.
+   * @param f Callback invoked once per matching entity.
    *
-   * @pre  Same as \c build (at least one include type) and
-   *       \c basic_view::each: \p f may add or remove components and create
-   *       or destroy entities during the loop, since the storages are
-   *       pointer-stable.
+   * @pre Same as \c build (at least one include type) and
+   *      \c basic_view::each: \p f may add or remove components and create
+   *      or destroy entities during the loop, since the storages are
+   *      pointer-stable.
    * @post As for \c basic_view::each: every entity matching at call time was
    *       passed to \p f, once unless \p f re-added its driver component
    *       ahead of the cursor.

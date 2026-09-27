@@ -2,10 +2,9 @@
 
 /**
  * @file
- * @brief Sparse-set entity-component registry (EnTT-style ECS) with
- *        zero-virtual dispatch.
+ * @brief Sparse-set entity-component registry with zero-virtual dispatch.
  *
- * The registry owns:
+ * An EnTT-style ECS. The registry owns:
  *
  *   - A flat array of generation counters per entity index, plus a
  *     free list for index recycling. \c create() returns an opaque
@@ -89,12 +88,20 @@ using nexenne::container::sparse_set;
 
 namespace detail {
 
+/// @cond INTERNAL
+
 /**
- * @brief Compile-time pack of types used by \c basic_view and the
- *        \c query builder to separate include / exclude lists.
+ * @brief Compile-time pack of types.
+ *
+ * Used by \c basic_view and the \c query builder to separate the include and
+ * exclude lists.
+ *
+ * @tparam Ts The listed types.
  */
 template <typename... Ts>
 struct type_list {};
+
+/// @endcond
 
 }  // namespace detail
 
@@ -112,17 +119,19 @@ template <typename T>
 concept component = std::same_as<T, std::remove_cv_t<T>>;
 
 /**
- * @brief Forward declaration of the multi-component view, defined in
- *        \c <nexenne/ecs/view.hpp>. Declared here so the
- *        registry can return one from its \c view<> / \c query()
- *        methods. Include \c view.hpp to use them.
+ * @brief Forward declaration of the multi-component view.
+ *
+ * Defined in \c <nexenne/ecs/view.hpp> and declared here so the registry can
+ * return one from its \c view<> / \c query() methods. Include \c view.hpp to
+ * use them.
  */
 template <typename IncludeList, typename ExcludeList = detail::type_list<>>
 class basic_view;
 
 /**
- * @brief Forward declaration of the fluent query builder, defined
- *        alongside \c basic_view.
+ * @brief Forward declaration of the fluent query builder.
+ *
+ * Defined alongside \c basic_view.
  */
 template <typename IncludeList, typename ExcludeList>
 class typed_query_builder;
@@ -170,8 +179,8 @@ public:
    * directly. No validity is checked here: a handle is only "live"
    * relative to a registry, via \c registry::valid.
    *
-   * @param index       Slot index into the registry.
-   * @param generation  Recycle counter for that slot.
+   * @param index Slot index into the registry.
+   * @param generation Recycle counter for that slot.
    *
    * @pre None.
    * @post \c index() equals \p index and \c generation() equals
@@ -207,8 +216,7 @@ public:
   }
 
   /**
-   * @brief Defaulted total ordering and equality over (index,
-   *        generation).
+   * @brief Defaulted total ordering and equality over (index, generation).
    *
    * Two handles are equal iff both their index and generation match,
    * so a recycled index with a bumped generation never compares equal
@@ -224,8 +232,7 @@ public:
 };
 
 /**
- * @brief Typed per-component storage: a pointer-stable \c component_pool
- *        keyed by entity index.
+ * @brief Typed per-component storage keyed by entity index.
  *
  * Used by the registry as the concrete storage type behind each
  * \c type_id<T>() slot. Exposed via \c registry::storage<T>() so callers
@@ -248,7 +255,7 @@ public:
  * non-movable) because the registry holds a raw pointer to it and the
  * signals back-reference their own storage.
  *
- * @tparam T  Component value type stored per entity index.
+ * @tparam T Component value type stored per entity index.
  */
 template <typename T>
 class component_storage {
@@ -297,8 +304,8 @@ public:
    * around this call. An existing component is assigned in place, keeping
    * its address.
    *
-   * @param index  Entity index key.
-   * @param value  Component value, moved into the pool.
+   * @param index Entity index key.
+   * @param value Component value, moved into the pool.
    *
    * @return \c true when a new entry was created, \c false when one
    *         already existed (in which case it is overwritten).
@@ -326,7 +333,7 @@ public:
    * calling this. Tombstones the slot in place, so every other
    * component keeps its address.
    *
-   * @param index  Entity index key.
+   * @param index Entity index key.
    *
    * @return \c true when an entry was removed, \c false when \p index
    *         was absent.
@@ -345,7 +352,7 @@ public:
   /**
    * @brief Pointer to the component at \p index, or \c nullptr (mutable).
    *
-   * @param index  Entity index key.
+   * @param index Entity index key.
    *
    * @return A stable pointer to the component, or \c nullptr when \p index
    *         is absent.
@@ -360,7 +367,7 @@ public:
   /**
    * @brief Pointer to the component at \p index, or \c nullptr (const).
    *
-   * @param index  Entity index key.
+   * @param index Entity index key.
    *
    * @return A stable pointer to the \c const component, or \c nullptr when
    *         \p index is absent.
@@ -375,7 +382,7 @@ public:
   /**
    * @brief Expected-style lookup (mutable overload).
    *
-   * @param index  Entity index key.
+   * @param index Entity index key.
    *
    * @return A reference wrapper to the component on hit, or
    *         \c container_error::not_found on miss.
@@ -394,7 +401,7 @@ public:
   /**
    * @brief Expected-style lookup (const overload).
    *
-   * @param index  Entity index key.
+   * @param index Entity index key.
    *
    * @return A reference wrapper to the \c const component on hit, or
    *         \c container_error::not_found on miss.
@@ -413,7 +420,7 @@ public:
   /**
    * @brief Reports whether a component exists at \p index.
    *
-   * @param index  Entity index key.
+   * @param index Entity index key.
    *
    * @return \c true iff an entry exists for \p index.
    *
@@ -427,7 +434,7 @@ public:
   /**
    * @brief Number of entries at \p index (0 or 1).
    *
-   * @param index  Entity index key.
+   * @param index Entity index key.
    *
    * @return 1 when present, 0 otherwise. Mirrors \c std::map::count
    *         for a unique key.
@@ -495,7 +502,7 @@ public:
   /**
    * @brief Whether slot \p slot currently holds a live component.
    *
-   * @param slot  Slot index, less than \c slot_count().
+   * @param slot Slot index, less than \c slot_count().
    *
    * @return \c true when the slot is live, \c false when it is a tombstone.
    *
@@ -509,7 +516,7 @@ public:
   /**
    * @brief Entity index owning the live component at \p slot.
    *
-   * @param slot  Live slot index.
+   * @param slot Live slot index.
    *
    * @return The entity index key for that slot.
    *
@@ -523,7 +530,7 @@ public:
   /**
    * @brief The component at live slot \p slot (mutable).
    *
-   * @param slot  Live slot index.
+   * @param slot Live slot index.
    *
    * @return A stable reference to the component.
    *
@@ -537,7 +544,7 @@ public:
   /**
    * @brief The component at live slot \p slot (const).
    *
-   * @param slot  Live slot index.
+   * @param slot Live slot index.
    *
    * @return A stable reference to the \c const component.
    *
@@ -628,8 +635,8 @@ public:
   /**
    * @brief Internal: fires the on-construct signal for (\p e, \p v).
    *
-   * @param e  Entity the component was attached to.
-   * @param v  Reference to the just-stored component.
+   * @param e Entity the component was attached to.
+   * @param v Reference to the just-stored component.
    *
    * @pre Called by the registry immediately after a new \c T is
    *       inserted for \p e; \p v refers to that stored component.
@@ -645,8 +652,8 @@ public:
   /**
    * @brief Internal: fires the on-update signal for (\p e, \p v).
    *
-   * @param e  Entity whose component changed.
-   * @param v  Reference to the stored component after the change.
+   * @param e Entity whose component changed.
+   * @param v Reference to the stored component after the change.
    *
    * @pre Called by the registry after a replacement or in-place
    *       mutation of \p e's \c T; \p v refers to that component.
@@ -661,8 +668,8 @@ public:
   /**
    * @brief Internal: fires the on-destroy signal for (\p e, \p v).
    *
-   * @param e  Entity whose component is about to be removed.
-   * @param v  Reference to the still-valid component.
+   * @param e Entity whose component is about to be removed.
+   * @param v Reference to the still-valid component.
    *
    * @pre Called by the registry just before the component is erased;
    *       \p v still refers to the live component.
@@ -677,6 +684,8 @@ public:
 
 namespace detail {
 
+/// @cond INTERNAL
+
 /**
  * @brief Type-erased storage entry: data pointer + manual vtable.
  *
@@ -686,19 +695,26 @@ namespace detail {
  * a C++ virtual table.
  */
 struct erased_storage {
-  void* data{nullptr};
+  void* data{nullptr};  ///< The \c component_storage, type-erased.
+  /// @brief Erases the component at an entity index.
   auto (*erase_fn)(void*, std::uint32_t) noexcept -> bool{nullptr};
+  /// @brief Whether a component exists at an entity index.
   auto (*contains_fn)(void const*, std::uint32_t) noexcept -> bool{nullptr};
+  /// @brief Number of live components.
   auto (*size_fn)(void const*) noexcept -> std::size_t{nullptr};
+  /// @brief Removes every component without firing signals.
   auto (*clear_fn)(void*) noexcept -> void{nullptr};
+  /// @brief Deletes the storage.
   auto (*destroy_fn)(void*) noexcept -> void{nullptr};
-  // Fires the typed on_destroy signal at \p e before the caller
-  // (the registry) issues the actual \c erase_fn. Caller must check
-  // \c contains_fn first.
+  /**
+   * @brief Fires the typed on-destroy signal for an entity's component.
+   *
+   * The registry calls it before \c erase_fn, once \c contains_fn has found
+   * the component.
+   */
   auto (*fire_on_destroy_fn)(void*, entity_id) noexcept -> void{nullptr};
 };
 
-/// @cond INTERNAL
 /**
  * @brief Builds a type-erased storage entry for \p storage.
  *
@@ -874,7 +890,7 @@ public:
   /**
    * @brief Move-constructs from \p other, taking over its storages.
    *
-   * @param other  Registry to move from.
+   * @param other Registry to move from.
    *
    * @pre None.
    * @post This registry owns \p other's entities and component
@@ -890,10 +906,11 @@ public:
       , m_storages{std::move(other.m_storages)} {}
 
   /**
-   * @brief Move-assigns from \p other, destroying this registry's
-   *        current storages first.
+   * @brief Move-assigns from \p other.
    *
-   * @param other  Registry to move from.
+   * Destroys this registry's current storages first.
+   *
+   * @param other Registry to move from.
    *
    * @return Reference to \c *this.
    *
@@ -979,7 +996,7 @@ public:
    * \c add, \c patch and \c remove on \p e fail, so a listener cannot reach
    * \p e's other components through the registry.
    *
-   * @param e  Handle to destroy. May be stale or default-constructed.
+   * @param e Handle to destroy. May be stale or default-constructed.
    *
    * @return \c true when \p e was live and is now destroyed, \c false
    *         when \p e was already dead or never valid.
@@ -1069,7 +1086,7 @@ public:
    * default-constructed handles and handles to since-destroyed (or
    * recycled) entities.
    *
-   * @param e  Handle to test. Any value is accepted.
+   * @param e Handle to test. Any value is accepted.
    *
    * @return \c true iff \p e currently names a live entity.
    *
@@ -1084,14 +1101,13 @@ public:
   }
 
   /**
-   * @brief Current generation at \p index, or 0 when no entity has
-   *        ever occupied that slot.
+   * @brief Current generation at \p index, or 0 for a never-used slot.
    *
    * Used by \c view to reconstruct a full \c entity_id from a raw
    * index pulled out of a component storage. An out-of-range index
    * yields 0 rather than reading past the array.
    *
-   * @param index  Slot index. Need not be in range.
+   * @param index Slot index. Need not be in range.
    *
    * @return The slot's current generation, or 0 when \p index is out
    *         of range or the slot has never been used.
@@ -1129,9 +1145,9 @@ public:
    * \c on_construct<T>() on a new attachment and \c on_update<T>() on
    * a replacement, passing the now-stored component by reference.
    *
-   * @tparam T      Component type.
-   * @param e      Target entity.
-   * @param value  Component value to store. Moved into the storage.
+   * @tparam T Component type.
+   * @param e Target entity.
+   * @param value Component value to store. Moved into the storage.
    *
    * @return \c true when a new component was attached, \c false when
    *         an existing \c T was replaced or when \p e is invalid.
@@ -1185,8 +1201,8 @@ public:
    * Fires \c on_destroy<T>() with the still-valid component reference
    * just before erasing it, so listeners can read the final value.
    *
-   * @tparam T  Component type to remove.
-   * @param e  Target entity.
+   * @tparam T Component type to remove.
+   * @param e Target entity.
    *
    * @return \c true when a \c T was removed, \c false when \p e is
    *         invalid, no storage for \c T exists, or \p e carried no
@@ -1224,17 +1240,16 @@ public:
   }
 
   /**
-   * @brief Mutates \p e's \c T component in place via \p mutator, then
-   *        fires \c on_update<T>().
+   * @brief Mutates \p e's \c T component in place via \p mutator.
    *
    * Invokes \p mutator with a mutable reference to the stored
    * component, then emits \c on_update<T>() with that same reference
    * so listeners observe the post-mutation value.
    *
-   * @tparam T   Component type to mutate.
-   * @tparam Fn  Callable invocable as \c Fn(T&).
-   * @param e        Target entity.
-   * @param mutator  Callback applied to the stored component.
+   * @tparam T Component type to mutate.
+   * @tparam Fn Callable invocable as \c Fn(T&).
+   * @param e Target entity.
+   * @param mutator Callback applied to the stored component.
    *
    * @return \c true on success, \c false when \p e is invalid, no
    *         storage for \c T exists, or \p e doesn't carry a \c T.
@@ -1281,7 +1296,7 @@ public:
    * listeners can subscribe before any entity holds a \c T. The signal
    * fires after \c add<T>() attaches a new component.
    *
-   * @tparam T  Component type whose construction signal is wanted.
+   * @tparam T Component type whose construction signal is wanted.
    *
    * @return A connect-only sink over the on-construct signal for \c T.
    *
@@ -1302,7 +1317,7 @@ public:
    * when \c add<T>() replaces an existing component or \c patch<T>()
    * mutates one.
    *
-   * @tparam T  Component type whose update signal is wanted.
+   * @tparam T Component type whose update signal is wanted.
    *
    * @return A connect-only sink over the on-update signal for \c T.
    *
@@ -1323,7 +1338,7 @@ public:
    * just before \c remove<T>() or \c destroy() erases a component, so
    * listeners can read the final value.
    *
-   * @tparam T  Component type whose destruction signal is wanted.
+   * @tparam T Component type whose destruction signal is wanted.
    *
    * @return A connect-only sink over the on-destroy signal for \c T.
    *
@@ -1344,8 +1359,8 @@ public:
    * need no nullptr checks on the success path. Does not create
    * storage; a missing storage is reported as not-found.
    *
-   * @tparam T  Component type to fetch.
-   * @param e  Entity to query.
+   * @tparam T Component type to fetch.
+   * @param e Entity to query.
    *
    * @return A reference wrapper to the component on hit, or
    *         \c container_error::not_found when \p e is invalid, no
@@ -1378,8 +1393,8 @@ public:
    * Const counterpart of the mutable \c get; yields a reference to a
    * \c const component. Same error policy and lookup semantics.
    *
-   * @tparam T  Component type to fetch.
-   * @param e  Entity to query.
+   * @tparam T Component type to fetch.
+   * @param e Entity to query.
    *
    * @return A reference wrapper to the \c const component on hit, or
    *         \c container_error::not_found when \p e is invalid, no
@@ -1406,8 +1421,8 @@ public:
   /**
    * @brief Reports whether \p e carries a \c T component.
    *
-   * @tparam T  Component type to test for.
-   * @param e  Entity to query.
+   * @tparam T Component type to test for.
+   * @param e Entity to query.
    *
    * @return \c true iff \p e is valid and carries a \c T.
    *
@@ -1430,8 +1445,8 @@ public:
    *
    * Folds \c has<Cs>(e) with \c &&. An empty pack yields \c true.
    *
-   * @tparam Cs  Component types to test for.
-   * @param e   Entity to query.
+   * @tparam Cs Component types to test for.
+   * @param e Entity to query.
    *
    * @return \c true iff \p e carries every listed component (or the
    *         pack is empty).
@@ -1451,8 +1466,8 @@ public:
    *
    * Folds \c has<Cs>(e) with \c ||. An empty pack yields \c false.
    *
-   * @tparam Cs  Component types to test for.
-   * @param e   Entity to query.
+   * @tparam Cs Component types to test for.
+   * @param e Entity to query.
    *
    * @return \c true iff \p e carries at least one listed component.
    *         \c false for an empty parameter pack.
@@ -1473,8 +1488,8 @@ public:
    * Same coverage as a range-for over \c *this, packaged in callback
    * form for parity with EnTT's \c registry::each.
    *
-   * @tparam Func  Callable invocable as \c Func(entity_id).
-   * @param f     Callback invoked once per live entity.
+   * @tparam Func Callable invocable as \c Func(entity_id).
+   * @param f Callback invoked once per live entity.
    *
    * @pre \p f must not create or destroy entities for the duration of
    *       the loop (it iterates the live-entity set in place).
@@ -1500,7 +1515,7 @@ public:
    * lives in \c view.hpp; include that header to use this method. The
    * include storages are created lazily as a side effect.
    *
-   * @tparam Includes  Component types the view requires (at least one).
+   * @tparam Includes Component types the view requires (at least one).
    *
    * @return A view over entities carrying all of \p Includes.
    *
@@ -1553,7 +1568,7 @@ public:
    * the live components with no indirection (chunked, skipping tombstones).
    * Creates the storage lazily on first call for type \p T.
    *
-   * @tparam T  Component type whose storage is wanted.
+   * @tparam T Component type whose storage is wanted.
    *
    * @return A reference to the live storage for \c T.
    *
@@ -1573,7 +1588,7 @@ public:
    * Unlike the mutable overload this never creates storage, so it can
    * be called on a \c const registry.
    *
-   * @tparam T  Component type whose storage is wanted.
+   * @tparam T Component type whose storage is wanted.
    *
    * @return A pointer to the storage for \c T, or \c nullptr if none
    *         has ever been registered.
@@ -1665,10 +1680,10 @@ public:
   }
 
   /**
-   * @brief Input-iterator yielding the \c entity_id of every live
-   *        entity. Iteration order is "creation order with swap-pop
-   *        on destroy", sparse_set's dense ordering, not stable
-   *        across destroys.
+   * @brief Input-iterator yielding the \c entity_id of every live entity.
+   *
+   * Iteration order is "creation order with swap-pop on destroy", the
+   * sparse_set's dense ordering, not stable across destroys.
    *
    * No entity may be created or destroyed while an iteration is in progress:
    * \c destroy swap-pops the live set under the cursor, which can then skip
@@ -1676,11 +1691,11 @@ public:
    */
   class iterator {
   public:
-    using value_type = entity_id;
-    using reference = entity_id;
-    using difference_type = std::ptrdiff_t;
-    using iterator_category = std::input_iterator_tag;
-    using iterator_concept = std::input_iterator_tag;
+    using value_type = entity_id;                       ///< Yielded element type.
+    using reference = entity_id;                        ///< Yielded by value; a handle is cheap.
+    using difference_type = std::ptrdiff_t;             ///< Required by the iterator concept.
+    using iterator_category = std::input_iterator_tag;  ///< Input-iterator category.
+    using iterator_concept = std::input_iterator_tag;   ///< Input-iterator concept.
 
   private:
     registry const* m_registry{nullptr};
@@ -1699,8 +1714,8 @@ public:
     /**
      * @brief Constructs an iterator into \p r at dense position \p pos.
      *
-     * @param r    Registry being iterated.
-     * @param pos  Position in the live-index list, in \c [0, alive()].
+     * @param r Registry being iterated.
+     * @param pos Position in the live-index list, in \c [0, alive()].
      *
      * @pre \p pos is <= \c r.alive().
      * @post The iterator yields the entity at \p pos when
@@ -1760,8 +1775,8 @@ public:
     /**
      * @brief Equality: same registry and same position.
      *
-     * @param a  Left operand.
-     * @param b  Right operand.
+     * @param a Left operand.
+     * @param b Right operand.
      *
      * @return \c true iff both iterators name the same position in
      *         the same registry.

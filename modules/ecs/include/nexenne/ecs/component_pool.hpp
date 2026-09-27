@@ -43,6 +43,8 @@
 
 namespace nexenne::ecs::detail {
 
+/// @cond INTERNAL
+
 /**
  * @brief Pointer-stable sparse pool keyed by entity index.
  *
@@ -58,12 +60,12 @@ public:
 private:
   /// @brief One stored component together with the entity index that owns it.
   struct entry {
-    key_type key{};
-    value_type value{};
+    key_type key{};      ///< Entity index owning the component.
+    value_type value{};  ///< The component.
   };
 
-  using slot_type = std::optional<entry>;  ///< A live entry or a tombstone.
-  using slab_type = container::stable_vector<slot_type>;
+  using slot_type = std::optional<entry>;                 ///< A live entry or a tombstone.
+  using slab_type = container::stable_vector<slot_type>;  ///< Pointer-stable chunked slots.
 
   static constexpr key_type absent{0};  ///< Sentinel for an unmapped sparse slot (stores slot+1).
 
@@ -98,7 +100,12 @@ private:
   }
 
 public:
-  /// @brief Constructs an empty pool.
+  /**
+   * @brief Constructs an empty pool.
+   *
+   * @pre None.
+   * @post \c empty() is \c true and \c slot_count() is zero.
+   */
   component_pool() noexcept = default;
 
   /**
@@ -371,7 +378,15 @@ public:
     // to an end() re-read after the pool grew.
     size_type m_count{0};
 
-    /// @brief Advances the cursor to the next live slot, or to the captured count.
+    /**
+     * @brief Advances the cursor to the next live slot.
+     *
+     * Stops at the first live slot, at the captured count, or at the pool's
+     * current slot count when a \c clear during the walk emptied it.
+     *
+     * @pre \c m_pool is non-null (the iterator is not singular).
+     * @post The cursor names a live slot, or \c at_end() is \c true.
+     */
     auto advance_to_live() noexcept -> void {
       while (m_slot < m_count && m_slot < m_pool->slot_count() && !m_pool->is_live(m_slot)) {
         ++m_slot;
@@ -403,8 +418,9 @@ public:
     constexpr iterator() noexcept = default;
 
     /**
-     * @brief Constructs an iterator into \p pool at \p slot, then advances to
-     *        the first live slot at or after it.
+     * @brief Constructs an iterator into \p pool at slot \p slot.
+     *
+     * Then advances to the first live slot at or after \p slot.
      *
      * @param pool Pool being iterated.
      * @param slot Starting slot index, in \c [0, slot_count()].
@@ -522,5 +538,7 @@ public:
     return iterator{*m_pool, m_pool->slot_count()};
   }
 };
+
+/// @endcond
 
 }  // namespace nexenne::ecs::detail
