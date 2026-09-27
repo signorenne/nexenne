@@ -127,10 +127,12 @@ actually there. =has<T>(e)= reports presence, and =all_of<Cs...>= / =any_of<Cs..
 fold it over several types.
 
 =get<T>(e)= follows the library-wide error policy: it returns
-=std::expected<std::reference_wrapper<T>, container_error>=, so the success path
-needs no nullptr check and a miss (invalid handle, no storage for =T= yet, or =e=
-does not carry a =T=) comes back as =container_error::not_found=. There is a const
-overload yielding a reference to a =const= component.
+=std::expected<std::reference_wrapper<T>, container::container_error>=, so the
+success path needs no nullptr check and a miss (invalid handle, no storage for
+=T= yet, or =e= does not carry a =T=) comes back as
+=container::container_error::not_found=. The error type is container's, named
+with its own namespace: ecs does not re-export it. There is a const overload
+yielding a reference to a =const= component.
 
 =patch<T>(e, fn)= mutates the stored component in place: it hands =fn= a =T&=,
 then fires the update signal with that same reference so listeners observe the
@@ -261,8 +263,8 @@ iterate one component type        chunked, cache-friendly (skips tombstones)
 entity's components. Everything is =noexcept=, so a component whose move
 throws, or a listener, =patch= mutator or =each= callback that throws,
 terminates the program. A stale or out-of-range handle gets an error value back
-(=false=, or =container_error::not_found=) rather than touching another
-entity's data; breaking a documented precondition, such as destroying entities
+(=false=, or =container::container_error::not_found=) rather than touching
+another entity's data; breaking a documented precondition, such as destroying entities
 while iterating the registry or destroying the entity a listener is handed, is
 still undefined behaviour. Allocation failure terminates rather than throwing,
 the library-wide policy for an embeddable target. Threading is the standard

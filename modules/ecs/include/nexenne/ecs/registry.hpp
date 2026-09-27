@@ -53,7 +53,7 @@
  *
  * Exception policy: every operation is \c noexcept. Allocation
  * failures terminate. A stale or out-of-range handle is rejected with
- * \c false, \c nullptr or \c container_error::not_found rather than touching
+ * \c false, \c nullptr or \c container::container_error::not_found rather than touching
  * another entity's data; a broken precondition (destroying entities while
  * iterating the registry, say) is still undefined behaviour.
  *
@@ -85,9 +85,6 @@
 #include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::ecs {
-
-using nexenne::container::container_error;
-using nexenne::container::sparse_set;
 
 namespace detail {
 
@@ -394,17 +391,17 @@ public:
    * @param index Entity index key.
    *
    * @return A reference wrapper to the component on hit, or
-   *         \c container_error::not_found on miss.
+   *         \c container::container_error::not_found on miss.
    *
    * @pre None.
    * @post The storage is unchanged.
    */
   [[nodiscard]] auto at(std::uint32_t const index) noexcept
-    -> std::expected<std::reference_wrapper<T>, container_error> {
+    -> std::expected<std::reference_wrapper<T>, container::container_error> {
     if (auto* const ptr{m_pool.try_get(index)}; ptr != nullptr) {
       return std::ref(*ptr);
     }
-    return std::unexpected{container_error::not_found};
+    return std::unexpected{container::container_error::not_found};
   }
 
   /**
@@ -413,17 +410,17 @@ public:
    * @param index Entity index key.
    *
    * @return A reference wrapper to the \c const component on hit, or
-   *         \c container_error::not_found on miss.
+   *         \c container::container_error::not_found on miss.
    *
    * @pre None.
    * @post The storage is unchanged.
    */
   [[nodiscard]] auto at(std::uint32_t const index) const noexcept
-    -> std::expected<std::reference_wrapper<T const>, container_error> {
+    -> std::expected<std::reference_wrapper<T const>, container::container_error> {
     if (auto const* const ptr{m_pool.try_get(index)}; ptr != nullptr) {
       return std::cref(*ptr);
     }
-    return std::unexpected{container_error::not_found};
+    return std::unexpected{container::container_error::not_found};
   }
 
   /**
@@ -863,7 +860,7 @@ public:
 private:
   using generation_vector = std::vector<generation_type>;  ///< Per-slot generation counters.
   using index_vector = std::vector<index_type>;            ///< Free-list of reusable indices.
-  using index_set = sparse_set<index_type>;                ///< Dense set of live indices.
+  using index_set = container::sparse_set<index_type>;     ///< Dense set of live indices.
   using storage_table =
     std::vector<detail::erased_storage>;  ///< Type-erased storages by \c type_id.
 
@@ -1449,7 +1446,7 @@ public:
    * @param e Entity to query.
    *
    * @return A reference wrapper to the component on hit, or
-   *         \c container_error::not_found when \p e is invalid, no
+   *         \c container::container_error::not_found when \p e is invalid, no
    *         storage exists for \c T yet, or \p e doesn't carry a \c T.
    *
    * @pre None.
@@ -1462,13 +1459,13 @@ public:
    */
   template <component T>
   [[nodiscard]] auto get(entity_id const e) noexcept
-    -> std::expected<std::reference_wrapper<T>, container_error> {
+    -> std::expected<std::reference_wrapper<T>, container::container_error> {
     if (!valid(e)) {
-      return std::unexpected{container_error::not_found};
+      return std::unexpected{container::container_error::not_found};
     }
     auto* const storage{find_storage<T>()};
     if (storage == nullptr) {
-      return std::unexpected{container_error::not_found};
+      return std::unexpected{container::container_error::not_found};
     }
     return storage->at(e.index());
   }
@@ -1483,7 +1480,7 @@ public:
    * @param e Entity to query.
    *
    * @return A reference wrapper to the \c const component on hit, or
-   *         \c container_error::not_found when \p e is invalid, no
+   *         \c container::container_error::not_found when \p e is invalid, no
    *         storage exists for \c T yet, or \p e doesn't carry a \c T.
    *
    * @pre None.
@@ -1493,13 +1490,13 @@ public:
    */
   template <component T>
   [[nodiscard]] auto get(entity_id const e) const noexcept
-    -> std::expected<std::reference_wrapper<T const>, container_error> {
+    -> std::expected<std::reference_wrapper<T const>, container::container_error> {
     if (!valid(e)) {
-      return std::unexpected{container_error::not_found};
+      return std::unexpected{container::container_error::not_found};
     }
     auto const* const storage{find_storage<T>()};
     if (storage == nullptr) {
-      return std::unexpected{container_error::not_found};
+      return std::unexpected{container::container_error::not_found};
     }
     return storage->at(e.index());
   }

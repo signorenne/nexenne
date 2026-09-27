@@ -51,7 +51,8 @@ auto main() -> int {
   // 2. Add / has / get / remove. add returns true when it attaches a NEW
   // component and false when it overwrites an existing one. get follows the
   // library's expected-style error policy: a hit yields a reference wrapper, a
-  // miss yields container_error, so the success path needs no nullptr check.
+  // miss yields container::container_error, so the success path needs no
+  // nullptr check.
   std::println("== 2. Component add / has / get / remove ==");
   std::println("  add<name> (new)     {}", reg.add<name>(e, {7}));
   std::println("  add<name> (replace) {}", reg.add<name>(e, {8}));
