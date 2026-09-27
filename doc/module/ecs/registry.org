@@ -220,7 +220,11 @@ The firing rules are precise:
   they fire, so inside the listener the entity already reads as invalid: =get=
   and =has= on it fail, which puts its other components out of reach, and a
   nested =destroy= of it returns =false= rather than firing again. A =remove<T>=
-  listener still sees a valid entity with its other components.
+  listener still sees a valid entity with its other components, and may call
+  =clear()=: =remove<T>= marks the component it is removing, so the clear skips
+  it (no second =on_destroy=, no erase under the listeners still to be handed
+  it), destroys everything else, and =remove<T>= still erases the component
+  and returns =true=.
 
 ** Printing entity handles
 
@@ -269,9 +273,10 @@ convention: concurrent reads are safe, concurrent mutation is not.
 - *A lifecycle listener must not remove the very component it was handed.*
   Inside an =on_construct=, =on_update=, or =on_destroy= listener (and inside a
   =patch= mutator), do not remove this =T= from the entity being signalled, and
-  do not destroy that entity (=clear()= destroys it too): either would destroy
-  the component under the reference still being delivered to the remaining
-  listeners. Everything else is fair game. Because the storage is
+  do not destroy that entity: either would destroy the component under the
+  reference still being delivered to the remaining listeners. A =clear()= from
+  an =on_destroy= listener fired by =remove<T>= is the one exception, handled
+  as described above. Everything else is fair game. Because the storage is
   pointer-stable, you *may* add or remove components on *other* entities, and
   destroy *other* entities, mid-listener: the pool may grow or tombstone a slot,
   but the delivered reference keeps its address. Read and mutate the referenced

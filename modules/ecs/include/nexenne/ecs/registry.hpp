@@ -61,6 +61,7 @@
  * concurrent mutation not.
  */
 
+#include <algorithm>
 #include <cassert>
 #include <compare>
 #include <concepts>
@@ -75,11 +76,13 @@
 #include <vector>
 
 #include <nexenne/container/error.hpp>
+#include <nexenne/container/small_vector.hpp>
 #include <nexenne/container/sparse_set.hpp>
 #include <nexenne/ecs/component_pool.hpp>
 #include <nexenne/ecs/type_id.hpp>
 #include <nexenne/signal/connection.hpp>
 #include <nexenne/signal/signal.hpp>
+#include <nexenne/utility/ignore.hpp>
 
 namespace nexenne::ecs {
 
@@ -274,10 +277,16 @@ public:
   using sink_type = nexenne::signal::sink<void(entity_id, T&)>;
 
 private:
+  using key_type = typename pool_type::key_type;
+
   pool_type m_pool{};
   signal_type m_on_construct{};
   signal_type m_on_update{};
   signal_type m_on_destroy{};
+  // Entity indices whose component a registry::remove is firing on_destroy for
+  // and erases once the signal returns, innermost last: a listener may remove
+  // another entity's component in turn. A nested registry::clear leaves them.
+  container::small_vector<key_type, 2> m_removing{};
 
 public:
   /**
@@ -680,6 +689,71 @@ public:
   auto emit_destroy(entity_id const e, T& v) noexcept -> void {
     m_on_destroy.emit(e, v);
   }
+
+  /**
+   * @brief Internal: marks \p key's component as being removed.
+   *
+   * @param key Entity index whose component \c registry::remove is about to
+   *            fire on-destroy for.
+   *
+   * @pre \p key holds a component.
+   * @post \c removing(key) is \c true until the matching \c end_removal.
+   *
+   * @warning Internal entry point; see \c emit_construct.
+   */
+  auto begin_removal(key_type const key) noexcept -> void {
+    m_removing.push_back(key);
+  }
+
+  /**
+   * @brief Internal: ends the innermost removal \c begin_removal started.
+   *
+   * @pre A \c begin_removal is open.
+   * @post The innermost mark is gone.
+   *
+   * @warning Internal entry point; see \c emit_construct.
+   */
+  auto end_removal() noexcept -> void {
+    utility::ignore(m_removing.pop_back());
+  }
+
+  /**
+   * @brief Internal: whether \p key's component is being removed.
+   *
+   * @param key Entity index to test.
+   *
+   * @return \c true while a \c registry::remove fires on-destroy for it.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] auto removing(key_type const key) const noexcept -> bool {
+    return std::ranges::find(m_removing, key) != m_removing.end();
+  }
+
+  /**
+   * @brief Internal: removes every component a removal in progress does not own.
+   *
+   * What \c registry::clear erases. A component being removed stays, so the
+   * on-destroy listeners still to be handed it keep a live reference, and the
+   * \c registry::remove that owns it erases it when its signal returns.
+   *
+   * @pre None.
+   * @post Every component not being removed is gone.
+   *
+   * @complexity \c O(slot_count()).
+   */
+  auto clear_except_removing() noexcept -> void {
+    if (m_removing.empty()) {
+      m_pool.clear();
+      return;
+    }
+    for (auto slot{size_type{0}}; slot < m_pool.slot_count(); ++slot) {
+      if (m_pool.is_live(slot) && !removing(m_pool.key_at(slot))) {
+        utility::ignore(m_pool.erase(m_pool.key_at(slot)));
+      }
+    }
+  }
 };
 
 namespace detail {
@@ -746,10 +820,15 @@ template <typename T>
     .size_fn = +[](void const* d) noexcept -> std::size_t {
       return static_cast<component_storage<T> const*>(d)->size();
     },
-    .clear_fn = +[](void* d) noexcept -> void { static_cast<component_storage<T>*>(d)->clear(); },
+    .clear_fn = +[](void* d) noexcept -> void {
+      static_cast<component_storage<T>*>(d)->clear_except_removing();
+    },
     .destroy_fn = +[](void* d) noexcept -> void { delete static_cast<component_storage<T>*>(d); },
     .fire_on_destroy_fn = +[](void* d, entity_id e) noexcept -> void {
       auto* const s{static_cast<component_storage<T>*>(d)};
+      if (s->removing(e.index())) {
+        return;
+      }
       if (auto* const value{s->try_get(e.index())}; value != nullptr) {
         s->emit_destroy(e, *value);
       }
@@ -1213,12 +1292,17 @@ public:
    *       one \c on_destroy<T>() fired. On a \c false result the
    *       registry is unchanged.
    *
+   * @note A listener may call \c clear(): this \c T is marked as being
+   *       removed, so the clear neither fires its on-destroy again nor erases
+   *       it under the listeners still to be handed it, and this call still
+   *       erases it and returns \c true. The clear destroys \p e and every
+   *       other component as usual.
+   *
    * @warning A listener invoked by the fired signal must not itself remove
-   *          this \c T from \p e, nor destroy \p e (\c clear() destroys it
-   *          too): that would invalidate the reference still being delivered
-   *          to the other listeners, and \c clear() would fire this \c T's
-   *          on-destroy signal a second time. Structural changes to other
-   *          entities are safe; the storage is pointer-stable.
+   *          this \c T from \p e, nor destroy \p e: that would invalidate the
+   *          reference still being delivered to the other listeners.
+   *          Structural changes to other entities are safe; the storage is
+   *          pointer-stable.
    *
    * @complexity \c O(1).
    */
@@ -1235,7 +1319,9 @@ public:
     if (value == nullptr) {
       return false;
     }
+    storage->begin_removal(e.index());
     storage->emit_destroy(e, *value);
+    storage->end_removal();
     return storage->erase(e.index());
   }
 

@@ -1600,12 +1600,12 @@ TEST_CASE("registry: a listener calling clear() during destroy frees the index o
   // destroy(p) is still firing. clear() already frees every index, so destroy
   // must not push p's index a second time and mint one handle twice.
   auto r{registry{}};
-  auto conn{r.on_destroy<tag_player>().connect([&r](entity_id, tag_player&) noexcept {
-    r.clear();
-  })};
+  [[maybe_unused]] auto conn{
+    r.on_destroy<tag_player>().connect([&r](entity_id, tag_player&) noexcept { r.clear(); })
+  };
   auto const p{r.create()};
-  nexenne::utility::discard(r.add<tag_player>(p, tag_player{}));
-  nexenne::utility::discard(r.create(), r.create());
+  nexenne::utility::ignore(r.add<tag_player>(p, tag_player{}));
+  nexenne::utility::ignore(r.create(), r.create());
 
   CHECK(r.destroy(p));
   CHECK_FALSE(r.valid(p));
@@ -1618,7 +1618,6 @@ TEST_CASE("registry: a listener calling clear() during destroy frees the index o
   CHECK(r.alive() == 5);
   std::ranges::sort(made);
   CHECK(std::ranges::adjacent_find(made) == made.end());
-  nexenne::utility::discard(conn);
 }
 
 TEST_CASE("registry: clear() marks every entity dead before firing on_destroy") {
@@ -1627,17 +1626,19 @@ TEST_CASE("registry: clear() marks every entity dead before firing on_destroy") 
   auto pos_fires{0};
   auto seen_valid{true};
   auto nested_destroy{true};
-  auto c1{r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
-    ++hp_fires;
-    seen_valid = r.valid(e);
-    nested_destroy = r.destroy(e);
-  })};
-  auto c2{r.on_destroy<position>().connect([&](entity_id, position const&) noexcept {
-    ++pos_fires;
-  })};
+  [[maybe_unused]] auto c1{
+    r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
+      ++hp_fires;
+      seen_valid = r.valid(e);
+      nested_destroy = r.destroy(e);
+    })
+  };
+  [[maybe_unused]] auto c2{
+    r.on_destroy<position>().connect([&](entity_id, position const&) noexcept { ++pos_fires; })
+  };
   auto const a{r.create()};
-  nexenne::utility::discard(r.add<health>(a, health{.hp = 5}));
-  nexenne::utility::discard(r.add<position>(a, position{}));
+  nexenne::utility::ignore(r.add<health>(a, health{.hp = 5}));
+  nexenne::utility::ignore(r.add<position>(a, position{}));
 
   r.clear();
   CHECK_FALSE(seen_valid);
@@ -1645,7 +1646,6 @@ TEST_CASE("registry: clear() marks every entity dead before firing on_destroy") 
   CHECK(hp_fires == 1);
   CHECK(pos_fires == 1);
   CHECK(r.alive() == 0);
-  nexenne::utility::discard(c1, c2);
 }
 
 struct label {
@@ -1654,36 +1654,73 @@ struct label {
 
 TEST_CASE("registry: clear() never hands a listener a component a nested destroy erased") {
   auto r{registry{}};
-  auto c1{r.on_destroy<label>().connect([&r](entity_id const e, label&) noexcept {
-    nexenne::utility::discard(r.destroy(e));
+  [[maybe_unused]] auto c1{r.on_destroy<label>().connect([&r](entity_id const e, label&) noexcept {
+    nexenne::utility::ignore(r.destroy(e));
   })};
   auto fires{0};
   auto total{std::size_t{0}};
-  auto c2{r.on_destroy<label>().connect([&](entity_id, label& l) noexcept {
+  [[maybe_unused]] auto c2{r.on_destroy<label>().connect([&](entity_id, label& l) noexcept {
     ++fires;
     total += l.text.size();
   })};
   auto const a{r.create()};
-  nexenne::utility::discard(r.add<label>(a, label{std::string(64, 'x')}));
+  nexenne::utility::ignore(r.add<label>(a, label{std::string(64, 'x')}));
 
   r.clear();
   CHECK(fires == 1);
   CHECK(total == 64);
-  nexenne::utility::discard(c1, c2);
+}
+
+TEST_CASE(
+  "registry: clear() from a remove listener fires on_destroy once and remove succeeds (ecs-02)"
+) {
+  // remove<T> marks the component it is removing, so a nested clear() neither
+  // fires it again nor erases it from under the listeners still to be handed
+  // it; remove erases it itself once the signal returns.
+  auto r{registry{}};
+  auto cleared{false};
+  [[maybe_unused]] auto c1{r.on_destroy<label>().connect([&](entity_id, label&) noexcept {
+    if (!cleared) {
+      cleared = true;
+      r.clear();
+    }
+  })};
+  auto fires{0};
+  auto total{std::size_t{0}};
+  [[maybe_unused]] auto c2{r.on_destroy<label>().connect([&](entity_id, label& l) noexcept {
+    ++fires;
+    total += l.text.size();
+  })};
+  auto pos_fires{0};
+  [[maybe_unused]] auto c3{
+    r.on_destroy<position>().connect([&](entity_id, position const&) noexcept { ++pos_fires; })
+  };
+  auto const a{r.create()};
+  auto const b{r.create()};
+  nexenne::utility::ignore(r.add<label>(a, label{std::string(64, 'x')}));
+  nexenne::utility::ignore(r.add<label>(b, label{std::string(8, 'y')}));
+  nexenne::utility::ignore(r.add<position>(a, position{}));
+
+  CHECK(r.remove<label>(a));
+  CHECK(fires == 2);
+  CHECK(total == 64 + 8);
+  CHECK(pos_fires == 1);
+  CHECK(r.alive() == 0);
+  CHECK(r.storage<label>().empty());
 }
 
 TEST_CASE("view: a loop that re-reads end() stops at the captured slot count") {
   auto r{registry{}};
   for (auto i{0}; i < 2; ++i) {
     auto const e{r.create()};
-    nexenne::utility::discard(r.add<velocity>(e, velocity{}), r.add<position>(e, position{}));
+    nexenne::utility::ignore(r.add<velocity>(e, velocity{}), r.add<position>(e, position{}));
   }
   auto v{r.view<velocity, position>()};
   auto steps{0};
   for (auto it{v.begin()}; it != v.end() && steps < 8; ++it) {
     ++steps;
     if (steps == 1) {
-      nexenne::utility::discard(r.add<velocity>(r.create(), velocity{}));
+      nexenne::utility::ignore(r.add<velocity>(r.create(), velocity{}));
     }
   }
   CHECK(steps == 2);
@@ -1693,7 +1730,7 @@ TEST_CASE("view: a loop that re-reads end() stops at the captured slot count") {
 
 TEST_CASE("storage: a values() loop that re-reads end() stops at the captured count") {
   auto r{registry{}};
-  nexenne::utility::discard(r.add<health>(r.create(), health{.hp = 1}));
+  nexenne::utility::ignore(r.add<health>(r.create(), health{.hp = 1}));
   auto range{r.storage<health>().values()};
   auto steps{0};
   for (auto it{range.begin()}; it != range.end() && steps < 8; ++it) {
@@ -1701,8 +1738,8 @@ TEST_CASE("storage: a values() loop that re-reads end() stops at the captured co
     if (steps == 1) {
       CHECK((*it).hp == 1);
       auto const t{r.create()};
-      nexenne::utility::discard(r.add<health>(t, health{.hp = 99}));
-      nexenne::utility::discard(r.remove<health>(t));
+      nexenne::utility::ignore(r.add<health>(t, health{.hp = 99}));
+      nexenne::utility::ignore(r.remove<health>(t));
     }
   }
   CHECK(steps == 1);
@@ -1711,7 +1748,7 @@ TEST_CASE("storage: a values() loop that re-reads end() stops at the captured co
 TEST_CASE("view: clear() inside each ends the walk") {
   auto r{registry{}};
   for (auto i{0}; i < 3; ++i) {
-    nexenne::utility::discard(r.add<health>(r.create(), health{.hp = i}));
+    nexenne::utility::ignore(r.add<health>(r.create(), health{.hp = i}));
   }
   auto visits{0};
   r.view<health>().each([&](health const& h) noexcept {
@@ -1727,11 +1764,10 @@ TEST_CASE("view: clear() inside each ends the walk") {
 TEST_CASE("view: clear() inside a range-for ends the walk") {
   auto r{registry{}};
   for (auto i{0}; i < 3; ++i) {
-    nexenne::utility::discard(r.add<health>(r.create(), health{.hp = i}));
+    nexenne::utility::ignore(r.add<health>(r.create(), health{.hp = i}));
   }
   auto visits{0};
-  for (auto const [e, h] : r.view<health>()) {
-    nexenne::utility::discard(e, h);
+  for ([[maybe_unused]] auto const [e, h] : r.view<health>()) {
     ++visits;
     r.clear();
   }
@@ -1741,11 +1777,10 @@ TEST_CASE("view: clear() inside a range-for ends the walk") {
 TEST_CASE("storage: clear() inside a values() loop ends the walk") {
   auto r{registry{}};
   for (auto i{0}; i < 3; ++i) {
-    nexenne::utility::discard(r.add<health>(r.create(), health{.hp = i}));
+    nexenne::utility::ignore(r.add<health>(r.create(), health{.hp = i}));
   }
   auto visits{0};
-  for (auto const& h : r.storage<health>().values()) {
-    nexenne::utility::discard(h);
+  for ([[maybe_unused]] auto const& h : r.storage<health>().values()) {
     ++visits;
     r.clear();
   }
@@ -1758,7 +1793,7 @@ TEST_CASE("registry: destroy the entities a range-for collected, not inside it (
   // pattern collects the handles first.
   auto r{registry{}};
   for (auto i{0}; i < 4; ++i) {
-    nexenne::utility::discard(r.create());
+    nexenne::utility::ignore(r.create());
   }
   auto doomed{std::vector<entity_id>{}};
   for (auto const e : r) {
@@ -1778,13 +1813,15 @@ TEST_CASE(
   auto r{registry{}};
   auto seen_valid{false};
   auto sibling_found{false};
-  auto conn{r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
-    seen_valid = r.valid(e);
-    sibling_found = r.get<position>(e).has_value();
-  })};
+  [[maybe_unused]] auto conn{
+    r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
+      seen_valid = r.valid(e);
+      sibling_found = r.get<position>(e).has_value();
+    })
+  };
   auto const spawn{[&r]() noexcept {
     auto const e{r.create()};
-    nexenne::utility::discard(r.add<position>(e, position{}), r.add<health>(e, health{.hp = 1}));
+    nexenne::utility::ignore(r.add<position>(e, position{}), r.add<health>(e, health{.hp = 1}));
     return e;
   }};
 
@@ -1796,13 +1833,12 @@ TEST_CASE(
   CHECK_FALSE(seen_valid);
   CHECK_FALSE(sibling_found);
 
-  nexenne::utility::discard(spawn());
+  nexenne::utility::ignore(spawn());
   seen_valid = true;
   sibling_found = true;
   r.clear();
   CHECK_FALSE(seen_valid);
   CHECK_FALSE(sibling_found);
-  nexenne::utility::discard(conn);
 }
 
 template <typename T>
@@ -1850,7 +1886,7 @@ TEST_CASE("registry: cv-qualified component types are rejected") {
 
   auto r{registry{}};
   auto const e{r.create()};
-  nexenne::utility::discard(r.add<position>(e, position{.x = 5.0F}));
+  nexenne::utility::ignore(r.add<position>(e, position{.x = 5.0F}));
   CHECK(r.has<position>(e));
 }
 
@@ -1858,19 +1894,19 @@ TEST_CASE("view: the driver is the include with the fewest slots, not the fewest
   auto r{registry{}};
   auto const m1{r.create()};
   auto const m2{r.create()};
-  nexenne::utility::discard(r.add<health>(m1, health{.hp = 1}));
-  nexenne::utility::discard(r.add<health>(m2, health{.hp = 2}));
+  nexenne::utility::ignore(r.add<health>(m1, health{.hp = 1}));
+  nexenne::utility::ignore(r.add<health>(m2, health{.hp = 2}));
   auto burst{std::vector<entity_id>{}};
   for (auto i{0}; i < 3; ++i) {
     burst.push_back(r.create());
-    nexenne::utility::discard(r.add<health>(burst.back(), health{}));
+    nexenne::utility::ignore(r.add<health>(burst.back(), health{}));
   }
   for (auto const e : burst) {
-    nexenne::utility::discard(r.remove<health>(e));
+    nexenne::utility::ignore(r.remove<health>(e));
   }
-  nexenne::utility::discard(r.add<position>(m2, position{}));
-  nexenne::utility::discard(r.add<position>(m1, position{}));
-  nexenne::utility::discard(r.add<position>(r.create(), position{}));
+  nexenne::utility::ignore(r.add<position>(m2, position{}));
+  nexenne::utility::ignore(r.add<position>(m1, position{}));
+  nexenne::utility::ignore(r.add<position>(r.create(), position{}));
   REQUIRE(r.storage<health>().size() < r.storage<position>().size());
   REQUIRE(r.storage<health>().slot_count() > r.storage<position>().slot_count());
 
@@ -1885,10 +1921,12 @@ TEST_CASE("storage: insert, erase and clear bypass validity and signals, as docu
   auto r{registry{}};
   auto constructed{0};
   auto destroyed{0};
-  auto c1{r.on_construct<health>().connect([&](entity_id, health const&) noexcept {
+  [[maybe_unused]] auto c1{r.on_construct<health>().connect([&](entity_id, health const&) noexcept {
     ++constructed;
   })};
-  auto c2{r.on_destroy<health>().connect([&](entity_id, health const&) noexcept { ++destroyed; })};
+  [[maybe_unused]] auto c2{r.on_destroy<health>().connect([&](entity_id, health const&) noexcept {
+    ++destroyed;
+  })};
   auto const a{r.create()};
   CHECK(r.destroy(a));
 
@@ -1899,11 +1937,10 @@ TEST_CASE("storage: insert, erase and clear bypass validity and signals, as docu
   CHECK(r.has<health>(b));
 
   CHECK(r.storage<health>().erase(b.index()));
-  nexenne::utility::discard(r.add<health>(b, health{.hp = 1}));
+  nexenne::utility::ignore(r.add<health>(b, health{.hp = 1}));
   r.storage<health>().clear();
   CHECK(destroyed == 0);
   CHECK(r.valid(b));
-  nexenne::utility::discard(c1, c2);
 }
 
 template <typename Builder, typename T>
@@ -1924,8 +1961,8 @@ TEST_CASE("query builder: a type cannot be both required and excluded") {
   auto r{registry{}};
   auto const a{r.create()};
   auto const b{r.create()};
-  nexenne::utility::discard(r.add<alpha>(a, alpha{}), r.add<alpha>(b, alpha{}));
-  nexenne::utility::discard(r.add<beta>(b, beta{}));
+  nexenne::utility::ignore(r.add<alpha>(a, alpha{}), r.add<alpha>(b, alpha{}));
+  nexenne::utility::ignore(r.add<beta>(b, beta{}));
   auto visits{0};
   r.query().with<alpha>().without<beta>().each([&visits](alpha&) noexcept { ++visits; });
   CHECK(visits == 1);
