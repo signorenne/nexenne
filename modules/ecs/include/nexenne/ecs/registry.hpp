@@ -303,6 +303,9 @@ public:
    *
    * @pre None.
    * @post \c contains(index) is \c true.
+   *
+   * @note \c insert is \c noexcept: a \c T whose move constructor or move
+   *       assignment throws terminates the program.
    */
   auto insert(std::uint32_t const index, T value) noexcept -> bool {
     return m_pool.insert_or_assign(index, std::move(value));
@@ -1128,6 +1131,10 @@ public:
    *       does not compile). The construct path needs only move
    *       construction.
    *
+   * @note \c add is \c noexcept: a \c T whose move constructor or move
+   *       assignment throws, or a listener that throws, terminates the
+   *       program.
+   *
    * @warning A listener invoked by the fired signal must not remove this \c T
    *          from \p e, nor destroy \p e (\c clear() destroys it too), while
    *          the signal is firing: that would invalidate the very reference
@@ -1220,6 +1227,9 @@ public:
    * @post On a \c true result, \p mutator ran exactly once and one
    *       \c on_update<T>() fired afterward. On a \c false result the
    *       registry is unchanged and \p mutator did not run.
+   *
+   * @note \c patch is \c noexcept: a \p mutator or a listener that throws
+   *       terminates the program.
    *
    * @warning Neither \p mutator nor a listener invoked by the fired signal may
    *          remove this \c T from \p e or destroy \p e (\c clear() destroys it
@@ -1452,6 +1462,8 @@ public:
    *       the loop (it iterates the live-entity set in place).
    * @post Every live entity at call time was passed to \p f exactly
    *       once. The registry is otherwise unchanged.
+   *
+   * @note \c each is \c noexcept: an \p f that throws terminates the program.
    *
    * @complexity \c O(alive()) plus the cost of \p f.
    */

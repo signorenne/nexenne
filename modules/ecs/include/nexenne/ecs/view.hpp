@@ -205,6 +205,8 @@ public:
    *       before it was reached. A component added by \p f during the loop
    *       is not guaranteed to be visited.
    *
+   * @note \c each is \c noexcept: an \p f that throws terminates the program.
+   *
    * @complexity \c O(D) driver slots times \c O(sizeof...(Includes)
    *             + sizeof...(Excludes)) membership tests each.
    */
@@ -701,6 +703,8 @@ public:
    *       pointer-stable.
    * @post Every matching entity at call time was passed to \p f once,
    *       matching \c basic_view::each.
+   *
+   * @note \c each is \c noexcept: an \p f that throws terminates the program.
    *
    * @complexity Same as building the view plus iterating it.
    */

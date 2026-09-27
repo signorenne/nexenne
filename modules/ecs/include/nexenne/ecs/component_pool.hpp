@@ -118,6 +118,9 @@ public:
    * @post \c contains(key) is \c true and the live component count reflects the
    *       insertion.
    *
+   * @note \c insert_or_assign is \c noexcept: a \c T whose move constructor or
+   *       move assignment throws terminates the program.
+   *
    * @complexity \c O(1) amortised.
    */
   auto insert_or_assign(key_type const key, value_type value) noexcept -> bool {

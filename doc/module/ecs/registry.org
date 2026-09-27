@@ -248,11 +248,13 @@ iterate one component type        chunked, cache-friendly (skips tombstones)
 #+END_EXAMPLE
 
 =destroy= is =O(C)= because it must check every registered storage for the
-entity's components. Everything is =noexcept=; out-of-range or stale-handle
-accesses return an error value (=false=, or =container_error::not_found=) and
-never invoke undefined behaviour. Allocation failure terminates rather than
-throwing, the library-wide policy for an embeddable target. Threading is the
-standard convention: concurrent reads are safe, concurrent mutation is not.
+entity's components. Everything is =noexcept=, so a component whose move
+throws, or a listener, =patch= mutator or =each= callback that throws,
+terminates the program; out-of-range or stale-handle accesses return an error
+value (=false=, or =container_error::not_found=) and never invoke undefined
+behaviour. Allocation failure terminates rather than throwing, the library-wide
+policy for an embeddable target. Threading is the standard convention:
+concurrent reads are safe, concurrent mutation is not.
 
 ** Constraints to respect
 
