@@ -126,7 +126,8 @@ For longer or more dynamically assembled filters, =reg.query()= returns a
 or call =.each(callback)= directly. Each chain step returns a builder of a new
 type with the component appended to the relevant pack, so the type system tracks
 both lists at zero runtime cost; the result is identical to naming the same
-=view<...>= directly.
+=view<...>= directly. As with =.exclude<...>()=, a type cannot sit in both
+lists: =.with<C>()= after =.without<C>()=, or the reverse, does not compile.
 
 #+BEGIN_EXAMPLE
 reg.query().with<position>().with<velocity>().without<frozen>().each(...);

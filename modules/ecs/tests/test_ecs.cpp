@@ -1906,4 +1906,29 @@ TEST_CASE("storage: insert, erase and clear bypass validity and signals, as docu
   nexenne::utility::discard(c1, c2);
 }
 
+template <typename Builder, typename T>
+concept includable_for = requires(Builder const& b) { b.template with<T>(); };
+
+template <typename Builder, typename T>
+concept excludable_for = requires(Builder const& b) { b.template without<T>(); };
+
+TEST_CASE("query builder: a type cannot be both required and excluded") {
+  using fresh = decltype(std::declval<registry&>().query());
+  using with_alpha = decltype(std::declval<fresh const&>().with<alpha>());
+  using without_alpha = decltype(std::declval<fresh const&>().without<alpha>());
+  static_assert(excludable_for<with_alpha, beta>);
+  static_assert(includable_for<without_alpha, beta>);
+  static_assert(!excludable_for<with_alpha, alpha>);
+  static_assert(!includable_for<without_alpha, alpha>);
+
+  auto r{registry{}};
+  auto const a{r.create()};
+  auto const b{r.create()};
+  nexenne::utility::discard(r.add<alpha>(a, alpha{}), r.add<alpha>(b, alpha{}));
+  nexenne::utility::discard(r.add<beta>(b, beta{}));
+  auto visits{0};
+  r.query().with<alpha>().without<beta>().each([&visits](alpha&) noexcept { ++visits; });
+  CHECK(visits == 1);
+}
+
 }  // namespace

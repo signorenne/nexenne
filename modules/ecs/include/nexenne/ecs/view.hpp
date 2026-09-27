@@ -200,10 +200,13 @@ public:
    *       remove components and create or destroy entities during the loop
    *       without dangling the references it holds. A \c registry::clear from
    *       \p f ends the loop.
-   * @post Every entity matching the filters at the start was passed to \p f
-   *       exactly once, unless \p f removed it (or a required component)
-   *       before it was reached. A component added by \p f during the loop
-   *       is not guaranteed to be visited.
+   * @post Every entity matching the filters at the start was passed to \p f,
+   *       unless \p f removed it (or a required component) before it was
+   *       reached. Each is passed once, except that a component \p f adds
+   *       into a tombstoned driver slot ahead of the cursor is visited this
+   *       pass, so an entity whose driver component \p f removes and re-adds
+   *       can be passed twice. A component added by \p f during the loop is
+   *       not guaranteed to be visited.
    *
    * @note \c each is \c noexcept: an \p f that throws terminates the program.
    *
@@ -639,11 +642,13 @@ public:
   /**
    * @brief Adds \c C to the include list.
    *
-   * @tparam C  Component type to require.
+   * @tparam C  Component type to require. Must not be in the exclude list
+   *            (enforced by a \c requires clause, as \c basic_view::exclude
+   *            does).
    *
    * @return A new builder with \c C appended to the include pack.
    *
-   * @pre  None.
+   * @pre  None beyond the disjointness checked at compile time.
    * @post This builder is unchanged; the include list grows in the
    *       returned builder's type.
    *
@@ -651,18 +656,22 @@ public:
    */
   template <component C>
   [[nodiscard]] auto with() const noexcept
-    -> typed_query_builder<detail::type_list<Includes..., C>, exclude_list> {
+    -> typed_query_builder<detail::type_list<Includes..., C>, exclude_list>
+    requires(!detail::tuple_contains_v<C, exclude_list>)
+  {
     return typed_query_builder<detail::type_list<Includes..., C>, exclude_list>{*m_registry};
   }
 
   /**
    * @brief Adds \c C to the exclude list.
    *
-   * @tparam C  Component type to forbid.
+   * @tparam C  Component type to forbid. Must not be in the include list
+   *            (enforced by a \c requires clause, as \c basic_view::exclude
+   *            does).
    *
    * @return A new builder with \c C appended to the exclude pack.
    *
-   * @pre  None.
+   * @pre  None beyond the disjointness checked at compile time.
    * @post This builder is unchanged; the exclude list grows in the
    *       returned builder's type.
    *
@@ -670,7 +679,9 @@ public:
    */
   template <component C>
   [[nodiscard]] auto without() const noexcept
-    -> typed_query_builder<include_list, detail::type_list<Excludes..., C>> {
+    -> typed_query_builder<include_list, detail::type_list<Excludes..., C>>
+    requires(!detail::tuple_contains_v<C, include_list>)
+  {
     return typed_query_builder<include_list, detail::type_list<Excludes..., C>>{*m_registry};
   }
 
@@ -701,8 +712,9 @@ public:
    *       \c basic_view::each: \p f may add or remove components and create
    *       or destroy entities during the loop, since the storages are
    *       pointer-stable.
-   * @post Every matching entity at call time was passed to \p f once,
-   *       matching \c basic_view::each.
+   * @post As for \c basic_view::each: every entity matching at call time was
+   *       passed to \p f, once unless \p f re-added its driver component
+   *       ahead of the cursor.
    *
    * @note \c each is \c noexcept: an \p f that throws terminates the program.
    *
