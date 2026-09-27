@@ -53,8 +53,10 @@
  *     visiting live slots plus any not-yet-reused tombstones.
  *
  * Exception policy: every operation is \c noexcept. Allocation
- * failures terminate. Out-of-bounds / stale-handle accesses return
- * \c nullptr or \c false, never UB.
+ * failures terminate. A stale or out-of-range handle is rejected with
+ * \c false, \c nullptr or \c container_error::not_found rather than touching
+ * another entity's data; a broken precondition (destroying entities while
+ * iterating the registry, say) is still undefined behaviour.
  *
  * Thread safety: standard convention, concurrent reads safe,
  * concurrent mutation not.
@@ -617,11 +619,11 @@ public:
     return m_on_destroy.as_sink();
   }
 
-  //
   // These are public to allow the type-erased registry dispatch to
   // fire signals without friending lambdas; user code should
   // normally subscribe via the sinks above and let the registry
   // mutate the storage. Directly calling these from outside the
+  // registry fires the listeners without the change they announce.
 
   /**
    * @brief Internal: fires the on-construct signal for (\p e, \p v).
@@ -754,8 +756,9 @@ template <typename T>
  *
  * Non-copyable and move-only: the registry owns heap-allocated storages
  * and the move operations transfer that ownership. Every operation is
- * \c noexcept; out-of-range or stale-handle accesses return an error
- * value rather than invoking undefined behaviour.
+ * \c noexcept; a stale or out-of-range handle gets an error value back
+ * rather than touching another entity's data, while a broken precondition
+ * (such as destroying entities while iterating) is undefined behaviour.
  */
 class registry {
 public:
@@ -1350,8 +1353,9 @@ public:
    *
    * @pre None.
    * @post The registry is unchanged. The returned reference, if any,
-   *       stays valid until the component is removed or the storage
-   *       reallocates.
+   *       stays valid until the component is removed (by \c remove,
+   *       \c destroy or \c clear); the storage never relocates a live
+   *       component.
    *
    * @complexity \c O(1).
    */
@@ -1503,8 +1507,10 @@ public:
    * @pre At least one include type is given (enforced by a
    *       \c requires clause on \c basic_view).
    * @post Storage exists for every type in \p Includes. The returned
-   *       view is invalidated by later structural changes to those
-   *       storages.
+   *       view stays valid across later structural changes (the storages
+   *       are pointer-stable and live as long as the registry) and keeps
+   *       the driver it chose here; moving or destroying the registry
+   *       invalidates it.
    *
    * @complexity \c O(sizeof...(Includes)) to construct.
    */
@@ -1602,8 +1608,11 @@ public:
    *       live at entry. Registered component types remain registered
    *       (their storages are empty, not destroyed).
    *
-   * @complexity \c O(N + C) where N is the number of slots ever used
-   *             and C the number of registered component types.
+   * @complexity \c O(C * N) plus the listeners, where N is the number of
+   *             slots ever used and C the number of registered component
+   *             types: the on-destroy pass tests every storage for each
+   *             live entity, and each storage clear is linear in its slots
+   *             and its sparse index.
    */
   auto clear() noexcept -> void {
     // Fire on_destroy for every live component before tearing the storages down,

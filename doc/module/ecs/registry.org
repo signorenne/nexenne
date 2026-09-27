@@ -91,9 +91,10 @@ freeing =e='s index twice. A stale or default-constructed handle is
 handled gracefully: =destroy= returns =false= and changes nothing.
 
 =valid(e)= is the gatekeeper. It is =true= only when the index is in range, the
-generation is non-zero, and it matches the slot's current generation. Every
-component operation calls it first, so a stale handle can never read or write the
-wrong entity's data. =alive()= reports the live count.
+generation is non-zero and matches the slot's current generation, and the slot
+is alive (so a handle forged with a freed slot's generation is rejected). Every
+component operation calls it first, so a stale handle can never read or write
+the wrong entity's data. =alive()= reports the live count.
 
 The registry is itself a =std::ranges::input_range= over its live entities: its
 =begin()= / =end()= yield a fully-formed =entity_id= (index plus current
@@ -255,11 +256,13 @@ iterate one component type        chunked, cache-friendly (skips tombstones)
 =destroy= is =O(C)= because it must check every registered storage for the
 entity's components. Everything is =noexcept=, so a component whose move
 throws, or a listener, =patch= mutator or =each= callback that throws,
-terminates the program; out-of-range or stale-handle accesses return an error
-value (=false=, or =container_error::not_found=) and never invoke undefined
-behaviour. Allocation failure terminates rather than throwing, the library-wide
-policy for an embeddable target. Threading is the standard convention:
-concurrent reads are safe, concurrent mutation is not.
+terminates the program. A stale or out-of-range handle gets an error value back
+(=false=, or =container_error::not_found=) rather than touching another
+entity's data; breaking a documented precondition, such as destroying entities
+while iterating the registry or destroying the entity a listener is handed, is
+still undefined behaviour. Allocation failure terminates rather than throwing,
+the library-wide policy for an embeddable target. Threading is the standard
+convention: concurrent reads are safe, concurrent mutation is not.
 
 ** Constraints to respect
 
