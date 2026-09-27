@@ -306,6 +306,12 @@ public:
    *
    * @note \c insert is \c noexcept: a \c T whose move constructor or move
    *       assignment throws terminates the program.
+   *
+   * @warning Bypasses the registry: \p index is not checked against a live
+   *          entity and no signal fires. A component inserted at a dead index
+   *          is inherited by the next entity that recycles it, and a view
+   *          yields a handle \c registry::valid rejects until then. Attach
+   *          components with \c registry::add.
    */
   auto insert(std::uint32_t const index, T value) noexcept -> bool {
     return m_pool.insert_or_assign(index, std::move(value));
@@ -325,6 +331,10 @@ public:
    *
    * @pre None.
    * @post \c contains(index) is \c false.
+   *
+   * @warning Bypasses the registry: no on-destroy signal fires, so its
+   *          listeners never see the component go. Detach components with
+   *          \c registry::remove.
    */
   auto erase(std::uint32_t const index) noexcept -> bool {
     return m_pool.erase(index);
@@ -456,6 +466,10 @@ public:
    *
    * @pre None.
    * @post \c empty() is \c true. Listeners stay connected.
+   *
+   * @warning Bypasses the registry: no on-destroy signal fires, and the
+   *          entities stay alive without their components. Wipe entities and
+   *          components together with \c registry::clear.
    */
   auto clear() noexcept -> void {
     m_pool.clear();

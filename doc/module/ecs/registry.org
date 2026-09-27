@@ -173,6 +173,11 @@ inlinable. That is where the cache-friendliness is actually spent. The reference
 each iteration yields is stable, so the loop body may even add or remove
 components without dangling it.
 
+The storage's own mutators (=insert=, =erase=, =clear=) serve the registry: they
+check no handle and fire no signal. A component inserted at a dead index is
+inherited by the next entity that recycles it, and an =erase= is invisible to
+the =on_destroy= listeners, so add and remove components through the registry.
+
 #+BEGIN_EXAMPLE
 component_storage<T>  ==  component_pool<T>
 

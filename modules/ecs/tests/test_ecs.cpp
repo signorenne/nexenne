@@ -1881,4 +1881,29 @@ TEST_CASE("view: the driver is the include with the fewest slots, not the fewest
   CHECK(order == std::vector<entity_id>{m2, m1});
 }
 
+TEST_CASE("storage: insert, erase and clear bypass validity and signals, as documented") {
+  auto r{registry{}};
+  auto constructed{0};
+  auto destroyed{0};
+  auto c1{r.on_construct<health>().connect([&](entity_id, health const&) noexcept {
+    ++constructed;
+  })};
+  auto c2{r.on_destroy<health>().connect([&](entity_id, health const&) noexcept { ++destroyed; })};
+  auto const a{r.create()};
+  CHECK(r.destroy(a));
+
+  CHECK(r.storage<health>().insert(a.index(), health{.hp = 13}));
+  CHECK(constructed == 0);
+  auto const b{r.create()};
+  REQUIRE(b.index() == a.index());
+  CHECK(r.has<health>(b));
+
+  CHECK(r.storage<health>().erase(b.index()));
+  nexenne::utility::discard(r.add<health>(b, health{.hp = 1}));
+  r.storage<health>().clear();
+  CHECK(destroyed == 0);
+  CHECK(r.valid(b));
+  nexenne::utility::discard(c1, c2);
+}
+
 }  // namespace
