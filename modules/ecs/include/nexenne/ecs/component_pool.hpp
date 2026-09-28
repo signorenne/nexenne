@@ -125,12 +125,16 @@ public:
    * @post \c contains(key) is \c true and the live component count reflects the
    *       insertion.
    *
-   * @note \c insert_or_assign is \c noexcept: a \c T whose move constructor or
-   *       move assignment throws terminates the program.
+   * @note \c insert_or_assign is \c noexcept exactly when \c T's move
+   *       constructor and move assignment are, so a throwing one propagates.
+   *       Growing the pool may allocate; a failed allocation terminates.
    *
    * @complexity \c O(1) amortised.
    */
-  auto insert_or_assign(key_type const key, value_type value) noexcept -> bool {
+  auto insert_or_assign(key_type const key, value_type value) noexcept(
+    std::is_nothrow_move_constructible_v<value_type>
+    && std::is_nothrow_move_assignable_v<value_type>
+  ) -> bool {
     if (auto const slot{slot_of(key)}; slot != m_slots.size()) {
       (*m_slots[slot]).value = std::move(value);
       return false;

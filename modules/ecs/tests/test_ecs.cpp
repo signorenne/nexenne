@@ -1968,4 +1968,45 @@ TEST_CASE("query builder: a type cannot be both required and excluded") {
   CHECK(visits == 1);
 }
 
+// NOLINTBEGIN(performance-noexcept-move-constructor): the move must be able to throw
+struct throwing_component {
+  int v{0};
+
+  throwing_component() = default;
+
+  throwing_component(throwing_component&& other) : v{other.v} {}
+
+  auto operator=(throwing_component&& other) -> throwing_component& {
+    v = other.v;
+    return *this;
+  }
+};
+
+// NOLINTEND(performance-noexcept-move-constructor)
+
+static_assert(!noexcept(std::declval<registry&>().add(entity_id{}, throwing_component{})));
+static_assert(noexcept(std::declval<registry&>().add(entity_id{}, position{})));
+
+inline constexpr auto throwing_mutator{[](position&) {}};
+inline constexpr auto nothrow_mutator{[](position&) noexcept {}};
+static_assert(!noexcept(std::declval<registry&>().patch<position>(entity_id{}, throwing_mutator)));
+static_assert(noexcept(std::declval<registry&>().patch<position>(entity_id{}, nothrow_mutator)));
+
+inline constexpr auto throwing_visit{[](entity_id) {}};
+inline constexpr auto nothrow_visit{[](entity_id) noexcept {}};
+static_assert(!noexcept(std::declval<registry const&>().each(throwing_visit)));
+static_assert(noexcept(std::declval<registry const&>().each(nothrow_visit)));
+
+using position_view = view<position>;
+inline constexpr auto throwing_each{[](position&) {}};
+inline constexpr auto nothrow_each{[](position&) noexcept {}};
+inline constexpr auto throwing_each_with_id{[](entity_id, position&) {}};
+inline constexpr auto nothrow_each_with_id{[](entity_id, position&) noexcept {}};
+static_assert(!noexcept(std::declval<position_view const&>().each(throwing_each)));
+static_assert(noexcept(std::declval<position_view const&>().each(nothrow_each)));
+static_assert(!noexcept(std::declval<position_view const&>().each(throwing_each_with_id)));
+static_assert(noexcept(std::declval<position_view const&>().each(nothrow_each_with_id)));
+static_assert(!noexcept(std::declval<registry&>().query().with<position>().each(throwing_each)));
+static_assert(noexcept(std::declval<registry&>().query().with<position>().each(nothrow_each)));
+
 }  // namespace

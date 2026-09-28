@@ -319,8 +319,8 @@ public:
    * @pre None.
    * @post \c contains(index) is \c true.
    *
-   * @note \c insert is \c noexcept: a \c T whose move constructor or move
-   *       assignment throws terminates the program.
+   * @note \c insert is \c noexcept exactly when \c T's move constructor and
+   *       move assignment are, so a throwing one propagates.
    *
    * @warning Bypasses the registry: \p index is not checked against a live
    *          entity and no signal fires. A component inserted at a dead index
@@ -328,7 +328,9 @@ public:
    *          yields a handle \c registry::valid rejects until then. Attach
    *          components with \c registry::add.
    */
-  auto insert(std::uint32_t const index, T value) noexcept -> bool {
+  auto insert(std::uint32_t const index, T value) noexcept(
+    std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>
+  ) -> bool {
     return m_pool.insert_or_assign(index, std::move(value));
   }
 
@@ -1240,9 +1242,10 @@ public:
    *       does not compile). The construct path needs only move
    *       construction.
    *
-   * @note \c add is \c noexcept: a \c T whose move constructor or move
-   *       assignment throws, or a listener that throws, terminates the
-   *       program.
+   * @note \c add is \c noexcept exactly when \c T's move constructor and
+   *       move assignment are, so a throwing one propagates. A listener that
+   *       throws terminates the program, since the signal's \c emit is
+   *       \c noexcept.
    *
    * @warning A listener invoked by the fired signal must not remove this \c T
    *          from \p e, nor destroy \p e (\c clear() destroys it too), while
@@ -1255,7 +1258,9 @@ public:
    * @complexity \c O(1).
    */
   template <component T>
-  auto add(entity_id const e, T value) noexcept -> bool {
+  auto add(entity_id const e, T value) noexcept(
+    std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>
+  ) -> bool {
     if (!valid(e)) {
       return false;
     }
@@ -1343,8 +1348,9 @@ public:
    *       \c on_update<T>() fired afterward. On a \c false result the
    *       registry is unchanged and \p mutator did not run.
    *
-   * @note \c patch is \c noexcept: a \p mutator or a listener that throws
-   *       terminates the program.
+   * @note \c patch is \c noexcept exactly when \p mutator is, so a throwing
+   *       mutator propagates (no on-update fires). A listener that throws
+   *       terminates the program, since the signal's \c emit is \c noexcept.
    *
    * @warning Neither \p mutator nor a listener invoked by the fired signal may
    *          remove this \c T from \p e or destroy \p e (\c clear() destroys it
@@ -1355,7 +1361,8 @@ public:
    */
   template <component T, typename Fn>
     requires std::invocable<Fn&, T&>
-  auto patch(entity_id const e, Fn&& mutator) noexcept -> bool {
+  auto patch(entity_id const e, Fn&& mutator) noexcept(std::is_nothrow_invocable_v<Fn&, T&>)
+    -> bool {
     if (!valid(e)) {
       return false;
     }
@@ -1579,12 +1586,13 @@ public:
    * @post Every live entity at call time was passed to \p f exactly
    *       once. The registry is otherwise unchanged.
    *
-   * @note \c each is \c noexcept: an \p f that throws terminates the program.
+   * @note \c each is \c noexcept exactly when \p f is, so a throwing \p f
+   *       propagates and ends the loop.
    *
    * @complexity \c O(alive()) plus the cost of \p f.
    */
   template <typename Func>
-  auto each(Func&& f) const noexcept -> void {
+  auto each(Func&& f) const noexcept(std::is_nothrow_invocable_v<Func&, entity_id>) -> void {
     for (auto const e : *this) {
       f(e);
     }

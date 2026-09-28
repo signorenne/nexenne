@@ -154,6 +154,12 @@ private:
   template <typename Func>
   static constexpr auto wants_entity_id_v = std::is_invocable_v<Func&, entity_id, Includes&...>;
 
+  // Whether \c each's callback cannot throw, in whichever form it takes.
+  template <typename Func>
+  static constexpr auto nothrow_each_v =
+    wants_entity_id_v<Func> ? std::is_nothrow_invocable_v<Func&, entity_id, Includes&...>
+                            : std::is_nothrow_invocable_v<Func&, Includes&...>;
+
 public:
   /**
    * @brief Constructs a view over \p reg and selects its driver.
@@ -223,13 +229,14 @@ public:
    *       can be passed twice. A component added by \p f during the loop is
    *       not guaranteed to be visited.
    *
-   * @note \c each is \c noexcept: an \p f that throws terminates the program.
+   * @note \c each is \c noexcept exactly when \p f is, so a throwing \p f
+   *       propagates and ends the loop.
    *
    * @complexity \c O(D) driver slots times \c O(sizeof...(Includes)
    *             + sizeof...(Excludes)) membership tests each.
    */
   template <typename Func>
-  auto each(Func&& f) const noexcept -> void {
+  auto each(Func&& f) const noexcept(nothrow_each_v<Func>) -> void {
     // Capture the slot count once: a slot appended by \p f during the loop
     // lies beyond it and is not visited. Bound the walk by the current count
     // as well: a registry::clear() in \p f empties the driver, whose old slots
@@ -246,7 +253,7 @@ public:
       if constexpr (wants_entity_id_v<Func>) {
         auto const gen{m_registry->generation_at(idx)};
         std::apply(
-          [&f, idx, gen](auto*... s) noexcept {
+          [&f, idx, gen](auto*... s) noexcept(nothrow_each_v<Func>) {
             // passes_filter ensures every include holds idx, so try_get
             // never returns nullptr here.
             f(entity_id{idx, gen}, (*s->try_get(idx))...);
@@ -254,7 +261,10 @@ public:
           m_includes
         );
       } else {
-        std::apply([&f, idx](auto*... s) noexcept { f((*s->try_get(idx))...); }, m_includes);
+        std::apply(
+          [&f, idx](auto*... s) noexcept(nothrow_each_v<Func>) { f((*s->try_get(idx))...); },
+          m_includes
+        );
       }
     }
   }
@@ -729,12 +739,13 @@ public:
    *       passed to \p f, once unless \p f re-added its driver component
    *       ahead of the cursor.
    *
-   * @note \c each is \c noexcept: an \p f that throws terminates the program.
+   * @note \c each is \c noexcept exactly when \p f is, so a throwing \p f
+   *       propagates and ends the loop.
    *
    * @complexity Same as building the view plus iterating it.
    */
   template <typename Func>
-  auto each(Func&& f) const noexcept -> void {
+  auto each(Func&& f) const noexcept(noexcept(build().each(std::forward<Func>(f)))) -> void {
     build().each(std::forward<Func>(f));
   }
 };
