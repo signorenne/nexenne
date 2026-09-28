@@ -36,29 +36,20 @@ struct name {
   int tag{};
 };
 
-struct mark {};  // empty tag component
+struct mark {};
 
 }  // namespace
 
 auto main() -> int {
   auto reg{ecs::registry{}};
 
-  // 1. Create and validity. A fresh handle is live; a default-constructed one
-  // (generation 0) never is, so an uninitialised id is always safely rejected.
   std::println("== 1. Create and validity ==");
   auto const e{reg.create()};
-  // The entity_id formatter (from <nexenne/ecs/format.hpp>, pulled in by the
-  // umbrella) prints the handle directly as entity(index, generation).
   std::println("  created entity      {}", e);
   std::println("  valid(e)            {}", reg.valid(e));
   std::println("  valid(default id)   {}", reg.valid(ecs::entity_id{}));
   std::println("  alive               {}", reg.alive());
 
-  // 2. Add / has / get / remove. add returns true when it attaches a NEW
-  // component and false when it overwrites an existing one. get follows the
-  // library's expected-style error policy: a hit yields a reference wrapper, a
-  // miss yields container::container_error, so the success path needs no
-  // nullptr check.
   std::println("== 2. Component add / has / get / remove ==");
   std::println("  add<name> (new)     {}", reg.add<name>(e, {7}));
   std::println("  add<name> (replace) {}", reg.add<name>(e, {8}));
@@ -68,18 +59,13 @@ auto main() -> int {
   }
   std::println("  remove<name>        {}", reg.remove<name>(e));
   std::println("  has<name> after rm  {}", reg.has<name>(e));
-  // get on the now-missing component reports not-found rather than crashing.
   std::println("  get<name> missing?  {}", !reg.get<name>(e).has_value());
 
-  // all_of / any_of fold several has<> checks. Tag components participate just
-  // like data components: presence is all that matters.
   reg.add<name>(e, {9});
   reg.add<mark>(e, {});
   std::println("  all_of<name, mark>  {}", reg.all_of<name, mark>(e));
   std::println("  any_of<mark>        {}", reg.any_of<mark>(e));
 
-  // 3. Patch: mutate in place and notify. A patch listener observes the value
-  // AFTER the mutation. We wire on_update<name> first, then patch.
   std::println("== 3. Patch and on_update ==");
   [[maybe_unused]] auto update_log{
     reg.on_update<name>().connect([](ecs::entity_id const who, name const& n) noexcept {
@@ -88,9 +74,6 @@ auto main() -> int {
   };
   reg.patch<name>(e, [](name& n) noexcept { n.tag += 100; });
 
-  // 4. Destroy and generation safety. Capture the slot index, destroy the
-  // entity, then create a new one. The free list hands back the SAME index, but
-  // the generation has advanced, so the old handle no longer matches.
   std::println("== 4. Destroy and recycling ==");
   auto const old_index{e.index()};
   auto const old_gen{e.generation()};
@@ -104,13 +87,9 @@ auto main() -> int {
   std::println(
     "  recycled gen        {} (bumped? {})", recycled.generation(), recycled.generation() != old_gen
   );
-  // The stale handle e and the fresh handle recycled share a slot but differ in
-  // generation, so the registry never confuses them.
   std::println("  stale handle valid? {}", reg.valid(e));
   std::println("  fresh handle valid? {}", reg.valid(recycled));
 
-  // 5. clear wipes every entity and bumps every used slot's generation, so even
-  // a handle that was live a moment ago is now invalid forever.
   std::println("== 5. Clear ==");
   reg.add<name>(recycled, {42});
   std::println("  alive before clear  {}", reg.alive());

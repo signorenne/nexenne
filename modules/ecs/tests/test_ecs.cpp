@@ -29,8 +29,6 @@ using nexenne::ecs::view;
 using nexenne::signal::connection;
 using nexenne::signal::scoped_connection;
 
-// Shared component types. position/velocity carry a z so both the 3-field
-// (registry) and 2-field (signals/view) aggregate-init forms compile.
 struct position {
   float x{};
   float y{};
@@ -79,7 +77,7 @@ TEST_CASE("registry.destroy invalidates the handle") {
   auto const a{r.create()};
   CHECK(r.destroy(a));
   CHECK_FALSE(r.valid(a));
-  CHECK_FALSE(r.destroy(a));  // double-destroy is a no-op
+  CHECK_FALSE(r.destroy(a));
   CHECK(r.alive() == 0);
 }
 
@@ -89,10 +87,10 @@ TEST_CASE("registry recycles destroyed indices with bumped generation") {
   auto const ai{a.index()};
   r.destroy(a);
   auto const b{r.create()};
-  CHECK(b.index() == ai);  // index recycled
+  CHECK(b.index() == ai);
   CHECK(b.generation() != a.generation());
   CHECK(r.valid(b));
-  CHECK_FALSE(r.valid(a));  // stale handle stays stale
+  CHECK_FALSE(r.valid(a));
 }
 
 TEST_CASE("registry.add / get / has / remove on a single component") {
@@ -182,7 +180,6 @@ TEST_CASE("registry.clear bumps generations so old handles stay invalid") {
   CHECK(r.alive() == 0);
   CHECK_FALSE(r.valid(a));
 
-  // After clear, new entities can be created and start fresh.
   auto const b{r.create()};
   CHECK(r.valid(b));
   CHECK_FALSE(r.has<position>(b));
@@ -201,7 +198,6 @@ TEST_CASE("registry handles many entities with stable iteration") {
   CHECK(r.alive() == N);
   CHECK(r.storage<position>().size() == N);
 
-  // Erase even indices.
   for (auto i{std::size_t{0}}; i < static_cast<std::size_t>(N); i += 2) {
     r.destroy(ents[i]);
   }
@@ -209,7 +205,7 @@ TEST_CASE("registry handles many entities with stable iteration") {
   CHECK(r.storage<position>().size() == N / 2);
 }
 
-TEST_CASE("registry iterates live entities") {
+TEST_CASE("registry iterates live entities in creation order") {
   auto r{registry{}};
   auto const a{r.create()};
   auto const b{r.create()};
@@ -220,7 +216,6 @@ TEST_CASE("registry iterates live entities") {
     seen.push_back(e);
   }
   CHECK(seen.size() == 3);
-  // Order is creation order (no destroys yet).
   CHECK(seen[0] == a);
   CHECK(seen[1] == b);
   CHECK(seen[2] == c);
@@ -251,7 +246,7 @@ TEST_CASE("registry iterator after recycle yields new generations") {
   auto r{registry{}};
   auto const a{r.create()};
   r.destroy(a);
-  auto const b{r.create()};  // recycles a's slot
+  auto const b{r.create()};
 
   auto seen{std::vector<entity_id>{}};
   for (auto const e : r) {
@@ -259,15 +254,13 @@ TEST_CASE("registry iterator after recycle yields new generations") {
   }
   REQUIRE(seen.size() == 1);
   CHECK(seen[0] == b);
-  CHECK(seen[0] != a);  // generation bumped
+  CHECK(seen[0] != a);
 }
 
 TEST_CASE("empty registry iterator is end") {
   auto const r{registry{}};
   CHECK(r.begin() == r.end());
 }
-
-// lifecycle signals
 
 TEST_CASE("registry on_construct fires after first add<T>") {
   auto r{registry{}};
@@ -292,7 +285,7 @@ TEST_CASE("registry on_construct does NOT fire on replacement") {
 
   auto const a{r.create()};
   r.add<position>(a, {1.0f, 0.0f});
-  r.add<position>(a, {2.0f, 0.0f});  // replacement, not construct
+  r.add<position>(a, {2.0f, 0.0f});
 
   CHECK(construct_count == 1);
 }
@@ -309,9 +302,9 @@ TEST_CASE("registry on_update fires when add replaces") {
   };
 
   auto const a{r.create()};
-  r.add<position>(a, {1.0f, 0.0f});  // construct, no update
-  r.add<position>(a, {5.0f, 0.0f});  // replace -> on_update
-  r.add<position>(a, {9.0f, 0.0f});  // replace -> on_update
+  r.add<position>(a, {1.0f, 0.0f});
+  r.add<position>(a, {5.0f, 0.0f});
+  r.add<position>(a, {9.0f, 0.0f});
 
   CHECK(update_count == 2);
   CHECK(last_value == 9.0f);
@@ -398,7 +391,6 @@ TEST_CASE("destroy does NOT fire on_destroy for components the entity lacks") {
 
   auto const a{r.create()};
   r.add<position>(a, {});
-  // No velocity attached.
   r.destroy(a);
 
   CHECK(pos_count == 1);
@@ -427,23 +419,18 @@ TEST_CASE("scoped_connection auto-disconnects on scope exit") {
 
     auto const a{r.create()};
     r.add<position>(a, {});
-  }  // sc destroyed; disconnected
+  }
 
   auto const b{r.create()};
   r.add<position>(b, {});
-  CHECK(fire_count == 1);  // only the in-scope add fired
+  CHECK(fire_count == 1);
 }
 
 TEST_CASE("on_construct sink cannot fire the signal directly") {
   auto r{registry{}};
   auto sink{r.on_construct<position>()};
-  // The sink type does not have emit() or operator() - this is a
-  // compile-time guarantee, not a runtime check. We just verify the
-  // sink exposes connect.
   [[maybe_unused]] auto conn{sink.connect([](entity_id, position const&) noexcept {})};
 }
-
-// type_id
 
 TEST_CASE("type_id returns a stable value per type") {
   using nexenne::ecs::type_id;
@@ -458,12 +445,9 @@ TEST_CASE("type_id returns a stable value per type") {
   CHECK(a1 != b1);
 }
 
-TEST_CASE("type_id is dense (small consecutive IDs)") {
+TEST_CASE("type_id gives distinct types distinct ids") {
   using nexenne::ecs::type_id;
 
-  // Reads of three distinct types should produce three distinct IDs.
-  // The exact values depend on instantiation order across the whole
-  // program, but each must be unique.
   auto const ids{std::array{type_id<alpha>(), type_id<beta>(), type_id<gamma>()}};
   CHECK(ids[0] != ids[1]);
   CHECK(ids[1] != ids[2]);
@@ -472,19 +456,13 @@ TEST_CASE("type_id is dense (small consecutive IDs)") {
 
 TEST_CASE("type_id distinguishes cv-qualified variants") {
   using nexenne::ecs::type_id;
-  // type_id treats T, const T, T&, etc. as distinct - they ARE
-  // distinct template instantiations. Document this rather than
-  // try to "normalise" the input.
   auto const a{type_id<int>()};
   auto const ar{type_id<int&>()};
   auto const ac{type_id<int const>()};
-  // We don't assert relative ordering, just distinctness.
   CHECK(a != ar);
   CHECK(a != ac);
   CHECK(ar != ac);
 }
-
-// views
 
 TEST_CASE("view single component iterates everything that has it") {
   auto r{registry{}};
@@ -502,10 +480,10 @@ TEST_CASE("view single component iterates everything that has it") {
 
 TEST_CASE("view<A, B> visits only entities with both") {
   auto r{registry{}};
-  auto const a{r.create()};  // has pos+vel
-  auto const b{r.create()};  // has pos only
-  auto const c{r.create()};  // has vel only
-  auto const d{r.create()};  // has both
+  auto const a{r.create()};
+  auto const b{r.create()};
+  auto const c{r.create()};
+  auto const d{r.create()};
   r.add<position>(a, {1.0f, 0.0f});
   r.add<velocity>(a, {10.0f, 0.0f});
   r.add<position>(b, {2.0f, 0.0f});
@@ -519,8 +497,8 @@ TEST_CASE("view<A, B> visits only entities with both") {
     pos_sum += p.x;
     vel_sum += v.x;
   });
-  CHECK(pos_sum == 4.0f);   // a (1) + d (3)
-  CHECK(vel_sum == 40.0f);  // a (10) + d (30)
+  CHECK(pos_sum == 4.0f);
+  CHECK(vel_sum == 40.0f);
 }
 
 TEST_CASE("view callback receives entity_id when requested") {
@@ -576,17 +554,16 @@ TEST_CASE("view<A, B, C> visits only entities with all three") {
   view<position, velocity, health>{r}.each(
     [&](position const&, velocity const&, health const&) noexcept { ++count; }
   );
-  CHECK(count == 2);  // a and c
+  CHECK(count == 2);
 }
 
-TEST_CASE("view picks the smallest driver storage") {
+TEST_CASE("view driven by its smallest storage still visits every match") {
   auto r{registry{}};
-  // Many entities have position, only a few have health.
   auto rare_entities{std::vector<entity_id>{}};
   for (auto i{0}; i < 100; ++i) {
     auto const e{r.create()};
     r.add<position>(e, {});
-    if (i % 25 == 0) {  // 4 entities have health
+    if (i % 25 == 0) {
       r.add<health>(e, {i});
       rare_entities.push_back(e);
     }
@@ -595,10 +572,6 @@ TEST_CASE("view picks the smallest driver storage") {
   auto visited{0};
   view<position, health>{r}.each([&](position const&, health const&) noexcept { ++visited; });
   CHECK(visited == 4);
-  // (The optimisation here is that the driver was the health storage
-  // (size 4), not the position storage (size 100). Functional check
-  // is the same regardless; absence of a regression in count
-  // demonstrates correctness.)
 }
 
 TEST_CASE("view over empty registry yields nothing") {
@@ -649,7 +622,6 @@ TEST_CASE("view + std::ranges::distance counts matches") {
   r.add<position>(a, {});
   r.add<velocity>(a, {});
   r.add<position>(b, {});
-  // c gets nothing.
   r.add<position>(c, {});
   r.add<velocity>(c, {});
 
@@ -676,7 +648,7 @@ TEST_CASE("view.exclude<T> filters out entities carrying T") {
   view<position, velocity>{r}.exclude<dead>().each(
     [&](position const& p, velocity const&) noexcept { sum += p.x; }
   );
-  CHECK(sum == 1.0f);  // only alive
+  CHECK(sum == 1.0f);
 }
 
 TEST_CASE("view.exclude with multiple excludes") {
@@ -692,7 +664,7 @@ TEST_CASE("view.exclude with multiple excludes") {
 
   auto count{0};
   view<position>{r}.exclude<dead, frozen>().each([&](position const&) noexcept { ++count; });
-  CHECK(count == 1);  // only e1
+  CHECK(count == 1);
 }
 
 TEST_CASE("registry.view<C>() member returns equivalent view") {
@@ -711,7 +683,7 @@ TEST_CASE("registry.each(callback) walks live entities") {
   auto r{registry{}};
   [[maybe_unused]] auto const a{r.create()};
   [[maybe_unused]] auto const b{r.create()};
-  r.create();  // discarded handle
+  r.create();
 
   auto count{0};
   r.each([&](entity_id const e) noexcept {
@@ -742,13 +714,12 @@ TEST_CASE("query builder .with chain") {
   r.add<position>(a, {1.0f, 0.0f});
   r.add<velocity>(a, {});
   r.add<position>(b, {2.0f, 0.0f});
-  // b lacks velocity
 
   auto sum{0.0f};
   r.query().with<position>().with<velocity>().each(
     [&](position const& p, velocity const&) noexcept { sum += p.x; }
   );
-  CHECK(sum == 1.0f);  // only a
+  CHECK(sum == 1.0f);
 }
 
 TEST_CASE("query builder .without chain") {
@@ -761,7 +732,7 @@ TEST_CASE("query builder .without chain") {
 
   auto sum{0.0f};
   r.query().with<position>().without<dead>().each([&](position const& p) noexcept { sum += p.x; });
-  CHECK(sum == 1.0f);  // only a
+  CHECK(sum == 1.0f);
 }
 
 TEST_CASE("query builder .build returns a view") {
@@ -798,7 +769,7 @@ TEST_CASE("query builder combining with + without + multiple") {
   r.query().with<position>().with<velocity>().without<dead>().without<frozen>().each(
     [&](position const&, velocity const&) noexcept { ++count; }
   );
-  CHECK(count == 1);  // only a
+  CHECK(count == 1);
 }
 
 TEST_CASE("view.exclude with range-for") {
@@ -816,17 +787,12 @@ TEST_CASE("view.exclude with range-for") {
   CHECK(sum == 1.0f);
 }
 
-// reentrancy regressions
-
 TEST_CASE("destroy is safe when an on_destroy listener registers a new component type") {
   auto r{registry{}};
   auto const victim{r.create()};
   auto const other{r.create()};
   r.add<position>(victim, {1.0f, 2.0f, 0.0f});
 
-  // The listener attaches a brand-new component type during the destroy, which
-  // creates a first-ever health storage and reallocates the type-erased storage
-  // table mid-loop. Must not use-after-free.
   [[maybe_unused]] auto conn{r.on_destroy<position>().connect(
     [&](entity_id, position const&) noexcept { r.add<health>(other, {42}); }
   )};
@@ -844,8 +810,6 @@ TEST_CASE("component references survive structural changes (pointer stability)")
   r.add<position>(pinned, {7.0f, 8.0f, 9.0f});
   auto* const addr{&r.get<position>(pinned).value().get()};
 
-  // Grow the storage across many chunks and punch tombstone holes; a
-  // pointer-stable pool must not relocate the pinned component.
   auto others{std::vector<entity_id>{}};
   others.reserve(2000);
   for (auto i{0}; i < 2000; ++i) {
@@ -859,13 +823,13 @@ TEST_CASE("component references survive structural changes (pointer stability)")
 
   REQUIRE(r.get<position>(pinned).has_value());
   auto& after{r.get<position>(pinned).value().get()};
-  CHECK(&after == addr);  // address never moved
+  CHECK(&after == addr);
   CHECK(after.x == 7.0f);
   CHECK(after.y == 8.0f);
   CHECK(after.z == 9.0f);
 }
 
-TEST_CASE("view.each may remove components mid-iteration without dangling") {
+TEST_CASE("view.each may remove the driver component mid-iteration without dangling") {
   auto r{registry{}};
   auto ents{std::vector<entity_id>{}};
   for (auto i{0}; i < 50; ++i) {
@@ -875,10 +839,6 @@ TEST_CASE("view.each may remove components mid-iteration without dangling") {
     ents.push_back(e);
   }
 
-  // health and position are both size 50, so health (the first include) is
-  // the driver. Removing the current entity's health tombstones the driver
-  // slot just read; pointer stability keeps the references valid through the
-  // rest of the body, and the captured slot count keeps the walk terminating.
   auto visited{0};
   auto sum{0.0f};
   view<health, position>{r}.each([&](entity_id const e, health const&, position const& p) noexcept {
@@ -894,16 +854,13 @@ TEST_CASE("view.each may remove components mid-iteration without dangling") {
   }
 }
 
-TEST_CASE("view.each may add components mid-iteration without dangling") {
+TEST_CASE("view.each may add components mid-iteration and does not visit them") {
   auto r{registry{}};
   for (auto i{0}; i < 30; ++i) {
     auto const e{r.create()};
     r.add<position>(e, {static_cast<float>(i), 0.0f, 0.0f});
   }
 
-  // Adding positions to fresh entities grows the driver storage (possibly
-  // allocating new chunks). Existing references stay valid, and the slots
-  // appended mid-loop lie beyond the captured count, so they are not visited.
   auto visited{0};
   auto seen_sum{0.0f};
   view<position>{r}.each([&](position const& p) noexcept {
@@ -914,9 +871,9 @@ TEST_CASE("view.each may add components mid-iteration without dangling") {
       r.add<position>(fresh, {1000.0f, 0.0f, 0.0f});
     }
   });
-  CHECK(visited == 30);  // only the originals, none of the 5 added mid-loop
+  CHECK(visited == 30);
   CHECK(seen_sum == doctest::Approx(30.0 * 29.0 / 2.0));
-  CHECK(r.storage<position>().size() == 35);  // 30 + 5 now live
+  CHECK(r.storage<position>().size() == 35);
 }
 
 TEST_CASE("storage values() skips tombstoned slots after erase") {
@@ -928,7 +885,7 @@ TEST_CASE("storage values() skips tombstoned slots after erase") {
     ents.push_back(e);
   }
   for (auto i{std::size_t{1}}; i < ents.size(); i += 2) {
-    r.remove<position>(ents[i]);  // remove the odd-x components
+    r.remove<position>(ents[i]);
   }
 
   auto sum{0.0f};
@@ -945,10 +902,6 @@ TEST_CASE("listener may structurally modify the same storage without dangling") 
   auto r{registry{}};
   auto const first{r.create()};
 
-  // The on_construct listener attaches the SAME component type to many other
-  // fresh entities, forcing the pool to grow new chunks while the reference it
-  // was handed is still live. A flat-vector storage would reallocate and
-  // dangle that reference; the pointer-stable pool must not.
   auto observed_x{-1.0f};
   auto* observed_addr{static_cast<position*>(nullptr)};
   [[maybe_unused]] auto conn{
@@ -959,16 +912,16 @@ TEST_CASE("listener may structurally modify the same storage without dangling") 
           auto const other{r.create()};
           r.add<position>(other, {static_cast<float>(i), 0.0f, 0.0f});
         }
-        observed_x = p.x;  // read AFTER the storage grew under us
+        observed_x = p.x;
       }
     })
   };
 
   r.add<position>(first, {123.0f, 0.0f, 0.0f});
-  CHECK(observed_x == 123.0f);  // reference stayed valid mid-growth
+  CHECK(observed_x == 123.0f);
   REQUIRE(r.get<position>(first).has_value());
   auto& after{r.get<position>(first).value().get()};
-  CHECK(&after == observed_addr);  // and never moved
+  CHECK(&after == observed_addr);
   CHECK(after.x == 123.0f);
 }
 
@@ -982,8 +935,6 @@ TEST_CASE("storage reuses tombstoned slots (no unbounded growth)") {
   }
   auto const high_water{r.storage<position>().slot_count()};
 
-  // Churn the same working set: every remove frees a slot the next add
-  // reuses, so the slot count must not creep past the high-water mark.
   for (auto round{0}; round < 100; ++round) {
     for (auto const e : ents) {
       r.remove<position>(e);
@@ -996,13 +947,9 @@ TEST_CASE("storage reuses tombstoned slots (no unbounded growth)") {
   CHECK(r.storage<position>().slot_count() == high_water);
 }
 
-// added: type_id density
-
 TEST_CASE("type_id assigns consecutive ids in first-touch order") {
   using nexenne::ecs::type_id;
 
-  // First touch of three never-before-seen types: ids must be a run of
-  // three consecutive values, in request order.
   struct fresh_a {};
 
   struct fresh_b {};
@@ -1015,8 +962,6 @@ TEST_CASE("type_id assigns consecutive ids in first-touch order") {
   CHECK(b == a + 1);
   CHECK(c == a + 2);
 }
-
-// added: lifecycle signals (uncovered angles)
 
 TEST_CASE("multiple listeners on the same on_construct signal all fire") {
   auto r{registry{}};
@@ -1054,8 +999,8 @@ TEST_CASE("manually disconnected connection stops firing") {
   CHECK(conn.disconnect());
   auto const b{r.create()};
   r.add<position>(b, {});
-  CHECK(fire_count == 1);          // no further fires after disconnect
-  CHECK_FALSE(conn.disconnect());  // second disconnect is a no-op
+  CHECK(fire_count == 1);
+  CHECK_FALSE(conn.disconnect());
 }
 
 TEST_CASE("one of several listeners can be dropped, the rest keep firing") {
@@ -1075,8 +1020,8 @@ TEST_CASE("one of several listeners can be dropped, the rest keep firing") {
 
   drop_conn.disconnect();
   r.add<position>(r.create(), {});
-  CHECK(kept == 2);     // survivor keeps firing
-  CHECK(dropped == 1);  // dropped one stayed silent
+  CHECK(kept == 2);
+  CHECK(dropped == 1);
 }
 
 TEST_CASE("on_update listener may read another component of the entity") {
@@ -1092,12 +1037,10 @@ TEST_CASE("on_update listener may read another component of the entity") {
 
   auto const e{r.create()};
   r.add<health>(e, {77});
-  r.add<position>(e, {1.0f, 0.0f});  // construct, no update
-  r.add<position>(e, {2.0f, 0.0f});  // replace -> on_update reads health
+  r.add<position>(e, {1.0f, 0.0f});
+  r.add<position>(e, {2.0f, 0.0f});
   CHECK(observed_hp == 77);
 }
-
-// added: all_of / any_of edge cases
 
 TEST_CASE("all_of with empty pack is true, any_of with empty pack is false") {
   auto r{registry{}};
@@ -1132,15 +1075,11 @@ TEST_CASE("all_of / any_of on an invalid entity") {
   auto const e{r.create()};
   r.add<position>(e, {});
   r.destroy(e);
-  // A stale handle carries no components.
   CHECK_FALSE(r.all_of<position>(e));
   CHECK_FALSE(r.any_of<position>(e));
-  // Empty pack still folds to its identity regardless of validity.
   CHECK(r.all_of<>(e));
   CHECK_FALSE(r.any_of<>(e));
 }
-
-// added: query builder edges
 
 TEST_CASE("query builder single-include build equals the equivalent view") {
   auto r{registry{}};
@@ -1168,13 +1107,12 @@ TEST_CASE("query builder length-3 include chain") {
   r.add<health>(a, {1});
   r.add<position>(b, {});
   r.add<velocity>(b, {});
-  // b lacks health
 
   auto count{0};
   r.query().with<position>().with<velocity>().with<health>().each(
     [&](position const&, velocity const&, health const&) noexcept { ++count; }
   );
-  CHECK(count == 1);  // only a
+  CHECK(count == 1);
 }
 
 TEST_CASE("query builder with no excludes (length-0 without chain) matches all") {
@@ -1193,7 +1131,6 @@ TEST_CASE("query builder yielding an empty result") {
   auto r{registry{}};
   auto const a{r.create()};
   r.add<position>(a, {});
-  // No entity has both position and velocity.
 
   auto count{0};
   r.query().with<position>().with<velocity>().each([&](position const&, velocity const&) noexcept {
@@ -1202,13 +1139,10 @@ TEST_CASE("query builder yielding an empty result") {
   CHECK(count == 0);
 }
 
-// added: view edges
-
-TEST_CASE("view over a component no entity has yields nothing") {
+TEST_CASE("view over a never-registered component yields nothing") {
   auto r{registry{}};
   auto const a{r.create()};
   r.add<position>(a, {});
-  // health storage exists only after this view touches it; nothing carries it.
 
   auto count{0};
   view<health>{r}.each([&](health const&) noexcept { ++count; });
@@ -1226,7 +1160,7 @@ TEST_CASE("view reflects a component lost between two iterations") {
   view<position>{r}.each([&](position const&) noexcept { ++first; });
   CHECK(first == 2);
 
-  r.remove<position>(a);  // a loses position between the two passes
+  r.remove<position>(a);
 
   auto second_sum{0.0f};
   auto second{0};
@@ -1235,7 +1169,7 @@ TEST_CASE("view reflects a component lost between two iterations") {
     ++second;
   });
   CHECK(second == 1);
-  CHECK(second_sum == 2.0f);  // only b remains
+  CHECK(second_sum == 2.0f);
 }
 
 TEST_CASE("view reflects a component gained between two iterations") {
@@ -1245,24 +1179,20 @@ TEST_CASE("view reflects a component gained between two iterations") {
   r.add<position>(a, {});
   r.add<velocity>(a, {});
   r.add<position>(b, {});
-  // b lacks velocity at first.
 
   auto first{0};
   view<position, velocity>{r}.each([&](position const&, velocity const&) noexcept { ++first; });
-  CHECK(first == 1);  // only a
+  CHECK(first == 1);
 
-  r.add<velocity>(b, {});  // b gains velocity
+  r.add<velocity>(b, {});
 
   auto second{0};
   view<position, velocity>{r}.each([&](position const&, velocity const&) noexcept { ++second; });
-  CHECK(second == 2);  // a and b
+  CHECK(second == 2);
 }
 
 TEST_CASE("view smallest-driver selection with 3+ includes is correct") {
   auto r{registry{}};
-  // position: many, velocity: medium, health: few. The driver must be the
-  // health storage (smallest), and the count must still be the true triple
-  // intersection.
   auto triple{std::vector<entity_id>{}};
   for (auto i{0}; i < 60; ++i) {
     auto const e{r.create()};
@@ -1270,7 +1200,7 @@ TEST_CASE("view smallest-driver selection with 3+ includes is correct") {
     if (i % 2 == 0) {
       r.add<velocity>(e, {});
     }
-    if (i % 20 == 0) {  // i = 0, 20, 40 -> all even, so they also have velocity
+    if (i % 20 == 0) {
       r.add<health>(e, {i});
       triple.push_back(e);
     }
@@ -1284,8 +1214,6 @@ TEST_CASE("view smallest-driver selection with 3+ includes is correct") {
   CHECK(count == 3);
 }
 
-// added: registry move + clear/reuse
-
 TEST_CASE("registry move construction transfers ownership") {
   auto src{registry{}};
   auto const a{src.create()};
@@ -1296,12 +1224,10 @@ TEST_CASE("registry move construction transfers ownership") {
 
   auto dst{registry{std::move(src)}};
 
-  // Moved-from registry is empty and reusable.
   CHECK(src.alive() == 0);  // NOLINT(bugprone-use-after-move)
   auto const fresh{src.create()};
   CHECK(src.valid(fresh));
 
-  // Destination owns the entities and their components intact.
   CHECK(dst.alive() == 2);
   CHECK(dst.valid(a));
   CHECK(dst.valid(b));
@@ -1320,16 +1246,12 @@ TEST_CASE("registry move assignment transfers ownership and frees the target") {
 
   auto dst{registry{}};
   auto const old{dst.create()};
-  dst.add<health>(old, {99});  // these storages must be freed by the assignment
+  dst.add<health>(old, {99});
 
   dst = std::move(src);
 
   CHECK(dst.alive() == 1);
   CHECK(dst.valid(a));
-  // old and a are both {index 0, generation 1} (each registry's first
-  // entity), so they collide as handles (a handle carries no registry id);
-  // verify instead that dst's OLD storages were freed: the health it held is
-  // gone (the moved-in registry had no health storage).
   CHECK_FALSE(dst.has<health>(old));
   REQUIRE(dst.get<position>(a).has_value());
   CHECK(dst.get<position>(a).value().get().x == 7.0f);
@@ -1360,32 +1282,26 @@ TEST_CASE("registry clear then reuse keeps storages working") {
   CHECK(r.storage<position>().size() == 0);
   CHECK(r.storage<velocity>().size() == 0);
 
-  // The same storages accept fresh components after the clear.
   auto const b{r.create()};
   r.add<position>(b, {10.0f, 0.0f, 0.0f});
   CHECK(r.alive() == 1);
   CHECK(r.storage<position>().size() == 1);
   REQUIRE(r.get<position>(b).has_value());
   CHECK(r.get<position>(b).value().get().x == 10.0f);
-  CHECK_FALSE(r.has<position>(a));  // old handle stays detached
+  CHECK_FALSE(r.has<position>(a));
 }
-
-// added: non-trivial / move-only components
 
 TEST_CASE("std::string components do not leak on remove / clear / destroy") {
   auto r{registry{}};
   auto const a{r.create()};
   auto const b{r.create()};
   auto const c{r.create()};
-  // Long strings force heap allocation (defeating SSO), so LSan/ASan catches
-  // any leaked buffer on the three teardown paths below.
   r.add<std::string>(a, std::string(64, 'a'));
   r.add<std::string>(b, std::string(64, 'b'));
   r.add<std::string>(c, std::string(64, 'c'));
 
-  CHECK(r.remove<std::string>(a));  // remove path
-  r.destroy(b);                     // destroy path
-  // c's string is freed by clear, exercising the third teardown path.
+  CHECK(r.remove<std::string>(a));
+  r.destroy(b);
   r.clear();
   CHECK(r.storage<std::string>().size() == 0);
 }
@@ -1394,7 +1310,7 @@ TEST_CASE("std::string component replace assigns in place without leaking") {
   auto r{registry{}};
   auto const e{r.create()};
   r.add<std::string>(e, std::string(48, 'x'));
-  CHECK_FALSE(r.add<std::string>(e, std::string(48, 'y')));  // replace
+  CHECK_FALSE(r.add<std::string>(e, std::string(48, 'y')));
   REQUIRE(r.get<std::string>(e).has_value());
   CHECK(r.get<std::string>(e).value().get() == std::string(48, 'y'));
 }
@@ -1402,44 +1318,36 @@ TEST_CASE("std::string component replace assigns in place without leaking") {
 TEST_CASE("move-only component type is supported") {
   auto r{registry{}};
   auto const a{r.create()};
-  // add<T>(entity, T) takes the value by move, so a move-only payload works.
   r.add<std::unique_ptr<int>>(a, std::make_unique<int>(42));
   REQUIRE(r.get<std::unique_ptr<int>>(a).has_value());
   REQUIRE(r.get<std::unique_ptr<int>>(a).value().get() != nullptr);
   CHECK(*r.get<std::unique_ptr<int>>(a).value().get() == 42);
 
-  // patch mutates in place through a reference (no copy required).
   CHECK(r.patch<std::unique_ptr<int>>(a, [](std::unique_ptr<int>& p) noexcept { *p = 7; }));
   CHECK(*r.get<std::unique_ptr<int>>(a).value().get() == 7);
 
-  r.destroy(a);  // unique_ptr freed without a leak
+  r.destroy(a);
   CHECK(!r.get<std::unique_ptr<int>>(a).has_value());
 }
-
-// added: recycle / stale-handle safety
 
 TEST_CASE("stale handle after recycle reads invalid for get / has / remove") {
   auto r{registry{}};
   auto const a{r.create()};
   r.add<position>(a, {1.0f, 0.0f, 0.0f});
   r.destroy(a);
-  auto const b{r.create()};  // recycles a's slot with a bumped generation
+  auto const b{r.create()};
   REQUIRE(b.index() == a.index());
   r.add<position>(b, {9.0f, 0.0f, 0.0f});
 
-  // The stale handle must not read or touch the recycled slot's component.
   CHECK_FALSE(r.has<position>(a));
   CHECK(!r.get<position>(a).has_value());
-  CHECK_FALSE(r.remove<position>(a));  // does not strip b's component
+  CHECK_FALSE(r.remove<position>(a));
   CHECK(r.has<position>(b));
   CHECK(r.get<position>(b).value().get().x == 9.0f);
 }
 
 TEST_CASE("recycle never mints a generation-0 (invalid) handle") {
   auto r{registry{}};
-  // Churn one slot many times; every recycled handle must stay valid (the
-  // registry steps the generation over 0 on wraparound, so no live handle
-  // ever collides with the default-constructed sentinel).
   auto last{entity_id{}};
   for (auto i{0}; i < 1000; ++i) {
     auto const e{r.create()};
@@ -1454,9 +1362,6 @@ TEST_CASE("recycle never mints a generation-0 (invalid) handle") {
 
 TEST_CASE("registry.destroy rejects a listener re-adding to the dying (now-invalid) entity") {
   auto r{registry{}};
-  // The dying entity is marked not-alive before on_destroy fires (reentrancy
-  // proofing), so it reads invalid inside the listener: an add() targeting it
-  // returns false and attaches nothing, and the recycled index comes up clean.
   auto add_result{true};
   [[maybe_unused]] auto conn{
     r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
@@ -1468,14 +1373,14 @@ TEST_CASE("registry.destroy rejects a listener re-adding to the dying (now-inval
   auto const a_index{a.index()};
 
   CHECK(r.destroy(a));
-  CHECK_FALSE(add_result);  // the dying entity was invalid, so add did nothing
+  CHECK_FALSE(add_result);
 
   auto const b{r.create()};
-  REQUIRE(b.index() == a_index);    // recycled the freed index
-  CHECK_FALSE(r.has<position>(b));  // no stale component inherited
+  REQUIRE(b.index() == a_index);
+  CHECK_FALSE(r.has<position>(b));
 }
 
-TEST_CASE("values() range-for tolerates append then tombstone mid-iteration (C1)") {
+TEST_CASE("values() range-for tolerates append then tombstone mid-iteration") {
   auto r{registry{}};
   auto const e0{r.create()};
   auto const e1{r.create()};
@@ -1490,64 +1395,56 @@ TEST_CASE("values() range-for tolerates append then tombstone mid-iteration (C1)
     sum += h.hp;
     if (!mutated) {
       mutated = true;
-      // No free slot exists, so this appends slot 2, then tombstones it. Before
-      // the fix the cursor re-read the grown slot count, stepped over the
-      // tombstone, and dereferenced a null slot past the captured end().
       auto const tmp{r.create()};
       nexenne::utility::ignore(r.add<health>(tmp, health{.hp = 99}));
       nexenne::utility::ignore(r.remove<health>(tmp));
     }
   }
-  CHECK(visited == 2);  // only the two originally-live slots
-  CHECK(sum == 3);      // 1 + 2, never the appended-then-removed 99
+  CHECK(visited == 2);
+  CHECK(sum == 3);
 }
 
-TEST_CASE("valid() rejects a forged handle carrying a freed slot's current generation (M3)") {
+TEST_CASE("valid() rejects a forged handle carrying a freed slot's current generation") {
   auto r{registry{}};
   auto const a{r.create()};
   auto const idx{a.index()};
   CHECK(r.destroy(a));
   CHECK(r.alive() == 0);
 
-  // The slot's current generation is the one create() will hand out next, so a
-  // handle forged with it matched generation but named a freed slot.
   auto const forged{entity_id{idx, r.generation_at(idx)}};
-  CHECK_FALSE(r.valid(forged));                         // freed slot: not alive
-  CHECK_FALSE(r.add<health>(forged, health{.hp = 5}));  // add must fail
-  CHECK_FALSE(r.destroy(forged));                       // must not double-push the free list
+  CHECK_FALSE(r.valid(forged));
+  CHECK_FALSE(r.add<health>(forged, health{.hp = 5}));
+  CHECK_FALSE(r.destroy(forged));
 
-  // The free list still holds idx exactly once, so two creates mint two
-  // distinct indices rather than aliasing the same slot.
   auto const b{r.create()};
   auto const c{r.create()};
   CHECK(b.index() != c.index());
 }
 
-TEST_CASE("an on_destroy listener destroying the same entity does not recurse (M2)") {
+TEST_CASE("an on_destroy listener destroying the same entity does not recurse") {
   auto r{registry{}};
   auto reentry_result{true};
   auto fire_count{0};
   [[maybe_unused]] auto conn{
     r.on_destroy<health>().connect([&](entity_id const e, health const&) noexcept {
       ++fire_count;
-      reentry_result = r.destroy(e);  // nested destroy of the SAME entity
+      reentry_result = r.destroy(e);
     })
   };
   auto const a{r.create()};
   nexenne::utility::ignore(r.add<health>(a, health{.hp = 1}));
 
-  CHECK(r.destroy(a));          // must not stack-overflow via mutual recursion
-  CHECK(fire_count == 1);       // fired exactly once
-  CHECK_FALSE(reentry_result);  // the nested destroy saw an invalid handle
+  CHECK(r.destroy(a));
+  CHECK(fire_count == 1);
+  CHECK_FALSE(reentry_result);
   CHECK(r.alive() == 0);
 
-  // The free list holds the index once, so two creates mint distinct indices.
   auto const b{r.create()};
   auto const c{r.create()};
   CHECK(b.index() != c.index());
 }
 
-TEST_CASE("clear() fires on_destroy for every live component (M4)") {
+TEST_CASE("clear() fires on_destroy for every live component") {
   auto r{registry{}};
   auto pos_count{0};
   auto hp_count{0};
@@ -1566,22 +1463,15 @@ TEST_CASE("clear() fires on_destroy for every live component (M4)") {
 
   r.clear();
 
-  CHECK(pos_count == 2);  // a and b both carried a position
-  CHECK(hp_count == 1);   // only a carried a health
+  CHECK(pos_count == 2);
+  CHECK(hp_count == 1);
   CHECK(r.alive() == 0);
 }
 
-// Distinct tag type per thread, so first-touch of each races only on the
-// shared counter inside next_type_id (not on any per-type static local).
 template <std::size_t N>
 struct race_tag {};
 
-TEST_CASE("type_id mints unique ids for types first-touched concurrently (M1)") {
-  // With a plain (non-atomic) counter, two threads first-touching disjoint types
-  // race and can mint duplicate ids. The counter is now std::atomic, so every id
-  // is distinct. This does not deterministically reproduce the race: verify the
-  // fix under ThreadSanitizer. It pins the observable invariant that concurrently
-  // minted ids are unique.
+TEST_CASE("type_id mints unique ids for types first-touched concurrently") {
   constexpr auto count{std::size_t{8}};
   auto ids{std::array<std::size_t, count>{}};
   auto threads{std::array<std::thread, count>{}};
@@ -1592,13 +1482,10 @@ TEST_CASE("type_id mints unique ids for types first-touched concurrently (M1)") 
     t.join();
   }
   std::ranges::sort(ids);
-  CHECK(std::ranges::adjacent_find(ids) == ids.end());  // all ids distinct
+  CHECK(std::ranges::adjacent_find(ids) == ids.end());
 }
 
-TEST_CASE("registry: a listener calling clear() during destroy frees the index once (ecs-01)") {
-  // "The player died, reset the level": the listener wipes the world while
-  // destroy(p) is still firing. clear() already frees every index, so destroy
-  // must not push p's index a second time and mint one handle twice.
+TEST_CASE("registry: a listener calling clear() during destroy frees the index once") {
   auto r{registry{}};
   [[maybe_unused]] auto conn{
     r.on_destroy<tag_player>().connect([&r](entity_id, tag_player&) noexcept { r.clear(); })
@@ -1671,12 +1558,7 @@ TEST_CASE("registry: clear() never hands a listener a component a nested destroy
   CHECK(total == 64);
 }
 
-TEST_CASE(
-  "registry: clear() from a remove listener fires on_destroy once and remove succeeds (ecs-02)"
-) {
-  // remove<T> marks the component it is removing, so a nested clear() neither
-  // fires it again nor erases it from under the listeners still to be handed
-  // it; remove erases it itself once the signal returns.
+TEST_CASE("registry: clear() from a remove listener fires on_destroy once and remove succeeds") {
   auto r{registry{}};
   auto cleared{false};
   [[maybe_unused]] auto c1{r.on_destroy<label>().connect([&](entity_id, label&) noexcept {
@@ -1787,10 +1669,7 @@ TEST_CASE("storage: clear() inside a values() loop ends the walk") {
   CHECK(visits == 1);
 }
 
-TEST_CASE("registry: destroy the entities a range-for collected, not inside it (ecs-05)") {
-  // Destroying inside the loop breaks the iterator's precondition (asserted in
-  // debug): destroy swap-pops the live set under the cursor. The supported
-  // pattern collects the handles first.
+TEST_CASE("registry: destroy the entities a range-for collected, not inside it") {
   auto r{registry{}};
   for (auto i{0}; i < 4; ++i) {
     nexenne::utility::ignore(r.create());
@@ -1807,9 +1686,7 @@ TEST_CASE("registry: destroy the entities a range-for collected, not inside it (
   CHECK(r.begin() == r.end());
 }
 
-TEST_CASE(
-  "registry: an on_destroy listener sees the entity dead under destroy and clear (ecs-06)"
-) {
+TEST_CASE("registry: an on_destroy listener sees the entity dead under destroy and clear") {
   auto r{registry{}};
   auto seen_valid{false};
   auto sibling_found{false};

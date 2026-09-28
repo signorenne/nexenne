@@ -49,9 +49,6 @@ struct score {
 auto main() -> int {
   auto reg{ecs::registry{}};
 
-  // 1. Wire all three signals for score and watch the firing order. We track
-  // a running total that stays correct purely by reacting: +points on construct,
-  // the delta on update, and -points on destroy. No system ever recomputes it.
   std::println("== 1. Construct / update / destroy order ==");
   int total{0};
 
@@ -62,8 +59,6 @@ auto main() -> int {
     })
   };
 
-  // on_update sees the value AFTER the change. We do not know the old value here,
-  // so this listener just reports; the patch below recomputes the total directly.
   [[maybe_unused]] auto on_change{
     reg.on_update<score>().connect([](ecs::entity_id const e, score const& s) noexcept {
       std::println("  update:    entity {} now {}", e.index(), s.points);
@@ -79,33 +74,23 @@ auto main() -> int {
 
   auto const a{reg.create()};
   auto const b{reg.create()};
-  reg.add<score>(a, {10});  // fires on_construct
-  reg.add<score>(b, {25});  // fires on_construct
+  reg.add<score>(a, {10});
+  reg.add<score>(b, {25});
 
-  // add over an existing component fires on_update, not on_construct. We adjust
-  // the running total ourselves around the replacement (the signal only reports).
-  total += 5;               // 10 -> 15
-  reg.add<score>(a, {15});  // fires on_update
+  total += 5;
+  reg.add<score>(a, {15});
 
-  // patch mutates in place and also fires on_update.
   reg.patch<score>(b, [&total](score& s) noexcept {
-    total += 5;  // 25 -> 30
+    total += 5;
     s.points += 5;
   });
   std::println("  total after edits: {}", total);
 
-  // 2. on_destroy fires for remove<T> and for destroy(entity) alike. The
-  // listener sees the live value one last time, so it can clean up correctly.
   std::println("== 2. on_destroy via remove and via destroy ==");
-  reg.remove<score>(a);  // fires on_destroy for a's score
-  reg.destroy(b);        // fires on_destroy for b's score, then frees b
+  reg.remove<score>(a);
+  reg.destroy(b);
   std::println("  final total: {} (back to zero)", total);
 
-  // 3. An observer index built entirely from signals. on_construct appends to a
-  // recently-spawned log and on_destroy could prune it; here we just collect the
-  // ids of every entity that ever gained a score. This is the pattern behind
-  // reactive systems, spatial indices, and dirty-tracking: the registry pushes
-  // changes to you, so you never scan the whole world to find what moved.
   std::println("== 3. A signal-built observer log ==");
   auto spawned_log{std::vector<ecs::entity_id>{}};
   [[maybe_unused]] auto observer{reg.on_construct<score>().connect(

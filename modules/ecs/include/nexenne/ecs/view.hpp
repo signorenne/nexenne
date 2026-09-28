@@ -135,10 +135,6 @@ private:
   using exclude_list = detail::type_list<Excludes...>;
   using includes_storage = std::tuple<component_storage<Includes>*...>;
   using excludes_storage = std::tuple<component_storage<Excludes>*...>;
-  // The driver is one of the heterogeneous include storages chosen at
-  // runtime (the one with the fewest slots), so its slot walk is reached
-  // through this captured function-pointer cursor rather than a typed call.
-  // Set once at construction by \c bind_driver; never null afterwards.
   using slot_count_fn = auto (*)(void const*) noexcept -> std::size_t;
   using is_live_fn = auto (*)(void const*, std::size_t) noexcept -> bool;
   using key_at_fn = auto (*)(void const*, std::size_t) noexcept -> std::uint32_t;
@@ -237,10 +233,7 @@ public:
    */
   template <typename Func>
   auto each(Func&& f) const noexcept(nothrow_each_v<Func>) -> void {
-    // Capture the slot count once: a slot appended by \p f during the loop
-    // lies beyond it and is not visited. Bound the walk by the current count
-    // as well: a registry::clear() in \p f empties the driver, whose old slots
-    // must then not be read.
+    // Both bounds: a slot f appends is skipped, and a clear() in f empties the driver.
     auto const count{m_driver_slot_count(m_driver)};
     for (auto slot{std::size_t{0}}; slot < count && slot < m_driver_slot_count(m_driver); ++slot) {
       if (!m_driver_is_live(m_driver, slot)) {
@@ -254,8 +247,7 @@ public:
         auto const gen{m_registry->generation_at(idx)};
         std::apply(
           [&f, idx, gen](auto*... s) noexcept(nothrow_each_v<Func>) {
-            // passes_filter ensures every include holds idx, so try_get
-            // never returns nullptr here.
+            // Never null: passes_filter checked that every include holds idx.
             f(entity_id{idx, gen}, (*s->try_get(idx))...);
           },
           m_includes
@@ -373,8 +365,7 @@ public:
       auto const gen{m_view->m_registry->generation_at(idx)};
       return std::apply(
         [idx, gen](auto*... s) noexcept -> value_type {
-          // advance_to_valid guarantees every include holds idx, so
-          // try_get never returns nullptr here.
+          // Never null: advance_to_valid checked that every include holds idx.
           return value_type{entity_id{idx, gen}, (*s->try_get(idx))...};
         },
         m_view->m_includes

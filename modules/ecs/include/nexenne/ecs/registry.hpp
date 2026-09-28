@@ -636,12 +636,6 @@ public:
     return m_on_destroy.as_sink();
   }
 
-  // These are public to allow the type-erased registry dispatch to
-  // fire signals without friending lambdas; user code should
-  // normally subscribe via the sinks above and let the registry
-  // mutate the storage. Directly calling these from outside the
-  // registry fires the listeners without the change they announce.
-
   /**
    * @brief Internal: fires the on-construct signal for (\p e, \p v).
    *
@@ -1058,8 +1052,6 @@ public:
       m_alive_indices.insert(idx);
       return entity_id{idx, m_generations[idx]};
     }
-    // Fresh indices come from the size of the generation array cast to
-    // index_type, so the slot count must stay within index_type.
     assert(
       m_generations.size() < std::numeric_limits<index_type>::max()
       && "registry entity index overflow"
@@ -1113,20 +1105,9 @@ public:
     if (!valid(e)) {
       return false;
     }
-    // Mark the slot not-alive before firing on_destroy so a listener that calls
-    // destroy(e) again re-enters valid() == false (valid() consults the alive
-    // set) and returns rather than recursing and pushing the index onto the free
-    // list twice. The generation bump and free-list push stay after the fire, so
-    // listeners still receive the live component reference.
+    // Dead before the fire, so a nested destroy(e) fails; the generation bumps after it.
     m_alive_indices.erase(e.index());
-    // For every storage that holds \p e, fire on_destroy with the live value,
-    // then erase. An on_destroy listener may register a new component type and
-    // grow m_storages, reallocating the entry table, so copy this entry's
-    // dispatch out before firing: the pointed-to storage objects are pinned, so
-    // the copied data pointer and function pointers stay valid across the fire
-    // even though a reference into m_storages would dangle. The loop is indexed
-    // up to the count captured here (not a range-for) so a reallocation does not
-    // invalidate it.
+    // Indexed, not range-for: a listener may register a type and reallocate m_storages.
     auto const storage_count{m_storages.size()};
     for (auto i{std::size_t{0}}; i < storage_count; ++i) {
       auto* const data{m_storages[i].data};
@@ -1150,8 +1131,7 @@ public:
         m_storages[i].erase_fn(data, e.index());
       }
     }
-    // Bump the generation so stale handles read invalid; step over 0 on
-    // wraparound so a recycled slot never mints the invalid generation-0 handle.
+    // Step over 0 on wraparound: generation 0 is the invalid handle.
     auto& generation{m_generations[e.index()]};
     ++generation;
     if (generation == 0) {
@@ -1275,7 +1255,7 @@ public:
     }
     auto& storage{ensure_storage<T>()};
     auto const inserted{storage.insert(e.index(), std::move(value))};
-    // try_get never returns nullptr right after a successful insert.
+    // Never null: insert either stored or replaced the component.
     auto* const stored{storage.try_get(e.index())};
     if (inserted) {
       storage.emit_construct(e, *stored);
@@ -1557,7 +1537,7 @@ public:
    */
   template <component... Cs>
   [[nodiscard]] auto all_of([[maybe_unused]] entity_id const e) const noexcept -> bool {
-    return (has<Cs>(e) && ...);  // empty pack: vacuously true, e then unused
+    return (has<Cs>(e) && ...);
   }
 
   /**
@@ -1578,7 +1558,7 @@ public:
    */
   template <component... Cs>
   [[nodiscard]] auto any_of([[maybe_unused]] entity_id const e) const noexcept -> bool {
-    return (has<Cs>(e) || ...);  // empty pack: vacuously false, e then unused
+    return (has<Cs>(e) || ...);
   }
 
   /**
@@ -1730,17 +1710,10 @@ public:
    *             and its sparse index.
    */
   auto clear() noexcept -> void {
-    // Fire on_destroy for every live component before tearing the storages down,
-    // so listeners observe each component exactly once (consistent with
-    // destroy). Snapshot the live indices, then empty the alive set before
-    // firing, as destroy marks its entity dead first: a nested destroy or
-    // remove on one of them then fails instead of firing a component's
-    // on_destroy again and erasing it under the listeners still to be handed
-    // it. A listener may also register a new component type and grow
-    // m_storages, so index the table and copy each dispatch out before firing.
     auto const live{index_vector{m_alive_indices.keys().begin(), m_alive_indices.keys().end()}};
     m_alive_indices.clear();
     for (auto const idx : live) {
+      // Indexed, not range-for: a listener may register a type and reallocate m_storages.
       auto const storage_count{m_storages.size()};
       for (auto i{std::size_t{0}}; i < storage_count; ++i) {
         auto* const data{m_storages[i].data};
@@ -1760,9 +1733,7 @@ public:
     for (auto i{std::size_t{0}}; i < m_generations.size(); ++i) {
       if (m_generations[i] != 0) {
         ++m_generations[i];
-        // Step over 0 on wraparound, like destroy: every slot is pushed to the
-        // free list below, so its generation must stay >= 1 or create() would
-        // mint an invalid (generation 0) handle.
+        // Step over 0 on wraparound: generation 0 is the invalid handle.
         if (m_generations[i] == 0) {
           m_generations[i] = 1;
         }
@@ -1770,8 +1741,7 @@ public:
     }
     m_free_indices.clear();
     m_free_indices.reserve(m_generations.size());
-    // Count with size_t (not index_type) so the loop terminates even if the
-    // slot count reaches the index-type maximum; indices fit index_type.
+    // A size_t counter: an index_type one never terminates at the index maximum.
     for (auto i{std::size_t{0}}; i < m_generations.size(); ++i) {
       m_free_indices.push_back(static_cast<index_type>(i));
     }

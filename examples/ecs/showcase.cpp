@@ -53,9 +53,6 @@ namespace ecs = nexenne::ecs;
 
 namespace {
 
-// Components are plain data: no methods, no inheritance, no vtables. Each is
-// stored in its own dense pool, so a system that only needs position pays for
-// position alone and never drags an asteroid's health through the cache.
 struct position {
   float x{};
   float y{};
@@ -74,33 +71,23 @@ struct radius {
   float r{};
 };
 
-// A bullet carries a countdown; when it reaches zero the bullet despawns.
 struct lifetime {
   int ticks_left{};
 };
 
-// Tag components are empty: they carry no data, only presence. Used as cheap
-// per-entity flags that views can require or exclude. std::is_empty_v is true,
-// so they cost a slot bit, not a payload.
-struct frozen {};  // excluded from the movement system
+struct frozen {};
 
-struct asteroid {};  // marks the big rocks
+struct asteroid {};
 
-struct ship {};  // marks the player-controlled craft
+struct ship {};
 
 }  // namespace
 
 auto main() -> int {
   auto reg{ecs::registry{}};
 
-  // 1. Spawn. An entity is born with create(), then composed by adding the
-  // components that define what it is. Two entities can share component types
-  // without sharing a class: a ship and an asteroid both have position, but only
-  // the ship is tagged ship, only the rock is tagged asteroid. Composition, not
-  // a rigid inheritance tree, decides behaviour.
   std::println("== 1. Spawn ==");
 
-  // The lone ship: it has health, a body radius, and starts drifting right.
   auto const player{reg.create()};
   reg.add<position>(player, {0.0F, 0.0F});
   reg.add<velocity>(player, {1.5F, 0.0F});
@@ -108,7 +95,6 @@ auto main() -> int {
   reg.add<radius>(player, {1.0F});
   reg.add<ship>(player, {});
 
-  // Three asteroids on a collision course toward the origin.
   auto rocks{std::vector<ecs::entity_id>{}};
   constexpr std::array<position, 3> rock_start{
     position{6.0F, 0.0F},
@@ -130,32 +116,20 @@ auto main() -> int {
     rocks.push_back(e);
   }
 
-  // One frozen debris chunk: it has position and velocity like the rest, but the
-  // frozen tag holds it out of the movement system. Same components, different
-  // behaviour, decided by a tag rather than a subclass override.
   auto const debris{reg.create()};
   reg.add<position>(debris, {2.0F, 3.0F});
-  reg.add<velocity>(debris, {9.0F, 9.0F});  // would fly off, but it is frozen
+  reg.add<velocity>(debris, {9.0F, 9.0F});
   reg.add<frozen>(debris, {});
 
   std::println("  spawned 1 ship, {} asteroids, 1 frozen debris", rocks.size());
   std::println("  alive entities: {}", reg.alive());
 
-  // A despawn log, wired once. on_destroy<health> fires just before a health
-  // component is torn down, whether by remove<health> or by destroy(entity). A
-  // system never has to poll for deaths: it reacts to the signal. The returned
-  // connection is kept alive for the program's duration.
   [[maybe_unused]] auto death_log{
     reg.on_destroy<health>().connect([](ecs::entity_id const e, health const& h) noexcept {
       std::println("  [signal] entity {} died with hp {}", e.index(), h.hp);
     })
   };
 
-  // 2. Movement system. view<position, velocity>() visits exactly the entities
-  // that carry both, and .exclude<frozen>() drops the held-in-place debris. The
-  // view drives off the smaller of the two storages and walks it densely, so the
-  // hot loop is a tight pass over packed data, not a pointer chase through a
-  // heterogeneous object list. The callback mutates position and reads velocity.
   auto const movement_step{[&reg]() noexcept {
     reg.view<position, velocity>().exclude<frozen>().each(
       [](position& p, velocity const& v) noexcept {
@@ -165,13 +139,6 @@ auto main() -> int {
     );
   }};
 
-  // 3. Collision and damage. For each ship-asteroid pair we test whether their
-  // bodies overlap (distance < sum of radii) and, if so, subtract health from
-  // both. Two views compose here: the outer walk ranges over ships and the inner
-  // over asteroids, so each ship's data is fetched once and reused across the
-  // inner pass. Because we mutate health (a third storage) and not the storages
-  // being iterated, the pointer-stable pools keep every reference the views
-  // handed us valid.
   auto const collision_step{[&reg]() noexcept {
     reg.view<position, radius, health, ship>().each(
       [&reg](position const& sp, radius const& sr, health& sh, ship&) noexcept {
@@ -181,8 +148,8 @@ auto main() -> int {
             auto const dy{ap.y - sp.y};
             auto const reach{sr.r + ar.r};
             if (dx * dx + dy * dy < reach * reach) {
-              sh.hp -= 10;  // the ship is dented
-              ah.hp -= 30;  // the rock is shattered
+              sh.hp -= 10;
+              ah.hp -= 30;
             }
           }
         );
@@ -190,14 +157,6 @@ auto main() -> int {
     );
   }};
 
-  // 4. Reaping. Anything whose health dropped to zero or below is destroyed.
-  // Destroying inside the view loop is safe (the storage is pointer-stable), but
-  // we use the classic deferred discipline: collect the doomed in one pass and
-  // destroy them in a second, keeping the reaping decision and the structural
-  // change separate and easy to reason about. destroy() fires on_destroy for
-  // every component the entity holds, then frees its slot for recycling, so all
-  // of an entity's parts leave together with no manual teardown per component
-  // type.
   auto const reap_step{[&reg]() noexcept -> int {
     auto doomed{std::vector<ecs::entity_id>{}};
     reg.view<health>().each([&doomed](ecs::entity_id const e, health const& h) noexcept {
@@ -211,10 +170,6 @@ auto main() -> int {
     return static_cast<int>(doomed.size());
   }};
 
-  // 5. Run the world for several frames. Each tick is just a fixed sequence of
-  // systems; the scheduler is a plain list of calls in dependency order
-  // (move, then collide, then reap). No central update() dispatch, no virtual
-  // calls: the order is explicit and easy to reason about.
   std::println("== 2-5. Simulation ==");
   constexpr int frames{6};
   for (int frame{0}; frame < frames; ++frame) {
@@ -224,10 +179,6 @@ auto main() -> int {
     std::println("  frame {}: alive {:2}  (reaped {})", frame, reg.alive(), reaped);
   }
 
-  // 6. Reporting through queries. The fluent query() builder accumulates include
-  // and exclude filters at compile time, then runs each() over the match set. We
-  // count survivors by kind and read out the player's final state. Every filter
-  // is a type, so a typo is a compile error, not a silent empty result.
   std::println("== 6. Survivors ==");
 
   int ships_left{0};
@@ -243,19 +194,12 @@ auto main() -> int {
   reg.query().with<asteroid>().each([&rocks_left](asteroid&) noexcept { ++rocks_left; });
   std::println("  asteroids remaining: {}", rocks_left);
 
-  // The frozen debris never moved: query for it and confirm. with<frozen>() and
-  // get<position> together prove the movement system skipped it.
   reg.query().with<position>().with<frozen>().each(
     [](ecs::entity_id const e, position const& p, frozen&) noexcept {
       std::println("  frozen debris {} still at ({:.1f}, {:.1f})", e.index(), p.x, p.y);
     }
   );
 
-  // 7. Lifecycle: a bullet that despawns itself. This shows the add / patch /
-  // destroy flow and generation-safe handles independent of the big sim. We fire
-  // a bullet, tick its lifetime down with patch<lifetime>, and when it expires
-  // destroy the entity; that bumps its slot generation, so the stale handle then
-  // reads as invalid.
   std::println("== 7. Bullet lifecycle ==");
   auto const bullet{reg.create()};
   reg.add<position>(bullet, {0.0F, 0.0F});
@@ -267,7 +211,7 @@ auto main() -> int {
     reg.patch<lifetime>(bullet, [](lifetime& l) noexcept { l.ticks_left -= 1; });
     auto const l{reg.get<lifetime>(bullet)};
     if (l && l->get().ticks_left <= 0) {
-      reg.destroy(bullet);  // bumps the slot generation, invalidating the handle
+      reg.destroy(bullet);
       expired = true;
     }
   }
