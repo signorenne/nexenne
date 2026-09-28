@@ -146,7 +146,7 @@ private:
   registry* m_registry{nullptr};
   includes_storage m_includes{};
   excludes_storage m_excludes{};
-  void const* m_driver{nullptr};
+  void const* m_driver{nullptr};  ///< Fewest-slot include storage, set by \c bind_driver.
   slot_count_fn m_driver_slot_count{nullptr};
   is_live_fn m_driver_is_live{nullptr};
   key_at_fn m_driver_key_at{nullptr};
@@ -154,7 +154,7 @@ private:
   template <typename Func>
   static constexpr auto wants_entity_id_v = std::is_invocable_v<Func&, entity_id, Includes&...>;
 
-  // Whether \c each's callback cannot throw, in whichever form it takes.
+  /// @brief Whether \c each's callback cannot throw, in whichever form it takes.
   template <typename Func>
   static constexpr auto nothrow_each_v =
     wants_entity_id_v<Func> ? std::is_nothrow_invocable_v<Func&, entity_id, Includes&...>
@@ -275,29 +275,29 @@ public:
    * Dereferences to a \c value_type tuple of (entity, component
    * references). Filter-aware: construction and each increment skip
    * forward to the next matching driver entry.
+   *
+   * It is an input iterator because \c operator* returns that tuple by value:
+   * the tuple holds component references but is itself a prvalue, and a
+   * forward iterator needs an lvalue \c reference.
+   *
+   * The walk is bounded by the driver slot count captured at construction,
+   * not a live re-read, so a slot appended during iteration stays out of range
+   * and the iterator still terminates at \c end(). Reaching that count is what
+   * makes an iterator the end, so it also compares equal to an \c end()
+   * re-read after the driver grew.
    */
   class iterator {
   public:
-    using value_type = basic_view::value_type;  ///< Yielded (entity, components) tuple.
-    using reference = value_type;               ///< Yielded by value: a proxy tuple.
-    using difference_type = std::ptrdiff_t;     ///< Required by the iterator concept.
-    // Input-iterator: \c operator* returns a tuple by value (the
-    // tuple holds component references, but the tuple itself is
-    // a prvalue). True forward-iterator semantics would require
-    // \c reference to be an lvalue type, which the proxy pattern
-    // does not provide.
+    using value_type = basic_view::value_type;          ///< Yielded (entity, components) tuple.
+    using reference = value_type;                       ///< Yielded by value: a proxy tuple.
+    using difference_type = std::ptrdiff_t;             ///< Required by the iterator concept.
     using iterator_category = std::input_iterator_tag;  ///< Input-iterator category.
     using iterator_concept = std::input_iterator_tag;   ///< Input-iterator concept.
 
   private:
     basic_view const* m_view{nullptr};
     std::size_t m_pos{0};
-    // Slot count captured at construction. Bounding advance by this fixed
-    // value (rather than a live re-read) keeps a slot appended during
-    // iteration out of range, so the iterator still terminates at \c end().
-    // Reaching it is what makes an iterator the end, so it also compares equal
-    // to an \c end() re-read after the driver grew.
-    std::size_t m_count{0};
+    std::size_t m_count{0};  ///< Driver slot count captured at construction; bounds the walk.
 
     /**
      * @brief Advances the cursor to the next matching driver slot.

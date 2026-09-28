@@ -3,11 +3,16 @@
  * @brief A tiny ECS simulation: a movement system over a multi-component view
  *        with an exclude tag, plus a lifecycle signal and entity recycling.
  *
- * Spawns a handful of entities with position and velocity, freezes one with a
- * tag component, integrates the non-frozen ones each step through a
- * view<position, velocity>().exclude<frozen>(), watches despawns via the
- * on_destroy<position> signal, and destroys one entity to show that every
- * component goes with it.
+ * Spawns a handful of entities and walks them through a short run:
+ *
+ *   1. An on_destroy<position> listener reports every despawn, whether it comes
+ *      from destroy or from remove.
+ *   2. Five entities get position and velocity; entity 2 is tagged frozen.
+ *   3. A movement system integrates the non-frozen ones for three steps through
+ *      view<position, velocity>().exclude<frozen>(), driven by the smaller
+ *      storage.
+ *   4. Destroying an entity fires the listener, drops every component it holds
+ *      and frees its index for recycling.
  */
 
 #include <print>

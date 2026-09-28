@@ -267,18 +267,19 @@ iterate one component type        chunked, cache-friendly (skips tombstones)
 #+END_EXAMPLE
 
 =destroy= is =O(C)= because it must check every registered storage for the
-entity's components. The operations that run your code are =noexcept= only
-when that code is: =add= when the component's move constructor and move
-assignment are, =patch= when the mutator is, and =each= (on the registry, a
-view or a query) when the callback is, so a throwing one propagates instead of
+entity's components. The operations that run your code are =noexcept= only when
+that code is: =add= when the component's move constructor and move assignment
+are, =patch= when the mutator is, and =each= (on the registry, a view or a
+query) when the callback is, so a throwing one propagates instead of
 terminating. A listener that throws still terminates, since the lifecycle
 signals' =emit= is =noexcept=. A stale or out-of-range handle gets an error
 value back (=false=, or =container::container_error::not_found=) rather than
 touching another entity's data; breaking a documented precondition, such as
 destroying entities while iterating the registry or destroying the entity a
-listener is handed, is still undefined behaviour. Allocation failure terminates rather than throwing,
-the library-wide policy for an embeddable target. Threading is the standard
-convention: concurrent reads are safe, concurrent mutation is not.
+listener is handed, is still undefined behaviour. Allocation failure terminates
+rather than throwing, the library-wide policy for an embeddable target.
+Threading is the standard convention: concurrent reads are safe, concurrent
+mutation is not.
 
 ** Constraints to respect
 

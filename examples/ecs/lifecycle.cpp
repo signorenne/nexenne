@@ -5,9 +5,15 @@
  *
  * No simulation here, just the bookkeeping primitives every ECS leans on:
  *
- *   1. create() mints a live handle; valid() reports liveness.
- *   2. add / has / get / remove manage a component on an entity.
- *   3. patch mutates a component in place and fires on_update.
+ *   1. create() mints a live handle; valid() reports liveness. A
+ *      default-constructed handle (generation 0) is never valid, and the
+ *      entity_id formatter prints a handle as entity(index, generation).
+ *   2. add / has / get / remove manage a component on an entity. add returns
+ *      true for a new component and false for a replacement; get yields a
+ *      reference wrapper or container::container_error, never a null pointer.
+ *      all_of / any_of fold several has checks, tag components included.
+ *   3. patch mutates a component in place and fires on_update, whose
+ *      listener sees the value after the mutation.
  *   4. destroy() tears down every component and bumps the generation, so a
  *      stale handle to a recycled slot reads as invalid (no dangling ids).
  *   5. clear() wipes everything and invalidates all outstanding handles.

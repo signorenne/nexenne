@@ -8,12 +8,28 @@
  * and drives the world with a handful of systems that each read and write only
  * the components they care about:
  *
- *   1. Spawn      -> create() entities, add<> position / velocity / health /...
- *   2. Movement   -> view<position, velocity>(), excluding frozen things.
- *   3. Lifetime   -> patch<> a countdown, despawn at zero via on_destroy signal.
- *   4. Collision  -> a view pass that subtracts health on overlap.
- *   5. Reaping    -> destroy() entities whose health hit zero.
- *   6. Reporting  -> queries that count and inspect the survivors.
+ *   1. Spawn      -> create() entities and compose them from components: a ship
+ *                    and an asteroid share position but differ by tag, and a
+ *                    frozen tag holds a debris chunk still. An on_destroy<health>
+ *                    listener logs every death, so no system polls for them.
+ *   2. Movement   -> view<position, velocity>().exclude<frozen>(), driven by the
+ *                    smaller storage and walked densely.
+ *   3. Collision  -> nested ship and asteroid views subtract health when two
+ *                    bodies overlap (distance below the sum of radii); health is
+ *                    a third storage, so the views' references stay valid.
+ *   4. Reaping    -> collect the entities whose health hit zero, then destroy()
+ *                    them in a second pass; destroy fires on_destroy for every
+ *                    component and recycles the slot.
+ *   5. Frames     -> each tick is a plain list of systems in dependency order:
+ *                    move, collide, reap.
+ *   6. Reporting  -> query() counts the survivors by kind and confirms the
+ *                    frozen debris never moved.
+ *   7. Lifetime   -> a bullet ticks down with patch<lifetime> and is destroyed
+ *                    at zero, after which its stale handle reads as invalid.
+ *
+ * Components are plain data, each in its own pool, so a system that needs only
+ * position never drags health through the cache. Tag components (frozen,
+ * asteroid, ship) are empty structs: presence alone is the flag.
  *
  * The running theme is data-oriented composition. In an OOP object graph you
  * would write a GameObject base class, derive Ship and Asteroid, and bury the

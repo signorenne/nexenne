@@ -5,12 +5,19 @@
  *
  * Views are the read/write half of an ECS: a system declares which components
  * it touches and the view hands it exactly those, for exactly the entities that
- * carry them. This file builds one small population and looks at it five ways:
+ * carry them. This file builds one small population (4 movers with position and
+ * velocity, one of them tagged sleeping, plus 2 position-only statics) and looks
+ * at it five ways:
  *
- *   1. Single-component view  -> the densest, fastest pass.
- *   2. Multi-component view   -> the intersection of two storages.
- *   3. Exclude filter         -> set difference via .exclude<>().
- *   4. Fluent query builder   -> .with<> / .without<> / .each<>.
+ *   1. Single-component view  -> the densest, fastest pass; it also visits the
+ *      statics, and the entity-id callback form is picked when the lambda
+ *      takes one.
+ *   2. Multi-component view   -> the intersection of two storages, one
+ *      reference per include: write position, read velocity.
+ *   3. Exclude filter         -> set difference via .exclude<>(), one O(1)
+ *      membership test per candidate.
+ *   4. Fluent query builder   -> .with<> / .without<> / .each<>; the filter
+ *      set is part of the type, so a typo does not compile.
  *   5. Range-for over a view  -> structured bindings, same match set.
  *
  * The view always drives off the SMALLEST include storage, so a view over a

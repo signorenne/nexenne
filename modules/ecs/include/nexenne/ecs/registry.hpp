@@ -151,9 +151,12 @@ class typed_query_builder;
  */
 class entity_id {
 public:
-  using value_type = entity_id;           ///< Self-typed, as the handle is its own element type.
-  using index_type = std::uint32_t;       ///< Slot index into the registry's per-entity arrays.
-  using generation_type = std::uint32_t;  ///< Recycle counter distinguishing reuses of an index.
+  /// @brief Self-typed, as the handle is its own element type.
+  using value_type = entity_id;
+  /// @brief Slot index into the registry's per-entity arrays.
+  using index_type = std::uint32_t;
+  /// @brief Recycle counter distinguishing reuses of an index.
+  using generation_type = std::uint32_t;
 
 private:
   index_type m_index{};  ///< Position in the registry; meaningful only with a matching generation.
@@ -260,10 +263,12 @@ public:
 template <typename T>
 class component_storage {
 public:
-  using value_type = T;  ///< Component type stored per entity index.
-  using pool_type =
-    detail::component_pool<T>;  ///< Pointer-stable backing pool keyed by entity index.
-  using size_type = typename pool_type::size_type;  ///< Count and slot-index type.
+  /// @brief Component type stored per entity index.
+  using value_type = T;
+  /// @brief Pointer-stable backing pool keyed by entity index.
+  using pool_type = detail::component_pool<T>;
+  /// @brief Count and slot-index type.
+  using size_type = typename pool_type::size_type;
   /// @brief Range over the live components, yielded by \c values() (mutable).
   using value_range = detail::pool_value_range<pool_type>;
   /// @brief Range over the live components, yielded by \c values() (const).
@@ -280,10 +285,7 @@ private:
   signal_type m_on_construct{};
   signal_type m_on_update{};
   signal_type m_on_destroy{};
-  // Entity indices whose component a registry::remove is firing on_destroy for
-  // and erases once the signal returns, innermost last: a listener may remove
-  // another entity's component in turn. A nested registry::clear leaves them.
-  container::small_vector<key_type, 2> m_removing{};
+  container::small_vector<key_type, 2> m_removing{};  ///< Indices mid-remove, innermost last.
 
 public:
   /**
@@ -650,8 +652,11 @@ public:
    *       inserted for \p e; \p v refers to that stored component.
    * @post Every connected on-construct listener has run.
    *
-   * @warning Internal entry point. Calling this directly from user
-   *          code breaks the registry's before/after invariants.
+   * @warning Internal entry point, public only so the type-erased registry
+   *          dispatch can fire signals without friending lambdas; subscribe
+   *          through the sinks instead. Calling this directly from user code
+   *          fires the listeners without the change they announce and breaks
+   *          the registry's before/after invariants.
    */
   auto emit_construct(entity_id const e, T& v) noexcept -> void {
     m_on_construct.emit(e, v);
@@ -691,6 +696,9 @@ public:
 
   /**
    * @brief Internal: marks \p key's component as being removed.
+   *
+   * Removals nest, innermost last: an on-destroy listener may remove another
+   * entity's component in turn. The marks are erased once each signal returns.
    *
    * @param key Entity index whose component \c registry::remove is about to
    *            fire on-destroy for.
@@ -783,7 +791,8 @@ struct erased_storage {
    * @brief Fires the typed on-destroy signal for an entity's component.
    *
    * The registry calls it before \c erase_fn, once \c contains_fn has found
-   * the component.
+   * the component. It skips a component a \c registry::remove is already
+   * firing for, since that one already had its on-destroy.
    */
   auto (*fire_on_destroy_fn)(void*, entity_id) noexcept -> void{nullptr};
 };
@@ -856,8 +865,10 @@ template <typename T>
  */
 class registry {
 public:
-  using index_type = entity_id::index_type;            ///< Slot index type for per-entity arrays.
-  using generation_type = entity_id::generation_type;  ///< Recycle-counter type per slot.
+  /// @brief Slot index type for per-entity arrays.
+  using index_type = entity_id::index_type;
+  /// @brief Recycle-counter type per slot.
+  using generation_type = entity_id::generation_type;
 
 private:
   using generation_vector = std::vector<generation_type>;  ///< Per-slot generation counters.
@@ -868,9 +879,7 @@ private:
 
   generation_vector m_generations{};
   index_vector m_free_indices{};
-  // Dense set of live entity indices. Size doubles as the alive
-  // count and the iteration list backs \c begin() / \c end().
-  index_set m_alive_indices{};
+  index_set m_alive_indices{};  ///< Live indices; its size is \c alive(), it backs iteration.
   storage_table m_storages{};
 
   /**
@@ -1782,11 +1791,16 @@ public:
    */
   class iterator {
   public:
-    using value_type = entity_id;                       ///< Yielded element type.
-    using reference = entity_id;                        ///< Yielded by value; a handle is cheap.
-    using difference_type = std::ptrdiff_t;             ///< Required by the iterator concept.
-    using iterator_category = std::input_iterator_tag;  ///< Input-iterator category.
-    using iterator_concept = std::input_iterator_tag;   ///< Input-iterator concept.
+    /// @brief Yielded element type.
+    using value_type = entity_id;
+    /// @brief Yielded by value; a handle is cheap.
+    using reference = entity_id;
+    /// @brief Required by the iterator concept.
+    using difference_type = std::ptrdiff_t;
+    /// @brief Input-iterator category.
+    using iterator_category = std::input_iterator_tag;
+    /// @brief Input-iterator concept.
+    using iterator_concept = std::input_iterator_tag;
 
   private:
     registry const* m_registry{nullptr};

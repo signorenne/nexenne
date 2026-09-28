@@ -13,7 +13,17 @@
  *
  * Reacting to these instead of polling is what keeps systems decoupled: an index
  * or a counter can stay in sync with the world without any system knowing it
- * exists. This file demonstrates two such reactions and the exact firing order.
+ * exists. This file demonstrates two such reactions and the exact firing order:
+ *
+ *   1. A running score total kept by reacting: +points on construct, -points on
+ *      destroy. on_update sees only the value after the change, not the old
+ *      one, so it just reports and the replacement and the patch adjust the
+ *      total themselves.
+ *   2. on_destroy fires for remove<T> and for destroy(e) alike, handing the
+ *      listener the live value one last time.
+ *   3. An observer log built from on_construct alone: the pattern behind
+ *      reactive systems, spatial indices and dirty-tracking, where the registry
+ *      pushes changes instead of a system rescanning the world.
  *
  * Connections own the subscription: keep the returned connection alive for as
  * long as you want the callback to run, and drop it to unsubscribe. Read it top

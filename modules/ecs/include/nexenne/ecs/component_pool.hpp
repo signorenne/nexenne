@@ -362,6 +362,13 @@ public:
    *
    * Holds a slot cursor that advances past tombstones on construction and on
    * every increment, so dereferencing always yields a live component.
+   *
+   * Like \c basic_view::iterator, the walk is bounded by the slot count
+   * captured at construction, not a live re-read, so a slot appended during
+   * iteration stays out of range and the cursor never passes the \c end()
+   * position to null-deref a freshly tombstoned slot. Reaching that count is
+   * what makes an iterator the end, so it also compares equal to an \c end()
+   * re-read after the pool grew.
    */
   class iterator {
   public:
@@ -374,13 +381,7 @@ public:
   private:
     pool_type* m_pool{nullptr};
     size_type m_slot{0};
-    // Slot count captured at construction. Bounding advance by this fixed value
-    // (rather than a live re-read) keeps a slot appended during iteration out of
-    // range, so the cursor can never pass the end() position and null-deref a
-    // freshly tombstoned slot. This mirrors basic_view::iterator's m_count.
-    // Reaching it is what makes an iterator the end, so it also compares equal
-    // to an end() re-read after the pool grew.
-    size_type m_count{0};
+    size_type m_count{0};  ///< Slot count captured at construction; bounds the walk.
 
     /**
      * @brief Advances the cursor to the next live slot.
