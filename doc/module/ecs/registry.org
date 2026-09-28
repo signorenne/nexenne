@@ -228,7 +228,7 @@ The firing rules are precise:
   it), destroys everything else, and =remove<T>= still erases the component
   and returns =true=.
 
-** Printing entity handles
+** Printing handles and summaries
 
 Include =nexenne/ecs/format.hpp= (also pulled in by the umbrella) to print an
 =entity_id= with no hand-written helper. It ships the usual three layers: a
@@ -239,6 +239,13 @@ default (invalid) handle prints as =entity(invalid)=. The formatter inherits the
 =string_view= formatter, so width and alignment specs apply to the whole
 rendering. Keep this header out of hot or widely-included code: =<format>= is
 heavy, so formatting is opt-in.
+
+The same header gives the stateful types a one-line summary: a =registry=
+prints =registry(alive=2)=, a =component_storage<T>= prints
+=component_storage(size=1, slots=2)= (live components, then live slots plus
+tombstones), and a query builder prints =query(with=2, without=1)=. A view is
+an input range, so the standard range formatter prints its matches when every
+component type is formattable.
 
 * When to use it
 
