@@ -438,4 +438,54 @@ TEST_CASE("gjk: a too-small iteration cap does not misreport separated shapes as
   CHECK(r.distance == doctest::Approx(0.5).epsilon(1e-3));
 }
 
+TEST_CASE("gjk: off-axis overlapping spheres report overlap (geometry-01)") {
+  // The closest point reaches the origin only to rounding, so the search
+  // direction is noise; the old loop ran its separating-axis test on it and
+  // reported these unit spheres, 0.5 deep, as apart at a distance of 4e-16.
+  geo::sphere3_d const a{nm::vector<double, 3>{0, 0, 0}, 1.0};
+  geo::sphere3_d const b{nm::vector<double, 3>{1.5, 0.1, 0}, 1.0};
+  auto const r{geo::gjk(a, b, b.center() - a.center())};
+  CHECK(r.overlap);
+  CHECK(r.distance == 0.0);
+}
+
+template <typename Real>
+auto gjk_sphere_misclassified(Real const scale) -> int {
+  using v3 = nm::vector<Real, 3>;
+  auto rng{std::mt19937{42}};  // NOLINT(cert-msc32-c,cert-msc51-cpp)
+  auto u{std::uniform_real_distribution<double>{-1.0, 1.0}};
+  auto const coord{[&] { return static_cast<Real>(u(rng) * static_cast<double>(scale)); }};
+  auto const radius{[&] {
+    return static_cast<Real>((u(rng) + 1.2) * 0.3 * static_cast<double>(scale));
+  }};
+  auto wrong{0};
+  for (auto i{0}; i < 2000; ++i) {
+    auto const c1{v3{coord(), coord(), coord()}};
+    auto const c2{v3{coord(), coord(), coord()}};
+    auto const r1{radius()};
+    auto const r2{radius()};
+    auto const gap{
+      std::sqrt(static_cast<double>(nm::length_squared(c2 - c1))) - static_cast<double>(r1)
+      - static_cast<double>(r2)
+    };
+    if (std::abs(gap) <= 1e-3 * static_cast<double>(scale)) {
+      continue;
+    }
+    auto const r{geo::gjk(geo::sphere3<Real>{c1, r1}, geo::sphere3<Real>{c2, r2}, c2 - c1)};
+    if (r.overlap != (gap < 0.0)) {
+      ++wrong;
+    }
+  }
+  return wrong;
+}
+
+TEST_CASE("gjk: random sphere pairs are classified right in float and double (geometry-01)") {
+  // About 6% of these pairs (41% of the overlapping ones) were reported apart.
+  for (auto const scale : {1e-2, 1.0, 1e4}) {
+    CAPTURE(scale);
+    CHECK(gjk_sphere_misclassified<double>(scale) == 0);
+    CHECK(gjk_sphere_misclassified<float>(static_cast<float>(scale)) == 0);
+  }
+}
+
 }  // namespace

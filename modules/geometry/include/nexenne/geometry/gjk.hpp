@@ -45,6 +45,7 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <limits>
 
 #include <nexenne/geometry/concepts.hpp>
 #include <nexenne/math/scalar.hpp>
@@ -489,10 +490,17 @@ template <std::floating_point Real>
  * along the current search direction, folds the Minkowski-difference vertex into
  * the simplex, and lets \c detail::signed_volumes find the closest point of the
  * simplex to the origin and shrink the simplex to its minimal support set. It
- * stops when the origin is enclosed (overlap), when a support point cannot move
- * the closest point any nearer the origin (separated, distance found), or when the
- * iteration cap is hit. On overlap the terminal simplex is a tetrahedron for EPA;
- * when apart the result carries the distance and the closest point on each shape.
+ * stops when the origin is enclosed (overlap), when the closest point reaches
+ * the origin to within rounding (touching or overlapping), when a support
+ * point cannot move the closest point any nearer the origin (separated,
+ * distance found), or when the iteration cap is hit. On overlap the terminal
+ * simplex is a tetrahedron for EPA; when apart the result carries the distance
+ * and the closest point on each shape.
+ *
+ * The closest point counts as the origin once it is within 16 machine epsilons
+ * of the largest simplex vertex magnitude, or within 1e-10 in world units,
+ * whichever is larger: below that its direction is rounding noise. So two
+ * shapes closer than that report \c overlap, as a touching contact.
  *
  * @tparam Real Floating-point component type, deduced from \p initial_direction.
  * @tparam ShapeA First shape type; must satisfy \c convex_shape.
@@ -526,14 +534,16 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   using vector_type = nexenne::math::vector<Real, 3>;
   using point_type = gjk_minkowski_point3<Real>;
 
-  // Below this squared distance the closest point is taken to be the origin: the
-  // simplex touches it, so the shapes overlap (a touching contact). This one floor
-  // is absolute (not scaled by the shape extent): it is the squared distance at
-  // which a difference point is indistinguishable from the origin in Real, so a
-  // separation smaller than its square root (~1e-10 for float, in world units) is
-  // reported as a touching contact. That is acceptable because the two relative
-  // tests below already classify any separation that matters at the shapes' scale.
+  // Below this squared distance the closest point is taken to be the origin:
+  // the simplex touches it, so the shapes overlap (a touching contact). The
+  // absolute floor (~1e-10 in world units) covers tiny shapes; the relative one
+  // covers the rest. The reduction blends vertices as long as sqrt(scale_sq),
+  // so its closest point carries an error of a few ulps of that length: within
+  // 16 epsilon of it, -closest is rounding noise, not a direction, and a
+  // support along it can fail the separating-axis test on shapes that overlap.
   auto const touch_sq{static_cast<Real>(1e-20)};
+  auto const noise{std::numeric_limits<Real>::epsilon() * Real{16}};
+  auto const noise_sq{noise * noise};
   // Relative no-progress threshold. It multiplies a squared scale (the largest
   // vertex magnitude seen, or the current squared distance) so the duplicate and
   // convergence tests read as "within ~1e-5 of the shape extent", staying
@@ -562,16 +572,26 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   // Largest squared vertex magnitude seen, the scale the relative tests use.
   auto scale_sq{nexenne::math::length_squared(closest)};
 
-  // Overlap is decided by whether a separating axis is ever found: a single
-  // support that fails to reach the origin proves the shapes are apart. The loop
-  // runs until the closest point stops moving toward the origin (distance
-  // converged) or the origin is enclosed (the fast tetrahedron path).
+  // Overlap is decided by whether a separating axis is ever found: a support
+  // that fails to reach the origin along a direction above the rounding floor
+  // proves the shapes are apart. The loop runs until the closest point reaches
+  // the origin (touching), stops moving toward it (distance converged), or the
+  // origin is enclosed (the fast tetrahedron path).
   auto separated{false};
   auto stopped{false};  // true when the loop broke on convergence (not cap exhaustion).
   for (auto iter{std::size_t{0}}; iter < max_iterations; ++iter) {
     result.iterations = iter + 1;
 
     auto const dist_sq{nexenne::math::length_squared(closest)};
+
+    // Touch test first, before any support is taken along -closest: once the
+    // closest point is within the rounding floor of the origin, the origin lies
+    // on the simplex to working precision, and the search direction below would
+    // be noise that can fake a separating axis.
+    if (dist_sq <= nexenne::math::max(touch_sq, noise_sq * scale_sq)) {
+      stopped = true;
+      break;
+    }
 
     // Search toward the origin from the current closest point.
     direction = -closest;
@@ -585,9 +605,9 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     }
 
     // Stop when the support repeats a simplex vertex (no new information, so the
-    // origin lies on the simplex: an overlap), when the closest point has reached
-    // the origin, or when the support can no longer push it nearer (the distance
-    // has converged): the last is |v| - dot(v, w)/|v| <= rel_tol * |v|.
+    // origin lies on the simplex: an overlap), or when the support can no
+    // longer push the closest point nearer (the distance has converged): the
+    // last is |v| - dot(v, w)/|v| <= rel_tol * |v|.
     // Classification uses the separating-axis flag, not these floors, so a
     // convergence stop never misjudges overlap; only a cap-exhaustion stop, which
     // proves nothing, needs the conservative post-loop check below.
@@ -598,8 +618,7 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
         duplicate = true;
       }
     }
-    if (dist_sq <= touch_sq || duplicate
-        || dist_sq - nexenne::math::dot(closest, w.difference) <= rel_tol * dist_sq) {
+    if (duplicate || dist_sq - nexenne::math::dot(closest, w.difference) <= rel_tol * dist_sq) {
       stopped = true;
       break;
     }

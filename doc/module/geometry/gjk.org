@@ -70,9 +70,13 @@ repeats:
 1. Find =v=, the point of the current simplex closest to the origin, and reduce
    the simplex to the smallest sub-simplex that carries =v= (the signed-volumes
    subalgorithm below).
-2. Search along =d = -v= (from the closest point toward the origin) for a new
+2. If =v= has reached the origin to within rounding, stop: the shapes touch or
+   overlap. The floor is 16 machine epsilons of the largest simplex vertex, or
+   =1e-10= in world units, whichever is larger. This test comes first because
+   below it =-v= is rounding noise, not a direction.
+3. Search along =d = -v= (from the closest point toward the origin) for a new
    support point =w= of =A (-) B=.
-3. If =w= does not pass the origin (=dot(w, d) < 0=), that direction *separates*
+4. If =w= does not pass the origin (=dot(w, d) < 0=), that direction *separates*
    the shapes: they cannot overlap. If =w= adds no progress (it repeats a vertex
    or cannot move the closest point nearer), the distance has *converged*. Either
    way, stop; otherwise add =w= and loop.
@@ -127,8 +131,10 @@ whatever simplex carried the origin.
 
 ** Termination
 
-GJK stops when a probe finds no further progress (the closest point has converged,
-or the support repeats a vertex), or when the origin is enclosed in a tetrahedron.
+GJK stops when the closest point reaches the origin to within rounding (a
+touching contact), when a probe finds no further progress (the closest point has
+converged, or the support repeats a vertex), or when the origin is enclosed in a
+tetrahedron. Shapes closer than the rounding floor therefore report =overlap=.
 A hard iteration cap (default 32) guards against non-termination on degenerate
 input. When a real stop fires, the overlap verdict is the separating-axis flag.
 When instead the cap is exhausted with neither a separating direction nor a
