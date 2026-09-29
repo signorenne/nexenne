@@ -55,6 +55,13 @@ outside the polygon and leaves its signed area:
 A polygon of fewer than three vertices returns zero. =area= is just the absolute
 value, and the *sign* doubles as a winding test.
 
+The sum is the same from any reference point, so the code takes the edges
+relative to the first vertex rather than the coordinate origin. From the origin
+each term grows with the polygon's distance squared while the area does not, and
+the terms cancel the area away: a float unit square at =(1e4, 1e4)= would have
+an area of zero, and a double one at =1e8= too. =centroid= uses the same
+relative coordinates and adds the first vertex back.
+
 ** Perimeter and the area-weighted centroid
 
 =perimeter= sums =length(b - a)= over the wrapped edges (returning zero below two

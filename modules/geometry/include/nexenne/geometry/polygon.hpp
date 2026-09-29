@@ -69,7 +69,9 @@ using polygon2_d = polygon2<double>;
  * @brief Signed area via the shoelace formula.
  *
  * Positive for counter-clockwise winding, negative for clockwise, zero when
- * degenerate (collinear vertices or fewer than three).
+ * degenerate (collinear vertices or fewer than three). The cross terms are
+ * taken relative to the first vertex, so a polygon far from the origin keeps
+ * its area.
  *
  * @tparam Real Component type.
  * @param poly Polygon.
@@ -86,10 +88,16 @@ template <std::floating_point Real>
   if (n < 3) {
     return Real{0};
   }
+  // Each cross term is twice the signed area of the triangle from a reference
+  // point through an edge; any reference gives the same exact sum. The first
+  // vertex keeps the terms at the polygon's own size: from the origin they grow
+  // with the distance squared and cancel away the area (a float unit square at
+  // (1e4, 1e4) would have none).
+  auto const& origin{poly.vertices()[0]};
   auto sum{Real{0}};
   for (auto i{std::size_t{0}}; i < n; ++i) {
-    auto const& a{poly.vertices()[i]};
-    auto const& b{poly.vertices()[(i + 1) % n]};
+    auto const a{poly.vertices()[i] - origin};
+    auto const b{poly.vertices()[(i + 1) % n] - origin};
     sum += a.x() * b.y() - b.x() * a.y();
   }
   return sum * Real{0.5};
@@ -141,8 +149,9 @@ template <std::floating_point Real>
  * @brief Area-weighted centroid of a simple polygon.
  *
  * The standard polygon-centroid formula, valid for non-convex but
- * non-self-intersecting polygons. Falls back to the vertex arithmetic mean when
- * the polygon is degenerate (zero area).
+ * non-self-intersecting polygons, evaluated relative to the first vertex so a
+ * polygon far from the origin keeps its precision. Falls back to the vertex
+ * arithmetic mean when the polygon is degenerate (zero area).
  *
  * @tparam Real Component type.
  * @param poly Polygon.
@@ -167,13 +176,16 @@ template <std::floating_point Real>
   // /3 fold into the final inv. A zero-area (collinear or self-cancelling) loop
   // leaves a6 == 0 and falls back to the plain vertex mean below. See Bourke,
   // "Calculating the area and centroid of a polygon" (1988), and the polygon
-  // centroid formula on Wikipedia.
+  // centroid formula on Wikipedia. The formula runs on coordinates relative to
+  // the first vertex, which is added back at the end: absolute coordinates far
+  // from the origin cancel the cross terms away (see signed_area).
+  auto const& origin{poly.vertices()[0]};
   auto cx{Real{0}};
   auto cy{Real{0}};
   auto a6{Real{0}};
   for (auto i{std::size_t{0}}; i < n; ++i) {
-    auto const& p0{poly.vertices()[i]};
-    auto const& p1{poly.vertices()[(i + 1) % n]};
+    auto const p0{poly.vertices()[i] - origin};
+    auto const p1{poly.vertices()[(i + 1) % n] - origin};
     auto const cross_v{p0.x() * p1.y() - p1.x() * p0.y()};
     cx += (p0.x() + p1.x()) * cross_v;
     cy += (p0.y() + p1.y()) * cross_v;
@@ -187,7 +199,7 @@ template <std::floating_point Real>
     return mean * (Real{1} / static_cast<Real>(n));
   }
   auto const inv{Real{1} / (Real{3} * a6)};
-  return nexenne::math::vector<Real, 2>{cx * inv, cy * inv};
+  return origin + nexenne::math::vector<Real, 2>{cx * inv, cy * inv};
 }
 
 /**

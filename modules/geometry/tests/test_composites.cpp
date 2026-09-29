@@ -171,4 +171,24 @@ TEST_CASE("obb3: corner-free bounding box of a rotated box") {
   CHECK(b.min().x() == doctest::Approx(-nm::sqrt_two));
 }
 
+TEST_CASE("polygon2: area and centroid far from the origin (geometry-05)") {
+  // The cross terms were taken from the origin, so the area cancelled away: a
+  // float unit square at (1e4, 1e4) had an area of 0, at (3000, 3000) its
+  // centroid was at 3000.333, and a double unit square at 1e8 had no area.
+  using vec2f = nm::vector2_f;
+  for (auto const o : {3000.0f, 1e4f}) {
+    CAPTURE(o);
+    std::array<vec2f, 4> const square{
+      vec2f{o, o}, vec2f{o + 1, o}, vec2f{o + 1, o + 1}, vec2f{o, o + 1}
+    };
+    geo::polygon2_f const poly{square};
+    CHECK(geo::signed_area(poly) == 1.0f);
+    CHECK(geo::centroid(poly) == vec2f{o + 0.5f, o + 0.5f});
+  }
+  auto const o{1e8};
+  std::array<vec2, 4> const square{vec2{o, o}, vec2{o + 1, o}, vec2{o + 1, o + 1}, vec2{o, o + 1}};
+  CHECK(geo::signed_area(geo::polygon2_d{square}) == 1.0);
+  CHECK(geo::centroid(geo::polygon2_d{square}) == vec2{o + 0.5, o + 0.5});
+}
+
 }  // namespace
