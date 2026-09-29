@@ -139,6 +139,11 @@ template <std::floating_point Real, std::size_t N>
 /**
  * @brief Ray vs sphere intersection in geometric form.
  *
+ * Forms the discriminant from the distance between the center and the ray's
+ * line and takes the near root in a cancellation-free form, so a small sphere
+ * far from the ray origin keeps its radius to within the rounding of that
+ * distance.
+ *
  * @tparam Real Component type.
  * @param r 3D ray.
  * @param s Sphere.
@@ -155,21 +160,29 @@ template <std::floating_point Real>
   // Substitute the ray into |p - center|^2 = r^2 to get t^2 + 2*b*t + c = 0 with
   // b = dot(m, dir) and c = |m|^2 - r^2, where m points from the center to the
   // origin. c > 0 means the origin is outside; with b > 0 the ray also points
-  // away, so it cannot hit. A negative discriminant means the line misses
-  // entirely. Otherwise the near root is -b - sqrt(discr); a negative root means
-  // the origin is inside the sphere, so the entry distance is clamped to 0.
+  // away, so it cannot hit. The discriminant b^2 - c is formed as
+  // r^2 - |m - b*dir|^2, r^2 minus the squared distance from the center to the
+  // line, so a far origin's |m|^2 cannot absorb r^2; a negative one means the
+  // line misses. An origin inside (c <= 0) enters at 0. Otherwise b < 0 and the
+  // near root -b - sqrt(discr) is taken as c / (-b + sqrt(discr)), a sum of two
+  // non-negative terms, so it does not cancel either. See Haines, Gunther and
+  // Akenine-Moller, "Precision Improvements for Ray/Sphere Intersection", Ray
+  // Tracing Gems, chapter 7 (2019).
   auto const m{r.origin() - s.center()};
   auto const b{nexenne::math::dot(m, r.direction())};
   auto const c{nexenne::math::dot(m, m) - s.radius() * s.radius()};
   if (c > Real{0} && b > Real{0}) {
     return std::nullopt;
   }
-  auto const discr{b * b - c};
+  auto const offset{m - (r.direction() * b)};
+  auto const discr{(s.radius() * s.radius()) - nexenne::math::dot(offset, offset)};
   if (discr < Real{0}) {
     return std::nullopt;
   }
-  auto const t{-b - nexenne::math::sqrt(discr)};
-  return t < Real{0} ? Real{0} : t;
+  if (c <= Real{0}) {
+    return Real{0};
+  }
+  return c / (-b + nexenne::math::sqrt(discr));
 }
 
 /**
@@ -187,18 +200,23 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto intersects(ray<Real, 2> const& r, circle2<Real> const& c) noexcept
   -> std::optional<Real> {
+  // The ray vs sphere algebra in 2D, with the same cancellation-free
+  // discriminant and near root.
   auto const m{r.origin() - c.center()};
   auto const b{nexenne::math::dot(m, r.direction())};
   auto const cc{nexenne::math::dot(m, m) - c.radius() * c.radius()};
   if (cc > Real{0} && b > Real{0}) {
     return std::nullopt;
   }
-  auto const discr{b * b - cc};
+  auto const offset{m - (r.direction() * b)};
+  auto const discr{(c.radius() * c.radius()) - nexenne::math::dot(offset, offset)};
   if (discr < Real{0}) {
     return std::nullopt;
   }
-  auto const t{-b - nexenne::math::sqrt(discr)};
-  return t < Real{0} ? Real{0} : t;
+  if (cc <= Real{0}) {
+    return Real{0};
+  }
+  return cc / (-b + nexenne::math::sqrt(discr));
 }
 
 /**

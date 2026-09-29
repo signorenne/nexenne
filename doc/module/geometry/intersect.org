@@ -94,11 +94,16 @@ Substituting the ray into =|p - center|^2 = r^2= gives =t^2 + 2*b*t + c = 0=
 with =b = dot(m, dir)= and =c = |m|^2 - r^2=, where =m= points from the center to
 the ray origin. Three early outs: =c > 0= means the origin is outside, and with
 =b > 0= the ray also points away, so it cannot hit; a negative discriminant
-=b*b - c= means the line misses the sphere entirely. Otherwise the near root is
-=-b - sqrt(discr)= (tangent contacts, a double root, count as hits); a negative
-root means the origin is inside the sphere, so the entry distance is clamped to
-=0=. =intersects(ray2, circle2)= is the same algebra in two dimensions, the disc
-form of ray vs sphere.
+means the line misses the sphere entirely. The discriminant =b*b - c= is formed
+as =r^2 - |m - b*dir|^2=, the radius squared minus the squared distance from the
+center to the line: written as =b*b - c=, a sphere far from the origin loses
+=r^2= to rounding in =|m|^2=, and a float unit sphere =1e4= away is hit by rays
+passing it by =2=. An origin inside the sphere (=c <= 0=) enters at =0=.
+Otherwise the near root =-b - sqrt(discr)= is computed as
+=c / (-b + sqrt(discr))=, which adds two non-negative terms instead of
+cancelling them (tangent contacts, a double root, count as hits).
+=intersects(ray2, circle2)= is the same algebra in two dimensions, the disc form
+of ray vs sphere.
 
 ** Ray vs triangle, Moller-Trumbore
 
@@ -303,6 +308,9 @@ bool const hit_obb{geo::intersects(a, b)};
 - Tomas Moller and Ben Trumbore, "Fast, Minimum Storage Ray/Triangle
   Intersection", Journal of Graphics Tools 2(1), 1997, the ray-triangle algorithm
   used here.
+- Eric Haines, Johannes Gunther and Tomas Akenine-Moller, "Precision
+  Improvements for Ray/Sphere Intersection", Ray Tracing Gems, chapter 7, 2019,
+  the discriminant and root forms of the ray vs sphere test.
 - https://en.wikipedia.org/wiki/Hyperplane_separation_theorem
 - https://en.wikipedia.org/wiki/Moller%E2%80%93Trumbore_intersection_algorithm
 - https://en.wikipedia.org/wiki/Slab_method

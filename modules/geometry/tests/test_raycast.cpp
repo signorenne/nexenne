@@ -6,6 +6,8 @@
 
 #include <doctest/doctest.h>
 
+#include <cmath>
+
 #include <nexenne/geometry/aabb.hpp>
 #include <nexenne/geometry/intersect.hpp>
 #include <nexenne/geometry/obb.hpp>
@@ -93,6 +95,36 @@ TEST_CASE("raycast: the hit record is constexpr") {
   }()};
   static_assert(ok, "raycast must be constexpr");
   CHECK(ok);
+}
+
+TEST_CASE("raycast: a far float sphere keeps its radius (geometry-03)") {
+  // With c = |m|^2 - r^2 and discr = b^2 - c, a unit sphere 1e4 away lost r^2
+  // to rounding: rays passing it by 1.5 and 2 hit, 2 away from the center.
+  geo::sphere3_f const s{vec3{0, 0, 0}, 1.0f};
+  for (auto const offset : {1.5f, 2.0f}) {
+    CAPTURE(offset);
+    geo::ray3_f const r{vec3{-1e4f, offset, 0}, vec3{1, 0, 0}};
+    CHECK_FALSE(geo::intersects(r, s).has_value());
+    CHECK_FALSE(raycast(r, s).has_value());
+  }
+  auto const hit{raycast(geo::ray3_f{vec3{-1e4f, 0.6f, 0}, vec3{1, 0, 0}}, s)};
+  REQUIRE(hit.has_value());
+  CHECK((hit.has_value() && std::abs(hit->t - (1e4f - 0.8f)) <= 2e-3f));
+  CHECK((hit.has_value() && std::abs(nm::length(hit->point - s.center()) - 1.0f) <= 2e-3f));
+}
+
+TEST_CASE("intersects: a far double sphere and a far float circle keep the radius") {
+  using vec3d = nm::vector3_d;
+  geo::sphere3_d const s{vec3d{0, 0, 0}, 1.0};
+  CHECK_FALSE(geo::intersects(geo::ray3_d{vec3d{-1e8, 1.5, 0}, vec3d{1, 0, 0}}, s).has_value());
+  auto const t{geo::intersects(geo::ray3_d{vec3d{-1e8, 0.6, 0}, vec3d{1, 0, 0}}, s)};
+  CHECK((t.has_value() && std::abs(*t - (1e8 - 0.8)) <= 1e-7));
+
+  using vec2 = nm::vector2_f;
+  geo::circle2_f const c{vec2{0, 0}, 1.0f};
+  CHECK_FALSE(geo::intersects(geo::ray2_f{vec2{-1e4f, 2.0f}, vec2{1, 0}}, c).has_value());
+  auto const tc{geo::intersects(geo::ray2_f{vec2{-1e4f, 0.6f}, vec2{1, 0}}, c)};
+  CHECK((tc.has_value() && std::abs(*tc - (1e4f - 0.8f)) <= 2e-3f));
 }
 
 }  // namespace
