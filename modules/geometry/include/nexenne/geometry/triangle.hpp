@@ -290,7 +290,9 @@ contains_point(triangle<Real, 2> const& t, nexenne::math::vector<Real, 2> const&
  * edge-direction dot products place \p p against each feature, returning the first
  * matching vertex, edge projection, or the interior barycentric blend. Works in
  * 2D and 3D since it only uses dot products. A degenerate (collinear) triangle
- * still returns a point on one of its edges.
+ * still returns a point on one of its edges; an edge of zero length (two
+ * coincident vertices) is skipped, so the walk falls through to the segment the
+ * other two edges share.
  *
  * See Christer Ericson, "Real-Time Collision Detection", section 5.1.5.
  *
@@ -325,8 +327,11 @@ closest_point(triangle<Real, N> const& t, nexenne::math::vector<Real, N> const& 
   if (d3 >= Real{0} && d4 <= d3) {
     return b;  // vertex region of b.
   }
+  // Each edge branch divides by its squared length (d1 - d3 is |ab|^2, d2 - d6
+  // is |ac|^2, and the bc sum is |bc|^2), so a zero-length edge is skipped: its
+  // region test passes with 0/0, and the remaining edge's branch handles it.
   auto const vc{d1 * d4 - d3 * d2};
-  if (vc <= Real{0} && d1 >= Real{0} && d3 <= Real{0}) {
+  if (vc <= Real{0} && d1 >= Real{0} && d3 <= Real{0} && d1 - d3 > Real{0}) {
     return a + ab * (d1 / (d1 - d3));  // edge region ab.
   }
   auto const d5{dot(ab, p - c)};
@@ -335,11 +340,12 @@ closest_point(triangle<Real, N> const& t, nexenne::math::vector<Real, N> const& 
     return c;  // vertex region of c.
   }
   auto const vb{d5 * d2 - d1 * d6};
-  if (vb <= Real{0} && d2 >= Real{0} && d6 <= Real{0}) {
+  if (vb <= Real{0} && d2 >= Real{0} && d6 <= Real{0} && d2 - d6 > Real{0}) {
     return a + ac * (d2 / (d2 - d6));  // edge region ac.
   }
   auto const va{d3 * d6 - d5 * d4};
-  if (va <= Real{0} && (d4 - d3) >= Real{0} && (d5 - d6) >= Real{0}) {
+  if (va <= Real{0} && (d4 - d3) >= Real{0} && (d5 - d6) >= Real{0}
+      && (d4 - d3) + (d5 - d6) > Real{0}) {
     return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)));  // edge region bc.
   }
   auto const denom{Real{1} / (va + vb + vc)};  // face interior.

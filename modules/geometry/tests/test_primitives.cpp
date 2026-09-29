@@ -198,4 +198,30 @@ TEST_CASE("segment: collinear overlapping 2D segments report no crossing") {
   CHECK_FALSE(geo::intersects(a, overlap).has_value());
 }
 
+TEST_CASE("triangle closest_point: two coincident vertices reduce to a segment (geometry-04)") {
+  // The ab edge branch divided 0 by 0 when a == b and returned NaN.
+  auto const on_segment_3{[](vec3 const& s, vec3 const& e, vec3 const& p) {
+    return geo::closest_point(geo::segment3_d{s, e}, p);
+  }};
+  auto const a{vec3{0, 0, 0}};
+  auto const c{vec3{4, 2, 0}};
+  for (auto const& p : {vec3{1, 3, 0}, vec3{-2, 1, 1}, vec3{6, 1, -1}, vec3{2, 1, 0}}) {
+    CAPTURE(p);
+    CHECK(geo::closest_point(geo::triangle3_d{a, a, c}, p) == on_segment_3(a, c, p));
+    CHECK(geo::closest_point(geo::triangle3_d{a, c, c}, p) == on_segment_3(a, c, p));
+    CHECK(geo::closest_point(geo::triangle3_d{a, c, a}, p) == on_segment_3(a, c, p));
+  }
+  CHECK(geo::closest_point(geo::triangle3_d{a, a, a}, vec3{1, 1, 1}) == a);
+
+  auto const q{
+    geo::closest_point(geo::triangle2_d{vec2{1, 1}, vec2{1, 1}, vec2{3, 1}}, vec2{2, 5})
+  };
+  CHECK(q == vec2{2, 1});
+  auto const qf{geo::closest_point(
+    geo::triangle2_f{nm::vector2_f{1, 1}, nm::vector2_f{1, 1}, nm::vector2_f{3, 1}},
+    nm::vector2_f{2, 5}
+  )};
+  CHECK(qf == nm::vector2_f{2, 1});
+}
+
 }  // namespace
