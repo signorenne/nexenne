@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <random>
 #include <span>
@@ -485,6 +486,53 @@ TEST_CASE("gjk: random sphere pairs are classified right in float and double (ge
     CAPTURE(scale);
     CHECK(gjk_sphere_misclassified<double>(scale) == 0);
     CHECK(gjk_sphere_misclassified<float>(static_cast<float>(scale)) == 0);
+  }
+}
+
+TEST_CASE("epa: a thin seed through the origin returns quickly with a sane result (geometry-02)") {
+  // Two overlapping float spheres (true depth about 109.5) and the tetrahedron
+  // the earlier gjk handed over for them: all four vertices lie near the line
+  // of centers, so the seed's faces pass through the origin. The same support
+  // was re-added every step and the face count grew about 1.3 times per step:
+  // 13 ms at a cap of 32, and the default cap of 64 did not return in 100 s.
+  geo::sphere3_f const a{vec3{0x1.56b274p+5f, 0x1.0058a8p+1f, 0x1.cc2f3p+2f}, 0x1.9dfc72p+5f};
+  geo::sphere3_f const b{vec3{0x1.8421bep+5f, 0x1.c6b442p+0f, 0x1.467bfp+4f}, 0x1.20a176p+6f};
+  auto const vertex{[](vec3 const& on_a, vec3 const& on_b) {
+    return geo::gjk_minkowski_point3<float>{on_a - on_b, on_a, on_b};
+  }};
+  auto seed{geo::gjk_simplex3<float>{}};
+  seed.points = {
+    vertex(
+      vec3{0x1.07e1ecp+6f, 0x1.1d1d1p-1f, 0x1.aba8aep+5f},
+      vec3{0x1.04259cp+4f, 0x1.e5691p+1f, -0x1.60dfe8p+5f}
+    ),
+    vertex(
+      vec3{0x1.3b422p+4f, 0x1.b96a0cp+1f, -0x1.389ce2p+5f},
+      vec3{0x1.431858p+6f, -0x1.eb4cfp-3f, 0x1.53adecp+6f}
+    ),
+    vertex(
+      vec3{0x1.6682ep+4f, 0x1.68a594p+1f, -0x1.42c72ep+5f},
+      vec3{0x1.340462p+6f, 0x1.47a9acp-1f, 0x1.5ac43ep+6f}
+    ),
+    vertex(
+      vec3{0x1.fa2378p+5f, 0x1.301778p+0f, 0x1.b5d2fap+5f},
+      vec3{0x1.40756cp+4f, 0x1.74c9d8p+1f, -0x1.6f0c8cp+5f}
+    ),
+  };
+  seed.count = 4;
+  auto const true_depth{
+    static_cast<double>(a.radius() + b.radius() - nm::length(b.center() - a.center()))
+  };
+  for (auto const cap : {std::size_t{32}, std::size_t{64}}) {
+    CAPTURE(cap);
+    auto const start{std::chrono::steady_clock::now()};
+    auto const e{geo::epa(a, b, seed, cap)};
+    auto const elapsed{std::chrono::steady_clock::now() - start};
+    CHECK(elapsed < std::chrono::milliseconds{50});
+    CHECK(std::isfinite(e.penetration_depth));
+    if (e.converged) {
+      CHECK(std::abs(static_cast<double>(e.penetration_depth) - true_depth) < 0.05 * true_depth);
+    }
   }
 }
 

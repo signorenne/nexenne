@@ -73,6 +73,15 @@ origin. Seeded with the four tetrahedron vertices and four faces, the loop:
    deletes every face the vertex can see, and stitches the resulting hole (the
    horizon) to the new vertex with fresh faces. Then it repeats.
 
+Two guards keep a polytope damaged by rounding from running away. A degenerate
+(zero-area) face has no real normal, so it is flagged and never picked as the
+closest face. And a support point that repeats a polytope vertex (within 16
+machine epsilons of the largest vertex magnitude) ends the run with
+=converged= false: on a convex polytope it could not lie in front of the closest
+face, so the polytope has lost convexity, typically a thin seed whose faces pass
+through the origin. Expanding would re-add that vertex every step while the face
+count grows about 1.3 times per step.
+
 ** Orienting faces, and why the origin cannot do it
 
 Every face normal must point *outward* (away from the polytope interior) for the

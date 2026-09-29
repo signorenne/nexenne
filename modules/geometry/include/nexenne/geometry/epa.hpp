@@ -27,6 +27,7 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -74,6 +75,7 @@ struct epa_face {
   std::array<std::size_t, 3> indices{};  ///< Indices into the shared vertex list.
   point_type normal{};                   ///< Outward unit normal (points away from origin).
   Real distance{};                       ///< Distance from the origin to the face plane.
+  bool degenerate{false};                ///< Zero area: normal and distance are placeholders.
 };
 
 /**
@@ -92,8 +94,9 @@ struct epa_face {
  * expansion builds its horizon by cancelling each directed edge (i, j) against
  * its reverse (j, i), which is only correct when all faces wind the same way;
  * flipping a normal without reordering would silently corrupt the polytope and
- * stop EPA from ever converging. A degenerate (zero-area) triangle falls back to
- * the x axis, which the expansion then discards on the next step.
+ * stop EPA from ever converging. A degenerate (zero-area) triangle has no
+ * normal: it falls back to the x axis and is flagged \c degenerate, so the
+ * closest-face search never picks it.
  *
  * @tparam Real Component type.
  * @param vertices Shared polytope vertex list.
@@ -107,7 +110,8 @@ struct epa_face {
  * @pre The three indices are valid in \p vertices and \p interior is inside the
  *      polytope.
  * @post \c result.distance is non-negative (the origin is inside the polytope)
- *       and \c result.normal has unit length and points outward.
+ *       and \c result.normal has unit length; it points outward unless
+ *       \c result.degenerate is set.
  */
 template <std::floating_point Real>
 [[nodiscard]] auto build_face(
@@ -124,10 +128,11 @@ template <std::floating_point Real>
 
   auto normal{nexenne::math::cross(b - a, c - a)};
   auto const length_sq{nexenne::math::length_squared(normal)};
-  if (length_sq > static_cast<Real>(1e-20)) {
-    normal = normal * (Real{1} / nexenne::math::sqrt(length_sq));
+  auto const degenerate{!(length_sq > static_cast<Real>(1e-20))};
+  if (degenerate) {
+    normal = point_type{Real{1}, Real{0}, Real{0}};
   } else {
-    normal = point_type{Real{1}, Real{0}, Real{0}};  // degenerate; discarded next step.
+    normal = normal * (Real{1} / nexenne::math::sqrt(length_sq));
   }
 
   if (nexenne::math::dot(normal, a - interior) < Real{0}) {
@@ -138,7 +143,7 @@ template <std::floating_point Real>
   // origin is inside the polytope (clamped against a tiny negative from rounding
   // when the origin sits on the plane).
   auto const distance{nexenne::math::max(Real{0}, nexenne::math::dot(normal, a))};
-  return epa_face<Real>{{ia, ib, ic}, normal, distance};
+  return epa_face<Real>{{ia, ib, ic}, normal, distance, degenerate};
 }
 
 /**
@@ -449,13 +454,21 @@ seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& ini
  *
  * @return Result with the normal (the MTV direction, out of A toward B),
  *         penetration depth, and contact
- *         points; \c converged is \c false when \p initial was not a tetrahedron
- *         or the iteration cap was hit (the best-known face, with its
- *         reconstructed contact points, is still returned).
+ *         points; \c converged is \c false when \p initial was not a
+ *         tetrahedron, the iteration cap was hit, or the expansion stalled on a
+ *         support point the polytope already holds (the best-known face, with
+ *         its reconstructed contact points, is still returned).
  *
  * @pre \p a and \p b overlap and \c initial.count equals 4.
  * @post On success \c converged is \c true, \c normal has unit length, and
  *       \c penetration_depth is non-negative.
+ *
+ * @note A support point that repeats a polytope vertex, within 16 machine
+ *       epsilons of the largest vertex magnitude, ends the run: on a convex
+ *       polytope it could not lie in front of the closest face, so the polytope
+ *       has lost convexity to rounding and further expansion would only re-add
+ *       it. That is rare: a thin seed whose faces pass through the origin.
+ *
  * @complexity \c O(max_iterations) support queries; each expansion step is linear
  *             in the current face count. Allocates the polytope.
  */
@@ -470,6 +483,8 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   // Floor on the relative convergence scale, so a near-zero depth does not make
   // the threshold collapse to zero and iterate forever against the cap.
   auto const epsilon{static_cast<Real>(1e-6)};
+  auto const noise{std::numeric_limits<Real>::epsilon() * Real{16}};
+  auto const noise_sq{noise * noise};
 
   auto result{epa_result3<Real>{}};
   if (initial.count == 0) {
@@ -505,14 +520,31 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   faces.push_back(detail::build_face<Real>(vertices, 0, 1, 3, interior));
   faces.push_back(detail::build_face<Real>(vertices, 0, 1, 2, interior));
 
+  auto scale_sq{Real{0}};
+  for (auto const& v : vertices) {
+    scale_sq = nexenne::math::max(scale_sq, nexenne::math::length_squared(v.difference));
+  }
+
+  // Index of the non-degenerate face closest to the origin, or faces.size()
+  // when every face is degenerate. A degenerate face has only a placeholder
+  // normal and distance, so it must never steer the expansion.
+  auto const closest_face{[&faces]() noexcept -> std::size_t {
+    auto best{faces.size()};
+    for (auto i{std::size_t{0}}; i < faces.size(); ++i) {
+      if (!faces[i].degenerate
+          && (best == faces.size() || faces[i].distance < faces[best].distance)) {
+        best = i;
+      }
+    }
+    return best;
+  }};
+
   for (auto iter{std::size_t{0}}; iter < max_iterations; ++iter) {
     // Find the face closest to the origin: its normal is the current best guess
     // at the penetration direction.
-    auto closest{std::size_t{0}};
-    for (auto i{std::size_t{1}}; i < faces.size(); ++i) {
-      if (faces[i].distance < faces[closest].distance) {
-        closest = i;
-      }
+    auto const closest{closest_face()};
+    if (closest == faces.size()) {
+      return result;
     }
     auto const direction{faces[closest].normal};
     auto const closest_distance{faces[closest].distance};
@@ -546,12 +578,21 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
       return result;
     }
 
+    auto repeated{false};
+    for (auto const& v : vertices) {
+      if (nexenne::math::length_squared(new_difference - v.difference) <= noise_sq * scale_sq) {
+        repeated = true;
+        break;
+      }
+    }
+
     // Otherwise expand: add the new vertex and re-triangulate around it. Faces
     // the new vertex can "see" (its position is in front of their plane) are
     // removed; the boundary of that visible region (the horizon) is stitched to
     // the new vertex with fresh faces.
     auto const new_index{vertices.size()};
     vertices.push_back(gjk_minkowski_point3<Real>{new_difference, pa, pb});
+    scale_sq = nexenne::math::max(scale_sq, nexenne::math::length_squared(new_difference));
 
     // Horizon edges: an edge shared by two visible faces is interior and cancels;
     // an edge on the silhouette survives. add_edge keeps only the un-cancelled.
@@ -579,9 +620,7 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
       }
     }
 
-    if (visible.empty() || horizon.empty()) {
-      // Defensive: the new vertex should always see at least the closest face.
-      // Return the best face's actual contact points, not a zeroed pair.
+    if (repeated || visible.empty() || horizon.empty()) {
       auto const [contact_a, contact_b]{
         detail::face_contact_points<Real>(vertices, faces[closest], closest_distance)
       };
@@ -606,11 +645,9 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   // No convergence within the cap: return the best-known face as the estimate,
   // including its reconstructed contact points (M2), so a non-converged result is
   // still usable rather than carrying a value-initialized (origin) contact pair.
-  auto closest{std::size_t{0}};
-  for (auto i{std::size_t{1}}; i < faces.size(); ++i) {
-    if (faces[i].distance < faces[closest].distance) {
-      closest = i;
-    }
+  auto const closest{closest_face()};
+  if (closest == faces.size()) {
+    return result;
   }
   auto const [contact_a, contact_b]{
     detail::face_contact_points<Real>(vertices, faces[closest], faces[closest].distance)
