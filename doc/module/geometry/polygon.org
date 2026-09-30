@@ -98,6 +98,13 @@ vertices is not convex. A subtle case: a fully collinear loop never establishes 
 turn sign at all, so the function returns false for it too. It is degenerate, not
 convex.
 
+One sign is not enough on its own: a pentagram turns the same way at every
+vertex, yet crosses itself, because its edge directions wind around twice. So
+=convex= also counts the turns the edge directions make in total, without trig
+(the function stays =constexpr=): every time a direction passes from the lower
+half-plane into the upper one is one full turn, and a convex polygon makes
+exactly one. Repeated vertices, whose edges have no direction, are skipped.
+
 ** The axis-aligned bound
 
 =bounding_aabb= folds every vertex through =expand_to_include= starting from the

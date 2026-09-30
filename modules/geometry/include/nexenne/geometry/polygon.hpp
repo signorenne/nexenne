@@ -261,9 +261,11 @@ contains_point(polygon2<Real> const poly, nexenne::math::vector<Real, 2> const p
 /**
  * @brief Reports whether the polygon is convex.
  *
- * Tests that all consecutive edge cross-products share a sign. Returns \c false
- * for degenerate input (fewer than three vertices, or fully collinear vertices
- * that never establish a turn direction).
+ * Tests that all consecutive edge cross-products share a sign and that the edge
+ * directions turn through exactly one full turn: a star polygon (a pentagram)
+ * turns the same way at every vertex but winds twice, so it is not convex.
+ * Returns \c false for degenerate input (fewer than three vertices, or fully
+ * collinear vertices that never establish a turn direction).
  *
  * @tparam Real Component type.
  * @param poly Polygon.
@@ -298,7 +300,44 @@ template <std::floating_point Real>
     }
   }
   // A fully collinear loop never sets a sign: it is degenerate, not convex.
-  return sign_seen != 0;
+  if (sign_seen == 0) {
+    return false;
+  }
+  // Every turn now has one sign and is under a half turn, so the edge
+  // directions rotate one way and their total rotation is a whole number of
+  // turns. Count the turns without trig (this stays constexpr): each crossing
+  // of a direction from the lower half-plane (y < 0, or y == 0 and x <= 0) into
+  // the upper one is one full turn. A convex polygon makes exactly one; a
+  // pentagram makes two. Zero-length edges (repeated vertices) have no
+  // direction and are skipped.
+  using point_type = nexenne::math::vector<Real, 2>;
+  auto const upper{[](point_type const e) noexcept -> bool {
+    return e.y() > Real{0} || (e.y() == Real{0} && e.x() > Real{0});
+  }};
+  auto const edge{[&poly, n](std::size_t const i) noexcept -> point_type {
+    return poly.vertices()[(i + 1) % n] - poly.vertices()[i];
+  }};
+  auto const zero{[](point_type const e) noexcept -> bool {
+    return e.x() == Real{0} && e.y() == Real{0};
+  }};
+  auto last{n - 1};
+  while (zero(edge(last))) {
+    --last;  // a turn exists, so some edge is non-zero.
+  }
+  auto was_upper{upper(edge(last))};
+  auto turns{std::size_t{0}};
+  for (auto i{std::size_t{0}}; i < n; ++i) {
+    auto const e{edge(i)};
+    if (zero(e)) {
+      continue;
+    }
+    auto const is_upper{upper(e)};
+    if (is_upper && !was_upper) {
+      ++turns;
+    }
+    was_upper = is_upper;
+  }
+  return turns == 1;
 }
 
 /**

@@ -6,6 +6,7 @@
 #include <doctest/doctest.h>
 
 #include <array>
+#include <cmath>
 
 #include <nexenne/geometry/capsule.hpp>
 #include <nexenne/geometry/frustum.hpp>
@@ -215,6 +216,38 @@ TEST_CASE(
   auto const e{vec2{0x1.06ffbfd08465p-3, -0x1.78645db129966p-1}};
   std::array<vec2, 4> const line4{b, b + e * 0.3, b + e * 0.9, b + e * 0.55};
   CHECK(near(geo::centroid(geo::polygon2_d{line4}), mean_of(line4)));
+}
+
+TEST_CASE("polygon2: a pentagram is not convex though every turn has one sign (geometry-09)") {
+  // Taking every second vertex of a regular pentagon turns the same way at each
+  // vertex, but the edges wind around twice; the sign test alone said convex.
+  auto star{std::array<vec2, 5>{}};
+  auto pentagon{std::array<vec2, 5>{}};
+  for (auto i{std::size_t{0}}; i < 5; ++i) {
+    auto const step{2.0 * nm::pi_v<double> / 5.0};
+    star[i] = vec2{
+      std::cos(step * static_cast<double>(2 * i)), std::sin(step * static_cast<double>(2 * i))
+    };
+    pentagon[i] =
+      vec2{std::cos(step * static_cast<double>(i)), std::sin(step * static_cast<double>(i))};
+  }
+  CHECK_FALSE(geo::convex(geo::polygon2_d{star}));
+  CHECK(geo::convex(geo::polygon2_d{pentagon}));
+
+  std::array<vec2, 4> const ccw{vec2{0, 0}, vec2{1, 0}, vec2{1, 1}, vec2{0, 1}};
+  std::array<vec2, 4> const cw{vec2{0, 0}, vec2{0, 1}, vec2{1, 1}, vec2{1, 0}};
+  std::array<vec2, 6> const repeated{
+    vec2{0, 0}, vec2{1, 0}, vec2{1, 0}, vec2{1, 1}, vec2{0, 1}, vec2{0, 0}
+  };
+  std::array<vec2, 5> const midpoint{vec2{0, 0}, vec2{0.5, 0}, vec2{1, 0}, vec2{1, 1}, vec2{0, 1}};
+  CHECK(geo::convex(geo::polygon2_d{ccw}));
+  CHECK(geo::convex(geo::polygon2_d{cw}));
+  CHECK(geo::convex(geo::polygon2_d{repeated}));
+  CHECK(geo::convex(geo::polygon2_d{midpoint}));
+  static_assert([] {
+    std::array<vec2, 4> const square{vec2{0, 0}, vec2{1, 0}, vec2{1, 1}, vec2{0, 1}};
+    return geo::convex(geo::polygon2_d{square});
+  }());
 }
 
 }  // namespace
