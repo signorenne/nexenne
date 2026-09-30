@@ -64,6 +64,12 @@ plane. A runtime-detectable degeneracy is a =result=, not a precondition the
 caller must pre-check; the cheap two-argument constructor trusts a unit normal
 when you already hold one.
 
+Neither test depends on the caller's units. A normal is too short only when its
+squared length is below the smallest normal =Real=, so a normal of length
+=1e-11= is fine. Three points are collinear when the angle at =a= is under 64
+machine epsilons (about =8e-6= radians in float, =1e-14= in double), where the
+cross product is rounding noise.
+
 ** Distance, projection, containment from one dot product
 
 Every query reuses =signed_distance(pl, p) = dot(pl.normal(), p) + pl.d()=:

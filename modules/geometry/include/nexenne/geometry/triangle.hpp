@@ -20,6 +20,7 @@
 #include <concepts>
 #include <cstddef>
 #include <expected>
+#include <limits>
 #include <type_traits>
 
 #include <nexenne/geometry/aabb.hpp>
@@ -216,7 +217,9 @@ template <std::floating_point Real>
  *
  * @return The unit normal on success, or
  *         \c geometry_error::degenerate_primitive when the vertices are
- *         collinear.
+ *         collinear: the edges from \c a meet at an angle under 64 machine
+ *         epsilons (about 8e-6 radians in float, 1e-14 in double; a test of
+ *         the shape, not the size) or a vertex repeats.
  *
  * @pre None. Degenerate triangles are detected and reported.
  * @post On success the returned vector has unit length.
@@ -224,7 +227,21 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto normal(triangle<Real, 3> const& t) noexcept
   -> result<nexenne::math::vector<Real, 3>> {
-  auto const n{nexenne::math::normalize(nexenne::math::cross(t.b() - t.a(), t.c() - t.a()))};
+  // Collinear when the cross product is rounding noise against the edges:
+  // |ab x ac|^2 = |ab|^2 |ac|^2 sin^2(theta), so the floor tests the shape,
+  // not the size, as closest_points(segment, triangle) does. It sits at 64
+  // machine epsilons of sin(theta): below that the cross product's own
+  // rounding error (a few epsilons of |ab| |ac|) tilts the normal by over a
+  // percent. The smallest normal Real stops an underflowed floor of zero from
+  // passing a subnormal cross product.
+  auto const ab{t.b() - t.a()};
+  auto const ac{t.c() - t.a()};
+  auto const noise{std::numeric_limits<Real>::epsilon() * Real{64}};
+  auto const threshold{nexenne::math::max(
+    noise * noise * nexenne::math::length_squared(ab) * nexenne::math::length_squared(ac),
+    std::numeric_limits<Real>::min()
+  )};
+  auto const n{nexenne::math::normalize(nexenne::math::cross(ab, ac), threshold)};
   if (!n) {
     return std::unexpected{geometry_error::degenerate_primitive};
   }

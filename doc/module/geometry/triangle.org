@@ -50,7 +50,11 @@ walking =a -> b -> c= counter-clockwise as seen from the tip of the normal makes
 the normal point toward the viewer. A collinear or coincident triangle spans no
 area, so its cross product is the zero vector and cannot be normalized; rather
 than hand back a NaN-laden direction, =normal= returns
-=result<vector>= and reports =geometry_error::degenerate_primitive=. This is the
+=result<vector>= and reports =geometry_error::degenerate_primitive=. The test is
+relative to the edges: the angle at =a= must exceed 64 machine epsilons (about
+=8e-6= radians in float, =1e-14= in double), below which the cross product is
+rounding noise. So a valid triangle is accepted at any size: a float triangle
+with =1e-5= legs has a normal. This is the
 module's error policy in miniature: a runtime-detectable degeneracy is a
 =result=, not a precondition the caller must pre-check.
 

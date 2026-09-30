@@ -46,6 +46,7 @@
 
 #include <concepts>
 #include <cstddef>
+#include <limits>
 
 #include <nexenne/geometry/aabb.hpp>
 #include <nexenne/geometry/capsule.hpp>
@@ -63,9 +64,10 @@ namespace nexenne::geometry {
  * @brief Support point of a sphere: the boundary point furthest along \p direction.
  *
  * The cap of the ball in the search direction, \c center + radius * dir_hat. When
- * \p direction is (near) zero the direction is arbitrary, so the \c +x cap is
- * returned by convention; this only happens on a degenerate seed, which GJK
- * avoids in practice.
+ * \p direction is zero (its squared length is below the smallest normal
+ * \c Real) the direction is arbitrary, so the \c +x cap is returned by
+ * convention; this only happens on a degenerate seed, which GJK avoids in
+ * practice. Any longer direction, however short, is followed.
  *
  * @tparam Real Floating-point component type.
  * @param s Sphere.
@@ -81,7 +83,9 @@ template <std::floating_point Real>
 support(sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& direction) noexcept
   -> nexenne::math::vector<Real, 3> {
   auto const dir_hat{nexenne::math::normalize_or(
-    direction, nexenne::math::vector<Real, 3>{Real{1}, Real{0}, Real{0}}
+    direction,
+    nexenne::math::vector<Real, 3>{Real{1}, Real{0}, Real{0}},
+    std::numeric_limits<Real>::min()
   )};
   return s.center() + dir_hat * s.radius();
 }
@@ -91,6 +95,7 @@ support(sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& direction)
  *
  * A capsule is a sphere of radius \c r swept along its spine, so its support is
  * the spine endpoint furthest along \p direction pushed out by \c r * dir_hat.
+ * As for a sphere, only a zero direction falls back to the \c +x cap.
  *
  * @tparam Real Floating-point component type.
  * @param c Capsule (3D).
@@ -110,7 +115,9 @@ support(capsule<Real, 3> const& c, nexenne::math::vector<Real, 3> const& directi
                                                                                        : c.end()
   };
   auto const dir_hat{nexenne::math::normalize_or(
-    direction, nexenne::math::vector<Real, 3>{Real{1}, Real{0}, Real{0}}
+    direction,
+    nexenne::math::vector<Real, 3>{Real{1}, Real{0}, Real{0}},
+    std::numeric_limits<Real>::min()
   )};
   return tip + dir_hat * c.radius();
 }

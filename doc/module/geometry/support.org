@@ -48,8 +48,10 @@ generalises this: pick the spine endpoint furthest along =d=, then push it out b
             (spine)                        +r    grown by r along dhat
 #+END_EXAMPLE
 
-A (near) zero direction has no defined =dhat=, so =normalize_or= falls back to the
-+x cap by convention; GJK never seeds a zero direction in practice.
+A zero direction has no defined =dhat=, so =normalize_or= falls back to the +x
+cap by convention; GJK never seeds a zero direction in practice. Only a
+direction whose squared length is below the smallest normal =Real= counts as
+zero: a short one such as =(0, -1e-11, 0)= still selects the =-y= cap.
 
 ** Oriented and axis-aligned boxes: pick the corner
 

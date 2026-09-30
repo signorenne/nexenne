@@ -63,9 +63,12 @@ beyond either endpoint snaps to that endpoint:
 #+END_EXAMPLE
 
 A degenerate, zero-length segment has =|dir|^2 == 0= and no direction to project
-onto; the code detects that (=len_sq <= 1e-20=) and returns =start= rather than
-dividing by zero. This is a handled edge, not an error: the function takes no
-precondition and never fails.
+onto; the code detects that (=len_sq= below the smallest normal =Real=, which
+catches an underflowed square too) and returns =start= rather than dividing by
+zero. This is a handled edge, not an error: the function takes no precondition
+and never fails. Any longer segment projects normally, however short in the
+caller's units: a =1e-11= long double segment still has a closest point other
+than its start.
 
 ** Distances built on the closest point
 

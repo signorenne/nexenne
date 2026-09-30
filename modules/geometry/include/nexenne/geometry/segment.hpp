@@ -18,6 +18,7 @@
 
 #include <concepts>
 #include <cstddef>
+#include <limits>
 #include <optional>
 #include <type_traits>
 
@@ -192,7 +193,8 @@ template <std::floating_point Real, std::size_t N>
  * @brief Closest point on the segment to \p p.
  *
  * Projects \p p onto the line through the endpoints and clamps the parameter to
- * \c [0, 1]. A zero-length segment returns \c s.start().
+ * \c [0, 1]. A zero-length segment (one whose squared length is below the
+ * smallest normal \c Real) returns \c s.start().
  *
  * @tparam Real Component type.
  * @tparam N Dimension.
@@ -210,7 +212,9 @@ closest_point(segment<Real, N> const& s, nexenne::math::vector<Real, N> const& p
   -> nexenne::math::vector<Real, N> {
   auto const dir{direction(s)};
   auto const len_sq{nexenne::math::length_squared(dir)};
-  if (len_sq <= static_cast<Real>(1e-20)) {
+  // Only a length that squares to zero (or underflows) has no direction: any
+  // other segment projects accurately, however short in the caller's units.
+  if (len_sq <= std::numeric_limits<Real>::min()) {
     return s.start();
   }
   auto const t{nexenne::math::dot(p - s.start(), dir) / len_sq};

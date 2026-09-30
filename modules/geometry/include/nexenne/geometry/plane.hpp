@@ -18,6 +18,7 @@
 
 #include <concepts>
 #include <expected>
+#include <limits>
 #include <type_traits>
 
 #include <nexenne/geometry/error.hpp>
@@ -114,7 +115,8 @@ static_assert(sizeof(plane3_f) == 4 * sizeof(float));
  * @param normal Plane normal (need not be unit).
  *
  * @return The plane on success, or \c geometry_error::degenerate_primitive when
- *         \p normal is too short to normalize.
+ *         \p normal is too short to normalize: its squared length is zero or
+ *         below the smallest normal \c Real.
  *
  * @pre None. \p normal is validated.
  * @post On success the plane has a unit-length normal and passes through
@@ -124,7 +126,9 @@ template <std::floating_point Real>
 [[nodiscard]] constexpr auto plane_from_point_normal(
   nexenne::math::vector<Real, 3> const& point, nexenne::math::vector<Real, 3> const& normal
 ) noexcept -> result<plane3<Real>> {
-  auto const n{nexenne::math::normalize(normal)};
+  // Any length whose square is a normal Real normalizes accurately, so only a
+  // zero (or underflowed) normal is rejected, whatever the caller's units.
+  auto const n{nexenne::math::normalize(normal, std::numeric_limits<Real>::min())};
   if (!n) {
     return std::unexpected{geometry_error::degenerate_primitive};
   }
@@ -143,7 +147,9 @@ template <std::floating_point Real>
  * @param c Third point.
  *
  * @return The plane on success, or \c geometry_error::degenerate_primitive when
- *         the three points are collinear.
+ *         the three points are collinear: the edges from \p a meet at an angle
+ *         under 64 machine epsilons (about 8e-6 radians in float, 1e-14 in
+ *         double; a test of the shape, not the size) or a point repeats.
  *
  * @pre None. Collinearity is detected and reported.
  * @post On success the plane has a unit-length normal and passes through all
@@ -155,7 +161,21 @@ template <std::floating_point Real>
   nexenne::math::vector<Real, 3> const& b,
   nexenne::math::vector<Real, 3> const& c
 ) noexcept -> result<plane3<Real>> {
-  auto const n{nexenne::math::normalize(nexenne::math::cross(b - a, c - a))};
+  // Collinear when the cross product is rounding noise against the edges:
+  // |ab x ac|^2 = |ab|^2 |ac|^2 sin^2(theta), so the floor tests the shape,
+  // not the size, as closest_points(segment, triangle) does. It sits at 64
+  // machine epsilons of sin(theta): below that the cross product's own
+  // rounding error (a few epsilons of |ab| |ac|) tilts the normal by over a
+  // percent. The smallest normal Real stops an underflowed floor of zero from
+  // passing a subnormal cross product.
+  auto const ab{b - a};
+  auto const ac{c - a};
+  auto const noise{std::numeric_limits<Real>::epsilon() * Real{64}};
+  auto const threshold{nexenne::math::max(
+    noise * noise * nexenne::math::length_squared(ab) * nexenne::math::length_squared(ac),
+    std::numeric_limits<Real>::min()
+  )};
+  auto const n{nexenne::math::normalize(nexenne::math::cross(ab, ac), threshold)};
   if (!n) {
     return std::unexpected{geometry_error::degenerate_primitive};
   }

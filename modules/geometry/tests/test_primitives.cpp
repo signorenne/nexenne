@@ -8,11 +8,13 @@
 #include <optional>
 
 #include <nexenne/geometry/aabb.hpp>
+#include <nexenne/geometry/capsule.hpp>
 #include <nexenne/geometry/circle.hpp>
 #include <nexenne/geometry/plane.hpp>
 #include <nexenne/geometry/ray.hpp>
 #include <nexenne/geometry/segment.hpp>
 #include <nexenne/geometry/sphere.hpp>
+#include <nexenne/geometry/support.hpp>
 #include <nexenne/geometry/triangle.hpp>
 #include <nexenne/math/constants.hpp>
 #include <nexenne/math/vector.hpp>
@@ -222,6 +224,47 @@ TEST_CASE("triangle closest_point: two coincident vertices reduce to a segment (
     nm::vector2_f{2, 5}
   )};
   CHECK(qf == nm::vector2_f{2, 1});
+}
+
+TEST_CASE("leaf primitives: small but valid shapes are not degenerate (geometry-08)") {
+  // Absolute floors of 1e-20 rejected these: a float triangle with 1e-5 legs
+  // had no normal, a normal of length 1e-11 was refused, a 1e-11 segment
+  // answered with its start, and support snapped a short direction to +x.
+  using vec3f = nm::vector3_f;
+  geo::triangle3_f const small{vec3f{0, 0, 0}, vec3f{1e-5f, 0, 0}, vec3f{0, 1e-5f, 0}};
+  CHECK(geo::normal(small) == vec3f{0, 0, 1});
+  auto const pl{geo::plane_from_three_points(small.a(), small.b(), small.c())};
+  CHECK((pl.has_value() && pl->normal() == vec3f{0, 0, 1}));
+
+  auto const pn{geo::plane_from_point_normal(vec3{0, 0, 0}, vec3{0, 0, 1e-11})};
+  CHECK((pn.has_value() && pn->normal() == vec3{0, 0, 1}));
+
+  geo::segment3_d const tiny{vec3{0, 0, 0}, vec3{1e-11, 0, 0}};
+  CHECK(geo::closest_point(tiny, vec3{1, 0, 0}) == vec3{1e-11, 0, 0});
+
+  geo::sphere3_d const ball{vec3{0, 0, 0}, 1.0};
+  CHECK(geo::support(ball, vec3{0, -1e-11, 0}) == vec3{0, -1, 0});
+  geo::capsule3_d const pill{vec3{0, 0, 0}, vec3{0, 0, 2}, 1.0};
+  CHECK(geo::support(pill, vec3{0, -1e-11, 0}) == vec3{0, -1, 0});
+
+  CHECK(
+    geo::normal(geo::triangle3_d{vec3{0, 0, 0}, vec3{1, 0, 0}, vec3{1, 1e-8, 0}}) == vec3{0, 0, 1}
+  );
+}
+
+TEST_CASE("leaf primitives: the relative tests still reject degenerate input (geometry-08)") {
+  // Collinear and repeated vertices, an angle at the rounding level, a zero
+  // normal, a zero segment and a zero direction keep their documented answers.
+  CHECK_FALSE(geo::normal(geo::triangle3_d{vec3{0, 0, 0}, vec3{1, 0, 0}, vec3{2, 0, 0}}));
+  CHECK_FALSE(geo::normal(geo::triangle3_d{vec3{1, 1, 1}, vec3{1, 1, 1}, vec3{2, 0, 0}}));
+  CHECK_FALSE(geo::normal(geo::triangle3_d{vec3{0, 0, 0}, vec3{1, 0, 0}, vec3{1, 1e-16, 0}}));
+  CHECK_FALSE(geo::plane_from_three_points(vec3{0, 0, 0}, vec3{1e-6, 0, 0}, vec3{3e-6, 0, 0}));
+  CHECK_FALSE(geo::plane_from_point_normal(vec3{1, 2, 3}, vec3{0, 0, 0}));
+  CHECK(
+    geo::closest_point(geo::segment3_d{vec3{1, 1, 1}, vec3{1, 1, 1}}, vec3{5, 0, 0})
+    == vec3{1, 1, 1}
+  );
+  CHECK(geo::support(geo::sphere3_d{vec3{0, 0, 0}, 2.0}, vec3{0, 0, 0}) == vec3{2, 0, 0});
 }
 
 }  // namespace
