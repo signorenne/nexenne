@@ -162,6 +162,12 @@ callers are unaffected.
 - For two analytic primitives with a closed-form penetration (sphere-sphere,
   AABB-AABB), prefer that: it is exact and cheaper. EPA is for general convex
   shapes, especially [[file:convex_hull.org][hulls]].
+- Keep the shapes between about =1e-2= and =1e4= units in size, or scale them
+  into that band. The seed tetrahedron uses absolute floors (=1e-12= on squared
+  distances and on its volume), and the manifold merges face samples closer
+  than =1e-4= units. Well below the band EPA stops converging (no sphere pair of
+  size =1e-4= converges), a sphere of radius =1e-3= gets a four-point manifold,
+  and two stacked boxes of half-size =1e-4= get a single point.
 - The \c converged flag is part of the contract: on a degenerate input or if the
   iteration cap is hit, the best-known face is still returned, with its
   reconstructed contact points (not a zeroed pair), but \c converged is \c false,

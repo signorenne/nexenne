@@ -459,9 +459,15 @@ seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& ini
  *         support point the polytope already holds (the best-known face, with
  *         its reconstructed contact points, is still returned).
  *
- * @pre \p a and \p b overlap and \c initial.count equals 4.
+ * @pre \p a and \p b overlap and \c initial.count equals 4. The shapes and
+ *      their overlap are between about 1e-2 and 1e4 units in size.
  * @post On success \c converged is \c true, \c normal has unit length, and
  *       \c penetration_depth is non-negative.
+ *
+ * @note The seed uses absolute floors (1e-12 on squared distances and on the
+ *       seed volume) calibrated for that size band. Well below it, the seed can
+ *       come out empty and EPA reports \c converged false: at a size of 1e-4 no
+ *       sphere pair converges. Scale the inputs into the band.
  *
  * @note A support point that repeats a polytope vertex, within 16 machine
  *       epsilons of the largest vertex magnitude, ends the run: on a convex
@@ -809,7 +815,13 @@ template <std::floating_point Real, typename Shape>
  *         normal (the MTV direction, out of A toward B).
  *
  * @pre \p hit came from \c epa on \p a and \p b and \c hit.converged is true.
+ *      The shapes are between about 1e-2 and 1e4 units in size.
  * @post \c count is between 1 and 8 and \c normal equals \c hit.normal.
+ *
+ * @note Face samples closer than 1e-4 units merge (an absolute floor of 1e-8 on
+ *       the squared spacing), so below the size band the count is wrong: a
+ *       sphere of radius 1e-3 gets four points instead of one, and two stacked
+ *       boxes of half-size 1e-4 get one instead of four.
  */
 template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real> ShapeB>
 [[nodiscard]] auto
