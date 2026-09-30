@@ -267,4 +267,36 @@ TEST_CASE("leaf primitives: the relative tests still reject degenerate input (ge
   CHECK(geo::support(geo::sphere3_d{vec3{0, 0, 0}, 2.0}, vec3{0, 0, 0}) == vec3{2, 0, 0});
 }
 
+TEST_CASE("segment2 intersects: collinear overlapping segments return nullopt (geometry-10)") {
+  // rxs was tested against an exact zero, so the rounding noise of collinear
+  // directions produced a crossing in 318 of these 999 pairs.
+  auto crossings{0};
+  for (auto i{1}; i < 1000; ++i) {
+    auto const k{0.001 * static_cast<double>(i)};
+    geo::segment2_d const a{vec2{0.1 * k, 0.3 * k}, vec2{0.7, 2.1}};
+    geo::segment2_d const b{vec2{0.3, 0.9}, vec2{0.9 + k, 2.7 + 3.0 * k}};
+    if (geo::intersects(a, b).has_value()) {
+      ++crossings;
+    }
+  }
+  CHECK(crossings == 0);
+  CHECK(
+    geo::intersects(
+      geo::segment2_d{vec2{0, 0}, vec2{2, 2}}, geo::segment2_d{vec2{0, 2}, vec2{2, 0}}
+    )
+    == vec2{1, 1}
+  );
+  auto const shallow{geo::intersects(
+    geo::segment2_d{vec2{-1, -1e-6}, vec2{1, 1e-6}}, geo::segment2_d{vec2{-1, 0}, vec2{1, 0}}
+  )};
+  CHECK((shallow.has_value() && nm::length(*shallow) <= 1e-12));
+  using vec2f = nm::vector2_f;
+  CHECK(
+    geo::intersects(
+      geo::segment2_f{vec2f{0, 0}, vec2f{2, 2}}, geo::segment2_f{vec2f{0, 2}, vec2f{2, 0}}
+    )
+    == vec2f{1, 1}
+  );
+}
+
 }  // namespace

@@ -268,13 +268,16 @@ distance(segment<Real, N> const& s, nexenne::math::vector<Real, N> const& p) noe
  * pseudo-cross, returning the point when both land in \c [0, 1]. Parallel and
  * collinear inputs return \c std::nullopt even when they overlap: that case is
  * rarely the intended answer, so check parallelism explicitly if you need it.
+ * The segments count as parallel when their directions' cross product is within
+ * 16 machine epsilons of the product of their lengths, its rounding level, so
+ * collinear segments whose cross product is rounding noise are parallel too.
  *
  * @tparam Real Component type.
  * @param a First segment.
  * @param b Second segment.
  *
  * @return The crossing point, or \c std::nullopt when the segments do not cross
- *         (including parallel or collinear).
+ *         (including parallel or collinear, to within rounding).
  *
  * @pre None.
  * @post When engaged the result lies on both \p a and \p b.
@@ -290,7 +293,13 @@ intersects(segment<Real, 2> const& a, segment<Real, 2> const& b) noexcept
   auto const r{direction(a)};
   auto const s{direction(b)};
   auto const rxs{nexenne::math::cross(r, s)};
-  if (rxs == Real{0}) {
+  // Collinear segments rarely give an exact zero: rxs carries a rounding error
+  // of a few epsilons of |r| |s|, and on noise the parameters below are
+  // arbitrary, so treat anything at that level as parallel (compared squared,
+  // to stay free of square roots).
+  auto const noise{std::numeric_limits<Real>::epsilon() * Real{16}};
+  if (rxs * rxs
+      <= noise * noise * nexenne::math::length_squared(r) * nexenne::math::length_squared(s)) {
     return std::nullopt;  // parallel or collinear
   }
   auto const qp{b.start() - a.start()};
