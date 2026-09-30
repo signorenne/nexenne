@@ -5,6 +5,7 @@
 
 #include <doctest/doctest.h>
 
+#include <limits>
 #include <optional>
 
 #include <nexenne/geometry/aabb.hpp>
@@ -297,6 +298,27 @@ TEST_CASE("segment2 intersects: collinear overlapping segments return nullopt (g
     )
     == vec2f{1, 1}
   );
+}
+
+TEST_CASE("contains_point: a NaN point is outside a triangle and a box (geometry-11)") {
+  // Both tests were written as "reject on a failing comparison", and every
+  // comparison with NaN is false, so a NaN point was reported inside.
+  auto const nan{std::numeric_limits<double>::quiet_NaN()};
+  geo::triangle2_d const tri{vec2{0, 0}, vec2{1, 0}, vec2{0, 1}};
+  geo::aabb2_d const box{vec2{0, 0}, vec2{1, 1}};
+  for (auto const& p : {vec2{nan, nan}, vec2{nan, 0.5}, vec2{0.25, nan}}) {
+    CHECK_FALSE(geo::contains_point(tri, p));
+    CHECK_FALSE(geo::contains_point(box, p));
+  }
+  CHECK_FALSE(geo::contains_point(geo::aabb3_d{vec3{0, 0, 0}, vec3{1, 1, 1}}, vec3{0.5, nan, 0.5}));
+  CHECK(geo::contains_point(tri, vec2{0.25, 0.25}));
+  CHECK(geo::contains_point(tri, vec2{0.5, 0}));
+  CHECK(
+    geo::contains_point(geo::triangle2_d{vec2{0, 0}, vec2{0, 1}, vec2{1, 0}}, vec2{0.25, 0.25})
+  );
+  CHECK_FALSE(geo::contains_point(tri, vec2{1, 1}));
+  CHECK(geo::contains_point(box, vec2{1, 0.5}));
+  CHECK_FALSE(geo::contains_point(box, vec2{1.5, 0.5}));
 }
 
 }  // namespace

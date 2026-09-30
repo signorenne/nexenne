@@ -78,9 +78,11 @@ when it is on the same side of all three edges:
 
 Accepting "all non-negative OR all non-positive" makes the test independent of
 the triangle's winding and inclusive of the boundary (a zero means "exactly on
-that edge"). Concretely the code rejects only when it has seen both a strictly
-negative and a strictly positive sign, so a point dead on an edge or vertex still
-counts as contained.
+that edge"), so a point dead on an edge or vertex still counts as contained. The
+code tests exactly that, not the equivalent "no strictly negative and strictly
+positive pair": every comparison with NaN is false, so a point with a NaN
+component fails both halves and is not contained, where the other form would
+accept it.
 
 ** Closest point
 

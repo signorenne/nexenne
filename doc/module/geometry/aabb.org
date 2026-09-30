@@ -59,7 +59,9 @@ type's largest finite value, =max= at its negative), so the first
 ** Containment and overlap, as per-axis range tests
 
 With corners, =contains_point= is just =min[i] <= p[i] <= max[i]= on every axis
-(boundary inclusive), and =contains_aabb= reduces to containing the inner box's
+(boundary inclusive, and written so that a NaN component, which fails every
+comparison, is not contained), and =contains_aabb= reduces to containing the
+inner box's
 two corners. Overlap is the same idea read the other way: two boxes miss exactly
 when they are separated on *some* axis, so =intersects= returns =false= the moment
 it finds =a.max[i] < b.min[i]= or =a.min[i] > b.max[i]=, and =true= otherwise

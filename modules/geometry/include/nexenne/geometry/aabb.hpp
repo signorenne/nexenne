@@ -369,7 +369,8 @@ template <nexenne::math::arithmetic Value, std::size_t N>
  * @param box Bounding box.
  * @param p Point to test.
  *
- * @return \c true when \c box.min()[i] <= p[i] <= box.max()[i] on every axis.
+ * @return \c true when \c box.min()[i] <= p[i] <= box.max()[i] on every axis;
+ *         \c false for a point with a NaN component.
  *
  * @pre \p box is well-formed (\c min <= max component-wise).
  * @post None.
@@ -379,7 +380,9 @@ template <nexenne::math::arithmetic Value, std::size_t N>
 contains_point(aabb<Value, N> const& box, nexenne::math::vector<Value, N> const& p) noexcept
   -> bool {
   for (std::size_t i{0}; i < N; ++i) {
-    if (p[i] < box.min()[i] || p[i] > box.max()[i]) {
+    // Written as "not inside" rather than "outside": every comparison with NaN
+    // is false, so a NaN component fails the test instead of passing it.
+    if (!(p[i] >= box.min()[i] && p[i] <= box.max()[i])) {
       return false;
     }
   }

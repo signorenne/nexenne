@@ -253,7 +253,8 @@ template <std::floating_point Real>
  *
  * Uses the barycentric-orientation test: \p p is inside when the three
  * sub-triangles \c (p, a, b), \c (p, b, c), \c (p, c, a) share an orientation.
- * Handles either winding order; boundary inclusive.
+ * Handles either winding order; boundary inclusive. A point with a NaN
+ * component is never inside.
  *
  * @tparam Real Component type.
  * @param t 2D triangle.
@@ -290,13 +291,15 @@ contains_point(triangle<Real, 2> const& t, nexenne::math::vector<Real, 2> const&
   auto const d2{edge_sign(p, t.b(), t.c())};
   auto const d3{edge_sign(p, t.c(), t.a())};
   // p is inside the closed triangle when it is on the same side of all three
-  // edges, i.e. the three signs never disagree. Testing "not (some negative and
-  // some positive)" rather than "all positive" makes the result independent of
-  // the triangle's winding (works for both orientations) and inclusive of the
-  // boundary (a zero agrees with either sign). See Ericson, RTCD section 3.4.
-  auto const has_neg{d1 < Real{0} || d2 < Real{0} || d3 < Real{0}};
-  auto const has_pos{d1 > Real{0} || d2 > Real{0} || d3 > Real{0}};
-  return !(has_neg && has_pos);
+  // edges, i.e. the three signs never disagree. Testing "all non-negative or
+  // all non-positive" rather than "all positive" makes the result independent
+  // of the triangle's winding (works for both orientations) and inclusive of
+  // the boundary (a zero agrees with either sign). See Ericson, RTCD section
+  // 3.4. Every comparison with NaN is false, so a NaN point fails both tests;
+  // the equivalent "not (some negative and some positive)" would accept it.
+  auto const all_non_negative{d1 >= Real{0} && d2 >= Real{0} && d3 >= Real{0}};
+  auto const all_non_positive{d1 <= Real{0} && d2 <= Real{0} && d3 <= Real{0}};
+  return all_non_negative || all_non_positive;
 }
 
 /**
