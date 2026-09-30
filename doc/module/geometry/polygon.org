@@ -68,9 +68,13 @@ relative coordinates and adds the first vertex back.
 vertices). =centroid= is the standard polygon-centroid formula, valid for any
 simple polygon including non-convex ones: it accumulates the same per-edge cross
 term =cross_v= used by the shoelace, weighting each by =(p0 + p1)=, and divides by
-six times the signed area. When that area is exactly zero the formula would divide
-by zero, so a degenerate polygon falls back to the plain arithmetic mean of the
-vertices. An empty polygon returns the origin.
+six times the signed area. When that area is zero the formula would divide by
+zero, so a degenerate polygon falls back to the plain arithmetic mean of the
+vertices. Collinear vertices rarely sum to an exact zero: their cross terms
+leave rounding noise, and dividing by it would throw the centroid far outside
+the hull. So the fallback also covers an area no larger than its rounding error,
+=2 n= machine epsilons of the summed magnitudes of the products in the cross
+terms. An empty polygon returns the origin.
 
 ** Point containment by ray casting
 

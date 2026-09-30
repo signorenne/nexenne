@@ -16,6 +16,7 @@
 
 #include <concepts>
 #include <cstddef>
+#include <limits>
 #include <span>
 
 #include <nexenne/geometry/aabb.hpp>
@@ -151,7 +152,8 @@ template <std::floating_point Real>
  * The standard polygon-centroid formula, valid for non-convex but
  * non-self-intersecting polygons, evaluated relative to the first vertex so a
  * polygon far from the origin keeps its precision. Falls back to the vertex
- * arithmetic mean when the polygon is degenerate (zero area).
+ * arithmetic mean when the polygon is degenerate: its summed cross products are
+ * no larger than their rounding error, so the area carries no sign or size.
  *
  * @tparam Real Component type.
  * @param poly Polygon.
@@ -160,7 +162,8 @@ template <std::floating_point Real>
  *
  * @pre The polygon has at least three vertices and is simple.
  * @post For a non-degenerate polygon the result lies in its convex hull;
- *       degenerate input falls back to the vertex arithmetic mean.
+ *       degenerate input, including collinear vertices whose area is rounding
+ *       noise, falls back to the vertex arithmetic mean.
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto centroid(polygon2<Real> const poly) noexcept
@@ -174,7 +177,7 @@ template <std::floating_point Real>
   // weight on the edge-midpoint sum: Cx = sum((x0 + x1) * cross) / (3 * 2A),
   // likewise Cy, where a6 accumulates 6A (six times the signed area). The /6 and
   // /3 fold into the final inv. A zero-area (collinear or self-cancelling) loop
-  // leaves a6 == 0 and falls back to the plain vertex mean below. See Bourke,
+  // falls back to the plain vertex mean below. See Bourke,
   // "Calculating the area and centroid of a polygon" (1988), and the polygon
   // centroid formula on Wikipedia. The formula runs on coordinates relative to
   // the first vertex, which is added back at the end: absolute coordinates far
@@ -183,6 +186,11 @@ template <std::floating_point Real>
   auto cx{Real{0}};
   auto cy{Real{0}};
   auto a6{Real{0}};
+  // Sum of the product magnitudes behind every cross term: a6's rounding
+  // error is at most a few epsilons of it per term. A collinear loop leaves a6
+  // at that noise level (5.6e-17 in one case), not at zero, and dividing by it
+  // throws the centroid far outside the hull.
+  auto magnitude{Real{0}};
   for (auto i{std::size_t{0}}; i < n; ++i) {
     auto const p0{poly.vertices()[i] - origin};
     auto const p1{poly.vertices()[(i + 1) % n] - origin};
@@ -190,8 +198,10 @@ template <std::floating_point Real>
     cx += (p0.x() + p1.x()) * cross_v;
     cy += (p0.y() + p1.y()) * cross_v;
     a6 += cross_v;
+    magnitude += nexenne::math::abs(p0.x() * p1.y()) + nexenne::math::abs(p1.x() * p0.y());
   }
-  if (a6 == Real{0}) {
+  auto const noise{static_cast<Real>(2 * n) * std::numeric_limits<Real>::epsilon() * magnitude};
+  if (nexenne::math::abs(a6) <= noise) {
     auto mean{nexenne::math::vector<Real, 2>{}};
     for (auto const& v : poly.vertices()) {
       mean = mean + v;

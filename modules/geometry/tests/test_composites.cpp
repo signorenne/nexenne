@@ -191,4 +191,30 @@ TEST_CASE("polygon2: area and centroid far from the origin (geometry-05)") {
   CHECK(geo::centroid(geo::polygon2_d{square}) == vec2{o + 0.5, o + 0.5});
 }
 
+TEST_CASE(
+  "polygon2: a collinear loop with a rounding-noise area uses the vertex mean (geometry-06)"
+) {
+  // The fallback tested a6 == 0, but collinear vertices leave a noise area: the
+  // centroid then landed outside the hull, at (0, -1.33) for a mean of
+  // (0.21, 1.35), and at t = -0.27 along a four-point line.
+  auto const mean_of{[](auto const& pts) {
+    auto sum{vec2{}};
+    for (auto const& p : pts) {
+      sum = sum + p;
+    }
+    return sum * (1.0 / static_cast<double>(pts.size()));
+  }};
+  auto const near{[](vec2 const& p, vec2 const& q) { return nm::length(p - q) <= 1e-12; }};
+
+  auto const a{vec2{0x1.c99263aa6b19p-2, 0x1.ff90e79e76dfp-1}};
+  auto const d{vec2{-0x1.30a60bcad2314p-1, 0x1.bc6a53f6585cp-1}};
+  std::array<vec2, 3> const line3{a, a + d * 0.3, a + d * 0.9};
+  CHECK(near(geo::centroid(geo::polygon2_d{line3}), mean_of(line3)));
+
+  auto const b{vec2{0x1.e7b13587acecp-2, -0x1.f0050961917dp-2}};
+  auto const e{vec2{0x1.06ffbfd08465p-3, -0x1.78645db129966p-1}};
+  std::array<vec2, 4> const line4{b, b + e * 0.3, b + e * 0.9, b + e * 0.55};
+  CHECK(near(geo::centroid(geo::polygon2_d{line4}), mean_of(line4)));
+}
+
 }  // namespace
