@@ -92,18 +92,35 @@ public:
     return m_direction;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
-  [[nodiscard]] friend constexpr auto operator<=>(ray const&, ray const&) noexcept = default;
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto
+  operator<=>(ray const& lhs, ray const& rhs) noexcept = default;
 };
 
+/// @brief 2D ray with \c Real components.
 template <std::floating_point Real>
 using ray2 = ray<Real, 2>;
+/// @brief 3D ray with \c Real components.
 template <std::floating_point Real>
 using ray3 = ray<Real, 3>;
 
+/// @brief Single-precision 2D ray.
 using ray2_f = ray2<float>;
+/// @brief Double-precision 2D ray.
 using ray2_d = ray2<double>;
+/// @brief Single-precision 3D ray.
 using ray3_f = ray3<float>;
+/// @brief Double-precision 3D ray.
 using ray3_d = ray3<double>;
 
 static_assert(std::is_trivially_copyable_v<ray2_f>);

@@ -125,11 +125,24 @@ public:
     return m_rotation;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
-  [[nodiscard]] friend constexpr auto operator<=>(obb2 const&, obb2 const&) noexcept = default;
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto
+  operator<=>(obb2 const& lhs, obb2 const& rhs) noexcept = default;
 };
 
+/// @brief Single-precision 2D oriented box.
 using obb2_f = obb2<float>;
+/// @brief Double-precision 2D oriented box.
 using obb2_d = obb2<double>;
 
 static_assert(std::is_trivially_copyable_v<obb2_f>);
@@ -373,11 +386,24 @@ public:
     return m_rotation;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
-  [[nodiscard]] friend constexpr auto operator<=>(obb3 const&, obb3 const&) noexcept = default;
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto
+  operator<=>(obb3 const& lhs, obb3 const& rhs) noexcept = default;
 };
 
+/// @brief Single-precision 3D oriented box.
 using obb3_f = obb3<float>;
+/// @brief Double-precision 3D oriented box.
 using obb3_d = obb3<double>;
 
 static_assert(std::is_trivially_copyable_v<obb3_f>);

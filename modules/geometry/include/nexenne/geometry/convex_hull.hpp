@@ -125,7 +125,9 @@ public:
   }
 };
 
+/// @brief Single-precision convex hull view.
 using convex_hull3_f = convex_hull3<float>;
+/// @brief Double-precision convex hull view.
 using convex_hull3_d = convex_hull3<double>;
 
 /**

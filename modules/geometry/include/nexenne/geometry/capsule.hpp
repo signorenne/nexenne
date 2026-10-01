@@ -114,19 +114,35 @@ public:
     return m_radius;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
-  operator<=>(capsule const&, capsule const&) noexcept = default;
+  operator<=>(capsule const& lhs, capsule const& rhs) noexcept = default;
 };
 
+/// @brief 2D capsule with \c Real components.
 template <std::floating_point Real>
 using capsule2 = capsule<Real, 2>;
+/// @brief 3D capsule with \c Real components.
 template <std::floating_point Real>
 using capsule3 = capsule<Real, 3>;
 
+/// @brief Single-precision 2D capsule.
 using capsule2_f = capsule2<float>;
+/// @brief Double-precision 2D capsule.
 using capsule2_d = capsule2<double>;
+/// @brief Single-precision 3D capsule.
 using capsule3_f = capsule3<float>;
+/// @brief Double-precision 3D capsule.
 using capsule3_d = capsule3<double>;
 
 static_assert(std::is_trivially_copyable_v<capsule2_f>);

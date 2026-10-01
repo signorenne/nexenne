@@ -88,12 +88,24 @@ public:
     return m_radius;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
-  operator<=>(circle2 const&, circle2 const&) noexcept = default;
+  operator<=>(circle2 const& lhs, circle2 const& rhs) noexcept = default;
 };
 
+/// @brief Single-precision circle.
 using circle2_f = circle2<float>;
+/// @brief Double-precision circle.
 using circle2_d = circle2<double>;
 
 static_assert(std::is_trivially_copyable_v<circle2_f>);

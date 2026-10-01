@@ -88,12 +88,24 @@ public:
     return m_radius;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
-  operator<=>(sphere3 const&, sphere3 const&) noexcept = default;
+  operator<=>(sphere3 const& lhs, sphere3 const& rhs) noexcept = default;
 };
 
+/// @brief Single-precision sphere.
 using sphere3_f = sphere3<float>;
+/// @brief Double-precision sphere.
 using sphere3_d = sphere3<double>;
 
 static_assert(std::is_trivially_copyable_v<sphere3_f>);

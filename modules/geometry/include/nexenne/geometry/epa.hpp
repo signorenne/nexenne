@@ -2,8 +2,9 @@
 
 /**
  * @file
- * @brief Expanding Polytope Algorithm (EPA): penetration depth and normal from
- *        an overlapping GJK result.
+ * @brief Expanding Polytope Algorithm (EPA): penetration depth and normal.
+ *
+ * EPA works on an overlapping GJK result.
  *
  * Run order: \c gjk first; if it reports \c overlap, hand its terminal simplex
  * (one to four vertices carrying the origin) to \c epa. EPA grows it into a
@@ -61,11 +62,14 @@ struct epa_result3 {
   point_type contact_point_b{};  ///< Best-guess contact point on B (world space).
 };
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
- * @brief A triangular face of the EPA polytope: three vertex indices, an outward
- *        unit normal, and the distance from the origin to the face plane.
+ * @brief A triangular face of the EPA polytope.
+ *
+ * Three vertex indices, an outward unit normal, and the distance from the
+ * origin to the face plane.
  *
  * @tparam Real Floating-point component type.
  */
@@ -81,8 +85,10 @@ struct epa_face {
 };
 
 /**
- * @brief Builds a face from three polytope vertices, with its normal oriented
- *        outward (away from \p interior) and its origin distance.
+ * @brief Builds an outward-facing face from three polytope vertices.
+ *
+ * The face records its outward normal (away from \p interior) and its distance
+ * from the origin.
  *
  * The normal is \c cross(b - a, c - a) normalized, then flipped if it points
  * toward \p interior (a point known to be inside the polytope) so it always
@@ -430,11 +436,13 @@ seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& ini
 
 }  // namespace detail
 
+/// @endcond
+
 /**
- * @brief Recovers penetration depth, normal, and contact points from an
- *        overlapping GJK result via the Expanding Polytope Algorithm.
+ * @brief Recovers penetration depth, normal, and contact points of an overlap.
  *
- * Seeds a polytope with a tetrahedron grown from the GJK terminal simplex, then
+ * Runs the Expanding Polytope Algorithm on an overlapping GJK result. Seeds a
+ * polytope with a tetrahedron grown from the GJK terminal simplex, then
  * repeatedly finds the face nearest the origin, asks the shapes for a support
  * point along that face's normal, and either declares convergence (the support
  * point does not push the face outward by more than \p tolerance) or expands
@@ -676,8 +684,9 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
 }
 
 /**
- * @brief A contact manifold: the small set of contact points shared by two
- *        overlapping shapes, with the shared normal.
+ * @brief A contact manifold: the contact points of two overlapping shapes.
+ *
+ * The small set of points the two shapes share, with the shared normal.
  *
  * EPA alone yields one deepest contact point, which is enough to push two shapes
  * apart but not to keep a face-to-face contact (a box resting on the ground) from
@@ -698,6 +707,7 @@ struct contact_manifold3 {
   point_type normal{};  ///< Shared contact normal (the MTV direction, out of A toward B).
 };
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -802,6 +812,8 @@ template <std::floating_point Real, typename Shape>
 }
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Builds a contact manifold for two overlapping shapes from an EPA result.

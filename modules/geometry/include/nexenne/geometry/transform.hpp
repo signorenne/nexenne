@@ -68,14 +68,15 @@ using nexenne::math::vector;
  */
 template <std::floating_point Real>
 class transform2d {
+public:
+  using value_type = Real;
+
 private:
   vector<Real, 2> m_position{Real{0}, Real{0}};
   radians<Real> m_rotation{};
   vector<Real, 2> m_scale{Real{1}, Real{1}};
 
 public:
-  using value_type = Real;
-
   /// @brief Constructs the identity pose (origin, zero angle, unit scale).
   constexpr transform2d() noexcept = default;
 
@@ -145,9 +146,19 @@ public:
     return m_scale;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
-  operator<=>(transform2d const&, transform2d const&) noexcept = default;
+  operator<=>(transform2d const& lhs, transform2d const& rhs) noexcept = default;
 
   /**
    * @brief The identity pose.
@@ -162,7 +173,9 @@ public:
   }
 };
 
+/// @brief Single-precision 2D pose.
 using transform2d_f = transform2d<float>;
+/// @brief Double-precision 2D pose.
 using transform2d_d = transform2d<double>;
 
 static_assert(std::is_trivially_copyable_v<transform2d_f>);
@@ -177,14 +190,15 @@ static_assert(std::is_standard_layout_v<transform2d_f>);
  */
 template <std::floating_point Real>
 class transform3d {
+public:
+  using value_type = Real;
+
 private:
   vector<Real, 3> m_position{Real{0}, Real{0}, Real{0}};
   quaternion<Real> m_rotation{};
   vector<Real, 3> m_scale{Real{1}, Real{1}, Real{1}};
 
 public:
-  using value_type = Real;
-
   /// @brief Constructs the identity pose (origin, identity rotation, unit scale).
   constexpr transform3d() noexcept = default;
 
@@ -254,9 +268,19 @@ public:
     return m_scale;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
-  operator<=>(transform3d const&, transform3d const&) noexcept = default;
+  operator<=>(transform3d const& lhs, transform3d const& rhs) noexcept = default;
 
   /**
    * @brief The identity pose.
@@ -271,7 +295,9 @@ public:
   }
 };
 
+/// @brief Single-precision 3D pose.
 using transform3d_f = transform3d<float>;
+/// @brief Double-precision 3D pose.
 using transform3d_d = transform3d<double>;
 
 static_assert(std::is_trivially_copyable_v<transform3d_f>);

@@ -102,20 +102,37 @@ public:
 
   /**
    * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
    */
-  [[nodiscard]] friend constexpr auto operator<=>(aabb const&, aabb const&) noexcept = default;
+  [[nodiscard]] friend constexpr auto
+  operator<=>(aabb const& lhs, aabb const& rhs) noexcept = default;
 };
 
+/// @brief 2D axis-aligned box with \c Value components.
 template <nexenne::math::arithmetic Value>
 using aabb2 = aabb<Value, 2>;
+/// @brief 3D axis-aligned box with \c Value components.
 template <nexenne::math::arithmetic Value>
 using aabb3 = aabb<Value, 3>;
 
+/// @brief Single-precision 2D axis-aligned box.
 using aabb2_f = aabb2<float>;
+/// @brief Double-precision 2D axis-aligned box.
 using aabb2_d = aabb2<double>;
+/// @brief Integer 2D axis-aligned box.
 using aabb2_i = aabb2<int>;
+/// @brief Single-precision 3D axis-aligned box.
 using aabb3_f = aabb3<float>;
+/// @brief Double-precision 3D axis-aligned box.
 using aabb3_d = aabb3<double>;
+/// @brief Integer 3D axis-aligned box.
 using aabb3_i = aabb3<int>;
 
 static_assert(std::is_trivially_copyable_v<aabb2_f>);

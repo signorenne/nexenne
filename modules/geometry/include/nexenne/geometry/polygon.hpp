@@ -63,7 +63,9 @@ public:
   }
 };
 
+/// @brief Single-precision polygon view.
 using polygon2_f = polygon2<float>;
+/// @brief Double-precision polygon view.
 using polygon2_d = polygon2<double>;
 
 /**

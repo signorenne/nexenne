@@ -360,6 +360,7 @@ template <std::floating_point Real>
   return distance(pl, s.center()) <= s.radius();
 }
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -372,6 +373,9 @@ namespace detail {
  * @param axis Query axis (need not be unit length; the result scales with it).
  *
  * @return The projected half-width along \p axis.
+ *
+ * @pre \p basis holds unit axes.
+ * @post The result is non-negative when \p half is.
  */
 template <std::floating_point Real, std::size_t N>
 [[nodiscard]] constexpr auto projected_radius(
@@ -397,6 +401,9 @@ template <std::floating_point Real, std::size_t N>
  *
  * @return The two unit axes of \p box's local frame.
  *
+ * @pre None.
+ * @post The axes are unit length and orthogonal (up to rounding).
+ *
  * @note Runtime only: depends on \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
@@ -414,6 +421,9 @@ template <std::floating_point Real>
  * @param box Oriented box.
  *
  * @return The three unit axes of \p box's local frame.
+ *
+ * @pre \c box.rotation() has unit length.
+ * @post The axes are unit length and orthogonal (up to rounding).
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto axes(obb3<Real> const& box) noexcept
@@ -433,6 +443,9 @@ template <std::floating_point Real>
  * @tparam N Dimension.
  *
  * @return The \p N standard basis vectors.
+ *
+ * @pre None.
+ * @post Entry \c i is the unit vector along axis \c i.
  */
 template <std::floating_point Real, std::size_t N>
 [[nodiscard]] constexpr auto identity_basis() noexcept
@@ -457,6 +470,9 @@ template <std::floating_point Real, std::size_t N>
  * @param axis Candidate separating axis.
  *
  * @return \c true when the axis separates the boxes (so they do NOT overlap).
+ *
+ * @pre \p basis_a and \p basis_b hold unit axes.
+ * @post None.
  */
 template <std::floating_point Real, std::size_t N>
 [[nodiscard]] constexpr auto separated_on(
@@ -478,6 +494,8 @@ template <std::floating_point Real, std::size_t N>
 }
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Two 2D oriented boxes overlap (Separating Axis Theorem, 4 axes).
@@ -699,8 +717,9 @@ template <std::floating_point Real>
 }
 
 /**
- * @brief A ray cast hit: the distance, the world hit point, and the surface
- *        normal there.
+ * @brief A ray cast hit: the distance, the hit point, and the surface normal.
+ *
+ * The point is in world space and the normal is the one at that point.
  *
  * The richer companion to the \c intersects(ray, shape) overloads that return
  * only the \c t parameter. The normal is the unit outward surface normal at the

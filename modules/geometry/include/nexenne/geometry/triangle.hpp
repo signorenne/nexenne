@@ -115,19 +115,35 @@ public:
     return m_c;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
-  operator<=>(triangle const&, triangle const&) noexcept = default;
+  operator<=>(triangle const& lhs, triangle const& rhs) noexcept = default;
 };
 
+/// @brief 2D triangle with \c Real components.
 template <std::floating_point Real>
 using triangle2 = triangle<Real, 2>;
+/// @brief 3D triangle with \c Real components.
 template <std::floating_point Real>
 using triangle3 = triangle<Real, 3>;
 
+/// @brief Single-precision 2D triangle.
 using triangle2_f = triangle2<float>;
+/// @brief Double-precision 2D triangle.
 using triangle2_d = triangle2<double>;
+/// @brief Single-precision 3D triangle.
 using triangle3_f = triangle3<float>;
+/// @brief Double-precision 3D triangle.
 using triangle3_d = triangle3<double>;
 
 static_assert(std::is_trivially_copyable_v<triangle2_f>);

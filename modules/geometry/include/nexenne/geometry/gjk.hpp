@@ -57,8 +57,9 @@
 namespace nexenne::geometry {
 
 /**
- * @brief A vertex of the Minkowski difference, kept with the per-shape support
- *        points that generated it.
+ * @brief A Minkowski-difference vertex with the support points behind it.
+ *
+ * Each vertex keeps the per-shape support points that generated it.
  *
  * Storing the original support points alongside the Minkowski-difference vertex
  * lets GJK reconstruct world-space closest points (and EPA contact points) by
@@ -99,8 +100,10 @@ struct gjk_simplex3 {
 };
 
 /**
- * @brief Outcome of a GJK run: overlap flag, distance and closest points, the
- *        terminal simplex, and the iteration count.
+ * @brief Outcome of a GJK run.
+ *
+ * The overlap flag, the distance and closest points, the terminal simplex, and
+ * the iteration count.
  *
  * When \c overlap is \c false the shapes are apart: \c distance is the separation
  * and \c closest_a / \c closest_b are the nearest points on A and B. When
@@ -123,6 +126,7 @@ struct gjk_result3 {
   std::size_t iterations{0};     ///< Iterations consumed before terminating.
 };
 
+/// @cond INTERNAL
 namespace detail {
 
 /**
@@ -485,6 +489,8 @@ template <std::floating_point Real>
 }
 
 }  // namespace detail
+
+/// @endcond
 
 /**
  * @brief Runs GJK on two convex shapes, reporting overlap or the distance.

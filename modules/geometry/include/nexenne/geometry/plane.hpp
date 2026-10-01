@@ -94,11 +94,24 @@ public:
     return m_d;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
-  [[nodiscard]] friend constexpr auto operator<=>(plane3 const&, plane3 const&) noexcept = default;
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
+  [[nodiscard]] friend constexpr auto
+  operator<=>(plane3 const& lhs, plane3 const& rhs) noexcept = default;
 };
 
+/// @brief Single-precision plane.
 using plane3_f = plane3<float>;
+/// @brief Double-precision plane.
 using plane3_d = plane3<double>;
 
 static_assert(std::is_trivially_copyable_v<plane3_f>);

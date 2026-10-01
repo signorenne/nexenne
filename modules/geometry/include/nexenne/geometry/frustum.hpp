@@ -124,12 +124,24 @@ public:
     return m_planes;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
-  operator<=>(frustum3 const&, frustum3 const&) noexcept = default;
+  operator<=>(frustum3 const& lhs, frustum3 const& rhs) noexcept = default;
 };
 
+/// @brief Single-precision view frustum.
 using frustum3_f = frustum3<float>;
+/// @brief Double-precision view frustum.
 using frustum3_d = frustum3<double>;
 
 /**

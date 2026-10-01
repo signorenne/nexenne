@@ -92,19 +92,35 @@ public:
     return m_end;
   }
 
-  /// @brief Component-wise equality and ordering, defaulted.
+  /**
+   * @brief Component-wise equality and ordering, defaulted.
+   *
+   * @param lhs Left operand.
+   * @param rhs Right operand.
+   *
+   * @return Lexicographic comparison of the members in declaration order.
+   *
+   * @pre None.
+   * @post None.
+   */
   [[nodiscard]] friend constexpr auto
-  operator<=>(segment const&, segment const&) noexcept = default;
+  operator<=>(segment const& lhs, segment const& rhs) noexcept = default;
 };
 
+/// @brief 2D segment with \c Real components.
 template <std::floating_point Real>
 using segment2 = segment<Real, 2>;
+/// @brief 3D segment with \c Real components.
 template <std::floating_point Real>
 using segment3 = segment<Real, 3>;
 
+/// @brief Single-precision 2D segment.
 using segment2_f = segment2<float>;
+/// @brief Double-precision 2D segment.
 using segment2_d = segment2<double>;
+/// @brief Single-precision 3D segment.
 using segment3_f = segment3<float>;
+/// @brief Double-precision 3D segment.
 using segment3_d = segment3<double>;
 
 static_assert(std::is_trivially_copyable_v<segment2_f>);
