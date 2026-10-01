@@ -6,8 +6,11 @@
  *
  * Module error policy:
  *   - Every operation that can fail on input the operation itself can detect
- *     (a degenerate primitive, a non-finite component, parallel features that
- *     cannot intersect) returns \c std::expected<T, geometry_error>. There is
+ *     (a degenerate primitive, parallel features that cannot intersect)
+ *     returns \c std::expected<T, geometry_error>. A NaN or infinite component
+ *     in a vector that \c ray_from_points, \c plane_from_point_normal,
+ *     \c plane_from_three_points or \c normal must normalize reports
+ *     \c degenerate_primitive, as a zero-length vector does. There is
  *     no separate precondition "fast path": a caller who knows the input is
  *     valid still unwraps via \c *result, and the compiler elides the dead
  *     error branch, so the runtime cost is essentially zero.
@@ -30,7 +33,7 @@ namespace nexenne::geometry {
  */
 enum class geometry_error {
   degenerate_primitive,  ///< Zero-length segment, zero-radius circle, collinear triangle, etc.
-  invalid_input,         ///< A precondition the op can detect failed (NaN or non-finite input).
+  invalid_input,         ///< A checked requirement failed (a reflection in decompose_2/3).
   parallel,              ///< Parallel features cannot produce the requested intersection.
 };
 

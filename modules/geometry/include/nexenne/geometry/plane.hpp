@@ -115,8 +115,9 @@ static_assert(sizeof(plane3_f) == 4 * sizeof(float));
  * @param normal Plane normal (need not be unit).
  *
  * @return The plane on success, or \c geometry_error::degenerate_primitive when
- *         \p normal is too short to normalize: its squared length is zero or
- *         below the smallest normal \c Real.
+ *         \p normal is too short to normalize (its squared length is zero or
+ *         below the smallest normal \c Real) or one of its components is not
+ *         finite.
  *
  * @pre None. \p normal is validated.
  * @post On success the plane has a unit-length normal and passes through
@@ -149,7 +150,8 @@ template <std::floating_point Real>
  * @return The plane on success, or \c geometry_error::degenerate_primitive when
  *         the three points are collinear: the edges from \p a meet at an angle
  *         under 64 machine epsilons (about 8e-6 radians in float, 1e-14 in
- *         double; a test of the shape, not the size) or a point repeats.
+ *         double; a test of the shape, not the size) or a point repeats. A
+ *         component that is not finite reports the same error.
  *
  * @pre None. Collinearity is detected and reported.
  * @post On success the plane has a unit-length normal and passes through all

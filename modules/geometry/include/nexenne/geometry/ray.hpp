@@ -122,7 +122,7 @@ static_assert(sizeof(ray3_f) == 6 * sizeof(float));
  * @param target Point the ray points toward.
  *
  * @return The ray on success, or \c geometry_error::degenerate_primitive when
- *         \p origin and \p target coincide.
+ *         \p origin and \p target coincide or a component is not finite.
  *
  * @pre None. Coincident points are detected and reported.
  * @post On success the ray has a unit-length direction and its origin equals

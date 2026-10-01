@@ -27,8 +27,10 @@
  * Any type with an ADL-found \c support(shape, direction) overload in
  * \c nexenne::geometry is usable: \c convex_hull3 provides one and the analytic
  * primitives supply theirs in support.hpp. The \c convex_shape concept (in
- * concepts.hpp) spells out the requirement. On overlap the terminal simplex is a
- * tetrahedron enclosing the origin, which EPA picks up for the penetration depth.
+ * concepts.hpp) spells out the requirement. On overlap the terminal simplex
+ * carries the origin: a tetrahedron that encloses it, or, when the loop
+ * stopped on a simplex that touches it, a point, edge or triangle. EPA grows
+ * either into the tetrahedron it expands for the penetration depth.
  *
  * Convention: a \c gjk_simplex3 stores its vertices newest-first, so
  * \c points[0] is the most recently added one and \c count is the simplex
@@ -103,7 +105,8 @@ struct gjk_simplex3 {
  * When \c overlap is \c false the shapes are apart: \c distance is the separation
  * and \c closest_a / \c closest_b are the nearest points on A and B. When
  * \c overlap is \c true the shapes intersect: \c distance is zero, the closest
- * points are unused, and \c simplex is a tetrahedron enclosing the origin for EPA.
+ * points are unused, and \c simplex carries the origin for EPA (a tetrahedron
+ * that encloses it, or a point, edge or triangle that touches it).
  *
  * @tparam Real Floating-point component type.
  */
@@ -116,7 +119,7 @@ struct gjk_result3 {
   Real distance{};               ///< Separation distance when apart; 0 on overlap.
   point_type closest_a{};        ///< Closest point on A (world space) when apart.
   point_type closest_b{};        ///< Closest point on B (world space) when apart.
-  gjk_simplex3<Real> simplex{};  ///< Terminal simplex; a tetrahedron on overlap.
+  gjk_simplex3<Real> simplex{};  ///< Terminal simplex; carries the origin on overlap.
   std::size_t iterations{0};     ///< Iterations consumed before terminating.
 };
 
@@ -494,8 +497,8 @@ template <std::floating_point Real>
  * the origin to within rounding (touching or overlapping), when a support
  * point cannot move the closest point any nearer the origin (separated,
  * distance found), or when the iteration cap is hit. On overlap the terminal
- * simplex is a tetrahedron for EPA; when apart the result carries the distance
- * and the closest point on each shape.
+ * simplex, one to four vertices carrying the origin, is ready for EPA; when
+ * apart the result carries the distance and the closest point on each shape.
  *
  * The closest point counts as the origin once it is within 16 machine epsilons
  * of the largest simplex vertex magnitude, or within 1e-10 in world units,
@@ -518,7 +521,9 @@ template <std::floating_point Real>
  *         many steps were used.
  *
  * @pre \p a and \p b are convex.
- * @post When \c overlap is \c true the \c simplex encloses the origin; when it is
+ * @post When \c overlap is \c true the \c simplex carries the origin to within
+ *       rounding (a tetrahedron that encloses it, or a point, edge or triangle
+ *       that touches it); when it is
  *       \c false \c distance is non-negative and the closest points lie on the
  *       respective shapes. \c iterations does not exceed \p max_iterations.
  *

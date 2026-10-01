@@ -10,8 +10,9 @@ small bundle of =vector=, and every query reduces to the dot, cross, length, and
 normalize from [[file:../math/vector_algorithms.org][vector_algorithms]].
 
 The spirit matches the rest of nexenne: everything is generic over the scalar
-type, =constexpr= wherever the language allows, =noexcept= throughout, no heap,
-and no runtime surprises. The primitives are thin value types, trivially
+type, =constexpr= wherever the language allows, =noexcept= throughout, no heap
+outside the =aabb_tree= node pool and the EPA polytope, and no runtime
+surprises. The primitives are thin value types, trivially
 copyable, their byte size pinned by =static_assert=; the interesting content is
 the free functions that query them.
 
@@ -24,16 +25,19 @@ type. See [[file:../../../modules/geometry/include/nexenne/geometry/error.hpp][=
   =result<T> = std::expected<T, geometry_error>=. A degenerate primitive (a
   zero-length normal, coincident points, collinear points) is reported, not
   assumed away: =ray_from_points=, =plane_from_point_normal=,
-  =plane_from_three_points=, and =triangle::normal= all hand back a =result= and
-  report =geometry_error::degenerate_primitive= rather than producing a NaN-laden
-  shape. There is no separate precondition fast path: a caller who knows the
-  input is good still unwraps via =*result=, and the compiler elides the dead
-  error branch, so the runtime cost is essentially zero.
+  =plane_from_three_points=, and =normal(triangle3)= all hand back a =result=
+  and report =geometry_error::degenerate_primitive= rather than producing a
+  NaN-laden shape. A NaN or infinite component in the vector a factory
+  normalizes reports =degenerate_primitive= as well; =invalid_input= marks a
+  checked requirement, such as the reflection that =decompose_2= and
+  =decompose_3= reject. There is no separate precondition fast path: a caller
+  who knows the input is good still unwraps via =*result=, and the compiler
+  elides the dead error branch, so the runtime cost is essentially zero.
 - *A query that can legitimately have no answer* returns =std::optional=, not
   =result=. A 2D =segment= =intersects= that finds no crossing returns
   =std::nullopt=: a clean miss is an answer, not invalid input.
-- *A predicate* returns =bool=: =triangle::contains_point=,
-  =plane3::contains_point=.
+- *A predicate* returns =bool=: =contains_point(triangle2, p)=,
+  =contains_point(plane3, p)=.
 
 =geometry_error= is the module's own error space (=degenerate_primitive=,
 =invalid_input=, =parallel=); math-side failures stay in
@@ -76,8 +80,8 @@ spans both is a single template aliased per dimension (=ray2= / =ray3=).
   primitives fold into via component-wise min / max.
 - [[file:obb.org][obb]] : the oriented bounding box.
 - [[file:capsule.org][capsule]] : a segment swept by a radius.
-- [[file:frustum.org][frustum]] : =frustum3=, the six-plane view volume, with point and box
-  containment for culling.
+- [[file:frustum.org][frustum]] : =frustum3=, the six-plane view volume, with sphere and box
+  overlap tests for culling.
 
 ** Cross-type queries
 
@@ -108,8 +112,8 @@ headers so each primitive stays focused.
 - [[file:aabb_tree.org][aabb_tree]] : a dynamic bounding-volume hierarchy of axis-aligned boxes, the
   broad phase that answers region overlap and raycast queries in =O(log n + k)=
   instead of the =O(n^2)= all-pairs scan. Fat-box padding and rotation
-  rebalancing keep it cheap as objects move. The allocating type in the module
-  is a node pool.
+  rebalancing keep it cheap as objects move. Its node pool allocates, one of
+  the module's two allocations (with the EPA polytope).
 
 ** Convex shapes and collision
 
@@ -122,8 +126,9 @@ headers so each primitive stays focused.
   encloses the origin; returns the terminal simplex for EPA.
 - [[file:epa.org][epa]] : the Expanding Polytope Algorithm. Consumes GJK's terminal simplex and
   expands it to the nearest surface of the Minkowski difference, recovering the
-  penetration depth, the contact normal, and per-shape contact points. The one
-  allocating routine in the module.
+  penetration depth, the contact normal, and per-shape contact points. It
+  allocates its polytope, the module's other allocation besides the
+  =aabb_tree= node pool.
 
 ** Aggregators
 

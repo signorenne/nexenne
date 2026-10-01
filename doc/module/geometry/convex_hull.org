@@ -6,8 +6,9 @@
 
 =convex_hull3<Real>=: a 3D convex polytope of arbitrary vertex count, held as a
 *non-owning* =std::span= over vertices the caller owns. Like [[file:polygon.org][polygon2]] it is a
-view, not a container: it stores one span and allocates nothing, which keeps the
-whole geometry module allocation-free. It exposes exactly one operation, the
+view, not a container: it stores one span and allocates nothing, so a hull adds
+no allocation of its own (the module allocates only in the =aabb_tree= node pool
+and the EPA polytope). It exposes exactly one operation, the
 =support= function (the vertex furthest along a given direction), plus a
 =bounding_aabb=. That single primitive is everything the GJK and EPA collision
 algorithms ask of a shape. Everything is =constexpr= and =noexcept=. Aliases:

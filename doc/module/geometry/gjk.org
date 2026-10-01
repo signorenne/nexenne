@@ -83,8 +83,12 @@ repeats:
    way, stop; otherwise add =w= and loop.
 
 The overlap verdict is decided by whether a separating direction is *ever* found:
-a single one proves the shapes are apart, so if the loop *converges* without
-having seen one, they intersect. A *convergence* stop therefore never misjudges
+a support that fails to pass the origin along a direction clearly above rounding
+proves the shapes are apart, so if the loop *converges* without having seen one,
+they intersect. A single axis is proof only in exact arithmetic: once the
+closest point is within rounding of the origin, =d= is noise and a support along
+it can miss the origin on shapes that overlap, which is why the touch test of
+step 2 runs before any probe. A *convergence* stop therefore never misjudges
 overlap. The one exception is running out of iterations before either a
 separating direction or a convergence stop: that proves nothing, so GJK stays
 conservative there (see Termination) and reports overlap only when the terminal
@@ -126,9 +130,10 @@ by =lambda= gives the closest point on A and on B directly (=closest_a=,
 ** From overlap to a tetrahedron for EPA
 
 When the shapes overlap the origin lies on the simplex, which may be only a point,
-edge, or triangle (the carrier need not be a full tetrahedron). [[file:epa.org][EPA]] grows that
-seed into an enclosing tetrahedron before expanding, so GJK simply hands over
-whatever simplex carried the origin.
+edge, or triangle (the carrier need not be a full tetrahedron, and after a
+touching stop it touches the origin rather than enclosing it). [[file:epa.org][EPA]] grows that
+seed into a tetrahedron before expanding, so GJK simply hands over whatever
+simplex carried the origin.
 
 ** Termination
 

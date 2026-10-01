@@ -219,7 +219,8 @@ template <std::floating_point Real>
  *         \c geometry_error::degenerate_primitive when the vertices are
  *         collinear: the edges from \c a meet at an angle under 64 machine
  *         epsilons (about 8e-6 radians in float, 1e-14 in double; a test of
- *         the shape, not the size) or a vertex repeats.
+ *         the shape, not the size) or a vertex repeats. A component that is not
+ *         finite reports the same error.
  *
  * @pre None. Degenerate triangles are detected and reported.
  * @post On success the returned vector has unit length.

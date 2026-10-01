@@ -14,7 +14,8 @@ Expanding Polytope Algorithm returns an =epa_result3<Real>=: the penetration
 out of A toward B), the =penetration_depth= (the
 smallest translation that separates them), per-shape =contact_point_a= and
 =contact_point_b=, and a =converged= flag. =Real= is deduced from the simplex.
-Unlike the rest of the module it allocates, growing the polytope in a
+Like the =aabb_tree= node pool, and unlike the rest of the module, it allocates,
+growing the polytope in a
 =std::vector=; it is =noexcept=, so allocation failure terminates, and so does a
 shape's =support= that throws (in =epa= and in =contact_manifold=).
 
@@ -67,9 +68,11 @@ origin. Seeded with the four tetrahedron vertices and four faces, the loop:
    capsules) is itself smooth, so every face sits a curvature-dependent gap inside
    the true surface, and an absolute floor would demand thousands of faces to
    close it, silently dropping every smooth-pair contact. Scaling by the depth
-   lets a smooth pair converge in a bounded step count, while a flat contact (box
-   pairs), whose faces reach the surface exactly, still converges at once. The
-   default iteration cap is a safe backstop, higher than the flat case needs.
+   lets most smooth pairs converge within the cap, while a flat contact (box
+   pairs), whose faces reach the surface exactly, still converges at once. Not
+   every smooth pair does: in one test of random overlapping sphere pairs, 23
+   percent had not converged at a cap of 32 and 0.6 percent at the default cap
+   of 64. The cap is a backstop, so check =converged=.
 4. Otherwise the surface is further out, so it *expands*: it adds the new vertex,
    deletes every face the vertex can see, and stitches the resulting hole (the
    horizon) to the new vertex with fresh faces. Then it repeats.
@@ -150,7 +153,7 @@ callers are unaffected.
 | support queries   | one per iteration, default cap 64                         |
 | per iteration     | linear in the current face count (closest-face scan)      |
 | manifold          | 16 support probes plus a fixed Sutherland-Hodgman clip    |
-| memory            | the polytope, in std::vector (the one allocating routine) |
+| memory            | the polytope, in std::vector                              |
 
 * When to use it
 
@@ -158,8 +161,9 @@ callers are unaffected.
   solver needs: depth, normal, and contact points. GJK and EPA are the standard
   pair for convex penetration.
 - Pass GJK's terminal simplex straight through, whatever its size: EPA grows a
-  point, edge, or triangle seed into a tetrahedron itself. Only a degenerate,
-  non-expandable seed yields \c converged == false.
+  point, edge, or triangle seed into a tetrahedron itself. A degenerate,
+  non-expandable seed yields =converged == false=, as do the iteration cap and a
+  repeated support point (below).
 - For two analytic primitives with a closed-form penetration (sphere-sphere,
   AABB-AABB), prefer that: it is exact and cheaper. EPA is for general convex
   shapes, especially [[file:convex_hull.org][hulls]].
@@ -169,10 +173,10 @@ callers are unaffected.
   than =1e-4= units. Well below the band EPA stops converging (no sphere pair of
   size =1e-4= converges), a sphere of radius =1e-3= gets a four-point manifold,
   and two stacked boxes of half-size =1e-4= get a single point.
-- The \c converged flag is part of the contract: on a degenerate input or if the
-  iteration cap is hit, the best-known face is still returned, with its
-  reconstructed contact points (not a zeroed pair), but \c converged is \c false,
-  so the caller can fall back.
+- The =converged= flag is part of the contract: on a degenerate input, if the
+  iteration cap is hit, or on a repeated support point, the best-known face is
+  still returned, with its reconstructed contact points (not a zeroed pair), but
+  =converged= is =false=, so the caller can fall back.
 
 * Usage
 

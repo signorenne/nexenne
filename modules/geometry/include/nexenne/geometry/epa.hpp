@@ -6,9 +6,10 @@
  *        an overlapping GJK result.
  *
  * Run order: \c gjk first; if it reports \c overlap, hand its terminal simplex
- * (a tetrahedron enclosing the origin) to \c epa. EPA expands that tetrahedron
- * outward through the Minkowski difference, always toward the face nearest the
- * origin, until the nearest face stops moving. That face's normal and its
+ * (one to four vertices carrying the origin) to \c epa. EPA grows it into a
+ * tetrahedron and expands that outward through the Minkowski difference, always
+ * toward the face nearest the origin, until the nearest face stops moving. That
+ * face's normal and its
  * distance to the origin are the penetration normal and depth, the smallest
  * translation that separates the two shapes.
  *
@@ -18,10 +19,11 @@
  * translating B by \c penetration_depth * normal (or A by its negative) just
  * separates the shapes, so it points out of A toward B.
  *
- * Unlike the rest of the module, EPA allocates: the polytope (vertices and
- * triangular faces) grows during expansion, so it is held in \c std::vector. It
- * is \c noexcept, so an allocation failure terminates, matching the module's
- * terminate-on-OOM policy. \c Real is deduced from the input simplex.
+ * EPA allocates, as the \c aabb_tree node pool does and the rest of the module
+ * does not: the polytope (vertices and triangular faces) grows during
+ * expansion, so it is held in \c std::vector. It is \c noexcept, so an
+ * allocation failure terminates, matching the module's terminate-on-OOM
+ * policy. \c Real is deduced from the input simplex.
  */
 
 #include <array>
@@ -432,11 +434,12 @@ seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& ini
  * @brief Recovers penetration depth, normal, and contact points from an
  *        overlapping GJK result via the Expanding Polytope Algorithm.
  *
- * Seeds a polytope with the GJK terminal tetrahedron, then repeatedly finds the
- * face nearest the origin, asks the shapes for a support point along that face's
- * normal, and either declares convergence (the support point does not push the
- * face outward by more than \p tolerance) or expands the polytope: it removes the
- * faces visible from the new vertex and stitches the resulting horizon to it. On
+ * Seeds a polytope with a tetrahedron grown from the GJK terminal simplex, then
+ * repeatedly finds the face nearest the origin, asks the shapes for a support
+ * point along that face's normal, and either declares convergence (the support
+ * point does not push the face outward by more than \p tolerance) or expands
+ * the polytope: it removes the faces visible from the new vertex and stitches
+ * the resulting horizon to it. On
  * convergence the closest face yields the separation normal and depth, and its
  * barycentric weights blend the support pairs into per-shape contact points.
  *
@@ -445,8 +448,9 @@ seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& ini
  * @tparam ShapeB Second shape type; must satisfy \c convex_shape.
  * @param a First convex shape.
  * @param b Second convex shape.
- * @param initial Terminal GJK simplex; must be a 4-vertex tetrahedron enclosing
- *        the origin (a \c gjk overlap result).
+ * @param initial Terminal GJK simplex of an overlapping pair (a \c gjk overlap
+ *        result): one to four vertices carrying the origin, grown here into a
+ *        tetrahedron.
  * @param max_iterations Hard cap on expansion steps (a safe backstop; smooth
  *        pairs need more steps than flat ones).
  * @param tolerance Relative convergence threshold: expansion stops once a step's
@@ -454,12 +458,13 @@ seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& ini
  *
  * @return Result with the normal (the MTV direction, out of A toward B),
  *         penetration depth, and contact
- *         points; \c converged is \c false when \p initial was not a
- *         tetrahedron, the iteration cap was hit, or the expansion stalled on a
+ *         points; \c converged is \c false when \p initial cannot be grown
+ *         into a non-degenerate tetrahedron, the iteration cap was hit (smooth
+ *         pairs can need more than the default), or the expansion stalled on a
  *         support point the polytope already holds (the best-known face, with
  *         its reconstructed contact points, is still returned).
  *
- * @pre \p a and \p b overlap and \c initial.count equals 4. The shapes and
+ * @pre \p a and \p b overlap and \c initial.count is 1 to 4. The shapes and
  *      their overlap are between about 1e-2 and 1e4 units in size.
  * @post On success \c converged is \c true, \c normal has unit length, and
  *       \c penetration_depth is non-negative.
@@ -569,9 +574,10 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     // absolute: the Minkowski difference of two smooth shapes (two spheres, two
     // capsules) is itself smooth, so every polytope face sits a
     // curvature-dependent gap inside the true surface and an absolute floor would
-    // demand thousands of faces to close. Scaling by the depth lets a smooth pair
-    // converge in a bounded step count, while a flat contact (box pairs), whose
-    // faces reach the surface exactly, still converges at once.
+    // demand thousands of faces to close. Scaling by the depth lets most smooth
+    // pairs converge within the cap (not all: some sphere pairs still hit it),
+    // while a flat contact (box pairs), whose faces reach the surface exactly,
+    // still converges at once.
     if (reach - closest_distance < tolerance * nexenne::math::max(closest_distance, epsilon)) {
       // On convergence the closest face is on the true surface: its outward normal
       // of A (-) B is the minimum-translation direction (out of A toward B), its

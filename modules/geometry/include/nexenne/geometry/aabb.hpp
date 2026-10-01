@@ -337,10 +337,11 @@ template <nexenne::math::arithmetic Value>
 }
 
 /**
- * @brief Reports whether the box has zero or negative size on any axis.
+ * @brief Reports whether the box has negative size on any axis.
  *
  * Equivalent to "is this not a valid region?". A box from \c empty_aabb stays
- * empty until a point is added.
+ * empty until a point is added. A flat box, of zero size on an axis, is not
+ * empty: it still holds the points on it.
  *
  * @tparam Value Component type.
  * @tparam N Dimension.
