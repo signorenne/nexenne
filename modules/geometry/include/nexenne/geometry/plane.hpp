@@ -129,10 +129,10 @@ static_assert(sizeof(plane3_f) == 4 * sizeof(float));
  *
  * @return The plane on success, or \c geometry_error::degenerate_primitive when
  *         \p normal is too short to normalize (its squared length is zero or
- *         below the smallest normal \c Real) or one of its components is not
- *         finite.
+ *         below the smallest normal \c Real) or a component of \p normal or
+ *         \p point is not finite.
  *
- * @pre None. \p normal is validated.
+ * @pre None. \p point and \p normal are validated.
  * @post On success the plane has a unit-length normal and passes through
  *       \p point.
  */
@@ -146,7 +146,13 @@ template <std::floating_point Real>
   if (!n) {
     return std::unexpected{geometry_error::degenerate_primitive};
   }
-  return plane3<Real>{*n, -nexenne::math::dot(*n, point)};
+  // A point with a NaN or infinite component makes the offset non-finite, so
+  // one check on the offset rejects it with the same error a bad normal gets.
+  auto const d{-nexenne::math::dot(*n, point)};
+  if (!nexenne::math::isfinite(d)) {
+    return std::unexpected{geometry_error::degenerate_primitive};
+  }
+  return plane3<Real>{*n, d};
 }
 
 /**

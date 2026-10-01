@@ -118,6 +118,13 @@ TEST_CASE("plane: factories, distances, projection, degenerate") {
   REQUIRE_FALSE(bad.has_value());
   CHECK(bad.error() == geo::geometry_error::degenerate_primitive);
 
+  auto const nan{std::numeric_limits<double>::quiet_NaN()};
+  auto const inf{std::numeric_limits<double>::infinity()};
+  auto const nan_point{geo::plane_from_point_normal(vec3{nan, 0, 0}, vec3{0, 0, 1})};
+  REQUIRE_FALSE(nan_point.has_value());
+  CHECK(nan_point.error() == geo::geometry_error::degenerate_primitive);
+  CHECK_FALSE(geo::plane_from_point_normal(vec3{0, 0, inf}, vec3{0, 0, 1}).has_value());
+
   auto const collinear{geo::plane_from_three_points(vec3{0, 0, 0}, vec3{1, 0, 0}, vec3{2, 0, 0})};
   REQUIRE_FALSE(collinear.has_value());
 }
