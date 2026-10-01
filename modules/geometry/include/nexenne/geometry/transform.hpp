@@ -53,11 +53,6 @@
 
 namespace nexenne::geometry {
 
-using nexenne::math::matrix;
-using nexenne::math::quaternion;
-using nexenne::math::radians;
-using nexenne::math::vector;
-
 /**
  * @brief 2D pose: position, rotation angle, and scale.
  *
@@ -72,9 +67,9 @@ public:
   using value_type = Real;
 
 private:
-  vector<Real, 2> m_position{Real{0}, Real{0}};
-  radians<Real> m_rotation{};
-  vector<Real, 2> m_scale{Real{1}, Real{1}};
+  math::vector<Real, 2> m_position{Real{0}, Real{0}};
+  math::radians<Real> m_rotation{};
+  math::vector<Real, 2> m_scale{Real{1}, Real{1}};
 
 public:
   /// @brief Constructs the identity pose (origin, zero angle, unit scale).
@@ -88,7 +83,7 @@ public:
    * @param scale Per-axis scale.
    */
   constexpr transform2d(
-    vector<Real, 2> position, radians<Real> rotation, vector<Real, 2> scale
+    math::vector<Real, 2> position, math::radians<Real> rotation, math::vector<Real, 2> scale
   ) noexcept
       : m_position{position}, m_rotation{rotation}, m_scale{scale} {}
 
@@ -97,7 +92,7 @@ public:
    *
    * @return Const reference to the stored position.
    */
-  [[nodiscard]] constexpr auto position() const noexcept -> vector<Real, 2> const& {
+  [[nodiscard]] constexpr auto position() const noexcept -> math::vector<Real, 2> const& {
     return m_position;
   }
 
@@ -106,7 +101,7 @@ public:
    *
    * @return Const reference to the stored rotation angle.
    */
-  [[nodiscard]] constexpr auto rotation() const noexcept -> radians<Real> const& {
+  [[nodiscard]] constexpr auto rotation() const noexcept -> math::radians<Real> const& {
     return m_rotation;
   }
 
@@ -115,7 +110,7 @@ public:
    *
    * @return Const reference to the stored scale.
    */
-  [[nodiscard]] constexpr auto scale() const noexcept -> vector<Real, 2> const& {
+  [[nodiscard]] constexpr auto scale() const noexcept -> math::vector<Real, 2> const& {
     return m_scale;
   }
 
@@ -124,7 +119,7 @@ public:
    *
    * @return Reference to the stored position.
    */
-  [[nodiscard]] constexpr auto position() noexcept -> vector<Real, 2>& {
+  [[nodiscard]] constexpr auto position() noexcept -> math::vector<Real, 2>& {
     return m_position;
   }
 
@@ -133,7 +128,7 @@ public:
    *
    * @return Reference to the stored rotation angle.
    */
-  [[nodiscard]] constexpr auto rotation() noexcept -> radians<Real>& {
+  [[nodiscard]] constexpr auto rotation() noexcept -> math::radians<Real>& {
     return m_rotation;
   }
 
@@ -142,7 +137,7 @@ public:
    *
    * @return Reference to the stored scale.
    */
-  [[nodiscard]] constexpr auto scale() noexcept -> vector<Real, 2>& {
+  [[nodiscard]] constexpr auto scale() noexcept -> math::vector<Real, 2>& {
     return m_scale;
   }
 
@@ -194,9 +189,9 @@ public:
   using value_type = Real;
 
 private:
-  vector<Real, 3> m_position{Real{0}, Real{0}, Real{0}};
-  quaternion<Real> m_rotation{};
-  vector<Real, 3> m_scale{Real{1}, Real{1}, Real{1}};
+  math::vector<Real, 3> m_position{Real{0}, Real{0}, Real{0}};
+  math::quaternion<Real> m_rotation{};
+  math::vector<Real, 3> m_scale{Real{1}, Real{1}, Real{1}};
 
 public:
   /// @brief Constructs the identity pose (origin, identity rotation, unit scale).
@@ -210,7 +205,7 @@ public:
    * @param scale Per-axis scale.
    */
   constexpr transform3d(
-    vector<Real, 3> position, quaternion<Real> rotation, vector<Real, 3> scale
+    math::vector<Real, 3> position, math::quaternion<Real> rotation, math::vector<Real, 3> scale
   ) noexcept
       : m_position{position}, m_rotation{rotation}, m_scale{scale} {}
 
@@ -219,7 +214,7 @@ public:
    *
    * @return Const reference to the stored position.
    */
-  [[nodiscard]] constexpr auto position() const noexcept -> vector<Real, 3> const& {
+  [[nodiscard]] constexpr auto position() const noexcept -> math::vector<Real, 3> const& {
     return m_position;
   }
 
@@ -228,7 +223,7 @@ public:
    *
    * @return Const reference to the stored rotation.
    */
-  [[nodiscard]] constexpr auto rotation() const noexcept -> quaternion<Real> const& {
+  [[nodiscard]] constexpr auto rotation() const noexcept -> math::quaternion<Real> const& {
     return m_rotation;
   }
 
@@ -237,7 +232,7 @@ public:
    *
    * @return Const reference to the stored scale.
    */
-  [[nodiscard]] constexpr auto scale() const noexcept -> vector<Real, 3> const& {
+  [[nodiscard]] constexpr auto scale() const noexcept -> math::vector<Real, 3> const& {
     return m_scale;
   }
 
@@ -246,7 +241,7 @@ public:
    *
    * @return Reference to the stored position.
    */
-  [[nodiscard]] constexpr auto position() noexcept -> vector<Real, 3>& {
+  [[nodiscard]] constexpr auto position() noexcept -> math::vector<Real, 3>& {
     return m_position;
   }
 
@@ -255,7 +250,7 @@ public:
    *
    * @return Reference to the stored rotation.
    */
-  [[nodiscard]] constexpr auto rotation() noexcept -> quaternion<Real>& {
+  [[nodiscard]] constexpr auto rotation() noexcept -> math::quaternion<Real>& {
     return m_rotation;
   }
 
@@ -264,7 +259,7 @@ public:
    *
    * @return Reference to the stored scale.
    */
-  [[nodiscard]] constexpr auto scale() noexcept -> vector<Real, 3>& {
+  [[nodiscard]] constexpr auto scale() noexcept -> math::vector<Real, 3>& {
     return m_scale;
   }
 
@@ -317,7 +312,7 @@ static_assert(std::is_standard_layout_v<transform3d_f>);
  * @note Runtime only: \c rotation2 needs \c std::sin / \c std::cos.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto to_matrix(transform2d<Real> const t) noexcept -> matrix<Real, 3> {
+[[nodiscard]] auto to_matrix(transform2d<Real> const t) noexcept -> math::matrix<Real, 3> {
   return nexenne::math::translation2(t.position()) * nexenne::math::rotation2(t.rotation())
          * nexenne::math::scale2(t.scale());
 }
@@ -335,8 +330,9 @@ template <std::floating_point Real>
  * @post The result is \p p mapped through \p t.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto transform_point(transform2d<Real> const t, vector<Real, 2> const p) noexcept
-  -> vector<Real, 2> {
+[[nodiscard]] auto
+transform_point(transform2d<Real> const t, math::vector<Real, 2> const p) noexcept
+  -> math::vector<Real, 2> {
   // Scale, then rotate by the angle, then translate, directly: this is the hot
   // path, so it avoids building and multiplying the 3x3 matrix. The result equals
   // to_matrix(t) applied to p.
@@ -344,7 +340,9 @@ template <std::floating_point Real>
   auto const s{std::sin(t.rotation().value())};
   auto const sx{p.x() * t.scale().x()};
   auto const sy{p.y() * t.scale().y()};
-  return vector<Real, 2>{t.position().x() + c * sx - s * sy, t.position().y() + s * sx + c * sy};
+  return math::vector<Real, 2>{
+    t.position().x() + c * sx - s * sy, t.position().y() + s * sx + c * sy
+  };
 }
 
 /**
@@ -361,15 +359,16 @@ template <std::floating_point Real>
  *       applied.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto transform_direction(transform2d<Real> const t, vector<Real, 2> const d) noexcept
-  -> vector<Real, 2> {
+[[nodiscard]] auto
+transform_direction(transform2d<Real> const t, math::vector<Real, 2> const d) noexcept
+  -> math::vector<Real, 2> {
   // Scale then rotate directly (no matrix build, no translation), the hot path.
   // The result equals the linear part of to_matrix(t) applied to d.
   auto const c{std::cos(t.rotation().value())};
   auto const s{std::sin(t.rotation().value())};
   auto const sx{d.x() * t.scale().x()};
   auto const sy{d.y() * t.scale().y()};
-  return vector<Real, 2>{c * sx - s * sy, s * sx + c * sy};
+  return math::vector<Real, 2>{c * sx - s * sy, s * sx + c * sy};
 }
 
 /**
@@ -386,7 +385,8 @@ template <std::floating_point Real>
  * @note Fully \c constexpr: the 3D builders and quaternion rotation are.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto to_matrix(transform3d<Real> const t) noexcept -> matrix<Real, 4> {
+[[nodiscard]] constexpr auto to_matrix(transform3d<Real> const t) noexcept
+  -> math::matrix<Real, 4> {
   return nexenne::math::translation3(t.position()) * nexenne::math::rotation3(t.rotation())
          * nexenne::math::scale3(t.scale());
 }
@@ -410,9 +410,10 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
-transform_point(transform3d<Real> const t, vector<Real, 3> const p) noexcept -> vector<Real, 3> {
+transform_point(transform3d<Real> const t, math::vector<Real, 3> const p) noexcept
+  -> math::vector<Real, 3> {
   auto const scaled{
-    vector<Real, 3>{p.x() * t.scale().x(), p.y() * t.scale().y(), p.z() * t.scale().z()}
+    math::vector<Real, 3>{p.x() * t.scale().x(), p.y() * t.scale().y(), p.z() * t.scale().z()}
   };
   return t.position() + nexenne::math::rotate(t.rotation(), scaled);
 }
@@ -436,10 +437,10 @@ transform_point(transform3d<Real> const t, vector<Real, 3> const p) noexcept -> 
  */
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
-transform_direction(transform3d<Real> const t, vector<Real, 3> const d) noexcept
-  -> vector<Real, 3> {
+transform_direction(transform3d<Real> const t, math::vector<Real, 3> const d) noexcept
+  -> math::vector<Real, 3> {
   auto const scaled{
-    vector<Real, 3>{d.x() * t.scale().x(), d.y() * t.scale().y(), d.z() * t.scale().z()}
+    math::vector<Real, 3>{d.x() * t.scale().x(), d.y() * t.scale().y(), d.z() * t.scale().z()}
   };
   return nexenne::math::rotate(t.rotation(), scaled);
 }
@@ -464,7 +465,7 @@ transform_direction(transform3d<Real> const t, vector<Real, 3> const d) noexcept
  * @post The result is non-negative.
  */
 template <std::floating_point Real, std::size_t N>
-[[nodiscard]] constexpr auto max_scale(vector<Real, N> const& scale) noexcept -> Real {
+[[nodiscard]] constexpr auto max_scale(math::vector<Real, N> const& scale) noexcept -> Real {
   auto m{Real{0}};
   for (auto i{std::size_t{0}}; i < N; ++i) {
     m = nexenne::math::max(m, nexenne::math::abs(scale[i]));
@@ -534,7 +535,7 @@ template <std::floating_point Real>
 [[nodiscard]] constexpr auto transform(transform3d<Real> const t, aabb<Real, 3> const& box) noexcept
   -> obb3<Real> {
   auto const half{half_size(box)};
-  auto const scaled{vector<Real, 3>{
+  auto const scaled{math::vector<Real, 3>{
     half.x() * nexenne::math::abs(t.scale().x()),
     half.y() * nexenne::math::abs(t.scale().y()),
     half.z() * nexenne::math::abs(t.scale().z()),
@@ -582,7 +583,7 @@ template <std::floating_point Real>
   auto const r{nexenne::math::to_matrix3(box.rotation())};
   auto const s{t.scale()};
   auto const h{box.half_size()};
-  auto scaled{vector<Real, 3>{}};
+  auto scaled{math::vector<Real, 3>{}};
   for (auto k{std::size_t{0}}; k < 3; ++k) {
     auto acc{Real{0}};
     for (auto j{std::size_t{0}}; j < 3; ++j) {
@@ -699,7 +700,7 @@ template <std::floating_point Real>
 [[nodiscard]] auto transform(transform2d<Real> const t, aabb<Real, 2> const& box) noexcept
   -> obb2<Real> {
   auto const half{half_size(box)};
-  auto const scaled{vector<Real, 2>{
+  auto const scaled{math::vector<Real, 2>{
     half.x() * nexenne::math::abs(t.scale().x()), half.y() * nexenne::math::abs(t.scale().y())
   }};
   return obb2<Real>{transform_point(t, center(box)), scaled, t.rotation()};
@@ -736,10 +737,12 @@ template <std::floating_point Real>
   // uniform scale and to half[k]*|scale[k]| for an axis-aligned box.
   auto const c{std::cos(box.rotation().value())};
   auto const s{std::sin(box.rotation().value())};
-  auto const a{std::array<vector<Real, 2>, 2>{vector<Real, 2>{c, s}, vector<Real, 2>{-s, c}}};
+  auto const a{
+    std::array<math::vector<Real, 2>, 2>{math::vector<Real, 2>{c, s}, math::vector<Real, 2>{-s, c}}
+  };
   auto const sc{t.scale()};
   auto const h{box.half_size()};
-  auto scaled{vector<Real, 2>{}};
+  auto scaled{math::vector<Real, 2>{}};
   for (auto k{std::size_t{0}}; k < 2; ++k) {
     auto acc{Real{0}};
     for (auto j{std::size_t{0}}; j < 2; ++j) {
@@ -824,9 +827,10 @@ template <std::floating_point Real>
  * @note Runtime only: \c std::atan2 is not \c constexpr in C++23.
  */
 template <std::floating_point Real>
-[[nodiscard]] auto decompose_2(matrix<Real, 3> const& m) noexcept -> result<transform2d<Real>> {
-  auto const sx{nexenne::math::length(vector<Real, 2>{m(0, 0), m(1, 0)})};
-  auto const sy{nexenne::math::length(vector<Real, 2>{m(0, 1), m(1, 1)})};
+[[nodiscard]] auto decompose_2(math::matrix<Real, 3> const& m) noexcept
+  -> result<transform2d<Real>> {
+  auto const sx{nexenne::math::length(math::vector<Real, 2>{m(0, 0), m(1, 0)})};
+  auto const sy{nexenne::math::length(math::vector<Real, 2>{m(0, 1), m(1, 1)})};
   if (sx <= static_cast<Real>(1e-10) || sy <= static_cast<Real>(1e-10)) {
     return std::unexpected{geometry_error::degenerate_primitive};
   }
@@ -839,7 +843,9 @@ template <std::floating_point Real>
   }
   auto const angle{std::atan2(m(1, 0) / sx, m(0, 0) / sx)};
   return transform2d<Real>{
-    vector<Real, 2>{m(0, 2), m(1, 2)}, radians<Real>{angle}, vector<Real, 2>{sx, sy}
+    math::vector<Real, 2>{m(0, 2), m(1, 2)},
+    math::radians<Real>{angle},
+    math::vector<Real, 2>{sx, sy}
   };
 }
 
@@ -871,16 +877,16 @@ template <std::floating_point Real>
  * @note Fully \c constexpr: only arithmetic and the constexpr \c sqrt; no trig.
  */
 template <std::floating_point Real>
-[[nodiscard]] constexpr auto decompose_3(matrix<Real, 4> const& m) noexcept
+[[nodiscard]] constexpr auto decompose_3(math::matrix<Real, 4> const& m) noexcept
   -> result<transform3d<Real>> {
   using nexenne::math::cross;
   using nexenne::math::dot;
   using nexenne::math::length;
   using nexenne::math::sqrt;
 
-  auto const col0{vector<Real, 3>{m(0, 0), m(1, 0), m(2, 0)}};
-  auto const col1{vector<Real, 3>{m(0, 1), m(1, 1), m(2, 1)}};
-  auto const col2{vector<Real, 3>{m(0, 2), m(1, 2), m(2, 2)}};
+  auto const col0{math::vector<Real, 3>{m(0, 0), m(1, 0), m(2, 0)}};
+  auto const col1{math::vector<Real, 3>{m(0, 1), m(1, 1), m(2, 1)}};
+  auto const col2{math::vector<Real, 3>{m(0, 2), m(1, 2), m(2, 2)}};
   auto const sx{length(col0)};
   auto const sy{length(col1)};
   auto const sz{length(col2)};
@@ -903,35 +909,35 @@ template <std::floating_point Real>
   // Trace-based quaternion extraction from a column-major rotation whose columns
   // are r0, r1, r2. The four branches pick the numerically largest pivot.
   auto const trace{r0.x() + r1.y() + r2.z()};
-  auto rotation{quaternion<Real>{}};
+  auto rotation{math::quaternion<Real>{}};
   if (trace > Real{0}) {
     auto const s{sqrt(trace + Real{1}) * Real{2}};
     auto const inv{Real{1} / s};
-    rotation = quaternion<Real>{
+    rotation = math::quaternion<Real>{
       (r1.z() - r2.y()) * inv, (r2.x() - r0.z()) * inv, (r0.y() - r1.x()) * inv, Real{0.25} * s
     };
   } else if (r0.x() > r1.y() && r0.x() > r2.z()) {
     auto const s{sqrt(Real{1} + r0.x() - r1.y() - r2.z()) * Real{2}};
     auto const inv{Real{1} / s};
-    rotation = quaternion<Real>{
+    rotation = math::quaternion<Real>{
       Real{0.25} * s, (r1.x() + r0.y()) * inv, (r2.x() + r0.z()) * inv, (r1.z() - r2.y()) * inv
     };
   } else if (r1.y() > r2.z()) {
     auto const s{sqrt(Real{1} + r1.y() - r0.x() - r2.z()) * Real{2}};
     auto const inv{Real{1} / s};
-    rotation = quaternion<Real>{
+    rotation = math::quaternion<Real>{
       (r1.x() + r0.y()) * inv, Real{0.25} * s, (r2.y() + r1.z()) * inv, (r2.x() - r0.z()) * inv
     };
   } else {
     auto const s{sqrt(Real{1} + r2.z() - r0.x() - r1.y()) * Real{2}};
     auto const inv{Real{1} / s};
-    rotation = quaternion<Real>{
+    rotation = math::quaternion<Real>{
       (r2.x() + r0.z()) * inv, (r2.y() + r1.z()) * inv, Real{0.25} * s, (r0.y() - r1.x()) * inv
     };
   }
 
   return transform3d<Real>{
-    vector<Real, 3>{m(0, 3), m(1, 3), m(2, 3)}, rotation, vector<Real, 3>{sx, sy, sz}
+    math::vector<Real, 3>{m(0, 3), m(1, 3), m(2, 3)}, rotation, math::vector<Real, 3>{sx, sy, sz}
   };
 }
 
