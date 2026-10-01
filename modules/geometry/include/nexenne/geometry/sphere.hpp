@@ -13,6 +13,7 @@
  */
 
 #include <concepts>
+#include <limits>
 #include <type_traits>
 
 #include <nexenne/geometry/aabb.hpp>
@@ -200,7 +201,10 @@ closest_point(sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& p) n
  * @brief Closest point on the ball's boundary, even for interior points.
  *
  * When \p p coincides with the center the radial direction is arbitrary, so
- * \c center + (radius, 0, 0) is returned by convention.
+ * \c center + (radius, 0, 0) is returned by convention. Only an offset whose
+ * squared length is zero or below the smallest normal \c Real counts as the
+ * center, so a point a tiny distance from the center of a tiny sphere still
+ * gets the boundary point in its own direction.
  *
  * @tparam Real Component type.
  * @param s Sphere.
@@ -216,13 +220,14 @@ template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 closest_point_on_boundary(sphere3<Real> const& s, nexenne::math::vector<Real, 3> const& p) noexcept
   -> nexenne::math::vector<Real, 3> {
-  auto const offset{p - s.center()};
-  auto const len_sq{nexenne::math::length_squared(offset)};
-  if (len_sq <= static_cast<Real>(1e-20)) {
-    return s.center() + nexenne::math::vector<Real, 3>{s.radius(), Real{0}, Real{0}};
-  }
-  auto const len{nexenne::math::sqrt(len_sq)};
-  return s.center() + offset * (s.radius() / len);
+  // The floor is the smallest normal Real, as support() uses: any offset whose
+  // square is normal has an accurate direction, whatever the sphere's scale.
+  auto const direction{nexenne::math::normalize_or(
+    p - s.center(),
+    nexenne::math::vector<Real, 3>{Real{1}, Real{0}, Real{0}},
+    std::numeric_limits<Real>::min()
+  )};
+  return s.center() + direction * s.radius();
 }
 
 /**

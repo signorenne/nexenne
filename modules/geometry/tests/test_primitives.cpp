@@ -84,6 +84,17 @@ TEST_CASE("sphere: measures, containment, closest point, intersection") {
   // center query falls back to the +x boundary point by convention
   CHECK(geo::closest_point_on_boundary(s, vec3{0, 0, 0}) == vec3{2, 0, 0});
 
+  geo::sphere3_d const tiny{vec3{0, 0, 0}, 1e-12};
+  // Compared as ratios and exact zeros: Approx's absolute scale of 1 would
+  // accept any value this small.
+  auto const up{geo::closest_point_on_boundary(tiny, vec3{0, 1e-11, 0})};
+  CHECK(up.x() == 0.0);
+  CHECK(up.y() / 1e-12 == doctest::Approx(1.0));
+  geo::circle2_d const dot{vec2{0, 0}, 1e-12};
+  auto const left{geo::closest_point_on_boundary(dot, vec2{-1e-11, 0})};
+  CHECK(left.x() / 1e-12 == doctest::Approx(-1.0));
+  CHECK(left.y() == 0.0);
+
   CHECK(geo::intersects(s, geo::sphere3_d{vec3{3, 0, 0}, 1.5}));
   CHECK_FALSE(geo::intersects(s, geo::sphere3_d{vec3{5, 0, 0}, 1.0}));
   CHECK(geo::bounding_aabb(s) == geo::aabb3_d{vec3{-2, -2, -2}, vec3{2, 2, 2}});

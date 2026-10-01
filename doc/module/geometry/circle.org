@@ -62,8 +62,10 @@ perimeter, even for interior points. Both share one degeneracy: when =p=
 coincides with =center=, the direction =offset / len= is =0/0=, undefined. There
 is no single right answer, so by convention the functions return the =+x= boundary
 point =center + (radius, 0)=. (=closest_point= covers this through its inside
-test; =closest_point_on_boundary= covers it with an explicit =len_sq <= 1e-20=
-check.)
+test; =closest_point_on_boundary= treats only an offset whose squared length is zero
+or below the smallest normal value as the center, the floor =support= uses, so
+a point a tiny distance from the center of a tiny circle still gets the
+boundary point in its own direction.)
 
 ** Distance
 

@@ -13,6 +13,7 @@
  */
 
 #include <concepts>
+#include <limits>
 #include <type_traits>
 
 #include <nexenne/geometry/aabb.hpp>
@@ -199,7 +200,10 @@ closest_point(circle2<Real> const& c, nexenne::math::vector<Real, 2> const& p) n
  * @brief Closest point on the circle's boundary, even for interior points.
  *
  * When \p p coincides with the center the radial direction is arbitrary, so
- * \c center + (radius, 0) is returned by convention.
+ * \c center + (radius, 0) is returned by convention. Only an offset whose
+ * squared length is zero or below the smallest normal \c Real counts as the
+ * center, so a point a tiny distance from the center of a tiny circle still
+ * gets the boundary point in its own direction.
  *
  * @tparam Real Component type.
  * @param c Circle.
@@ -215,13 +219,14 @@ template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 closest_point_on_boundary(circle2<Real> const& c, nexenne::math::vector<Real, 2> const& p) noexcept
   -> nexenne::math::vector<Real, 2> {
-  auto const offset{p - c.center()};
-  auto const len_sq{nexenne::math::length_squared(offset)};
-  if (len_sq <= static_cast<Real>(1e-20)) {
-    return c.center() + nexenne::math::vector<Real, 2>{c.radius(), Real{0}};
-  }
-  auto const len{nexenne::math::sqrt(len_sq)};
-  return c.center() + offset * (c.radius() / len);
+  // The floor is the smallest normal Real, as support() uses: any offset whose
+  // square is normal has an accurate direction, whatever the circle's scale.
+  auto const direction{nexenne::math::normalize_or(
+    p - c.center(),
+    nexenne::math::vector<Real, 2>{Real{1}, Real{0}},
+    std::numeric_limits<Real>::min()
+  )};
+  return c.center() + direction * c.radius();
 }
 
 /**
