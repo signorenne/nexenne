@@ -326,10 +326,13 @@ contains_point(triangle<Real, 2> const& t, nexenne::math::vector<Real, 2> const&
  * test of Ericson's closest-point-on-triangle routine (RTCD section 5.1.5): three
  * edge-direction dot products place \p p against each feature, returning the first
  * matching vertex, edge projection, or the interior barycentric blend. Works in
- * 2D and 3D since it only uses dot products. A degenerate (collinear) triangle
- * still returns a point on one of its edges; an edge of zero length (two
- * coincident vertices) is skipped, so the walk falls through to the segment the
- * other two edges share.
+ * 2D and 3D since it only uses dot products.
+ *
+ * The region tests assume the triangle has area. A collinear one (its edges
+ * from \c a meet at an angle under 64 machine epsilons, the test \c normal
+ * uses, or two vertices coincide) is a segment folded onto itself, so it
+ * returns the nearest of its three edges' closest points instead; the walk
+ * would otherwise settle on an edge region that is not the nearest.
  *
  * See Christer Ericson, "Real-Time Collision Detection", section 5.1.5.
  *
@@ -341,18 +344,58 @@ contains_point(triangle<Real, 2> const& t, nexenne::math::vector<Real, 2> const&
  * @return Closest point on or in the triangle.
  *
  * @pre None. Degenerate triangles are handled.
- * @post The result lies in the closed triangle.
+ * @post The result lies in the closed triangle; for a collinear triangle it is
+ *       the nearest point of its edges.
  */
 template <std::floating_point Real, std::size_t N>
 [[nodiscard]] constexpr auto
 closest_point(triangle<Real, N> const& t, nexenne::math::vector<Real, N> const& p) noexcept
   -> nexenne::math::vector<Real, N> {
   using nexenne::math::dot;
+  using nexenne::math::length_squared;
   auto const& a{t.a()};
   auto const& b{t.b()};
   auto const& c{t.c()};
   auto const ab{b - a};
   auto const ac{c - a};
+
+  // Collinear when the cross product is rounding noise against the edges, the
+  // shape test normal() makes: |ab x ac|^2 = |ab|^2 |ac|^2 sin^2(theta). The
+  // squared cross is the perp-dot squared in 2D.
+  auto const cross_squared{[&ab, &ac]() noexcept -> Real {
+    if constexpr (N == 2) {
+      auto const z{nexenne::math::cross(ab, ac)};
+      return z * z;
+    } else {
+      return length_squared(nexenne::math::cross(ab, ac));
+    }
+  }()};
+  auto const noise{std::numeric_limits<Real>::epsilon() * Real{64}};
+  auto const floor{nexenne::math::max(
+    noise * noise * length_squared(ab) * length_squared(ac), std::numeric_limits<Real>::min()
+  )};
+  if (cross_squared <= floor) {
+    auto const on_edge{
+      [&p](
+        nexenne::math::vector<Real, N> const& from, nexenne::math::vector<Real, N> const& to
+      ) noexcept -> nexenne::math::vector<Real, N> {
+        auto const d{to - from};
+        auto const len_sq{length_squared(d)};
+        if (len_sq <= Real{0}) {
+          return from;
+        }
+        auto const s{nexenne::math::clamp(dot(p - from, d) / len_sq, Real{0}, Real{1})};
+        return from + d * s;
+      }
+    };
+    auto best{on_edge(a, b)};
+    for (auto const& candidate : {on_edge(b, c), on_edge(c, a)}) {
+      if (length_squared(candidate - p) < length_squared(best - p)) {
+        best = candidate;
+      }
+    }
+    return best;
+  }
 
   auto const d1{dot(ab, p - a)};
   auto const d2{dot(ac, p - a)};

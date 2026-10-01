@@ -5,10 +5,16 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
+#include <limits>
 #include <optional>
+#include <random>
+#include <utility>
 
 #include <nexenne/geometry/closest_point.hpp>
 #include <nexenne/geometry/intersect.hpp>
+#include <nexenne/geometry/segment.hpp>
+#include <nexenne/geometry/triangle.hpp>
 #include <nexenne/math/angle.hpp>
 #include <nexenne/math/constants.hpp>
 #include <nexenne/math/quaternion.hpp>
@@ -149,6 +155,54 @@ TEST_CASE("closest_point: triangle projects interior, edge, and vertex regions")
   auto const on_ab{geo::closest_point(t, vec3{1, -1, 0})};
   CHECK(on_ab.x() == doctest::Approx(1.0));
   CHECK(on_ab.y() == doctest::Approx(0.0));
+}
+
+template <typename Vec>
+auto nearest_on_edges(Vec const& a, Vec const& b, Vec const& c, Vec const& p) -> double {
+  auto best{std::numeric_limits<double>::max()};
+  for (auto const& [from, to] : {std::pair{a, b}, std::pair{b, c}, std::pair{c, a}}) {
+    auto const q{geo::closest_point(geo::segment<double, Vec::size()>{from, to}, p)};
+    best = std::min(best, nm::length(q - p));
+  }
+  return best;
+}
+
+TEST_CASE(
+  "closest_point: a collinear triangle returns the nearest point of its edges (geometry-18)"
+) {
+  // The region walk assumes area; on a collinear triangle it settled on an edge
+  // that was not the nearest in about 3% of random queries (worst error 110).
+  // A fixed reproducer first, then a seeded sweep in 3D and 2D.
+  vec3 const o{4.704322481253493, -5.818567643344991, 0.8289594898218926};
+  vec3 const d{3.915687994460292, -5.4289996332584805, -6.500901506934389};
+  geo::triangle3_d const line{
+    o + d * 9.643366857512024, o + d * 0.3327178375571993, o + d * -4.783416462458434
+  };
+  vec3 const p{9.925073982411309, 9.308387027555625, 1.165868960773647};
+  CHECK(
+    nm::length(geo::closest_point(line, p) - p)
+    == doctest::Approx(nearest_on_edges(line.a(), line.b(), line.c(), p))
+  );
+
+  auto rng{std::mt19937{7}};
+  auto u{std::uniform_real_distribution<double>{-10.0, 10.0}};
+  auto misses{0};
+  for (auto i{0}; i < 2000; ++i) {
+    vec3 const o3{u(rng), u(rng), u(rng)};
+    vec3 const d3{u(rng), u(rng), u(rng)};
+    geo::triangle3_d const t3{o3 + d3 * u(rng), o3 + d3 * u(rng), o3 + d3 * u(rng)};
+    vec3 const p3{u(rng), u(rng), u(rng)};
+    auto const want3{nearest_on_edges(t3.a(), t3.b(), t3.c(), p3)};
+    misses += nm::length(geo::closest_point(t3, p3) - p3) > want3 + 1e-9 * (1.0 + want3) ? 1 : 0;
+
+    vec2 const o2{u(rng), u(rng)};
+    vec2 const d2{u(rng), u(rng)};
+    geo::triangle2_d const t2{o2 + d2 * u(rng), o2 + d2 * u(rng), o2 + d2 * u(rng)};
+    vec2 const p2{u(rng), u(rng)};
+    auto const want2{nearest_on_edges(t2.a(), t2.b(), t2.c(), p2)};
+    misses += nm::length(geo::closest_point(t2, p2) - p2) > want2 + 1e-9 * (1.0 + want2) ? 1 : 0;
+  }
+  CHECK(misses == 0);
 }
 
 TEST_CASE("closest_point: an obb clamps an outside point onto its surface") {
