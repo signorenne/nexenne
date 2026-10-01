@@ -40,7 +40,9 @@ type. See [[file:../../../modules/geometry/include/nexenne/geometry/error.hpp][=
   =contains_point(plane3, p)=.
 
 =geometry_error= is the module's own error space (=degenerate_primitive=,
-=invalid_input=, =parallel=); math-side failures stay in
+=invalid_input=); a parallel ray and plane, or two parallel segments, are a
+legitimate "no intersection" and come back as an empty =std::optional=, not an
+error. Math-side failures stay in
 =nexenne::math::math_error=. Formatting for =geometry_error= lives in
 =format.hpp= so =error.hpp= stays free of =<format>=.
 

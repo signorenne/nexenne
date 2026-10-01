@@ -6,8 +6,8 @@
  *
  * Module error policy:
  *   - Every operation that can fail on input the operation itself can detect
- *     (a degenerate primitive, parallel features that cannot intersect)
- *     returns \c std::expected<T, geometry_error>. A NaN or infinite component
+ *     (a degenerate primitive, a failed checked requirement) returns
+ *     \c std::expected<T, geometry_error>. A NaN or infinite component
  *     in a vector that \c ray_from_points, \c plane_from_point_normal,
  *     \c plane_from_three_points or \c normal must normalize reports
  *     \c degenerate_primitive, as a zero-length vector does. There is
@@ -15,8 +15,9 @@
  *     valid still unwraps via \c *result, and the compiler elides the dead
  *     error branch, so the runtime cost is essentially zero.
  *   - A query that can legitimately have "no result" (a ray that misses a
- *     sphere, a segment that does not cross a plane) returns \c std::optional,
- *     not \c std::expected. \c geometry_error is reserved for invalid input.
+ *     sphere, a segment that does not cross a plane, parallel features)
+ *     returns \c std::optional, not \c std::expected. \c geometry_error is
+ *     reserved for invalid input.
  *
  * Math-side failures live in \c nexenne::math::math_error: each module owns its
  * own error space. Formatting for \c geometry_error lives in
@@ -34,7 +35,6 @@ namespace nexenne::geometry {
 enum class geometry_error {
   degenerate_primitive,  ///< Zero-length segment, zero-radius circle, collinear triangle, etc.
   invalid_input,         ///< A checked requirement failed (a reflection in decompose_2/3).
-  parallel,              ///< Parallel features cannot produce the requested intersection.
 };
 
 /**
@@ -66,8 +66,6 @@ using result = std::expected<T, geometry_error>;
       return "degenerate_primitive";
     case geometry_error::invalid_input:
       return "invalid_input";
-    case geometry_error::parallel:
-      return "parallel";
   }
   return "unknown";
 }

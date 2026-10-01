@@ -18,7 +18,7 @@ namespace geo = nexenne::geometry;
 TEST_CASE("nexenne::geometry::to_string names every error") {
   CHECK(geo::to_string(geo::geometry_error::degenerate_primitive) == "degenerate_primitive");
   CHECK(geo::to_string(geo::geometry_error::invalid_input) == "invalid_input");
-  CHECK(geo::to_string(geo::geometry_error::parallel) == "parallel");
+  CHECK(geo::to_string(static_cast<geo::geometry_error>(2)) == "unknown");
 }
 
 TEST_CASE("nexenne::geometry::result is std::expected over geometry_error") {

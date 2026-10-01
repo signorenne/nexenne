@@ -76,7 +76,7 @@ TEST_CASE("format: the frustum_plane enum prints its name") {
 
 TEST_CASE("format: the geometry_error enum prints its name") {
   CHECK(to_string(geo::geometry_error::degenerate_primitive) == "degenerate_primitive");
-  CHECK(std::format("{}", geo::geometry_error::parallel) == "parallel");
+  CHECK(std::format("{}", geo::geometry_error::degenerate_primitive) == "degenerate_primitive");
   auto stream{std::stringstream{}};
   stream << geo::geometry_error::invalid_input;
   CHECK(stream.str() == "invalid_input");
