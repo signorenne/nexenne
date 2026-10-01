@@ -54,6 +54,11 @@ time, not pinned in the pool until the slot is next reused.
 
 A node's =height= field encodes its role: =-1= free, =0= leaf, =>0= internal.
 
+That role is all =remove= and =at= can check: they reject a handle that is out
+of range or names a free or internal slot. A handle carries no generation, so a
+stale handle whose slot a later =insert= reused names the new leaf, and =remove=
+on it removes that other object. Drop a handle when you remove its leaf.
+
 #+BEGIN_EXAMPLE
         [root]                 internal nodes hold the union box of
         /    \                 their two children; leaves hold a fat

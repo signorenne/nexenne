@@ -165,9 +165,13 @@ public:
    *
    * @param h Handle returned by a prior \c insert.
    *
-   * @return \c true on success; \c false when \p h is not a live leaf.
+   * @return \c true on success; \c false when \p h is out of range or names a
+   *         free or internal slot.
    *
-   * @pre None. \p h is validated.
+   * @pre \p h has not been removed since its \c insert. Only an out-of-range,
+   *      free or internal slot is rejected: handles carry no generation, so a
+   *      stale handle whose slot a later \c insert reused names that new leaf,
+   *      and \c remove removes it.
    * @post On success \c size() shrinks by one and \p h is no longer valid; on
    *       failure the tree is unchanged.
    */
@@ -215,10 +219,12 @@ public:
    *
    * @param h Leaf handle.
    *
-   * @return \c {bounds, payload} when \p h is a live leaf; \c std::nullopt
-   *         otherwise.
+   * @return \c {bounds, payload} when \p h names a leaf; \c std::nullopt when
+   *         it is out of range or names a free or internal slot.
    *
-   * @pre None. \p h is validated.
+   * @pre \p h has not been removed since its \c insert. Only an out-of-range,
+   *      free or internal slot is rejected: a stale handle whose slot a later
+   *      \c insert reused returns that new leaf.
    * @post The tree is not modified.
    */
   [[nodiscard]] auto at(handle_type const h) const noexcept
