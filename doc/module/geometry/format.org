@@ -27,11 +27,13 @@ The field rendering reuses the [[file:../math/format.org][math formatters]] (=ma
 quaternion style as everything else. The error enum reuses its =to_string= from
 error.hpp, which is why that header can stay free of =\<format\>=.
 
-The transient GJK and EPA working aggregates (=gjk_simplex3=, =gjk_result3=,
-=epa_result3=) are deliberately not formatted: like the standard library's
-=*_result= aggregates they are read through their fields, and the math module
-likewise leaves its result aggregates (=sin_cos=, =axis_angle=) unformatted. The
-line is "value types and the error, yes; transient algorithm state, no".
+The query results format too: =gjk_result3= (overlap, distance, closest
+points, simplex size and iterations), =epa_result3= (convergence, normal,
+depth and contact points), =ray_hit3= (=t=, point and normal) and
+=contact_manifold3= (normal and only its =count= valid points). The GJK
+simplex itself (=gjk_simplex3= and its =gjk_minkowski_point3= vertices) is the
+algorithm's working state handed to EPA, so a =gjk_result3= prints how many
+vertices it holds rather than the vertices.
 
 * How it works
 

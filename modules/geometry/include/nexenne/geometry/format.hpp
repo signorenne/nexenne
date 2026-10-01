@@ -16,12 +16,12 @@
  *
  * Covered: \c aabb, \c circle2, \c sphere3, \c ray, \c segment, \c plane3,
  * \c triangle, \c capsule, \c obb2, \c obb3, \c polygon2, \c convex_hull3,
- * \c frustum3, \c frustum_plane, \c transform2d, \c transform3d, and
- * \c geometry_error. The
- * transient GJK and EPA working aggregates (\c gjk_simplex3, \c gjk_result3,
- * \c epa_result3) are intentionally not formatted: like the standard library's
- * \c *_result aggregates they are inspected through their fields, and the math
- * module likewise leaves its result aggregates unformatted.
+ * \c frustum3, \c frustum_plane, \c transform2d, \c transform3d, the query
+ * results \c gjk_result3, \c epa_result3, \c ray_hit3 and
+ * \c contact_manifold3, and \c geometry_error. The GJK simplex
+ * (\c gjk_simplex3 and its \c gjk_minkowski_point3 vertices) is the
+ * algorithm's working state handed to EPA; a \c gjk_result3 prints its vertex
+ * count rather than the vertices.
  *
  * \c to_string for \c geometry_error lives in error.hpp (it needs no
  * \c \<format\>); this header adds its \c operator<< and \c std::formatter.
@@ -38,8 +38,11 @@
 #include <nexenne/geometry/capsule.hpp>
 #include <nexenne/geometry/circle.hpp>
 #include <nexenne/geometry/convex_hull.hpp>
+#include <nexenne/geometry/epa.hpp>
 #include <nexenne/geometry/error.hpp>
 #include <nexenne/geometry/frustum.hpp>
+#include <nexenne/geometry/gjk.hpp>
+#include <nexenne/geometry/intersect.hpp>
 #include <nexenne/geometry/obb.hpp>
 #include <nexenne/geometry/plane.hpp>
 #include <nexenne/geometry/polygon.hpp>
@@ -658,6 +661,187 @@ inline auto operator<<(std::ostream& os, frustum_plane const which) -> std::ostr
   return os << to_string(which);
 }
 
+/**
+ * @brief Debug string for a GJK run: its overlap flag, distance, closest points and iterations.
+ *
+ * Output looks like \c "gjk_result3(overlap=false, distance=1.5, closest_a=..., closest_b=...,
+ * simplex=2, iterations=3)".
+ *
+ * @tparam Real Component type.
+ * @param r Value to print.
+ *
+ * @return The formatted text.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto to_string(gjk_result3<Real> const& r) -> std::string {
+  return std::format(
+    "gjk_result3(overlap={}, distance={}, closest_a={}, closest_b={}, simplex={}, iterations={})",
+    r.overlap,
+    r.distance,
+    nexenne::math::to_string(r.closest_a),
+    nexenne::math::to_string(r.closest_b),
+    r.simplex.count,
+    r.iterations
+  );
+}
+
+/**
+ * @brief Streams a \c gjk_result3 via its \c to_string.
+ *
+ * @tparam Real Component type.
+ * @param os Output stream.
+ * @param r Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted value has been written to \p os.
+ */
+template <std::floating_point Real>
+auto operator<<(std::ostream& os, gjk_result3<Real> const& r) -> std::ostream& {
+  return os << to_string(r);
+}
+
+/**
+ * @brief Debug string for an EPA run: convergence, normal, depth and contact points.
+ *
+ * Output looks like \c "epa_result3(converged=true, normal=..., depth=0.25, contact_a=...,
+ * contact_b=...)".
+ *
+ * @tparam Real Component type.
+ * @param r Value to print.
+ *
+ * @return The formatted text.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto to_string(epa_result3<Real> const& r) -> std::string {
+  return std::format(
+    "epa_result3(converged={}, normal={}, depth={}, contact_a={}, contact_b={})",
+    r.converged,
+    nexenne::math::to_string(r.normal),
+    r.penetration_depth,
+    nexenne::math::to_string(r.contact_point_a),
+    nexenne::math::to_string(r.contact_point_b)
+  );
+}
+
+/**
+ * @brief Streams a \c epa_result3 via its \c to_string.
+ *
+ * @tparam Real Component type.
+ * @param os Output stream.
+ * @param r Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted value has been written to \p os.
+ */
+template <std::floating_point Real>
+auto operator<<(std::ostream& os, epa_result3<Real> const& r) -> std::ostream& {
+  return os << to_string(r);
+}
+
+/**
+ * @brief Debug string for a ray hit: its distance, point and normal.
+ *
+ * Output looks like \c "ray_hit3(t=2, point=..., normal=...)".
+ *
+ * @tparam Real Component type.
+ * @param h Value to print.
+ *
+ * @return The formatted text.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto to_string(ray_hit3<Real> const& h) -> std::string {
+  return std::format(
+    "ray_hit3(t={}, point={}, normal={})",
+    h.t,
+    nexenne::math::to_string(h.point),
+    nexenne::math::to_string(h.normal)
+  );
+}
+
+/**
+ * @brief Streams a \c ray_hit3 via its \c to_string.
+ *
+ * @tparam Real Component type.
+ * @param os Output stream.
+ * @param h Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted value has been written to \p os.
+ */
+template <std::floating_point Real>
+auto operator<<(std::ostream& os, ray_hit3<Real> const& h) -> std::ostream& {
+  return os << to_string(h);
+}
+
+/**
+ * @brief Debug string for a contact manifold: its normal and its valid points.
+ *
+ * Output looks like \c "contact_manifold3(normal=..., points=[..., ...])"; only the first \c count
+ * points are printed.
+ *
+ * @tparam Real Component type.
+ * @param m Value to print.
+ *
+ * @return The formatted text.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto to_string(contact_manifold3<Real> const& m) -> std::string {
+  auto points{std::string{"["}};
+  for (auto i{std::size_t{0}}; i < m.count && i < m.points.size(); ++i) {
+    if (i != 0) {
+      points += ", ";
+    }
+    points += nexenne::math::to_string(m.points[i]);
+  }
+  points += ']';
+  return std::format(
+    "contact_manifold3(normal={}, points={})", nexenne::math::to_string(m.normal), points
+  );
+}
+
+/**
+ * @brief Streams a \c contact_manifold3 via its \c to_string.
+ *
+ * @tparam Real Component type.
+ * @param os Output stream.
+ * @param m Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted value has been written to \p os.
+ */
+template <std::floating_point Real>
+auto operator<<(std::ostream& os, contact_manifold3<Real> const& m) -> std::ostream& {
+  return os << to_string(m);
+}
+
 }  // namespace nexenne::geometry
 
 /**
@@ -1090,5 +1274,106 @@ struct std::formatter<nexenne::geometry::frustum_plane> : std::formatter<std::st
   template <typename FormatContext>
   auto format(nexenne::geometry::frustum_plane const which, FormatContext& ctx) const {
     return std::formatter<std::string_view>::format(nexenne::geometry::to_string(which), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c gjk_result3.
+ *
+ * @tparam Real Component type.
+ */
+template <std::floating_point Real>
+struct std::formatter<nexenne::geometry::gjk_result3<Real>> : std::formatter<std::string_view> {
+  /**
+   * @brief Writes the value's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param r Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted value has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::geometry::gjk_result3<Real> const& r, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::geometry::to_string(r), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c epa_result3.
+ *
+ * @tparam Real Component type.
+ */
+template <std::floating_point Real>
+struct std::formatter<nexenne::geometry::epa_result3<Real>> : std::formatter<std::string_view> {
+  /**
+   * @brief Writes the value's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param r Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted value has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::geometry::epa_result3<Real> const& r, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::geometry::to_string(r), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c ray_hit3.
+ *
+ * @tparam Real Component type.
+ */
+template <std::floating_point Real>
+struct std::formatter<nexenne::geometry::ray_hit3<Real>> : std::formatter<std::string_view> {
+  /**
+   * @brief Writes the value's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param h Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted value has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::geometry::ray_hit3<Real> const& h, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::geometry::to_string(h), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c contact_manifold3.
+ *
+ * @tparam Real Component type.
+ */
+template <std::floating_point Real>
+struct std::formatter<nexenne::geometry::contact_manifold3<Real>>
+    : std::formatter<std::string_view> {
+  /**
+   * @brief Writes the value's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param m Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted value has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::geometry::contact_manifold3<Real> const& m, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::geometry::to_string(m), ctx);
   }
 };

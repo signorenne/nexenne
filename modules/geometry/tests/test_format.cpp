@@ -96,4 +96,42 @@ TEST_CASE("format: std::format works on the geometry types") {
   CHECK(std::format("{}", s) == to_string(s));
 }
 
+template <typename T>
+auto three_layers_agree(T const& value) -> bool {
+  auto stream{std::stringstream{}};
+  stream << value;
+  auto const formatted{std::format("{}", value)};
+  return to_string(value) == formatted && stream.str() == formatted;
+}
+
+TEST_CASE("format: the query results print through every layer") {
+  auto gjk{geo::gjk_result3<float>{}};
+  gjk.distance = 1.5F;
+  gjk.closest_a = vec3{1, 0, 0};
+  gjk.closest_b = vec3{2.5F, 0, 0};
+  gjk.iterations = 3;
+  CHECK(three_layers_agree(gjk));
+  CHECK(to_string(gjk).starts_with("gjk_result3(overlap=false, distance=1.5,"));
+  CHECK(to_string(gjk).ends_with("simplex=0, iterations=3)"));
+
+  auto epa{geo::epa_result3<float>{}};
+  epa.converged = true;
+  epa.penetration_depth = 0.25F;
+  CHECK(three_layers_agree(epa));
+  CHECK(to_string(epa).starts_with("epa_result3(converged=true,"));
+
+  auto const hit{geo::ray_hit3<float>{.t = 2.0F, .point = vec3{0, 0, 2}, .normal = vec3{0, 0, -1}}};
+  CHECK(three_layers_agree(hit));
+  CHECK(to_string(hit).starts_with("ray_hit3(t=2, point="));
+
+  auto manifold{geo::contact_manifold3<float>{}};
+  manifold.points[0] = vec3{1, 0, 0};
+  manifold.points[1] = vec3{0, 1, 0};
+  manifold.count = 2;
+  manifold.normal = vec3{0, 0, 1};
+  CHECK(three_layers_agree(manifold));
+  CHECK(to_string(manifold).find(to_string(manifold.points[1])) != std::string::npos);
+  CHECK(to_string(manifold).find(to_string(manifold.points[2])) == std::string::npos);
+}
+
 }  // namespace
