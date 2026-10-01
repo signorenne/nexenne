@@ -521,6 +521,10 @@ template <std::floating_point Real>
  * @post When \c overlap is \c true the \c simplex encloses the origin; when it is
  *       \c false \c distance is non-negative and the closest points lie on the
  *       respective shapes. \c iterations does not exceed \p max_iterations.
+ *
+ * @note \c gjk is \c noexcept: a \c support overload that throws terminates
+ *       the program.
+ *
  * @complexity \c O(max_iterations) support queries; each is the shape's support
  *             cost (\c O(N) for a \c convex_hull3 of N vertices).
  */

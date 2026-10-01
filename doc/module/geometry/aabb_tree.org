@@ -12,7 +12,9 @@ handle); internal nodes store the box that encloses their two children. It
 supports =O(log n)= =insert= / =remove= / =update=, region =query=, and
 =raycast=. Unlike the rest of the module it owns a heap-allocated node pool, so
 (like [[file:epa.org][epa]]) it is =noexcept= and terminates on allocation failure rather than
-returning a =result=. No aliases: the payload type is yours to pick.
+returning a =result=. The same holds for your visitor: a visitor that throws out
+of =query= or =raycast= terminates the program. No aliases: the payload type is
+yours to pick.
 
 * The idea
 

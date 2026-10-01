@@ -475,6 +475,9 @@ seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& ini
  *       has lost convexity to rounding and further expansion would only re-add
  *       it. That is rare: a thin seed whose faces pass through the origin.
  *
+ * @note \c epa is \c noexcept: a \c support overload that throws terminates the
+ *       program, as does a failed allocation of the polytope.
+ *
  * @complexity \c O(max_iterations) support queries; each expansion step is linear
  *             in the current face count. Allocates the polytope.
  */
@@ -822,6 +825,8 @@ template <std::floating_point Real, typename Shape>
  *       the squared spacing), so below the size band the count is wrong: a
  *       sphere of radius 1e-3 gets four points instead of one, and two stacked
  *       boxes of half-size 1e-4 get one instead of four.
+ * @note \c contact_manifold is \c noexcept: a \c support overload that throws
+ *       terminates the program.
  */
 template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real> ShapeB>
 [[nodiscard]] auto

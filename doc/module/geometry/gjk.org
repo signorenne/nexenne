@@ -10,8 +10,9 @@ It returns a =gjk_result3<Real>=: an =overlap= flag; the =distance= and the
 closest point on each shape (=closest_a=, =closest_b=) when they are apart; the
 terminal =simplex= ([[file:epa.org][EPA]] grows it into the tetrahedron it needs for penetration
 depth); and the =iterations= used. It allocates nothing (the simplex is a fixed
-four-vertex array) and is =constexpr= and =noexcept=. =Real= is deduced from the
-seed direction, so you write =gjk(a, b, dir)=, not =gjk<float>(a, b, dir)=.
+four-vertex array) and is =constexpr= and =noexcept=, so a shape's =support=
+that throws terminates the program. =Real= is deduced from the seed direction,
+so you write =gjk(a, b, dir)=, not =gjk<float>(a, b, dir)=.
 
 * The idea
 

@@ -248,6 +248,9 @@ public:
    *
    * @pre \p region is well-formed.
    * @post The tree is not modified.
+   *
+   * @note \c query is \c noexcept: a visitor that throws terminates the
+   *       program.
    */
   template <typename Visitor>
   auto query(bounds_type const& region, Visitor&& visitor) const noexcept -> void {
@@ -309,6 +312,9 @@ public:
    *
    * @pre \c r.direction() has unit length and \p max_t is non-negative.
    * @post The tree is not modified.
+   *
+   * @note \c raycast is \c noexcept: a visitor that throws terminates the
+   *       program.
    */
   template <typename Visitor>
   auto raycast(ray_type const& r, Real max_t, Visitor&& visitor) const noexcept -> void {
