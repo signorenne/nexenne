@@ -18,10 +18,11 @@
  * \c triangle, \c capsule, \c obb2, \c obb3, \c polygon2, \c convex_hull3,
  * \c frustum3, \c frustum_plane, \c transform2d, \c transform3d, the query
  * results \c gjk_result3, \c epa_result3, \c ray_hit3 and
- * \c contact_manifold3, and \c geometry_error. The GJK simplex
- * (\c gjk_simplex3 and its \c gjk_minkowski_point3 vertices) is the
- * algorithm's working state handed to EPA; a \c gjk_result3 prints its vertex
- * count rather than the vertices.
+ * \c contact_manifold3, the GJK working state \c gjk_simplex3 and its
+ * \c gjk_minkowski_point3 vertices, the \c aabb_tree broad phase (a one-line
+ * summary of its size, height and root box), and \c geometry_error. A
+ * \c gjk_result3 prints its simplex's vertex count; format its \c simplex
+ * member for the vertices.
  *
  * \c to_string for \c geometry_error lives in error.hpp (it needs no
  * \c \<format\>); this header adds its \c operator<< and \c std::formatter.
@@ -35,6 +36,7 @@
 #include <string_view>
 
 #include <nexenne/geometry/aabb.hpp>
+#include <nexenne/geometry/aabb_tree.hpp>
 #include <nexenne/geometry/capsule.hpp>
 #include <nexenne/geometry/circle.hpp>
 #include <nexenne/geometry/convex_hull.hpp>
@@ -842,6 +844,143 @@ auto operator<<(std::ostream& os, contact_manifold3<Real> const& m) -> std::ostr
   return os << to_string(m);
 }
 
+/**
+ * @brief Debug string for a Minkowski-difference vertex and its support points.
+ *
+ * Output looks like \c "gjk_minkowski_point3(difference=..., support_a=..., support_b=...)".
+ *
+ * @tparam Real Component type.
+ * @param p Value to print.
+ *
+ * @return The formatted text.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto to_string(gjk_minkowski_point3<Real> const& p) -> std::string {
+  return std::format(
+    "gjk_minkowski_point3(difference={}, support_a={}, support_b={})",
+    nexenne::math::to_string(p.difference),
+    nexenne::math::to_string(p.support_a),
+    nexenne::math::to_string(p.support_b)
+  );
+}
+
+/**
+ * @brief Streams a \c gjk_minkowski_point3 via its \c to_string.
+ *
+ * @tparam Real Component type.
+ * @param os Output stream.
+ * @param p Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted value has been written to \p os.
+ */
+template <std::floating_point Real>
+auto operator<<(std::ostream& os, gjk_minkowski_point3<Real> const& p) -> std::ostream& {
+  return os << to_string(p);
+}
+
+/**
+ * @brief Debug string for a GJK simplex: its vertex count and its valid vertices.
+ *
+ * Output looks like \c "gjk_simplex3(count=2, points=[gjk_minkowski_point3(...), ...])";
+ * only the first \c count vertices, newest first, are printed.
+ *
+ * @tparam Real Component type.
+ * @param s Value to print.
+ *
+ * @return The formatted text.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <std::floating_point Real>
+[[nodiscard]] auto to_string(gjk_simplex3<Real> const& s) -> std::string {
+  auto points{std::string{"["}};
+  for (auto i{std::size_t{0}}; i < s.count && i < s.points.size(); ++i) {
+    if (i != 0) {
+      points += ", ";
+    }
+    points += to_string(s.points[i]);
+  }
+  points += ']';
+  return std::format("gjk_simplex3(count={}, points={})", s.count, points);
+}
+
+/**
+ * @brief Streams a \c gjk_simplex3 via its \c to_string.
+ *
+ * @tparam Real Component type.
+ * @param os Output stream.
+ * @param s Value to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted value has been written to \p os.
+ */
+template <std::floating_point Real>
+auto operator<<(std::ostream& os, gjk_simplex3<Real> const& s) -> std::ostream& {
+  return os << to_string(s);
+}
+
+/**
+ * @brief Debug string for an \c aabb_tree: its leaf count, height and root box.
+ *
+ * Output looks like \c "aabb_tree(size=2, height=1, root_bounds=aabb(min=..., max=...))",
+ * and an empty tree prints \c "aabb_tree(size=0, height=0)". The payloads are not
+ * printed, so \p T need not be formattable.
+ *
+ * @tparam T Payload type.
+ * @tparam N Dimension.
+ * @tparam Real Component type.
+ * @param t Tree to print.
+ *
+ * @return The formatted text.
+ *
+ * @pre None.
+ * @post None.
+ *
+ * @throws std::bad_alloc if the string cannot be allocated.
+ */
+template <typename T, std::size_t N, std::floating_point Real>
+[[nodiscard]] auto to_string(aabb_tree<T, N, Real> const& t) -> std::string {
+  auto const root{t.root_bounds()};
+  if (!root.has_value()) {
+    return std::format("aabb_tree(size={}, height={})", t.size(), t.height());
+  }
+  return std::format(
+    "aabb_tree(size={}, height={}, root_bounds={})", t.size(), t.height(), to_string(*root)
+  );
+}
+
+/**
+ * @brief Streams an \c aabb_tree via its \c to_string.
+ *
+ * @tparam T Payload type.
+ * @tparam N Dimension.
+ * @tparam Real Component type.
+ * @param os Output stream.
+ * @param t Tree to print.
+ *
+ * @return Reference to \p os.
+ *
+ * @pre None.
+ * @post The formatted tree has been written to \p os.
+ */
+template <typename T, std::size_t N, std::floating_point Real>
+auto operator<<(std::ostream& os, aabb_tree<T, N, Real> const& t) -> std::ostream& {
+  return os << to_string(t);
+}
+
 }  // namespace nexenne::geometry
 
 /**
@@ -1375,5 +1514,92 @@ struct std::formatter<nexenne::geometry::contact_manifold3<Real>>
   template <typename FormatContext>
   auto format(nexenne::geometry::contact_manifold3<Real> const& m, FormatContext& ctx) const {
     return std::formatter<std::string_view>::format(nexenne::geometry::to_string(m), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c gjk_minkowski_point3.
+ *
+ * @tparam Real Component type.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::floating_point Real>
+struct std::formatter<nexenne::geometry::gjk_minkowski_point3<Real>>
+    : std::formatter<std::string_view> {
+  /**
+   * @brief Writes the value's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param p Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted value has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::geometry::gjk_minkowski_point3<Real> const& p, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::geometry::to_string(p), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c gjk_simplex3.
+ *
+ * @tparam Real Component type.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <std::floating_point Real>
+struct std::formatter<nexenne::geometry::gjk_simplex3<Real>> : std::formatter<std::string_view> {
+  /**
+   * @brief Writes the value's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param s Value to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted value has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::geometry::gjk_simplex3<Real> const& s, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::geometry::to_string(s), ctx);
+  }
+};
+
+/**
+ * @brief \c std::format support for \c aabb_tree.
+ *
+ * @tparam T Payload type.
+ * @tparam N Dimension.
+ * @tparam Real Component type.
+ *
+ * @pre None.
+ * @post None.
+ */
+template <typename T, std::size_t N, std::floating_point Real>
+struct std::formatter<nexenne::geometry::aabb_tree<T, N, Real>> : std::formatter<std::string_view> {
+  /**
+   * @brief Writes the tree's \c to_string through the string formatter.
+   *
+   * @tparam FormatContext Deduced output context type.
+   * @param t Tree to format.
+   * @param ctx Format context receiving the output.
+   *
+   * @return Iterator past the last character written.
+   *
+   * @pre None.
+   * @post The formatted tree has been written to \p ctx.
+   */
+  template <typename FormatContext>
+  auto format(nexenne::geometry::aabb_tree<T, N, Real> const& t, FormatContext& ctx) const {
+    return std::formatter<std::string_view>::format(nexenne::geometry::to_string(t), ctx);
   }
 };

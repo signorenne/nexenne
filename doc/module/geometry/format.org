@@ -10,7 +10,8 @@ that returns a readable string, an =operator<<(std::ostream&, x)= for stream
 output, and a =std::formatter= specialization so =std::format("{}", x)= works.
 It covers =aabb=, =circle2=, =sphere3=, =ray=, =segment=, =plane3=, =triangle=,
 =capsule=, =obb2= / =obb3=, =polygon2=, =convex_hull3=, =frustum3=, the
-=transform2d= / =transform3d= poses, and the =geometry_error= enum. This is the
+=transform2d= / =transform3d= poses, the query results and GJK working state,
+the =aabb_tree= broad phase, and the =geometry_error= enum. This is the
 formatter-per-type rule the whole library follows: every public type ships its
 formatter here, and the module never wraps a standard type's formatting.
 
@@ -31,9 +32,15 @@ The query results format too: =gjk_result3= (overlap, distance, closest
 points, simplex size and iterations), =epa_result3= (convergence, normal,
 depth and contact points), =ray_hit3= (=t=, point and normal) and
 =contact_manifold3= (normal and only its =count= valid points). The GJK
-simplex itself (=gjk_simplex3= and its =gjk_minkowski_point3= vertices) is the
-algorithm's working state handed to EPA, so a =gjk_result3= prints how many
-vertices it holds rather than the vertices.
+working state formats as well: =gjk_minkowski_point3= prints its difference
+point and both support points, and =gjk_simplex3= prints its =count= and only
+the valid vertices, newest first. A =gjk_result3= keeps its line short by
+printing the simplex's vertex count; format =result.simplex= for the vertices.
+
+The =aabb_tree= broad phase prints a one-line summary of its observable state,
+its leaf count, height and root box, never its payloads:
+=aabb_tree(size=2, height=1, root_bounds=aabb(min=..., max=...))=, or
+=aabb_tree(size=0, height=0)= when empty.
 
 * How it works
 

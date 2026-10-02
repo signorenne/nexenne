@@ -129,6 +129,7 @@ The visitor return type drives the walk via =if constexpr=:
 | update (moved)    | O(log n)      | a remove plus an insert                    |
 | query / raycast   | O(log n + k)  | k leaves reported                          |
 | height, size      | O(1)          | read a field                               |
+| root_bounds       | O(1)          | the root box, or =nullopt= when empty      |
 
 Memory is one =node= per leaf plus one internal node per leaf (a binary tree of
 =L= leaves has =L - 1= internals), all in a single growable pool.
@@ -176,6 +177,10 @@ world.raycast(geo::ray<float, 3>{nm::vector3_f{}, nm::vector3_f{1, 0, 0}}, best,
               [&](auto, std::uint32_t id, float t) -> float { best = nm::min(best, t); return best; });
 
 world.update(h, box{nm::vector3_f{-0.9f, -1, -1}, nm::vector3_f{1.1f, 1, 1}});  // tiny move: no-op
+
+// The extent of everything stored, padding included; nullopt when empty.
+auto const extent{world.root_bounds()};
+std::println("{}", world);  // aabb_tree(size=1, height=0, root_bounds=aabb(...)), via format.hpp
 #+END_SRC
 
 * See also
@@ -184,6 +189,7 @@ world.update(h, box{nm::vector3_f{-0.9f, -1, -1}, nm::vector3_f{1.1f, 1, 1}});  
   =intersects= / =contains_aabb= tests the tree is built on.
 - [[file:intersect.org][intersect]] : the =intersects(ray, aabb)= ray cast the =raycast= node test uses.
 - [[file:gjk.org][gjk]], [[file:epa.org][epa]] : the narrow-phase exact tests a broad-phase candidate feeds into.
+- [[file:format.org][format]] : =to_string=, =operator<<= and =std::formatter= for the tree's one-line summary.
 - [[file:frustum.org][frustum]] : the view volume whose planes a culling =query= can drive.
 
 * Further reading

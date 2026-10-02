@@ -12,8 +12,10 @@
 #include <sstream>
 #include <string>
 
+#include <nexenne/geometry/aabb_tree.hpp>
 #include <nexenne/geometry/error.hpp>
 #include <nexenne/geometry/format.hpp>
+#include <nexenne/geometry/gjk.hpp>
 #include <nexenne/math/angle.hpp>
 #include <nexenne/math/quaternion.hpp>
 #include <nexenne/math/vector.hpp>
@@ -25,6 +27,7 @@ namespace nm = nexenne::math;
 
 using geo::to_string;
 using nm::quaternion;
+using namespace std::string_literals;
 using nm::radians;
 using vec2 = nm::vector2_f;
 using vec3 = nm::vector3_f;
@@ -132,6 +135,40 @@ TEST_CASE("format: the query results print through every layer") {
   CHECK(three_layers_agree(manifold));
   CHECK(to_string(manifold).find(to_string(manifold.points[1])) != std::string::npos);
   CHECK(to_string(manifold).find(to_string(manifold.points[2])) == std::string::npos);
+}
+
+TEST_CASE("format: the GJK simplex prints its valid vertices") {
+  auto const vertex{geo::gjk_minkowski_point3<float>{
+    .difference = vec3{1, 0, 0}, .support_a = vec3{2, 0, 0}, .support_b = vec3{1, 0, 0}
+  }};
+  auto const vertex_text{
+    "gjk_minkowski_point3(difference=vector3(1, 0, 0), support_a=vector3(2, 0, 0), "
+    "support_b=vector3(1, 0, 0))"s
+  };
+  CHECK(std::format("{}", vertex) == vertex_text);
+  CHECK(three_layers_agree(vertex));
+
+  auto simplex{geo::gjk_simplex3<float>{}};
+  CHECK(std::format("{}", simplex) == "gjk_simplex3(count=0, points=[])");
+  simplex.points[0] = vertex;
+  simplex.points[1].difference = vec3{0, 5, 0};
+  simplex.count = 1;
+  CHECK(std::format("{}", simplex) == "gjk_simplex3(count=1, points=[" + vertex_text + "])");
+  CHECK(three_layers_agree(simplex));
+}
+
+TEST_CASE("format: the aabb_tree prints its size, height and root box") {
+  auto tree{geo::aabb_tree<int, 3, float>{0.5F}};
+  CHECK(std::format("{}", tree) == "aabb_tree(size=0, height=0)");
+
+  tree.insert(geo::aabb3_f{vec3{0, 0, 0}, vec3{1, 1, 1}}, 1);
+  tree.insert(geo::aabb3_f{vec3{3, 0, 0}, vec3{4, 1, 1}}, 2);
+  CHECK(
+    std::format("{}", tree)
+    == "aabb_tree(size=2, height=1, root_bounds=aabb(min=vector3(-0.5, -0.5, -0.5), "
+       "max=vector3(4.5, 1.5, 1.5)))"
+  );
+  CHECK(three_layers_agree(tree));
 }
 
 }  // namespace

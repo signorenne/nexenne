@@ -66,7 +66,7 @@ auto main() -> int {
   world.insert(bounding_aabb(crate), 0u);
   world.insert(bounding_aabb(ball), 1u);
   world.insert(bounding_aabb(far_ball), 2u);
-  std::println("  indexed {} objects, tree height {}", world.size(), world.height());
+  std::println("  world = {}", world);
 
   geo::aabb3_f const region{vec3{-2, -2, -2}, vec3{4, 2, 2}};
   std::print("  region {} overlaps ids:", region);

@@ -40,6 +40,23 @@ TEST_CASE("aabb_tree: empty by default") {
   CHECK(t.height() == 0);
 }
 
+TEST_CASE("aabb_tree: root_bounds spans every fat leaf box") {
+  auto t{tree3{0.5f}};
+  CHECK_FALSE(t.root_bounds().has_value());
+
+  t.insert(make_box(0, 0, 0), 1u);
+  auto const far{t.insert(make_box(4, 0, 0), 2u)};
+  auto const both{t.root_bounds()};
+  REQUIRE(both.has_value());
+  CHECK(both->min() == vec3{-1, -1, -1});
+  CHECK(both->max() == vec3{5, 1, 1});
+
+  CHECK(t.remove(far));
+  auto const one{t.root_bounds()};
+  REQUIRE(one.has_value());
+  CHECK(one->max() == vec3{1, 1, 1});
+}
+
 TEST_CASE("aabb_tree: single insert is found by an overlapping query") {
   auto t{tree3{}};
   auto const h{t.insert(make_box(0, 0, 0), 42u)};

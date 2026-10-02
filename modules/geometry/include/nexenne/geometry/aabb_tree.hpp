@@ -420,6 +420,24 @@ public:
     return m_root == null_handle ? 0 : m_nodes[m_root].height;
   }
 
+  /**
+   * @brief Box of the root node, bounding every stored (fat) leaf box.
+   *
+   * The extent of everything in the tree, padding included, as Box2D's
+   * \c b2DynamicTree_GetRootBounds reports it.
+   *
+   * @return The root box, or \c std::nullopt when the tree is empty.
+   *
+   * @pre None.
+   * @post The tree is not modified.
+   */
+  [[nodiscard]] auto root_bounds() const noexcept -> std::optional<bounds_type> {
+    if (m_root == null_handle) {
+      return std::nullopt;
+    }
+    return m_nodes[m_root].bounds;
+  }
+
 private:
   /**
    * @brief Returns a slot for a fresh node, reusing the free list when possible.
