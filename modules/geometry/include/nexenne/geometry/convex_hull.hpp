@@ -41,9 +41,9 @@ namespace nexenne::geometry {
 template <std::floating_point Real>
 class convex_hull3 {
 public:
-  using value_type = Real;
-  using point_type = nexenne::math::vector<value_type, 3>;
-  using span_type = std::span<point_type const>;
+  using value_type = Real;                                  ///< Scalar coordinate type.
+  using point_type = nexenne::math::vector<value_type, 3>;  ///< Vertex type, a 3D vector.
+  using span_type = std::span<point_type const>;  ///< Read-only view over the hull vertices.
 
 private:
   span_type m_vertices{};

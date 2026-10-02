@@ -33,9 +33,9 @@ namespace nexenne::geometry {
 template <std::floating_point Real>
 class polygon2 {
 public:
-  using value_type = Real;
-  using point_type = nexenne::math::vector<value_type, 2>;
-  using span_type = std::span<point_type const>;
+  using value_type = Real;                                  ///< Scalar coordinate type.
+  using point_type = nexenne::math::vector<value_type, 2>;  ///< Vertex type, a 2D vector.
+  using span_type = std::span<point_type const>;            ///< Read-only view over the vertices.
 
 private:
   span_type m_vertices{};

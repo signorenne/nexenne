@@ -36,8 +36,8 @@ namespace nexenne::geometry {
 template <std::floating_point Real>
 class plane3 {
 public:
-  using value_type = Real;
-  using vector_type = nexenne::math::vector<value_type, 3>;
+  using value_type = Real;  ///< Scalar type of the normal and the offset.
+  using vector_type = nexenne::math::vector<value_type, 3>;  ///< Normal vector type, a 3D vector.
 
 private:
   vector_type m_normal{value_type{0}, value_type{0}, value_type{1}};

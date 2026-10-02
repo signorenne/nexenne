@@ -40,7 +40,8 @@ namespace nexenne::geometry {
 template <nexenne::math::arithmetic Value, std::size_t N>
 class aabb {
 public:
-  using value_type = Value;
+  using value_type = Value;  ///< Coordinate component type.
+  /// @brief Corner point type, an N-component vector.
   using point_type = nexenne::math::vector<value_type, N>;
 
 private:

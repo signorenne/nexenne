@@ -86,8 +86,8 @@ enum class frustum_plane : std::size_t {
 template <std::floating_point Real>
 class frustum3 {
 public:
-  using value_type = Real;
-  using plane_type = plane3<value_type>;
+  using value_type = Real;                ///< Scalar type of the plane coefficients.
+  using plane_type = plane3<value_type>;  ///< Type of each of the six bounding planes.
 
 private:
   std::array<plane_type, 6> m_planes{};

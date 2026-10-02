@@ -36,7 +36,8 @@ namespace nexenne::geometry {
 template <std::floating_point Real, std::size_t N>
 class capsule {
 public:
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar type of the coordinates and the radius.
+  /// @brief Type of the two core segment endpoints.
   using point_type = nexenne::math::vector<value_type, N>;
 
 private:

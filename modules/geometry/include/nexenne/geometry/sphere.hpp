@@ -33,8 +33,8 @@ namespace nexenne::geometry {
 template <std::floating_point Real>
 class sphere3 {
 public:
-  using value_type = Real;
-  using point_type = nexenne::math::vector<value_type, 3>;
+  using value_type = Real;  ///< Scalar type of the coordinates and the radius.
+  using point_type = nexenne::math::vector<value_type, 3>;  ///< Center point type, a 3D vector.
 
 private:
   point_type m_center{};

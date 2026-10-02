@@ -40,8 +40,8 @@ namespace nexenne::geometry {
 template <std::floating_point Real, std::size_t N>
 class triangle {
 public:
-  using value_type = Real;
-  using point_type = nexenne::math::vector<value_type, N>;
+  using value_type = Real;                                  ///< Scalar coordinate type.
+  using point_type = nexenne::math::vector<value_type, N>;  ///< Vertex type, an N-component vector.
 
 private:
   point_type m_a{};

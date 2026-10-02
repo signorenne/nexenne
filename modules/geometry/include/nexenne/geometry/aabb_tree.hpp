@@ -66,34 +66,44 @@ namespace nexenne::geometry {
 template <typename T, std::size_t N = 3, std::floating_point Real = float>
 class aabb_tree {
 public:
-  using payload_type = T;
-  using bounds_type = aabb<Real, N>;
-  using ray_type = ray<Real, N>;
-  using handle_type = std::uint32_t;
-  using size_type = std::size_t;
+  using payload_type = T;             ///< Payload stored at each leaf.
+  using bounds_type = aabb<Real, N>;  ///< Box bounding a leaf or a subtree.
+  using ray_type = ray<Real, N>;      ///< Ray type accepted by the ray casts.
+  using handle_type = std::uint32_t;  ///< Index naming a node; \c null_handle names none.
+  using size_type = std::size_t;      ///< Count type for leaves and nodes.
 
   /// @brief Sentinel handle meaning "no such node".
   static constexpr handle_type null_handle = std::numeric_limits<handle_type>::max();
 
 private:
-  // Whether the payload operations the tree runs cannot throw: default
-  // construction to reset a slot, move assignment to store or clear one, and
-  // move construction when the node pool grows. insert and remove are noexcept
-  // exactly when this holds.
+  /**
+   * @brief Whether the payload operations the tree runs cannot throw.
+   *
+   * Covers default construction to reset a slot, move assignment to store or
+   * clear one, and move construction when the node pool grows. \c insert and
+   * \c remove are \c noexcept exactly when this holds.
+   */
   static constexpr bool nothrow_payload_v = std::is_nothrow_default_constructible_v<payload_type>
                                             && std::is_nothrow_move_constructible_v<payload_type>
                                             && std::is_nothrow_move_assignable_v<payload_type>;
 
-  // One node of the pool. An internal node has two children and a positive
-  // height; a leaf has height 0 and carries a payload; a free slot has height -1
-  // and reuses child_a as the "next free slot" link.
+  /**
+   * @brief One node of the pool.
+   *
+   * An internal node has two children and a positive height; a leaf has height
+   * 0 and carries a payload; a free slot has height -1 and reuses \c child_a as
+   * the "next free slot" link.
+   *
+   * @pre None.
+   * @post None.
+   */
   struct node {
-    bounds_type bounds{};
-    handle_type parent{null_handle};
-    handle_type child_a{null_handle};  // doubles as the free-list link when free.
-    handle_type child_b{null_handle};
-    std::int32_t height{-1};  // -1 free, 0 leaf, >0 internal.
-    payload_type payload{};
+    bounds_type bounds{};              ///< Fat box of a leaf, union of children otherwise.
+    handle_type parent{null_handle};   ///< Parent node, \c null_handle at the root.
+    handle_type child_a{null_handle};  ///< First child; the free-list link when free.
+    handle_type child_b{null_handle};  ///< Second child.
+    std::int32_t height{-1};           ///< -1 free, 0 leaf, above 0 internal.
+    payload_type payload{};            ///< Caller payload, meaningful on a leaf only.
 
     /**
      * @brief Whether this node is a leaf (holds a payload, no children).
@@ -250,7 +260,8 @@ public:
    *
    * \p visitor is called as \c visitor(handle, payload). A visitor returning
    * \c bool may stop the walk early by returning \c false; a \c void visitor
-   * always continues.
+   * always continues. Any other return type is a compile error, since its result
+   * would be silently ignored and pruning would quietly not happen.
    *
    * @tparam Visitor Callable applied to each overlapping leaf.
    * @param region Query box.
@@ -315,7 +326,9 @@ public:
    * ray's entry distance into the leaf box. A visitor returning \c Real updates
    * the working \p max_t (return the current value to keep it, or a smaller one
    * to prune farther leaves), which makes closest-hit queries a one-liner; a
-   * \c void visitor leaves \p max_t unchanged.
+   * \c void visitor leaves \p max_t unchanged. Any other return type (a \c bool,
+   * a \c double on a \c float tree) is a compile error, since its result would be
+   * silently ignored and \p max_t pruning would quietly not happen.
    *
    * @tparam Visitor Callable applied to each hit leaf.
    * @param r Query ray.
@@ -466,7 +479,9 @@ private:
    * @brief Returns a slot to the free list.
    *
    * Marks the slot free (height < 0) and threads it onto the free-list head
-   * through the \c child_a field.
+   * through the \c child_a field. The payload is released here, not on the
+   * slot's eventual reuse: a payload can own a resource (a \c shared_ptr, a
+   * handle), and a long-lived tree must not pin the resources of removed leaves.
    *
    * @param idx Slot to free.
    *
@@ -526,9 +541,11 @@ private:
   /**
    * @brief Inserts an already-prepared leaf node into the tree.
    *
-   * Descends from the root to the best sibling by the surface-area heuristic,
-   * splices a new internal parent above that sibling, then refits and rebalances
-   * the ancestors up to the root.
+   * Descends from the root to the best sibling by the surface-area heuristic
+   * (at each node, comparing the cost of a new parent there against pushing the
+   * leaf into either child, and following the cheaper option), splices a new
+   * internal parent above that sibling with the sibling and the leaf as its
+   * children, then refits and rebalances the ancestors up to the root.
    *
    * @param leaf Handle of a leaf node whose bounds and payload are already set.
    *

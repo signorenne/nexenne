@@ -37,7 +37,8 @@ namespace nexenne::geometry {
 template <std::floating_point Real, std::size_t N>
 class segment {
 public:
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar coordinate type.
+  /// @brief Endpoint type, an N-component vector.
   using point_type = nexenne::math::vector<value_type, N>;
 
 private:

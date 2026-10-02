@@ -64,7 +64,7 @@ namespace nexenne::geometry {
 template <std::floating_point Real>
 class transform2d {
 public:
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar type of the position, angle and scale.
 
 private:
   math::vector<Real, 2> m_position{Real{0}, Real{0}};
@@ -186,7 +186,7 @@ static_assert(std::is_standard_layout_v<transform2d_f>);
 template <std::floating_point Real>
 class transform3d {
 public:
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar type of the position, rotation and scale.
 
 private:
   math::vector<Real, 3> m_position{Real{0}, Real{0}, Real{0}};
@@ -320,6 +320,9 @@ template <std::floating_point Real>
 /**
  * @brief Applies a 2D pose to a point (scale, rotate, translate).
  *
+ * Computed directly on the hot path, without building the 3x3 matrix; the result
+ * equals \c to_matrix(t) applied to \p p.
+ *
  * @tparam Real Component type.
  * @param t Pose.
  * @param p Point.
@@ -347,6 +350,9 @@ transform_point(transform2d<Real> const t, math::vector<Real, 2> const p) noexce
 
 /**
  * @brief Applies the linear part of a 2D pose to a direction (no translation).
+ *
+ * Computed directly on the hot path, without building the 3x3 matrix; the result
+ * equals the linear part of \c to_matrix(t) applied to \p d.
  *
  * @tparam Real Component type.
  * @param t Pose.

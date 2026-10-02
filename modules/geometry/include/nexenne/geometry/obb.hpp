@@ -46,8 +46,10 @@ namespace nexenne::geometry {
 template <std::floating_point Real>
 class obb2 {
 public:
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar coordinate type.
+  /// @brief Type of the center and the half extents, a 2D vector.
   using vector_type = nexenne::math::vector<value_type, 2>;
+  /// @brief Orientation type, an angle in radians.
   using rotation_type = nexenne::math::radians<value_type>;
 
 private:
@@ -307,8 +309,10 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 class obb3 {
 public:
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar coordinate type.
+  /// @brief Type of the center and the half extents, a 3D vector.
   using vector_type = nexenne::math::vector<value_type, 3>;
+  /// @brief Orientation type, a unit quaternion.
   using rotation_type = nexenne::math::quaternion<value_type>;
 
 private:

@@ -731,7 +731,8 @@ template <std::floating_point Real>
  */
 template <std::floating_point Real>
 struct ray_hit3 {
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar type of the hit distance and the coordinates.
+  /// @brief Type of the hit point and the normal, a 3D vector.
   using point_type = nexenne::math::vector<Real, 3>;
 
   Real t{};             ///< Hit distance along the ray (parametric, unit direction).

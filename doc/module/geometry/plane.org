@@ -61,9 +61,10 @@ Both lean on =normalize=, which is fallible. A zero-length normal, or three
 collinear points whose cross product vanishes, cannot be normalized, so the
 factories return =geometry_error::degenerate_primitive= rather than a NaN-laden
 plane. =plane_from_point_normal= also returns it for a point with a NaN or
-infinite component, which would otherwise leave a non-finite offset. A runtime-detectable degeneracy is a =result=, not a precondition the
-caller must pre-check; the cheap two-argument constructor trusts a unit normal
-when you already hold one.
+infinite component, which would otherwise leave a non-finite offset. A
+runtime-detectable degeneracy is a =result=, not a precondition the caller must
+pre-check; the cheap two-argument constructor trusts a unit normal when you
+already hold one.
 
 Neither test depends on the caller's units. A normal is too short only when its
 squared length is below the smallest normal =Real=, so a normal of length

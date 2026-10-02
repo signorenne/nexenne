@@ -33,7 +33,8 @@ namespace nexenne::geometry {
 template <std::floating_point Real, std::size_t N>
 class ray {
 public:
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar coordinate type.
+  /// @brief Type of the origin and the direction, an N-component vector.
   using vector_type = nexenne::math::vector<value_type, N>;
 
 private:

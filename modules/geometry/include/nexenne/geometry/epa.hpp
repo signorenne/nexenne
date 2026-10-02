@@ -52,7 +52,8 @@ namespace nexenne::geometry {
  */
 template <std::floating_point Real>
 struct epa_result3 {
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar type of the depth and the coordinates.
+  /// @brief Type of the normal and the contact points, a 3D vector.
   using point_type = nexenne::math::vector<Real, 3>;
 
   bool converged{false};         ///< True when expansion converged on a closest face.
@@ -706,7 +707,8 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
  */
 template <std::floating_point Real>
 struct contact_manifold3 {
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar component type.
+  /// @brief Type of the contact points and the normal, a 3D vector.
   using point_type = nexenne::math::vector<Real, 3>;
 
   std::array<point_type, 8> points{};  ///< Contact points on the contact plane.

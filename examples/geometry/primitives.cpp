@@ -7,14 +7,17 @@
  * skips, running one representative query per shape and printing it through
  * format.hpp:
  *
- *   1. segment   -> closest point and length.
- *   2. plane3    -> signed distance and projection.
- *   3. triangle  -> area, centroid, and 2D containment.
- *   4. circle2   -> area and containment.
- *   5. capsule   -> volume and containment.
- *   6. polygon2  -> shoelace area, centroid, and point-in-polygon.
- *   7. hash      -> a shape as an unordered_map key.
- *   8. decompose -> recover a pose from its matrix.
+ *   1. segment   -> closest point (clamped to the endpoints) and length.
+ *   2. plane3    -> signed distance (positive on the normal's side) and the
+ *                   orthogonal projection onto the plane.
+ *   3. triangle  -> area, centroid, and winding-independent 2D containment.
+ *   4. circle2   -> area and containment of the 2D disc.
+ *   5. capsule   -> volume (cylinder plus caps) and containment.
+ *   6. polygon2  -> a non-owning view over caller-owned vertices: shoelace
+ *                   area, area-weighted centroid, and crossing-number
+ *                   containment.
+ *   7. hash      -> any concrete shape as an unordered_map key.
+ *   8. decompose -> recover a pose (position, angle, scale) from its matrix.
  *
  * Every value is printed through format.hpp, so we never hand-roll a printer.
  */

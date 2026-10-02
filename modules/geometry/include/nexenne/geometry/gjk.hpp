@@ -69,7 +69,8 @@ namespace nexenne::geometry {
  */
 template <std::floating_point Real>
 struct gjk_minkowski_point3 {
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar component type.
+  /// @brief Type of the difference and support points, a 3D vector.
   using point_type = nexenne::math::vector<Real, 3>;
 
   point_type difference{};  ///< Minkowski-difference point: support_a - support_b.
@@ -92,7 +93,8 @@ struct gjk_minkowski_point3 {
  */
 template <std::floating_point Real>
 struct gjk_simplex3 {
-  using value_type = Real;
+  using value_type = Real;  ///< Scalar component type.
+  /// @brief Simplex vertex type, a Minkowski point with its supports.
   using point_type = gjk_minkowski_point3<Real>;
 
   std::array<point_type, 4> points{};  ///< Vertices, newest first; only [0, count) valid.
@@ -115,8 +117,8 @@ struct gjk_simplex3 {
  */
 template <std::floating_point Real>
 struct gjk_result3 {
-  using value_type = Real;
-  using point_type = nexenne::math::vector<Real, 3>;
+  using value_type = Real;  ///< Scalar type of the distance and the coordinates.
+  using point_type = nexenne::math::vector<Real, 3>;  ///< Type of the closest points, a 3D vector.
 
   bool overlap{false};           ///< True when the two shapes overlap.
   Real distance{};               ///< Separation distance when apart; 0 on overlap.

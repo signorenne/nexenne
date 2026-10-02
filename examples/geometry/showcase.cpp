@@ -6,15 +6,21 @@
  * queries a physics step or a renderer would, printing the numbers so the pieces
  * fit together in context:
  *
- *   1. Place objects   -> transform a shape into world space (transform.hpp).
- *   2. Broad phase     -> index every world box in an aabb_tree, then region
- *                         query and raycast it (aabb_tree.hpp).
- *   3. Cull            -> build a camera frustum and keep only what it sees
- *                         (frustum.hpp).
- *   4. Narrow phase    -> GJK overlap, EPA penetration, and the contact manifold
- *                         on a real pair, via the support mappings (gjk/epa.hpp).
- *   5. Distance        -> GJK separation distance and nearest points for a pair
- *                         that does not overlap (gjk.hpp).
+ *   1. Place objects   -> transform a unit box into world space; the pose
+ *                         rotates it, so the world shape is an oriented box
+ *                         (transform.hpp).
+ *   2. Broad phase     -> index every world box in an aabb_tree, keyed by a
+ *                         small id, then region query and raycast it
+ *                         (aabb_tree.hpp).
+ *   3. Cull            -> build a camera frustum looking down -z and keep only
+ *                         what it sees (frustum.hpp).
+ *   4. Narrow phase    -> on the pair the broad phase flagged, GJK confirms the
+ *                         overlap, EPA recovers the push-out, and the contact
+ *                         manifold follows, all on the analytic primitives
+ *                         through their support mappings (gjk/epa.hpp).
+ *   5. Distance        -> for a separated pair, GJK reports the gap and the
+ *                         nearest point on each shape, not just a yes/no
+ *                         (gjk.hpp).
  *   6. Ray hit         -> a ray cast that returns the hit point and surface
  *                         normal (intersect.hpp).
  *
