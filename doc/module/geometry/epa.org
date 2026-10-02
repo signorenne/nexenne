@@ -16,8 +16,9 @@ smallest translation that separates them), per-shape =contact_point_a= and
 =contact_point_b=, and a =converged= flag. =Real= is deduced from the simplex.
 Like the =aabb_tree= node pool, and unlike the rest of the module, it allocates,
 growing the polytope in a
-=std::vector=; it is =noexcept=, so allocation failure terminates, and so does a
-shape's =support= that throws (in =epa= and in =contact_manifold=).
+=std::vector=, and allocation failure terminates. =epa= and =contact_manifold=
+are =noexcept= exactly when both shapes' =support= overloads are, so a throwing
+=support= propagates.
 
 * The idea
 

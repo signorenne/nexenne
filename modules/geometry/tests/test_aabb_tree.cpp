@@ -11,6 +11,7 @@
 #include <limits>
 #include <memory>
 #include <random>
+#include <utility>
 #include <vector>
 
 #include <nexenne/geometry/aabb.hpp>
@@ -270,5 +271,44 @@ TEST_CASE("aabb_tree: region queries match a brute-force oracle over random boxe
     }
   }
 }
+
+// NOLINTBEGIN(performance-noexcept-move-constructor,cert-oop54-cpp): a minimal throwing payload
+struct throwing_payload {
+  int v{0};
+
+  throwing_payload() = default;
+
+  throwing_payload(throwing_payload const& other) : v{other.v} {}
+
+  throwing_payload(throwing_payload&& other) : v{other.v} {}
+
+  auto operator=(throwing_payload const& other) -> throwing_payload& {
+    v = other.v;
+    return *this;
+  }
+
+  auto operator=(throwing_payload&& other) -> throwing_payload& {
+    v = other.v;
+    return *this;
+  }
+};
+
+// NOLINTEND(performance-noexcept-move-constructor,cert-oop54-cpp)
+
+using throwing_tree = geo::aabb_tree<throwing_payload, 3, float>;
+
+inline constexpr auto throwing_visit{[](tree3::handle_type, std::uint32_t const&) {}};
+inline constexpr auto nothrow_visit{[](tree3::handle_type, std::uint32_t const&) noexcept {}};
+inline constexpr auto throwing_hit{[](tree3::handle_type, std::uint32_t const&, float) {}};
+inline constexpr auto nothrow_hit{[](tree3::handle_type, std::uint32_t const&, float) noexcept {}};
+static_assert(!noexcept(std::declval<tree3 const&>().query(box3{}, throwing_visit)));
+static_assert(noexcept(std::declval<tree3 const&>().query(box3{}, nothrow_visit)));
+static_assert(!noexcept(std::declval<tree3 const&>().raycast(ray3{}, 1.0F, throwing_hit)));
+static_assert(noexcept(std::declval<tree3 const&>().raycast(ray3{}, 1.0F, nothrow_hit)));
+static_assert(!noexcept(std::declval<throwing_tree&>().insert(box3{}, throwing_payload{})));
+static_assert(noexcept(std::declval<tree3&>().insert(box3{}, 1U)));
+static_assert(!noexcept(std::declval<throwing_tree&>().remove(0)));
+static_assert(!noexcept(std::declval<throwing_tree const&>().at(0)));
+static_assert(noexcept(std::declval<tree3 const&>().at(0)));
 
 }  // namespace

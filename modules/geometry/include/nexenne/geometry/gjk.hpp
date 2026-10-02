@@ -533,8 +533,8 @@ template <std::floating_point Real>
  *       \c false \c distance is non-negative and the closest points lie on the
  *       respective shapes. \c iterations does not exceed \p max_iterations.
  *
- * @note \c gjk is \c noexcept: a \c support overload that throws terminates
- *       the program.
+ * @note \c gjk is \c noexcept exactly when both shapes' \c support overloads
+ *       are, so a throwing one propagates.
  *
  * @complexity \c O(max_iterations) support queries; each is the shape's support
  *             cost (\c O(N) for a \c convex_hull3 of N vertices).
@@ -545,7 +545,8 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   ShapeB const& b,
   nexenne::math::vector<Real, 3> const& initial_direction,
   std::size_t const max_iterations = 32
-) noexcept -> gjk_result3<Real> {
+) noexcept(detail::nothrow_support<ShapeA, Real> && detail::nothrow_support<ShapeB, Real>)
+  -> gjk_result3<Real> {
   using vector_type = nexenne::math::vector<Real, 3>;
   using point_type = gjk_minkowski_point3<Real>;
 
@@ -569,11 +570,15 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
 
   // A Minkowski-difference support point: furthest of A along d, minus furthest
   // of B along -d, kept with both world-space support points.
-  auto const minkowski_support{[&](vector_type const& d) noexcept -> point_type {
-    auto const pa{support(a, d)};
-    auto const pb{support(b, -d)};
-    return point_type{pa - pb, pa, pb};
-  }};
+  auto const minkowski_support{
+    [&](vector_type const& d) noexcept(
+      detail::nothrow_support<ShapeA, Real>&& detail::nothrow_support<ShapeB, Real>
+    ) -> point_type {
+      auto const pa{support(a, d)};
+      auto const pb{support(b, -d)};
+      return point_type{pa - pb, pa, pb};
+    }
+  };
 
   auto direction{initial_direction};
   if (nexenne::math::length_squared(direction) < touch_sq) {

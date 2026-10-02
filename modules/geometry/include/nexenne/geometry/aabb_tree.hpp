@@ -76,6 +76,14 @@ public:
   static constexpr handle_type null_handle = std::numeric_limits<handle_type>::max();
 
 private:
+  // Whether the payload operations the tree runs cannot throw: default
+  // construction to reset a slot, move assignment to store or clear one, and
+  // move construction when the node pool grows. insert and remove are noexcept
+  // exactly when this holds.
+  static constexpr bool nothrow_payload_v = std::is_nothrow_default_constructible_v<payload_type>
+                                            && std::is_nothrow_move_constructible_v<payload_type>
+                                            && std::is_nothrow_move_assignable_v<payload_type>;
+
   // One node of the pool. An internal node has two children and a positive
   // height; a leaf has height 0 and carries a payload; a free slot has height -1
   // and reuses child_a as the "next free slot" link.
@@ -150,7 +158,8 @@ public:
    * @pre \p bounds is well-formed (\c min <= max componentwise).
    * @post \c size() grows by one; the returned handle is valid until removed.
    */
-  auto insert(bounds_type const& bounds, payload_type payload) noexcept -> handle_type {
+  auto insert(bounds_type const& bounds, payload_type payload) noexcept(nothrow_payload_v)
+    -> handle_type {
     auto const leaf{allocate_node()};
     m_nodes[leaf].bounds = fatten(bounds);
     m_nodes[leaf].payload = std::move(payload);
@@ -175,7 +184,7 @@ public:
    * @post On success \c size() shrinks by one and \p h is no longer valid; on
    *       failure the tree is unchanged.
    */
-  auto remove(handle_type const h) noexcept -> bool {
+  auto remove(handle_type const h) noexcept(nothrow_payload_v) -> bool {
     if (h >= m_nodes.size() || !m_nodes[h].is_leaf()) {
       return false;
     }
@@ -227,7 +236,8 @@ public:
    *      \c insert reused returns that new leaf.
    * @post The tree is not modified.
    */
-  [[nodiscard]] auto at(handle_type const h) const noexcept
+  [[nodiscard]] auto
+  at(handle_type const h) const noexcept(std::is_nothrow_copy_constructible_v<payload_type>)
     -> std::optional<std::pair<bounds_type, payload_type>> {
     if (h >= m_nodes.size() || !m_nodes[h].is_leaf()) {
       return std::nullopt;
@@ -249,11 +259,13 @@ public:
    * @pre \p region is well-formed.
    * @post The tree is not modified.
    *
-   * @note \c query is \c noexcept: a visitor that throws terminates the
-   *       program.
+   * @note \c query is \c noexcept exactly when \p visitor is, so a throwing
+   *       visitor propagates and ends the walk.
    */
   template <typename Visitor>
-  auto query(bounds_type const& region, Visitor&& visitor) const noexcept -> void {
+  auto query(bounds_type const& region, Visitor&& visitor) const noexcept(
+    std::is_nothrow_invocable_v<Visitor&, handle_type, payload_type const&>
+  ) -> void {
     // The visitor's return type must be exactly void (always continue) or bool
     // (return false to stop early); anything else (int, a wider type) would be
     // silently ignored, so pruning would quietly not happen. Make that loud.
@@ -313,11 +325,13 @@ public:
    * @pre \c r.direction() has unit length and \p max_t is non-negative.
    * @post The tree is not modified.
    *
-   * @note \c raycast is \c noexcept: a visitor that throws terminates the
-   *       program.
+   * @note \c raycast is \c noexcept exactly when \p visitor is, so a throwing
+   *       visitor propagates and ends the walk.
    */
   template <typename Visitor>
-  auto raycast(ray_type const& r, Real max_t, Visitor&& visitor) const noexcept -> void {
+  auto raycast(ray_type const& r, Real max_t, Visitor&& visitor) const noexcept(
+    std::is_nothrow_invocable_v<Visitor&, handle_type, payload_type const&, Real>
+  ) -> void {
     // The visitor's return type must be exactly void (leave max_t) or Real (the
     // new working max_t); any other type (bool, a double on a float tree) would be
     // silently ignored, so max_t pruning would quietly not happen. Make that loud.
@@ -418,7 +432,7 @@ private:
    * @pre None.
    * @post The returned slot is owned by the caller and reset to a default node.
    */
-  [[nodiscard]] auto allocate_node() noexcept -> handle_type {
+  [[nodiscard]] auto allocate_node() noexcept(nothrow_payload_v) -> handle_type {
     if (m_free_head != null_handle) {
       auto const idx{m_free_head};
       m_free_head = m_nodes[idx].child_a;  // pop the free-list head.
@@ -441,7 +455,7 @@ private:
    * @pre \p idx is a valid pool index not already free.
    * @post \p idx is the new free-list head, reads as free, and holds no payload.
    */
-  auto free_node(handle_type const idx) noexcept -> void {
+  auto free_node(handle_type const idx) noexcept(nothrow_payload_v) -> void {
     m_nodes[idx].height = -1;
     // Release the payload now, not on the slot's eventual reuse: a caller-chosen
     // payload can own a resource (a shared_ptr, a handle), and a long-lived tree

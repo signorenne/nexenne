@@ -12,12 +12,14 @@
 #include <nexenne/geometry/concepts.hpp>
 #include <nexenne/geometry/epa.hpp>
 #include <nexenne/geometry/gjk.hpp>
+#include <nexenne/geometry/sphere.hpp>
 #include <nexenne/geometry/support.hpp>
 #include <nexenne/math/angle.hpp>
 #include <nexenne/math/constants.hpp>
 #include <nexenne/math/quaternion.hpp>
 #include <nexenne/math/scalar.hpp>
 #include <nexenne/math/vector.hpp>
+#include <nexenne/math/vector_algorithms.hpp>
 
 namespace {
 
@@ -121,5 +123,26 @@ TEST_CASE("support: GJK reports separation for disjoint primitives") {
   auto const hit{geo::gjk<float>(s, box, vec3{1, 0, 0})};
   CHECK_FALSE(hit.overlap);
 }
+
+struct throwing_ball {
+  float radius{1.0F};
+};
+
+auto support(throwing_ball const& shape, vec3 const& direction) -> vec3 {
+  auto const unit{nm::normalize_or(direction, vec3{1, 0, 0})};
+  return unit * shape.radius;
+}
+
+static_assert(geo::convex_shape<throwing_ball, float>);
+static_assert(!noexcept(geo::gjk(throwing_ball{}, throwing_ball{}, vec3{1, 0, 0})));
+static_assert(noexcept(geo::gjk(geo::sphere3_f{}, geo::sphere3_f{}, vec3{1, 0, 0})));
+static_assert(!noexcept(geo::epa(throwing_ball{}, geo::sphere3_f{}, geo::gjk_simplex3<float>{})));
+static_assert(noexcept(geo::epa(geo::sphere3_f{}, geo::sphere3_f{}, geo::gjk_simplex3<float>{})));
+static_assert(
+  !noexcept(geo::contact_manifold(geo::sphere3_f{}, throwing_ball{}, geo::epa_result3<float>{}))
+);
+static_assert(
+  noexcept(geo::contact_manifold(geo::sphere3_f{}, geo::sphere3_f{}, geo::epa_result3<float>{}))
+);
 
 }  // namespace

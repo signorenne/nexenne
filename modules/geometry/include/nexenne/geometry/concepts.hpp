@@ -35,4 +35,28 @@ concept convex_shape =
        { support(shape, direction) } -> std::same_as<nexenne::math::vector<Real, 3>>;
      };
 
+/// @cond INTERNAL
+namespace detail {
+
+/**
+ * @brief Whether a \c convex_shape's \c support overload cannot throw.
+ *
+ * The GJK, EPA and contact-manifold routines are \c noexcept exactly when the
+ * \c support overloads they call are, so a shape whose support can throw
+ * propagates the exception instead of terminating.
+ *
+ * @tparam Shape Shape type under test.
+ * @tparam Real Scalar type of the direction.
+ */
+template <typename Shape, typename Real>
+concept nothrow_support =
+  convex_shape<Shape, Real>
+  && requires(Shape const& shape, nexenne::math::vector<Real, 3> const& direction) {
+       { support(shape, direction) } noexcept;
+     };
+
+}  // namespace detail
+
+/// @endcond
+
 }  // namespace nexenne::geometry

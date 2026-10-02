@@ -184,6 +184,7 @@ TEST_CASE(
     == doctest::Approx(nearest_on_edges(line.a(), line.b(), line.c(), p))
   );
 
+  // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp)
   auto rng{std::mt19937{7}};
   auto u{std::uniform_real_distribution<double>{-10.0, 10.0}};
   auto misses{0};

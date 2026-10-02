@@ -317,8 +317,9 @@ template <std::floating_point Real>
  * @post On success the result has four vertices with non-zero enclosed volume.
  */
 template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real> ShapeB>
-[[nodiscard]] auto
-seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& initial) noexcept
+[[nodiscard]] auto seed_tetrahedron(
+  ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& initial
+) noexcept(nothrow_support<ShapeA, Real> && nothrow_support<ShapeB, Real>)
   -> std::vector<gjk_minkowski_point3<Real>> {
   using point_type = nexenne::math::vector<Real, 3>;
   // Absolute distinctness and volume floor. This is calibrated for game-scale
@@ -334,11 +335,15 @@ seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& ini
     verts.push_back(initial.points[i]);
   }
 
-  auto const ms{[&](point_type const& d) noexcept -> gjk_minkowski_point3<Real> {
-    auto const pa{support(a, d)};
-    auto const pb{support(b, -d)};
-    return gjk_minkowski_point3<Real>{pa - pb, pa, pb};
-  }};
+  auto const ms{
+    [&](point_type const& d) noexcept(
+      nothrow_support<ShapeA, Real>&& nothrow_support<ShapeB, Real>
+    ) -> gjk_minkowski_point3<Real> {
+      auto const pa{support(a, d)};
+      auto const pb{support(b, -d)};
+      return gjk_minkowski_point3<Real>{pa - pb, pa, pb};
+    }
+  };
   auto const distinct{[&](point_type const& p) noexcept -> bool {
     for (auto const& v : verts) {
       if (nexenne::math::length_squared(p - v.difference) <= eps) {
@@ -488,8 +493,9 @@ seed_tetrahedron(ShapeA const& a, ShapeB const& b, gjk_simplex3<Real> const& ini
  *       has lost convexity to rounding and further expansion would only re-add
  *       it. That is rare: a thin seed whose faces pass through the origin.
  *
- * @note \c epa is \c noexcept: a \c support overload that throws terminates the
- *       program, as does a failed allocation of the polytope.
+ * @note \c epa is \c noexcept exactly when both shapes' \c support overloads
+ *       are, so a throwing one propagates; a failed allocation of the polytope
+ *       terminates.
  *
  * @complexity \c O(max_iterations) support queries; each expansion step is linear
  *             in the current face count. Allocates the polytope.
@@ -501,7 +507,8 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   gjk_simplex3<Real> const& initial,
   std::size_t const max_iterations = 64,
   Real const tolerance = static_cast<Real>(1e-2)
-) noexcept -> epa_result3<Real> {
+) noexcept(detail::nothrow_support<ShapeA, Real> && detail::nothrow_support<ShapeB, Real>)
+  -> epa_result3<Real> {
   // Floor on the relative convergence scale, so a near-zero depth does not make
   // the threshold collapse to zero and iterate forever against the cap.
   auto const epsilon{static_cast<Real>(1e-6)};
@@ -775,7 +782,7 @@ template <std::floating_point Real, typename Shape>
   nexenne::math::vector<Real, 3> const& t1,
   nexenne::math::vector<Real, 3> const& t2,
   std::array<nexenne::math::vector<Real, 3>, 8>& out
-) noexcept -> std::size_t {
+) noexcept(nothrow_support<Shape, Real>) -> std::size_t {
   // A small tangential tilt keeps the probe on the face perpendicular to dir while
   // steering it toward each corner; pre-tabulated cos/sin of k*45 degrees keep the
   // routine constexpr-friendly and trig-free.
@@ -843,12 +850,13 @@ template <std::floating_point Real, typename Shape>
  *       the squared spacing), so below the size band the count is wrong: a
  *       sphere of radius 1e-3 gets four points instead of one, and two stacked
  *       boxes of half-size 1e-4 get one instead of four.
- * @note \c contact_manifold is \c noexcept: a \c support overload that throws
- *       terminates the program.
+ * @note \c contact_manifold is \c noexcept exactly when both shapes' \c support
+ *       overloads are, so a throwing one propagates.
  */
 template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real> ShapeB>
-[[nodiscard]] auto
-contact_manifold(ShapeA const& a, ShapeB const& b, epa_result3<Real> const& hit) noexcept
+[[nodiscard]] auto contact_manifold(
+  ShapeA const& a, ShapeB const& b, epa_result3<Real> const& hit
+) noexcept(detail::nothrow_support<ShapeA, Real> && detail::nothrow_support<ShapeB, Real>)
   -> contact_manifold3<Real> {
   using point_type = nexenne::math::vector<Real, 3>;
   using planar = nexenne::math::vector<Real, 2>;
