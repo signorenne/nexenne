@@ -38,7 +38,7 @@ TEST_CASE("aabb: construction, measures, and containment") {
   CHECK(geo::volume(box) == doctest::Approx(8.0));
   CHECK(geo::surface_area(box) == doctest::Approx(24.0));
   CHECK(geo::contains_point(box, vec3{0, 0, 0}));
-  CHECK(geo::contains_point(box, vec3{1, 1, 1}));  // boundary inclusive
+  CHECK(geo::contains_point(box, vec3{1, 1, 1}));
   CHECK_FALSE(geo::contains_point(box, vec3{2, 0, 0}));
 
   geo::aabb2_d const r{vec2{0, 0}, vec2{3, 2}};
@@ -49,7 +49,7 @@ TEST_CASE("aabb: construction, measures, and containment") {
 TEST_CASE("aabb: closest point, distance, union, and intersection") {
   geo::aabb3_d const box{vec3{0, 0, 0}, vec3{2, 2, 2}};
   CHECK(geo::closest_point(box, vec3{5, 1, 1}) == vec3{2, 1, 1});
-  CHECK(geo::closest_point(box, vec3{1, 1, 1}) == vec3{1, 1, 1});  // inside
+  CHECK(geo::closest_point(box, vec3{1, 1, 1}) == vec3{1, 1, 1});
   CHECK(geo::distance(box, vec3{5, 1, 1}) == doctest::Approx(3.0));
   CHECK(geo::distance(box, vec3{1, 1, 1}) == doctest::Approx(0.0));
 
@@ -81,7 +81,6 @@ TEST_CASE("sphere: measures, containment, closest point, intersection") {
   CHECK(geo::distance(s, vec3{5, 0, 0}) == doctest::Approx(3.0));
   CHECK(geo::distance(s, vec3{1, 0, 0}) == doctest::Approx(0.0));
 
-  // center query falls back to the +x boundary point by convention
   CHECK(geo::closest_point_on_boundary(s, vec3{0, 0, 0}) == vec3{2, 0, 0});
 
   geo::sphere3_d const tiny{vec3{0, 0, 0}, 1e-12};
@@ -146,7 +145,6 @@ TEST_CASE("ray: construction, point at, closest point, degenerate") {
   CHECK(nm::almost_equal(r->direction(), vec3{1, 0, 0}));
   CHECK(geo::at(*r, 3.0) == vec3{3, 0, 0});
 
-  // a point behind the origin clamps to the origin
   CHECK(geo::closest_point(*r, vec3{-5, 2, 0}) == vec3{0, 0, 0});
   CHECK(geo::closest_point(*r, vec3{4, 2, 0}) == vec3{4, 0, 0});
   CHECK(geo::distance(*r, vec3{4, 2, 0}) == doctest::Approx(2.0));
@@ -161,7 +159,7 @@ TEST_CASE("segment: length, closest point, and 2D intersection") {
   CHECK(geo::length(s) == doctest::Approx(4.0));
   CHECK(geo::at(s, 0.25) == vec3{1, 0, 0});
   CHECK(geo::closest_point(s, vec3{2, 3, 0}) == vec3{2, 0, 0});
-  CHECK(geo::closest_point(s, vec3{-9, 0, 0}) == vec3{0, 0, 0});  // clamps to start
+  CHECK(geo::closest_point(s, vec3{-9, 0, 0}) == vec3{0, 0, 0});
   CHECK(geo::distance(s, vec3{2, 3, 0}) == doctest::Approx(3.0));
 
   geo::segment2_d const a{vec2{0, 0}, vec2{2, 2}};
@@ -181,7 +179,7 @@ TEST_CASE("segment: length, closest point, and 2D intersection") {
 TEST_CASE("triangle: centroid, area, normal, containment, bounds") {
   geo::triangle2_d const t2{vec2{0, 0}, vec2{4, 0}, vec2{0, 3}};
   CHECK(geo::area(t2) == doctest::Approx(6.0));
-  CHECK(geo::signed_area(t2) == doctest::Approx(6.0));  // counter-clockwise
+  CHECK(geo::signed_area(t2) == doctest::Approx(6.0));
   CHECK(
     geo::signed_area(geo::triangle2_d{vec2{0, 0}, vec2{0, 3}, vec2{4, 0}}) == doctest::Approx(-6.0)
   );
@@ -203,24 +201,20 @@ TEST_CASE("triangle: centroid, area, normal, containment, bounds") {
 }
 
 TEST_CASE("triangle: a degenerate triangle contains its supporting line, not off-line points") {
-  // A single-point triangle reports containment for every point (documented).
   geo::triangle2_d const point{vec2{3, 3}, vec2{3, 3}, vec2{3, 3}};
   CHECK(geo::contains_point(point, vec2{100, 100}));
-  // A collinear triangle contains points on its supporting line...
   geo::triangle2_d const line{vec2{0, 0}, vec2{1, 0}, vec2{2, 0}};
   CHECK(geo::contains_point(line, vec2{100, 0}));
-  // ...but still excludes points off the line.
   CHECK_FALSE(geo::contains_point(line, vec2{1, 1}));
 }
 
 TEST_CASE("segment: collinear overlapping 2D segments report no crossing") {
   geo::segment2_d const a{vec2{0, 0}, vec2{4, 0}};
-  geo::segment2_d const overlap{vec2{2, 0}, vec2{6, 0}};  // collinear, overlapping
+  geo::segment2_d const overlap{vec2{2, 0}, vec2{6, 0}};
   CHECK_FALSE(geo::intersects(a, overlap).has_value());
 }
 
-TEST_CASE("triangle closest_point: two coincident vertices reduce to a segment (geometry-04)") {
-  // The ab edge branch divided 0 by 0 when a == b and returned NaN.
+TEST_CASE("triangle closest_point: two coincident vertices reduce to a segment") {
   auto const on_segment_3{[](vec3 const& s, vec3 const& e, vec3 const& p) {
     return geo::closest_point(geo::segment3_d{s, e}, p);
   }};
@@ -245,10 +239,7 @@ TEST_CASE("triangle closest_point: two coincident vertices reduce to a segment (
   CHECK(qf == nm::vector2_f{2, 1});
 }
 
-TEST_CASE("leaf primitives: small but valid shapes are not degenerate (geometry-08)") {
-  // Absolute floors of 1e-20 rejected these: a float triangle with 1e-5 legs
-  // had no normal, a normal of length 1e-11 was refused, a 1e-11 segment
-  // answered with its start, and support snapped a short direction to +x.
+TEST_CASE("leaf primitives: small but valid shapes are not degenerate") {
   using vec3f = nm::vector3_f;
   geo::triangle3_f const small{vec3f{0, 0, 0}, vec3f{1e-5f, 0, 0}, vec3f{0, 1e-5f, 0}};
   CHECK(geo::normal(small) == vec3f{0, 0, 1});
@@ -271,9 +262,7 @@ TEST_CASE("leaf primitives: small but valid shapes are not degenerate (geometry-
   );
 }
 
-TEST_CASE("leaf primitives: the relative tests still reject degenerate input (geometry-08)") {
-  // Collinear and repeated vertices, an angle at the rounding level, a zero
-  // normal, a zero segment and a zero direction keep their documented answers.
+TEST_CASE("leaf primitives: the relative tests still reject degenerate input") {
   CHECK_FALSE(geo::normal(geo::triangle3_d{vec3{0, 0, 0}, vec3{1, 0, 0}, vec3{2, 0, 0}}));
   CHECK_FALSE(geo::normal(geo::triangle3_d{vec3{1, 1, 1}, vec3{1, 1, 1}, vec3{2, 0, 0}}));
   CHECK_FALSE(geo::normal(geo::triangle3_d{vec3{0, 0, 0}, vec3{1, 0, 0}, vec3{1, 1e-16, 0}}));
@@ -286,9 +275,7 @@ TEST_CASE("leaf primitives: the relative tests still reject degenerate input (ge
   CHECK(geo::support(geo::sphere3_d{vec3{0, 0, 0}, 2.0}, vec3{0, 0, 0}) == vec3{2, 0, 0});
 }
 
-TEST_CASE("segment2 intersects: collinear overlapping segments return nullopt (geometry-10)") {
-  // rxs was tested against an exact zero, so the rounding noise of collinear
-  // directions produced a crossing in 318 of these 999 pairs.
+TEST_CASE("segment2 intersects: collinear overlapping segments return nullopt") {
   auto crossings{0};
   for (auto i{1}; i < 1000; ++i) {
     auto const k{0.001 * static_cast<double>(i)};
@@ -318,9 +305,7 @@ TEST_CASE("segment2 intersects: collinear overlapping segments return nullopt (g
   );
 }
 
-TEST_CASE("contains_point: a NaN point is outside a triangle and a box (geometry-11)") {
-  // Both tests were written as "reject on a failing comparison", and every
-  // comparison with NaN is false, so a NaN point was reported inside.
+TEST_CASE("contains_point: a NaN point is outside a triangle and a box") {
   auto const nan{std::numeric_limits<double>::quiet_NaN()};
   geo::triangle2_d const tri{vec2{0, 0}, vec2{1, 0}, vec2{0, 1}};
   geo::aabb2_d const box{vec2{0, 0}, vec2{1, 1}};

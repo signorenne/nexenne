@@ -27,10 +27,8 @@ using vec2 = nm::vector<double, 2>;
 using vec3 = nm::vector<double, 3>;
 
 TEST_CASE("obb2: area, contains, and a 90-degree rotation") {
-  // A unit-half-size box at the origin rotated 90 degrees is still axis-aligned.
   geo::obb2_d const box{vec2{0, 0}, vec2{2, 1}, nm::radians<double>{nm::half_pi}};
   CHECK(geo::area(box) == doctest::Approx(8.0));
-  // After a quarter turn the local x half-extent (2) lies along world y.
   CHECK(geo::contains_point(box, vec2{0.9, 1.9}));
   CHECK_FALSE(geo::contains_point(box, vec2{1.1, 0}));
   auto const bound{geo::bounding_aabb(box)};
@@ -43,7 +41,6 @@ TEST_CASE("obb3: volume, containment, and corners are constexpr") {
   static_assert(geo::volume(box) == 48.0);
   static_assert(geo::contains_point(box, vec3{1, 2, 3}));
   static_assert(!geo::contains_point(box, vec3{1.01, 0, 0}));
-  // Identity rotation: the axis-aligned bound matches the half-size extents.
   constexpr auto bound{geo::bounding_aabb(box)};
   static_assert(bound.max().z() == 3.0);
   CHECK(geo::corners(box).size() == 8);
@@ -55,7 +52,6 @@ TEST_CASE("capsule: length, area/volume, containment, closest point, bounds") {
   CHECK(geo::volume(c) == doctest::Approx(nm::pi * 4.0 + 4.0 / 3.0 * nm::pi));
   CHECK(geo::contains_point(c, vec3{0.5, 0, 2}));
   CHECK_FALSE(geo::contains_point(c, vec3{1.5, 0, 2}));
-  // A point beside the spine projects to the spine then pushes out by radius.
   CHECK(geo::closest_point(c, vec3{3, 0, 2}) == vec3{1, 0, 2});
   auto const b{geo::bounding_aabb(c)};
   CHECK(b.min() == vec3{-1, -1, -1});
@@ -68,7 +64,7 @@ TEST_CASE("capsule: length, area/volume, containment, closest point, bounds") {
 TEST_CASE("polygon2: area, perimeter, centroid, containment, convexity") {
   std::array const square{vec2{0, 0}, vec2{4, 0}, vec2{4, 4}, vec2{0, 4}};
   geo::polygon2_d const poly{square};
-  CHECK(geo::signed_area(poly) == doctest::Approx(16.0));  // counter-clockwise
+  CHECK(geo::signed_area(poly) == doctest::Approx(16.0));
   CHECK(geo::area(poly) == doctest::Approx(16.0));
   CHECK(geo::perimeter(poly) == doctest::Approx(16.0));
   CHECK(geo::centroid(poly) == vec2{2, 2});
@@ -76,49 +72,37 @@ TEST_CASE("polygon2: area, perimeter, centroid, containment, convexity") {
   CHECK_FALSE(geo::contains_point(poly, vec2{5, 2}));
   CHECK(geo::convex(poly));
 
-  // An arrow-head (concave) quad is not convex.
   std::array const concave{vec2{0, 0}, vec2{4, 2}, vec2{0, 4}, vec2{1, 2}};
   CHECK_FALSE(geo::convex(geo::polygon2_d{concave}));
 
-  // Fully collinear vertices are degenerate, not convex (the audited fix).
   std::array const line{vec2{0, 0}, vec2{1, 0}, vec2{2, 0}};
   CHECK_FALSE(geo::convex(geo::polygon2_d{line}));
 }
 
 TEST_CASE("frustum3: planes extracted from a perspective matrix cull correctly") {
-  // A standard perspective camera looking down -z.
   auto const proj{nm::perspective(nm::radians{nm::half_pi * 0.5}, 1.0, 0.5, 100.0)};
   auto const f{geo::frustum_from_view_projection(proj)};
 
-  // A sphere a little down -z, inside the frustum, is visible.
   CHECK(geo::intersects(f, geo::sphere3_d{vec3{0, 0, -10}, 1.0}));
-  // A sphere behind the camera is culled.
   CHECK_FALSE(geo::intersects(f, geo::sphere3_d{vec3{0, 0, 10}, 1.0}));
-  // A small box on the -z axis is visible; one far behind is culled.
   CHECK(geo::intersects(f, geo::aabb3_d{vec3{-1, -1, -11}, vec3{1, 1, -9}}));
   CHECK_FALSE(geo::intersects(f, geo::aabb3_d{vec3{-1, -1, 200}, vec3{1, 1, 202}}));
 
-  // The named accessor returns a unit-normal plane.
   auto const near{geo::plane_of(f, geo::frustum_plane::near_plane)};
   CHECK(nm::length(near.normal()) == doctest::Approx(1.0));
 }
 
-TEST_CASE("frustum3: the near plane sits at z = -near for a GL matrix, not for ZO (M1)") {
+TEST_CASE("frustum3: the near plane sits at z = -near for a GL matrix, not for ZO") {
   auto const near_z{0.5};
   auto const far_z{100.0};
   auto const gl{nm::perspective(nm::radians{nm::half_pi * 0.5}, 1.0, near_z, far_z)};
   auto const fg{geo::frustum_from_view_projection(gl)};
   auto const near_pl{geo::plane_of(fg, geo::frustum_plane::near_plane)};
 
-  // A point exactly on the near plane (view z = -near) has zero signed distance.
   CHECK(geo::signed_distance(near_pl, vec3{0, 0, -near_z}) == doctest::Approx(0.0));
-  // A point in front of the near plane (closer to the camera) is outside it.
   CHECK(geo::signed_distance(near_pl, vec3{0, 0, -near_z * 0.5}) < 0.0);
-  // A point deeper in the frustum is inside it.
   CHECK(geo::signed_distance(near_pl, vec3{0, 0, -1.0}) > 0.0);
 
-  // A zero-to-one (D3D/Vulkan) matrix misplaces the near plane: it is NOT at
-  // z = -near. This pins the documented limitation the contract now restricts.
   auto const zo{nm::perspective_zo(nm::radians{nm::half_pi * 0.5}, 1.0, near_z, far_z)};
   auto const fz{geo::frustum_from_view_projection(zo)};
   auto const near_zo{geo::plane_of(fz, geo::frustum_plane::near_plane)};
@@ -127,19 +111,17 @@ TEST_CASE("frustum3: the near plane sits at z = -near for a GL matrix, not for Z
 
 TEST_CASE("obb: perimeter (2D) and surface_area (3D) mirror the aabb formulas") {
   geo::obb2_d const b2{vec2{0, 0}, vec2{2, 3}, nm::radians<double>{0.7}};
-  CHECK(geo::perimeter(b2) == doctest::Approx(4.0 * (2.0 + 3.0)));  // 20
+  CHECK(geo::perimeter(b2) == doctest::Approx(4.0 * (2.0 + 3.0)));
   geo::obb3_d const b3{vec3{0, 0, 0}, vec3{1, 2, 3}, nm::quaternion<double>{}};
-  CHECK(geo::surface_area(b3) == doctest::Approx(8.0 * (1.0 * 2.0 + 2.0 * 3.0 + 3.0 * 1.0)));  // 88
+  CHECK(geo::surface_area(b3) == doctest::Approx(8.0 * (1.0 * 2.0 + 2.0 * 3.0 + 3.0 * 1.0)));
 }
 
 TEST_CASE("polygon2: concave containment and degenerate centroid fallback") {
-  // Arrow-head (concave) quad: a point in the body is inside, one in the notch out.
   std::array const arrow{vec2{0, 0}, vec2{4, 2}, vec2{0, 4}, vec2{1, 2}};
   geo::polygon2_d const poly{arrow};
-  CHECK(geo::contains_point(poly, vec2{2, 2}));          // in the body
-  CHECK_FALSE(geo::contains_point(poly, vec2{0.5, 2}));  // in the notch, outside
+  CHECK(geo::contains_point(poly, vec2{2, 2}));
+  CHECK_FALSE(geo::contains_point(poly, vec2{0.5, 2}));
 
-  // A zero-area (collinear) polygon falls back to the vertex arithmetic mean.
   std::array const line{vec2{0, 0}, vec2{2, 0}, vec2{4, 0}};
   CHECK(geo::centroid(geo::polygon2_d{line}) == vec2{2, 0});
 }
@@ -147,22 +129,16 @@ TEST_CASE("polygon2: concave containment and degenerate centroid fallback") {
 TEST_CASE("obb: rotated 3D containment and 2D closest point (conjugate-rotation path)") {
   auto const rot{*nm::from_axis_angle(vec3{0, 0, 1}, nm::radians<double>{nm::quarter_pi})};
   geo::obb3_d const b{vec3{0, 0, 0}, vec3{2, 1, 1}, rot};
-  // A local point just inside the box, rotated into world space, is contained; one
-  // just past the local half-extent is not.
   CHECK(geo::contains_point(b, nm::rotate(rot, vec3{1.9, 0, 0})));
   CHECK_FALSE(geo::contains_point(b, nm::rotate(rot, vec3{2.1, 0, 0})));
 
   geo::obb2_d const q{vec2{0, 0}, vec2{2, 1}, nm::radians<double>{nm::half_pi}};
-  // Rotated 90 degrees: the local x half-extent (2) lies along world y.
   auto const cp{geo::closest_point(q, vec2{0, 5})};
   CHECK(cp.x() == doctest::Approx(0.0).epsilon(1e-9));
   CHECK(cp.y() == doctest::Approx(2.0));
 }
 
 TEST_CASE("obb3: corner-free bounding box of a rotated box") {
-  // A unit cube turned 45 degrees about z: its xy footprint is a diamond reaching
-  // sqrt(2) on each axis, z unchanged. This exercises the abs(R) * half formula
-  // (no corner enumeration) and would catch a transpose in the rotation matrix.
   auto const rot{*nm::from_axis_angle(vec3{0, 0, 1}, nm::radians<double>{nm::quarter_pi})};
   geo::obb3_d const box{vec3{0, 0, 0}, vec3{1, 1, 1}, rot};
   auto const b{geo::bounding_aabb(box)};
@@ -172,10 +148,7 @@ TEST_CASE("obb3: corner-free bounding box of a rotated box") {
   CHECK(b.min().x() == doctest::Approx(-nm::sqrt_two));
 }
 
-TEST_CASE("polygon2: area and centroid far from the origin (geometry-05)") {
-  // The cross terms were taken from the origin, so the area cancelled away: a
-  // float unit square at (1e4, 1e4) had an area of 0, at (3000, 3000) its
-  // centroid was at 3000.333, and a double unit square at 1e8 had no area.
+TEST_CASE("polygon2: area and centroid far from the origin") {
   using vec2f = nm::vector2_f;
   for (auto const o : {3000.0f, 1e4f}) {
     CAPTURE(o);
@@ -192,12 +165,7 @@ TEST_CASE("polygon2: area and centroid far from the origin (geometry-05)") {
   CHECK(geo::centroid(geo::polygon2_d{square}) == vec2{o + 0.5, o + 0.5});
 }
 
-TEST_CASE(
-  "polygon2: a collinear loop with a rounding-noise area uses the vertex mean (geometry-06)"
-) {
-  // The fallback tested a6 == 0, but collinear vertices leave a noise area: the
-  // centroid then landed outside the hull, at (0, -1.33) for a mean of
-  // (0.21, 1.35), and at t = -0.27 along a four-point line.
+TEST_CASE("polygon2: a collinear loop with a rounding-noise area uses the vertex mean") {
   auto const mean_of{[](auto const& pts) {
     auto sum{vec2{}};
     for (auto const& p : pts) {
@@ -218,9 +186,7 @@ TEST_CASE(
   CHECK(near(geo::centroid(geo::polygon2_d{line4}), mean_of(line4)));
 }
 
-TEST_CASE("polygon2: a pentagram is not convex though every turn has one sign (geometry-09)") {
-  // Taking every second vertex of a regular pentagon turns the same way at each
-  // vertex, but the edges wind around twice; the sign test alone said convex.
+TEST_CASE("polygon2: a pentagram is not convex though every turn has one sign") {
   auto star{std::array<vec2, 5>{}};
   auto pentagon{std::array<vec2, 5>{}};
   for (auto i{std::size_t{0}}; i < 5; ++i) {

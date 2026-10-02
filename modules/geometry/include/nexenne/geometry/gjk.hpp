@@ -206,7 +206,6 @@ template <std::floating_point Real>
     wb = Real{0};
     return a;
   }
-  // Parameter of the origin's projection onto the line through a and b.
   auto const t{nexenne::math::dot(-a, ab) / denom};
   if (t <= Real{0}) {
     wa = Real{1};
@@ -436,8 +435,6 @@ template <std::floating_point Real>
     return result;
   }
 
-  // Recurse the faces the origin is outside of, keeping the nearest. Face
-  // opposite vertex \c opp is the other three vertices.
   auto best_dist_sq{
     nexenne::math::length_squared(a) + nexenne::math::length_squared(b)
     + nexenne::math::length_squared(c) + nexenne::math::length_squared(d) + Real{1}
@@ -459,7 +456,7 @@ template <std::floating_point Real>
   }
   for (auto opp{std::size_t{0}}; opp < 4; ++opp) {
     if (!recurse[opp]) {
-      continue;  // origin is on the inner side of this face: it cannot hold the closest point.
+      continue;
     }
     auto idx{std::array<std::size_t, 3>{}};
     auto n{std::size_t{0}};
@@ -591,7 +588,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   result.simplex.count = 1;
   auto closest{result.simplex.points[0].difference};
   auto weights{std::array<Real, 4>{Real{1}, Real{0}, Real{0}, Real{0}}};
-  // Largest squared vertex magnitude seen, the scale the relative tests use.
   auto scale_sq{nexenne::math::length_squared(closest)};
 
   // Overlap is decided by whether a separating axis is ever found: a support
@@ -600,7 +596,7 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   // the origin (touching), stops moving toward it (distance converged), or the
   // origin is enclosed (the fast tetrahedron path).
   auto separated{false};
-  auto stopped{false};  // true when the loop broke on convergence (not cap exhaustion).
+  auto stopped{false};
   for (auto iter{std::size_t{0}}; iter < max_iterations; ++iter) {
     result.iterations = iter + 1;
 
@@ -615,7 +611,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
       break;
     }
 
-    // Search toward the origin from the current closest point.
     direction = -closest;
     auto const w{minkowski_support(direction)};
     scale_sq = nexenne::math::max(scale_sq, nexenne::math::length_squared(w.difference));
@@ -645,17 +640,15 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
       break;
     }
 
-    // Add the new vertex at the front (newest-first convention).
     for (auto i{result.simplex.count}; i > 0; --i) {
       result.simplex.points[i] = result.simplex.points[i - 1];
     }
     result.simplex.points[0] = w;
     result.simplex.count += 1;
 
-    // Reduce the simplex to the support set of its closest point.
     auto const reduction{detail::signed_volumes(result.simplex)};
     if (reduction.contains_origin) {
-      result.overlap = true;  // origin enclosed: a tetrahedron is ready for EPA.
+      result.overlap = true;
       result.distance = Real{0};
       result.simplex.count = reduction.count;
       return result;
@@ -677,7 +670,7 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     // that simplex seeds EPA. But if the iteration cap was hit before either a
     // separating axis or a convergence stop, nothing is proven: default to overlap
     // only when the current simplex genuinely encloses the origin, otherwise stay
-    // conservative and report separated (never claim an unproven collision, M1).
+    // conservative and report separated (never claim an unproven collision).
     if (stopped || detail::signed_volumes(result.simplex).contains_origin) {
       result.overlap = true;
       result.distance = Real{0};
@@ -685,9 +678,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     }
   }
 
-  // Apart (or a cap-exhausted verdict with no proof of overlap): blend the
-  // per-shape support points by the simplex weights to recover the closest point
-  // on each shape, and report the distance.
   result.overlap = false;
   result.distance = nexenne::math::length(closest);
   auto point_a{vector_type{}};

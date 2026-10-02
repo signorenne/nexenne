@@ -53,7 +53,7 @@ template <std::floating_point Real, std::size_t N>
 closest_points(segment<Real, N> const& s1, segment<Real, N> const& s2) noexcept
   -> std::pair<nexenne::math::vector<Real, N>, nexenne::math::vector<Real, N>> {
   // Ericson, "Real-Time Collision Detection", section 5.1.9. Parametrize the
-  // segments as s1(s) = s1.start + s*d1 and s2(t) = t2.start + t*d2 with s, t in
+  // segments as s1(s) = s1.start + s*d1 and s2(t) = s2.start + t*d2 with s, t in
   // [0, 1]. Minimizing the squared distance gives a 2x2 linear system in (s, t);
   // a, e are the squared edge lengths, b is d1.d2, and r is the start offset. The
   // denominator a*e - b*b is the Gram determinant: it is zero exactly when the
@@ -65,8 +65,8 @@ closest_points(segment<Real, N> const& s1, segment<Real, N> const& s2) noexcept
   auto const d1{s1.end() - s1.start()};
   auto const d2{s2.end() - s2.start()};
   auto const r{s1.start() - s2.start()};
-  auto const a{nexenne::math::dot(d1, d1)};  // squared length of segment 1
-  auto const e{nexenne::math::dot(d2, d2)};  // squared length of segment 2
+  auto const a{nexenne::math::dot(d1, d1)};
+  auto const e{nexenne::math::dot(d2, d2)};
   auto const f{nexenne::math::dot(d2, r)};
 
   auto const epsilon{static_cast<Real>(1e-20)};
@@ -74,24 +74,20 @@ closest_points(segment<Real, N> const& s1, segment<Real, N> const& s2) noexcept
   auto t{Real{0}};
 
   if (a <= epsilon && e <= epsilon) {
-    return {s1.start(), s2.start()};  // both segments are points
+    return {s1.start(), s2.start()};
   }
   if (a <= epsilon) {
-    // Segment 1 is a point: clamp t to segment 2.
     t = nexenne::math::clamp(f / e, Real{0}, Real{1});
   } else {
     auto const c{nexenne::math::dot(d1, r)};
     if (e <= epsilon) {
-      // Segment 2 is a point: clamp s to segment 1.
       s = nexenne::math::clamp(-c / a, Real{0}, Real{1});
     } else {
       auto const b{nexenne::math::dot(d1, d2)};
-      auto const denom{a * e - b * b};  // Gram determinant, 0 when parallel
+      auto const denom{a * e - b * b};
       if (denom != Real{0}) {
         s = nexenne::math::clamp((b * f - c * e) / denom, Real{0}, Real{1});
       }
-      // Recover t for this s, then, if it fell outside [0, 1], pin it to the
-      // nearer end and re-solve s for that fixed t.
       t = (b * s + f) / e;
       if (t < Real{0}) {
         t = Real{0};
@@ -137,8 +133,6 @@ closest_points(segment<Real, 3> const& seg, triangle<Real, 3> const& tri) noexce
   // measure, keeping the pierce fast path armed from tiny to huge geometry.
   auto const epsilon{static_cast<Real>(1e-12)};
 
-  // Pierce test: if the segment crosses the triangle plane between its endpoints
-  // and the crossing lands inside the triangle, the closest distance is zero.
   auto const ab{tri.b() - tri.a()};
   auto const ac{tri.c() - tri.a()};
   auto const normal{nexenne::math::cross(ab, ac)};
@@ -149,11 +143,10 @@ closest_points(segment<Real, 3> const& seg, triangle<Real, 3> const& tri) noexce
   if (nexenne::math::length_squared(normal) > epsilon * ab_sq * ac_sq) {
     auto const da{dot(normal, seg.start() - tri.a())};
     auto const db{dot(normal, seg.end() - tri.a())};
-    if ((da < Real{0}) != (db < Real{0})) {  // endpoints straddle the plane.
+    if ((da < Real{0}) != (db < Real{0})) {
       auto const t{da / (da - db)};
       auto const pierce{seg.start() + (seg.end() - seg.start()) * t};
       auto const bc_sq{nexenne::math::length_squared(tri.c() - tri.b())};
-      // Containment slack scaled by the triangle's squared size (its largest edge).
       auto const tri_scale_sq{nexenne::math::max(ab_sq, nexenne::math::max(ac_sq, bc_sq))};
       if (nexenne::math::length_squared(closest_point(tri, pierce) - pierce)
           <= epsilon * tri_scale_sq) {
@@ -162,7 +155,6 @@ closest_points(segment<Real, 3> const& seg, triangle<Real, 3> const& tri) noexce
     }
   }
 
-  // Otherwise enumerate the feature candidates and keep the nearest pair.
   auto best{std::pair<vector_type, vector_type>{seg.start(), tri.a()}};
   auto best_dist_sq{nexenne::math::length_squared(best.second - best.first)};
   auto const consider{[&](vector_type const& p, vector_type const& q) noexcept {
@@ -173,7 +165,6 @@ closest_points(segment<Real, 3> const& seg, triangle<Real, 3> const& tri) noexce
     }
   }};
 
-  // Segment versus each triangle edge.
   auto const edges{std::array<segment<Real, 3>, 3>{
     segment<Real, 3>{tri.a(), tri.b()},
     segment<Real, 3>{tri.b(), tri.c()},
@@ -183,7 +174,6 @@ closest_points(segment<Real, 3> const& seg, triangle<Real, 3> const& tri) noexce
     auto const pair{closest_points(seg, edge)};
     consider(pair.first, pair.second);
   }
-  // Each segment endpoint against the triangle face.
   consider(seg.start(), closest_point(tri, seg.start()));
   consider(seg.end(), closest_point(tri, seg.end()));
   return best;

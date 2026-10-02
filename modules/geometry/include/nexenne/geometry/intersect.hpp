@@ -122,7 +122,7 @@ template <std::floating_point Real, std::size_t N>
     if (t1 > t2) {
       auto const tmp{t1};
       t1 = t2;
-      t2 = tmp;  // order the slab entry/exit regardless of ray direction sign
+      t2 = tmp;
     }
     t_near = nexenne::math::max(t_near, t1);
     t_far = nexenne::math::min(t_far, t2);
@@ -131,9 +131,9 @@ template <std::floating_point Real, std::size_t N>
     }
   }
   if (t_far < Real{0}) {
-    return std::nullopt;  // box is entirely behind the ray
+    return std::nullopt;
   }
-  return nexenne::math::max(t_near, Real{0});  // clamp: origin inside gives 0
+  return nexenne::math::max(t_near, Real{0});
 }
 
 /**
@@ -268,7 +268,7 @@ template <std::floating_point Real>
   }
   auto const t_hit{f * nexenne::math::dot(edge2, q)};
   if (t_hit < Real{0}) {
-    return std::nullopt;  // intersection is behind the ray origin
+    return std::nullopt;
   }
   return t_hit;
 }
@@ -564,7 +564,7 @@ template <std::floating_point Real>
       auto const edge_cross{nexenne::math::cross(basis_a[i], basis_b[j])};
       auto const len_sq{nexenne::math::length_squared(edge_cross)};
       if (len_sq <= static_cast<Real>(1e-12)) {
-        continue;  // parallel edges contribute no separating axis
+        continue;
       }
       // Normalize the edge-cross axis. The basis vectors are unit, so this length
       // is sin(angle between the edges), a value in [0, 1] independent of Real;
@@ -643,7 +643,7 @@ template <std::floating_point Real>
       auto const edge_cross{nexenne::math::cross(basis_a[i], basis_b[j])};
       auto const len_sq{nexenne::math::length_squared(edge_cross)};
       if (len_sq <= static_cast<Real>(1e-12)) {
-        continue;  // parallel edges contribute no separating axis
+        continue;
       }
       // Normalize the edge-cross axis. The basis vectors are unit, so this length
       // is sin(angle between the edges), a value in [0, 1] independent of Real;
@@ -761,7 +761,7 @@ template <std::floating_point Real>
   }
   auto normal{pl.normal()};
   if (nexenne::math::dot(normal, r.direction()) > Real{0}) {
-    normal = -normal;  // face the incoming ray.
+    normal = -normal;
   }
   return ray_hit3<Real>{*t, r.origin() + r.direction() * *t, normal};
 }
@@ -787,8 +787,6 @@ template <std::floating_point Real>
     return std::nullopt;
   }
   auto const point{r.origin() + r.direction() * *t};
-  // A t of zero means the origin is inside, where the surface normal is not
-  // defined, so the normal faces back along the ray.
   auto const normal{
     *t <= Real{0} ? -r.direction() : nexenne::math::normalize_or(point - s.center(), -r.direction())
   };
@@ -819,7 +817,7 @@ template <std::floating_point Real>
     nexenne::math::cross(tri.b() - tri.a(), tri.c() - tri.a()), -r.direction()
   )};
   if (nexenne::math::dot(normal, r.direction()) > Real{0}) {
-    normal = -normal;  // face the incoming ray regardless of winding.
+    normal = -normal;
   }
   return ray_hit3<Real>{*t, r.origin() + r.direction() * *t, normal};
 }
@@ -859,7 +857,7 @@ template <std::floating_point Real>
     auto const inv{Real{1} / d};
     auto t1{(box.min()[i] - o) * inv};
     auto t2{(box.max()[i] - o) * inv};
-    auto from_max{d < Real{0}};  // entering through the max plane when moving in -d.
+    auto from_max{d < Real{0}};
     if (t1 > t2) {
       auto const tmp{t1};
       t1 = t2;
@@ -882,7 +880,7 @@ template <std::floating_point Real>
   auto const point{r.origin() + r.direction() * t};
   auto normal{nexenne::math::vector<Real, 3>{}};
   if (t_near < Real{0}) {
-    normal = -r.direction();  // origin inside: no entry face, face back.
+    normal = -r.direction();
   } else {
     normal[hit_axis] = hit_negative ? Real{1} : Real{-1};
   }
@@ -939,8 +937,6 @@ template <std::floating_point Real>
 template <std::floating_point Real>
 [[nodiscard]] constexpr auto
 intersects(capsule<Real, 3> const& cap, sphere3<Real> const& s) noexcept -> bool {
-  // A capsule is the spine grown by its radius, so capsule-vs-sphere is "is the
-  // sphere center within (cap.radius + s.radius) of the spine".
   auto const r_sum{cap.radius() + s.radius()};
   return distance_squared(axis(cap), s.center()) <= r_sum * r_sum;
 }
@@ -980,17 +976,10 @@ intersects(capsule<Real, 2> const& cap, circle2<Real> const& c) noexcept -> bool
 template <std::floating_point Real, std::size_t N>
 [[nodiscard]] constexpr auto
 intersects(capsule<Real, N> const& a, capsule<Real, N> const& b) noexcept -> bool {
-  // The closest spine-to-spine distance grown by both radii: overlap when the
-  // spines come within the sum of the radii.
   auto const [pa, pb]{closest_points(a, b)};
   auto const r_sum{a.radius() + b.radius()};
   return nexenne::math::distance_squared(pa, pb) <= r_sum * r_sum;
 }
-
-// Reversed-argument forwarders. Each asymmetric pair above is defined in one
-// argument order; these thin wrappers make \c intersects symmetric so generic
-// code (double dispatch over a shape variant) need not remember the blessed order
-// per pair. Every wrapper just swaps the arguments onto the primary overload.
 
 /**
  * @brief Axis-aligned box vs sphere overlap (forwards to \c intersects(sphere, box)).

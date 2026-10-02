@@ -98,16 +98,14 @@ TEST_CASE("aabb_tree: remove drops the leaf and keeps the others") {
 }
 
 TEST_CASE("aabb_tree: remove releases the leaf payload") {
-  // M4 reproduction. A caller-chosen payload can own a resource, so remove must
-  // release it now, not pin it until the slot is reused. Track a shared_ptr.
   using owning_tree = geo::aabb_tree<std::shared_ptr<int>, 3, float>;
   auto t{owning_tree{}};
   auto payload{std::make_shared<int>(7)};
   REQUIRE(payload.use_count() == 1);
   auto const h{t.insert(make_box(0, 0, 0), payload)};
-  CHECK(payload.use_count() == 2);  // the tree holds a copy.
+  CHECK(payload.use_count() == 2);
   CHECK(t.remove(h));
-  CHECK(payload.use_count() == 1);  // removal dropped the tree's copy.
+  CHECK(payload.use_count() == 1);
 }
 
 TEST_CASE("aabb_tree: remove of an invalid handle returns false") {
@@ -117,13 +115,13 @@ TEST_CASE("aabb_tree: remove of an invalid handle returns false") {
 }
 
 TEST_CASE("aabb_tree: update inside the fat box does no work") {
-  auto t{tree3{0.5f}};  // generous padding.
+  auto t{tree3{0.5f}};
   auto const h{t.insert(make_box(0, 0, 0, 0.5f), 1u)};
-  CHECK_FALSE(t.update(h, make_box(0.1f, 0, 0, 0.5f)));  // still inside fat box.
+  CHECK_FALSE(t.update(h, make_box(0.1f, 0, 0, 0.5f)));
 }
 
 TEST_CASE("aabb_tree: update outside the fat box restructures and relocates") {
-  auto t{tree3{0.1f}};  // small padding.
+  auto t{tree3{0.1f}};
   auto const h{t.insert(make_box(0, 0, 0, 0.5f), 1u)};
   CHECK(t.update(h, make_box(5, 5, 5, 0.5f)));
 
@@ -141,7 +139,7 @@ TEST_CASE("aabb_tree: raycast hits boxes on the ray and skips off-axis ones") {
   auto t{tree3{}};
   t.insert(make_box(5, 0, 0), 1u);
   t.insert(make_box(10, 0, 0), 2u);
-  t.insert(make_box(0, 5, 0), 3u);  // off-axis.
+  t.insert(make_box(0, 5, 0), 3u);
 
   auto hits{std::vector<std::uint32_t>{}};
   auto const r{ray3{vec3{}, vec3{1, 0, 0}}};
@@ -167,14 +165,12 @@ TEST_CASE("aabb_tree: raycast respects max_t") {
 
 TEST_CASE("aabb_tree: a closest-hit raycast prunes by returning a smaller max_t") {
   auto t{tree3{}};
-  t.insert(make_box(50, 0, 0), 2u);  // inserted first, but farther.
+  t.insert(make_box(50, 0, 0), 2u);
   t.insert(make_box(5, 0, 0), 1u);
 
   auto best_id{tree3::null_handle};
   auto best_t{std::numeric_limits<float>::max()};
   auto const r{ray3{vec3{}, vec3{1, 0, 0}}};
-  // Returning the hit distance as the new max_t keeps the nearest hit and prunes
-  // any leaf that begins farther along the ray.
   t.raycast(r, 100.0f, [&](auto, std::uint32_t const& p, float t_hit) noexcept -> float {
     if (t_hit < best_t) {
       best_t = t_hit;
@@ -193,7 +189,7 @@ TEST_CASE("aabb_tree: a query visitor can stop early by returning false") {
   auto count{0};
   t.query(make_box(0, 0, 0, 20.0f), [&](auto, std::uint32_t const&) noexcept -> bool {
     ++count;
-    return count < 3;  // stop after three.
+    return count < 3;
   });
   CHECK(count == 3);
 }
@@ -215,7 +211,7 @@ TEST_CASE("aabb_tree: at(handle) returns the fat box and payload") {
   auto const got{t.at(h)};
   REQUIRE(got.has_value());
   CHECK(got->second == 99u);
-  CHECK(got->first.min().x() < 2.0f);  // fattened outward.
+  CHECK(got->first.min().x() < 2.0f);
   CHECK(got->first.max().x() > 2.0f);
 }
 
@@ -253,14 +249,11 @@ TEST_CASE("aabb_tree: survives many inserts then removals") {
 }
 
 TEST_CASE("aabb_tree: region queries match a brute-force oracle over random boxes") {
-  // Build a tree and a parallel flat list, then check that a batch of random
-  // query boxes returns exactly the same overlap set (modulo the fat-box
-  // padding, which can only ADD candidates, so the tree result is a superset).
   auto rng{std::mt19937{12345}};
   auto coord{std::uniform_real_distribution<float>{-20.0f, 20.0f}};
   auto half{std::uniform_real_distribution<float>{0.2f, 1.5f}};
 
-  auto t{tree3{0.0f}};  // no padding: tree boxes equal the stored boxes exactly.
+  auto t{tree3{0.0f}};
   auto boxes{std::vector<box3>{}};
   for (auto i{0}; i < 200; ++i) {
     auto const b{make_box(coord(rng), coord(rng), coord(rng), half(rng))};
@@ -282,7 +275,6 @@ TEST_CASE("aabb_tree: region queries match a brute-force oracle over random boxe
     t.query(region, [&](auto, std::uint32_t const& p) noexcept { got.push_back(p); });
     std::sort(got.begin(), got.end());
 
-    // Every brute-force overlap must be reported by the tree.
     for (auto const id : expected) {
       CHECK(std::find(got.begin(), got.end(), id) != got.end());
     }

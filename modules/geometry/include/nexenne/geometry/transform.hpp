@@ -336,9 +336,6 @@ template <std::floating_point Real>
 [[nodiscard]] auto
 transform_point(transform2d<Real> const t, math::vector<Real, 2> const p) noexcept
   -> math::vector<Real, 2> {
-  // Scale, then rotate by the angle, then translate, directly: this is the hot
-  // path, so it avoids building and multiplying the 3x3 matrix. The result equals
-  // to_matrix(t) applied to p.
   auto const c{std::cos(t.rotation().value())};
   auto const s{std::sin(t.rotation().value())};
   auto const sx{p.x() * t.scale().x()};
@@ -368,8 +365,6 @@ template <std::floating_point Real>
 [[nodiscard]] auto
 transform_direction(transform2d<Real> const t, math::vector<Real, 2> const d) noexcept
   -> math::vector<Real, 2> {
-  // Scale then rotate directly (no matrix build, no translation), the hot path.
-  // The result equals the linear part of to_matrix(t) applied to d.
   auto const c{std::cos(t.rotation().value())};
   auto const s{std::sin(t.rotation().value())};
   auto const sx{d.x() * t.scale().x()};
@@ -450,13 +445,6 @@ transform_direction(transform3d<Real> const t, math::vector<Real, 3> const d) no
   };
   return nexenne::math::rotate(t.rotation(), scaled);
 }
-
-// Applying a pose to a whole shape. A rotation tilts an axis-aligned box off the
-// axes, so transforming an aabb yields an obb. The rounded shapes (sphere,
-// circle) stay round only under uniform scale; under non-uniform scale the
-// largest scale component is used, giving the smallest enclosing round shape
-// (exact when the scale is uniform). An obb transform composes rotations and is
-// exact for a rigid or uniformly scaled pose.
 
 /**
  * @brief The largest absolute scale component of a pose.
@@ -840,9 +828,6 @@ template <std::floating_point Real>
   if (sx <= static_cast<Real>(1e-10) || sy <= static_cast<Real>(1e-10)) {
     return std::unexpected{geometry_error::degenerate_primitive};
   }
-  // A negative determinant of the linear part is a reflection: the recovered
-  // (positive) scale and a single angle cannot reproduce it, so reject rather
-  // than return a wrong pose that satisfies neither the @pre nor the round-trip.
   auto const det{m(0, 0) * m(1, 1) - m(0, 1) * m(1, 0)};
   if (det < Real{0}) {
     return std::unexpected{geometry_error::invalid_input};
@@ -900,14 +885,10 @@ template <std::floating_point Real>
       || sz <= static_cast<Real>(1e-10)) {
     return std::unexpected{geometry_error::degenerate_primitive};
   }
-  // A negative determinant of the linear part is a reflection: the recovered
-  // (positive) scale and a quaternion cannot reproduce it, so reject rather than
-  // return a wrong pose that satisfies neither the @pre nor the round-trip.
   if (dot(col0, cross(col1, col2)) < Real{0}) {
     return std::unexpected{geometry_error::invalid_input};
   }
 
-  // Normalized rotation columns (scale divided out).
   auto const r0{col0 / sx};
   auto const r1{col1 / sy};
   auto const r2{col2 / sz};

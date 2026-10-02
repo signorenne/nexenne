@@ -225,7 +225,7 @@ public:
   auto update(handle_type const h, bounds_type const& new_bounds) noexcept -> bool {
     assert(h < m_nodes.size() && m_nodes[h].is_leaf() && "update() requires a live leaf handle");
     if (contains_aabb(m_nodes[h].bounds, new_bounds)) {
-      return false;  // still inside the fat box: no work.
+      return false;
     }
     remove_leaf(h);
     m_nodes[h].bounds = fatten(new_bounds);
@@ -277,9 +277,6 @@ public:
   auto query(bounds_type const& region, Visitor&& visitor) const noexcept(
     std::is_nothrow_invocable_v<Visitor&, handle_type, payload_type const&>
   ) -> void {
-    // The visitor's return type must be exactly void (always continue) or bool
-    // (return false to stop early); anything else (int, a wider type) would be
-    // silently ignored, so pruning would quietly not happen. Make that loud.
     using result_type =
       decltype(visitor(std::declval<handle_type>(), std::declval<payload_type const&>()));
     static_assert(
@@ -289,11 +286,8 @@ public:
     if (m_root == null_handle) {
       return;
     }
-    // An inline stack avoids the heap for the logarithmic depth of a balanced
-    // tree; 64 holds far more than any realistic node count's depth (an
-    // AVL-balanced tree of depth 62 would need about 2^43 leaves, past the handle
-    // space), and an assert guards the impossible overflow rather than silently
-    // dropping a subtree.
+    // 64 exceeds any reachable depth: an AVL-balanced depth of 62 needs about
+    // 2^43 leaves, past the handle space.
     auto stack{std::array<handle_type, 64>{}};
     auto top{std::size_t{0}};
     stack[top++] = m_root;
@@ -345,9 +339,6 @@ public:
   auto raycast(ray_type const& r, Real max_t, Visitor&& visitor) const noexcept(
     std::is_nothrow_invocable_v<Visitor&, handle_type, payload_type const&, Real>
   ) -> void {
-    // The visitor's return type must be exactly void (leave max_t) or Real (the
-    // new working max_t); any other type (bool, a double on a float tree) would be
-    // silently ignored, so max_t pruning would quietly not happen. Make that loud.
     using result_type = decltype(visitor(
       std::declval<handle_type>(), std::declval<payload_type const&>(), std::declval<Real>()
     ));
@@ -358,8 +349,6 @@ public:
     if (m_root == null_handle) {
       return;
     }
-    // See query() for the inline-stack bound; the assert guards the impossible
-    // overflow instead of silently dropping a subtree.
     auto stack{std::array<handle_type, 64>{}};
     auto top{std::size_t{0}};
     stack[top++] = m_root;
@@ -466,7 +455,7 @@ private:
   [[nodiscard]] auto allocate_node() noexcept(nothrow_payload_v) -> handle_type {
     if (m_free_head != null_handle) {
       auto const idx{m_free_head};
-      m_free_head = m_nodes[idx].child_a;  // pop the free-list head.
+      m_free_head = m_nodes[idx].child_a;
       m_nodes[idx] = node{};
       return idx;
     }
@@ -490,10 +479,6 @@ private:
    */
   auto free_node(handle_type const idx) noexcept(nothrow_payload_v) -> void {
     m_nodes[idx].height = -1;
-    // Release the payload now, not on the slot's eventual reuse: a caller-chosen
-    // payload can own a resource (a shared_ptr, a handle), and a long-lived tree
-    // must not pin the resources of removed leaves until the slot happens to be
-    // reused.
     m_nodes[idx].payload = payload_type{};
     m_nodes[idx].child_a = m_free_head;
     m_free_head = idx;
@@ -559,9 +544,6 @@ private:
       return;
     }
 
-    // 1. Descend from the root to the best sibling: at each step compare the
-    // cost of creating the new parent here against the cost of pushing the leaf
-    // into either child, and follow the cheaper option.
     auto const leaf_bounds{m_nodes[leaf].bounds};
     auto sibling{m_root};
     while (!m_nodes[sibling].is_leaf()) {
@@ -590,8 +572,6 @@ private:
       sibling = cost_a < cost_b ? child_a : child_b;
     }
 
-    // 2. Splice a new internal parent above the chosen sibling, with the sibling
-    // and the new leaf as its two children.
     auto const old_parent{m_nodes[sibling].parent};
     auto const new_parent{allocate_node()};
     m_nodes[new_parent].parent = old_parent;
@@ -612,7 +592,6 @@ private:
     m_nodes[sibling].parent = new_parent;
     m_nodes[leaf].parent = new_parent;
 
-    // 3. Refit boxes and rebalance from the new parent up to the root.
     refit_and_rebalance(m_nodes[leaf].parent);
   }
 

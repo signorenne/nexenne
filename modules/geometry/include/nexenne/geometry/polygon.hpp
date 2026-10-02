@@ -283,7 +283,7 @@ template <std::floating_point Real>
   if (n < 3) {
     return false;
   }
-  auto sign_seen{0};  // 0 unset, +1 positive turns seen, -1 negative turns seen.
+  auto sign_seen{0};
   for (auto i{std::size_t{0}}; i < n; ++i) {
     auto const& a{poly.vertices()[i]};
     auto const& b{poly.vertices()[(i + 1) % n]};
@@ -301,7 +301,6 @@ template <std::floating_point Real>
       sign_seen = -1;
     }
   }
-  // A fully collinear loop never sets a sign: it is degenerate, not convex.
   if (sign_seen == 0) {
     return false;
   }

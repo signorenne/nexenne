@@ -317,7 +317,7 @@ intersects(segment<Real, 2> const& a, segment<Real, 2> const& b) noexcept
   auto const noise{std::numeric_limits<Real>::epsilon() * Real{16}};
   if (rxs * rxs
       <= noise * noise * nexenne::math::length_squared(r) * nexenne::math::length_squared(s)) {
-    return std::nullopt;  // parallel or collinear
+    return std::nullopt;
   }
   auto const qp{b.start() - a.start()};
   auto const t{nexenne::math::cross(qp, s) / rxs};

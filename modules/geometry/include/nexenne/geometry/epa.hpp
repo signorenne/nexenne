@@ -145,12 +145,12 @@ template <std::floating_point Real>
   }
 
   if (nexenne::math::dot(normal, a - interior) < Real{0}) {
-    normal = -normal;   // orient outward: away from the polytope interior, and
-    std::swap(ib, ic);  // keep the winding consistent so the horizon cancels.
+    // Swapping two indices keeps the winding matched to the flipped normal, so
+    // shared horizon edges still cancel.
+    normal = -normal;
+    std::swap(ib, ic);
   }
-  // Origin-to-plane distance along the outward normal, non-negative because the
-  // origin is inside the polytope (clamped against a tiny negative from rounding
-  // when the origin sits on the plane).
+  // Clamped: rounding goes slightly negative when the origin sits on the plane.
   auto const distance{nexenne::math::max(Real{0}, nexenne::math::dot(normal, a))};
   return epa_face<Real>{{ia, ib, ic}, normal, distance, degenerate};
 }
@@ -323,11 +323,7 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
 ) noexcept(nothrow_support<ShapeA, Real> && nothrow_support<ShapeB, Real>)
   -> std::vector<gjk_minkowski_point3<Real>> {
   using point_type = nexenne::math::vector<Real, 3>;
-  // Absolute distinctness and volume floor. This is calibrated for game-scale
-  // shapes (roughly 1e-2 to 1e4 units): a pair much smaller than 1e-4 units, or a
-  // contact between huge shapes whose supports differ only in their garbage
-  // digits, can shift its meaning and yield an empty seed (a spurious
-  // non-convergence). Scale the inputs into that band if this bites.
+  // Absolute floor, calibrated for shapes of 1e-2 to 1e4 units (see the epa note).
   auto const eps{static_cast<Real>(1e-12)};
 
   auto verts{std::vector<gjk_minkowski_point3<Real>>{}};
@@ -354,8 +350,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     return true;
   }};
 
-  // Grow to a second vertex: probe the world axes for a support distinct from the
-  // first (a one-vertex simplex means the shapes touch at a single point).
   if (verts.size() < 2) {
     auto const axes{std::array<point_type, 6>{
       point_type{Real{1}, Real{0}, Real{0}},
@@ -377,8 +371,7 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     }
   }
 
-  // Grow to a triangle: search perpendicular to the edge, crossing it with the
-  // least-aligned world axis so the two operands are well clear of parallel.
+  // Cross with the least-aligned world axis so the operands stay clear of parallel.
   if (verts.size() < 3) {
     auto const edge{verts[1].difference - verts[0].difference};
     auto const ax{nexenne::math::abs(edge.x())};
@@ -403,8 +396,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     verts.push_back(w);
   }
 
-  // Grow to a tetrahedron: probe both sides of the triangle along its normal and
-  // take the apex that reaches further off the plane.
   if (verts.size() < 4) {
     auto const normal{nexenne::math::cross(
       verts[1].difference - verts[0].difference, verts[2].difference - verts[0].difference
@@ -427,7 +418,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     verts.push_back(w);
   }
 
-  // Reject a flat (zero-volume) tetrahedron: EPA cannot expand a degenerate seed.
   auto const volume{nexenne::math::dot(
     verts[1].difference - verts[0].difference,
     nexenne::math::cross(
@@ -518,18 +508,13 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
 
   auto result{epa_result3<Real>{}};
   if (initial.count == 0) {
-    return result;  // no simplex to seed from.
+    return result;
   }
 
-  // The polytope starts from a seed tetrahedron grown out of the GJK simplex (a
-  // shared vertex list plus triangular faces indexing into it). A simplex that
-  // cannot grow to a non-degenerate tetrahedron leaves EPA non-converged.
   auto vertices{detail::seed_tetrahedron<Real>(a, b, initial)};
   if (vertices.size() < 4) {
     return result;
   }
-  // One fresh vertex is pushed per expansion step, so size the pool for the cap
-  // (seed_tetrahedron already reserved the seed; this covers the whole run).
   vertices.reserve(max_iterations + 4);
 
   // Centroid of the seed tetrahedron: a point strictly inside the polytope,
@@ -543,8 +528,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
 
   auto faces{std::vector<detail::epa_face<Real>>{}};
   faces.reserve(2 * max_iterations + 4);
-  // The four tetrahedron faces (one opposite each vertex); build_face orients
-  // each outward, so the winding of these seed triples does not matter.
   faces.push_back(detail::build_face<Real>(vertices, 1, 2, 3, interior));
   faces.push_back(detail::build_face<Real>(vertices, 0, 2, 3, interior));
   faces.push_back(detail::build_face<Real>(vertices, 0, 1, 3, interior));
@@ -570,8 +553,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   }};
 
   for (auto iter{std::size_t{0}}; iter < max_iterations; ++iter) {
-    // Find the face closest to the origin: its normal is the current best guess
-    // at the penetration direction.
     auto const closest{closest_face()};
     if (closest == faces.size()) {
       return result;
@@ -579,7 +560,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     auto const direction{faces[closest].normal};
     auto const closest_distance{faces[closest].distance};
 
-    // Probe the Minkowski difference along that normal.
     auto const pa{support(a, direction)};
     auto const pb{support(b, -direction)};
     auto const new_difference{pa - pb};
@@ -595,9 +575,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     // while a flat contact (box pairs), whose faces reach the surface exactly,
     // still converges at once.
     if (reach - closest_distance < tolerance * nexenne::math::max(closest_distance, epsilon)) {
-      // On convergence the closest face is on the true surface: its outward normal
-      // of A (-) B is the minimum-translation direction (out of A toward B), its
-      // origin distance the depth, and its reconstructed contacts the deepest pair.
       auto const [contact_a, contact_b]{
         detail::face_contact_points<Real>(vertices, faces[closest], closest_distance)
       };
@@ -617,10 +594,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
       }
     }
 
-    // Otherwise expand: add the new vertex and re-triangulate around it. Faces
-    // the new vertex can "see" (its position is in front of their plane) are
-    // removed; the boundary of that visible region (the horizon) is stitched to
-    // the new vertex with fresh faces.
     auto const new_index{vertices.size()};
     vertices.push_back(gjk_minkowski_point3<Real>{new_difference, pa, pb});
     scale_sq = nexenne::math::max(scale_sq, nexenne::math::length_squared(new_difference));
@@ -632,7 +605,7 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     auto horizon{std::vector<std::array<std::size_t, 2>>{}};
     auto const add_edge{[&](std::size_t const i, std::size_t const j) noexcept {
       for (auto it{horizon.begin()}; it != horizon.end(); ++it) {
-        if ((*it)[0] == j && (*it)[1] == i) {  // the reverse edge: interior, cancel.
+        if ((*it)[0] == j && (*it)[1] == i) {
           horizon.erase(it);
           return;
         }
@@ -667,15 +640,11 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     for (auto it{visible.rbegin()}; it != visible.rend(); ++it) {
       faces.erase(faces.begin() + static_cast<std::ptrdiff_t>(*it));
     }
-    // Cap the horizon to the new vertex with one face per surviving edge.
     for (auto const& edge : horizon) {
       faces.push_back(detail::build_face<Real>(vertices, new_index, edge[0], edge[1], interior));
     }
   }
 
-  // No convergence within the cap: return the best-known face as the estimate,
-  // including its reconstructed contact points (M2), so a non-converged result is
-  // still usable rather than carrying a value-initialized (origin) contact pair.
   auto const closest{closest_face()};
   if (closest == faces.size()) {
     return result;
@@ -865,7 +834,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
 
   auto result{contact_manifold3<Real>{}};
   result.normal = hit.normal;
-  // The single deepest point is always a valid fallback manifold.
   result.points[0] = (hit.contact_point_a + hit.contact_point_b) * Real{0.5};
   result.count = 1;
 
@@ -886,7 +854,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     return result;
   }
 
-  // Project both faces onto the contact plane, using the fallback point as origin.
   auto const origin{result.points[0]};
   auto const to_plane{[&](point_type const& p) noexcept -> planar {
     return planar{nexenne::math::dot(p - origin, t1), nexenne::math::dot(p - origin, t2)};
@@ -917,7 +884,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
     poly[poly_n++] = subject[i];
   }
   auto const edge_inside{[&](planar const& e0, planar const& e1, planar const& p) noexcept -> Real {
-    // Signed side of point p w.r.t. directed edge e0->e1, oriented so inside is >= 0.
     auto const s{(e1.x() - e0.x()) * (p.y() - e0.y()) - (e1.y() - e0.y()) * (p.x() - e0.x())};
     return s * inside_sign;
   }};
@@ -932,7 +898,6 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
       auto const cur_in{edge_inside(e0, e1, cur) >= Real{0}};
       auto const prv_in{edge_inside(e0, e1, prv) >= Real{0}};
       if (cur_in != prv_in) {
-        // The edge prv->cur crosses the clip line: add the intersection.
         auto const dp{edge_inside(e0, e1, prv)};
         auto const dc{edge_inside(e0, e1, cur)};
         auto const tt{dp / (dp - dc)};
@@ -949,11 +914,10 @@ template <std::floating_point Real, convex_shape<Real> ShapeA, convex_shape<Real
   }
 
   if (poly_n < 3) {
-    return result;  // degenerate overlap: keep the single point.
+    return result;
   }
 
-  // Lift the clipped polygon back onto the contact plane in world space, capping
-  // at eight points (decimating evenly if the clip produced more).
+  // Decimate evenly when the clip produced more than eight points.
   auto const out_n{poly_n <= result.points.size() ? poly_n : result.points.size()};
   result.count = out_n;
   for (auto i{std::size_t{0}}; i < out_n; ++i) {

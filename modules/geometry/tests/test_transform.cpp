@@ -38,10 +38,9 @@ TEST_CASE("transform2d: identity to_matrix is the identity") {
 TEST_CASE("transform2d: composes scale, then rotation, then translation") {
   auto t{transform2d_f::identity()};
   t.position() = vec2{10.0f, 20.0f};
-  t.rotation() = radians<float>{half_pi_v<float>};  // 90 CCW.
+  t.rotation() = radians<float>{half_pi_v<float>};
   t.scale() = vec2{2.0f, 2.0f};
 
-  // (1, 0): scale -> (2, 0), rotate 90 -> (0, 2), translate -> (10, 22).
   auto const out{transform_point(t, vec2{1.0f, 0.0f})};
   CHECK(out.x() == doctest::Approx{10.0}.epsilon(1e-6));
   CHECK(out.y() == doctest::Approx{22.0}.epsilon(1e-6));
@@ -52,7 +51,7 @@ TEST_CASE("transform2d: transform_direction skips the translation") {
   t.position() = vec2{100.0f, 200.0f};
   t.rotation() = radians<float>{half_pi_v<float>};
 
-  auto const out{transform_direction(t, vec2{1.0f, 0.0f})};  // (1,0) -> (0,1).
+  auto const out{transform_direction(t, vec2{1.0f, 0.0f})};
   CHECK(out.x() == doctest::Approx{0.0}.epsilon(1e-6));
   CHECK(out.y() == doctest::Approx{1.0}.epsilon(1e-6));
 }
@@ -67,7 +66,6 @@ TEST_CASE("transform3d: composes scale, then rotation, then translation") {
   t.rotation() = *nm::from_axis_angle(vec3{0.0f, 0.0f, 1.0f}, radians<float>{half_pi_v<float>});
   t.scale() = vec3{2.0f, 2.0f, 2.0f};
 
-  // (1,0,0): scale -> (2,0,0), rotate 90 about z -> (0,2,0), translate -> (5,2,0).
   auto const out{transform_point(t, vec3{1.0f, 0.0f, 0.0f})};
   CHECK(out.x() == doctest::Approx{5.0}.epsilon(1e-6));
   CHECK(out.y() == doctest::Approx{2.0}.epsilon(1e-6));
@@ -122,7 +120,7 @@ TEST_CASE("transform: a non-uniform scale grows a sphere by the largest factor")
   auto t{transform3d_f::identity()};
   t.scale() = vec3{2.0f, 3.0f, 1.0f};
   auto const s{transform(t, geo::sphere3_f{vec3{0, 0, 0}, 1.0f})};
-  CHECK(s.radius() == doctest::Approx{3.0});  // enclosing, conservative.
+  CHECK(s.radius() == doctest::Approx{3.0});
 }
 
 TEST_CASE("transform: an axis-aligned box transforms into an oriented box") {
@@ -134,9 +132,7 @@ TEST_CASE("transform: an axis-aligned box transforms into an oriented box") {
   geo::aabb<float, 3> const box{vec3{-1, -1, -1}, vec3{1, 1, 1}};
   auto const o{transform(t, box)};
   CHECK(o.center() == vec3{10, 0, 0});
-  CHECK(o.half_size().x() == doctest::Approx{2.0});  // half 1 * scale 2.
-  // contains_point uses the obb orientation; the transformed box still holds its
-  // own (transformed) center.
+  CHECK(o.half_size().x() == doctest::Approx{2.0});
   CHECK(contains_point(o, o.center()));
 }
 
@@ -154,7 +150,6 @@ TEST_CASE("transform: an obb composes the pose rotation onto its own") {
   t.rotation() = *nm::from_axis_angle(vec3{0, 0, 1}, radians<float>{half_pi_v<float>});
   geo::obb3_f const box{vec3{1, 0, 0}, vec3{1, 1, 1}, nm::quaternion<float>{}};
   auto const o{transform(t, box)};
-  // The box center (1,0,0) rotates 90 about z to (0,1,0).
   CHECK(o.center().x() == doctest::Approx{0.0}.epsilon(1e-6));
   CHECK(o.center().y() == doctest::Approx{1.0}.epsilon(1e-6));
 }
@@ -182,26 +177,18 @@ TEST_CASE("transform: a 2D pose transforms a circle and an aabb") {
   CHECK(o.half_size().x() == doctest::Approx{2.0});
 }
 
-TEST_CASE("transform: a non-uniform scale of a rotated obb stays enclosing (M2)") {
+TEST_CASE("transform: a non-uniform scale of a rotated obb stays enclosing") {
   using vec3d = nm::vector<double, 3>;
-  // A box rotated 90 degrees about z with UNEQUAL half extents, then a
-  // non-uniform pose scale. The old code scaled each local half by the matching
-  // world scale component, applying the scale to the wrong axes once the box is
-  // rotated, and returned a box smaller than the image (it under-covered world x).
   auto t{geo::transform3d_d::identity()};
   t.scale() = vec3d{2.0, 1.0, 1.0};
   auto const rot{*nm::from_axis_angle(vec3d{0, 0, 1}, radians<double>{nm::half_pi})};
   geo::obb3_d const box{vec3d{0, 0, 0}, vec3d{1.0, 2.0, 3.0}, rot};
   auto const o{transform(t, box)};
 
-  // The tight enclosing half-size: local x (half 1) maps to world y (scale 1),
-  // local y (half 2) maps to world x (scale 2) -> 4, local z (half 3) stays.
   CHECK(o.half_size().x() == doctest::Approx{1.0});
   CHECK(o.half_size().y() == doctest::Approx{4.0});
   CHECK(o.half_size().z() == doctest::Approx{3.0});
 
-  // Every corner of the true image (each original corner mapped by the pose) must
-  // lie inside the returned box; the old under-covering box failed this.
   auto const inside{[&](vec3d const& p) {
     auto const local{nm::rotate(nm::conjugate(o.rotation()), p - o.center())};
     auto const h{o.half_size()};
@@ -213,20 +200,20 @@ TEST_CASE("transform: a non-uniform scale of a rotated obb stays enclosing (M2)"
   }
 }
 
-TEST_CASE("transform: decompose_3 rejects a negative-scale (reflection) matrix (M3)") {
+TEST_CASE("transform: decompose_3 rejects a negative-scale (reflection) matrix") {
   auto t{transform3d_f::identity()};
   t.rotation() = *nm::from_axis_angle(vec3{0, 0, 1}, radians<float>{0.7f});
-  t.scale() = vec3{-2.0f, 1.0f, 1.0f};  // reflection: det of the linear part < 0.
+  t.scale() = vec3{-2.0f, 1.0f, 1.0f};
   auto const r{geo::decompose_3(to_matrix(t))};
   CHECK_FALSE(r.has_value());
   CHECK(r.error() == geo::geometry_error::invalid_input);
 }
 
-TEST_CASE("transform: decompose_2 rejects a negative-scale (reflection) matrix (M3)") {
+TEST_CASE("transform: decompose_2 rejects a negative-scale (reflection) matrix") {
   auto t{transform2d_f::identity()};
   t.position() = vec2{3.0f, 4.0f};
   t.rotation() = radians<float>{0.7f};
-  t.scale() = vec2{-2.0f, 1.0f};  // reflection.
+  t.scale() = vec2{-2.0f, 1.0f};
   auto const r{geo::decompose_2(to_matrix(t))};
   CHECK_FALSE(r.has_value());
   CHECK(r.error() == geo::geometry_error::invalid_input);
@@ -238,10 +225,8 @@ TEST_CASE("transform: a 2D pose transforms an obb2 (uniform scale is exact)") {
   t.scale() = vec2{3.0f, 3.0f};
   geo::obb2_f const box{vec2{1, 0}, vec2{1, 2}, radians<float>{0.0f}};
   auto const o{transform(t, box)};
-  // Uniform scale keeps the axis-aligned half exact: (1, 2) * 3 = (3, 6).
   CHECK(o.half_size().x() == doctest::Approx{3.0});
   CHECK(o.half_size().y() == doctest::Approx{6.0});
-  // Center (1, 0) scaled by 3 then rotated 90 CCW -> (0, 3).
   CHECK(o.center().x() == doctest::Approx{0.0}.epsilon(1e-5));
   CHECK(o.center().y() == doctest::Approx{3.0}.epsilon(1e-5));
 }
@@ -253,11 +238,11 @@ TEST_CASE("transform: a 3D pose transforms a segment and grows a capsule") {
 
   auto const seg{transform(t, geo::segment3_f{vec3{0, 0, 0}, vec3{1, 0, 0}})};
   CHECK(seg.start() == vec3{1, 0, 0});
-  CHECK(seg.end().x() == doctest::Approx{3.0});  // (1,0,0)*scale.x -> 2, +translate.
+  CHECK(seg.end().x() == doctest::Approx{3.0});
 
   auto const cap{transform(t, geo::capsule3_f{vec3{0, 0, 0}, vec3{1, 0, 0}, 0.5f})};
   CHECK(cap.start() == vec3{1, 0, 0});
-  CHECK(cap.radius() == doctest::Approx{1.5});  // 0.5 * max_scale(3).
+  CHECK(cap.radius() == doctest::Approx{1.5});
 }
 
 }  // namespace

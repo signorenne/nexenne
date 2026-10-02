@@ -28,8 +28,6 @@ namespace nm = nexenne::math;
 
 using vec3 = nm::vector<float, 3>;
 
-// A unit cube centered at the origin, as eight corner vertices. Owned by the
-// caller; the hull is a non-owning view over it.
 constexpr std::array<vec3, 8> unit_cube{
   vec3{-0.5f, -0.5f, -0.5f},
   vec3{0.5f, -0.5f, -0.5f},
@@ -44,14 +42,11 @@ constexpr std::array<vec3, 8> unit_cube{
 TEST_CASE("convex_hull3: support returns the furthest corner along a direction") {
   geo::convex_hull3_f const cube{std::span<vec3 const>{unit_cube}};
 
-  // Along +X the support is a corner with x == +0.5; the other components are
-  // whichever corner the scan settles on, but x must be the maximum.
   CHECK(cube.support(vec3{1, 0, 0}).x() == doctest::Approx(0.5));
   CHECK(cube.support(vec3{-1, 0, 0}).x() == doctest::Approx(-0.5));
   CHECK(cube.support(vec3{0, 1, 0}).y() == doctest::Approx(0.5));
   CHECK(cube.support(vec3{0, 0, -1}).z() == doctest::Approx(-0.5));
 
-  // A diagonal direction selects the single corner extreme on every axis.
   auto const corner{cube.support(vec3{1, 1, 1})};
   CHECK(corner.x() == doctest::Approx(0.5));
   CHECK(corner.y() == doctest::Approx(0.5));
@@ -81,8 +76,6 @@ TEST_CASE("convex_hull3: bounding_aabb tightly wraps the vertices") {
 }
 
 TEST_CASE("convex_hull3: support and bounding_aabb are constexpr") {
-  // The whole surface is usable in constant evaluation: view a constexpr vertex
-  // array, query the support point, and bound the vertices, all at compile time.
   constexpr auto checks{[] {
     geo::convex_hull3_f const cube{std::span<vec3 const>{unit_cube}};
     auto const s{cube.support(vec3{1, 1, 1})};
@@ -94,7 +87,6 @@ TEST_CASE("convex_hull3: support and bounding_aabb are constexpr") {
   CHECK(checks);
 }
 
-// Eight corner vertices of an axis-aligned cube centered at c with half-extent h.
 constexpr auto cube_vertices(vec3 const c, float const h) -> std::array<vec3, 8> {
   return {
     c + vec3{-h, -h, -h},
@@ -121,13 +113,12 @@ TEST_CASE("gjk: a clearly separated diagonal pair does not overlap") {
   auto const vb{cube_vertices(vec3{2, 2, 2}, 0.5f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
   geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
-  // Seed with a deliberately unhelpful direction; GJK must still separate them.
   CHECK_FALSE(geo::gjk(a, b, vec3{1, 0, 0}).overlap);
 }
 
 TEST_CASE("gjk: touching cubes report overlap") {
   auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
-  auto const vb{cube_vertices(vec3{1, 0, 0}, 0.5f)};  // faces meet at x == 0.5
+  auto const vb{cube_vertices(vec3{1, 0, 0}, 0.5f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
   geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
   CHECK(geo::gjk(a, b, vec3{1, 0, 0}).overlap);
@@ -135,25 +126,21 @@ TEST_CASE("gjk: touching cubes report overlap") {
 
 TEST_CASE("gjk: overlapping cubes report overlap and a usable terminal simplex") {
   auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
-  auto const vb{cube_vertices(vec3{0.5f, 0, 0}, 0.5f)};  // half overlap on x
+  auto const vb{cube_vertices(vec3{0.5f, 0, 0}, 0.5f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
   geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
   auto const r{geo::gjk(a, b, vec3{1, 0, 0})};
   CHECK(r.overlap);
-  // The signed-volumes GJK reports overlap with whatever simplex carries the
-  // origin (the origin can lie on an edge or face), which EPA grows to a
-  // tetrahedron; the terminal simplex just has to be a valid carrier.
   CHECK(r.simplex.count >= 1);
   CHECK(r.simplex.count <= 4);
   CHECK(r.iterations >= 1);
-  // The seed must still be expandable into a converged EPA result.
   auto const e{geo::epa(a, b, r.simplex)};
   CHECK(e.converged);
 }
 
 TEST_CASE("gjk: deep concentric overlap is found regardless of seed direction") {
   auto const va{cube_vertices(vec3{0, 0, 0}, 1.0f)};
-  auto const vb{cube_vertices(vec3{0, 0, 0}, 0.25f)};  // b sits well inside a
+  auto const vb{cube_vertices(vec3{0, 0, 0}, 0.25f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
   geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
   CHECK(geo::gjk(a, b, vec3{0, 1, 0}).overlap);
@@ -165,7 +152,7 @@ TEST_CASE("gjk: Real is deduced from the direction (no explicit template arg)") 
   auto const vb{cube_vertices(vec3{0.5f, 0, 0}, 0.5f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
   geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
-  auto const r{geo::gjk(a, b, vec3{1, 0, 0})};  // deduces Real = float
+  auto const r{geo::gjk(a, b, vec3{1, 0, 0})};
   CHECK(r.overlap);
 }
 
@@ -191,12 +178,6 @@ TEST_CASE("gjk: the overlap verdict is constexpr") {
 }
 
 TEST_CASE("gjk: differential against exact box overlap over random placements") {
-  // Two equal axis-aligned cubes overlap exactly when their centers are within
-  // 2h on every axis (interval intersection per axis). That analytic verdict is
-  // the ground truth GJK must reproduce. We skip a thin band around the exact
-  // boundary, where a touching contact is floating-point ambiguous, and check
-  // every unambiguous case. Hundreds of random placements exercise the simplex
-  // line/triangle/tetrahedron reductions far past the handful of fixed cases.
   std::mt19937 rng{0xC0FFEEu};
   std::uniform_real_distribution<float> coord{-3.0f, 3.0f};
   auto const h{0.5f};
@@ -210,7 +191,7 @@ TEST_CASE("gjk: differential against exact box overlap over random placements") 
       - 2.0f * h
     };
     if (std::abs(gap) < margin) {
-      continue;  // too close to the exact touching boundary to classify
+      continue;
     }
     auto const va{cube_vertices(ca, h)};
     auto const vb{cube_vertices(cb, h)};
@@ -224,12 +205,10 @@ TEST_CASE("gjk: differential against exact box overlap over random placements") 
     CHECK(geo::gjk(a, b, seed).overlap == expected_overlap);
     ++checked;
   }
-  CHECK(checked > 600);  // the skip band should never swallow most of the trials
+  CHECK(checked > 600);
 }
 
 TEST_CASE("epa: penetration depth and a unit normal on an axis-aligned overlap") {
-  // Cubes of size 1 (half 0.5) centered at -0.25 and +0.25 overlap by 0.5 on x
-  // and fully on y and z, so the minimum separation is 0.5 along x.
   auto const va{cube_vertices(vec3{-0.25f, 0, 0}, 0.5f)};
   auto const vb{cube_vertices(vec3{0.25f, 0, 0}, 0.5f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
@@ -239,15 +218,13 @@ TEST_CASE("epa: penetration depth and a unit normal on an axis-aligned overlap")
   auto const e{geo::epa(a, b, g.simplex)};
   REQUIRE(e.converged);
   CHECK(e.penetration_depth == doctest::Approx(0.5).epsilon(0.05));
-  CHECK(std::abs(e.normal.x()) > 0.9f);  // separation runs along x
+  CHECK(std::abs(e.normal.x()) > 0.9f);
   CHECK(std::abs(e.normal.y()) < 0.1f);
   CHECK(std::abs(e.normal.z()) < 0.1f);
-  CHECK(nm::length(e.normal) == doctest::Approx(1.0));  // normal is unit length
+  CHECK(nm::length(e.normal) == doctest::Approx(1.0));
 }
 
 TEST_CASE("epa: moving B out by depth*normal separates the shapes") {
-  // A convention-independent check of normal AND depth AND sign together:
-  // translating B along the penetration vector must end the overlap.
   auto const va{cube_vertices(vec3{-0.25f, 0, 0}, 0.5f)};
   auto const vb{cube_vertices(vec3{0.25f, 0, 0}, 0.5f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
@@ -267,7 +244,6 @@ TEST_CASE("epa: moving B out by depth*normal separates the shapes") {
 }
 
 TEST_CASE("epa: depth tracks the overlap amount across offsets") {
-  // Equal cubes (size 1) offset along x by off overlap by 1 - off on x.
   for (auto const off : {0.2f, 0.4f, 0.6f, 0.8f}) {
     auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
     auto const vb{cube_vertices(vec3{off, 0, 0}, 0.5f)};
@@ -282,38 +258,27 @@ TEST_CASE("epa: depth tracks the overlap amount across offsets") {
 }
 
 TEST_CASE("epa: the normal is the B push-out direction (out of A toward B)") {
-  // Convention lock: with A at the origin and B to its +x, the normal must point
-  // along +x, so B + depth*normal moves B away from A. Guards the documented
-  // direction against a silent sign flip.
   auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
-  auto const vb{cube_vertices(vec3{0.6f, 0, 0}, 0.5f)};  // B is to the +x of A
+  auto const vb{cube_vertices(vec3{0.6f, 0, 0}, 0.5f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
   geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
   auto const g{geo::gjk(a, b, vec3{1, 0, 0})};
   REQUIRE(g.overlap);
   auto const e{geo::epa(a, b, g.simplex)};
   REQUIRE(e.converged);
-  CHECK(e.normal.x() == doctest::Approx(1.0).epsilon(1e-3));  // points A -> B (+x).
+  CHECK(e.normal.x() == doctest::Approx(1.0).epsilon(1e-3));
 }
 
 TEST_CASE("epa: a degenerate seed simplex does not converge") {
-  // A lower-dimensional simplex is normally grown to a tetrahedron, but a
-  // degenerate one (here two coincident origin vertices) cannot be expanded, so
-  // EPA reports non-convergence rather than inventing a result.
   auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
   geo::gjk_simplex3<float> partial{};
-  partial.count = 2;  // two coincident default (zero) vertices: not expandable.
+  partial.count = 2;
   auto const e{geo::epa(a, a, partial)};
   CHECK_FALSE(e.converged);
 }
 
 TEST_CASE("epa: differential against exact box penetration over random overlaps") {
-  // For two equal axis-aligned cubes (size 1) the per-axis overlap is 1 - |off|,
-  // and the true penetration is the smallest of the three (the minimum
-  // translation axis). EPA must reproduce that depth, and translating B out
-  // along its result must separate the pair. We skip near-ties where two axes
-  // share the minimum, since the penetration axis is then ambiguous.
   std::mt19937 rng{0x5EEDu};
   std::uniform_real_distribution<float> off{-0.9f, 0.9f};
   auto checked{0};
@@ -325,7 +290,7 @@ TEST_CASE("epa: differential against exact box penetration over random overlaps"
     auto sorted{overlap};
     std::sort(sorted.begin(), sorted.end());
     if (sorted[1] - sorted[0] < 0.05f) {
-      continue;  // two axes tie for the minimum: ambiguous penetration axis
+      continue;
     }
     auto const expected_depth{sorted[0]};
 
@@ -342,7 +307,6 @@ TEST_CASE("epa: differential against exact box penetration over random overlaps"
     );
     CHECK(nm::length(e.normal) == doctest::Approx(1.0).epsilon(0.01));
 
-    // Joint check: pushing B out by the penetration vector ends the overlap.
     auto vb_moved{vb};
     auto const push{e.normal * (e.penetration_depth + 0.02f)};
     for (auto& v : vb_moved) {
@@ -356,14 +320,11 @@ TEST_CASE("epa: differential against exact box penetration over random overlaps"
 }
 
 TEST_CASE("gjk: separation distance of two spheres matches the analytic value") {
-  // Spheres need support overloads; the signed-volumes GJK reports the distance
-  // and the closest point on each surface for a separated pair.
   geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
   geo::sphere3_f const b{vec3{5, 0, 0}, 2.0f};
   auto const r{geo::gjk<float>(a, b, vec3{1, 0, 0})};
   CHECK_FALSE(r.overlap);
-  CHECK(r.distance == doctest::Approx(5.0 - 1.0 - 2.0).epsilon(1e-4));  // |c| - rA - rB.
-  // Closest points lie on each surface, on the line of centers.
+  CHECK(r.distance == doctest::Approx(5.0 - 1.0 - 2.0).epsilon(1e-4));
   CHECK(r.closest_a.x() == doctest::Approx(1.0).epsilon(1e-3));
   CHECK(r.closest_b.x() == doctest::Approx(3.0).epsilon(1e-3));
   CHECK(
@@ -373,13 +334,13 @@ TEST_CASE("gjk: separation distance of two spheres matches the analytic value") 
 }
 
 TEST_CASE("gjk: separation distance of two boxes matches the axis gap") {
-  auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};  // x in [-0.5, 0.5]
-  auto const vb{cube_vertices(vec3{3, 0, 0}, 0.5f)};  // x in [2.5, 3.5]
+  auto const va{cube_vertices(vec3{0, 0, 0}, 0.5f)};
+  auto const vb{cube_vertices(vec3{3, 0, 0}, 0.5f)};
   geo::convex_hull3_f const a{std::span<vec3 const>{va}};
   geo::convex_hull3_f const b{std::span<vec3 const>{vb}};
   auto const r{geo::gjk(a, b, vec3{1, 0, 0})};
   CHECK_FALSE(r.overlap);
-  CHECK(r.distance == doctest::Approx(2.0).epsilon(1e-4));  // gap between 0.5 and 2.5.
+  CHECK(r.distance == doctest::Approx(2.0).epsilon(1e-4));
 }
 
 TEST_CASE("gjk: distance is found regardless of the seed direction") {
@@ -388,61 +349,43 @@ TEST_CASE("gjk: distance is found regardless of the seed direction") {
   for (auto const& seed : {vec3{1, 0, 0}, vec3{0, 1, 0}, vec3{-1, -1, -1}, vec3{0, 0, 1}}) {
     auto const r{geo::gjk<float>(a, b, seed)};
     CHECK_FALSE(r.overlap);
-    CHECK(r.distance == doctest::Approx(2.0).epsilon(1e-3));  // 4 - 1 - 1.
+    CHECK(r.distance == doctest::Approx(2.0).epsilon(1e-3));
   }
 }
 
 TEST_CASE("epa: two overlapping unit spheres converge with the default parameters") {
-  // C1 reproduction. The Minkowski difference of two unit spheres is a sphere, so
-  // every polytope face sits a curvature gap inside the true surface: an absolute
-  // convergence floor never closes it at the cap, silently dropping the contact.
-  // With a relative floor and the raised cap, EPA converges on the analytic depth
-  // (radius sum 2 minus the 0.3 center gap = 1.7). Fails before the fix
-  // (converged == false), passes after.
-  geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
-  geo::sphere3_f const b{vec3{0.3f, 0, 0}, 1.0f};  // centers 0.3 apart, deep overlap
-  auto const g{geo::gjk<float>(a, b, vec3{1, 0, 0})};
-  REQUIRE(g.overlap);
-  auto const e{geo::epa<float>(a, b, g.simplex)};  // DEFAULT max_iterations / tolerance
-  CHECK(e.converged);
-  CHECK(e.penetration_depth == doctest::Approx(1.7).epsilon(0.02));  // 2 - 0.3.
-  CHECK(nm::length(e.normal) == doctest::Approx(1.0).epsilon(1e-3));
-  CHECK(e.normal.x() > 0.9f);  // separation runs out of A toward B along +x.
-}
-
-TEST_CASE("epa: a non-converged result still reports the best face's contact points") {
-  // M2 reproduction. Force non-convergence with a tiny cap on the smooth sphere
-  // pair; the result must still carry the reconstructed contact points on each
-  // surface, not the value-initialized origin. Before the fix both contacts are
-  // (0, 0, 0); after, they lie out on the shapes.
   geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
   geo::sphere3_f const b{vec3{0.3f, 0, 0}, 1.0f};
   auto const g{geo::gjk<float>(a, b, vec3{1, 0, 0})};
   REQUIRE(g.overlap);
-  auto const e{geo::epa<float>(a, b, g.simplex, 4)};  // cap too small to converge
+  auto const e{geo::epa<float>(a, b, g.simplex)};
+  CHECK(e.converged);
+  CHECK(e.penetration_depth == doctest::Approx(1.7).epsilon(0.02));
+  CHECK(nm::length(e.normal) == doctest::Approx(1.0).epsilon(1e-3));
+  CHECK(e.normal.x() > 0.9f);
+}
+
+TEST_CASE("epa: a non-converged result still reports the best face's contact points") {
+  geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
+  geo::sphere3_f const b{vec3{0.3f, 0, 0}, 1.0f};
+  auto const g{geo::gjk<float>(a, b, vec3{1, 0, 0})};
+  REQUIRE(g.overlap);
+  auto const e{geo::epa<float>(a, b, g.simplex, 4)};
   REQUIRE_FALSE(e.converged);
-  CHECK(nm::length(e.contact_point_a) > 0.1f);  // not the zeroed origin.
+  CHECK(nm::length(e.contact_point_a) > 0.1f);
   CHECK(nm::length(e.contact_point_b) > 0.1f);
 }
 
 TEST_CASE("gjk: a too-small iteration cap does not misreport separated shapes as overlapping") {
-  // M1 reproduction. On cap exhaustion the verdict must not default to overlap:
-  // it comes from whether the terminal simplex actually encloses the origin. Two
-  // clearly-separated spheres (gap 0.5) with a one-iteration cap and an unhelpful
-  // seed reported overlap before the fix; now they report separated.
   geo::sphere3_f const a{vec3{0, 0, 0}, 1.0f};
-  geo::sphere3_f const b{vec3{2.5f, 0, 0}, 1.0f};                // gap of 0.5 between the surfaces
-  CHECK_FALSE(geo::gjk<float>(a, b, vec3{0, 1, 0}, 1).overlap);  // tiny cap, bad seed
-  // A comfortable cap agrees (and reports the analytic distance).
+  geo::sphere3_f const b{vec3{2.5f, 0, 0}, 1.0f};
+  CHECK_FALSE(geo::gjk<float>(a, b, vec3{0, 1, 0}, 1).overlap);
   auto const r{geo::gjk<float>(a, b, vec3{0, 1, 0})};
   CHECK_FALSE(r.overlap);
   CHECK(r.distance == doctest::Approx(0.5).epsilon(1e-3));
 }
 
-TEST_CASE("gjk: off-axis overlapping spheres report overlap (geometry-01)") {
-  // The closest point reaches the origin only to rounding, so the search
-  // direction is noise; the old loop ran its separating-axis test on it and
-  // reported these unit spheres, 0.5 deep, as apart at a distance of 4e-16.
+TEST_CASE("gjk: off-axis overlapping spheres report overlap") {
   geo::sphere3_d const a{nm::vector<double, 3>{0, 0, 0}, 1.0};
   geo::sphere3_d const b{nm::vector<double, 3>{1.5, 0.1, 0}, 1.0};
   auto const r{geo::gjk(a, b, b.center() - a.center())};
@@ -480,8 +423,7 @@ auto gjk_sphere_misclassified(Real const scale) -> int {
   return wrong;
 }
 
-TEST_CASE("gjk: random sphere pairs are classified right in float and double (geometry-01)") {
-  // About 6% of these pairs (41% of the overlapping ones) were reported apart.
+TEST_CASE("gjk: random sphere pairs are classified right in float and double") {
   for (auto const scale : {1e-2, 1.0, 1e4}) {
     CAPTURE(scale);
     CHECK(gjk_sphere_misclassified<double>(scale) == 0);
@@ -489,12 +431,7 @@ TEST_CASE("gjk: random sphere pairs are classified right in float and double (ge
   }
 }
 
-TEST_CASE("epa: a thin seed through the origin returns quickly with a sane result (geometry-02)") {
-  // Two overlapping float spheres (true depth about 109.5) and the tetrahedron
-  // the earlier gjk handed over for them: all four vertices lie near the line
-  // of centers, so the seed's faces pass through the origin. The same support
-  // was re-added every step and the face count grew about 1.3 times per step:
-  // 13 ms at a cap of 32, and the default cap of 64 did not return in 100 s.
+TEST_CASE("epa: a thin seed through the origin returns quickly with a sane result") {
   geo::sphere3_f const a{vec3{0x1.56b274p+5f, 0x1.0058a8p+1f, 0x1.cc2f3p+2f}, 0x1.9dfc72p+5f};
   geo::sphere3_f const b{vec3{0x1.8421bep+5f, 0x1.c6b442p+0f, 0x1.467bfp+4f}, 0x1.20a176p+6f};
   auto const vertex{[](vec3 const& on_a, vec3 const& on_b) {

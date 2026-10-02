@@ -51,8 +51,6 @@ namespace nm = nexenne::math;
 using vec3 = nm::vector3_f;
 
 auto main() -> int {
-  // 1. Place objects. A unit box authored at the origin is moved into world space
-  // by a pose; because the pose rotates it, the world shape is an oriented box.
   std::println("== 1. Place objects ==");
   auto pose{geo::transform3d_f::identity()};
   pose.position() = vec3{2, 0, 0};
@@ -65,8 +63,6 @@ auto main() -> int {
   std::println("  ball     = {}", ball);
   std::println("  far_ball = {}", far_ball);
 
-  // 2. Broad phase. Index every object's world bounding box in the tree, keyed by
-  // a small id, then ask which boxes a region overlaps and which a ray hits.
   std::println("\n== 2. Broad phase (aabb_tree) ==");
   geo::aabb_tree<std::uint32_t, 3, float> world{0.1f};
   world.insert(bounding_aabb(crate), 0u);
@@ -86,7 +82,6 @@ auto main() -> int {
   });
   std::println("");
 
-  // 3. Cull. A camera looking down -z keeps only the objects inside its frustum.
   std::println("\n== 3. Frustum culling ==");
   auto const view{*nm::look_at(vec3{0, 0, 8}, vec3{0, 0, 0}, vec3{0, 1, 0})};
   auto const proj{nm::perspective(nm::radians<float>{1.0f}, 1.0f, 0.1f, 50.0f)};
@@ -95,10 +90,6 @@ auto main() -> int {
     std::println("  {} visible: {}", name, intersects(camera, sphere));
   }
 
-  // 4. Narrow phase. The broad phase flagged crate and ball as a candidate pair;
-  // confirm the overlap with GJK, then recover the push-out with EPA and the
-  // contact manifold. Both run on the analytic primitives directly through their
-  // support mappings.
   std::println("\n== 4. Narrow phase (GJK + EPA) ==");
   auto const hit{geo::gjk<float>(ball, crate, crate.center() - ball.center())};
   std::println("  ball vs crate overlap: {}", hit.overlap);
@@ -111,8 +102,6 @@ auto main() -> int {
     std::println("  manifold points: {}", manifold.count);
   }
 
-  // 5. Distance. For a separated pair GJK reports the gap and the nearest point on
-  // each shape, not just a yes/no.
   std::println("\n== 5. Distance (GJK) ==");
   auto const gap{geo::gjk<float>(ball, far_ball, far_ball.center() - ball.center())};
   std::println("  ball vs far_ball overlap: {}", gap.overlap);
@@ -120,7 +109,6 @@ auto main() -> int {
   std::println("  nearest on ball:     {}", gap.closest_a);
   std::println("  nearest on far_ball: {}", gap.closest_b);
 
-  // 6. Ray hit. A ray cast returns the hit point and the surface normal there.
   std::println("\n== 6. Ray hit point and normal ==");
   auto const beam{geo::ray3_f{vec3{-5, 0, 0}, vec3{1, 0, 0}}};
   if (auto const rh{raycast(beam, crate)}) {

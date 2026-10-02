@@ -240,7 +240,6 @@ contains_point(obb2<Real> const& box, nexenne::math::vector<Real, 2> const& p) n
   auto const c{std::cos(box.rotation().value())};
   auto const s{std::sin(box.rotation().value())};
   auto const offset{p - box.center()};
-  // Rotate the offset by -rotation to bring it into the box's local frame.
   auto const lx{c * offset.x() + s * offset.y()};
   auto const ly{-s * offset.x() + c * offset.y()};
   return nexenne::math::abs(lx) <= box.half_size().x()
@@ -272,12 +271,10 @@ closest_point(obb2<Real> const& box, nexenne::math::vector<Real, 2> const& p) no
   auto const c{std::cos(box.rotation().value())};
   auto const s{std::sin(box.rotation().value())};
   auto const offset{p - box.center()};
-  // Rotate the offset by -rotation into the box's local frame.
   auto const lx{c * offset.x() + s * offset.y()};
   auto const ly{-s * offset.x() + c * offset.y()};
   auto const clx{nexenne::math::clamp(lx, -box.half_size().x(), box.half_size().x())};
   auto const cly{nexenne::math::clamp(ly, -box.half_size().y(), box.half_size().y())};
-  // Rotate the clamped local point back by +rotation into world space.
   return box.center() + nexenne::math::vector<Real, 2>{c * clx - s * cly, s * clx + c * cly};
 }
 

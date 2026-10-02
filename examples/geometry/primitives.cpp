@@ -43,15 +43,12 @@ using vec2 = nm::vector2_d;
 using vec3 = nm::vector3_d;
 
 auto main() -> int {
-  // 1. segment: the closest point on a finite segment clamps to its endpoints.
   std::println("== 1. segment ==");
   geo::segment3_d const spine{vec3{0, 0, 0}, vec3{4, 0, 0}};
   std::println("  segment      = {}", spine);
   std::println("  length       = {:.3f}", geo::length(spine));
   std::println("  closest to (2,3,0) = {}", geo::closest_point(spine, vec3{2, 3, 0}));
 
-  // 2. plane3: signed distance is positive on the normal's side; closest_point is
-  // the orthogonal projection onto the plane.
   std::println("\n== 2. plane3 ==");
   auto const ground{geo::plane_from_point_normal(vec3{0, 0, 0}, vec3{0, 0, 1})};
   if (ground) {
@@ -60,7 +57,6 @@ auto main() -> int {
     std::println("  projection of (4,1,7)  = {}", geo::closest_point(*ground, vec3{4, 1, 7}));
   }
 
-  // 3. triangle: area, centroid, and the winding-independent 2D containment test.
   std::println("\n== 3. triangle ==");
   geo::triangle2_d const tri{vec2{0, 0}, vec2{4, 0}, vec2{0, 3}};
   std::println("  triangle     = {}", tri);
@@ -68,22 +64,18 @@ auto main() -> int {
   std::println("  centroid     = {}", geo::centroid(tri));
   std::println("  contains (1,1): {}", geo::contains_point(tri, vec2{1, 1}));
 
-  // 4. circle2: the 2D disc, area and containment.
   std::println("\n== 4. circle2 ==");
   geo::circle2_d const disc{vec2{0, 0}, 2.0};
   std::println("  circle       = {}", disc);
   std::println("  area         = {:.3f}", geo::area(disc));
   std::println("  contains (1,1): {}", geo::contains_point(disc, vec2{1, 1}));
 
-  // 5. capsule: a segment swept by a radius; volume is the cylinder plus caps.
   std::println("\n== 5. capsule ==");
   geo::capsule3_d const pill{vec3{0, 0, 0}, vec3{0, 0, 4}, 1.0};
   std::println("  capsule      = {}", pill);
   std::println("  volume       = {:.3f}", geo::volume(pill));
   std::println("  contains (0.5,0,2): {}", geo::contains_point(pill, vec3{0.5, 0, 2}));
 
-  // 6. polygon2: a non-owning view over caller-owned vertices; shoelace area,
-  // area-weighted centroid, and the crossing-number containment test.
   std::println("\n== 6. polygon2 ==");
   std::array const square{vec2{0, 0}, vec2{4, 0}, vec2{4, 4}, vec2{0, 4}};
   geo::polygon2_d const poly{square};
@@ -92,13 +84,11 @@ auto main() -> int {
   std::println("  centroid     = {}", geo::centroid(poly));
   std::println("  contains (2,2): {}", geo::contains_point(poly, vec2{2, 2}));
 
-  // 7. hash: any concrete shape is a ready-made unordered-container key.
   std::println("\n== 7. hash ==");
   auto labels{std::unordered_map<geo::circle2_d, char const*>{}};
   labels[disc] = "origin disc";
   std::println("  map lookup   = {}", labels.at(geo::circle2_d{vec2{0, 0}, 2.0}));
 
-  // 8. decompose: recover a pose (position, angle, scale) from its 3x3 matrix.
   std::println("\n== 8. decompose ==");
   auto pose{geo::transform2d_d::identity()};
   pose.position() = vec2{5, 7};
