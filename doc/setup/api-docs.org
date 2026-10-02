@@ -45,9 +45,10 @@ Doxygen documentation /errors/: a =@param= that does not match the signature, a
 =@return= on a =void= function, a broken reference. =WARN_IF_UNDOCUMENTED= and
 =WARN_NO_PARAMDOC= are on. The [[file:ci.org][CI]] =docs= job runs this gate.
 
-It does /not/ guarantee completeness: with =EXTRACT_ALL = NO=, Doxygen simply
-omits an undocumented symbol rather than failing. "Every public symbol has a
-Doxygen block" is therefore a review-checklist item, not an automated gate.
+It also enforces completeness. =HIDE_UNDOC_MEMBERS= and =HIDE_UNDOC_CLASSES= are
+off, so an undocumented public class, member, alias or function is listed and
+reported, and the build fails on it. Internals stay out of the reference by
+sitting inside =/// @cond INTERNAL= ... =/// @endcond=, not by going undocumented.
 
 * The block
 
